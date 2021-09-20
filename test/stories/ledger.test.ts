@@ -13,10 +13,17 @@ import {
   PLATFORM_TIP_TRANSACTION_PROPERTIES,
   SETTLEMENT_EXPENSE_PROPERTIES,
 } from '../../server/constants/transactions';
-import { payExpense } from '../../server/graphql/common/expenses';
+import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import models from '../../server/models';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser } from '../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeHost,
+  fakeOrder,
+  fakePayoutMethod,
+  fakeUser,
+} from '../test-helpers/fake-data';
 import { nockFixerRates, resetTestDB, snapshotLedger } from '../utils';
 
 const SNAPSHOT_COLUMNS = [
@@ -240,6 +247,35 @@ describe('test/stories/ledger', () => {
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
+    });
+
+    it('6. Expense with Payment Processor fees marked as unpaid', async () => {
+      await collective.update({ hostFeePercent: 0 });
+      const order = await fakeOrder({ ...baseOrderData, totalAmount: 150000 });
+      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await executeOrder(contributorUser, order);
+
+      const expense = await fakeExpense({
+        description: `Invoice #1`,
+        amount: 100000,
+        currency: host.currency,
+        FromCollectiveId: contributorUser.CollectiveId,
+        CollectiveId: collective.id,
+        legacyPayoutMethod: 'manual',
+        status: 'APPROVED',
+      });
+
+      await payExpense({ remoteUser: hostAdmin } as any, {
+        id: expense.id,
+        forceManual: true,
+        paymentProcessorFeeInCollectiveCurrency: 500,
+      });
+      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+
+      expect(await collective.getBalance()).to.eq(150000 + 500);
+      expect(await host.getTotalMoneyManaged()).to.eq(150000);
+      expect(await host.getBalance()).to.eq(-500);
     });
   });
 
