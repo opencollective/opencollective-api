@@ -5,6 +5,8 @@ export enum TransactionKind {
   BALANCE_TRANSFER = 'BALANCE_TRANSFER',
   /** Transactions coming from the "Contribution Flow" */
   CONTRIBUTION = 'CONTRIBUTION',
+  /** Contribution owed to the oposite Fiscal Host */
+  CONTRIBUTION_DEBT = 'CONTRIBUTION_DEBT',
   /** Transactions coming from the "Expense Flow" */
   EXPENSE = 'EXPENSE',
   /** The host fee going to the Host */
