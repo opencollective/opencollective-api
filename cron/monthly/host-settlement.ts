@@ -198,7 +198,7 @@ AND ts."status" != 'SETTLED'`,
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
-      const csvUrl = await getTransactionsCsvUrl('transactions', host, {
+      const csvUrl = getTransactionsCsvUrl('transactions', host, {
         startDate,
         endDate,
         kind: [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT],

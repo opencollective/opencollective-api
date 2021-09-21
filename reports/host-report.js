@@ -6,7 +6,7 @@ import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
 import { generateHostFeeAmountForTransactionLoader } from '../server/graphql/loaders/transactions';
-import { getHostTransactionsCsv } from '../server/lib/csv';
+import { getHostTransactionsCsvAsAdmin } from '../server/lib/csv';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
@@ -387,7 +387,7 @@ async function HostReport(year, month, hostId) {
         content: csv,
       });
 
-      const csv2 = await getHostTransactionsCsv(host, { startDate, endDate });
+      const csv2 = await getHostTransactionsCsvAsAdmin(host, { startDate, endDate });
       if (csv2) {
         attachments.push({
           filename: `${host.slug}-${csvFilename}-v2`,
