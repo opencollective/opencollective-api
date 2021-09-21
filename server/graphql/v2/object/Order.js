@@ -216,6 +216,18 @@ export const Order = new GraphQLObjectType({
           return pick(order.data, ['customData.pledgeCurrency', 'customData.pledgeAmount']);
         },
       },
+      customData: {
+        type: GraphQLJSON,
+        description:
+          'Custom data related to the order, based on the fields described by tier.customFields. Must be authenticated as an admin of the fromAccount or toAccount (returns null otherwise)',
+        resolve(order, _, { remoteUser }) {
+          if (!remoteUser || !(remoteUser.isAdmin(order.CollectiveId) || remoteUser.isAdmin(order.FromCollectiveId))) {
+            return null;
+          } else {
+            return order.data?.customData || {};
+          }
+        },
+      },
     };
   },
 });
