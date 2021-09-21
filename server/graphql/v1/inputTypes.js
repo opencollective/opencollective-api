@@ -308,7 +308,7 @@ export const TierInputType = new GraphQLInputObjectType({
 export const GuestInfoInput = new GraphQLInputObjectType({
   name: 'GuestInfoInput',
   description: 'Input type for guest contributions',
-  fields: {
+  fields: () => ({
     email: {
       type: GraphQLString,
       description: "Contributor's email",
@@ -325,7 +325,7 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       type: CaptchaInput,
       description: 'Captcha validation for creating an order',
     },
-  },
+  }),
 });
 
 export const OrderInputType = new GraphQLInputObjectType({

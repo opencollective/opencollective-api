@@ -235,10 +235,16 @@ const TransactionFields = () => {
         if (transaction && transaction.getCreatedByUser) {
           const collective = await transaction.getCollective();
           const fromCollective = await transaction.getFromCollective();
-          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective))) {
+          if (
+            fromCollective.isIncognito &&
+            (!req.remoteUser || !req.remoteUser.isAdminOfCollectiveOrHost(collective))
+          ) {
             return {};
           }
-          if (collective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromCollective))) {
+          if (
+            collective.isIncognito &&
+            (!req.remoteUser || !req.remoteUser.isAdminOfCollectiveOrHost(fromCollective))
+          ) {
             return {};
           }
           return transaction.getCreatedByUser();

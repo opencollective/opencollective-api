@@ -19,30 +19,31 @@ export const Individual = new GraphQLObjectType({
       firstName: {
         type: GraphQLString,
         deprecationReason: '2020-10-12: Use the name field',
-        resolve(userCollective, args, req) {
-          return (
-            userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.firstName)
-          );
+        resolve() {
+          return null;
         },
       },
       lastName: {
         type: GraphQLString,
         deprecationReason: '2020-10-12: Use the name field',
-        resolve(userCollective, args, req) {
-          return (
-            userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.lastName)
-          );
+        resolve() {
+          return null;
         },
       },
       email: {
         type: GraphQLString,
-        resolve(userCollective, args, req) {
+        async resolve(userCollective, args, req) {
           if (!req.remoteUser) {
             return null;
+          } else {
+            const user = await (userCollective.isIncognito
+              ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
+              : req.loaders.User.byCollectiveId.load(userCollective.id));
+
+            if (user && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+              return user.email;
+            }
           }
-          return (
-            userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(user => user.email)
-          );
         },
       },
       isGuest: {
