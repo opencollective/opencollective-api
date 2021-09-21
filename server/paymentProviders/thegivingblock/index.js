@@ -179,7 +179,6 @@ export const confirmOrder = async order => {
     amountInHostCurrency,
     hostFeeInHostCurrency,
     taxAmount: order.taxAmount,
-    description: order.description,
     paymentProcessorFeeInHostCurrency,
     data: {
       isFeesOnTop: false,

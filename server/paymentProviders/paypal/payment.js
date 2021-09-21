@@ -1,6 +1,5 @@
 import { get, truncate } from 'lodash';
 
-import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -92,7 +91,6 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
     amount,
     currency,
@@ -102,7 +100,6 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
     hostFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
-    description: order.description,
     data: {
       ...payload,
       isFeesOnTop: order.data?.isFeesOnTop,

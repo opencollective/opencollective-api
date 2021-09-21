@@ -75,7 +75,6 @@ paymentMethodProvider.processOrder = async order => {
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    type: TransactionTypes.CREDIT,
     kind: order.data?.isBalanceTransfer ? TransactionKind.BALANCE_TRANSFER : TransactionKind.CONTRIBUTION,
     OrderId: order.id,
     amount,
@@ -85,7 +84,6 @@ paymentMethodProvider.processOrder = async order => {
     amountInHostCurrency,
     hostFeeInHostCurrency,
     taxAmount: order.taxAmount,
-    description: order.description,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: !!platformTip,

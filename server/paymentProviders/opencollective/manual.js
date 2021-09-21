@@ -1,7 +1,6 @@
 import { pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
-import { TransactionTypes } from '../../constants/transactions';
 import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
 import {
@@ -66,7 +65,6 @@ async function processOrder(order) {
 
   const transactionPayload = {
     ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
-    type: TransactionTypes.CREDIT,
     OrderId: order.id,
     amount,
     currency,
@@ -75,7 +73,6 @@ async function processOrder(order) {
     amountInHostCurrency,
     hostFeeInHostCurrency,
     taxAmount: order.taxAmount,
-    description: order.description,
     paymentProcessorFeeInHostCurrency,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
@@ -89,9 +86,7 @@ async function processOrder(order) {
     },
   };
 
-  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
-
-  return creditTransaction;
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 }
 
 /**

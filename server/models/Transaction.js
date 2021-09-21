@@ -19,6 +19,7 @@ import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import { generateDescription } from '../lib/transactions';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
@@ -257,6 +258,16 @@ function defineModel() {
       },
 
       hooks: {
+        beforeCreate: async transaction => {
+          if (!transaction.description) {
+            transaction.description = await generateDescription(transaction);
+          }
+        },
+        beforeUpdate: async transaction => {
+          if (transaction.isRefund) {
+            transaction.description = await generateDescription(transaction);
+          }
+        },
         afterCreate: transaction => {
           Transaction.createActivity(transaction);
           // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
@@ -623,7 +634,6 @@ function defineModel() {
       type: DEBIT,
       kind: TransactionKind.PLATFORM_TIP_DEBT,
       isDebt: true,
-      description: 'Platform Tip collected for Open Collective',
       FromCollectiveId: host.id,
       // Opposite amounts
       amount: -platformTipTransaction.amount,
@@ -684,7 +694,6 @@ function defineModel() {
       ]),
       type: CREDIT,
       kind: TransactionKind.PLATFORM_TIP,
-      description: 'Financial contribution to Open Collective',
       CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
       HostCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
       // Compute Amounts
@@ -768,7 +777,6 @@ function defineModel() {
     const hostFeeTransactionData = {
       type: CREDIT,
       kind: TransactionKind.HOST_FEE,
-      description: 'Host Fee',
       TransactionGroup: transaction.TransactionGroup,
       FromCollectiveId: transaction.CollectiveId,
       CollectiveId: host.id,
@@ -828,7 +836,6 @@ function defineModel() {
     const hostFeeShareTransactionData = {
       type: CREDIT,
       kind: TransactionKind.HOST_FEE_SHARE,
-      description: 'Host Fee Share',
       TransactionGroup: hostFeeTransaction.TransactionGroup,
       FromCollectiveId: host.id,
       CollectiveId: HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId,
@@ -883,7 +890,6 @@ function defineModel() {
       type: DEBIT,
       kind: TransactionKind.HOST_FEE_SHARE_DEBT,
       isDebt: true,
-      description: 'Host Fee Share owed to Open Collective',
       // Opposite amounts
       amount: -hostFeeShareTransaction.amount,
       netAmountInCollectiveCurrency: -hostFeeShareTransaction.netAmountInCollectiveCurrency,
@@ -1026,16 +1032,16 @@ function defineModel() {
     );
   };
 
+  // TODO: replace with regular code once we can support it with double transactions
   Transaction.creditHost = (order, collective) => {
     // Special Case, adding funds to itself
     const amount = order.totalAmount;
     const platformFeePercent = get(order, 'data.platformFeePercent', 0);
     const platformFee = calcFee(order.totalAmount, platformFeePercent);
     const payload = {
-      type: 'CREDIT',
+      type: TransactionTypes.CREDIT,
       kind: TransactionKind.ADDED_FUNDS,
       amount,
-      description: order.description,
       currency: order.currency,
       CollectiveId: order.CollectiveId,
       FromCollectiveId: order.CollectiveId,

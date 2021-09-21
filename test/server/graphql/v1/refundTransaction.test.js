@@ -4,7 +4,6 @@ import nock from 'nock';
 import sinon from 'sinon';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../../../../server/constants/currencies';
-import * as constants from '../../../../server/constants/transactions';
 import * as paymentsLib from '../../../../server/lib/payments';
 import { convertFromStripeAmount, extractFees } from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
@@ -89,7 +88,6 @@ async function setupTestObjects(currency = 'USD') {
     FromCollectiveId: user.CollectiveId,
     CollectiveId: collective.id,
     PaymentMethodId: paymentMethod.id,
-    type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
     amount: order.totalAmount,
     currency: order.currency,
@@ -103,7 +101,6 @@ async function setupTestObjects(currency = 'USD') {
     ),
     platformFeeInHostCurrency: fees.applicationFee,
     paymentProcessorFeeInHostCurrency: fees.stripeFee,
-    description: order.description,
     data: { charge, balanceTransaction },
   };
   const transaction = await models.Transaction.createFromContributionPayload(transactionPayload);
@@ -208,14 +205,18 @@ describe('server/graphql/v1/refundTransaction', () => {
 
       // And then all the transactions with that same order id are
       // retrieved.
-      const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
-        where: { OrderId: transaction.OrderId, kind: 'CONTRIBUTION' },
+      const [tr1, tr2] = await models.Transaction.findAll({
+        where: { OrderId: transaction.OrderId, kind: 'CONTRIBUTION', isRefund: false },
       });
 
       // And then the first two transactions (related to the order)
       // should be owned by the user created in setupTestObjects()
       expect(tr1.CreatedByUserId).to.equal(user.id);
       expect(tr2.CreatedByUserId).to.equal(user.id);
+
+      const [tr3, tr4] = await models.Transaction.findAll({
+        where: { OrderId: transaction.OrderId, kind: 'CONTRIBUTION', isRefund: true },
+      });
 
       // And then the two refund transactions should be owned by the
       // user that refunded the first transactions
@@ -384,7 +385,10 @@ describe('server/graphql/v1/refundTransaction', () => {
       // And then the transaction created for the refund operation
       // should decrement all the fees in the CREDIT from collective
       // to user.
-      const [tr1, tr2, tr3, tr4] = allContributions;
+      const tr1 = allContributions.filter(t => t.isRefund === false).find(t => t.type === 'DEBIT');
+      const tr2 = allContributions.filter(t => t.isRefund === false).find(t => t.type === 'CREDIT');
+      const tr3 = allContributions.filter(t => t.isRefund === true).find(t => t.type === 'DEBIT');
+      const tr4 = allContributions.filter(t => t.isRefund === true).find(t => t.type === 'CREDIT');
 
       // 1. User Ledger
       expect(tr1.type).to.equal('DEBIT');

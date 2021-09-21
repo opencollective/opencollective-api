@@ -336,7 +336,6 @@ describe('server/lib/payments', () => {
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
         PaymentMethodId: order.PaymentMethodId,
-        type: 'CREDIT',
         OrderId: order.id,
         amount: 5000,
         currency: 'USD',
@@ -346,7 +345,6 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         platformFeeInHostCurrency: 250,
         paymentProcessorFeeInHostCurrency: 175,
-        description: 'Monthly subscription to Webpack',
         data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
       });
 
@@ -366,9 +364,7 @@ describe('server/lib/payments', () => {
       // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_COVER are there
 
       // And Then two transactions should be refund
-      const refundTransactions = allTransactions.filter(
-        t => t.description === 'Refund of "Monthly subscription to Webpack"',
-      );
+      const refundTransactions = allTransactions.filter(t => t.isRefund === true && t.kind === 'CONTRIBUTION');
       expect(refundTransactions).to.have.lengthOf(2);
 
       // And then the values for the transaction from the collective
@@ -403,7 +399,6 @@ describe('server/lib/payments', () => {
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         PaymentMethodId: order.PaymentMethodId,
-        type: 'CREDIT',
         OrderId: order.id,
         amount: 5000,
         currency: 'USD',
@@ -413,7 +408,6 @@ describe('server/lib/payments', () => {
         hostFeeInHostCurrency: 250,
         platformFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 175,
-        description: 'Monthly subscription to Webpack',
         data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
       });
 

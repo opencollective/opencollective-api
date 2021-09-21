@@ -1,6 +1,5 @@
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
 import models from '../../models';
@@ -41,7 +40,6 @@ paymentMethodProvider.processOrder = async order => {
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    type: TransactionTypes.CREDIT,
     kind: TransactionKind.ADDED_FUNDS,
     OrderId: order.id,
     amount,
@@ -50,7 +48,6 @@ paymentMethodProvider.processOrder = async order => {
     hostCurrencyFxRate,
     amountInHostCurrency,
     hostFeeInHostCurrency,
-    description: order.description,
     data: {
       // No platform tip for now here
       isSharedRevenue,
@@ -59,7 +56,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  return await models.Transaction.createFromContributionPayload(transactionPayload);
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 export default paymentMethodProvider;

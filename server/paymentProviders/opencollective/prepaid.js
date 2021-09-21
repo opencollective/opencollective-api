@@ -1,6 +1,5 @@
 import { get } from 'lodash';
 
-import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import {
   createRefundTransaction,
@@ -112,7 +111,6 @@ async function processOrder(order) {
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.paymentMethod.id,
-    type: TransactionTypes.CREDIT,
     OrderId: order.id,
     amount,
     amountInHostCurrency,
@@ -122,7 +120,6 @@ async function processOrder(order) {
     hostFeeInHostCurrency,
     paymentProcessorFeeInHostCurrency: 0,
     taxAmount: order.taxAmount,
-    description: order.description,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,

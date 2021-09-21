@@ -253,7 +253,7 @@ export async function sum(where) {
 const kindStrings = {
   ADDED_FUNDS: `Added Funds`,
   BALANCE_TRANSFER: `Balance Transfer`,
-  CONTRIBUTION: `Contribution`,
+  CONTRIBUTION: `Financial contribution`,
   EXPENSE: `Expense`,
   HOST_FEE: `Host Fee`,
   HOST_FEE_SHARE: `Host Fee Share`,
@@ -275,7 +275,7 @@ export async function generateDescription(transaction, { req = null, full = fals
   if (transaction.isRefund && transaction.RefundTransactionId) {
     const refundedTransaction = await (req
       ? req.loaders.Transaction.byId.load(transaction.RefundTransactionId)
-      : models.Transaction.findByPk(order.RefundTransactionId));
+      : models.Transaction.findByPk(transaction.RefundTransactionId));
     if (refundedTransaction) {
       const refundedTransactionDescription = await generateDescription(refundedTransaction, { req, full });
       return `Refund of "${refundedTransactionDescription}"`;
@@ -305,9 +305,9 @@ export async function generateDescription(transaction, { req = null, full = fals
         : models.Subscription.findByPk(order.SubscriptionId));
     }
     if (subscription?.interval === 'month') {
-      baseString = `Monthly contribution`;
+      baseString = `Monthly financial contribution`;
     } else if (subscription?.interval === 'year') {
-      baseString = `Yearly contribution`;
+      baseString = `Yearly financial contribution`;
     } else if (tier && tier.type === TICKET) {
       baseString = `Registration`;
     }
@@ -333,47 +333,50 @@ export async function generateDescription(transaction, { req = null, full = fals
 
   const account = await (req
     ? req.loaders.Collective.byId.load(transaction.CollectiveId)
-    : models.Collective.findByPk(order.CollectiveId));
+    : models.Collective.findByPk(transaction.CollectiveId));
   const oppositeAccount = await (req
     ? req.loaders.Collective.byId.load(transaction.FromCollectiveId)
-    : models.Collective.findByPk(order.FromCollectiveId));
+    : models.Collective.findByPk(transaction.FromCollectiveId));
+
+  const accountString = (account.name || account.slug).trim();
+  const oppositeAccountString = (oppositeAccount.name || oppositeAccount.slug).trim();
 
   if (transaction.isDebt) {
     debtString = ' owed';
     if (transaction.type === CREDIT) {
       if (full) {
-        toString = ` by ${account.name.trim()}`;
+        toString = ` by ${accountString}`;
       }
-      fromString = ` to ${oppositeAccount.name.trim()}`;
+      fromString = ` to ${oppositeAccountString}`;
     } else {
-      fromString = ` by ${oppositeAccount.name.trim()}`;
+      fromString = ` by ${oppositeAccountString}`;
       if (full) {
-        toString = ` to ${account.name.trim()}`;
+        toString = ` to ${accountString}`;
       }
     }
   } else if (transaction.kind === EXPENSE) {
     if (transaction.type === CREDIT) {
       if (full) {
-        fromString = ` from ${account.name.trim()}`;
+        fromString = ` from ${accountString}`;
       }
-      toString = ` to ${oppositeAccount.name.trim()}`;
+      toString = ` to ${oppositeAccountString}`;
     } else {
-      fromString = ` from ${oppositeAccount.name.trim()}`;
+      fromString = ` from ${oppositeAccountString}`;
       if (full) {
-        toString = ` to ${account.name.trim()}`;
+        toString = ` to ${accountString}`;
       }
     }
   } else {
     if (transaction.type === CREDIT) {
-      fromString = ` from ${oppositeAccount.name.trim()}`;
+      fromString = ` from ${oppositeAccountString}`;
       if (full) {
-        toString = ` to ${account.name.trim()}`;
+        toString = ` to ${accountString}`;
       }
     } else {
       if (full) {
-        fromString = ` from ${account.name.trim()}`;
+        fromString = ` from ${accountString}`;
       }
-      toString = ` to ${oppositeAccount.name.trim()}`;
+      toString = ` to ${oppositeAccountString}`;
     }
   }
 

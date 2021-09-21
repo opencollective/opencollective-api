@@ -6,7 +6,6 @@ import debugLib from 'debug';
 import { NextFunction, Request, Response } from 'express';
 
 import OrderStatus from '../../constants/order_status';
-import { TransactionTypes } from '../../constants/transactions';
 import { idDecode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import logger from '../../lib/logger';
 import {
@@ -138,7 +137,6 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         PaymentMethodId: order.PaymentMethodId,
-        type: TransactionTypes.CREDIT,
         OrderId: order.id,
         amount,
         currency,
@@ -147,7 +145,6 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
         hostCurrencyFxRate,
         paymentProcessorFeeInHostCurrency,
         taxAmount: order.taxAmount,
-        description: order.description,
         hostFeeInHostCurrency,
         data,
       };
