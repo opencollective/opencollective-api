@@ -1,5 +1,5 @@
 Subject: {{#if instructions}}ACTION REQUIRED:{{/if}} your {{{currency order.totalAmount
-currency=order.currency precision=2}}} {{order.type}} to {{collective.name}} is pending
+currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 
 <style>
   code {
@@ -21,7 +21,7 @@ currency=order.currency precision=2}}} {{order.type}} to {{collective.name}} is 
 <p>Hi!</p>
 {{/if}}
 
-<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency precision=2}}, made on
+<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on
   {{moment order.createdAt}}.</p>
 
 <p>Your contribution is currently pending. Once you transmit the funds per the instructions below,

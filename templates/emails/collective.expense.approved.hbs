@@ -1,4 +1,4 @@
-Subject: Your expense to {{{collective.name}}} for {{currency expense.amount currency=expense.currency precision=2}} has been approved ✓
+Subject: Your expense to {{{collective.name}}} for {{currency expense.amount currency=expense.currency}} has been approved ✓
 
 {{> header}}
 
@@ -6,7 +6,7 @@ Subject: Your expense to {{{collective.name}}} for {{currency expense.amount cur
 <p>Most payments are processed within a few days, but the timing will depend on the available budget of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a>, the payment method, and other factors.</p>
 <p>If you have any questions related to this expense, please post a comment on <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">the expense page</a>.</p>
 <center>
-  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency precision=2}}</a></h1>
+  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h1>
   <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
 </center>
 

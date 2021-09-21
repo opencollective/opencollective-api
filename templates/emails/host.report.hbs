@@ -74,9 +74,9 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
   Collectives: {{number stats.totalCollectives}} ({{number stats.totalActiveCollectives}} active) //
   Backers: {{number stats.backers.total}} (+{{number stats.backers.new}}{{#if stats.backers.lost}},
   -{{number stats.backers.lost}}{{/if}}) //
-  Balance: {{currency stats.balance currency=host.currency precision=2}}
-  ({{currency stats.delta currency=host.currency precision=2 sign=true}}) //
-  Host fees: {{currency stats.totalHostFees currency=host.currency precision=2}} //
+  Balance: {{currency stats.balance currency=host.currency}}
+  ({{currency stats.delta currency=host.currency sign=true}}) //
+  Host fees: {{currency stats.totalHostFees currency=host.currency}} //
 </div>
 
 <div>
@@ -91,7 +91,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
   <center>
     <table border=0 cellpadding=0 cellspacing=0 width=300 style="margin: 30px 0px">
       <tr>
-        <td align="center"><span class="counter">{{currency stats.totalMoneyManaged currency=host.currency precision=2}}</span></td>
+        <td align="center"><span class="counter">{{currency stats.totalMoneyManaged currency=host.currency}}</span></td>
         <td width=200>&nbsp;</td>
         <td align="center"><span class="counter">{{number stats.backers.total}}</span></td>
       </tr>
@@ -102,9 +102,9 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       </tr>
       <tr>
         <td align="center">
-          <span class="positive">(+{{currency stats.totalNetAmountReceived currency=host.currency precision=2}})</span><br />
+          <span class="positive">(+{{currency stats.totalNetAmountReceived currency=host.currency}})</span><br />
           <span class="negative">&nbsp;{{#if stats.totalAmountSpent}}({{currency stats.totalAmountSpent
-            currency=host.currency precision=2}}){{/if}}&nbsp;</span>
+            currency=host.currency}}){{/if}}&nbsp;</span>
         </td>
         <td></td>
         <td align="center">
@@ -175,14 +175,14 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td>Total contributions (before fees)</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountDonations currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountDonations currency=host.currency}}
       </td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (Stripe)</td>
       <td></td>
       <td align="right">
-        {{currency stats.paymentProcessorFees currency=host.currency precision=2}}
+        {{currency stats.paymentProcessorFees currency=host.currency}}
       </td>
     </tr>
     {{#if stats.platformFees}}
@@ -190,7 +190,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Platform fees (Open Collective)</td>
       <td></td>
       <td align="right">
-        {{currency stats.platformFees currency=host.currency precision=2}}
+        {{currency stats.platformFees currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -201,7 +201,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td>Other Credits</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountOtherCredits currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountOtherCredits currency=host.currency}}
       </td>
     </tr>
     <tr>
@@ -212,7 +212,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Platform fees</td>
       <td></td>
       <td align="right">
-        {{currency stats.platformFeesOtherCredits currency=host.currency precision=2}}
+        {{currency stats.platformFeesOtherCredits currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -221,7 +221,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Payment processor fees</td>
       <td></td>
       <td align="right">
-        {{currency stats.paymentProcessorFeesOtherCredits currency=host.currency precision=2}}
+        {{currency stats.paymentProcessorFeesOtherCredits currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -238,7 +238,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Total amount received</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalNetAmountReceived currency=host.currency precision=2}}</td>
+        {{currency stats.totalNetAmountReceived currency=host.currency}}</td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
@@ -248,7 +248,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Taxes collected</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalTaxAmountCollected currency=host.currency precision=2}}</td>
+        {{currency stats.totalTaxAmountCollected currency=host.currency}}</td>
     </tr>
     <tr>
       <td colspan=3 class="muted">{{taxType}} received</td>
@@ -265,7 +265,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td>Debts</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountDebts currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountDebts currency=host.currency}}
       </td>
     </tr>
 
@@ -274,7 +274,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Platform Tips (collected for Open Collective)</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalOwedPlatformTips currency=host.currency precision=2}}
+        {{currency stats.totalOwedPlatformTips currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -284,7 +284,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Host Fee Share (owed to Open Collective)</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalOwedHostFeeShare currency=host.currency precision=2}}
+        {{currency stats.totalOwedHostFeeShare currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -298,14 +298,14 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td>Host fees</td>
       <td></td>
-      <td align="right">{{currency stats.totalHostFees currency=host.currency precision=2}}</td>
+      <td align="right">{{currency stats.totalHostFees currency=host.currency}}</td>
     </tr>
     {{#if stats.totalSharedRevenue}}
     <tr class="indent1">
       <td>Platform revenue share ({{stats.plan.hostFeeSharePercent}}%)</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalSharedRevenue currency=host.currency precision=2}} </td>
+        {{currency stats.totalSharedRevenue currency=host.currency}} </td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
@@ -314,7 +314,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td class="ident1">Net Host Fees for {{host.name}}</td>
       <td></td>
       <td align="right">
-        {{currency stats.hostNetRevenue currency=host.currency precision=2}}
+        {{currency stats.hostNetRevenue currency=host.currency}}
       </td>
     </tr>
     {{else}}
@@ -329,7 +329,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Net amount for Collectives</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalNetAmountReceivedForCollectives currency=host.currency precision=2}}
+        {{currency stats.totalNetAmountReceivedForCollectives currency=host.currency}}
       </td>
     </tr>
     <tr>
@@ -339,25 +339,25 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Expenses paid</td>
       <td></td>
       <td align="right">
-        {{currency stats.totalAmountPaidExpenses currency=host.currency precision=2}}</td>
+        {{currency stats.totalAmountPaidExpenses currency=host.currency}}</td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (PayPal)</td>
       <td></td>
       <td align="right">
-        {{currency stats.payoutProcessorFeesPaypal currency=host.currency precision=2}} </td>
+        {{currency stats.payoutProcessorFeesPaypal currency=host.currency}} </td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (Wise)</td>
       <td></td>
       <td align="right">
-        {{currency stats.payoutProcessorFeesTransferWise currency=host.currency precision=2}} </td>
+        {{currency stats.payoutProcessorFeesTransferWise currency=host.currency}} </td>
     </tr>
     <tr class="indent1">
       <td>Other payment processor fees</td>
       <td></td>
       <td align="right">
-        {{currency stats.payoutProcessorFeesOther currency=host.currency precision=2}}
+        {{currency stats.payoutProcessorFeesOther currency=host.currency}}
       </td>
     </tr>
     {{#if stats.numberOtherDebits}}
@@ -367,7 +367,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td>Other Debits</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountOtherDebits currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountOtherDebits currency=host.currency}}
       </td>
     </tr>
     <tr>
@@ -378,7 +378,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Platform fees</td>
       <td></td>
       <td align="right">
-        {{currency stats.platformFeesOtherDebits currency=host.currency precision=2}}
+        {{currency stats.platformFeesOtherDebits currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -387,7 +387,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <td>Payment processor fees</td>
       <td></td>
       <td align="right">
-        {{currency stats.paymentProcessorFeesOtherDebits currency=host.currency precision=2}}
+        {{currency stats.paymentProcessorFeesOtherDebits currency=host.currency}}
       </td>
     </tr>
     {{/if}}
@@ -401,7 +401,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td>Total outgoings</td>
       <td></td>
-      <td align="right">{{currency stats.totalAmountSpent currency=host.currency precision=2}}
+      <td align="right">{{currency stats.totalAmountSpent currency=host.currency}}
       </td>
     </tr>
     <tr>
@@ -427,9 +427,9 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       </td>
       <td valign="top"><a href="{{@root.config.host.website}}/{{collective.slug}}">{{collective.shortSlug}}</a></td>
       <td valign="top" align="right" valign="top" nowrap class="{{type}}">
-        {{currency amount currency=collective.currency precision=2}}</td>
+        {{currency amount currency=collective.currency}}</td>
       <td valign="top" align="right" valign="top" nowrap class="{{type}}">
-        {{currency netAmountInHostCurrency currency=../host.currency precision=2}}{{#if notes}}**{{/if}}</td>
+        {{currency netAmountInHostCurrency currency=../host.currency}}{{#if notes}}**{{/if}}</td>
       <td valign="top" width="100%">{{description}}</td>
     </tr>
     {{else}}

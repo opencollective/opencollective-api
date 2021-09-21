@@ -26,13 +26,13 @@ Subject: Payment failed: Update info to keep supporting {{{collective.name}}}
 {{#if lastAttempt}}
 
 <p>Due payment failure, we have cancelled your recurring contribution of
-{{currency order.totalAmount currency=order.currency precision=2}} to {{collective.name}}.
+{{currency order.totalAmount currency=order.currency}} to {{collective.name}}.
 
 We are sad to see you go. You can restart your contribution anytime at <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.</p>
 
 {{else}}
 
-<p>We are having trouble processing your payment of {{currency order.totalAmount currency=order.currency precision=2}} to {{collective.name}}.</p>
+<p>We are having trouble processing your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
 
 {{#if errorMessage}}
   <p class="errorMessage">{{errorMessage}}</p>

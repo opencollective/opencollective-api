@@ -12,16 +12,16 @@ Subject: Thank you for your contribution to {{collective.name}}
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency precision=2}} per {{interval}} to {{collective.name}}.
+    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} per {{interval}} to {{collective.name}}.
        Your first payment was made on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency precision=2}} was received on {{moment transaction.createdAt}}.
+    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
        As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
   {{/if}}
 {{else}}
 
-<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency precision=2}} on {{moment order.createdAt}}.
+<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
 As the collective's fiscal sponsor, Open Collective Foundation, a public charity recognized tax-exempt organization under IRS Section 501(c)(3), acknowledges your donation.</p>
 {{/if}}
 
@@ -47,13 +47,13 @@ As the collective's fiscal sponsor, Open Collective Foundation, a public charity
 <h2>Payment Details</h2>
 
 <ul>
-  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
-  <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency precision=2}}</li>
-  <li>Total amount: {{currency order.chargeAmount currency=order.currency precision=2}}</li>
-  <li>Tax deductible amount: {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
+  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency}}</li>
+  <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency}}</li>
+  <li>Total amount: {{currency order.chargeAmount currency=order.currency}}</li>
+  <li>Tax deductible amount: {{collective.name}}: {{currency order.netAmount currency=order.currency}}</li>
 </ul>
 
-<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency precision=2}}</p>
+<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency}}</p>
 {{/if}}
 
 {{#if order.isGuest}}

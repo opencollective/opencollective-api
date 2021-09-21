@@ -1,4 +1,4 @@
-Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷 {{/ifCond}}You've got {{currency initialBalance currency=currency precision=2}} from {{emitter.name}} to spend on Open Collective
+Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷 {{/ifCond}}You've got {{currency initialBalance currency=currency}} from {{emitter.name}} to spend on Open Collective
 
 {{> header}}
 
@@ -8,7 +8,7 @@ Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===
    <td>
      <center>
       <h1>{{#ifCond currency '===' 'USD'}}💵{{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶{{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷{{/ifCond}}</h1>
-      <p>You have a {{currency initialBalance currency=currency precision=2}} gift card from <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a>. It has been added to your Open Collective account. 🎉</p>
+      <p>You have a {{currency initialBalance currency=currency}} gift card from <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a>. It has been added to your Open Collective account. 🎉</p>
       <p>&nbsp;</p>
      </center>
    </td>

@@ -73,7 +73,7 @@ Subject: New financial contributor to {{{collective.name}}}: {{member.memberColl
   {{/if}}
   <tr>
     <th>Amount:</th>
-    <td>{{currency order.totalAmount currency=order.currency precision=2}}</td>
+    <td>{{currency order.totalAmount currency=order.currency}}</td>
   </tr>
   {{#if order.subscription}}
   {{#if order.subscription.interval}}

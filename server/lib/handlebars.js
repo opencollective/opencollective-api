@@ -125,7 +125,7 @@ handlebars.registerHelper('currency', (value, props) => {
     return value.toLocaleString(locale, {
       style: 'currency',
       currency,
-      minimumFractionDigits: precision || 0,
+      minimumFractionDigits: precision || 2,
       maximumFractionDigits: !isNil(precision) ? precision : getDefaultCurrencyPrecision(currency),
     });
   })();
