@@ -27,27 +27,28 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
     platformTips: {
       type: new GraphQLNonNull(TimeSeriesAmount),
       description: 'History of the collected platform tips',
-      resolve: async ({ host, startDate, endDate, timeUnit }) => {
-        const results = await HostMetricsLib.getPlatformTips(host, { startDate, endDate, groupTimeUnit: timeUnit });
-        return { startDate, endDate, timeUnit, nodes: resultsToAmountNode(results) };
+      resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
+        const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, groupTimeUnit: timeUnit };
+        const results = await HostMetricsLib.getPlatformTips(host, timeSeriesParams);
+        return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountNode(results) };
       },
     },
     hostFees: {
       type: new GraphQLNonNull(TimeSeriesAmount),
       description: 'History of the host fees collected',
-      resolve: async ({ host, startDate, endDate, timeUnit }) => {
-        const timeSeriesParams = { startDate, endDate, timeUnit };
+      resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
+        const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, timeUnit };
         const results = await HostMetricsLib.getHostFeesTimeSeries(host, timeSeriesParams);
-        return { ...timeSeriesParams, nodes: resultsToAmountNode(results) };
+        return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountNode(results) };
       },
     },
     hostFeeShare: {
       type: new GraphQLNonNull(TimeSeriesAmountWithSettlement),
       description: 'History of the share of host fees collected owed to Open Collective Inc.',
-      resolve: async ({ host, startDate, endDate, timeUnit }) => {
-        const timeSeriesParams = { startDate, endDate, timeUnit };
+      resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
+        const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, timeUnit };
         const results = await HostMetricsLib.getHostFeeShareTimeSeries(host, timeSeriesParams);
-        return { ...timeSeriesParams, nodes: resultsToAmountWithSettlementNode(results) };
+        return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithSettlementNode(results) };
       },
     },
   }),

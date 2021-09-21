@@ -4919,7 +4919,33 @@ type Host implements Account & AccountWithContributions {
     Superior date limit in which we're calculating the metrics
     """
     to: String
+
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
   ): HostMetrics!
+  hostMetricsTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime!
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime!
+
+    """
+    The time unit of the time series
+    """
+    timeUnit: TimeUnit!
+  ): HostMetricsTimeSeries!
 
   """
   The list of payment methods (Stripe, Paypal, manual bank transfer, etc ...) the Host can accept for its Collectives
@@ -5099,6 +5125,26 @@ type HostMetrics {
   Host fee sharing percent
   """
   hostFeeSharePercent: Int
+}
+
+"""
+Host metrics time series
+"""
+type HostMetricsTimeSeries {
+  """
+  History of the collected platform tips
+  """
+  platformTips: TimeSeriesAmount!
+
+  """
+  History of the host fees collected
+  """
+  hostFees: TimeSeriesAmount!
+
+  """
+  History of the share of host fees collected owed to Open Collective Inc.
+  """
+  hostFeeShare: TimeSeriesAmountWithSettlement!
 }
 
 """
@@ -7834,12 +7880,12 @@ type Query {
     """
     The number of results to fetch (default 10, max 1000)
     """
-    limit: Int = 10
+    limit: Int! = 10
 
     """
     The offset to use to fetch
     """
-    offset: Int = 0
+    offset: Int! = 0
 
     """
     Only accounts that match these tags
@@ -7952,12 +7998,12 @@ type Query {
     offset: Int! = 0
 
     """
-    Reference of the account that submitted this expense
+    Reference of an account that is the payee of an expense
     """
     fromAccount: AccountReferenceInput
 
     """
-    Reference of the account where this expense was submitted
+    Reference of an account that is the payer of an expense
     """
     account: AccountReferenceInput
 
@@ -8020,6 +8066,11 @@ type Query {
     The term to search
     """
     searchTerm: String
+
+    """
+    Whether to include expenses from children of the account (Events and Projects)
+    """
+    includeChildrenExpenses: Boolean! = false
   ): ExpenseCollection!
   expense(
     """
@@ -8230,10 +8281,26 @@ type Query {
     hasOrder: Boolean
 
     """
+    Whether to include regular transactions from the account (turn false if you
+    only want Incognito or Gift Card transactions)
+    """
+    includeRegularTransactions: Boolean! = true
+
+    """
     If the account is a user and this field is true, contributions from the
     incognito profile will be included too (admins only)
     """
     includeIncognitoTransactions: Boolean! = false
+
+    """
+    Whether to include transactions from children (Events and Projects)
+    """
+    includeChildrenTransactions: Boolean! = false
+
+    """
+    Whether to include transactions from Gift Cards issued by the account.
+    """
+    includeGiftCardTransactions: Boolean! = false
 
     """
     Whether to include debt transactions
@@ -8400,6 +8467,94 @@ enum TierType {
   PRODUCT
 }
 
+interface TimeSeries {
+  """
+  The start date of the time series
+  """
+  dateFrom: DateTime!
+
+  """
+  The end date of the time series
+  """
+  dateTo: DateTime!
+
+  """
+  The interval between two data points
+  """
+  timeUnit: TimeUnit!
+}
+
+"""
+Amount time series
+"""
+type TimeSeriesAmount implements TimeSeries {
+  """
+  The start date of the time series
+  """
+  dateFrom: DateTime!
+
+  """
+  The end date of the time series
+  """
+  dateTo: DateTime!
+
+  """
+  The interval between two data points
+  """
+  timeUnit: TimeUnit!
+
+  """
+  Time series data points
+  """
+  nodes: [TimeSeriesAmountNode!]!
+}
+
+type TimeSeriesAmountNode {
+  date: DateTime!
+  amount: Amount!
+}
+
+"""
+Amounts with settlements time series
+"""
+type TimeSeriesAmountWithSettlement implements TimeSeries {
+  """
+  The start date of the time series
+  """
+  dateFrom: DateTime!
+
+  """
+  The end date of the time series
+  """
+  dateTo: DateTime!
+
+  """
+  The interval between two data points
+  """
+  timeUnit: TimeUnit!
+
+  """
+  Time series data points
+  """
+  nodes: [TimeSeriesAmountWithSettlementNode!]!
+}
+
+type TimeSeriesAmountWithSettlementNode {
+  date: DateTime!
+  amount: Amount!
+  settlementStatus: TransactionSettlementStatus!
+}
+
+enum TimeUnit {
+  SECOND
+  MINUTE
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
 """
 Transaction interface shared by all kind of transactions (Debit, Credit)
 """
@@ -8530,6 +8685,12 @@ input TransactionReferenceInput {
   The internal id of the transaction (ie: 580)
   """
   legacyId: Int
+}
+
+enum TransactionSettlementStatus {
+  OWED
+  INVOICED
+  SETTLED
 }
 
 """
