@@ -226,9 +226,9 @@ Subject: {{capitalize month}} Open Collective Report
           {{#if consolidatedPdfs}}<br />You can find PDFs of all your contributions, organized by fiscal host, attached to this email.{{/if}}</li>
           {{#each collectives}}
             {{#if nextGoal}}
-              <li><a href="{{../config.host.website}}/{{slug}}">{{name}}</a> needs {{currency nextGoal.missing.amount currency=currency}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there).
+              <li><a href="{{../config.host.website}}/{{slug}}">{{name}}</a> needs {{currency nextGoal.missing.amount currency=currency precision=2}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there).
               {{#if order.Subscription}}
-              You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
+              You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency precision=2}} per {{order.Subscription.interval}}.
               (<a href="{{../config.host.website}}/{{../fromCollective.slug}}/recurring-contributions">increase your contribution</a>)
               (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{else}}

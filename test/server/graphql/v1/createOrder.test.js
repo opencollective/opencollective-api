@@ -305,7 +305,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(actionRequiredEmailArgs[2]).to.match(
       /for the amount of <strong>\$20\.00<\/strong> with the mention: <strong>webpack event<\/strong> <strong>backer<\/strong> order: <strong>[0-9]+<\/strong>/,
     );
-    expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20 registration to meetup is pending');
+    expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20.00 registration to meetup is pending');
   });
 
   it('creates an order as new user and sends a tweet', async () => {

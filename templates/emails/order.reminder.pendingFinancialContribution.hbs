@@ -1,5 +1,5 @@
 Subject: Has {{{currency order.totalAmount
-currency=order.currency}}} arrived for {{collective.name}}?
+currency=order.currency precision=2}}} arrived for {{collective.name}}?
 
 <style>
   code {
@@ -17,7 +17,7 @@ currency=order.currency}}} arrived for {{collective.name}}?
 
 <p>
   Has {{host.name}} received {{{currency order.totalAmount
-    currency=order.currency}}} from {{fromCollective.name}} for {{collective.name}}?
+    currency=order.currency precision=2}}} from {{fromCollective.name}} for {{collective.name}}?
     The funds will not be credited to the balance of {{collective.name}} until you confirm.
 </p>
 
