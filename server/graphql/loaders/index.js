@@ -565,6 +565,7 @@ export const loaders = req => {
 
   /** *** Transaction *****/
   context.loaders.Transaction = {
+    ...context.loaders.Transaction,
     byOrderId: new DataLoader(async keys => {
       const where = { OrderId: { [Op.in]: keys } };
       const order = [['createdAt', 'ASC']];

@@ -11,6 +11,7 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { pick } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
+import { generateDescription } from '../../../lib/transactions';
 import models from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
@@ -73,6 +74,18 @@ const transactionFieldsDefinition = () => ({
   },
   description: {
     type: GraphQLString,
+    args: {
+      dynamic: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Wether to generate the description dynamically.',
+      },
+      full: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Wether to generate the full description when using dynamic.',
+      },
+    },
   },
   amount: {
     type: new GraphQLNonNull(Amount),
@@ -209,6 +222,24 @@ export const TransactionFields = () => {
       type: new GraphQLNonNull(GraphQLString),
       resolve(transaction) {
         return transaction.TransactionGroup;
+      },
+    },
+    description: {
+      type: GraphQLString,
+      args: {
+        dynamic: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Wether to generate the description dynamically.',
+        },
+        full: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Wether to generate the full description when using dynamic.',
+        },
+      },
+      resolve(transaction, args, req) {
+        return args.dynamic ? generateDescription(transaction, { req, full: args.full }) : transaction.description;
       },
     },
     amount: {

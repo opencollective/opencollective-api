@@ -1,5 +1,6 @@
-import { round, toNumber } from 'lodash';
+import { round, toNumber, truncate } from 'lodash';
 
+import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
@@ -8,6 +9,10 @@ import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
 import models, { Op, sequelize } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
+
+const { CREDIT, DEBIT } = TransactionTypes;
+const { CONTRIBUTION, EXPENSE } = TransactionKind;
+const { TICKET } = TierType;
 
 /**
  * Export transactions as CSV
@@ -163,8 +168,8 @@ export async function createFromPaidExpense(
     hostFeeInHostCurrency: toNegative(hostFeeInHostCurrency),
     platformFeeInHostCurrency: toNegative(platformFeeInHostCurrency),
     ExpenseId: expense.id,
-    type: TransactionTypes.DEBIT,
-    kind: TransactionKind.EXPENSE,
+    type: DEBIT,
+    kind: EXPENSE,
     amount: -expense.amount,
     currency: expense.currency,
     description: expense.description,
@@ -241,4 +246,127 @@ export async function sum(where) {
   const attributes = [[totalAttr, 'total']];
   const result = await models.Transaction.findOne({ attributes, where });
   return result.dataValues.total;
+}
+
+const kindStrings = {
+  ADDED_FUNDS: `Added Funds`,
+  BALANCE_TRANSFER: `Balance Transfer`,
+  CONTRIBUTION: `Contribution`,
+  EXPENSE: `Expense`,
+  HOST_FEE: `Host Fee`,
+  HOST_FEE_SHARE: `Host Fee Share`,
+  HOST_FEE_SHARE_DEBT: `Host Fee Share Debt`,
+  PAYMENT_PROCESSOR_COVER: `Cover of Payment Processor Fee`,
+  PLATFORM_TIP: `Platform Tip`,
+  PLATFORM_TIP_DEBT: `Platform Tip Debt`,
+  PREPAID_PAYMENT_METHOD: `Prepaid Payment Method`,
+};
+
+export async function generateDescription(transaction, { req = null, full = false } = {}) {
+  let baseString = 'Transaction',
+    debtString = '',
+    tierString = '',
+    expenseString = '',
+    fromString = '',
+    toString = '';
+
+  if (transaction.isRefund && transaction.RefundTransactionId) {
+    const refundedTransaction = await (req
+      ? req.loaders.Transaction.byId.load(transaction.RefundTransactionId)
+      : models.Transactions.findByPk(order.RefundTransactionId));
+    if (refundedTransaction) {
+      const refundedTransactionDescription = await generateDescription(refundedTransaction, { req, full });
+      return `Refund of "${refundedTransactionDescription}"`;
+    }
+  }
+
+  let order, expense, subscription, tier;
+
+  if (transaction.OrderId) {
+    order = await (req
+      ? req.loaders.Order.byId.load(transaction.OrderId)
+      : models.Orders.findByPk(transaction.OrderId));
+  }
+
+  if (kindStrings[transaction.kind]) {
+    baseString = kindStrings[transaction.kind];
+  }
+
+  if (transaction.kind === CONTRIBUTION) {
+    if (order?.TierId) {
+      tier = await (req ? req.loaders.Tier.byId.load(order.TierId) : models.Tiers.findByPk(order.TierId));
+    }
+    if (tier) {
+      tierString = ` (${truncate(tier.name, { length: 128 })})`;
+    }
+    if (order?.SubscriptionId) {
+      subscription = await (req
+        ? req.loaders.Subscription.byId.load(order.SubscriptionId)
+        : models.Subscriptions.findByPk(order.SubscriptionId));
+    }
+    if (subscription?.interval === 'month') {
+      baseString = `Monthly contribution`;
+    } else if (subscription?.interval === 'year') {
+      baseString = `Yearly contribution`;
+    } else if (tier && tier.type === TICKET) {
+      baseString = `Registration`;
+    }
+  } else if (transaction.kind === EXPENSE) {
+    if (transaction.ExpenseId) {
+      expense = await (req
+        ? req.loaders.Expense.byId.load(transaction.ExpenseId)
+        : models.Expenses.findByPk(transaction.ExpenseId));
+    }
+    if (expense) {
+      expenseString = ` - ${expense.description}`;
+    }
+  }
+
+  const account = await (req
+    ? req.loaders.Collective.byId.load(transaction.CollectiveId)
+    : models.Collectives.findByPk(order.CollectiveId));
+  const oppositeAccount = await (req
+    ? req.loaders.Collective.byId.load(transaction.FromCollectiveId)
+    : models.Collectives.findByPk(order.FromCollectiveId));
+
+  if (transaction.isDebt) {
+    debtString = ' owed';
+    if (transaction.type === CREDIT) {
+      if (full) {
+        toString = ` by ${account.name.trim()}`;
+      }
+      fromString = ` to ${oppositeAccount.name.trim()}`;
+    } else {
+      fromString = ` by ${oppositeAccount.name.trim()}`;
+      if (full) {
+        toString = ` to ${account.name.trim()}`;
+      }
+    }
+  } else if (transaction.kind === EXPENSE) {
+    if (transaction.type === CREDIT) {
+      if (full) {
+        fromString = ` from ${account.name.trim()}`;
+      }
+      toString = ` to ${oppositeAccount.name.trim()}`;
+    } else {
+      fromString = ` from ${oppositeAccount.name.trim()}`;
+      if (full) {
+        toString = ` to ${account.name.trim()}`;
+      }
+    }
+  } else {
+    if (transaction.type === CREDIT) {
+      fromString = ` from ${oppositeAccount.name.trim()}`;
+      if (full) {
+        toString = ` to ${account.name.trim()}`;
+      }
+    } else {
+      if (full) {
+        fromString = ` from ${account.name.trim()}`;
+      }
+      toString = ` to ${oppositeAccount.name.trim()}`;
+    }
+  }
+
+  return `${baseString}${debtString}${fromString}${toString}${tierString}${expenseString}`;
 }

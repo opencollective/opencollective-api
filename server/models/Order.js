@@ -4,9 +4,8 @@ import { get } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
-import { types as CollectiveType } from '../constants/collectives';
 import status from '../constants/order_status';
-import tiers from '../constants/tiers';
+import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
 import sequelize, { DataTypes } from '../lib/sequelize';
@@ -244,7 +243,7 @@ function defineModel() {
     if (interval) {
       return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
     } else {
-      const isRegistration = amount === 0 || collective.type === CollectiveType.EVENT;
+      const isRegistration = tier?.type === TierType.TICKET;
       return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
     }
   };
@@ -313,7 +312,7 @@ function defineModel() {
     // Register user as collective backer or an attendee (for events)
     const member = await this.collective.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
-      tier?.type === tiers.TICKET ? roles.ATTENDEE : roles.BACKER,
+      tier?.type === TierType.TICKET ? roles.ATTENDEE : roles.BACKER,
       { TierId: this.TierId },
       { order: this },
     );
