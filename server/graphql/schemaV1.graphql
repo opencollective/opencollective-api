@@ -3174,6 +3174,8 @@ type Query {
     If false, only the transactions not linked to an expense (orders/refunds) will be returned
     """
     includeExpenseTransactions: Boolean
+    fetchDataFromLedger: Boolean
+    includeHostedCollectivesTransactions: Boolean
   ): [Transaction]
   Application(id: Int): Application
   allUpdates(CollectiveId: Int!, includeHostedCollectives: Boolean, limit: Int, offset: Int): [UpdateType]
