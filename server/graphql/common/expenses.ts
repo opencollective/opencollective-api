@@ -629,12 +629,9 @@ export async function createExpense(
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
-    if (
-      !isAccountHolderNameAndLegalNameMatch(
-        payoutMethodData?.accountHolderName,
-        <string>expenseData.fromCollective.legalName,
-      )
-    ) {
+    const accountHolderName = payoutMethodData?.accountHolderName;
+    const legalName = <string>expenseData.fromCollective.legalName;
+    if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
       throw new Error('The legal name should match the bank account holder name');
     }
     const host = await collective.getHostCollective();
@@ -728,28 +725,23 @@ export const getItemsChanges = async (
  * 4) If one of account holder name or legal name is not defined then this function returns true.
  */
 export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
-  if (legalName && accountHolderName) {
-    const namesArray = legalName.split(' ');
-    let legalNameReversed;
-    if (namesArray.length === 2) {
-      const firstName = namesArray[0];
-      const lastName = namesArray[1];
-      legalNameReversed = `${lastName} ${firstName}`;
-    }
-    if (
-      accountHolderName.localeCompare(legalName, undefined, {
-        sensitivity: 'base',
-        ignorePunctuation: true,
-      }) &&
-      accountHolderName.localeCompare(legalNameReversed, undefined, {
-        sensitivity: 'base',
-        ignorePunctuation: true,
-      })
-    ) {
-      return false;
-    }
+  const namesArray = legalName.split(' ');
+  let legalNameReversed;
+  if (namesArray.length === 2) {
+    const firstName = namesArray[0];
+    const lastName = namesArray[1];
+    legalNameReversed = `${lastName} ${firstName}`;
   }
-  return true;
+  return !(
+    accountHolderName.localeCompare(legalName, undefined, {
+      sensitivity: 'base',
+      ignorePunctuation: true,
+    }) &&
+    accountHolderName.localeCompare(legalNameReversed, undefined, {
+      sensitivity: 'base',
+      ignorePunctuation: true,
+    })
+  );
 };
 
 export async function editExpense(
@@ -833,12 +825,9 @@ export async function editExpense(
   // Validate bank account payout method
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
-    if (
-      !isAccountHolderNameAndLegalNameMatch(
-        payoutMethodData?.accountHolderName,
-        <string>expenseData.fromCollective.legalName,
-      )
-    ) {
+    const accountHolderName = payoutMethodData?.accountHolderName;
+    const legalName = <string>expenseData.fromCollective.legalName;
+    if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
       throw new Error('The legal name should match the bank account holder name');
     }
   }
