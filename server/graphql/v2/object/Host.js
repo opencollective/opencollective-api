@@ -478,28 +478,34 @@ export const Host = new GraphQLObjectType({
             where.createdAt = dateRange;
           }
           if (args.account) {
-            const collectiveIds = args.account.map(account => account.legacyId);
-            where.CollectiveId = { [Op.in]: collectiveIds };
+            const collectiveIds = args.account.map(async account => {
+              const accountObj = await fetchAccountWithReference(account, { throwIfMissing: true });
+              return accountObj.id;
+            });
+            await Promise.all(collectiveIds).then(collectiveIds => {
+              where.CollectiveId = { [Op.in]: collectiveIds };
+            });
           }
-          const contributions = await models.Transaction.findAndCountAll({
+          const contributionsCount = await models.Transaction.count({
             where,
           });
-          const oneTimeContributionsCount = await models.Transaction.count({
-            where,
-            include: [{ model: models.Order, where: { interval: null } }],
-          });
-          const recurringContributionsCount = await models.Transaction.count({
-            where,
-            include: [{ model: models.Order, where: { interval: { [Op.ne]: null }, status: 'ACTIVE' } }],
-          });
-          const dailyAverageIncomeAmount =
-            contributions.rows.map(contribution => contribution.amount).reduce((result, item) => result + item, 0) /
-              contributions.count || 0;
+          const contributionsAmountSum = await models.Transaction.sum('amount', where);
+          const dailyAverageIncomeAmount = contributionsCount !== 0 ? contributionsAmountSum / contributionsCount : 0;
           return {
-            contributionsCount: contributions.count,
-            oneTimeContributionsCount,
-            recurringContributionsCount,
-            dailyAverageIncomeAmount,
+            contributionsCount,
+            oneTimeContributionsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Order, where: { interval: null } }],
+            }),
+            recurringContributionsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Order, where: { interval: { [Op.ne]: null }, status: 'ACTIVE' } }],
+            }),
+            dailyAverageIncomeAmount: {
+              valueInCents: dailyAverageIncomeAmount,
+              value: dailyAverageIncomeAmount / 100,
+              currency: host.currency,
+            },
           };
         },
       },
@@ -529,33 +535,38 @@ export const Host = new GraphQLObjectType({
             where.createdAt = dateRange;
           }
           if (args.account) {
-            const collectiveIds = args.account.map(account => account.legacyId);
-            where.CollectiveId = { [Op.in]: collectiveIds };
+            const collectiveIds = args.account.map(async account => {
+              const accountObj = await fetchAccountWithReference(account, { throwIfMissing: true });
+              return accountObj.id;
+            });
+            await Promise.all(collectiveIds).then(collectiveIds => {
+              where.CollectiveId = { [Op.in]: collectiveIds };
+            });
           }
-          const expenses = await models.Transaction.findAndCountAll({
+          const expensesCount = await models.Transaction.count({
             where,
           });
-          const invoicesCount = await models.Transaction.count({
-            where,
-            include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
-          });
-          const reimbursementsCount = await models.Transaction.count({
-            where,
-            include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
-          });
-          const grantsCount = await models.Transaction.count({
-            where,
-            include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
-          });
-          const dailyAverageAmount =
-            Math.abs(expenses.rows.map(expense => expense.amount).reduce((result, item) => result + item, 0)) /
-              expenses.count || 0;
+          const expensesAmountSum = await models.Transaction.sum('amount', where);
+          const dailyAverageAmount = expensesCount !== 0 ? Math.abs(expensesAmountSum) / expensesCount : 0;
           return {
-            expensesCount: expenses.count,
-            invoicesCount,
-            reimbursementsCount,
-            grantsCount,
-            dailyAverageAmount,
+            expensesCount,
+            invoicesCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
+            }),
+            reimbursementsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
+            }),
+            grantsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
+            }),
+            dailyAverageAmount: {
+              valueInCents: dailyAverageAmount,
+              value: dailyAverageAmount / 100,
+              currency: host.currency,
+            },
           };
         },
       },
