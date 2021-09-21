@@ -1,5 +1,6 @@
 import { round, toNumber, truncate } from 'lodash';
 
+import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
@@ -11,8 +12,9 @@ import models, { Op, sequelize } from '../models';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 const { CREDIT, DEBIT } = TransactionTypes;
-const { CONTRIBUTION, EXPENSE } = TransactionKind;
+const { ADDED_FUNDS, CONTRIBUTION, EXPENSE } = TransactionKind;
 const { TICKET } = TierType;
+const { CHARGE } = ExpenseType;
 
 /**
  * Export transactions as CSV
@@ -266,14 +268,14 @@ export async function generateDescription(transaction, { req = null, full = fals
   let baseString = 'Transaction',
     debtString = '',
     tierString = '',
-    expenseString = '',
+    extraString = '',
     fromString = '',
     toString = '';
 
   if (transaction.isRefund && transaction.RefundTransactionId) {
     const refundedTransaction = await (req
       ? req.loaders.Transaction.byId.load(transaction.RefundTransactionId)
-      : models.Transactions.findByPk(order.RefundTransactionId));
+      : models.Transaction.findByPk(order.RefundTransactionId));
     if (refundedTransaction) {
       const refundedTransactionDescription = await generateDescription(refundedTransaction, { req, full });
       return `Refund of "${refundedTransactionDescription}"`;
@@ -283,9 +285,7 @@ export async function generateDescription(transaction, { req = null, full = fals
   let order, expense, subscription, tier;
 
   if (transaction.OrderId) {
-    order = await (req
-      ? req.loaders.Order.byId.load(transaction.OrderId)
-      : models.Orders.findByPk(transaction.OrderId));
+    order = await (req ? req.loaders.Order.byId.load(transaction.OrderId) : models.Order.findByPk(transaction.OrderId));
   }
 
   if (kindStrings[transaction.kind]) {
@@ -294,7 +294,7 @@ export async function generateDescription(transaction, { req = null, full = fals
 
   if (transaction.kind === CONTRIBUTION) {
     if (order?.TierId) {
-      tier = await (req ? req.loaders.Tier.byId.load(order.TierId) : models.Tiers.findByPk(order.TierId));
+      tier = await (req ? req.loaders.Tier.byId.load(order.TierId) : models.Tier.findByPk(order.TierId));
     }
     if (tier) {
       tierString = ` (${truncate(tier.name, { length: 128 })})`;
@@ -302,7 +302,7 @@ export async function generateDescription(transaction, { req = null, full = fals
     if (order?.SubscriptionId) {
       subscription = await (req
         ? req.loaders.Subscription.byId.load(order.SubscriptionId)
-        : models.Subscriptions.findByPk(order.SubscriptionId));
+        : models.Subscription.findByPk(order.SubscriptionId));
     }
     if (subscription?.interval === 'month') {
       baseString = `Monthly contribution`;
@@ -311,23 +311,32 @@ export async function generateDescription(transaction, { req = null, full = fals
     } else if (tier && tier.type === TICKET) {
       baseString = `Registration`;
     }
+  } else if (transaction.kind === ADDED_FUNDS) {
+    if (order.description && !order.description.includes('Financial contribution to')) {
+      extraString = ` - ${order.description}`;
+    }
   } else if (transaction.kind === EXPENSE) {
     if (transaction.ExpenseId) {
       expense = await (req
         ? req.loaders.Expense.byId.load(transaction.ExpenseId)
-        : models.Expenses.findByPk(transaction.ExpenseId));
+        : models.Expense.findByPk(transaction.ExpenseId));
     }
     if (expense) {
-      expenseString = ` - ${expense.description}`;
+      if (expense.type === CHARGE) {
+        baseString = 'Virtual Card charge';
+      }
+      if (expense.type !== CHARGE) {
+        extraString = ` - ${expense.description}`;
+      }
     }
   }
 
   const account = await (req
     ? req.loaders.Collective.byId.load(transaction.CollectiveId)
-    : models.Collectives.findByPk(order.CollectiveId));
+    : models.Collective.findByPk(order.CollectiveId));
   const oppositeAccount = await (req
     ? req.loaders.Collective.byId.load(transaction.FromCollectiveId)
-    : models.Collectives.findByPk(order.FromCollectiveId));
+    : models.Collective.findByPk(order.FromCollectiveId));
 
   if (transaction.isDebt) {
     debtString = ' owed';
@@ -368,5 +377,5 @@ export async function generateDescription(transaction, { req = null, full = fals
     }
   }
 
-  return `${baseString}${debtString}${fromString}${toString}${tierString}${expenseString}`;
+  return `${baseString}${debtString}${fromString}${toString}${tierString}${extraString}`;
 }
