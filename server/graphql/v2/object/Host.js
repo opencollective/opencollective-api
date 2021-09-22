@@ -5,7 +5,10 @@ import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { TransactionKind } from '../../../constants/transaction-kind';
+import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { days } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -16,7 +19,11 @@ import { HostApplicationCollection } from '../collection/HostApplicationCollecti
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { TimeUnit } from '../enum/TimeUnit';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+} from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -42,6 +49,21 @@ const getFilterDateRange = (startDate, endDate) => {
     dateRange = { [Op.lt]: endDate };
   }
   return dateRange;
+};
+
+const getNumberOfDays = (startDate, endDate) => {
+  const startTimeOfStatistics = new Date(2015, 0, 1);
+  let numberOfDays;
+  if (startDate && endDate) {
+    numberOfDays = days(startDate, endDate);
+  } else if (startDate) {
+    numberOfDays = days(startDate);
+  } else if (endDate) {
+    numberOfDays = days(startTimeOfStatistics, endDate);
+  } else {
+    numberOfDays = days(startTimeOfStatistics);
+  }
+  return numberOfDays;
 };
 
 export const Host = new GraphQLObjectType({
@@ -472,25 +494,26 @@ export const Host = new GraphQLObjectType({
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see the contribution stats.');
           }
-          const where = { HostCollectiveId: host.id, kind: 'CONTRIBUTION' };
+          const where = {
+            HostCollectiveId: host.id,
+            kind: TransactionKind.CONTRIBUTION,
+            type: TransactionTypes.CREDIT,
+          };
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo);
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
           }
           if (args.account) {
-            const collectiveIds = args.account.map(async account => {
-              const accountObj = await fetchAccountWithReference(account, { throwIfMissing: true });
-              return accountObj.id;
-            });
-            await Promise.all(collectiveIds).then(collectiveIds => {
-              where.CollectiveId = { [Op.in]: collectiveIds };
-            });
+            const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+            const collectiveIds = collectives.map(collective => collective.id);
+            where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const contributionsCount = await models.Transaction.count({
             where,
           });
-          const contributionsAmountSum = await models.Transaction.sum('amount', where);
-          const dailyAverageIncomeAmount = contributionsCount !== 0 ? contributionsAmountSum / contributionsCount : 0;
+          const contributionsAmountSum = await models.Transaction.sum('amount', { where });
+          const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
           return {
             contributionsCount,
             oneTimeContributionsCount: models.Transaction.count({
@@ -499,11 +522,10 @@ export const Host = new GraphQLObjectType({
             }),
             recurringContributionsCount: models.Transaction.count({
               where,
-              include: [{ model: models.Order, where: { interval: { [Op.ne]: null }, status: 'ACTIVE' } }],
+              include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
             }),
             dailyAverageIncomeAmount: {
-              valueInCents: dailyAverageIncomeAmount,
-              value: dailyAverageIncomeAmount / 100,
+              value: dailyAverageIncomeAmount,
               currency: host.currency,
             },
           };
@@ -529,25 +551,22 @@ export const Host = new GraphQLObjectType({
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
-          const where = { HostCollectiveId: host.id, kind: 'EXPENSE' };
+          const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo);
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
           }
           if (args.account) {
-            const collectiveIds = args.account.map(async account => {
-              const accountObj = await fetchAccountWithReference(account, { throwIfMissing: true });
-              return accountObj.id;
-            });
-            await Promise.all(collectiveIds).then(collectiveIds => {
-              where.CollectiveId = { [Op.in]: collectiveIds };
-            });
+            const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+            const collectiveIds = collectives.map(collective => collective.id);
+            where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const expensesCount = await models.Transaction.count({
             where,
           });
-          const expensesAmountSum = await models.Transaction.sum('amount', where);
-          const dailyAverageAmount = expensesCount !== 0 ? Math.abs(expensesAmountSum) / expensesCount : 0;
+          const expensesAmountSum = await models.Transaction.sum('amount', { where });
+          const dailyAverageAmount = expensesCount ? Math.abs(expensesAmountSum) / numberOfDays : 0;
           return {
             expensesCount,
             invoicesCount: models.Transaction.count({
@@ -563,8 +582,7 @@ export const Host = new GraphQLObjectType({
               include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
             }),
             dailyAverageAmount: {
-              valueInCents: dailyAverageAmount,
-              value: dailyAverageAmount / 100,
+              value: dailyAverageAmount,
               currency: host.currency,
             },
           };
