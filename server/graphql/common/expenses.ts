@@ -7,6 +7,7 @@ import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
+import { isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
@@ -463,27 +464,17 @@ const getTotalAmountFromItems = items => {
 };
 
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseData, items) => {
+const checkExpenseItems = expense => {
   // Check the number of items
-  if (!items || items.length === 0) {
+  if (!expense.items || expense.items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
-  } else if (items.length > 100) {
+  } else if (expense.items.length > 100) {
     throw new ValidationFailed('Expenses cannot have more than 100 items');
   }
 
-  // Check amounts
-  const sumItems = getTotalAmountFromItems(items);
-  if (sumItems !== expenseData.amount) {
-    throw new ValidationFailed(
-      `The sum of all items must be equal to the total expense's amount. Expense's total is ${expenseData.amount}, but the total of items was ${sumItems}.`,
-    );
-  } else if (!sumItems) {
-    throw new ValidationFailed(`The sum of all items must be above 0`);
-  }
-
   // If expense is a receipt (not an invoice) then files must be attached
-  if (expenseData.type === expenseType.RECEIPT) {
-    const hasMissingFiles = items.some(a => !a.url);
+  if (expense.type === expenseType.RECEIPT) {
+    const hasMissingFiles = expense.items.some(a => !a.url);
     if (hasMissingFiles) {
       throw new ValidationFailed('Some items are missing a file');
     }
@@ -506,7 +497,7 @@ const EXPENSE_PAID_CHARGE_EDITABLE_FIELDS = ['description', 'tags', 'privateMess
 const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
-      const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
+      const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id, { transaction: dbTransaction });
       if (!pm || !remoteUser.isAdmin(pm.CollectiveId)) {
         throw new Error("This payout method does not exist or you don't have the permission to use it");
       } else if (pm.CollectiveId !== fromCollective.id) {
@@ -539,95 +530,98 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   }
 };
 
-type ExpenseData = {
-  id?: number;
+interface ExpenseCreateInput {
   payoutMethod?: Record<string, unknown>;
   payeeLocation?: Record<string, unknown>;
   items?: Record<string, unknown>[];
   attachedFiles?: Record<string, unknown>[];
-  collective?: Record<string, unknown>;
-  fromCollective?: Record<string, unknown>;
+  account: Record<string, unknown>;
+  fromAccount: Record<string, unknown>;
   tags?: string[];
   incurredAt?: Date;
-  amount?: number;
   description?: string;
-};
+}
 
-export async function createExpense(
-  remoteUser: typeof models.User | null,
-  expenseData: ExpenseData,
-): Promise<typeof models.Expense> {
-  if (!remoteUser) {
+interface ExpenseEditInput {
+  id: number;
+  payoutMethod?: Record<string, unknown>;
+  payeeLocation?: Record<string, unknown>;
+  items?: Record<string, unknown>[];
+  attachedFiles?: Record<string, unknown>[];
+  fromAccount: Record<string, unknown>;
+  tags?: string[];
+  incurredAt?: Date;
+  description?: string;
+}
+
+const checkCreateExpensePermissions = (user, fromAccount, account) => {
+  // Ensure user is logged in and is not blocked from submitting expenses from this profile
+  if (!user) {
     throw new Unauthorized('You need to be logged in to create an expense');
-  } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
+  } else if (!canUseFeature(user, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
+  } else if (!user.isAdminOfCollective(fromAccount.id)) {
+    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
+  } else if (!fromAccount.canBeUsedAsPayoutProfile()) {
+    throw new ValidationFailed('This account cannot be used for payouts');
   }
 
-  if (!get(expenseData, 'collective.id')) {
-    throw new Unauthorized('Missing expense.collective.id');
-  }
-
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(expenseData.collective.id)]);
-  if (expenseData.collective.settings?.['disablePublicExpenseSubmission'] && !isMember) {
+  // Check that user is a member when public expense submission is disabled
+  const isMember = Boolean(user.rolesByCollectiveId[String(account.id)]);
+  if (account.settings?.['disablePublicExpenseSubmission'] && !isMember) {
     throw new Error('You must be a member of the collective to create new expense');
   }
 
-  const itemsData = expenseData.items;
-
-  checkExpenseItems(expenseData, itemsData);
-
-  if (size(expenseData.attachedFiles) > 15) {
-    throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
-  }
-
-  const collective = await models.Collective.findByPk(expenseData.collective.id);
-  if (!collective) {
-    throw new ValidationFailed('Collective not found');
-  }
-
-  const isAllowedType = [
-    collectiveTypes.COLLECTIVE,
-    collectiveTypes.EVENT,
-    collectiveTypes.FUND,
-    collectiveTypes.PROJECT,
-  ].includes(collective.type);
-  const isActiveHost = collective.type === collectiveTypes.ORGANIZATION && collective.isActive;
-  if (!isAllowedType && !isActiveHost) {
+  // Check the account type
+  const isActiveHost = account.type === collectiveTypes.ORGANIZATION && account.isActive;
+  if (!isFeatureAllowedForCollectiveType(account.type, FEATURE.RECEIVE_EXPENSES, isActiveHost)) {
     throw new ValidationFailed(
       'Expenses can only be submitted to Collectives, Events, Funds, Projects and active Hosts.',
     );
   }
+};
 
-  // Load the payee profile
-  const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-  if (!remoteUser.isAdmin(fromCollective.id)) {
-    throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
-  } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
-    throw new ValidationFailed('This account cannot be used for payouts');
+export async function createExpense(
+  remoteUser: typeof models.User | null,
+  expenseInput: ExpenseCreateInput,
+): Promise<typeof models.Expense> {
+  const { fromAccount, account } = remoteUser;
+
+  // Check permissions
+  checkCreateExpensePermissions(remoteUser, fromAccount, account);
+
+  // Check items
+  checkExpenseItems(expenseInput);
+
+  // Add some sanity checks on the input data
+  if (size(expenseInput.attachedFiles) > 15) {
+    throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
   // Update payee's location
-  if (!expenseData.payeeLocation?.address && fromCollective.location) {
-    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country', 'structured']);
-  } else if (
-    expenseData.payeeLocation?.address &&
-    (!fromCollective.location.address || !fromCollective.location.structured)
-  ) {
+  const hasPayeeLocationInput = Boolean(expenseInput.payeeLocation?.address);
+  if (!hasPayeeLocationInput && fromAccount.location) {
+    // If payee location is not defined, use the default one from payee account
+    expenseInput.payeeLocation = pick(fromAccount.location, ['address', 'country', 'structured']);
+  } else if (hasPayeeLocationInput && (!fromAccount.location.address || !fromAccount.location.structured)) {
     // Let's take the opportunity to update collective's location
-    await fromCollective.update({
-      address: expenseData.payeeLocation.address,
-      countryISO: expenseData.payeeLocation.country,
-      data: { ...fromCollective.data, address: expenseData.payeeLocation.structured },
+    await fromAccount.update({
+      address: expenseInput.payeeLocation.address,
+      countryISO: expenseInput.payeeLocation.country,
+      data: { ...fromAccount.data, address: expenseInput.payeeLocation.structured },
     });
   }
 
   // Get or create payout method
-  const payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, null);
+  const payoutMethod = await getPayoutMethodFromExpenseData(expenseInput, remoteUser, fromAccount, null);
+  if (!payoutMethod) {
+    throw new Error('Cannot get the payout method for this expense');
+  }
 
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    const host = await collective.getHostCollective();
+    const host = await account.getHostCollective();
     const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
     if (connectedAccounts?.[0]) {
       paymentProviders.transferwise.validatePayoutMethod(connectedAccounts[0], payoutMethod);
@@ -639,18 +633,17 @@ export async function createExpense(
     // Create expense
     const createdExpense = await models.Expense.create(
       {
-        ...pick(expenseData, EXPENSE_EDITABLE_FIELDS),
-        currency: collective.currency,
-        tags: expenseData.tags,
+        ...pick(expenseInput, EXPENSE_EDITABLE_FIELDS),
+        incurredAt: expenseInput.incurredAt || new Date(),
         status: statuses.PENDING,
-        CollectiveId: collective.id,
-        FromCollectiveId: fromCollective.id,
+        currency: account.currency,
+        CollectiveId: account.id,
+        FromCollectiveId: fromAccount.id,
         lastEditedById: remoteUser.id,
         UserId: remoteUser.id,
-        incurredAt: expenseData.incurredAt || new Date(),
-        PayoutMethodId: payoutMethod && payoutMethod.id,
+        PayoutMethodId: payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-        amount: expenseData.amount || getTotalAmountFromItems(itemsData),
+        amount: getTotalAmountFromItems(expenseInput.items),
         data: { recipient },
       },
       { transaction: t },
@@ -658,19 +651,19 @@ export async function createExpense(
 
     // Create items
     createdExpense.items = await Promise.all(
-      itemsData.map(attachmentData => {
+      expenseInput.items.map(attachmentData => {
         return models.ExpenseItem.createFromData(attachmentData, remoteUser, createdExpense, t);
       }),
     );
 
     // Create attached files
-    createdExpense.attachedFiles = await createAttachedFiles(createdExpense, expenseData.attachedFiles, remoteUser, t);
+    createdExpense.attachedFiles = await createAttachedFiles(createdExpense, expenseInput.attachedFiles, remoteUser, t);
 
     return createdExpense;
   });
 
   expense.user = remoteUser;
-  expense.collective = collective;
+  expense.collective = account;
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, remoteUser);
   return expense;
 }
@@ -678,7 +671,7 @@ export async function createExpense(
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
   expense: typeof models.Expense,
-  newExpenseData: ExpenseData,
+  newExpenseData: ExpenseEditInput,
   hasItemsChanges: boolean,
   hasPayoutChanges: boolean,
 ): boolean => {
@@ -695,15 +688,15 @@ export const changesRequireStatusUpdate = (
 /** Returns infos about the changes made to items */
 export const getItemsChanges = async (
   expense: typeof models.Expense,
-  expenseData: ExpenseData,
+  expenseInput: ExpenseEditInput,
 ): Promise<
   [boolean, Record<string, unknown>[], [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]
 > => {
-  if (expenseData.items) {
+  if (expenseInput.items) {
     const baseItems = await models.ExpenseItem.findAll({ where: { ExpenseId: expense.id } });
-    const itemsDiff = models.ExpenseItem.diffDBEntries(baseItems, expenseData.items);
+    const itemsDiff = models.ExpenseItem.diffDBEntries(baseItems, expenseInput.items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
-    return [hasItemChanges, expenseData.items, itemsDiff];
+    return [hasItemChanges, expenseInput.items, itemsDiff];
   } else {
     return [false, [], [[], [], []]];
   }
@@ -711,7 +704,7 @@ export const getItemsChanges = async (
 
 export async function editExpense(
   req: express.Request,
-  expenseData: ExpenseData,
+  expenseInput: ExpenseEditInput,
   options = {},
 ): Promise<typeof models.Expense> {
   const remoteUser = options?.['overrideRemoteUser'] || req.remoteUser;
@@ -721,7 +714,8 @@ export async function editExpense(
     throw new FeatureNotAllowedForUser();
   }
 
-  const expense = await models.Expense.findByPk(expenseData.id, {
+  // Load all associated data
+  const expense = await models.Expense.findByPk(expenseInput.id, {
     include: [
       { model: models.Collective, as: 'collective' },
       { model: models.Collective, as: 'fromCollective' },
@@ -729,20 +723,21 @@ export async function editExpense(
       { model: models.PayoutMethod },
     ],
   });
-  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense, expenseData);
 
   if (!expense) {
     throw new NotFound('Expense not found');
   }
 
-  const modifiedFields = Object.keys(omitBy(expenseData, (value, key) => key === 'id' || isNil(value)));
+  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense, expenseInput);
+
+  const modifiedFields = Object.keys(omitBy(expenseInput, (value, key) => key === 'id' || isNil(value)));
   if (isEqual(modifiedFields, ['tags'])) {
     // Special mode when editing **only** tags: we don't care about the expense status there
     if (!(await canEditExpenseTags(req, expense))) {
       throw new Unauthorized("You don't have permission to edit tags for this expense");
     }
 
-    return expense.update({ tags: expenseData.tags });
+    return expense.update({ tags: expenseInput.tags });
   }
 
   if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
@@ -758,13 +753,13 @@ export async function editExpense(
     );
   }
 
-  if (size(expenseData.attachedFiles) > 15) {
+  if (size(expenseInput.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
   }
 
   // Load the payee profile
-  const fromCollective = expenseData.fromCollective || expense.fromCollective;
-  if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
+  const fromCollective = expenseInput.fromAccount || expense.fromCollective;
+  if (expenseInput.fromAccount && expenseInput.fromAccount.id !== expense.fromCollective.id) {
     if (!options?.['skipPermissionCheck'] && !remoteUser.isAdmin(fromCollective.id)) {
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
@@ -798,7 +793,7 @@ export async function editExpense(
 
     // Update items
     if (hasItemChanges) {
-      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData);
+      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData, items: itemsData });
       const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
       await Promise.all(<Promise<void>[]>[
         // Delete
