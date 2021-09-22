@@ -23,6 +23,7 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 const debug = debugLib('expenses');
@@ -627,6 +628,12 @@ export async function createExpense(
   // Create and validate TransferWise recipient
   let recipient;
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
+    const accountHolderName = payoutMethodData?.accountHolderName;
+    const legalName = <string>expenseData.fromCollective.legalName;
+    if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
+      throw new Error('The legal name should match the bank account holder name');
+    }
     const host = await collective.getHostCollective();
     const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
     if (connectedAccounts?.[0]) {
@@ -709,6 +716,34 @@ export const getItemsChanges = async (
   }
 };
 
+/*
+ * Validate the account holder name against the legal name. Following cases are considered a match,
+ *
+ * 1) Punctuation are ignored; "Evil Corp, Inc" and "Evil Corp, Inc." are considered a match.
+ * 2) Accents are ignored; "François" and "Francois" are considered a match.
+ * 3) The first name and last name order is ignored; "Benjamin Piouffle" and "Piouffle Benjamin" is considered a match.
+ * 4) If one of account holder name or legal name is not defined then this function returns true.
+ */
+export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
+  const namesArray = legalName.split(' ');
+  let legalNameReversed;
+  if (namesArray.length === 2) {
+    const firstName = namesArray[0];
+    const lastName = namesArray[1];
+    legalNameReversed = `${lastName} ${firstName}`;
+  }
+  return !(
+    accountHolderName.localeCompare(legalName, undefined, {
+      sensitivity: 'base',
+      ignorePunctuation: true,
+    }) &&
+    accountHolderName.localeCompare(legalNameReversed, undefined, {
+      sensitivity: 'base',
+      ignorePunctuation: true,
+    })
+  );
+};
+
 export async function editExpense(
   req: express.Request,
   expenseData: ExpenseData,
@@ -786,6 +821,16 @@ export async function editExpense(
   );
 
   let payoutMethod = await expense.getPayoutMethod();
+
+  // Validate bank account payout method
+  if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const payoutMethodData = <BankAccountPayoutMethodData>payoutMethod.data;
+    const accountHolderName = payoutMethodData?.accountHolderName;
+    const legalName = <string>expenseData.fromCollective.legalName;
+    if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
+      throw new Error('The legal name should match the bank account holder name');
+    }
+  }
   const updatedExpense = await sequelize.transaction(async t => {
     // Update payout method if we get new data from one of the param for it
     if (

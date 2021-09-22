@@ -16,6 +16,7 @@ import {
   canSeeExpensePayoutMethod,
   canUnapprove,
   canUnschedulePayment,
+  isAccountHolderNameAndLegalNameMatch,
 } from '../../../../server/graphql/common/expenses';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
@@ -406,6 +407,19 @@ describe('server/graphql/common/expenses', () => {
       expect(await canUnschedulePayment(limitedHostAdminReq, expense)).to.be.false;
       expect(await canUnschedulePayment(collectiveAccountantReq, expense)).to.be.false;
       expect(await canUnschedulePayment(hostAccountantReq, expense)).to.be.false;
+    });
+
+    it('make sure legal name is validated against the account holder name', async () => {
+      expect(isAccountHolderNameAndLegalNameMatch('Evil Corp, Inc', 'Evil Corp, Inc.')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('François', 'Francois')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('Sudharaka Palamakumbura', 'Palamakumbura Sudharaka')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('Sudharaka', 'Palamakumbura Sudharaka')).to.be.false;
+      expect(isAccountHolderNameAndLegalNameMatch('Evil Corp, Inc', 'Evil Corp, Inc.')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('Evil Corp Inc', 'Evil Corp, Inc.')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch(' Evil   Corp,    Inc.', '   Evil Corp   Inc')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('François Dêaccènt', 'Francois DeAccEnt')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('Sudharaka Palamakumbura', 'Palamakumbura Sudharaka')).to.be.true;
+      expect(isAccountHolderNameAndLegalNameMatch('Sudharaka Palamakumbura', 'Sudharaka Palamakumbura')).to.be.true;
     });
   });
 });
