@@ -303,7 +303,75 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
   });
 
-  describe('createExpensesBatchGroup', () => {
+  describe('scheduleExpenseForPayment', () => {
+    let expense, batchGroupId;
+    beforeEach(async () => {
+      sandbox.resetHistory();
+      expense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 1000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+      });
+      expense.PayoutMethod = payoutMethod;
+      batchGroupId = 'zs987sad89y1hubnc89h12h892s';
+      createBatchGroup.resolves({ id: batchGroupId });
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
+      createBatchGroupTransfer.resolves({ id: 800 });
+      getBorderlessAccount.resolves({
+        balances: [
+          {
+            currency: 'USD',
+            amount: { value: 100000 },
+          },
+        ],
+      });
+      await transferwise.scheduleExpenseForPayment(expense);
+    });
+
+    it('creates a new batchGroup', () => {
+      expect(createBatchGroup.called).to.be.true;
+      const [token, , batchGroupOptions] = createBatchGroup.firstCall.args;
+
+      expect(token).to.equal(connectedAccount.token);
+      expect(batchGroupOptions.currency).to.equal(host.currnecy);
+    });
+
+    it('creates a transaction for the expense in the batchGroup ', () => {
+      const call = createBatchGroupTransfer.firstCall;
+      expect(toNumber(call.lastArg.details.reference)).to.equal(expense.id);
+      expect(call).to.have.nested.property('args[2]', batchGroupId);
+    });
+
+    it('reuses existing batchGroup if available', async () => {
+      const newExpense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 2000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice #2',
+      });
+      newExpense.PayoutMethod = payoutMethod;
+      await transferwise.scheduleExpenseForPayment(newExpense);
+
+      const call = createBatchGroupTransfer.secondCall;
+      expect(toNumber(call.lastArg.details.reference)).to.equal(newExpense.id);
+      expect(call).to.have.nested.property('args[2]', batchGroupId);
+    });
+  });
+
+  describe('fundBatchGroup', () => {
     const batchGroupId = '123abc';
     const ottToken = 'random-hash';
     before(async () => {

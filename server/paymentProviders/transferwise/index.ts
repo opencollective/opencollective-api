@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, find, has, isEmpty, omit, pick, split, toNumber } from 'lodash';
+import { compact, find, first, has, isEmpty, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -133,6 +133,10 @@ async function createTransfer(
     const token = options?.token || (await getToken(connectedAccount));
     const profileId = connectedAccount.data.id;
 
+    if (!payoutMethod) {
+      payoutMethod = await expense.getPayoutMethod();
+    }
+
     const recipient =
       expense.data?.recipient?.payoutMethodId === payoutMethod.id
         ? expense.data.recipient
@@ -230,6 +234,68 @@ async function payExpense(
   }
 
   return { quote, recipient, transfer, fund, paymentOption };
+}
+
+const getOrCreateActiveBatch = async (
+  host: typeof models.Collective,
+  options?: { connectedAccount?: string; token?: string },
+): Promise<BatchGroup> => {
+  const expense = await models.Expense.findOne({
+    where: { status: status.SCHEDULED_FOR_PAYMENT, data: { batchGroup: { status: 'NEW' } } },
+    order: [['updatedAt', 'DESC']],
+    include: [
+      { model: models.PayoutMethod, as: 'PayoutMethod', required: true },
+      {
+        model: models.Collective,
+        as: 'collective',
+        where: { HostCollectiveId: host.id },
+        required: true,
+      },
+    ],
+  });
+
+  if (expense) {
+    return expense.data.batchGroup as BatchGroup;
+  } else {
+    const connectedAccount =
+      options?.connectedAccount ||
+      (await host.getConnectedAccounts({ where: { service: 'transferwise' } }).then(first));
+    if (!connectedAccount) {
+      throw new Error('Host is not connected to TransferWise');
+    }
+
+    const profileId = connectedAccount.data.id;
+    const token = options?.token || (await getToken(connectedAccount));
+    const batchGroup = await transferwise.createBatchGroup(token, profileId, {
+      name: uuid(),
+      sourceCurrency: connectedAccount.data.currency || host.currency,
+    });
+
+    return batchGroup;
+  }
+};
+
+async function scheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
+  const collective = await expense.getCollective();
+  const host = await collective.getHostCollective();
+  if (!host) {
+    throw new Error(`Can not find Host for expense ${expense.id}`);
+  }
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to TransferWise');
+  }
+  const token = await getToken(connectedAccount);
+
+  // Check for any existing Batch Group where status = NEW, create a new one if needed
+  const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
+  await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
+    batchGroupId: batchGroup.id,
+    token,
+  });
+  await expense.reload();
+  await expense.update({ data: { ...expense.data, batchGroup } });
+  return expense;
 }
 
 async function createExpensesBatchGroup(
@@ -539,5 +605,6 @@ export default {
   fundExpensesBatchGroup,
   setUpWebhook,
   validatePayoutMethod,
+  scheduleExpenseForPayment,
   oauth,
 };
