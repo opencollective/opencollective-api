@@ -6725,6 +6725,11 @@ type Order {
   Data related to the order
   """
   data: JSON
+
+  """
+  Custom data related to the order, based on the fields described by tier.customFields
+  """
+  customData: JSON
 }
 
 """
@@ -6869,6 +6874,11 @@ input OrderReferenceInput {
   The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """
   id: String
+
+  """
+  The legacy public id identifying the order (ie: 4242)
+  """
+  legacyId: Int
 }
 
 """

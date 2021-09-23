@@ -128,12 +128,13 @@ export const fakeCollective = async (collectiveData = {}, sequelizeParams = {}) 
   }
   if (collectiveData.admin) {
     try {
+      const isUser = collectiveData.admin instanceof models.User;
       await models.Member.create(
         {
           CollectiveId: collective.id,
-          MemberCollectiveId: collectiveData.admin.id,
+          MemberCollectiveId: isUser ? collectiveData.admin.CollectiveId : collectiveData.admin.id,
           role: roles.ADMIN,
-          CreatedByUserId: collectiveData.admin.CreatedByUserId,
+          CreatedByUserId: isUser ? collectiveData.admin.id : collectiveData.admin.CreatedByUserId,
         },
         sequelizeParams,
       );

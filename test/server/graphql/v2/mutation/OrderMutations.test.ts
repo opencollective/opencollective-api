@@ -27,6 +27,7 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
         quantity
         frequency
         tags
+        customData
         tier {
           legacyId
         }
@@ -185,6 +186,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               tier: { legacyId: tier.id },
               quantity: 3,
               tags: ['wow', 'it', 'supports', 'tags!'],
+              customData: {
+                message: 'Hello world',
+              },
             },
           },
           fromUser,
@@ -200,6 +204,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(order.quantity).to.eq(3);
         expect(order.tier.legacyId).to.eq(tier.id);
         expect(order.tags).to.deep.eq(['wow', 'it', 'supports', 'tags!']);
+        expect(order.customData).to.deep.eq({ message: 'Hello world' });
       });
 
       it('can add platform contribution', async () => {
