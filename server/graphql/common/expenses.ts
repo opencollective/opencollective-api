@@ -8,6 +8,7 @@ import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
 import { getFxRate } from '../../lib/currency';
+import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
@@ -632,7 +633,7 @@ export async function createExpense(
     const accountHolderName = payoutMethodData?.accountHolderName;
     const legalName = <string>expenseData.fromCollective.legalName;
     if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
-      throw new Error('The legal name should match the bank account holder name');
+      logger.warn('The legal name should match the bank account holder name');
     }
     const host = await collective.getHostCollective();
     const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
@@ -725,7 +726,11 @@ export const getItemsChanges = async (
  * 4) If one of account holder name or legal name is not defined then this function returns true.
  */
 export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, legalName: string): boolean => {
-  const namesArray = legalName.split(' ');
+  // Ignore 501(c)(3) in both account holder name and legal name
+  legalName = legalName.replace(/501\(c\)\(3\)/g, '');
+  accountHolderName = accountHolderName.replace(/501\(c\)\(3\)/g, '');
+
+  const namesArray = legalName.trim().split(' ');
   let legalNameReversed;
   if (namesArray.length === 2) {
     const firstName = namesArray[0];
@@ -828,7 +833,7 @@ export async function editExpense(
     const accountHolderName = payoutMethodData?.accountHolderName;
     const legalName = <string>expenseData.fromCollective.legalName;
     if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
-      throw new Error('The legal name should match the bank account holder name');
+      logger.warn('The legal name should match the bank account holder name');
     }
   }
   const updatedExpense = await sequelize.transaction(async t => {

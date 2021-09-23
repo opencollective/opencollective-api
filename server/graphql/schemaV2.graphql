@@ -6727,7 +6727,9 @@ type Order {
   data: JSON
 
   """
-  Custom data related to the order, based on the fields described by tier.customFields
+  Custom data related to the order, based on the fields described by
+  tier.customFields. Must be authenticated as an admin of the fromAccount or
+  toAccount (returns null otherwise)
   """
   customData: JSON
 }
