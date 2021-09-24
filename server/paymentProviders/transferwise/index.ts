@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, find, has, isEmpty, pick, split, toNumber } from 'lodash';
+import { compact, find, has, isEmpty, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -184,7 +184,7 @@ async function createTransfer(
       : await transferwise.createTransfer(token, transferOptions);
 
     await expense.update({
-      data: { ...expense.data, quote, recipient, transfer, paymentOption },
+      data: { ...expense.data, quote: omit(quote, ['paymentOptions']), recipient, transfer, paymentOption },
     });
 
     return { quote, recipient, transfer, paymentOption };
