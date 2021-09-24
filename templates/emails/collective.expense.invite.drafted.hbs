@@ -34,7 +34,7 @@ Subject: {{{collective.name}}} wants you to pay you
   {{#each items}}
   <tr>
     <td>{{description}}</td>
-    <td>{{currency amount currency=@root.expense.currency precision=2}}</td>
+    <td>{{currency amount currency=@root.expense.currency}}</td>
   </tr>
   {{/each}}
   {{/if}}

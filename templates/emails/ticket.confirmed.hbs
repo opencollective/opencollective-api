@@ -42,12 +42,12 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 <h2>Payment Details</h2>
 
 <ul>
-  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency precision=2}}</li>
-  <li>Tip to Open Collective: {{currency order.platformTipAmount currency=order.currency precision=2}}</li>
-  <li>Total Amount: {{currency order.chargeAmount currency=order.currency precision=2}}</li>
+  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency}}</li>
+  <li>Tip to Open Collective: {{currency order.platformTipAmount currency=order.currency}}</li>
+  <li>Total Amount: {{currency order.chargeAmount currency=order.currency}}</li>
 </ul>
 
-<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency precision=2}}</p>
+<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency}}</p>
 {{/if}}
 
 <p>Warmly,</p>

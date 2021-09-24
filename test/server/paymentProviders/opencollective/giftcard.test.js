@@ -878,7 +878,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         await utils.waitForCondition(() => sendEmailSpy.callCount > 0);
         expect(sendEmailSpy.firstCall.args[0]).to.equal(args.user.email);
         expect(sendEmailSpy.firstCall.args[1]).to.contain(
-          `You've got $100 from collective1 to spend on Open Collective`,
+          `You've got $100.00 from collective1 to spend on Open Collective`,
         );
         expect(sendEmailSpy.firstCall.args[2]).to.contain(`next=/redeemed?code=${giftCardCode}`);
         expect(sendEmailSpy.firstCall.args[2]).to.contain(

@@ -526,7 +526,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
       await testPaymentProvider.processOrder(orderData2);
       await checkBalances(-2500, 2500);
       await expect(collectivePaymentProvider.refundTransaction(transaction, user)).to.be.rejectedWith(
-        'Not enough funds available ($25 left) to process this refund ($50)',
+        'Not enough funds available ($25.00 left) to process this refund ($50.00)',
       );
     }); /** END OF "Cannot send money that exceeds Collective balance" */
   });
