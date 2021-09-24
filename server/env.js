@@ -1,6 +1,9 @@
+import fs from 'fs';
+import path from 'path';
+
 import debug from 'debug';
 import dotenv from 'dotenv';
-import { get, has } from 'lodash';
+import { get, has, last } from 'lodash';
 
 if (!process.env.NODE_ENV) {
   process.env.NODE_ENV = 'development';
@@ -16,6 +19,17 @@ if (!process.env.NODE_CONFIG_ENV) {
 }
 
 dotenv.config();
+
+// Load extra env file on demand
+// `npm run dev staging` / `npm run dev production`
+if (process.env.EXTRA_ENV || process.env.OC_ENV === 'development') {
+  const extraEnv = process.env.EXTRA_ENV || last(process.argv);
+  const extraEnvPath = path.join(__dirname, '..', `.env.${extraEnv}`);
+  if (fs.existsSync(extraEnvPath)) {
+    dotenv.config({ path: extraEnvPath });
+  }
+}
+
 debug.enable(process.env.DEBUG);
 
 // Normalize Memcachier environment variables (production / heroku)
