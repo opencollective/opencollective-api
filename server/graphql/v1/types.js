@@ -187,17 +187,18 @@ export const UserType = new GraphQLObjectType({
       },
       email: {
         type: GraphQLString,
-        resolve(user, args, req) {
-          return user.getPersonalDetails && user.getPersonalDetails(req.remoteUser).then(user => user.email);
+        async resolve(user, args, req) {
+          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.email;
+          }
         },
       },
       emailWaitingForValidation: {
         type: GraphQLString,
-        resolve(user, args, req) {
-          return (
-            user.getPersonalDetails &&
-            user.getPersonalDetails(req.remoteUser).then(user => user.emailWaitingForValidation)
-          );
+        async resolve(user, args, req) {
+          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.emailWaitingForValidation;
+          }
         },
       },
       memberOf: {
@@ -370,12 +371,17 @@ export const MemberType = new GraphQLObjectType({
         async resolve(member, args, req) {
           const memberCollective =
             member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
-          const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
-
-          if (memberCollective && req.remoteUser && req.remoteUser.isAdmin(member.CollectiveId)) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, memberCollective.id);
-          } else if (collective?.isIncognito) {
+          if (!memberCollective) {
             return null;
+          }
+
+          const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
+          if (collective?.isIncognito) {
+            if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+              allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, memberCollective.id);
+            } else {
+              return null;
+            }
           }
 
           return memberCollective;
@@ -707,7 +713,7 @@ export const InvoiceType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         async resolve(invoice, args, req) {
           const fromCollective = await req.loaders.Collective.byId.load(invoice.FromCollectiveId);
-          if (fromCollective && req.remoteUser?.isAdminOfCollective(fromCollective)) {
+          if (fromCollective && req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, fromCollective.id);
           }
           return fromCollective;
@@ -1617,7 +1623,7 @@ export const OrderType = new GraphQLObjectType({
         async resolve(order, args, req) {
           const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
           const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
-          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective))) {
+          if (fromCollective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
             return {};
           }
 

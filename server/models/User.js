@@ -295,19 +295,6 @@ function defineModel() {
         adminOf.push(m.CollectiveId);
       }
     });
-    // If this User is an admin of a host, we also populate the role ADMIN for all the hosted collectives
-    if (adminOf.length > 0) {
-      const hostedMemberships = await models.Member.findAll({
-        where: {
-          MemberCollectiveId: { [Op.in]: adminOf },
-          role: roles.HOST,
-        },
-      });
-      hostedMemberships.map(m => {
-        rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
-        rolesByCollectiveId[m.CollectiveId].push(roles.ADMIN);
-      });
-    }
     this.rolesByCollectiveId = rolesByCollectiveId;
     debug('populateRoles', this.rolesByCollectiveId);
     return this;
@@ -349,6 +336,21 @@ function defineModel() {
     }
   };
 
+  /**
+   * Check if the user is an admin of the collective or its fiscal host
+   */
+  User.prototype.isAdminOfCollectiveOrHost = function (collective) {
+    if (!collective) {
+      return false;
+    } else if (this.isAdminOfCollective(collective)) {
+      return true;
+    } else if (collective.HostCollectiveId) {
+      return this.isAdmin(collective.HostCollectiveId);
+    } else {
+      return false;
+    }
+  };
+
   User.prototype.isRoot = function () {
     const result = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
     debug('isRoot?', result);
@@ -375,41 +377,6 @@ function defineModel() {
   User.prototype.canSeePrivateUpdatesForCollective = function (collective) {
     const allowedRoles = [roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER];
     return this.hasRole(allowedRoles, collective.id) || this.hasRole(allowedRoles, collective.ParentCollectiveId);
-  };
-
-  User.prototype.getPersonalDetails = function (remoteUser) {
-    if (!remoteUser) {
-      return Promise.resolve(this.public);
-    }
-    return this.populateRoles()
-      .then(() => {
-        if (this.id === remoteUser.id) {
-          return true;
-        }
-        // all the CollectiveIds that the remoteUser is admin of.
-        const adminOfCollectives = Object.keys(remoteUser.rolesByCollectiveId).filter(CollectiveId =>
-          remoteUser.isAdmin(CollectiveId),
-        );
-        const memberOfCollectives = Object.keys(this.rolesByCollectiveId);
-        const canAccess = intersection(adminOfCollectives, memberOfCollectives).length > 0;
-        debug(
-          'getPersonalDetails',
-          'remoteUser id:',
-          remoteUser.id,
-          'is admin of collective ids:',
-          adminOfCollectives,
-          'this user id:',
-          this.id,
-          'is member of',
-          memberOfCollectives,
-          'canAccess?',
-          canAccess,
-        );
-        return canAccess;
-      })
-      .then(canAccess => {
-        return canAccess ? this.info : this.public;
-      });
   };
 
   /**
