@@ -135,7 +135,7 @@ export const processOrder = async order => {
     console.log(e);
   }
   if (cryptoFxRate) {
-    const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoFxRate);
+    const totalAmount = Math.round(order.data.customData.pledgeAmount * cryptoFxRate * 100);
     await order.update({ totalAmount });
   }
 };
