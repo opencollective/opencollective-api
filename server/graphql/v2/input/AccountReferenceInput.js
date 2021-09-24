@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
@@ -61,6 +61,7 @@ export const NewAccountOrReferenceInput = new GraphQLInputObjectType({
  * @param {object} params
  *    - dbTransaction: An SQL transaction to run the query. Will skip `loaders`
  *    - lock: If true and `dbTransaction` is set, the row will be locked
+ *    - throwIfMissing: throws an exception if collective is missing for the given id or slug
  */
 export const fetchAccountWithReference = async (
   input,
@@ -92,4 +93,37 @@ export const fetchAccountWithReference = async (
     throw new NotFound('Account Not Found');
   }
   return collective;
+};
+
+/**
+ * Retrieves accounts for given ids or slugs
+ *
+ * @param {object} inputs - object containing slugs or ids of the collectives
+ * @param {object} params
+ *    - throwIfMissing: throws an exception if a collective is missing for a given id or slug
+ */
+export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = false }) => {
+  const getSQLConditionFromAccountReferenceInput = inputs => {
+    const conditions = [];
+    inputs.forEach(input => {
+      if (input.id && typeof input.id === 'string') {
+        const id = idDecode(input.id, 'account');
+        conditions.push({ id });
+      } else if (input.legacyId || typeof input.id === 'number') {
+        conditions.push({ id: input.legacyId || input.id });
+      } else if (input.slug) {
+        conditions.push({ slug: input.slug.toLowerCase() });
+      }
+    });
+
+    return conditions;
+  };
+
+  const conditions = getSQLConditionFromAccountReferenceInput(inputs);
+  const accounts = await models.Collective.findAll({ where: { [Op.or]: conditions } });
+  if (accounts.length !== inputs.length && throwIfMissing) {
+    throw new NotFound('Accounts not found for some of the given inputs');
+  }
+
+  return accounts;
 };

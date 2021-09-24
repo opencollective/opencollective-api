@@ -3,8 +3,12 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
+import expenseType from '../../../constants/expense_type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { TransactionKind } from '../../../constants/transaction-kind';
+import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { days } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -15,7 +19,11 @@ import { HostApplicationCollection } from '../collection/HostApplicationCollecti
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { TimeUnit } from '../enum/TimeUnit';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+} from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -23,11 +31,40 @@ import { CollectionArgs } from '../interface/Collection';
 import URL from '../scalar/URL';
 
 import { Amount } from './Amount';
+import { ContributionStats } from './ContributionStats';
+import { ExpenseStats } from './ExpenseStats';
 import { HostMetrics } from './HostMetrics';
 import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
+
+const getFilterDateRange = (startDate, endDate) => {
+  let dateRange;
+  if (startDate && endDate) {
+    dateRange = { [Op.gte]: startDate, [Op.lt]: endDate };
+  } else if (startDate) {
+    dateRange = { [Op.gte]: startDate };
+  } else if (endDate) {
+    dateRange = { [Op.lt]: endDate };
+  }
+  return dateRange;
+};
+
+const getNumberOfDays = (startDate, endDate) => {
+  const startTimeOfStatistics = new Date(2015, 0, 1);
+  let numberOfDays;
+  if (startDate && endDate) {
+    numberOfDays = days(startDate, endDate);
+  } else if (startDate) {
+    numberOfDays = days(startDate);
+  } else if (endDate) {
+    numberOfDays = days(startTimeOfStatistics, endDate);
+  } else {
+    numberOfDays = days(startTimeOfStatistics);
+  }
+  return numberOfDays;
+};
 
 export const Host = new GraphQLObjectType({
   name: 'Host',
@@ -434,6 +471,120 @@ export const Host = new GraphQLObjectType({
             totalCount: result.count.length, // See https://github.com/sequelize/sequelize/issues/9109
             limit: args.limit,
             offset: args.offset,
+          };
+        },
+      },
+      contributionStats: {
+        type: new GraphQLNonNull(ContributionStats),
+        args: {
+          account: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the contribution stats should be returned.',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Calculate contribution statistics beginning from this date.',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate contribution statistics until this date.',
+          },
+        },
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see the contribution stats.');
+          }
+          const where = {
+            HostCollectiveId: host.id,
+            kind: TransactionKind.CONTRIBUTION,
+            type: TransactionTypes.CREDIT,
+          };
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo);
+          const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
+          if (dateRange) {
+            where.createdAt = dateRange;
+          }
+          if (args.account) {
+            const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+            const collectiveIds = collectives.map(collective => collective.id);
+            where.CollectiveId = { [Op.in]: collectiveIds };
+          }
+          const contributionsCount = await models.Transaction.count({
+            where,
+          });
+          const contributionsAmountSum = await models.Transaction.sum('amount', { where });
+          const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
+          return {
+            contributionsCount,
+            oneTimeContributionsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Order, where: { interval: null } }],
+            }),
+            recurringContributionsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
+            }),
+            dailyAverageIncomeAmount: {
+              value: dailyAverageIncomeAmount,
+              currency: host.currency,
+            },
+          };
+        },
+      },
+      expenseStats: {
+        type: new GraphQLNonNull(ExpenseStats),
+        args: {
+          account: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the expense stats should be returned.',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Calculate expense statistics beginning from this date.',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate expense statistics until this date.',
+          },
+        },
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
+          }
+          const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo);
+          const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
+          if (dateRange) {
+            where.createdAt = dateRange;
+          }
+          if (args.account) {
+            const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+            const collectiveIds = collectives.map(collective => collective.id);
+            where.CollectiveId = { [Op.in]: collectiveIds };
+          }
+          const expensesCount = await models.Transaction.count({
+            where,
+          });
+          const expensesAmountSum = await models.Transaction.sum('amount', { where });
+          const dailyAverageAmount = expensesCount ? Math.abs(expensesAmountSum) / numberOfDays : 0;
+          return {
+            expensesCount,
+            invoicesCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
+            }),
+            reimbursementsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
+            }),
+            grantsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
+            }),
+            dailyAverageAmount: {
+              value: dailyAverageAmount,
+              currency: host.currency,
+            },
           };
         },
       },

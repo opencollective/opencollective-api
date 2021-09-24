@@ -1469,6 +1469,31 @@ enum ContributionFrequency {
 }
 
 """
+Contribution statistics related to the given accounts
+"""
+type ContributionStats {
+  """
+  The total number of contributions
+  """
+  contributionsCount: Int!
+
+  """
+  Number of one time contributions
+  """
+  oneTimeContributionsCount: Int!
+
+  """
+  Number of recurring contributions
+  """
+  recurringContributionsCount: Int!
+
+  """
+  The daily average income
+  """
+  dailyAverageIncomeAmount: Amount!
+}
+
+"""
 A person or an entity that contributes financially or by any other mean to the mission
 of the collective. While "Member" is dedicated to permissions, this type is meant
 to surface all the public contributors.
@@ -4114,6 +4139,36 @@ input ExpenseReferenceInput {
   legacyId: Int
 }
 
+"""
+Expense statistics related to the given accounts
+"""
+type ExpenseStats {
+  """
+  The total number of expenses
+  """
+  expensesCount: Int!
+
+  """
+  The daily average paid in expenses
+  """
+  dailyAverageAmount: Amount!
+
+  """
+  Number of invoices
+  """
+  invoicesCount: Int!
+
+  """
+  Number of reimbursements
+  """
+  reimbursementsCount: Int!
+
+  """
+  Number of grants
+  """
+  grantsCount: Int!
+}
+
 enum ExpenseStatus {
   DRAFT
   UNVERIFIED
@@ -5026,6 +5081,38 @@ type Host implements Account & AccountWithContributions {
   ): VirtualCardCollection!
   hostedVirtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   hostedVirtualCardCollectives(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  contributionStats(
+    """
+    A collection of accounts for which the contribution stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate contribution statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate contribution statistics until this date.
+    """
+    dateTo: DateTime
+  ): ContributionStats!
+  expenseStats(
+    """
+    A collection of accounts for which the expense stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate expense statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate expense statistics until this date.
+    """
+    dateTo: DateTime
+  ): ExpenseStats!
 }
 
 type HostApplication {
