@@ -637,8 +637,8 @@ const sendCryptoOrderProcessingEmail = async order => {
       collective: collective.info,
       host: host.info,
       fromCollective: fromCollective.activity,
-      pledgeAmount: order.data.customData.pledgeAmount,
-      pledgeCurrency: order.data.customData.pledgeCurrency,
+      pledgeAmount: order.data.thegivingblock.pledgeAmount,
+      pledgeCurrency: order.data.thegivingblock.pledgeCurrency,
     };
 
     return emailLib.send('order.crypto.processing', user.email, data, {

@@ -213,7 +213,7 @@ export const Order = new GraphQLObjectType({
         type: GraphQLJSON,
         description: 'Data related to the order',
         resolve(order) {
-          return pick(order.data, ['customData.pledgeCurrency', 'customData.pledgeAmount']);
+          return pick(order.data, ['thegivingblock.pledgeCurrency', 'thegivingblock.pledgeAmount']);
         },
       },
       customData: {

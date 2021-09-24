@@ -71,6 +71,10 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       type: TierReferenceInput,
       description: 'The tier you are contributing to',
     },
+    data: {
+      type: GraphQLJSON,
+      description: 'Data related to this order',
+    },
     customData: {
       type: GraphQLJSON,
       description: 'If the tier has some "customFields", use this field to set their values',
