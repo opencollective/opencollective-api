@@ -202,6 +202,7 @@ AND ts."status" != 'SETTLED'`,
         startDate,
         endDate,
         kind: [PLATFORM_TIP_DEBT, HOST_FEE_SHARE_DEBT],
+        add: ['orderLegacyId'],
       });
       if (csvUrl) {
         await models.ExpenseAttachedFile.create({
