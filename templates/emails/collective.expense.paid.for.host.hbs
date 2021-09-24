@@ -4,7 +4,7 @@ Subject: Expense paid for {{{collective.name}}}: {{currency transaction.netAmoun
 
 <center>
   <h3> An expense for {{collective.name}} has been paid. </h3>
-  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}"{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}</a></h2>
+  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}"{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}</a></h2>
   <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}"{{transaction.description}}</a></div>
   <div>Payee: {{fromCollective.name}}</div>
   {{#if payoutMethod}}

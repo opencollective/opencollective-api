@@ -72,8 +72,8 @@ describe('server/lib/email', () => {
       amountStr = amountStr.toLocaleString('fr-FR', {
         style: 'currency',
         currency: 'EUR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       });
       expect(nm.sendMail.lastCall.args[0].from).to.equal(options.from);
       expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
@@ -110,8 +110,8 @@ describe('server/lib/email', () => {
       amountStr = amountStr.toLocaleString('en-US', {
         style: 'currency',
         currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       });
       expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
       expect(nm.sendMail.lastCall.args[0].subject).to.contain(
@@ -149,8 +149,8 @@ describe('server/lib/email', () => {
       amountStr = amountStr.toLocaleString('fr-FR', {
         style: 'currency',
         currency: 'EUR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       });
 
       expect(nm.sendMail.lastCall.args[0].from).to.equal(from);

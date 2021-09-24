@@ -305,7 +305,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(actionRequiredEmailArgs[2]).to.match(
       /for the amount of <strong>\$20\.00<\/strong> with the mention: <strong>webpack event<\/strong> <strong>backer<\/strong> order: <strong>[0-9]+<\/strong>/,
     );
-    expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20 registration to meetup is pending');
+    expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20.00 registration to meetup is pending');
   });
 
   it('creates an order as new user and sends a tweet', async () => {
@@ -369,7 +369,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.data.charge.currency).to.equal('eur');
 
     await utils.waitForCondition(() => tweetStatusSpy.callCount > 0);
-    expect(tweetStatusSpy.firstCall.args[1]).to.contain('@johnsmith thank you for your €1,543 donation!');
+    expect(tweetStatusSpy.firstCall.args[1]).to.contain('@johnsmith thank you for your €1,543.00 donation!');
   });
 
   it('creates an order for an event ticket and receives the ticket confirmation by email with iCal.ics attached', async () => {
@@ -758,7 +758,7 @@ describe('server/graphql/v1/createOrder', () => {
     res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      'The total amount of this order (€200 ~= $239) is higher than your monthly spending limit on this payment method (stripe:creditcard) ($100)',
+      'The total amount of this order (€200.00 ~= $239.22) is higher than your monthly spending limit on this payment method (stripe:creditcard) ($100.00)',
     );
 
     sandbox.useFakeTimers(new Date('2017-09-22').getTime());
@@ -795,7 +795,7 @@ describe('server/graphql/v1/createOrder', () => {
     res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      "You don't have enough funds available ($12 left) to execute this order (€200 ~= $239)",
+      "You don't have enough funds available ($11.60 left) to execute this order (€200.00 ~= $239.22)",
     );
   });
 
@@ -842,7 +842,7 @@ describe('server/graphql/v1/createOrder', () => {
       const res = await utils.graphqlQuery(createOrderMutation, { order }, hostAdmin);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal(
-        "You don't have enough funds available ($7,461 left) to execute this order ($21,474,836)",
+        "You don't have enough funds available ($7,461.49 left) to execute this order ($21,474,836.47)",
       );
     });
 
@@ -896,7 +896,7 @@ describe('server/graphql/v1/createOrder', () => {
     let res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      "You don't have enough funds available ($7,461 left) to execute this order ($21,474,836)",
+      "You don't have enough funds available ($7,461.49 left) to execute this order ($21,474,836.47)",
     );
 
     order.totalAmount = 20000;

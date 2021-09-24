@@ -13,7 +13,7 @@ Subject: 🚨 Transaction failed on {{{collective.name}}} - {{currency transacti
     {{/ifCond}}
     {{/if}}
   </h3>
-  <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}</h2>
+  <h2>{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}</h2>
   <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
   <div>Payee: {{fromCollective.name}}</div>
   <div>
