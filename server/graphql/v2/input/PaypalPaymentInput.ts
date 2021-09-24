@@ -8,6 +8,6 @@ export const PaypalPaymentInput = new GraphQLInputObjectType({
     data: { type: GraphQLJSON },
     orderId: { type: GraphQLString },
     subscriptionId: { type: GraphQLString },
-    isNewApi: { type: GraphQLBoolean },
+    isNewApi: { type: GraphQLBoolean, deprecationReason: '2021-07-30: Not used anymore' },
   }),
 });
