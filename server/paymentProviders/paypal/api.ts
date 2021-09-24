@@ -32,6 +32,25 @@ export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<st
   return jsonOutput.access_token;
 }
 
+const translatePaypalError = async (result: unknown): string => {
+  let errorData = null;
+  let errorMessage = 'PayPal payment rejected';
+  try {
+    errorData = await result.json();
+    errorMessage = `${errorMessage}: ${errorData.message}`;
+  } catch (e) {
+    errorData = e;
+  }
+  if (errorData.name === 'UNPROCESSABLE_ENTITY') {
+    if (errorData.details[0].issue === 'INSTRUMENT_DECLINED') {
+      return "The payment method was declined by the processor or bank, or it can't be used for this payment. Please try with a different payment method.";
+    }
+  }
+
+  // TODO: Requests can fail for other things than payment. We should have a more generic error message.
+  return 'PayPal payment rejected';
+};
+
 /** Assemble POST requests for communicating with PayPal API */
 export async function paypalRequest(urlPath, body, hostCollective, method = 'POST'): Promise<Record<string, unknown>> {
   const paypal = await getHostPaypalAccount(hostCollective);
