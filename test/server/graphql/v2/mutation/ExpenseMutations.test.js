@@ -34,7 +34,7 @@ import { graphqlQueryV2, makeRequest, resetTestDB, waitForCondition } from '../.
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
 
-export const addFunds = async (user, hostCollective, collective, amount) => {
+export const addFunds = async (user, hostCollective, collective, fromCollective, amount) => {
   const currency = collective.currency || 'USD';
   const hostCurrencyFxRate = await getFxRate(currency, hostCollective.currency);
   const amountInHostCurrency = Math.round(hostCurrencyFxRate * amount);
@@ -49,6 +49,7 @@ export const addFunds = async (user, hostCollective, collective, amount) => {
     hostCurrency: hostCollective.currency,
     currency,
     CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
   });
 };
 
@@ -602,13 +603,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
   });
 
   describe('processExpense', () => {
-    let collective, host, collectiveAdmin, hostAdmin, hostPaypalPm;
+    let collective, fromCollective, host, collectiveAdmin, hostAdmin, hostPaypalPm;
 
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeCollective({ admin: hostAdmin.collective, plan: 'network-host-plan' });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+      fromCollective = await fakeCollective();
       await hostAdmin.populateRoles();
       hostPaypalPm = await fakePaymentMethod({
         name: randEmail(),
@@ -1014,7 +1016,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         before(async () => {
           // Updates the collective balance and pay the expense
-          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 15000000 });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            FromCollectiveId: fromCollective.id,
+            amount: 15000000,
+          });
         });
 
         beforeEach(() => {
@@ -1301,7 +1308,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
   describe('processExpense > PAY > with 2FA payouts', () => {
     const fee = 1.74;
-    let collective, host, collectiveAdmin, hostAdmin, sandbox, expense1, expense2, expense3, expense4, user;
+    let collective,
+      fromCollective,
+      host,
+      collectiveAdmin,
+      hostAdmin,
+      sandbox,
+      expense1,
+      expense2,
+      expense3,
+      expense4,
+      user;
     const quote = {
       payOut: 'BANK_TRANSFER',
       paymentOptions: [
@@ -1334,9 +1351,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         settings: { payoutsTwoFactorAuth: { enabled: true, rollingLimit: 50000 } },
       });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+      fromCollective = await fakeCollective();
       await hostAdmin.populateRoles();
       await host.update({ plan: 'network-host-plan' });
-      await addFunds(user, host, collective, 15000000);
+      await addFunds(user, host, collective, fromCollective, 15000000);
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'transferwise',
@@ -1360,6 +1378,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         status: expenseStatus.APPROVED,
         amount: 10000,
         CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
@@ -1372,6 +1391,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         status: expenseStatus.APPROVED,
         amount: 30000,
         CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
@@ -1384,6 +1404,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         status: expenseStatus.APPROVED,
         amount: 15000,
         CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,
@@ -1396,6 +1417,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         status: expenseStatus.APPROVED,
         amount: 20000,
         CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
         UserId: user.id,
         currency: 'USD',
         PayoutMethodId: payoutMethod.id,

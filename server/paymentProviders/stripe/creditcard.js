@@ -1,7 +1,6 @@
 import config from 'config';
 import { get } from 'lodash';
 
-import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
 import {
   getApplicationFee,
@@ -239,7 +238,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
     amount,
     currency,
@@ -249,7 +247,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     paymentProcessorFeeInHostCurrency,
     platformFeeInHostCurrency,
     taxAmount: order.taxAmount,
-    description: order.description,
     hostFeeInHostCurrency,
     data,
   };

@@ -238,6 +238,10 @@ function defineModel() {
   /**
    * Static Methods
    */
+
+  /*
+    Generate a label that can be useful to pass to the Payment Provider
+  */
   Order.generateDescription = (collective, amount, interval, tier) => {
     const tierNameInfo = tier?.name ? ` (${tier.name})` : '';
     if (interval) {

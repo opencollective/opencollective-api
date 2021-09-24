@@ -149,7 +149,6 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   ]);
 
   refund.CreatedByUserId = user?.id || null;
-  refund.description = `Refund of "${t.description}"`;
   refund.data = { ...refund.data, ...data };
 
   /* The refund operation moves back fees to the user's ledger so the
@@ -199,7 +198,6 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     FromCollectiveId: transaction.HostCollectiveId,
     HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
-    description: 'Cover of payment processor fee for refund',
     isRefund: true,
     TransactionGroup: refundTransactionGroup,
     hostCurrency: transaction.hostCurrency,

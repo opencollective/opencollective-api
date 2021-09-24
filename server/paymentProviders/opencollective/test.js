@@ -1,7 +1,6 @@
 import config from 'config';
 
 import { maxInteger } from '../../constants/math';
-import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { getHostFee, getHostFeeSharePercent, getPlatformTip, isPlatformTipEligible } from '../../lib/payments';
 import models from '../../models';
@@ -46,7 +45,6 @@ paymentMethodProvider.processOrder = async order => {
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    type: TransactionTypes.CREDIT,
     OrderId: order.id,
     amount,
     currency,
@@ -54,7 +52,6 @@ paymentMethodProvider.processOrder = async order => {
     hostCurrencyFxRate,
     amountInHostCurrency,
     hostFeeInHostCurrency,
-    description: order.description,
     data: {
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
@@ -67,9 +64,7 @@ paymentMethodProvider.processOrder = async order => {
     },
   };
 
-  const transactions = await models.Transaction.createFromContributionPayload(transactionPayload);
-
-  return transactions;
+  return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
 export default paymentMethodProvider;
