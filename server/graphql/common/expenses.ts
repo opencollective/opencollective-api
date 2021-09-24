@@ -633,7 +633,7 @@ export async function createExpense(
     const accountHolderName = payoutMethodData?.accountHolderName;
     const legalName = <string>expenseData.fromCollective.legalName;
     if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
-      logger.warn('The legal name should match the bank account holder name');
+      logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
     const host = await collective.getHostCollective();
     const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
@@ -833,7 +833,7 @@ export async function editExpense(
     const accountHolderName = payoutMethodData?.accountHolderName;
     const legalName = <string>expenseData.fromCollective.legalName;
     if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
-      logger.warn('The legal name should match the bank account holder name');
+      logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
   }
   const updatedExpense = await sequelize.transaction(async t => {
