@@ -234,8 +234,60 @@ const notifyUpdateSubscribers = async activity => {
   const emailOpts = { from: activity.data.fromEmail };
   const update = await models.Update.findByPk(activity.data.update.id);
   const allUsers = await update.getUsersToNotify();
-  return notifySubscribers(allUsers, activity, emailOpts);
+  const modifiedActivity = replaceVideosByImagePreviews(activity);
+  return notifySubscribers(allUsers, modifiedActivity, emailOpts);
 };
+
+function replaceVideosByImagePreviews(activity) {
+  const iframePreviewRegex = /<iframe\s[^>]*src="([^"]+)"[^>]*><\/iframe>/gi;
+  activity.data.update.html = activity.data.update.html
+    .replace(iframePreviewRegex, (_, href) => {
+      const { service, id } = parseServiceLink(href);
+      const imgSrc = constructPreviewImageURL(service, id);
+      if (imgSrc) {
+        return `<img src="${imgSrc}" alt="${service} content">`;
+      } else {
+        return '';
+      }
+    })
+    .replace(/<iframe\s[^>]><\/iframe>/gi, '');
+  return activity;
+}
+
+function constructPreviewImageURL(service, id) {
+  if (service === 'youtube') {
+    return `https://img.youtube.com/vi/${id}/0.jpg`;
+  } else if (service === 'anchorFm') {
+    return `https://theme.zdassets.com/theme_assets/2009830/ed34a3258bf8d79c3db30e4269dd95052481fc50.png`;
+  } else {
+    return null;
+  }
+}
+
+function parseServiceLink(videoLink) {
+  const regexps = {
+    youtube: new RegExp(
+      '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
+      'i',
+    ),
+    anchorFm: /^(http|https)?:\/\/(www\.)?anchor\.fm\/([^/]+)(\/embed)?(\/episodes\/)?([^/]+)?\/?$/,
+  };
+  for (const service in regexps) {
+    videoLink = videoLink.replace('/?showinfo=0', '');
+    const matches = regexps[service].exec(videoLink);
+    if (matches) {
+      if (service === 'anchorFm') {
+        const podcastName = matches[3];
+        const episodeId = matches[6];
+        const podcastUrl = `${podcastName}/embed`;
+        return { service, id: episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl };
+      } else {
+        return { service, id: matches[matches.length - 1] };
+      }
+    }
+  }
+  return {};
+}
 
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
