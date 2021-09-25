@@ -27,21 +27,6 @@ Promise.all([
     OR "Orders"."createdAt" < "Collectives"."approvedAt"
   )`,
   ),
-
-  // Mark all PENDING errors that are not Manual Payments or Pledge as ERROR after 1 day
-  // No need to check for Orders made to previously pledged collectives here because pledged orders
-  // always have a null `PaymentMethodId`.
-  sequelize.query(
-    `UPDATE "Orders"
-  SET "status" = 'ERROR', "updatedAt" = NOW()
-  FROM "Collectives"
-  WHERE "Orders"."status" = 'PENDING'
-  AND "Orders"."PaymentMethodId" IS NOT NULL
-  AND "Collectives"."id" = "Orders"."CollectiveId"
-  AND "Collectives"."isPledged" = FALSE
-  AND "Collectives"."HostCollectiveId" IS NOT NULL
-  AND "Orders"."createdAt" <  (NOW() - interval '1 day')`,
-  ),
 ]).then(() => {
   console.log('>>> Clean Orders: done');
   process.exit(0);
