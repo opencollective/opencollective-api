@@ -106,22 +106,35 @@ export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = fal
   const getSQLConditionFromAccountReferenceInput = inputs => {
     const conditions = [];
     inputs.forEach(input => {
-      if (input.id && typeof input.id === 'string') {
-        const id = idDecode(input.id, 'account');
-        conditions.push({ id });
-      } else if (input.legacyId || typeof input.id === 'number') {
-        conditions.push({ id: input.legacyId || input.id });
+      if (input.id) {
+        conditions.push({ id: idDecode(input.id, 'account') });
+      } else if (input.legacyId) {
+        conditions.push({ id: input.legacyId });
       } else if (input.slug) {
         conditions.push({ slug: input.slug.toLowerCase() });
+      } else {
+        throw new Error('Please provide an id or a slug');
       }
     });
 
     return conditions;
   };
 
+  // Checks whether the given account and input matches
+  const accountMatchesInput = (account, input) => {
+    if (input.id) {
+      return account.id === idDecode(input.id, 'account');
+    } else if (input.legacyId) {
+      return account.id === input.legacyId;
+    } else if (input.slug) {
+      return account.slug === input.slug;
+    }
+  };
+
   const conditions = getSQLConditionFromAccountReferenceInput(inputs);
   const accounts = await models.Collective.findAll({ where: { [Op.or]: conditions } });
-  if (accounts.length !== inputs.length && throwIfMissing) {
+  const accountLoadedForInput = input => accounts.some(account => accountMatchesInput(account, input));
+  if (throwIfMissing && !inputs.every(accountLoadedForInput)) {
     throw new NotFound('Accounts not found for some of the given inputs');
   }
 
