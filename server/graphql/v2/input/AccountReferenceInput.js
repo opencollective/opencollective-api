@@ -99,6 +99,7 @@ export const fetchAccountWithReference = async (
   }
   return collective;
 };
+
 /**
  * Retrieves accounts for given ids or slugs
  *

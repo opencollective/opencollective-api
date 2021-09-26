@@ -51,19 +51,9 @@ const getFilterDateRange = (startDate, endDate) => {
   return dateRange;
 };
 
-const getNumberOfDays = (startDate, endDate) => {
-  const startTimeOfStatistics = new Date(2015, 0, 1);
-  let numberOfDays;
-  if (startDate && endDate) {
-    numberOfDays = days(startDate, endDate);
-  } else if (startDate) {
-    numberOfDays = days(startDate);
-  } else if (endDate) {
-    numberOfDays = days(startTimeOfStatistics, endDate);
-  } else {
-    numberOfDays = days(startTimeOfStatistics);
-  }
-  return numberOfDays;
+const getNumberOfDays = (startDate, endDate, host) => {
+  const since = startDate || host.createdAt;
+  return days(since, endDate || undefined);
 };
 
 export const Host = new GraphQLObjectType({
@@ -499,7 +489,7 @@ export const Host = new GraphQLObjectType({
             kind: TransactionKind.CONTRIBUTION,
             type: TransactionTypes.CREDIT,
           };
-          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo);
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
@@ -552,7 +542,7 @@ export const Host = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
           const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
-          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo);
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
