@@ -340,7 +340,11 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(UpdateCollection),
     args: {
       ...CollectionArgs,
-      onlyPublishedUpdates: { type: GraphQLBoolean },
+      onlyPublishedUpdates: {
+        type: GraphQLBoolean,
+        defaultValue: false,
+        description: 'Only return published updates. You must be an admin of the account to see unpublished updates.',
+      },
       onlyChangelogUpdates: { type: GraphQLBoolean },
       orderBy: {
         type: new GraphQLNonNull(ChronologicalOrderInput),
@@ -348,12 +352,12 @@ const accountFieldsDefinition = () => ({
       },
       searchTerm: { type: GraphQLString },
     },
-    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }) {
+    async resolve(collective, { limit, offset, onlyPublishedUpdates, onlyChangelogUpdates, orderBy, searchTerm }, req) {
       let where = {
         CollectiveId: collective.id,
         [Op.and]: [],
       };
-      if (onlyPublishedUpdates) {
+      if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective)) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       }
       if (onlyChangelogUpdates) {
