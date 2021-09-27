@@ -328,7 +328,7 @@ export const canViewRequiredLegalDocuments = async (
   req: express.Request,
   expense: typeof models.Expense,
 ): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAccountant, isOwner]);
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin, isCollectiveAccountant, isOwner]);
 };
 
 export const canUnschedulePayment = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
