@@ -46,6 +46,7 @@ describe('server/paymentProviders/transferwise/index', () => {
   };
 
   let createQuote,
+    cancelBatchGroup,
     createRecipientAccount,
     createTransfer,
     fundTransfer,
@@ -119,6 +120,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     createBatchGroupTransfer = sandbox.stub(transferwiseLib, 'createBatchGroupTransfer');
     completeBatchGroup = sandbox.stub(transferwiseLib, 'completeBatchGroup').resolves();
     getBatchGroup = sandbox.stub(transferwiseLib, 'getBatchGroup');
+    cancelBatchGroup = sandbox.stub(transferwiseLib, 'cancelBatchGroup');
 
     cacheSpy = sandbox.spy(cache);
   });
@@ -368,6 +370,62 @@ describe('server/paymentProviders/transferwise/index', () => {
       const call = createBatchGroupTransfer.secondCall;
       expect(toNumber(call.lastArg.details.reference)).to.equal(newExpense.id);
       expect(call).to.have.nested.property('args[2]', batchGroupId);
+    });
+  });
+
+  describe('unscheduleExpenseForPayment', () => {
+    let expenses, batchGroupId, otherExpenses;
+    beforeEach(async () => {
+      sandbox.resetHistory();
+      batchGroupId = 'unscheduleBatchId';
+      expenses = await multiple(fakeExpense, 3, {
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'SCHEDULED_FOR_PAYMENT',
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        type: 'INVOICE',
+        data: { batchGroup: { id: batchGroupId, version: 6 }, quote: true, recipient: true },
+      });
+      otherExpenses = await multiple(fakeExpense, 3, {
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'SCHEDULED_FOR_PAYMENT',
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        type: 'INVOICE',
+        data: { batchGroup: { id: 'oaksdokdas', version: 6 }, quote: true, recipient: true },
+      });
+      expense.PayoutMethod = payoutMethod;
+      cancelBatchGroup.resolves({ id: batchGroupId, status: 'MARKED_FOR_CANCELLATION' });
+      await transferwise.unscheduleExpenseForPayment(expenses[0]);
+      await Promise.all(expenses.map(e => e.reload()));
+    });
+
+    it('should cancel existing batchGroup', () => {
+      const { args } = cancelBatchGroup.getCall(0);
+      expect(args).to.have.property('0', connectedAccount.token);
+      expect(args).to.have.property('2', batchGroupId);
+      expect(args).to.have.property('3', 6);
+    });
+
+    it('should update status and data of all expenses in the same batch', () => {
+      expenses.forEach(expense => {
+        expect(expense).to.have.property('status', 'APPROVED');
+        expect(expense).to.not.have.deep.property('data.batchGroup');
+        expect(expense).to.not.have.deep.property('data.quote');
+        expect(expense).to.not.have.deep.property('data.recipient');
+      });
+    });
+
+    it('should not touch other batches and expenses', async () => {
+      await Promise.all(otherExpenses.map(e => e.reload()));
+
+      otherExpenses.forEach(expense => {
+        expect(expense).to.have.property('status', 'SCHEDULED_FOR_PAYMENT');
+      });
     });
   });
 

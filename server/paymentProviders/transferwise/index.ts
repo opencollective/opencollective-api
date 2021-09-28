@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, find, first, has, isEmpty, omit, pick, split, toNumber } from 'lodash';
+import { compact, find, first, has, isEmpty, max, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -296,6 +296,41 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
   await expense.reload();
   await expense.update({ data: { ...expense.data, batchGroup } });
   return expense;
+}
+
+async function unscheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
+  const batchGroup: BatchGroup = expense.data.batchGroup;
+  if (!batchGroup) {
+    throw new Error(`Expense does not belong to any batch group`);
+  }
+
+  const collective = await expense.getCollective();
+  const host = await collective.getHostCollective();
+  if (!host) {
+    throw new Error(`Can not find Host for expense ${expense.id}`);
+  }
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to TransferWise');
+  }
+  const token = await getToken(connectedAccount);
+
+  const expensesInBatch = await models.Expense.findAll({
+    where: { data: { batchGroup: { id: batchGroup.id } } },
+  });
+
+  logger.warn(`Wise: canceling batchGroup ${batchGroup.id} with ${expensesInBatch.length} for host ${host.slug}`);
+  const profileId = connectedAccount.data.id;
+  const version: number = max(expensesInBatch.map(expense => expense.data.batchGroup.version));
+  await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, version);
+  await Promise.all(
+    expensesInBatch.map(expense => {
+      return expense.update({
+        data: omit(expense.data, ['batchGroup', 'quote', 'transfer', 'paymentOption']),
+        status: status.APPROVED,
+      });
+    }),
+  );
 }
 
 async function createExpensesBatchGroup(
@@ -606,5 +641,6 @@ export default {
   setUpWebhook,
   validatePayoutMethod,
   scheduleExpenseForPayment,
+  unscheduleExpenseForPayment,
   oauth,
 };
