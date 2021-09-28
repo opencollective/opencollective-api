@@ -1048,7 +1048,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       AND ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
     LEFT JOIN "PayoutMethods" pm
-      ON analyzed_expenses."PayoutMethodId" = pm.id
+      ON all_expenses."PayoutMethodId" = pm.id
     WHERE analyzed_expenses.id IN (:expenseIds)
     AND analyzed_expenses."FromCollectiveId" != d."HostCollectiveId"
     AND analyzed_expenses.type NOT IN ('RECEIPT', 'CHARGE', 'SETTLEMENT')
