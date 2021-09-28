@@ -175,7 +175,7 @@ export const confirmOrder = async order => {
 
   const paymentProcessorFee =
     order.data.payload.valueAtDonationTimeUSD && order.data.payload.netValueAmount
-      ? order.data.payload.valueAtDonationTimeUSD - order.data.payload.netValueAmount
+      ? Math.round(order.data.payload.valueAtDonationTimeUSD - order.data.payload.netValueAmount * 100)
       : 0;
   const paymentProcessorFeeInHostCurrency = Math.round(paymentProcessorFee * hostCurrencyFxRate);
 
