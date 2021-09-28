@@ -86,6 +86,17 @@ export async function getOrganizationsList(account) {
   return apiRequest(`/organizations/list`, { headers }, account);
 }
 
+/*
+ * Gets the list of currencies that The Giving Block supports
+ */
+export async function getCurrenciesList(account) {
+  const headers = {
+    Authorization: `Bearer ${account.data.accessToken}`,
+  };
+
+  return apiRequest(`/currencies/list`, { method: 'POST', headers }, account);
+}
+
 export async function createDepositAddress(account, { organizationId, pledgeAmount, pledgeCurrency } = {}) {
   const headers = {
     Authorization: `Bearer ${account.data.accessToken}`,
