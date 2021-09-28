@@ -368,20 +368,14 @@ export const MemberType = new GraphQLObjectType({
       member: {
         type: CollectiveInterfaceType,
         async resolve(member, args, req) {
-          const memberCollective =
-            member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
-          if (!memberCollective) {
-            return null;
-          }
-
           const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
           if (collective?.isIncognito) {
-            if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+            if (!req.remoteUser?.isAdminOfCollective(collective)) {
               return null;
             }
           }
 
-          return memberCollective;
+          return member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
         },
       },
       role: {

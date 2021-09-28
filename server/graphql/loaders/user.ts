@@ -74,6 +74,7 @@ export const generateCanSeeUserPrivateInfoLoader = (req: express.Request): DataL
           where: {
             [Op.or]: [
               { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
+              { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
               { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
             ],
           },
