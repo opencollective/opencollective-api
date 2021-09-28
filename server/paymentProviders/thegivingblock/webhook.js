@@ -26,7 +26,7 @@ export async function webhook(req) {
 
     // update totalAmount with latest value
     await order.update({
-      totalAmount: Number(valueAtDonationTimeUSD) * 100,
+      totalAmount: Math.round(Number(valueAtDonationTimeUSD) * 100),
       currency: 'USD',
       status: OrderStatus.PAID,
       data: { ...order.data, payload },
