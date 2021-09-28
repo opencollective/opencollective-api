@@ -18,6 +18,34 @@ Get the app from [Postgres.app](http://postgresapp.com/). Install it.
 
 Then to enable the CLI tools, follow the steps from: https://postgresapp.com/documentation/cli-tools.html
 
+### On Linux
+
+#### Fedora / RedHat
+
+```bash
+# Install Postgres
+sudo dnf install postgresql-server postgresql-contrib postgis
+
+# (Optional) Start postgres at boot time
+sudo systemctl enable postgresql
+
+# Initialize DB
+PGSETUP_INITDB_OPTIONS="-U postgres" sudo postgresql-setup --initdb
+```
+
+Then edit your `/var/lib/pgsql/data/pg_hba.conf`. Comment existing lines, and add the following content:
+
+```
+# Allow local connections without password
+local   all             all                                     trust
+# IPv4 local connections:
+host    all             all             127.0.0.1/32            trust
+# IPv6 local connections:
+host    all             all             ::1/128                 trust
+```
+
+Finally start Postgres with `sudo systemctl start postgresql`.
+
 ### With Docker
 
 If you don't want to run a local instance of PostgreSQL in your computer, you can run one in Docker.
