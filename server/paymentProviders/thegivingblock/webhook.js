@@ -19,7 +19,15 @@ export async function webhook(req) {
     // See: https://app.gitbook.com/@the-giving-block/s/public-api-documentation/webhook-notifications
     const { pledgeId, valueAtDonationTimeUSD } = payload;
 
-    const order = await models.Order.findOne({ where: { data: { pledgeId } } });
+    const order = await models.Order.findOne({
+      where: { data: { pledgeId } },
+      include: [
+        { model: models.Collective, as: 'fromCollective' },
+        { model: models.User, as: 'createdByUser' },
+        { model: models.Collective, as: 'collective' },
+        { model: models.Subscription, as: 'Subscription' },
+      ],
+    });
     if (!order) {
       throw new Error(`Could not find matching order. pledgeId=${pledgeId}`);
     }
@@ -34,6 +42,8 @@ export async function webhook(req) {
 
     // process as paid
     const transaction = await confirmOrder(order);
+
+    logger.info(`transaction: ${JSON.stringify(transaction.dataValues)}`);
 
     // send email confirmation
     await sendThankYouEmail(order, transaction);
