@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
+import moment from 'moment';
 
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
@@ -8,6 +9,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import { getFxRate } from '../../../lib/currency';
 import { days } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -34,7 +36,7 @@ import { Amount } from './Amount';
 import { ContributionStats } from './ContributionStats';
 import { ExpenseStats } from './ExpenseStats';
 import { HostMetrics } from './HostMetrics';
-import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
+import { HostMetricsTimeSeries, resultsToAmountNode } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -54,6 +56,12 @@ const getFilterDateRange = (startDate, endDate) => {
 const getNumberOfDays = (startDate, endDate, host) => {
   const since = startDate || host.createdAt;
   return days(since, endDate || undefined);
+};
+
+const convertCurrencyAmount = async (fromCurrency, toCurrency, date, amount) => {
+  const fxRate = await getFxRate(fromCurrency, toCurrency, date);
+  const convertedAmount = Math.round(amount * fxRate);
+  return { date: date, amount: convertedAmount };
 };
 
 export const Host = new GraphQLObjectType({
@@ -479,6 +487,11 @@ export const Host = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate contribution statistics until this date.',
           },
+          timeUnit: {
+            type: new GraphQLNonNull(TimeUnit),
+            defaultValue: 'YEAR',
+            description: 'The time unit of the time series',
+          },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -494,18 +507,74 @@ export const Host = new GraphQLObjectType({
           if (dateRange) {
             where.createdAt = dateRange;
           }
+          let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
-            const collectiveIds = collectives.map(collective => collective.id);
+            collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const contributionsCount = await models.Transaction.count({
             where,
           });
+          let contributionAmountOverTime;
+          if (args.timeUnit) {
+            const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
+            const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+            contributionAmountOverTime = await sequelize.query(
+              `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) as "amount", "currency"
+                FROM "Transactions" WHERE kind = :transactionKind AND "HostCollectiveId" = :hostCollectiveId
+                AND type = :transactionType
+                ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+                ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``} ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
+                GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
+                ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
+              `,
+              {
+                type: sequelize.QueryTypes.SELECT,
+                replacements: {
+                  hostCollectiveId: host.id,
+                  timeUnit: args.timeUnit,
+                  transactionKind: TransactionKind.CONTRIBUTION,
+                  transactionType: TransactionTypes.CREDIT,
+                  collectiveIds,
+                  dateFrom,
+                  dateTo,
+                },
+              },
+            );
+            contributionAmountOverTime = contributionAmountOverTime.map(contributionAmount =>
+              convertCurrencyAmount(
+                contributionAmount.currency,
+                host.currency,
+                contributionAmount.date,
+                contributionAmount.amount,
+              ),
+            );
+            contributionAmountOverTime = await Promise.all(contributionAmountOverTime);
+
+            const counts = contributionAmountOverTime.reduce((prev, curr) => {
+              const count = prev.get(curr.date) || 0;
+              prev.set(curr.date.toISOString(), curr.amount + count);
+              return prev;
+            }, new Map());
+
+            contributionAmountOverTime = [...counts].map(([date, amount]) => {
+              return { date, amount, currency: host.currency };
+            });
+          }
+
+          contributionAmountOverTime = {
+            dateFrom: args.dateFrom || host.createdAt,
+            dateTo: args.dateTo || new Date(),
+            timeUnit: args.timeUnit,
+            nodes: resultsToAmountNode(contributionAmountOverTime),
+          };
+
           const contributionsAmountSum = await models.Transaction.sum('amount', { where });
           const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
           return {
             contributionsCount,
+            contributionAmountOverTime,
             oneTimeContributionsCount: models.Transaction.count({
               where,
               include: [{ model: models.Order, where: { interval: null } }],
@@ -536,29 +605,84 @@ export const Host = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate expense statistics until this date.',
           },
+          timeUnit: {
+            type: new GraphQLNonNull(TimeUnit),
+            defaultValue: 'YEAR',
+            description: 'The time unit of the time series',
+          },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
-          const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
+          const where = { HostCollectiveId: host.id, kind: TransactionKind.EXPENSE, type: TransactionTypes.DEBIT };
           const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
           }
+          let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
-            const collectiveIds = collectives.map(collective => collective.id);
+            collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const expensesCount = await models.Transaction.count({
             where,
           });
+          let expenseAmountOverTime;
+          if (args.timeUnit) {
+            const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
+            const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+            expenseAmountOverTime = await sequelize.query(
+              `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) AS "amount", "currency"
+                FROM "Transactions" WHERE kind = :transactionKind AND "HostCollectiveId" = :hostCollectiveId
+                AND type = :transactionType
+                ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+                ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``} ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
+                GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
+                ORDER BY DATE_TRUNC(:timeUnit, "createdAt")`,
+              {
+                type: sequelize.QueryTypes.SELECT,
+                replacements: {
+                  hostCollectiveId: host.id,
+                  timeUnit: args.timeUnit,
+                  transactionKind: TransactionKind.EXPENSE,
+                  transactionType: TransactionTypes.DEBIT,
+                  collectiveIds,
+                  dateFrom,
+                  dateTo,
+                },
+              },
+            );
+            expenseAmountOverTime = expenseAmountOverTime.map(expenseAmount =>
+              convertCurrencyAmount(expenseAmount.currency, host.currency, expenseAmount.date, expenseAmount.amount),
+            );
+            expenseAmountOverTime = await Promise.all(expenseAmountOverTime);
+
+            const counts = expenseAmountOverTime.reduce((prev, curr) => {
+              const count = prev.get(curr.date) || 0;
+              prev.set(curr.date.toISOString(), curr.amount + count);
+              return prev;
+            }, new Map());
+
+            expenseAmountOverTime = [...counts].map(([date, amount]) => {
+              return { date, amount: Math.abs(amount), currency: host.currency };
+            });
+          }
+
+          expenseAmountOverTime = {
+            dateFrom: args.dateFrom || host.createdAt,
+            dateTo: args.dateTo || new Date(),
+            timeUnit: args.timeUnit,
+            nodes: resultsToAmountNode(expenseAmountOverTime),
+          };
+
           const expensesAmountSum = await models.Transaction.sum('amount', { where });
           const dailyAverageAmount = expensesCount ? Math.abs(expensesAmountSum) / numberOfDays : 0;
           return {
             expensesCount,
+            expenseAmountOverTime,
             invoicesCount: models.Transaction.count({
               where,
               include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
