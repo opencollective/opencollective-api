@@ -58,6 +58,8 @@ export async function payBatch(
         {
           model: models.Collective,
           as: 'collective',
+          attributes: [],
+          // TODO: We should ideally use the host attached to the expense. See https://github.com/opencollective/opencollective/issues/4271
           where: { HostCollectiveId: host.id },
           required: true,
         },
