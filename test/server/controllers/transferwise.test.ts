@@ -20,7 +20,7 @@ describe('server/controllers/transferwise', () => {
   after(sandbox.restore);
 
   let remoteUser, expense, host, req, res;
-  let fundExpensesBatchGroup;
+  let payExpensesBatchGroup;
   beforeEach(async () => {
     sandbox.restore();
     remoteUser = await fakeUser();
@@ -106,8 +106,7 @@ describe('server/controllers/transferwise', () => {
         },
       ],
     });
-    fundExpensesBatchGroup = sandbox.stub(transferwise, 'fundExpensesBatchGroup').resolves();
-    sandbox.stub(transferwise, 'createExpensesBatchGroup').resolves();
+    payExpensesBatchGroup = sandbox.stub(transferwise, 'payExpensesBatchGroup').resolves();
   });
 
   it('should throw if remote user is not a host admin', async () => {
@@ -139,41 +138,8 @@ describe('server/controllers/transferwise', () => {
     expect(res.send.firstCall.firstArg).to.equal('Error: Expense must be scheduled for payment');
   });
 
-  it("should throw if an expense does not match its host's currency", async () => {
-    await expense.update({ currency: 'CNY' });
-    await transferwiseController.payBatch(req, res);
-
-    expect(res.status.called).to.be.true;
-    expect(res.status.firstCall.firstArg).to.equal(500);
-    expect(res.send.firstCall.firstArg).to.equal(
-      'Error: Can not batch an expense with a currency different from its host currency',
-    );
-  });
-
-  it('should throw if an expense belongs to a collective from a different host', async () => {
-    const collective = await fakeCollective({ isHostAccount: false });
-    const otherExpense = await fakeExpense({
-      payoutMethod: 'transferwise',
-      status: expenseStatus.SCHEDULED_FOR_PAYMENT,
-      amount: 10000,
-      CollectiveId: collective.id,
-      currency: 'USD',
-      type: 'INVOICE',
-    });
-    req.body.expenseIds = [
-      idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-      idEncode(otherExpense.id, IDENTIFIER_TYPES.EXPENSE),
-    ];
-
-    await transferwiseController.payBatch(req, res);
-
-    expect(res.status.called).to.be.true;
-    expect(res.status.firstCall.firstArg).to.equal(400);
-    expect(res.send.firstCall.firstArg).to.equal('Error: Expenses must belong to the requested host');
-  });
-
   it('should proxy OTT headers from TransferWise', async () => {
-    fundExpensesBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': 'hash' } });
+    payExpensesBatchGroup.resolves({ status: 403, headers: { 'x-2fa-approval': 'hash' } });
 
     await transferwiseController.payBatch(req, res);
 

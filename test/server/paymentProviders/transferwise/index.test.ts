@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { toNumber } from 'lodash';
+import moment from 'moment';
 import sinon from 'sinon';
 
 import cache from '../../../../server/lib/cache';
@@ -239,74 +240,10 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
   });
 
-  describe('createExpensesBatchGroup', () => {
-    let expenses, transferIds, batchGroupId;
-    beforeEach(async () => {
-      sandbox.resetHistory();
-      expenses = await multiple(fakeExpense, 3, {
-        payoutMethod: 'transferwise',
-        PayoutMethodId: payoutMethod.id,
-        status: 'PENDING',
-        amount: 1000,
-        CollectiveId: host.id,
-        currency: 'USD',
-        FromCollectiveId: payoutMethod.id,
-        category: 'Engineering',
-        type: 'INVOICE',
-        description: 'January Invoice',
-      });
-      expenses = expenses.map(e => {
-        e.PayoutMethod = payoutMethod;
-        return e;
-      });
-      transferIds = [878, 879, 880];
-      batchGroupId = 'zs987sad89y1hubnc89h12h892s';
-      createBatchGroup.resolves({ id: batchGroupId });
-      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds });
-      transferIds.forEach((id, i) => {
-        createBatchGroupTransfer.onCall(i).resolves({ id });
-      });
-      getBorderlessAccount.resolves({
-        balances: [
-          {
-            currency: 'USD',
-            amount: { value: 100000 },
-          },
-        ],
-      });
-      await transferwise.createExpensesBatchGroup(host, expenses);
-    });
-
-    it('should create batch group', () => {
-      expect(createBatchGroup.called).to.be.true;
-      const [token, , batchGroupOptions] = createBatchGroup.firstCall.args;
-
-      expect(token).to.equal(connectedAccount.token);
-      expect(batchGroupOptions.currency).to.equal(host.currnecy);
-    });
-
-    it('create one transfer for each expense', () => {
-      const calls = createBatchGroupTransfer.getCalls();
-
-      expect(createBatchGroupTransfer.callCount).to.equal(3);
-      expect(expenses.map(e => e.id).sort()).to.deep.equal(
-        calls.map(call => toNumber(call.lastArg.details.reference)).sort(),
-      );
-      calls.forEach(c => {
-        expect(c).to.have.nested.property('args[2]', batchGroupId);
-      });
-    });
-
-    it('should complete batch group and update expenses', async () => {
-      expect(completeBatchGroup.called).to.be.true;
-      const call = completeBatchGroup.firstCall;
-      const [, , batchGroupId] = call.args;
-      expect(batchGroupId).to.equal(batchGroupId);
-    });
-  });
-
   describe('scheduleExpenseForPayment', () => {
-    let expense, batchGroupId;
+    let expense;
+    const batchGroupId = 'zs987sad89y1hubnc89h12h892s';
+
     beforeEach(async () => {
       sandbox.resetHistory();
       expense = await fakeExpense({
@@ -322,7 +259,6 @@ describe('server/paymentProviders/transferwise/index', () => {
         description: 'January Invoice',
       });
       expense.PayoutMethod = payoutMethod;
-      batchGroupId = 'zs987sad89y1hubnc89h12h892s';
       createBatchGroup.resolves({ id: batchGroupId });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
       createBatchGroupTransfer.resolves({ id: 800 });
@@ -429,27 +365,133 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
   });
 
-  describe('fundBatchGroup', () => {
+  describe('payExpensesBatchGroup', () => {
     const batchGroupId = '123abc';
     const ottToken = 'random-hash';
+    let response;
+
     before(async () => {
       sandbox.resetHistory();
+      expense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 1000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+        data: {
+          transfer: { id: 800 },
+          batchGroup: { id: batchGroupId },
+          quote: { expirationTime: moment().add(20, 'minutes') },
+        },
+      });
+      expense.PayoutMethod = payoutMethod;
+      // Stubs
       fundBatchGroup.onFirstCall().resolves({ status: 403, headers: { 'x-2fa-approval': ottToken } });
       fundBatchGroup.onSecondCall().resolves();
+      createBatchGroup.resolves({ id: batchGroupId, version: 0, status: 'NEW' });
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
+      createBatchGroupTransfer.resolves({ id: 800 });
+      completeBatchGroup.resolves({ id: batchGroupId, version: 2 });
+      getBorderlessAccount.resolves({
+        balances: [
+          {
+            currency: 'USD',
+            amount: { value: 100000 },
+          },
+        ],
+      });
+      response = await transferwise.payExpensesBatchGroup(host, [expense]);
     });
 
-    it('should return OTT info if request fails', async () => {
-      const response = await transferwise.fundExpensesBatchGroup(host, { id: batchGroupId });
+    it('should complete and fund batch group', () => {
+      expect(completeBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
+      expect(completeBatchGroup.firstCall).to.have.nested.property('args[3]', 1);
+
       expect(fundBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.firstCall).to.not.have.nested.property('args[3]');
+    });
+
+    it('should return OTT info if request fails', () => {
       expect(response).to.have.property('status', 403);
       expect(response).to.have.nested.property('headers.x-2fa-approval', ottToken);
     });
 
     it('should retry batchGroup if OTT token is provided', async () => {
-      await transferwise.fundExpensesBatchGroup(host, undefined, ottToken);
+      await transferwise.payExpensesBatchGroup(host, undefined, ottToken);
       expect(fundBatchGroup.secondCall).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.secondCall).to.have.nested.property('args[3]', ottToken);
+    });
+
+    it('should fail if batchGroup status !== NEW', async () => {
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'COMPLETED' });
+      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      await expect(call).to.be.eventually.rejectedWith(Error, `Can not pay batch group, status !== NEW`);
+    });
+
+    it('should fail if batchGroup does not contain every expense', async () => {
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'NEW' });
+      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      await expect(call).to.be.eventually.rejectedWith(
+        Error,
+        `Batch group ${batchGroupId} does not include expense ${expense.id}`,
+      );
+    });
+
+    it('should fail if any expense quote is expired', async () => {
+      const expiredExpense = await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 1000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+        data: {
+          transfer: { id: 800 },
+          batchGroup: { id: batchGroupId },
+          quote: { expirationTime: moment().subtract(20, 'minutes') },
+        },
+      });
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
+      const call = transferwise.payExpensesBatchGroup(host, [expiredExpense]);
+      await expect(call).to.be.eventually.rejectedWith(
+        Error,
+        `Expense ${expiredExpense.id} quote expired. Unschedule expense and try again`,
+      );
+    });
+
+    it('should fail if any expense is not in the batchGroup', async () => {
+      await fakeExpense({
+        payoutMethod: 'transferwise',
+        PayoutMethodId: payoutMethod.id,
+        status: 'APPROVED',
+        amount: 1000,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        FromCollectiveId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'January Invoice',
+        data: {
+          transfer: { id: 546 },
+          batchGroup: { id: batchGroupId },
+          quote: { expirationTime: moment().add(20, 'minutes') },
+        },
+      });
+      getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800, 546], status: 'NEW' });
+      const call = transferwise.payExpensesBatchGroup(host, [expense]);
+      await expect(call).to.be.eventually.rejectedWith(
+        Error,
+        `Expenses requested do not match the transfers added to batch group ${batchGroupId}`,
+      );
     });
   });
 

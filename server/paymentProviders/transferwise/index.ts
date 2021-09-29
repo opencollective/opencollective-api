@@ -2,13 +2,13 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, find, first, has, isEmpty, max, omit, pick, split, toNumber } from 'lodash';
+import { compact, difference, find, first, has, max, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
-import { BadRequest, TransferwiseError } from '../../graphql/errors';
+import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import logger from '../../lib/logger';
 import * as transferwise from '../../lib/transferwise';
@@ -281,6 +281,11 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
   if (!host) {
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }
+
+  if (expense.currency !== host.currency) {
+    throw new Error('Can not batch an expense with a currency different from its host currency');
+  }
+
   const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
   if (!connectedAccount) {
     throw new Error('Host is not connected to TransferWise');
@@ -333,74 +338,7 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
   );
 }
 
-async function createExpensesBatchGroup(
-  host: typeof models.Collective,
-  expenses: Array<typeof models.Expense>,
-): Promise<BatchGroup> {
-  expenses.forEach(e => {
-    if (!e.PayoutMethod) {
-      throw new BadRequest('payExpenseBatch: Expense is missing PayoutMethod', undefined, { expenseId: e.id });
-    }
-  });
-
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
-  if (!connectedAccount) {
-    throw new Error('Host is not connected to TransferWise');
-  }
-
-  const profileId = connectedAccount.data.id;
-  const token = await getToken(connectedAccount);
-  let batchGroup = await transferwise.createBatchGroup(token, profileId, {
-    name: uuid(),
-    sourceCurrency: connectedAccount.data.currency || host.currency,
-  });
-
-  try {
-    const paidExpenses = compact(
-      await Promise.all(
-        expenses.map(async expense => {
-          try {
-            await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
-              batchGroupId: batchGroup.id,
-              token,
-            });
-            return expense;
-          } catch (e) {
-            // createTransfer will automatically mark the Expense as error and comment the issue
-            // Here we just ignore so we can pay the rest of the batch.
-          }
-        }),
-      ),
-    );
-
-    if (isEmpty(paidExpenses)) {
-      throw new Error('All expenses failed, there is no batch to pay.');
-    }
-
-    batchGroup = await transferwise.getBatchGroup(token, profileId, batchGroup.id);
-    batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
-
-    await Promise.all(
-      expenses.map(expense =>
-        expense.update({
-          data: { ...expense.data, batchGroup },
-        }),
-      ),
-    );
-  } catch (e) {
-    logger.error('Error creating Wise batch group', e);
-    await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version).catch(logger.error);
-    throw e;
-  }
-
-  return batchGroup;
-}
-
-async function fundExpensesBatchGroup(
-  host,
-  batchGroup,
-  x2faApproval?: string,
-): Promise<BatchGroup | transferwise.OTTResponse> {
+async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
   const [connectedAccount] = await host.getConnectedAccounts({
     where: { service: 'transferwise', deletedAt: null },
   });
@@ -411,7 +349,30 @@ async function fundExpensesBatchGroup(
   const token = await getToken(connectedAccount);
 
   try {
-    if (batchGroup) {
+    if (!x2faApproval && expenses) {
+      let batchGroup = await transferwise.getBatchGroup(token, profileId, expenses[0].data.batchGroup.id);
+      if (batchGroup.status !== 'NEW') {
+        throw new Error('Can not pay batch group, status !== NEW');
+      }
+      const expenseTransferIds = expenses.map(e => e.data.transfer.id);
+      if (difference(batchGroup.transferIds, expenseTransferIds).length > 0) {
+        throw new Error(`Expenses requested do not match the transfers added to batch group ${batchGroup.id}`);
+      }
+      expenses.forEach(expense => {
+        if (expense.data.batchGroup.id !== batchGroup.id) {
+          throw new Error(
+            `All expenses should belong to the same batch group. Unschedule expense ${expense.id} and try again`,
+          );
+        }
+        if (moment().isSameOrAfter(expense.data.quote.expirationTime)) {
+          throw new Error(`Expense ${expense.id} quote expired. Unschedule expense and try again`);
+        }
+        if (!batchGroup.transferIds.includes(expense.data.transfer.id)) {
+          throw new Error(`Batch group ${batchGroup.id} does not include expense ${expense.id}`);
+        }
+      });
+
+      batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
       const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
       if ('status' in fundResponse && 'headers' in fundResponse) {
         const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
@@ -423,10 +384,10 @@ async function fundExpensesBatchGroup(
       const batchGroupId = await cache.get(cacheKey);
       return await transferwise.fundBatchGroup(token, profileId, batchGroupId, x2faApproval);
     } else {
-      throw new Error('fundBatchGroup: you need to pass either batchGroup or x2faApproval');
+      throw new Error('payExpensesBatchGroup: you need to pass either expenses or x2faApproval');
     }
   } catch (e) {
-    logger.error('Error funding Wise batch group', e);
+    logger.error('Error paying Wise batch group', e);
     throw e;
   }
 }
@@ -636,8 +597,7 @@ export default {
   createRecipient,
   quoteExpense,
   payExpense,
-  createExpensesBatchGroup,
-  fundExpensesBatchGroup,
+  payExpensesBatchGroup,
   setUpWebhook,
   validatePayoutMethod,
   scheduleExpenseForPayment,
