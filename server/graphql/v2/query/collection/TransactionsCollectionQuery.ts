@@ -4,7 +4,6 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { flatten, uniq } from 'lodash';
 
 import models, { Op, sequelize } from '../../../../models';
-import { BadRequest } from '../../../errors';
 import { TransactionCollection } from '../../collection/TransactionCollection';
 import { TransactionKind } from '../../enum/TransactionKind';
 import { TransactionType } from '../../enum/TransactionType';
@@ -30,17 +29,13 @@ const TransactionsCollectionQuery = {
         'Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.',
     },
     account: {
-      type: AccountReferenceInput,
+      type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
       description:
-        'Reference of the account assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
+        'Reference of the account(s) assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
     },
     host: {
       type: AccountReferenceInput,
       description: 'Reference of the host accounting the transaction',
-    },
-    hostedAccount: {
-      type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
-      description: 'If host is set, you can use this field to only return a limited set of its hosted accounts',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -126,14 +121,12 @@ const TransactionsCollectionQuery = {
     // Check arguments
     if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
       throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
-    } else if (args.hostedAccount && !args.host) {
-      throw new BadRequest('host must be present to use hostedAccounts');
     }
 
     // Load accounts
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-    const [fromAccount, account, host] = await Promise.all(
-      [args.fromAccount, args.account, args.host].map(
+    const [fromAccount, host] = await Promise.all(
+      [args.fromAccount, args.host].map(
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
@@ -178,27 +171,32 @@ const TransactionsCollectionQuery = {
       }
     }
 
-    if (account) {
+    if (args.account) {
       const accountCondition = [];
-
-      if (args.includeRegularTransactions) {
-        accountCondition.push(account.id);
-      }
-
+      const attributes = ['id']; // We only need IDs
+      const fetchAccountsParams = { throwIfMissing: true, attributes };
       if (args.includeChildrenTransactions) {
-        const childIds = await account.getChildren().then(children => children.map(child => child.id));
-        accountCondition.push(...childIds);
+        fetchAccountsParams['include'] = [{ association: 'children', required: false, attributes }];
       }
 
-      // When users are admins, also fetch their incognito contributions
-      if (
-        args.includeIncognitoTransactions &&
-        req.remoteUser?.isAdminOfCollective(account) &&
-        req.remoteUser.CollectiveId === account.id
-      ) {
-        const accountUser = await account.getUser();
-        if (accountUser) {
-          const incognitoProfile = await accountUser.getIncognitoProfile();
+      // Fetch accounts (and optionally their children)
+      const accounts = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+      const accountsIds = uniq(
+        flatten(
+          accounts.map(account => {
+            const accountIds = args.includeRegularTransactions ? [account.id] : [];
+            const childrenIds = account.children?.map(child => child.id) || [];
+            return [...accountIds, ...childrenIds];
+          }),
+        ),
+      );
+
+      accountCondition.push(...accountsIds);
+
+      // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
+      if (req.remoteUser && args.includeIncognitoTransactions) {
+        if (accountCondition.includes(req.remoteUser.CollectiveId)) {
+          const incognitoProfile = await req.remoteUser.getIncognitoProfile();
           if (incognitoProfile) {
             accountCondition.push(incognitoProfile.id);
           }
@@ -208,7 +206,7 @@ const TransactionsCollectionQuery = {
       if (args.includeGiftCardTransactions) {
         where.push({
           [Op.or]: [
-            { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
+            { UsingGiftCardFromCollectiveId: accountsIds, type: 'DEBIT' },
             // prettier, please keep line break for readability please
             { CollectiveId: accountCondition },
           ],
@@ -220,25 +218,6 @@ const TransactionsCollectionQuery = {
 
     if (host) {
       where.push({ HostCollectiveId: host.id });
-    }
-
-    if (args.hostedAccount) {
-      const attributes = ['id']; // We only need IDs
-      const fetchAccountsParams = { throwIfMissing: true, whereConditions: { HostCollectiveId: host.id }, attributes };
-      if (args.includeChildrenTransactions) {
-        fetchAccountsParams['include'] = [
-          {
-            association: 'children',
-            required: false,
-            attributes,
-          },
-        ];
-      }
-
-      const hostedAccounts = await fetchAccountsWithReferences(args.hostedAccount, fetchAccountsParams);
-      const getAllIdsForAccount = account => [account.id, ...(account.children?.map(child => child.id) || [])];
-      const accountIds = uniq(flatten(hostedAccounts.map(getAllIdsForAccount)));
-      where.push({ [Op.or]: [{ CollectiveId: accountIds }, { FromCollectiveId: accountIds }] });
     }
 
     // No await needed, GraphQL will take care of it

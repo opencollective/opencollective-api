@@ -104,10 +104,7 @@ export const fetchAccountWithReference = async (
  *    - attributes: to apply a SELECT on the query
  *    - include: to include associated models
  */
-export const fetchAccountsWithReferences = async (
-  inputs,
-  { throwIfMissing = false, whereConditions = null, attributes, include } = {},
-) => {
+export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = false, attributes, include } = {}) => {
   if (inputs.length > 200) {
     throw new Error('You can only fetch up to 200 accounts at once');
   } else if (inputs.length === 0) {
@@ -152,7 +149,7 @@ export const fetchAccountsWithReferences = async (
   const accounts = await models.Collective.findAll({
     attributes,
     include,
-    where: { ...whereConditions, [Op.or]: conditions },
+    where: { [Op.or]: conditions },
   });
 
   // Check if all accounts were found
