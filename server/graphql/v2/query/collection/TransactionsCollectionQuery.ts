@@ -1,12 +1,18 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import { flatten, uniq } from 'lodash';
 
 import models, { Op, sequelize } from '../../../../models';
+import { BadRequest } from '../../../errors';
 import { TransactionCollection } from '../../collection/TransactionCollection';
 import { TransactionKind } from '../../enum/TransactionKind';
 import { TransactionType } from '../../enum/TransactionType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+} from '../../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
@@ -31,6 +37,10 @@ const TransactionsCollectionQuery = {
     host: {
       type: AccountReferenceInput,
       description: 'Reference of the host accounting the transaction',
+    },
+    hostedAccount: {
+      type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+      description: 'If host is set, you can use this field to only return a limited set of its hosted accounts',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -116,6 +126,8 @@ const TransactionsCollectionQuery = {
     // Check arguments
     if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
       throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
+    } else if (args.hostedAccount && !args.host) {
+      throw new BadRequest('host must be present to use hostedAccounts');
     }
 
     // Load accounts
@@ -208,6 +220,25 @@ const TransactionsCollectionQuery = {
 
     if (host) {
       where.push({ HostCollectiveId: host.id });
+    }
+
+    if (args.hostedAccount) {
+      const attributes = ['id']; // We only need IDs
+      const fetchAccountsParams = { throwIfMissing: true, whereConditions: { HostCollectiveId: host.id }, attributes };
+      if (args.includeChildrenTransactions) {
+        fetchAccountsParams['include'] = [
+          {
+            association: 'children',
+            required: false,
+            attributes,
+          },
+        ];
+      }
+
+      const hostedAccounts = await fetchAccountsWithReferences(args.hostedAccount, fetchAccountsParams);
+      const getAllIdsForAccount = account => [account.id, ...(account.children?.map(child => child.id) || [])];
+      const accountIds = uniq(flatten(hostedAccounts.map(getAllIdsForAccount)));
+      where.push({ [Op.or]: [{ CollectiveId: accountIds }, { FromCollectiveId: accountIds }] });
     }
 
     // No await needed, GraphQL will take care of it
