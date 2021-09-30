@@ -93,7 +93,7 @@ describe('server/routes/users', () => {
     });
     it('should fail if expired token is provided', async () => {
       // Given a user and an authentication token
-      const user = await models.User.create({ email: 'test@mctesterson.com' });
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
       const expiredToken = user.jwt({}, -1);
 
       // When the endpoint is hit with an expired token
@@ -102,9 +102,16 @@ describe('server/routes/users', () => {
       // Then the API rejects the request
       expect(response.statusCode).to.equal(401);
     });
+    it("should fail if user's collective is marked as deleted", async () => {
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
+      await user.collective.destroy(); // mark collective as deleted
+      const currentToken = user.jwt();
+      const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
+      expect(response.statusCode).to.equal(401);
+    });
     it('should validate received token', async () => {
       // Given a user and an authentication token
-      const user = await models.User.create({ email: 'test@mctesterson.com' });
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
       const currentToken = user.jwt();
 
       // When the endpoint is hit with a valid token
@@ -123,7 +130,7 @@ describe('server/routes/users', () => {
     it('should respond with 2FA token if the user has 2FA enabled on account', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
+      const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt();
 
       // When the endpoint is hit with a valid token
@@ -161,7 +168,7 @@ describe('server/routes/users', () => {
     });
     it('should fail if token with wrong scope is provided', async () => {
       // Given a user and an authentication token
-      const user = await models.User.create({ email: 'test@mctesterson.com' });
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
       const badToken = user.jwt({ scope: 'nottwofactorauth' });
 
       // When the endpoint is hit with a token of the wrong scope
@@ -174,7 +181,7 @@ describe('server/routes/users', () => {
       // Given a user and an authentication token and a TOTP
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
+      const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = '123456';
 
@@ -193,7 +200,7 @@ describe('server/routes/users', () => {
       // Given a user and an authentication token and a TOTP
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      const user = await models.User.create({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
+      const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
       const currentToken = user.jwt({ scope: 'twofactorauth' });
       const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
