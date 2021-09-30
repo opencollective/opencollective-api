@@ -452,6 +452,12 @@ export const unscheduleExpensePayment = async (
     throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
   }
 
+  // If Wise, add expense to a new batch group
+  const payoutMethod = await expense.getPayoutMethod();
+  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
+  }
+
   const updatedExpense = await expense.update({
     status: expenseStatus.APPROVED,
     lastEditedById: req.remoteUser.id,
