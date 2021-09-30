@@ -919,6 +919,12 @@ const CollectiveFields = () => {
     createdByUser: {
       type: UserType,
       async resolve(collective, args, req) {
+        // Vendors don't have a `createdByUser`
+        if (!collective.CreatedByUserId) {
+          return null;
+        }
+
+        // If the profile is incognito, remoteUser must be allowed to see its `createdByUser`
         const user = await req.loaders.User.byId.load(collective.CreatedByUserId);
         if (user && (!collective.isIncognito || (await req.loaders.User.canSeeUserPrivateInfo.load(user)))) {
           return user;
