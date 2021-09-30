@@ -420,6 +420,7 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
+  // Warning: expense.collective is only loaded because we call `canPayExpense`
   const balance = await expense.collective.getBalanceWithBlockedFunds();
   if (expense.amount > balance) {
     throw new Unauthorized(
@@ -428,6 +429,12 @@ export const scheduleExpenseForPayment = async (
         expense.collective.currency,
       )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
     );
+  }
+
+  // If Wise, add expense to a new batch group
+  const payoutMethod = await expense.getPayoutMethod();
+  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    await paymentProviders.transferwise.scheduleExpenseForPayment(expense);
   }
 
   const updatedExpense = await expense.update({
@@ -444,6 +451,12 @@ export const unscheduleExpensePayment = async (
 ): Promise<typeof models.Expense> => {
   if (!(await canUnschedulePayment(req, expense))) {
     throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
+  }
+
+  // If Wise, add expense to a new batch group
+  const payoutMethod = await expense.getPayoutMethod();
+  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    await paymentProviders.transferwise.unscheduleExpenseForPayment(expense);
   }
 
   const updatedExpense = await expense.update({
