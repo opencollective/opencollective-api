@@ -273,17 +273,14 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   }
 
   if (template === 'collective.approved') {
-    if (hostSlug === 'the-social-change-nest') {
-      template += '.the-social-change-nest';
+    if (['foundation', 'the-social-change-nest'].includes(hostSlug)) {
+      template = `${template}.${hostSlug}`;
     }
   }
 
   if (template === 'collective.created') {
-    if (hostSlug === 'opensource') {
-      template += '.opensource';
-    }
-    if (hostSlug === 'the-social-change-nest') {
-      template += '.the-social-change-nest';
+    if (['opensource', 'the-social-change-nest'].includes(hostSlug)) {
+      template = `${template}.${hostSlug}`;
     }
   }
 
