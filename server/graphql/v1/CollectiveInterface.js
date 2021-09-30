@@ -248,7 +248,7 @@ export const CollectivesStatsType = new GraphQLObjectType({
 export const PlanType = new GraphQLObjectType({
   name: 'PlanType',
   description: 'The name of the current plan and its characteristics.',
-  fields: {
+  fields: () => ({
     // We always have to return an id for apollo's caching
     id: {
       type: GraphQLInt,
@@ -298,7 +298,7 @@ export const PlanType = new GraphQLObjectType({
     platformTips: {
       type: GraphQLBoolean,
     },
-  },
+  }),
 });
 
 export const ExpensesStatsType = new GraphQLObjectType({
@@ -918,14 +918,13 @@ const CollectiveFields = () => {
     },
     createdByUser: {
       type: UserType,
-      resolve(collective, args, req) {
-        if (
-          collective.isIncognito &&
-          !getContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, collective.id)
-        ) {
+      async resolve(collective, args, req) {
+        const user = await req.loaders.User.byId.load(collective.CreatedByUserId);
+        if (user && (!collective.isIncognito || (await req.loaders.User.canSeeUserPrivateInfo.load(user)))) {
+          return user;
+        } else {
           return {};
         }
-        return models.User.findByPk(collective.CreatedByUserId);
       },
     },
     parentCollective: {
@@ -1969,35 +1968,30 @@ export const UserCollectiveType = new GraphQLObjectType({
       firstName: {
         type: GraphQLString,
         deprecationReason: '2020-03-27: These field are now deprecated in favor of collective.name',
-        resolve(userCollective, args, req) {
-          return (
-            userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.firstName)
-          );
+        resolve() {
+          return null;
         },
       },
       lastName: {
         type: GraphQLString,
         deprecationReason: '2020-03-27: These field are now deprecated in favor of collective.name',
-        resolve(userCollective, args, req) {
-          return (
-            userCollective && req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(u => u.lastName)
-          );
+        resolve() {
+          return null;
         },
       },
       email: {
         type: GraphQLString,
-        resolve(userCollective, args, req) {
+        async resolve(userCollective, args, req) {
           if (!req.remoteUser) {
             return null;
-          } else if (userCollective.isIncognito) {
-            if (getContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, userCollective.id)) {
-              return req.loaders.User.byId.load(userCollective.CreatedByUserId).then(u => u.email);
-            }
           } else {
-            return (
-              userCollective &&
-              req.loaders.getUserDetailsByCollectiveId.load(userCollective.id).then(user => user.email)
-            );
+            const user = await (userCollective.isIncognito
+              ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
+              : req.loaders.User.byCollectiveId.load(userCollective.id));
+
+            if (user && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+              return user.email;
+            }
           }
         },
       },

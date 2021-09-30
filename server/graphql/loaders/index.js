@@ -17,7 +17,7 @@ import { createDataLoaderWithOptions, sortResults } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
-import { generateCanSeeUserPrivateInfoLoader } from './user';
+import { generateCanSeeUserPrivateInfoLoader, generateUserByCollectiveIdLoader } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
@@ -59,6 +59,7 @@ export const loaders = req => {
 
   // User
   context.loaders.User.canSeeUserPrivateInfo = generateCanSeeUserPrivateInfoLoader(req, cache);
+  context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
 
   /** *** Collective *****/
 
@@ -215,18 +216,7 @@ export const loaders = req => {
     ),
   };
 
-  // getUserDetailsByCollectiveId
-  context.loaders.getUserDetailsByCollectiveId = new DataLoader(UserCollectiveIds =>
-    getListOfAccessibleMembers(req.remoteUser, UserCollectiveIds)
-      .then(accessibleUserCollectiveIds =>
-        models.User.findAll({
-          where: { CollectiveId: { [Op.in]: accessibleUserCollectiveIds } },
-        }),
-      )
-      .then(results => sortResults(UserCollectiveIds, results, 'CollectiveId', {})),
-  );
-
-  // getOrgDetailsByCollectiveId
+  // @deprecated Getting orgs emails by `CreatedByUserId` is unreliable. See https://github.com/opencollective/opencollective/issues/3415
   context.loaders.getOrgDetailsByCollectiveId = new DataLoader(OrgCollectiveIds =>
     getListOfAccessibleMembers(req.remoteUser, OrgCollectiveIds)
       .then(accessibleOrgCollectiveIds =>

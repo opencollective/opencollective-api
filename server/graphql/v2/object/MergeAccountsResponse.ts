@@ -4,7 +4,7 @@ import { Account } from '../interface/Account';
 
 export const MergeAccountsResponse = new GraphQLObjectType({
   name: 'MergeAccountsResponse',
-  fields: {
+  fields: () => ({
     account: {
       type: new GraphQLNonNull(Account),
       description: 'The resulting account',
@@ -13,5 +13,5 @@ export const MergeAccountsResponse = new GraphQLObjectType({
       type: GraphQLString,
       description: 'A message to display to the user about the result',
     },
-  },
+  }),
 });

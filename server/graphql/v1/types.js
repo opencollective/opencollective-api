@@ -25,7 +25,6 @@ import { getContributorsForTier } from '../../lib/contributors';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
-import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -108,7 +107,7 @@ export const UpdateAudienceTypeEnum = new GraphQLEnumType({
 export const PayoutMethodType = new GraphQLObjectType({
   name: 'PayoutMethod',
   description: 'A payout method for expenses',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLInt,
     },
@@ -124,7 +123,7 @@ export const PayoutMethodType = new GraphQLObjectType({
     data: {
       type: GraphQLJSON,
     },
-  },
+  }),
 });
 
 export const UserType = new GraphQLObjectType({
@@ -187,17 +186,18 @@ export const UserType = new GraphQLObjectType({
       },
       email: {
         type: GraphQLString,
-        resolve(user, args, req) {
-          return user.getPersonalDetails && user.getPersonalDetails(req.remoteUser).then(user => user.email);
+        async resolve(user, args, req) {
+          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.email;
+          }
         },
       },
       emailWaitingForValidation: {
         type: GraphQLString,
-        resolve(user, args, req) {
-          return (
-            user.getPersonalDetails &&
-            user.getPersonalDetails(req.remoteUser).then(user => user.emailWaitingForValidation)
-          );
+        async resolve(user, args, req) {
+          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.emailWaitingForValidation;
+          }
         },
       },
       memberOf: {
@@ -368,17 +368,14 @@ export const MemberType = new GraphQLObjectType({
       member: {
         type: CollectiveInterfaceType,
         async resolve(member, args, req) {
-          const memberCollective =
-            member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
           const collective = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
-
-          if (memberCollective && req.remoteUser && req.remoteUser.isAdmin(member.CollectiveId)) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, memberCollective.id);
-          } else if (collective?.isIncognito) {
-            return null;
+          if (collective?.isIncognito) {
+            if (!req.remoteUser?.isAdminOfCollective(collective)) {
+              return null;
+            }
           }
 
-          return memberCollective;
+          return member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
         },
       },
       role: {
@@ -493,7 +490,7 @@ export const ContributorType = new GraphQLObjectType({
     of the collective. While "Member" is dedicated to permissions, this type is meant
     to surface all the public contributors.
   `,
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'A unique identifier for this member',
@@ -587,7 +584,7 @@ export const ContributorType = new GraphQLObjectType({
       type: GraphQLString,
       description: 'A public message from contributors to describe their contributions',
     },
-  },
+  }),
 });
 
 export const LocationType = new GraphQLObjectType({
@@ -706,11 +703,7 @@ export const InvoiceType = new GraphQLObjectType({
       fromCollective: {
         type: CollectiveInterfaceType,
         async resolve(invoice, args, req) {
-          const fromCollective = await req.loaders.Collective.byId.load(invoice.FromCollectiveId);
-          if (fromCollective && req.remoteUser?.isAdminOfCollective(fromCollective)) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, fromCollective.id);
-          }
-          return fromCollective;
+          return req.loaders.Collective.byId.load(invoice.FromCollectiveId);
         },
       },
       transactions: {
@@ -743,7 +736,7 @@ export const InvoiceType = new GraphQLObjectType({
 export const ExpenseItemType = new GraphQLObjectType({
   name: 'ExpenseItem',
   description: 'Public fields for an expense item',
-  fields: {
+  fields: () => ({
     id: { type: new GraphQLNonNull(GraphQLInt) },
     amount: { type: new GraphQLNonNull(GraphQLInt) },
     createdAt: { type: new GraphQLNonNull(IsoDateString) },
@@ -752,13 +745,13 @@ export const ExpenseItemType = new GraphQLObjectType({
     deletedAt: { type: IsoDateString },
     description: { type: GraphQLString },
     url: { type: GraphQLString },
-  },
+  }),
 });
 
 const ExpenseAttachedFile = new GraphQLObjectType({
   name: 'ExpenseAttachedFile',
   description: "Fields for an expense's attached file",
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Unique identifier for this file',
@@ -766,7 +759,7 @@ const ExpenseAttachedFile = new GraphQLObjectType({
     url: {
       type: GraphQLString,
     },
-  },
+  }),
 });
 
 export const ExpenseType = new GraphQLObjectType({
@@ -1617,7 +1610,11 @@ export const OrderType = new GraphQLObjectType({
         async resolve(order, args, req) {
           const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
           const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
-          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective))) {
+          if (
+            fromCollective.isIncognito &&
+            !req.remoteUser?.isAdminOfCollectiveOrHost(collective) &&
+            !req.remoteUser?.isAdmin(order.FromCollectiveId)
+          ) {
             return {};
           }
 
@@ -1654,12 +1651,8 @@ export const OrderType = new GraphQLObjectType({
             console.warn('There is no FromCollectiveId for order', order.id);
             return null;
           }
-          const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
-          const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
-          if (req.remoteUser && req.remoteUser.isAdminOfCollective(collective)) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_INCOGNITO_ACCOUNT_DETAILS, fromCollective.id);
-          }
-          return fromCollective;
+
+          return req.loaders.Collective.byId.load(order.FromCollectiveId);
         },
       },
       collective: {
@@ -2115,7 +2108,7 @@ export const OrderDirectionType = new GraphQLEnumType({
 export const PaymentMethodBatchInfo = new GraphQLObjectType({
   name: 'PaymentMethodBatchInfo',
   description: 'Provides rich information about a payment methods batch',
-  fields: {
+  fields: () => ({
     id: { type: new GraphQLNonNull(GraphQLString) }, // For caching
     collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
     count: { type: new GraphQLNonNull(GraphQLInt) },
@@ -2124,7 +2117,7 @@ export const PaymentMethodBatchInfo = new GraphQLObjectType({
       type: GraphQLString,
       description: 'The batch name, or null for unbatched payment methods',
     },
-  },
+  }),
 });
 
 export const PaginatedPaymentMethodsType = paginatedList(PaymentMethodType, 'PaymentMethod', 'paymentMethods');

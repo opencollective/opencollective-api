@@ -9,12 +9,12 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
  */
 const UpdateReferenceInput = new GraphQLInputObjectType({
   name: 'UpdateReferenceInput',
-  fields: {
+  fields: () => ({
     id: {
       type: GraphQLString,
       description: 'The public id identifying the update',
     },
-  },
+  }),
 });
 
 const getDatabaseIdFromUpdateReference = input => {

@@ -49,8 +49,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
           const fetchedOrderRandomUser = await fetchOrder(order.id, randomUser);
           const fetchedOrderOwner = await fetchOrder(order.id, ownerUser);
           const fetchedOrderCollectiveAdmin = await fetchOrder(order.id, collectiveAdminUser);
-          // TODO: Host admins are currently treated as admins of all the collectives they're hosting. See https://github.com/opencollective/opencollective-api/blob/b0cfdf190b28d83ec66071b00e158685bd99da91/server/models/User.js#L298
-          // const fetchedOrderHostAdmin = await fetchOrder(order.id, hostAdminUser);
+          const fetchedOrderHostAdmin = await fetchOrder(order.id, hostAdminUser);
 
           // Only collective admin + owner can fetch custom data
           expect(fetchedOrderOwner.customData).to.deep.eq(order.data.customData);
@@ -59,7 +58,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
           // Others can't
           expect(fetchedOrderUnauthenticated.customData).to.be.null;
           expect(fetchedOrderRandomUser.customData).to.be.null;
-          // expect(fetchedOrderHostAdmin.customData).to.be.null;
+          expect(fetchedOrderHostAdmin.customData).to.be.null;
         });
       });
     });

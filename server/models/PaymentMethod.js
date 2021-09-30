@@ -308,8 +308,8 @@ function defineModel() {
         );
       }
 
-      // If there is no monthly limit, the user needs to be an admin of the collective that owns the payment method
-      if (!this.monthlyLimitPerMember && !user.isAdminOfCollective(collective) && this.type !== 'manual') {
+      // If there is no monthly limit, the user needs to be an admin of the collective that owns the payment method (or its host)
+      if (!this.monthlyLimitPerMember && !user.isAdminOfCollectiveOrHost(collective) && this.type !== 'manual') {
         throw new Error(
           "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
         );
