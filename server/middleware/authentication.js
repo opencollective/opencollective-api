@@ -89,9 +89,15 @@ export const _authenticateUserByJwt = async (req, res, next) => {
   }
 
   const userId = Number(req.jwtPayload.sub);
-  const user = await User.findByPk(userId);
+  const user = await User.findByPk(userId, {
+    include: [{ association: 'collective', required: false, attributes: ['id'] }],
+  });
   if (!user) {
     logger.warn(`User id ${userId} not found`);
+    next();
+    return;
+  } else if (!user.collective) {
+    logger.error(`User id ${userId} has no collective linked`);
     next();
     return;
   }
