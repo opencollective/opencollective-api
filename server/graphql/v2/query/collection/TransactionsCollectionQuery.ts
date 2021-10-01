@@ -210,15 +210,6 @@ const TransactionsCollectionQuery = {
       where.push({ HostCollectiveId: host.id });
     }
 
-    // No await needed, GraphQL will take care of it
-    // TODO: try to skip if it's not a requested field
-    const existingKinds = models.Transaction.findAll({
-      attributes: ['kind'],
-      where,
-      group: ['kind'],
-      raw: true,
-    }).then(results => results.map(m => m.kind).filter(kind => !!kind));
-
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
       const ilikeQuery = `%${sanitizedTerm}%`;
@@ -293,7 +284,14 @@ const TransactionsCollectionQuery = {
       totalCount: result.count,
       limit: args.limit,
       offset: args.offset,
-      kinds: existingKinds,
+      kinds: () => {
+        return models.Transaction.findAll({
+          attributes: ['kind'],
+          where,
+          group: ['kind'],
+          raw: true,
+        }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+      },
     };
   },
 };
