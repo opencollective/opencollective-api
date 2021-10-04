@@ -522,8 +522,8 @@ export const Host = new GraphQLObjectType({
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
             contributionAmountOverTime = await sequelize.query(
               `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) as "amount", "currency"
-                FROM "Transactions" WHERE kind = :transactionKind AND "HostCollectiveId" = :hostCollectiveId
-                AND type = :transactionType
+                FROM "Transactions" WHERE kind = 'CONTRIBUTION' AND "HostCollectiveId" = :hostCollectiveId
+                AND type = 'CREDIT'
                 ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
                 ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``} ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
                 GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
@@ -534,8 +534,6 @@ export const Host = new GraphQLObjectType({
                 replacements: {
                   hostCollectiveId: host.id,
                   timeUnit: args.timeUnit,
-                  transactionKind: TransactionKind.CONTRIBUTION,
-                  transactionType: TransactionTypes.CREDIT,
                   collectiveIds,
                   dateFrom,
                   dateTo,
@@ -636,8 +634,8 @@ export const Host = new GraphQLObjectType({
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
             expenseAmountOverTime = await sequelize.query(
               `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) AS "amount", "currency"
-                FROM "Transactions" WHERE kind = :transactionKind AND "HostCollectiveId" = :hostCollectiveId
-                AND type = :transactionType
+                FROM "Transactions" WHERE kind = 'EXPENSE' AND "HostCollectiveId" = :hostCollectiveId
+                AND type = 'DEBIT'
                 ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
                 ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``} ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
                 GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
@@ -647,8 +645,6 @@ export const Host = new GraphQLObjectType({
                 replacements: {
                   hostCollectiveId: host.id,
                   timeUnit: args.timeUnit,
-                  transactionKind: TransactionKind.EXPENSE,
-                  transactionType: TransactionTypes.DEBIT,
                   collectiveIds,
                   dateFrom,
                   dateTo,
