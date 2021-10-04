@@ -76,6 +76,7 @@ async function HostReport(year, month, hostId) {
   const reportName = yearlyReport ? `${year} Yearly Host Report` : `${year}/${month + 1} Monthly Host Report`;
   const dateFormat = yearlyReport ? 'YYYY' : 'YYYYMM';
   const csvFilename = `${moment(d).format(dateFormat)}-transactions.csv`;
+  const csvFilenameV2 = `${moment(d).format(dateFormat)}-transactions-v2.csv`;
   const pdfFilename = `${moment(d).format(dateFormat)}-expenses.pdf`;
   console.log('startDate', startDate, 'endDate', endDate);
 
@@ -390,7 +391,7 @@ async function HostReport(year, month, hostId) {
       const csv2 = await getHostTransactionsCsvAsAdmin(host, { startDate, endDate });
       if (csv2) {
         attachments.push({
-          filename: `${host.slug}-${csvFilename}-v2`,
+          filename: `${host.slug}-${csvFilenameV2}`,
           content: csv2,
         });
         data.csvV2 = true;
