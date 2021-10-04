@@ -21,6 +21,7 @@ export type Quote = {
 
 export type QuoteV2PaymentOption = {
   disabled: boolean;
+  disabledReason?: { message: string };
   estimatedDelivery: string;
   formattedEstimatedDelivery: string;
   estimatedDeliveryDelays: [];

@@ -143,15 +143,12 @@ async function createTransfer(
         : await createRecipient(connectedAccount, payoutMethod);
 
     const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
-    const paymentOption = quote.paymentOptions.find(
-      p => p.disabled === false && p.payIn === 'BALANCE' && p.payOut === quote.payOut,
-    );
-    if (!paymentOption) {
-      throw new TransferwiseError(
-        `We can't find a compatible wise payment method for this transaction. Please re-connecte Wise or contact support at support@opencollective.com`,
-        null,
-        { quote },
-      );
+    const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+    if (!paymentOption || paymentOption.disabled) {
+      const message =
+        paymentOption?.disabledReason?.message ||
+        `We can't find a compatible wise payment method for this transaction. Please re-connecte Wise or contact support at support@opencollective.com`;
+      throw new TransferwiseError(message, null, { quote });
     }
 
     const account = await transferwise.getBorderlessAccount(token, <number>profileId);
