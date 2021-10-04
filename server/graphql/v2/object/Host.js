@@ -501,30 +501,26 @@ export const Host = new GraphQLObjectType({
             const collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
-          const contributionsCount = await models.Transaction.count({
-            where,
-          });
-
-          const oneTimeContributionCountByOrderId = await models.Transaction.count({
-            where,
-            include: [{ model: models.Order, where: { interval: null } }],
-            group: ['OrderId'],
-          });
-          const oneTimeContributionsCount = oneTimeContributionCountByOrderId.length;
-
-          const recurringContributionCountByOrderId = await models.Transaction.count({
-            where,
-            include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
-            group: ['OrderId'],
-          });
-          const recurringContributionsCount = recurringContributionCountByOrderId.length;
 
           const contributionsAmountSum = await models.Transaction.sum('amount', { where });
           const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
           return {
-            contributionsCount,
-            oneTimeContributionsCount,
-            recurringContributionsCount,
+            contributionsCount: () =>
+              models.Transaction.count({
+                where,
+              }),
+            oneTimeContributionsCount: () =>
+              models.Transaction.count({
+                where,
+                include: [{ model: models.Order, where: { interval: null } }],
+                group: ['OrderId'],
+              }).then(result => result.length),
+            recurringContributionsCount: () =>
+              models.Transaction.count({
+                where,
+                include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
+                group: ['OrderId'],
+              }).then(result => result.length),
             dailyAverageIncomeAmount: {
               value: dailyAverageIncomeAmount,
               currency: host.currency,
@@ -565,40 +561,30 @@ export const Host = new GraphQLObjectType({
           }
           const group = ['ExpenseId'];
 
-          const expenseCountByExpenseId = await models.Transaction.count({
-            where,
-            group,
-          });
-          const expensesCount = expenseCountByExpenseId.length;
-
-          const invoiceCountByExpenseId = await models.Transaction.count({
-            where,
-            include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
-            group,
-          });
-          const invoicesCount = invoiceCountByExpenseId.length;
-
-          const reimbursementCountByExpenseId = await models.Transaction.count({
-            where,
-            include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
-            group,
-          });
-          const reimbursementsCount = reimbursementCountByExpenseId.length;
-
-          const grantCountByExpenseId = await models.Transaction.count({
-            where,
-            include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
-            group,
-          });
-          const grantsCount = grantCountByExpenseId.length;
-
           const expensesAmountSum = await models.Transaction.sum('amount', { where });
-          const dailyAverageAmount = expensesCount ? Math.abs(expensesAmountSum) / numberOfDays : 0;
+          const dailyAverageAmount = expensesAmountSum ? Math.abs(expensesAmountSum) / numberOfDays : 0;
           return {
-            expensesCount,
-            invoicesCount,
-            reimbursementsCount,
-            grantsCount,
+            expensesCount: () =>
+              models.Transaction.count({
+                where,
+                group,
+              }).then(result => result.length),
+            invoicesCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
+              group,
+            }).then(result => result.length),
+            reimbursementsCount: models.Transaction.count({
+              where,
+              include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
+              group,
+            }).then(result => result.length),
+            grantsCount: () =>
+              models.Transaction.count({
+                where,
+                include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
+                group,
+              }).then(result => result.length),
             dailyAverageAmount: {
               value: dailyAverageAmount,
               currency: host.currency,
