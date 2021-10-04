@@ -2106,13 +2106,6 @@ function defineModel() {
       });
     }
 
-    // Prepare collective to receive a new host
-    this.HostCollectiveId = null;
-    this.isActive = false;
-    this.approvedAt = null;
-    this.hostFeePercent = null;
-    this.platformFeePercent = null;
-
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
@@ -2123,6 +2116,16 @@ function defineModel() {
       await Promise.all(projects.map(e => e.changeHost(null)));
     }
 
+    // Reset current host
+    await this.update({
+      HostCollectiveId: null,
+      isActive: false,
+      approvedAt: null,
+      hostFeePercent: null,
+      platformFeePercent: null,
+    });
+
+    // Add new host
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
@@ -2135,9 +2138,6 @@ function defineModel() {
         message: options?.message,
         applicationData: options?.applicationData,
       });
-    } else {
-      // if we remove the host
-      return this.save();
     }
   };
 
