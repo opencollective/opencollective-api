@@ -497,14 +497,15 @@ export const Host = new GraphQLObjectType({
             where.createdAt = dateRange;
           }
           if (args.account) {
-            const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+            const collectives = await fetchAccountsWithReferences(args.account, {
+              throwIfMissing: true,
+              attributes: ['id'],
+            });
             const collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
           const distinct = { distinct: true, col: 'OrderId' };
 
-          const contributionsAmountSum = await models.Transaction.sum('amount', { where });
-          const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
           return {
             contributionsCount: () =>
               models.Transaction.count({
@@ -522,9 +523,13 @@ export const Host = new GraphQLObjectType({
                 include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
                 ...distinct,
               }),
-            dailyAverageIncomeAmount: {
-              value: dailyAverageIncomeAmount,
-              currency: host.currency,
+            dailyAverageIncomeAmount: async () => {
+              const contributionsAmountSum = await models.Transaction.sum('amount', { where });
+              const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
+              return {
+                value: dailyAverageIncomeAmount,
+                currency: host.currency,
+              };
             },
           };
         },
@@ -562,8 +567,6 @@ export const Host = new GraphQLObjectType({
           }
           const distinct = { distinct: true, col: 'ExpenseId' };
 
-          const expensesAmountSum = await models.Transaction.sum('amount', { where });
-          const dailyAverageAmount = expensesAmountSum ? Math.abs(expensesAmountSum) / numberOfDays : 0;
           return {
             expensesCount: () =>
               models.Transaction.count({
@@ -573,22 +576,26 @@ export const Host = new GraphQLObjectType({
             invoicesCount: models.Transaction.count({
               where,
               include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
-              distinct,
+              ...distinct,
             }),
             reimbursementsCount: models.Transaction.count({
               where,
               include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
-              distinct,
+              ...distinct,
             }),
             grantsCount: () =>
               models.Transaction.count({
                 where,
                 include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
-                distinct,
+                ...distinct,
               }),
-            dailyAverageAmount: {
-              value: dailyAverageAmount,
-              currency: host.currency,
+            dailyAverageAmount: async () => {
+              const expensesAmountSum = await models.Transaction.sum('amount', { where });
+              const dailyAverageAmount = expensesAmountSum ? Math.abs(expensesAmountSum) / numberOfDays : 0;
+              return {
+                value: dailyAverageAmount,
+                currency: host.currency,
+              };
             },
           };
         },
