@@ -47,7 +47,15 @@ export const createUser = (
       const organizationParams = {
         type: 'ORGANIZATION',
         CreatedByUserId: user.id,
-        ...pick(organizationData, ['name', 'slug', 'description', 'website', 'twitterHandle', 'githubHandle']),
+        ...pick(organizationData, [
+          'name',
+          'legalName',
+          'slug',
+          'description',
+          'website',
+          'twitterHandle',
+          'githubHandle',
+        ]),
       };
       organization = await models.Collective.create(organizationParams, { transaction });
       await organization.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, {}, transaction);
