@@ -491,7 +491,7 @@ export const Host = new GraphQLObjectType({
             isRefund: false,
             RefundTransactionId: null,
           };
-          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host) || 1;
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
@@ -525,7 +525,7 @@ export const Host = new GraphQLObjectType({
               }),
             dailyAverageIncomeAmount: async () => {
               const contributionsAmountSum = await models.Transaction.sum('amount', { where });
-              const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
+              const dailyAverageIncomeAmount = contributionsAmountSum / numberOfDays;
               return {
                 value: dailyAverageIncomeAmount,
                 currency: host.currency,
@@ -555,7 +555,7 @@ export const Host = new GraphQLObjectType({
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
           const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
-          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host) || 1;
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
@@ -591,7 +591,7 @@ export const Host = new GraphQLObjectType({
               }),
             dailyAverageAmount: async () => {
               const expensesAmountSum = await models.Transaction.sum('amount', { where });
-              const dailyAverageAmount = expensesAmountSum ? Math.abs(expensesAmountSum) / numberOfDays : 0;
+              const dailyAverageAmount = Math.abs(expensesAmountSum) / numberOfDays;
               return {
                 value: dailyAverageAmount,
                 currency: host.currency,
