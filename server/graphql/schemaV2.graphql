@@ -195,7 +195,7 @@ interface Account {
     """
     Filter on given types (CREDITCARD, GIFTCARD...)
     """
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
 
     """
     Filter on the given service types (opencollective, stripe, paypal...)
@@ -362,7 +362,7 @@ input AccountReferenceInput {
   """
   The internal id of the account (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int
 
   """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
@@ -1639,7 +1639,7 @@ type Host implements Account & AccountWithContributions {
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -1763,12 +1763,12 @@ type Host implements Account & AccountWithContributions {
     """
     Inferior date limit in which we're calculating the metrics
     """
-    from: String @deprecated(reason: "2020-09-20: Use dateFrom")
+    from: String
 
     """
     Superior date limit in which we're calculating the metrics
     """
-    to: String @deprecated(reason: "2020-09-20: Use dateTo")
+    to: String
 
     """
     The start date of the time series
@@ -1856,6 +1856,38 @@ type Host implements Account & AccountWithContributions {
   ): VirtualCardCollection!
   hostedVirtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   hostedVirtualCardCollectives(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  contributionStats(
+    """
+    A collection of accounts for which the contribution stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate contribution statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate contribution statistics until this date.
+    """
+    dateTo: DateTime
+  ): ContributionStats!
+  expenseStats(
+    """
+    A collection of accounts for which the expense stats should be returned.
+    """
+    account: [AccountReferenceInput!]
+
+    """
+    Calculate expense statistics beginning from this date.
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate expense statistics until this date.
+    """
+    dateTo: DateTime
+  ): ExpenseStats!
 }
 
 """
@@ -2664,6 +2696,61 @@ enum HostApplicationStatus {
   EXPIRED
 }
 
+"""
+Contribution statistics related to the given accounts
+"""
+type ContributionStats {
+  """
+  The total number of contributions
+  """
+  contributionsCount: Int!
+
+  """
+  Number of one time contributions
+  """
+  oneTimeContributionsCount: Int!
+
+  """
+  Number of recurring contributions
+  """
+  recurringContributionsCount: Int!
+
+  """
+  The daily average income
+  """
+  dailyAverageIncomeAmount: Amount!
+}
+
+"""
+Expense statistics related to the given accounts
+"""
+type ExpenseStats {
+  """
+  The total number of expenses
+  """
+  expensesCount: Int!
+
+  """
+  The daily average paid in expenses
+  """
+  dailyAverageAmount: Amount!
+
+  """
+  Number of invoices
+  """
+  invoicesCount: Int!
+
+  """
+  Number of reimbursements
+  """
+  reimbursementsCount: Int!
+
+  """
+  Number of grants
+  """
+  grantsCount: Int!
+}
+
 type OrderTax {
   type: OrderTaxType!
   percentage: Int!
@@ -2924,7 +3011,7 @@ type Bot implements Account {
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -3180,7 +3267,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -3740,7 +3827,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -4104,7 +4191,7 @@ type Individual implements Account {
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -4430,7 +4517,7 @@ type Organization implements Account & AccountWithContributions {
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -4810,7 +4897,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -5142,7 +5229,7 @@ type Query {
     """
     Only expenses that match these tags
     """
-    tags: [String] @deprecated(reason: "2020-06-30: Please use tag (singular)")
+    tags: [String]
 
     """
     Only expenses that match these tags
@@ -5193,7 +5280,7 @@ type Query {
     """
     Public expense identifier
     """
-    id: String @deprecated(reason: "2020-02-28: Please use the `expense` field.")
+    id: String
 
     """
     Identifiers to retrieve the expense.
@@ -5219,7 +5306,7 @@ type Query {
     """
     Filter hosts by tags (multiple = OR)
     """
-    tags: [String] @deprecated(reason: "2020-06-30: Please use tag (singular)")
+    tags: [String]
 
     """
     Filter hosts by tags (multiple = OR)
@@ -5353,7 +5440,7 @@ type Query {
     """
     NOT IMPLEMENTED. Only return transactions that match these tags.
     """
-    tags: [String] @deprecated(reason: "2020-08-09: Was never implemented.")
+    tags: [String]
 
     """
     The order of results
@@ -5363,12 +5450,12 @@ type Query {
     """
     Only return transactions where the amount is greater than or equal to this value (in cents)
     """
-    minAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
+    minAmount: Int
 
     """
     Only return transactions where the amount is lower than or equal to this value (in cents)
     """
-    maxAmount: Int @deprecated(reason: "2020-08-09: GraphQL v2 should not expose amounts as integer.")
+    maxAmount: Int
 
     """
     Only return transactions that were created after this date
@@ -5423,7 +5510,7 @@ type Query {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
+    kinds: [TransactionKind]
 
     """
     To filter by transaction kind
@@ -5601,7 +5688,7 @@ type Mutation {
     """
     Can only be set if root
     """
-    platformFeePercent: Float @deprecated(reason: "2020-09-06: Platform Fees are deprecated")
+    platformFeePercent: Float
   ): Order!
   createCollective(
     """
@@ -6672,7 +6759,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -7023,7 +7110,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   paymentMethods(
     type: [PaymentMethodType]
-    enumType: [PaymentMethodType] @deprecated(reason: "2021-08-20: use type instead from now")
+    enumType: [PaymentMethodType]
     service: [PaymentMethodService]
 
     """
@@ -8724,7 +8811,7 @@ input NewAccountOrReferenceInput {
   """
   The internal id of the account (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int
 
   """
   The slug identifying the account (ie: babel for https://opencollective.com/babel)
@@ -9105,7 +9192,7 @@ input GuestInfoInput {
   """
   The unique guest token
   """
-  token: String @deprecated(reason: "2021-01-26: Guest tokens are not used anymore")
+  token: String
 
   """
   Address of the user, mandatory when amount is above $5000.
@@ -9163,8 +9250,8 @@ input PaymentMethodInput {
   """
   Type of this payment method
   """
-  legacyType: PaymentMethodLegacyType @deprecated(reason: "2021-03-02: Please use service + type")
-  newType: PaymentMethodType @deprecated(reason: "2021-08-20: Please use type instead")
+  legacyType: PaymentMethodLegacyType
+  newType: PaymentMethodType
 
   """
   Name of this payment method
