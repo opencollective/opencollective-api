@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
-import { flatten, uniq } from 'lodash';
+import { cloneDeep, flatten, uniq } from 'lodash';
 
 import models, { Op, sequelize } from '../../../../models';
 import { TransactionCollection } from '../../collection/TransactionCollection';
@@ -220,6 +220,9 @@ const TransactionsCollectionQuery = {
       where.push({ HostCollectiveId: host.id });
     }
 
+    // Backup the conditions as they're now to fetch the list of all available kinds
+    const whereKinds = cloneDeep(where);
+
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
       const ilikeQuery = `%${sanitizedTerm}%`;
@@ -297,7 +300,7 @@ const TransactionsCollectionQuery = {
       kinds: () => {
         return models.Transaction.findAll({
           attributes: ['kind'],
-          where,
+          where: whereKinds,
           group: ['kind'],
           raw: true,
         }).then(results => results.map(m => m.kind).filter(kind => !!kind));
