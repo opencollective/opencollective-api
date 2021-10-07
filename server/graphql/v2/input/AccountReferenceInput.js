@@ -66,6 +66,7 @@ export const NewAccountOrReferenceInput = new GraphQLInputObjectType({
  * @param {object} params
  *    - dbTransaction: An SQL transaction to run the query. Will skip `loaders`
  *    - lock: If true and `dbTransaction` is set, the row will be locked
+ *    - throwIfMissing: throws an exception if collective is missing for the given id or slug
  */
 export const fetchAccountWithReference = async (
   input,
@@ -98,6 +99,7 @@ export const fetchAccountWithReference = async (
   }
   return collective;
 };
+
 /**
  * Retrieves accounts for given ids or slugs
  *
