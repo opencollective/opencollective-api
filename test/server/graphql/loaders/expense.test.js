@@ -100,6 +100,26 @@ describe('server/graphql/loaders/expense', () => {
         const result = await loader.load(expenseWithUserTaxForm.id);
         expect(result).to.be.true;
       });
+
+      it('When expenses are not RECEIPT', async () => {
+        const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
+        const expense1 = await fakeExpense({
+          type: 'INVOICE',
+          CollectiveId: collective.id,
+          amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const expense2 = await fakeExpense({
+          type: 'UNCLASSIFIED',
+          CollectiveId: collective.id,
+          amount: US_TAX_FORM_THRESHOLD + 100,
+          PayoutMethodId: otherPayoutMethod.id,
+        });
+        const result = await loader.load(expense1.id);
+        expect(result).to.be.true;
+        const result2 = await loader.load(expense2.id);
+        expect(result2).to.be.true;
+      });
     });
 
     describe('does not require user tax form before payment', () => {
@@ -178,32 +198,17 @@ describe('server/graphql/loaders/expense', () => {
         expect(result).to.be.false;
       });
 
-      it('When expenses are not RECEIPT', async () => {
+      it('When expenses are FUNDING_REQUEST', async () => {
         const loader = userTaxFormRequiredBeforePayment({ loaders: loaders(req) });
-        const expense1 = await fakeExpense({
-          type: 'INVOICE',
-          CollectiveId: collective.id,
-          amount: US_TAX_FORM_THRESHOLD + 100,
-          PayoutMethodId: otherPayoutMethod.id,
-        });
-        const expense2 = await fakeExpense({
-          type: 'UNCLASSIFIED',
-          CollectiveId: collective.id,
-          amount: US_TAX_FORM_THRESHOLD + 100,
-          PayoutMethodId: otherPayoutMethod.id,
-        });
-        const expense3 = await fakeExpense({
+        const grantExpense = await fakeExpense({
           type: 'FUNDING_REQUEST',
           CollectiveId: collective.id,
           amount: US_TAX_FORM_THRESHOLD + 100,
           PayoutMethodId: otherPayoutMethod.id,
         });
-        const result = await loader.load(expense1.id);
-        expect(result).to.be.true;
-        const result2 = await loader.load(expense2.id);
-        expect(result2).to.be.true;
-        const result3 = await loader.load(expense3.id);
-        expect(result3).to.be.true;
+
+        const result3 = await loader.load(grantExpense.id);
+        expect(result3).to.be.false;
       });
 
       it('When expenses were submitted last year', async () => {
