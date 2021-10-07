@@ -8731,6 +8731,7 @@ input NewAccountOrReferenceInput {
   """
   slug: String
   name: String
+  legalName: String
   email: String
   organization: NewAccountOrganizationInput
   newsletterOptIn: Boolean
@@ -8738,6 +8739,7 @@ input NewAccountOrReferenceInput {
 
 input NewAccountOrganizationInput {
   name: String
+  legalName: String
   slug: String
   description: String
   website: String

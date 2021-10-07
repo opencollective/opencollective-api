@@ -30,6 +30,7 @@ const NewAccountOrganizationInput = new GraphQLInputObjectType({
   name: 'NewAccountOrganizationInput',
   fields: () => ({
     name: { type: GraphQLString },
+    legalName: { type: GraphQLString },
     slug: { type: GraphQLString },
     description: { type: GraphQLString },
     website: { type: GraphQLString },
@@ -41,6 +42,9 @@ export const NewAccountOrReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     ...AccountReferenceInputFields,
     name: {
+      type: GraphQLString,
+    },
+    legalName: {
       type: GraphQLString,
     },
     email: {
