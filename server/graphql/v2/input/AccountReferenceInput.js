@@ -135,7 +135,7 @@ export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = fal
     } else if (input.legacyId) {
       return account.id === input.legacyId;
     } else if (input.slug) {
-      return account.slug === input.slug;
+      return account.slug.toLowerCase() === input.slug.toLowerCase();
     }
   };
 
