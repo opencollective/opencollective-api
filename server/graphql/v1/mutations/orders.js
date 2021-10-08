@@ -38,6 +38,14 @@ const oneHourInSeconds = 60 * 60;
 
 const debug = debugLib('orders');
 
+const ORDER_PUBLIC_DATA_FIELDS = {
+  pledgeCurrency: 'thegivingblock.pledgeCurrency',
+  pledgeAmount: 'thegivingblock.pledgeAmount',
+  error: 'error',
+  latestError: 'latestError',
+  paymentIntent: 'paymentIntent',
+};
+
 function getOrdersLimit(order, reqIp, reqMask) {
   const limits = [];
 
@@ -520,6 +528,17 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       orderStatus = status.PENDING;
     }
 
+    /* Currently we only support the Giving Block related values in the data object
+     *  TODO: Maybe in future we could extend this to all existing data fields
+     */
+    let orderPublicData;
+    if (order.data) {
+      orderPublicData = pick(order.data, [
+        ORDER_PUBLIC_DATA_FIELDS.pledgeCurrency,
+        ORDER_PUBLIC_DATA_FIELDS.pledgeAmount,
+      ]);
+    }
+
     const orderData = {
       CreatedByUserId: remoteUser.id,
       FromCollectiveId: fromCollective.id,
@@ -536,6 +555,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       tags: order.tags,
       data: {
+        ...orderPublicData,
         reqIp,
         reqMask,
         captchaResponse,
@@ -547,7 +567,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
-        ...order.data,
       },
       status: orderStatus,
     };
@@ -715,7 +734,11 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await libPayments.processOrder(order);
 
       order.status = status.ACTIVE;
-      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
+      order.data = omit(order.data, [
+        ORDER_PUBLIC_DATA_FIELDS.error,
+        ORDER_PUBLIC_DATA_FIELDS.latestError,
+        ORDER_PUBLIC_DATA_FIELDS.paymentIntent,
+      ]);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {

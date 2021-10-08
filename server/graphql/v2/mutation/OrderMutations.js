@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil, isNull, isUndefined, pick } from 'lodash';
+import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
@@ -77,14 +77,6 @@ const orderMutations = {
       const collective = await loadAccount(order.toAccount);
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
 
-      /* Currently we only support the Giving Block related values in the data object
-       *  TODO: Maybe in future we could extend this to all existing data fields
-       */
-      let orderData;
-      if (order.data) {
-        orderData = pick(order.data, ['thegivingblock']);
-      }
-
       const legacyOrderObj = {
         quantity: order.quantity,
         amount: getValueInCentsFromAmountInput(order.amount),
@@ -98,7 +90,7 @@ const orderMutations = {
         fromCollective: fromCollective && { id: fromCollective.id },
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
-        data: orderData,
+        data: order.data,
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
         tier: tier && { id: tier.id },
