@@ -50,7 +50,7 @@ const Conversation = new GraphQLObjectType({
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 150 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
-        async resolve(conversation, _, { limit, offset }) {
+        async resolve(conversation, { limit, offset }) {
           const where = { ConversationId: conversation.id, id: { [Op.not]: conversation.RootCommentId } };
           const order = [['createdAt', 'ASC']];
           const query = { where, order };
