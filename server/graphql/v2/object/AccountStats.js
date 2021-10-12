@@ -1,4 +1,5 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
@@ -63,6 +64,23 @@ export const AccountStats = new GraphQLObjectType({
         type: new GraphQLNonNull(Amount),
         resolve(collective) {
           return collective.getTotalAmountReceivedAmount();
+        },
+      },
+      totalExpensesReceived: {
+        description: 'Net amount expenses received',
+        type: new GraphQLNonNull(Amount),
+        args: {
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Only return transactions that were created after this date',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Only return transactions that were created before this date',
+          },
+        },
+        resolve(collective, args) {
+          return collective.getTotalExpensesReceivedAmount({ startDate: args.dateFrom, endDate: args.dateTo });
         },
       },
       yearlyBudget: {

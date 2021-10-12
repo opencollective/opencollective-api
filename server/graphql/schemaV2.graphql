@@ -2236,6 +2236,7 @@ type AccountStats {
   Net amount received
   """
   totalAmountReceived: Amount!
+  totalExpensesReceived: Amount!
   yearlyBudget: Amount!
   yearlyBudgetManaged: Amount!
 }

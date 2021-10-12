@@ -106,6 +106,21 @@ export function getTotalAmountReceivedAmount(collective, { startDate, endDate, c
   });
 }
 
+export function getTotalExpensesReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
+  version = version || collective.settings?.budget?.version || 'v1';
+  currency = currency || collective.currency;
+  return sumCollectiveTransactions(collective, {
+    startDate,
+    endDate,
+    currency,
+    column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
+    transactionType: CREDIT,
+    kind: TransactionKind.EXPENSE,
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    excludeInternals: true,
+  });
+}
+
 export async function getTotalNetAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;

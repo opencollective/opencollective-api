@@ -26,6 +26,7 @@ import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
   getTotalAmountReceivedAmount,
+  getTotalExpensesReceivedAmount,
   getTotalMoneyManagedAmount,
   getTotalNetAmountReceivedAmount,
   getYearlyIncome,
@@ -2440,6 +2441,14 @@ function defineModel() {
 
   Collective.prototype.getTotalAmountReceived = function (options) {
     return getTotalAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalExpensesReceivedAmount = function (options) {
+    return getTotalExpensesReceivedAmount(this, options);
+  };
+
+  Collective.prototype.getTotalExpensesReceived = function (options) {
+    return getTotalExpensesReceivedAmount(this, options).then(result => result.value);
   };
 
   Collective.prototype.getTotalNetAmountReceivedAmount = function (options) {
