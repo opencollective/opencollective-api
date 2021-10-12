@@ -102,7 +102,11 @@ export const getFeatureStatusResolver =
           }),
         );
       case FEATURE.VIRTUAL_CARDS:
-        return checkIsActive(models.VirtualCard.count({ where: { CollectiveId: collective.id } }));
+        return checkIsActive(
+          models.VirtualCard.count({
+            where: { [collective.isHostAccount ? 'HostCollectiveId' : 'CollectiveId']: collective.id },
+          }),
+        );
       case FEATURE.REQUEST_VIRTUAL_CARDS: {
         const host = await collective.getHostCollective();
         const balance = await collective.getBalance();
