@@ -146,6 +146,15 @@ const Expense = new GraphQLObjectType({
           }
         },
       },
+      host: {
+        type: Account,
+        description: 'The account from where the expense was paid',
+        resolve(expense, _, req) {
+          if (expense.HostCollectiveId) {
+            return req.loaders.Collective.byId.load(expense.HostCollectiveId);
+          }
+        },
+      },
       payoutMethod: {
         type: PayoutMethod,
         description: 'The payout method to use for this expense',
