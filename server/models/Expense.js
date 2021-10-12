@@ -45,6 +45,15 @@ function defineModel() {
         allowNull: false,
       },
 
+      HostCollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+        allowNull: true,
+      },
+
       FromCollectiveId: {
         type: DataTypes.INTEGER,
         references: { key: 'id', model: 'Collectives' },
