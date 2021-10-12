@@ -23,7 +23,7 @@ export const getTransactionPdf = async (transaction, user) => {
     .then(response => {
       const { status } = response;
       if (status >= 200 && status < 300) {
-        return response.text();
+        return response.arrayBuffer().then(ab => Buffer.from(ab));
       } else {
         logger.warn('Failed to fetch PDF');
         return null;
