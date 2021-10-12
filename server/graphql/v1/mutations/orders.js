@@ -528,15 +528,9 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       orderStatus = status.PENDING;
     }
 
-    /* Currently we only support the Giving Block related values in the data object
-     *  TODO: Maybe in future we could extend this to all existing data fields
-     */
     let orderPublicData;
     if (order.data) {
-      orderPublicData = pick(order.data, [
-        ORDER_PUBLIC_DATA_FIELDS.pledgeCurrency,
-        ORDER_PUBLIC_DATA_FIELDS.pledgeAmount,
-      ]);
+      orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
     }
 
     const orderData = {
