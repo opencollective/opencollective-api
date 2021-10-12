@@ -2,6 +2,16 @@
 
 module.exports = {
   up: async queryInterface => {
+    const scriptName = 'dev-20210818-add-balance-transfer-transaction-kind.js';
+    const [, result] = await queryInterface.sequelize.query(`
+      SELECT name from "SequelizeMeta" WHERE name='${scriptName}';
+    `);
+
+    if (result.rowCount === 1) {
+      console.info(`Skipping execution of script as it's already executed: ${scriptName}`);
+      return;
+    }
+
     await queryInterface.sequelize.query(`
       ALTER TYPE "enum_Transactions_kind"
       ADD VALUE IF NOT EXISTS 'BALANCE_TRANSFER' AFTER 'ADDED_FUNDS'
