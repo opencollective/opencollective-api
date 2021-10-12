@@ -21,7 +21,6 @@ import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';
 import roles, { MemberRoleLabels } from '../constants/roles';
-import { fetchAccountsWithReferences } from '../graphql/v2/input/AccountReferenceInput';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
@@ -2977,24 +2976,15 @@ function defineModel() {
    * Returns financial metrics from the Host collective.
    * @param {Date} from Defaults to beginning of the current month.
    * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
-   * @param {GraphQLList(GraphQLNonNull(AccountReferenceInput))} [account] Optional, a list of collectives for which the metrics are returned.
+   * @param {[Integer]} [fromCollectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
-  Collective.prototype.getHostMetrics = async function (from, to, account) {
+  Collective.prototype.getHostMetrics = async function (from, to, fromCollectiveIds) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
 
     from = from ? moment(from) : moment().utc().startOf('month');
     to = to ? moment(to) : moment(from).utc().endOf('month');
-
-    let fromCollectiveIds;
-    if (account) {
-      const collectives = await fetchAccountsWithReferences(account, {
-        throwIfMissing: true,
-        attributes: ['id'],
-      });
-      fromCollectiveIds = collectives.map(collective => collective.id);
-    }
 
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
