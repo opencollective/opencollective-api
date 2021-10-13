@@ -92,7 +92,7 @@ export function getBalancesWithBlockedFunds(collectiveIds, { startDate, endDate,
   });
 }
 
-export function getTotalAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
+export function getTotalAmountReceivedAmount(collective, { startDate, endDate, currency, version, kind } = {}) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
   return sumCollectiveTransactions(collective, {
@@ -101,21 +101,7 @@ export function getTotalAmountReceivedAmount(collective, { startDate, endDate, c
     currency,
     column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
     transactionType: CREDIT,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-    excludeInternals: true,
-  });
-}
-
-export function getTotalExpensesReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
-  version = version || collective.settings?.budget?.version || 'v1';
-  currency = currency || collective.currency;
-  return sumCollectiveTransactions(collective, {
-    startDate,
-    endDate,
-    currency,
-    column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
-    transactionType: CREDIT,
-    kind: TransactionKind.EXPENSE,
+    kind: kind,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
   });
