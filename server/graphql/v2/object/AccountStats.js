@@ -1,11 +1,10 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { get, has } from 'lodash';
 
-import { TransactionKind } from '../../../constants/transaction-kind';
 import queries from '../../../lib/queries';
+import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
-
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
   description: 'Stats for the Account',
@@ -62,20 +61,16 @@ export const AccountStats = new GraphQLObjectType({
       totalAmountReceived: {
         description: 'Net amount received',
         type: new GraphQLNonNull(Amount),
-        resolve(collective) {
-          return collective.getTotalAmountReceivedAmount();
+        args: {
+          kind: {
+            type: new GraphQLList(TransactionKind),
+          },
+        },
+        resolve(collective, args) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          return collective.getTotalAmountReceivedAmount({ kind });
         },
       },
-      totalExpensesReceived: {
-        description: 'Net amount expenses received',
-        type: new GraphQLNonNull(Amount),
-        resolve(collective) {
-          return collective.getTotalAmountReceivedAmount({
-            kind: TransactionKind.EXPENSE,
-          });
-        },
-      },
-
       yearlyBudget: {
         type: new GraphQLNonNull(Amount),
         async resolve(collective) {
