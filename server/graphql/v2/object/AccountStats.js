@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { get, has } from 'lodash';
 
-import { TransactionKind } from '../../../../server/constants/transaction-kind';
+import { TransactionKind } from '../../../constants/transaction-kind';
 import queries from '../../../lib/queries';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
