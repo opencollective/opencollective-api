@@ -1,14 +1,13 @@
 'use strict';
 
+import { hasCompletedMigration, removeMigration } from './lib/helpers';
 module.exports = {
   up: async (queryInterface, DataTypes) => {
+    // Migration was renamed
     const scriptName = 'dev-20210610-add-users-changelogViewDate-column.js';
-    const [, result] = await queryInterface.sequelize.query(`
-      SELECT name from "SequelizeMeta" WHERE name='${scriptName}';
-    `);
-
-    if (result.rowCount === 1) {
+    if (await hasCompletedMigration(queryInterface, scriptName)) {
       console.info(`Skipping execution of script as it's already executed: ${scriptName}`);
+      removeMigration(queryInterface, scriptName);
       return;
     }
 
