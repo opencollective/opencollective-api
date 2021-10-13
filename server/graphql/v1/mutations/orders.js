@@ -38,12 +38,9 @@ const oneHourInSeconds = 60 * 60;
 
 const debug = debugLib('orders');
 
-const ORDER_PUBLIC_DATA_FIELDS = {
+export const ORDER_PUBLIC_DATA_FIELDS = {
   pledgeCurrency: 'thegivingblock.pledgeCurrency',
   pledgeAmount: 'thegivingblock.pledgeAmount',
-  error: 'error',
-  latestError: 'latestError',
-  paymentIntent: 'paymentIntent',
 };
 
 function getOrdersLimit(order, reqIp, reqMask) {
@@ -728,11 +725,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await libPayments.processOrder(order);
 
       order.status = status.ACTIVE;
-      order.data = omit(order.data, [
-        ORDER_PUBLIC_DATA_FIELDS.error,
-        ORDER_PUBLIC_DATA_FIELDS.latestError,
-        ORDER_PUBLIC_DATA_FIELDS.paymentIntent,
-      ]);
+      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {
