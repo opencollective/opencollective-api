@@ -184,7 +184,15 @@ export const loaders = req => {
         attributes: [
           'Order.CollectiveId',
           'Subscription.interval',
-          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('Subscription.amount')), 0), 'total'],
+          [
+            sequelize.fn(
+              'SUM',
+              sequelize.literal(
+                `COALESCE("Order"."totalAmount", 0) - COALESCE(("Order"."data"->>'platformFee')::integer, 0)`,
+              ),
+            ),
+            'total',
+          ],
         ],
         where: {
           CollectiveId: { [Op.in]: ids },
