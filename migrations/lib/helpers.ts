@@ -76,8 +76,6 @@ export const hasCompletedMigration = async (
     { replacements: { migrationName } },
   );
 
-  console.log(typeof result);
-
   return Boolean(result.rowCount);
 };
 
