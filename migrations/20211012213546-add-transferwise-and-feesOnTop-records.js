@@ -1,5 +1,6 @@
 'use strict';
 
+import { hasCompletedMigration, removeMigration } from './lib/helpers';
 const SQL = `
   BEGIN;
 
@@ -31,6 +32,14 @@ const SQL = `
 
 module.exports = {
   up: async queryInterface => {
+    // Migration was renamed
+    const scriptName = 'dev-20200624-add-transferwise-and-feesOnTop-records.js';
+    if (await hasCompletedMigration(queryInterface, scriptName)) {
+      console.info(`Skipping execution of script as it's already executed: ${scriptName}`);
+      await removeMigration(queryInterface, scriptName);
+      return;
+    }
+
     if (process.env.OC_ENV === undefined || process.env.OC_ENV === 'development') {
       return queryInterface.sequelize.query(SQL);
     }

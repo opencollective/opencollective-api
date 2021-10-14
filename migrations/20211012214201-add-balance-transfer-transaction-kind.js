@@ -1,7 +1,16 @@
 'use strict';
 
+import { hasCompletedMigration, removeMigration } from './lib/helpers';
 module.exports = {
   up: async queryInterface => {
+    // Migration was renamed
+    const scriptName = 'dev-20210818-add-balance-transfer-transaction-kind.js';
+    if (await hasCompletedMigration(queryInterface, scriptName)) {
+      console.info(`Skipping execution of script as it's already executed: ${scriptName}`);
+      await removeMigration(queryInterface, scriptName);
+      return;
+    }
+
     await queryInterface.sequelize.query(`
       ALTER TYPE "enum_Transactions_kind"
       ADD VALUE IF NOT EXISTS 'BALANCE_TRANSFER' AFTER 'ADDED_FUNDS'

@@ -1,4 +1,5 @@
 import { cloneDeep, remove } from 'lodash';
+import { QueryInterface } from 'sequelize';
 
 /**
  * Moves a section inside a category
@@ -58,4 +59,34 @@ export const removeSection = (
   } else {
     return settings;
   }
+};
+
+/*
+ * Checks whether a migration is complete. This is particularly useful for
+ * renaming migration scripts.
+ */
+export const hasCompletedMigration = async (
+  queryInterface: QueryInterface,
+  migrationName: string,
+): Promise<boolean> => {
+  const [, result]: [unknown, any] = await queryInterface.sequelize.query(
+    `
+      SELECT name from "SequelizeMeta" WHERE name = :migrationName
+    `,
+    { replacements: { migrationName } },
+  );
+
+  return Boolean(result.rowCount);
+};
+
+/*
+ * Removes the migration script from SequelizeMeta table
+ */
+export const removeMigration = async (queryInterface: QueryInterface, migrationName: string): Promise<void> => {
+  await queryInterface.sequelize.query(
+    `
+      DELETE from "SequelizeMeta" WHERE name = :migrationName
+    `,
+    { replacements: { migrationName } },
+  );
 };
