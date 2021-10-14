@@ -1,4 +1,5 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
@@ -65,10 +66,14 @@ export const AccountStats = new GraphQLObjectType({
           kind: {
             type: new GraphQLList(TransactionKind),
           },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Start date',
+          },
         },
         resolve(collective, args) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
-          return collective.getTotalAmountReceivedAmount({ kind });
+          return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom });
         },
       },
       yearlyBudget: {
