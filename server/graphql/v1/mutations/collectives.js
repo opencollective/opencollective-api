@@ -364,6 +364,17 @@ export function editCollective(_, args, req) {
       }
     })
     .then(async () => {
+      if (newCollectiveData.settings?.tos) {
+        try {
+          new URL(newCollectiveData.settings.tos);
+        } catch {
+          return Promise.reject(
+            new ValidationFailed('Enter a valid URL. The URL should have the format https://opencollective.com/'),
+          );
+        }
+      }
+    })
+    .then(async () => {
       // If we try to change the host
       if (
         newCollectiveData.HostCollectiveId !== undefined &&
