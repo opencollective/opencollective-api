@@ -7,7 +7,7 @@ module.exports = {
     const scriptName = 'dev-20210823-change-event-members-from-backers-to-attendees.js';
     if (await hasCompletedMigration(queryInterface, scriptName)) {
       console.info(`Skipping execution of script as it's already executed: ${scriptName}`);
-      removeMigration(queryInterface, scriptName);
+      await removeMigration(queryInterface, scriptName);
       return;
     }
 
