@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil, isNull, isUndefined, pick } from 'lodash';
+import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
@@ -11,11 +11,7 @@ import {
 import models from '../../../models';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import {
-  confirmOrder as confirmOrderLegacy,
-  createOrder as createOrderLegacy,
-  ORDER_PUBLIC_DATA_FIELDS,
-} from '../../v1/mutations/orders';
+import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { getDecodedId } from '../identifiers';
@@ -79,10 +75,6 @@ const orderMutations = {
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
-
-      if (req.remoteUser?.isAdminOfCollective(collective)) {
-        order.data = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
-      }
 
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
 

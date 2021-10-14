@@ -5,6 +5,7 @@ import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
 import models from '../../../models';
+import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
 import { ContributionFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -212,8 +213,11 @@ export const Order = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         description: 'Data related to the order',
-        resolve(order) {
-          return pick(order.data, ['thegivingblock.pledgeCurrency', 'thegivingblock.pledgeAmount']);
+        resolve(order, _, { remoteUser }) {
+          if (remoteUser?.isAdmin(order.CollectiveId)) {
+            order.data = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
+          }
+          return order.data;
         },
       },
       customData: {
