@@ -19,12 +19,12 @@ export const Project = new GraphQLObjectType({
       isApproved: {
         description: "Returns whether it's approved by the Fiscal Host",
         type: GraphQLNonNull(GraphQLBoolean),
-        async resolve(event, _, req) {
-          if (!event.ParentCollectiveId) {
+        async resolve(project, _, req) {
+          if (!project.ParentCollectiveId) {
             return false;
           } else {
-            const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
-            return parent && parent.isApproved();
+            const parent = await req.loaders.Collective.byId.load(project.ParentCollectiveId);
+            return Boolean(parent?.isApproved());
           }
         },
       },

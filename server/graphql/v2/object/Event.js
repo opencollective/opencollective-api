@@ -27,7 +27,7 @@ export const Event = new GraphQLObjectType({
             return false;
           } else {
             const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
-            return Boolean(parent && parent.isApproved());
+            return Boolean(parent?.isApproved());
           }
         },
       },
