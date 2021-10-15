@@ -66,14 +66,18 @@ export const AccountStats = new GraphQLObjectType({
           kind: {
             type: new GraphQLList(TransactionKind),
           },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received before this date',
+          },
           dateFrom: {
             type: GraphQLDateTime,
-            description: 'Start date',
+            description: 'Calculate total amount received after this date',
           },
         },
         resolve(collective, args) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
-          return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom });
+          return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom, endDate: args.dateTo });
         },
       },
       yearlyBudget: {
