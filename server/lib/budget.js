@@ -134,14 +134,16 @@ export async function getTotalNetAmountReceivedAmount(collective, { startDate, e
   return { ...totalReceived, value: totalReceived.value + totalFees.value };
 }
 
-export async function getTotalMoneyManagedAmount(
-  host,
-  { startDate, endDate, fromCollectiveIds, currency, version } = {},
-) {
+export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
   version = version || host.settings?.budget?.version || 'v1';
   currency = currency || host.currency;
 
-  const hostedCollectives = await host.getHostedCollectives();
+  let hostedCollectives;
+  if (collectiveIds?.length > 0) {
+    hostedCollectives = collectiveIds;
+  } else {
+    hostedCollectives = await host.getHostedCollectives();
+  }
   const ids = hostedCollectives.map(c => c.id);
   if (host.isActive) {
     ids.push(host.id);
@@ -153,7 +155,6 @@ export async function getTotalMoneyManagedAmount(
   const results = await sumCollectivesTransactions(ids, {
     startDate,
     endDate,
-    fromCollectiveIds,
     excludeRefunds: false,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     hostCollectiveId: host.id,
@@ -194,7 +195,6 @@ async function sumCollectivesTransactions(
     excludeRefunds = true,
     withBlockedFunds = false,
     hostCollectiveId = null,
-    fromCollectiveIds = null,
     excludeInternals = false,
     kind,
   } = {},
@@ -228,10 +228,6 @@ async function sumCollectivesTransactions(
   if (excludeInternals) {
     // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
     where.data = { internal: { [Op.not]: true } };
-  }
-  if (fromCollectiveIds) {
-    // Only take into account the transactions from these collectives
-    where.FromCollectiveId = { [Op.in]: fromCollectiveIds };
   }
   if (kind) {
     where.kind = kind;

@@ -121,19 +121,15 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
-          let fromCollectiveIds;
+          let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, {
               throwIfMissing: true,
               attributes: ['id'],
             });
-            fromCollectiveIds = collectives.map(collective => collective.id);
+            collectiveIds = collectives.map(collective => collective.id);
           }
-          const metrics = await host.getHostMetrics(
-            args.dateFrom || args.from,
-            args.dateTo || args.to,
-            fromCollectiveIds,
-          );
+          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },

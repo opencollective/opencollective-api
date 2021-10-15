@@ -60,7 +60,7 @@ function computeDates(startDate, endDate) {
   return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
 }
 
-export async function getPlatformTips(host, { startDate, endDate, groupTimeUnit, fromCollectiveIds = null } = {}) {
+export async function getPlatformTips(host, { startDate, endDate, groupTimeUnit, collectiveIds = null } = {}) {
   const timeUnitFragments = { select: '', groupBy: '', orderBy: '' };
   if (groupTimeUnit) {
     timeUnitFragments.select = ', DATE_TRUNC(:groupTimeUnit, t1."createdAt") AS "date"';
@@ -92,7 +92,7 @@ ON t1."TransactionGroup" = t2."TransactionGroup"
 INNER JOIN "Collectives" as h
 ON t1."HostCollectiveId" = h."id"
 WHERE t1."HostCollectiveId" = :HostCollectiveId
-${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
+${collectiveIds ? `AND t1."CollectiveId" IN (:CollectiveIds)` : ``}
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND (t1."kind" IS NULL OR t1."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS'))
 AND t2."kind" = 'PLATFORM_TIP'
@@ -104,7 +104,7 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
     {
       replacements: {
         HostCollectiveId: host.id,
-        FromCollectiveIds: fromCollectiveIds,
+        CollectiveIds: collectiveIds,
         ...computeDates(startDate, endDate),
         groupTimeUnit,
       },
@@ -120,7 +120,7 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
 }
 
 // NOTE: we're not looking at the settlementStatus and just SUM all debts of the month
-export async function getPendingPlatformTips(host, { startDate, endDate, fromCollectiveIds = null } = {}) {
+export async function getPendingPlatformTips(host, { startDate, endDate, collectiveIds = null } = {}) {
   const results = await sequelize.query(
     `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
 FROM "Transactions" t
@@ -128,7 +128,7 @@ INNER JOIN "TransactionSettlements" ts
   ON t."TransactionGroup" = ts."TransactionGroup"
   AND t."kind" = ts."kind"
 WHERE t."HostCollectiveId" = :HostCollectiveId
-${fromCollectiveIds ? `AND t."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
+${collectiveIds ? `AND t."CollectiveId" IN (:CollectiveIds)` : ``}
 AND t."isDebt" IS TRUE
 AND t."kind" = 'PLATFORM_TIP_DEBT'
 AND t."deletedAt" IS NULL
@@ -140,7 +140,7 @@ GROUP BY "hostCurrency"`,
     {
       replacements: {
         HostCollectiveId: host.id,
-        FromCollectiveIds: fromCollectiveIds,
+        CollectiveIds: collectiveIds,
         ...computeDates(startDate, endDate),
       },
       type: sequelize.QueryTypes.SELECT,
