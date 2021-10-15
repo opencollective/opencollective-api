@@ -1,6 +1,7 @@
 import { GraphQLString } from 'graphql';
 
 import expenseStatus from '../../../constants/expense_status';
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { ExpenseReferenceInput, fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { Expense } from '../object/Expense';
 
@@ -24,12 +25,19 @@ const ExpenseQuery = {
   async resolve(_, args, req) {
     if (args.expense) {
       const expense = await fetchExpenseWithReference(args.expense, req);
-      if (
-        expense?.status === expenseStatus.DRAFT &&
-        expense.data?.draftKey !== args.draftKey &&
-        !req.remoteUser?.isAdmin(expense.FromCollectiveId)
-      ) {
+      if (!expense) {
         return null;
+      }
+
+      // Special case for draft expenses
+      if (expense.status === expenseStatus.DRAFT) {
+        if (expense.data?.draftKey !== args.draftKey && !req.remoteUser?.isAdmin(expense.FromCollectiveId)) {
+          // Not an admin / no valid draft key => no access
+          return null;
+        } else if (expense.PayoutMethodId) {
+          // Can see the payout method data if owner of the expense or draftKey is valid
+          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, expense.PayoutMethodId);
+        }
       }
 
       return expense;
