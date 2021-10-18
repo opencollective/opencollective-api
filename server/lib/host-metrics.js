@@ -127,8 +127,9 @@ FROM "Transactions" t
 INNER JOIN "TransactionSettlements" ts
   ON t."TransactionGroup" = ts."TransactionGroup"
   AND t."kind" = ts."kind"
+${collectiveIds ? ` INNER JOIN "Transactions" as t2 ON t."TransactionGroup" = t2."TransactionGroup"` : ``}
 WHERE t."HostCollectiveId" = :HostCollectiveId
-${collectiveIds ? `AND t."CollectiveId" IN (:CollectiveIds)` : ``}
+${collectiveIds ? `AND t2."CollectiveId" IN (:CollectiveIds)` : ``}
 AND t."isDebt" IS TRUE
 AND t."kind" = 'PLATFORM_TIP_DEBT'
 AND t."deletedAt" IS NULL
@@ -136,7 +137,7 @@ AND ts."deletedAt" IS NULL
 AND ts."status" IN ('OWED', 'INVOICED')
 AND t."createdAt" >= :startDate
 AND t."createdAt" <= :endDate
-GROUP BY "hostCurrency"`,
+GROUP BY t."hostCurrency"`,
     {
       replacements: {
         HostCollectiveId: host.id,
@@ -252,13 +253,19 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   return orderBy(mergedTimeSeries, 'date');
 }
 
-export async function getHostFeeShare(host, { startDate, endDate, fromCollectiveIds = null } = {}) {
+export async function getHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
     const results = await sequelize.query(
       `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
+${
+  collectiveIds
+    ? ` INNER JOIN "Transactions" as t2
+ON t1."TransactionGroup" = t2."TransactionGroup"`
+    : ``
+}
 WHERE t1."CollectiveId" = :CollectiveId
-${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
+${collectiveIds ? `AND t2."CollectiveId" IN (:CollectiveIds)` : ``}
 AND t1."type" = 'DEBIT'
 AND t1."kind" = 'HOST_FEE_SHARE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
@@ -267,7 +274,7 @@ GROUP BY t1."hostCurrency"`,
       {
         replacements: {
           CollectiveId: host.id,
-          FromCollectiveIds: fromCollectiveIds,
+          CollectiveIds: collectiveIds,
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
@@ -319,7 +326,7 @@ export async function getHostFeeShareTimeSeries(host, { startDate, endDate, time
   return preparedTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }));
 }
 
-export async function getPendingHostFeeShare(host, { startDate, endDate, fromCollectiveIds = null } = {}) {
+export async function getPendingHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
     const results = await sequelize.query(
       `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
@@ -327,8 +334,14 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, fromCol
         INNER JOIN "TransactionSettlements" ts
           ON t."TransactionGroup" = ts."TransactionGroup"
           AND t."kind" = ts."kind"
+        ${
+          collectiveIds
+            ? ` INNER JOIN "Transactions" as t2
+          ON t."TransactionGroup" = t2."TransactionGroup"`
+            : ``
+        }
         WHERE t."CollectiveId" = :CollectiveId
-          ${fromCollectiveIds ? `AND t."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
+          ${collectiveIds ? `AND t2."CollectiveId" IN (:CollectiveIds)` : ``}
           AND t."type" = 'CREDIT'
           AND t."kind" = 'HOST_FEE_SHARE_DEBT'
           AND t."deletedAt" IS NULL
@@ -336,11 +349,11 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, fromCol
           AND ts."status" IN ('OWED', 'INVOICED')
           AND t."createdAt" >= :startDate
           AND t."createdAt" <= :endDate
-        GROUP BY "hostCurrency"`,
+        GROUP BY t."hostCurrency"`,
       {
         replacements: {
           CollectiveId: host.id,
-          FromCollectiveIds: fromCollectiveIds,
+          FromCollectiveIds: collectiveIds,
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
