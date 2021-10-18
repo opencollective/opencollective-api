@@ -124,6 +124,8 @@ function setupModel(ExpenseItem) {
         set(value) {
           if (value) {
             this.setDataValue('description', sanitizeHTML(value, descriptionSanitizerOptions));
+          } else {
+            this.setDataValue('description', null);
           }
         },
       },

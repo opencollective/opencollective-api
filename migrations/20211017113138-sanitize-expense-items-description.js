@@ -7,7 +7,7 @@ module.exports = {
     const expenseItems = await queryInterface.sequelize.query(
       `
         SELECT "id", "description" FROM "ExpenseItems"
-        WHERE LENGTH("description") > 0 AND "description" LIKE '<%'
+        WHERE LENGTH("description") > 0 AND "description" LIKE '%<%'
         AND "deletedAt" IS NULL;
       `,
       { type: Sequelize.QueryTypes.SELECT },
