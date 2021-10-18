@@ -85,7 +85,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
 
     it('asynchronous mutations are properly supported', async () => {
-      const keys = ['tos', 'lang', 'apply'];
+      const keys = ['lang', 'apply'];
       const baseParams = { account: { legacyId: collective.id } };
       const results = await Promise.all(
         keys.map(key => {
@@ -163,6 +163,23 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/Invalid filtering category/);
+    });
+
+    it('validates that the terms of service is a proper url address', async () => {
+      const result = await graphqlQueryV2(
+        editSettingsMutation,
+        {
+          account: { legacyId: collective.id },
+          key: 'tos',
+          value: 'This is not a url.',
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(
+        /Enter a valid URL. The URL should have the format https:\/\/opencollective.com\//,
+      );
     });
   });
 
