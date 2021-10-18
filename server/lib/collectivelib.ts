@@ -151,6 +151,14 @@ export function validateSettings(settings: any): string | boolean {
     }
   }
 
+  if (settings?.tos) {
+    try {
+      new URL(settings.tos);
+    } catch {
+      return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
+    }
+  }
+
   if (settings) {
     return false;
   }
