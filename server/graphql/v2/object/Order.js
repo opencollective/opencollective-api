@@ -213,11 +213,8 @@ export const Order = new GraphQLObjectType({
       data: {
         type: GraphQLJSON,
         description: 'Data related to the order',
-        resolve(order, _, { remoteUser }) {
-          if (remoteUser?.isAdmin(order.CollectiveId)) {
-            order.data = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
-          }
-          return order.data;
+        resolve(order) {
+          return pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
         },
       },
       customData: {
