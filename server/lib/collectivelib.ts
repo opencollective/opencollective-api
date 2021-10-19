@@ -1,6 +1,7 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import { get, pick } from 'lodash';
+import { isURL } from 'validator';
 
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
@@ -151,12 +152,8 @@ export function validateSettings(settings: any): string | boolean {
     }
   }
 
-  if (settings?.tos) {
-    try {
-      new URL(settings.tos);
-    } catch {
-      return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
-    }
+  if (settings?.tos && !isURL(settings.tos)) {
+    return 'Enter a valid URL. The URL should have the format https://opencollective.com/';
   }
 
   if (settings) {
