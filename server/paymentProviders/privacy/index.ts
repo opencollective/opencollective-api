@@ -204,6 +204,7 @@ const assignCardToCollective = async (
     CollectiveId: collective.id,
     HostCollectiveId: host.id,
     UserId: options?.UserId,
+    provider: 'privacy',
   };
   if (options?.upsert) {
     const [virtualCard] = await models.VirtualCard.upsert(cardData);

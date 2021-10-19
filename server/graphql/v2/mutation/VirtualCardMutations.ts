@@ -50,13 +50,18 @@ const virtualCardMutations = {
         throw new BadRequest('Could not find the assigned user');
       }
 
-      const { cardNumber, expireDate, cvv } = args.virtualCard.privateData;
+      const { cardNumber, expireDate, cvv, provider } = args.virtualCard.privateData;
+
       if (!cardNumber || !expireDate || !cvv) {
         throw new BadRequest('VirtualCard missing cardNumber, expireDate and/or cvv', undefined, {
           cardNumber: !cardNumber && 'Card Number is required',
           expireDate: !expireDate && 'Expire Date is required',
           cvv: !cvv && 'CVV is required',
         });
+      }
+
+      if (provider === "stripe") {
+        throw new BadRequest("Stripe not implemented yet");
       }
 
       const virtualCard = await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {

@@ -9,6 +9,7 @@ export const VirtualCardInput = new GraphQLInputObjectType({
     last4: { type: GraphQLString },
     data: { type: GraphQLJSONObject },
     privateData: { type: GraphQLJSONObject },
+    provider: { type: GraphQLString },
   }),
 });
 
