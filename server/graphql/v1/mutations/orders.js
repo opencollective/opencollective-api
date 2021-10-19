@@ -38,6 +38,11 @@ const oneHourInSeconds = 60 * 60;
 
 const debug = debugLib('orders');
 
+export const ORDER_PUBLIC_DATA_FIELDS = {
+  pledgeCurrency: 'thegivingblock.pledgeCurrency',
+  pledgeAmount: 'thegivingblock.pledgeAmount',
+};
+
 function getOrdersLimit(order, reqIp, reqMask) {
   const limits = [];
 
@@ -520,6 +525,11 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       orderStatus = status.PENDING;
     }
 
+    let orderPublicData;
+    if (order.data) {
+      orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
+    }
+
     const orderData = {
       CreatedByUserId: remoteUser.id,
       FromCollectiveId: fromCollective.id,
@@ -536,6 +546,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       tags: order.tags,
       data: {
+        ...orderPublicData,
         reqIp,
         reqMask,
         captchaResponse,
