@@ -7,6 +7,7 @@ import logger from '../../../lib/logger';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
+import * as stripe from '../../../paymentProviders/stripe/virtualCards';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { VirtualCardInput, VirtualCardUpdateInput } from '../input/VirtualCardInput';
@@ -61,6 +62,8 @@ const virtualCardMutations = {
       }
 
       if (provider === "stripe") {
+        const stripeCardExists = await stripe.verifyCardExists(cardNumber.replace(/\s\s/gm, ''), expireDate, cvv);
+
         throw new BadRequest("Stripe not implemented yet");
       }
 
