@@ -209,14 +209,25 @@ export const Host = new GraphQLObjectType({
       supportedPayoutMethods: {
         type: new GraphQLList(PayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',
-        async resolve(collective, _, req) {
-          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+        async resolve(host, _, req) {
+          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(host.id);
           const supportedPayoutMethods = [PayoutMethodTypes.ACCOUNT_BALANCE, PayoutMethodTypes.BANK_ACCOUNT];
-          if (!collective.settings?.disableCustomPayoutMethod) {
-            supportedPayoutMethods.push(PayoutMethodTypes.OTHER);
+
+          // Check for PayPal
+          if (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) {
+            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Payout
+          } else {
+            try {
+              if (await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' })) {
+                supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Adaptive
+              }
+            } catch {
+              // ignore missing paypal payment method
+            }
           }
-          if (connectedAccounts?.find?.(c => c.service === 'paypal') || !collective.settings?.disablePaypalPayouts) {
-            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
+
+          if (!host.settings?.disableCustomPayoutMethod) {
+            supportedPayoutMethods.push(PayoutMethodTypes.OTHER);
           }
           if (connectedAccounts?.find?.(c => c.service === 'privacy')) {
             supportedPayoutMethods.push(PayoutMethodTypes.CREDIT_CARD);
