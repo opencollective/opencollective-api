@@ -7,7 +7,6 @@ import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
-import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
@@ -132,9 +131,7 @@ const queries = {
     },
     async resolve(_, args, req) {
       if (!req.remoteUser) {
-        // TODO: We need to pass the token before being able to reject here
-        // throw new Unauthorized('You need to be logged in to generate a receipt');
-        logger.warn('Generating a receipt while unauthenticated');
+        throw new Unauthorized('You need to be logged in to generate a receipt');
       }
 
       // Fetch transaction
