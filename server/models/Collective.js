@@ -2994,12 +2994,12 @@ function defineModel() {
     const hostFeeShare = await getHostFeeShare(this, {
       startDate: from,
       endDate: to,
-      fromCollectiveIds: collectiveIds,
+      collectiveIds,
     });
     const pendingHostFeeShare = await getPendingHostFeeShare(this, {
       startDate: from,
       endDate: to,
-      fromCollectiveIds: collectiveIds,
+      collectiveIds,
     });
     const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
 

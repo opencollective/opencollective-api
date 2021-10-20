@@ -179,12 +179,17 @@ GROUP BY t1."hostCurrency"`,
     `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
+${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency"`,
     {
-      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
+      replacements: {
+        HostCollectiveId: host.id,
+        FromCollectiveIds: fromCollectiveIds,
+        ...computeDates(startDate, endDate),
+      },
       type: sequelize.QueryTypes.SELECT,
     },
   );
@@ -260,12 +265,12 @@ export async function getHostFeeShare(host, { startDate, endDate, collectiveIds 
 FROM "Transactions" as t1
 ${
   collectiveIds
-    ? ` INNER JOIN "Transactions" as t2
-ON t1."TransactionGroup" = t2."TransactionGroup"`
-    : ``
+    ? `INNER JOIN "Transactions" AS t2 ON t1."TransactionGroup" = t2."TransactionGroup"
+       INNER JOIN "Orders" AS O ON O.id = t1."OrderId"
+       INNER JOIN "Collectives" AS C ON C.id = O."CollectiveId"
+       WHERE t2.kind='CONTRIBUTION' AND t2.type='DEBIT' AND t2."deletedAt" IS NULL AND C.id IN (:CollectiveIds)`
+    : `WHERE t1."CollectiveId" = :CollectiveId`
 }
-WHERE t1."CollectiveId" = :CollectiveId
-${collectiveIds ? `AND t2."CollectiveId" IN (:CollectiveIds)` : ``}
 AND t1."type" = 'DEBIT'
 AND t1."kind" = 'HOST_FEE_SHARE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
@@ -274,7 +279,7 @@ GROUP BY t1."hostCurrency"`,
       {
         replacements: {
           CollectiveId: host.id,
-          CollectiveIds: collectiveIds,
+          CollectiveIds: collectiveIds?.toString(),
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
@@ -289,7 +294,7 @@ GROUP BY t1."hostCurrency"`,
     return total;
   }
 
-  const hostFees = await getHostFees(host, { startDate, endDate });
+  const hostFees = await getHostFees(host, { startDate, endDate, collectiveIds });
 
   const plan = await host.getPlan();
   const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
@@ -336,12 +341,12 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, collect
           AND t."kind" = ts."kind"
         ${
           collectiveIds
-            ? ` INNER JOIN "Transactions" as t2
-          ON t."TransactionGroup" = t2."TransactionGroup"`
-            : ``
+            ? `INNER JOIN "Transactions" AS t2 ON t."TransactionGroup" = t2."TransactionGroup"
+               INNER JOIN "Orders" AS O ON O.id = t."OrderId"
+               INNER JOIN "Collectives" AS C ON C.id = O."CollectiveId"
+               WHERE t2.kind='CONTRIBUTION' AND t2.type='DEBIT' AND t2."deletedAt" IS NULL AND C.id IN (:FromCollectiveIds)`
+            : `WHERE t."CollectiveId" = :CollectiveId`
         }
-        WHERE t."CollectiveId" = :CollectiveId
-          ${collectiveIds ? `AND t2."CollectiveId" IN (:CollectiveIds)` : ``}
           AND t."type" = 'CREDIT'
           AND t."kind" = 'HOST_FEE_SHARE_DEBT'
           AND t."deletedAt" IS NULL
@@ -353,7 +358,7 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, collect
       {
         replacements: {
           CollectiveId: host.id,
-          FromCollectiveIds: collectiveIds,
+          FromCollectiveIds: collectiveIds?.toString(),
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
