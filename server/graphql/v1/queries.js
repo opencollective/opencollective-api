@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
+import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
@@ -130,11 +131,14 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      // Fetch transaction
-      const transaction = await models.Transaction.findOne({
-        where: { uuid: args.transactionUuid },
-      });
+      if (!req.remoteUser) {
+        // TODO: We need to pass the token before being able to reject here
+        // throw new Unauthorized('You need to be logged in to generate a receipt');
+        logger.warn('Generating a receipt while unauthenticated');
+      }
 
+      // Fetch transaction
+      const transaction = await models.Transaction.findOne({ where: { uuid: args.transactionUuid } });
       if (!transaction) {
         throw new NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
       }
@@ -143,16 +147,32 @@ const queries = {
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
       // Load transaction host
-      if (transaction.HostCollectiveId) {
-        transaction.host = await transaction.getHostCollective();
+      let host;
+      if (transaction.type === 'DEBIT') {
+        // If it's a DEBIT, we load the host from the CREDIT
+        const oppositeTransaction = await transaction.getOppositeTransaction();
+        host = oppositeTransaction && (await oppositeTransaction.getHostCollective());
+      } else if (transaction.HostCollectiveId) {
+        // Otherwise if a `HostCollectiveId` is defined, we load it directly
+        host = await transaction.getHostCollective();
       } else {
+        // TODO: Keeping the code below to be safe and not break anything, but the logic is wrong:
+        // A collective can change host and we would display the wrong one there. `Transaction.HostCollectiveId`
+        // should be the single source of truth for this.
         const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
         const collective = await models.Collective.findByPk(collectiveId);
-        transaction.host = await collective.getHostCollective();
+        host = await collective.getHostCollective();
       }
 
-      if (canDownloadInvoice(transaction, null, req)) {
+      if (!host) {
+        throw new Error(`Could not find the fiscal host for this transaction (${transaction.uuid})`);
+      }
+
+      // Check permissions
+      if (canDownloadInvoice(transaction, null, req) || req.remoteUser.isAdminOfCollective(host)) {
         allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, fromCollectiveId);
+      } else {
+        throw new Forbidden('You are not allowed to download this receipt');
       }
 
       // Get total in host currency
@@ -164,9 +184,9 @@ const queries = {
       const invoice = {
         title: get(transaction.host, 'settings.invoiceTitle'),
         extraInfo: get(transaction.host, 'settings.invoice.extraInfo'),
-        HostCollectiveId: get(transaction.host, 'id'),
+        HostCollectiveId: host.id,
         FromCollectiveId: fromCollectiveId,
-        slug: `${transaction.host.name}_${createdAtString}_${args.transactionUuid}`,
+        slug: `${host.name}_${createdAtString}_${args.transactionUuid}`,
         currency: transaction.hostCurrency,
         totalAmount: totalAmountInHostCurrency,
         transactions: [transaction],
