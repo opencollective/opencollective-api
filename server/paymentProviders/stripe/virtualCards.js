@@ -1,26 +1,47 @@
+import { omit } from 'lodash';
 import Stripe from 'stripe';
+
+import models from '../../models';
 
 const stripe = Stripe('sk_test_XXX');
 
-export const verifyCardExists = async (cardNumber, expireDate, cvc) => {
+export const assignCardToCollective = async (cardNumberLabel, expireDate, cvv, collectiveId, host, userId) => {
+  const cardNumber = cardNumberLabel.replace(/\s\s/gm, '');
+
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
   const cards = list.data;
 
-  let cardExists = false;
+  let matchingCard;
 
   for (const card of cards) {
-    const cardWithNumber = await stripe.issuing.cards.retrieve(card.id, { expand: ['number', 'cvc'] });
+    const stripeCard = await stripe.issuing.cards.retrieve(card.id, { expand: ['number', 'cvc'] });
 
     if (
-      cardWithNumber.number === cardNumber &&
-      cardWithNumber.cvc === cvc &&
-      cardWithNumber['exp_month'] === parseInt(expireDate.slice(0, 2)) &&
-      cardWithNumber['exp_year'] === parseInt(expireDate.slice(-4))
+      stripeCard.number === cardNumber &&
+      stripeCard.cvc === cvv &&
+      stripeCard['exp_month'] === parseInt(expireDate.slice(0, 2)) &&
+      stripeCard['exp_year'] === parseInt(expireDate.slice(-4))
     ) {
-      cardExists = true;
+      matchingCard = stripeCard;
       break;
     }
   }
 
-  return cardExists;
+  if (!matchingCard) {
+    throw new Error('Could not find a Stripe Card matching the submitted card');
+  }
+
+  const cardData = {
+    id: matchingCard.id,
+    name: matchingCard.last4,
+    last4: matchingCard.last4,
+    privateData: { cardNumber: cardNumberLabel, expireDate, cvv },
+    data: omit(matchingCard, ['number', 'cvc', 'exp_year', 'exp_month']),
+    CollectiveId: collectiveId,
+    HostCollectiveId: host.id,
+    UserId: userId,
+    provider: 'stripe',
+  };
+
+  return await models.VirtualCard.create(cardData);
 };

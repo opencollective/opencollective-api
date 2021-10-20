@@ -61,15 +61,12 @@ const virtualCardMutations = {
         });
       }
 
-      if (provider === "stripe") {
-        const stripeCardExists = await stripe.verifyCardExists(cardNumber.replace(/\s\s/gm, ''), expireDate, cvv);
-
-        throw new BadRequest("Stripe not implemented yet");
-      }
-
-      const virtualCard = await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
-        UserId: user.id,
-      });
+      const virtualCard = provider === "stripe" ?
+        await stripe.assignCardToCollective(cardNumber, expireDate, cvv, collective.id, host, user.id) :
+        await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
+          UserId: user.id,
+        })
+      ;
 
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,
