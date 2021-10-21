@@ -51,7 +51,7 @@ const virtualCardMutations = {
         throw new BadRequest('Could not find the assigned user');
       }
 
-      const { cardNumber, expireDate, cvv, provider } = args.virtualCard.privateData;
+      const { cardNumber, expireDate, cvv } = args.virtualCard.privateData;
 
       if (!cardNumber || !expireDate || !cvv) {
         throw new BadRequest('VirtualCard missing cardNumber, expireDate and/or cvv', undefined, {
@@ -61,12 +61,12 @@ const virtualCardMutations = {
         });
       }
 
-      const virtualCard = provider === "stripe" ?
-        await stripe.assignCardToCollective(cardNumber, expireDate, cvv, collective.id, host, user.id) :
-        await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
-          UserId: user.id,
-        })
-      ;
+      const virtualCard =
+        args.virtualCard.provider === 'stripe'
+          ? await stripe.assignCardToCollective(cardNumber, expireDate, cvv, collective.id, host, user.id)
+          : await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
+              UserId: user.id,
+            });
 
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,

@@ -87,6 +87,17 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
+    provider: {
+      type: GraphQLString,
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.provider;
+        }
+      },
+    },
     createdAt: { type: GraphQLDateTime },
     updatedAt: { type: GraphQLDateTime },
   }),
