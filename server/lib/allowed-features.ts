@@ -50,7 +50,6 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
   [FEATURE.ALIPAY]: 'settings.features.alipay',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
-  [FEATURE.VIRTUAL_CARDS]: 'settings.features.privacyVcc',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
