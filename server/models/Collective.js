@@ -2123,6 +2123,7 @@ function defineModel() {
       approvedAt: null,
       hostFeePercent: null,
       platformFeePercent: null,
+      isHostAccount: false,
     });
 
     // Add new host
