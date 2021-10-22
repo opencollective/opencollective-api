@@ -1,3 +1,5 @@
+import { get } from 'lodash';
+
 import { types } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
@@ -24,6 +26,21 @@ const checkReceiveFinancialContributions = collective => {
       }),
     );
   }
+};
+
+const checkVirtualCardFeatureStatus = async account => {
+  if (account.isHostAccount) {
+    if (get(account.settings, 'features.privacyVcc')) {
+      return checkIsActive(models.VirtualCard.count({ where: { HostCollectiveId: account.id } }));
+    }
+  } else if (account.HostCollectiveId) {
+    const host = account.host || (await account.getHostCollective());
+    if (host && get(host.settings, 'features.privacyVcc')) {
+      return checkIsActive(models.VirtualCard.count({ where: { CollectiveId: account.id } }));
+    }
+  }
+
+  return FEATURE_STATUS.DISABLED;
 };
 
 /**
@@ -102,11 +119,7 @@ export const getFeatureStatusResolver =
           }),
         );
       case FEATURE.VIRTUAL_CARDS:
-        return checkIsActive(
-          models.VirtualCard.count({
-            where: { [collective.isHostAccount ? 'HostCollectiveId' : 'CollectiveId']: collective.id },
-          }),
-        );
+        return checkVirtualCardFeatureStatus(collective);
       case FEATURE.REQUEST_VIRTUAL_CARDS: {
         const host = await collective.getHostCollective();
         const balance = await collective.getBalance();
