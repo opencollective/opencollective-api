@@ -194,6 +194,6 @@
     "aesEncryptionKey": "",
     "aesEncryptionIv": "",
     "aesEncryptionMethod": "aes-256-cbc",
-    "apiUrl": "https://public-api-nstaging.tgbwidget.com/v1"
+    "apiUrl": "https://public-api.tgb-preprod.com/v1"
   }
 }
