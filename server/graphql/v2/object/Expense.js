@@ -149,9 +149,13 @@ const Expense = new GraphQLObjectType({
       host: {
         type: Account,
         description: 'The account from where the expense was paid',
-        resolve(expense, _, req) {
+        async resolve(expense, _, req) {
           if (expense.HostCollectiveId) {
             return req.loaders.Collective.byId.load(expense.HostCollectiveId);
+          } else {
+            const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+
+            return req.loaders.Collective.byId.load(collective.HostCollectiveId);
           }
         },
       },
