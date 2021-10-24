@@ -373,8 +373,7 @@ function defineModel() {
 
   Expense.prototype.setPaid = async function (lastEditedById) {
     const collective = this.collective || (await this.getCollective());
-    const HostCollectiveId = await collective.getHostCollectiveId();
-    await this.update({ status: status.PAID, lastEditedById, HostCollectiveId });
+    await this.update({ status: status.PAID, lastEditedById, HostCollectiveId: collective.HostCollectiveId });
 
     // Update transactions settlement
     if (this.type === expenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
