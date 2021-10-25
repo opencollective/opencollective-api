@@ -611,6 +611,11 @@ export const Host = new GraphQLObjectType({
           };
         },
       },
+      isTrustedHost: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host is trusted or not',
+        resolve: account => get(account, 'data.isTrustedHost', false),
+      },
     };
   },
 });

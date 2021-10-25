@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import GraphQLJSON from 'graphql-type-json';
-import { assign, get, invert, isEmpty, pick } from 'lodash';
+import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import { canSeeLegalName } from '../../../lib/user-permissions';
@@ -43,10 +43,6 @@ import EmailAddress from '../scalar/EmailAddress';
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
-
-export const ACCOUNT_PUBLIC_DATA_FIELDS = {
-  isTrustedHost: 'isTrustedHost',
-};
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -899,13 +895,6 @@ export const AccountFields = {
     type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
     resolve(collective) {
       return get(collective.data, 'categories', []);
-    },
-  },
-  data: {
-    type: GraphQLJSON,
-    description: 'Data related to the account',
-    resolve(order) {
-      return pick(order.data, Object.values(ACCOUNT_PUBLIC_DATA_FIELDS));
     },
   },
 };
