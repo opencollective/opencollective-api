@@ -3,6 +3,7 @@ import { get } from 'lodash';
 import { types } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
 import models, { Op } from '../../models';
 
@@ -41,6 +42,55 @@ const checkVirtualCardFeatureStatus = async account => {
   }
 
   return FEATURE_STATUS.DISABLED;
+};
+
+const checkCanUsePaymentMethods = async collective => {
+  // Ignore type if the account already has some payment methods setup. Useful for Organizations that were turned into Funds.
+  const paymentMethodCount = await models.PaymentMethod.count({
+    where: {
+      CollectiveId: collective.id,
+      [Op.or]: [
+        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.CREDITCARD },
+        { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.GIFTCARD },
+        { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.PREPAID },
+      ],
+    },
+  });
+
+  if (paymentMethodCount) {
+    return FEATURE_STATUS.ACTIVE;
+  } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
+    return FEATURE_STATUS.AVAILABLE;
+  } else {
+    return FEATURE_STATUS.UNSUPPORTED;
+  }
+};
+
+const checkCanEmitGiftCards = async collective => {
+  // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
+  const createdGiftCards = await models.PaymentMethod.count({
+    where: {
+      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+      type: PAYMENT_METHOD_TYPE.GIFTCARD,
+    },
+    include: [
+      {
+        model: models.PaymentMethod,
+        as: 'sourcePaymentMethod',
+        where: { CollectiveId: collective.id },
+        required: true,
+        attributes: [],
+      },
+    ],
+  });
+
+  if (createdGiftCards) {
+    return FEATURE_STATUS.ACTIVE;
+  } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
+    return FEATURE_STATUS.AVAILABLE;
+  } else {
+    return FEATURE_STATUS.UNSUPPORTED;
+  }
 };
 
 /**
@@ -118,6 +168,10 @@ export const getFeatureStatusResolver =
             limit: 1,
           }),
         );
+      case FEATURE.USE_PAYMENT_METHODS:
+        return checkCanUsePaymentMethods(collective);
+      case FEATURE.EMIT_GIFT_CARDS:
+        return checkCanEmitGiftCards(collective);
       case FEATURE.VIRTUAL_CARDS:
         return checkVirtualCardFeatureStatus(collective);
       case FEATURE.REQUEST_VIRTUAL_CARDS: {

@@ -90,7 +90,7 @@ interface CollectiveInterface {
   isArchived: Boolean
   isApproved: Boolean
   isDeletable: Boolean
-  hasVirtualCards: Boolean
+  hasVirtualCards: Boolean @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
   host: CollectiveInterface
   hostCollective: CollectiveInterface
 
@@ -1098,6 +1098,8 @@ type CollectiveFeatures {
   HOST_DASHBOARD: CollectiveFeatureStatus
   CONNECTED_ACCOUNTS: CollectiveFeatureStatus
   ALIPAY: CollectiveFeatureStatus
+  USE_PAYMENT_METHODS: CollectiveFeatureStatus
+  EMIT_GIFT_CARDS: CollectiveFeatureStatus
   VIRTUAL_CARDS: CollectiveFeatureStatus
   REQUEST_VIRTUAL_CARDS: CollectiveFeatureStatus
 }
@@ -1567,7 +1569,7 @@ type Collective implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -1803,7 +1805,7 @@ type Event implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -2039,7 +2041,7 @@ type Fund implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -2275,7 +2277,7 @@ type Organization implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
   email: String
 }
 
@@ -2512,7 +2514,7 @@ type Project implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -2928,7 +2930,7 @@ type User implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
   firstName: String @deprecated(reason: "2020-03-27: These field are now deprecated in favor of collective.name")
   lastName: String @deprecated(reason: "2020-03-27: These field are now deprecated in favor of collective.name")
   email: String
@@ -3168,7 +3170,7 @@ type Vendor implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean!
+  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
