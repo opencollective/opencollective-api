@@ -2096,8 +2096,6 @@ function defineModel() {
 
     // Self Hosted Collective
     if (this.id === this.HostCollectiveId) {
-      this.isHostAccount = false;
-      this.plan = null;
       await models.ConnectedAccount.destroy({
         where: {
           service: 'stripe',
@@ -2124,6 +2122,7 @@ function defineModel() {
       hostFeePercent: null,
       platformFeePercent: null,
       isHostAccount: false,
+      plan: null,
     });
 
     // Add new host
