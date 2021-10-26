@@ -205,6 +205,8 @@ const assignCardToCollective = async (
     HostCollectiveId: host.id,
     UserId: options?.UserId,
     provider: 'privacy',
+    spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
+    spendingLimitInterval: card['spend_limit_duration'],
   };
   if (options?.upsert) {
     const [virtualCard] = await models.VirtualCard.upsert(cardData);

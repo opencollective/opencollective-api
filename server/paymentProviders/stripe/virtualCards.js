@@ -41,6 +41,8 @@ export const assignCardToCollective = async (cardNumberLabel, expireDate, cvv, c
     HostCollectiveId: host.id,
     UserId: userId,
     provider: 'stripe',
+    spendingLimitAmount: matchingCard['spending_controls']['spending_limits'][0]['amount'],
+    spendingLimitInterval: matchingCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
   };
 
   return await models.VirtualCard.create(cardData);
