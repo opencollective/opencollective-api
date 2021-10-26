@@ -3,7 +3,7 @@ import Stripe from 'stripe';
 
 import models from '../../models';
 
-export const assignCardToCollective = async (cardNumberLabel, expireDate, cvv, collectiveId, host, userId) => {
+export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
   const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'stripe' } });
 
   if (!connectedAccount) {
@@ -11,8 +11,6 @@ export const assignCardToCollective = async (cardNumberLabel, expireDate, cvv, c
   }
 
   const stripe = Stripe(connectedAccount.token);
-
-  const cardNumber = cardNumberLabel.replace(/\s\s/gm, '');
 
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
   const cards = list.data;
@@ -41,7 +39,7 @@ export const assignCardToCollective = async (cardNumberLabel, expireDate, cvv, c
     id: matchingCard.id,
     name: matchingCard.last4,
     last4: matchingCard.last4,
-    privateData: { cardNumber: cardNumberLabel, expireDate, cvv },
+    privateData: { cardNumber, expireDate, cvv },
     data: omit(matchingCard, ['number', 'cvc', 'exp_year', 'exp_month']),
     CollectiveId: collectiveId,
     HostCollectiveId: host.id,

@@ -185,10 +185,10 @@ const assignCardToCollective = async (
     throw new Error('Host is not connected to Privacy');
   }
 
-  const last_four = cardNumber.split('  ')[3];
+  const last_four = cardNumber.slice(-4);
   const card = await privacy.findCard(connectedAccount.token, { last_four });
 
-  if (!card || (card.pan && card.pan !== cardNumber.replace(/\s\s/gm, ''))) {
+  if (!card || (card.pan && card.pan !== cardNumber)) {
     throw new Error('Could not find a Privacy Card matching the submitted card');
   }
 
