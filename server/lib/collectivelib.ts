@@ -92,6 +92,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'W9',
   'virtualcards',
   'transferwise',
+  'expenseTypes',
 ];
 
 /**
