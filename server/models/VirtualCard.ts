@@ -12,6 +12,8 @@ interface VirtualCardAttributes {
   data: Record<string, any>;
   privateData: string | Record<string, any>;
   provider: string;
+  spendingLimitAmount: number;
+  spendingLimitInterval: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date;
@@ -27,6 +29,8 @@ export interface VirtualCardCreateAttributes {
   HostCollectiveId: number;
   UserId?: number;
   provider: string;
+  spendingLimitAmount: number;
+  spendingLimitInterval: string;
 }
 
 class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttributes> implements VirtualCardAttributes {
@@ -39,6 +43,8 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   public data: Record<string, any>;
   public privateData: string | Record<string, any>;
   public provider: string;
+  public spendingLimitAmount: number;
+  public spendingLimitInterval: string;
   public createdAt!: Date;
   public updatedAt!: Date;
   public deletedAt: Date;
@@ -115,6 +121,14 @@ VirtualCard.init(
       },
     },
     provider: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    spendingLimitAmount: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    spendingLimitInterval: {
       type: DataTypes.STRING,
       allowNull: true,
     },
