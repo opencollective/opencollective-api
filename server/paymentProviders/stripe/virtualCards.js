@@ -3,9 +3,15 @@ import Stripe from 'stripe';
 
 import models from '../../models';
 
-const stripe = Stripe('sk_test_XXX');
-
 export const assignCardToCollective = async (cardNumberLabel, expireDate, cvv, collectiveId, host, userId) => {
+  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'stripe' } });
+
+  if (!connectedAccount) {
+    throw new Error('Host is not connected to Stripe');
+  }
+
+  const stripe = Stripe(connectedAccount.token);
+
   const cardNumber = cardNumberLabel.replace(/\s\s/gm, '');
 
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
