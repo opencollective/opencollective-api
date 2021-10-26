@@ -1893,6 +1893,11 @@ type Host implements Account & AccountWithContributions {
     """
     dateTo: DateTime
   ): ExpenseStats!
+
+  """
+  Returns whether the host is trusted or not
+  """
+  isTrustedHost: Boolean!
 }
 
 """
