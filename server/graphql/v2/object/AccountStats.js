@@ -1,10 +1,11 @@
-import { GraphQLInt, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLDateTime } from 'graphql-iso-date';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
+import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
-
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
   description: 'Stats for the Account',
@@ -61,8 +62,22 @@ export const AccountStats = new GraphQLObjectType({
       totalAmountReceived: {
         description: 'Net amount received',
         type: new GraphQLNonNull(Amount),
-        resolve(collective) {
-          return collective.getTotalAmountReceivedAmount();
+        args: {
+          kind: {
+            type: new GraphQLList(TransactionKind),
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received before this date',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received after this date',
+          },
+        },
+        resolve(collective, args) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom, endDate: args.dateTo });
         },
       },
       yearlyBudget: {
