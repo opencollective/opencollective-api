@@ -179,7 +179,7 @@ const assignCardToCollective = async (
   },
   collective: any,
   host: any,
-  options?: { upsert?: boolean; UserId?: number },
+  options?: { UserId?: number },
 ): Promise<VirtualCardModel> => {
   const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'privacy' } });
 
@@ -208,12 +208,8 @@ const assignCardToCollective = async (
     spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
     spendingLimitInterval: card['spend_limit_duration'],
   };
-  if (options?.upsert) {
-    const [virtualCard] = await models.VirtualCard.upsert(cardData);
-    return virtualCard;
-  } else {
-    return await models.VirtualCard.create(cardData);
-  }
+
+  return await models.VirtualCard.create(cardData);
 };
 
 const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
