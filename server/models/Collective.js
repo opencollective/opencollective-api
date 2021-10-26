@@ -1663,7 +1663,7 @@ function defineModel() {
         recipient: {
           collective: memberUser.collective.activity,
         },
-        loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/edit`,
+        loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/admin`,
       },
       { bcc: remoteUser.email },
     );

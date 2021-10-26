@@ -697,7 +697,7 @@ const sendManualPendingOrderEmail = async order => {
 
   const pendingOrderLink =
     host.type === 'COLLECTIVE'
-      ? `${config.host.website}/${host.slug}/edit/pending-orders?searchTerm=%23${order.id}`
+      ? `${config.host.website}/${host.slug}/admin/pending-orders?searchTerm=%23${order.id}`
       : `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`;
 
   let replyTo = [];
@@ -736,7 +736,7 @@ export const sendReminderPendingOrderEmail = async order => {
 
   const viewDetailsLink =
     host.type === 'COLLECTIVE'
-      ? `${config.host.website}/${host.slug}/edit/pending-orders?searchTerm=%23${order.id}`
+      ? `${config.host.website}/${host.slug}/admin/pending-orders?searchTerm=%23${order.id}`
       : `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`;
 
   const data = {
