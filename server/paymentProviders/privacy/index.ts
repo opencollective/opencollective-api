@@ -172,14 +172,12 @@ const processTransaction = async (
 };
 
 const assignCardToCollective = async (
-  cardDetails: {
-    cardNumber: string;
-    expireDate: string;
-    cvv: string;
-  },
-  collective: any,
+  cardNumber: string,
+  expireDate: string,
+  cvv: string,
+  collectiveId: number,
   host: any,
-  options?: { UserId?: number },
+  userId: number,
 ): Promise<VirtualCardModel> => {
   const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'privacy' } });
 
@@ -187,7 +185,6 @@ const assignCardToCollective = async (
     throw new Error('Host is not connected to Privacy');
   }
 
-  const { cardNumber, expireDate, cvv } = cardDetails;
   const last_four = cardNumber.split('  ')[3];
   const card = await privacy.findCard(connectedAccount.token, { last_four });
 
@@ -201,9 +198,9 @@ const assignCardToCollective = async (
     last4: card.last_four,
     privateData: { cardNumber, expireDate, cvv },
     data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
-    CollectiveId: collective.id,
+    CollectiveId: collectiveId,
     HostCollectiveId: host.id,
-    UserId: options?.UserId,
+    UserId: userId,
     provider: 'privacy',
     spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
     spendingLimitInterval: card['spend_limit_duration'],

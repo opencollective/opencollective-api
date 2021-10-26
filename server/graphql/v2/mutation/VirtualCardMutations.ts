@@ -61,12 +61,16 @@ const virtualCardMutations = {
         });
       }
 
-      const virtualCard =
-        args.virtualCard.provider === 'stripe'
-          ? await stripe.assignCardToCollective(cardNumber, expireDate, cvv, collective.id, host, user.id)
-          : await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
-              UserId: user.id,
-            });
+      const providerService = args.virtualCard.provider === 'stripe' ? stripe : privacy;
+
+      const virtualCard = await providerService.assignCardToCollective(
+        cardNumber,
+        expireDate,
+        cvv,
+        collective.id,
+        host,
+        user.id,
+      );
 
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,
