@@ -138,13 +138,14 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   version = version || host.settings?.budget?.version || 'v1';
   currency = currency || host.currency;
 
-  let hostedCollectives;
+  let hostedCollectives, ids;
   if (collectiveIds?.length > 0) {
-    hostedCollectives = collectiveIds;
+    ids = collectiveIds;
   } else {
     hostedCollectives = await host.getHostedCollectives();
+    ids = hostedCollectives.map(c => c.id);
   }
-  const ids = hostedCollectives.map(c => c.id);
+
   if (host.isActive) {
     ids.push(host.id);
   }
