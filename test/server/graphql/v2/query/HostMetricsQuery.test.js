@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
+import sinon from 'sinon';
 
+import * as ManualPaymentMethod from '../../../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -38,25 +40,32 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
     host = await fakeHost({ plan: 'grow-plan-2021' });
     await host.addUserWithRole(hostAdminUser, 'ADMIN');
 
-    collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
-    collective2 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
-    await fakeOrder(
-      {
+    collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
+    collective2 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
+
+    let clock = sinon.useFakeTimers(new Date('2021-02-01 0:0').getTime());
+    try {
+      const order1 = await fakeOrder({
         CollectiveId: collective1.id,
         totalAmount: 1000,
-        createdAt: new Date('2021-02-01').toISOString(),
-      },
-      { hostFeePercent: 30, hostFeeSharePercent: 15, hostCollectiveId: host.id },
-    );
+      });
+      order1.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await ManualPaymentMethod.processOrder(order1);
+    } finally {
+      clock.restore();
+    }
 
-    await fakeOrder(
-      {
+    clock = sinon.useFakeTimers(new Date('2021-06-01 0:0').getTime());
+    try {
+      const order2 = await fakeOrder({
         CollectiveId: collective2.id,
         totalAmount: 2000,
-        createdAt: new Date('2021-06-01').toISOString(),
-      },
-      { hostFeePercent: 30, hostFeeSharePercent: 15, hostCollectiveId: host.id },
-    );
+      });
+      order2.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await ManualPaymentMethod.processOrder(order2);
+    } finally {
+      clock.restore();
+    }
   });
 
   describe('hostMetricsQuery', () => {

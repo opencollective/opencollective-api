@@ -397,16 +397,7 @@ export const fakeTier = async (tierData = {}) => {
 /**
  * Creates a fake order. All params are optionals.
  */
-export const fakeOrder = async (
-  orderData = {},
-  {
-    withSubscription = false,
-    withTransactions = false,
-    hostFeePercent = 0,
-    hostFeeSharePercent = 0,
-    hostCollectiveId = null,
-  } = {},
-) => {
+export const fakeOrder = async (orderData = {}, { withSubscription = false, withTransactions = false } = {}) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
@@ -457,87 +448,6 @@ export const fakeOrder = async (
         amount: -order.amount,
       }),
     ]);
-  }
-
-  if (hostFeePercent) {
-    const hostFees = (hostFeePercent * order.totalAmount) / 100;
-    const uuid = fakeUUID('00000001');
-    const hostFeeTransactions = await Promise.all([
-      fakeTransaction({
-        OrderId: order.id,
-        kind: 'CONTRIBUTION',
-        type: 'CREDIT',
-        FromCollectiveId: order.FromCollectiveId,
-        CollectiveId: order.CollectiveId,
-        amount: order.totalAmount,
-        TransactionGroup: uuid,
-      }),
-      fakeTransaction({
-        OrderId: order.id,
-        kind: 'CONTRIBUTION',
-        type: 'DEBIT',
-        CollectiveId: order.FromCollectiveId,
-        FromCollectiveId: order.CollectiveId,
-        amount: -order.totalAmount,
-        TransactionGroup: uuid,
-      }),
-      fakeTransaction({
-        OrderId: order.id,
-        kind: 'HOST_FEE',
-        type: 'CREDIT',
-        CollectiveId: hostCollectiveId,
-        FromCollectiveId: order.CollectiveId,
-        amount: hostFees,
-        amountInHostCurrency: hostFees,
-        hostCurrency: 'USD',
-        createdAt: order.createdAt,
-        TransactionGroup: uuid,
-      }),
-
-      fakeTransaction({
-        OrderId: order.id,
-        type: 'DEBIT',
-        kind: 'HOST_FEE',
-        CollectiveId: order.CollectiveId,
-        FromCollectiveId: hostCollectiveId,
-        amount: -hostFees,
-        amountInHostCurrency: -hostFees,
-        hostCurrency: 'USD',
-        createdAt: order.createdAt,
-        TransactionGroup: uuid,
-      }),
-
-      fakeTransaction({
-        OrderId: order.id,
-        type: 'CREDIT',
-        kind: 'HOST_FEE_SHARE',
-        CollectiveId: 8686,
-        FromCollectiveId: hostCollectiveId,
-        amount: (hostFeeSharePercent * hostFees) / 100,
-        amountInHostCurrency: (hostFeeSharePercent * hostFees) / 100,
-        hostCurrency: 'USD',
-        createdAt: order.createdAt,
-        TransactionGroup: uuid,
-      }),
-
-      fakeTransaction({
-        OrderId: order.id,
-        type: 'DEBIT',
-        kind: 'HOST_FEE_SHARE',
-        CollectiveId: hostCollectiveId,
-        FromCollectiveId: 8686,
-        amount: (-hostFeeSharePercent * hostFees) / 100,
-        amountInHostCurrency: (-hostFeeSharePercent * hostFees) / 100,
-        hostCurrency: 'USD',
-        createdAt: order.createdAt,
-        TransactionGroup: uuid,
-      }),
-    ]);
-    if (order.transactions) {
-      order.transactions.push(hostFeeTransactions);
-    } else {
-      order.transactions = hostFeeTransactions;
-    }
   }
 
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
