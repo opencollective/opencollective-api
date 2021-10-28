@@ -2,7 +2,7 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('VirtualCards', 'provider', { type: Sequelize.STRING });
+    await queryInterface.addColumn('VirtualCards', 'provider', { type: Sequelize.ENUM('stripe', 'privacy') });
 
     await queryInterface.sequelize.query(
       `
