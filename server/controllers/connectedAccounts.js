@@ -52,7 +52,7 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       if (context === 'createCollective') {
         res.redirect(`${config.host.website}/create/opensource?token=${token}`);
       } else {
-        res.redirect(`${config.host.website}/${userCollective.slug}/edit/connected-accounts`);
+        res.redirect(`${config.host.website}/${userCollective.slug}/admin/connected-accounts`);
       }
 
       break;
@@ -90,7 +90,7 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
         CreatedByUserId: req.remoteUser.id,
       });
 
-      res.redirect(`${config.host.website}/${collective.slug}/edit/connected-accounts`);
+      res.redirect(`${config.host.website}/${collective.slug}/admin/connected-accounts`);
 
       break;
     }
