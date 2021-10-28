@@ -854,6 +854,11 @@ enum ExpenseType {
   FUNDING_REQUEST
 
   """
+  Grant: Request funding for a project or initiative.
+  """
+  GRANT
+
+  """
   Unclassified expense
   """
   UNCLASSIFIED

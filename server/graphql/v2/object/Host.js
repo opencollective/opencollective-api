@@ -597,7 +597,12 @@ export const Host = new GraphQLObjectType({
             grantsCount: () =>
               models.Transaction.count({
                 where,
-                include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
+                include: [
+                  {
+                    model: models.Expense,
+                    where: { _or: [{ type: expenseType.FUNDING_REQUEST }, { type: expenseType.GRANT }] },
+                  },
+                ],
                 ...distinct,
               }),
             dailyAverageAmount: async () => {
