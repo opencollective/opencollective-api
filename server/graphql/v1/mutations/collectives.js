@@ -455,7 +455,14 @@ export async function archiveCollective(_, args, req) {
   }
 
   if (collective.type === types.EVENT || collective.type === types.PROJECT) {
-    return collective.update({ isActive: false, deactivatedAt: Date.now() });
+    const updatedCollective = await collective.update({ isActive: false, deactivatedAt: Date.now() });
+    const parent = await updatedCollective.getParentCollective();
+    if (parent) {
+      // purge cache for parent to make sure the card gets updated on the collective page
+      purgeCacheForCollective(parent.slug);
+    }
+
+    return updatedCollective;
   }
 
   // TODO: cascade deactivation to EVENTs and PROJECTs?
@@ -477,14 +484,18 @@ export async function unarchiveCollective(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  if (collective.type === types.EVENT) {
+  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
     const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
-    return collective.update({
+    const updatedCollective = collective.update({
       deactivatedAt: null,
       isActive: parentCollective.isActive,
       HostCollectiveId: parentCollective.HostCollectiveId,
       approvedAt: collective.approvedAt || Date.now(),
     });
+
+    // purge cache for parent to make sure the card gets updated on the collective page
+    purgeCacheForCollective(parentCollective.slug);
+    return updatedCollective;
   }
 
   return collective.update({ deactivatedAt: null });
