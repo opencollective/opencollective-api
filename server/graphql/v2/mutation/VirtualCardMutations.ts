@@ -7,7 +7,7 @@ import logger from '../../../lib/logger';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
-import * as stripe from '../../../paymentProviders/stripe/virtualCards';
+import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { VirtualCardInput, VirtualCardUpdateInput } from '../input/VirtualCardInput';
