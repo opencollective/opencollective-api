@@ -120,8 +120,9 @@ export async function createFromPaidExpense(
         );
     }
 
+    // Warning senderFees can be null
     const senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
-    paymentProcessorFeeInCollectiveCurrency = senderFees.amount * 100; // paypal sends this in float
+    paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
 
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
