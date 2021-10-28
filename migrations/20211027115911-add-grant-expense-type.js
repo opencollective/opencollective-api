@@ -11,21 +11,11 @@ module.exports = {
       SET "type" = 'GRANT'
       WHERE "type" = 'FUNDING_REQUEST'
     `);
-    await queryInterface.sequelize.query(`
-      UPDATE "public"."ExpenseHistories"
-      SET "type" = 'GRANT'
-      WHERE "type" = 'FUNDING_REQUEST'
-    `);
   },
 
   down: async queryInterface => {
     await queryInterface.sequelize.query(`
       UPDATE "public"."Expenses"
-      SET "type" = 'FUNDING_REQUEST'
-      WHERE "type" = 'GRANT'
-    `);
-    await queryInterface.sequelize.query(`
-      UPDATE "public"."ExpenseHistories"
       SET "type" = 'FUNDING_REQUEST'
       WHERE "type" = 'GRANT'
     `);
