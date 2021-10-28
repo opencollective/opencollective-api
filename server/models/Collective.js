@@ -1210,6 +1210,11 @@ function defineModel() {
   Collective.prototype.getProjects = function (query = {}) {
     return this.getChildren({
       ...query,
+      order: [
+        ['deactivatedAt', 'DESC'], // Will put active projects first, ordering the others by deactivation date
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
       where: { ...query.where, type: types.PROJECT },
     });
   };
