@@ -44,6 +44,7 @@ export default {
   ORDERS_SUSPICIOUS: 'orders.suspicious',
   BACKYOURSTACK_DISPATCH_CONFIRMED: 'backyourstack.dispatch.confirmed',
   ACTIVATED_COLLECTIVE_AS_HOST: 'activated.collective.as.host',
+  ACTIVATED_COLLECTIVE_AS_INDEPENDENT: 'activated.collective.as.independent',
   DEACTIVATED_COLLECTIVE_AS_HOST: 'deactivated.collective.as.host',
   VIRTUAL_CARD_REQUESTED: 'virtual_card.requested',
 

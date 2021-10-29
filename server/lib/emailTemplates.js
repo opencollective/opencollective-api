@@ -95,6 +95,7 @@ export const templateNames = [
   'user.yearlyreport',
   'backyourstack.dispatch.confirmed',
   'activated.collective.as.host',
+  'activated.collective.as.independent',
   'deactivated.collective.as.host',
   'contribution.rejected',
   'virtualcard.requested',
