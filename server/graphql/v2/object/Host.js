@@ -608,7 +608,7 @@ export const Host = new GraphQLObjectType({
                 include: [
                   {
                     model: models.Expense,
-                    where: { _or: [{ type: expenseType.FUNDING_REQUEST }, { type: expenseType.GRANT }] },
+                    where: { type: { [Op.in]: [expenseType.FUNDING_REQUEST, expenseType.GRANT] } },
                   },
                 ],
                 ...distinct,
