@@ -1,4 +1,12 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 
@@ -65,7 +73,7 @@ export const Host = new GraphQLObjectType({
       ...AccountFields,
       ...AccountWithContributionsFields,
       hostFeePercent: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective) {
           return collective.hostFeePercent;
         },
