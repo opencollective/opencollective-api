@@ -5,7 +5,21 @@ import debugLib from 'debug';
 import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
-import { defaults, difference, differenceBy, get, includes, isNull, omit, pick, sum, sumBy, trim, unset } from 'lodash';
+import {
+  defaults,
+  difference,
+  differenceBy,
+  get,
+  includes,
+  isNull,
+  omit,
+  pick,
+  round,
+  sum,
+  sumBy,
+  trim,
+  unset,
+} from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
@@ -224,6 +238,13 @@ function defineModel() {
 
       hostFeePercent: {
         type: DataTypes.FLOAT,
+        set(hostFeePercent) {
+          if (hostFeePercent) {
+            this.setDataValue('hostFeePercent', round(hostFeePercent, 2));
+          } else {
+            this.setDataValue('hostFeePercent', hostFeePercent);
+          }
+        },
         validate: {
           min: 0,
           max: 100,
