@@ -61,7 +61,7 @@ const virtualCardMutations = {
         });
       }
 
-      const providerService = args.virtualCard.provider === 'stripe' ? stripe : privacy;
+      const providerService = args.virtualCard.provider === 'STRIPE' ? stripe : privacy;
 
       const virtualCard = await providerService.assignCardToCollective(
         cardNumber,

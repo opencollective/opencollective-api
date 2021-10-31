@@ -44,7 +44,7 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, collec
     CollectiveId: collectiveId,
     HostCollectiveId: host.id,
     UserId: userId,
-    provider: 'stripe',
+    provider: 'STRIPE',
     spendingLimitAmount: matchingCard['spending_controls']['spending_limits'][0]['amount'],
     spendingLimitInterval: matchingCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
   };

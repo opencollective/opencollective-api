@@ -201,7 +201,7 @@ const assignCardToCollective = async (
     CollectiveId: collectiveId,
     HostCollectiveId: host.id,
     UserId: userId,
-    provider: 'privacy',
+    provider: 'PRIVACY',
     spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
     spendingLimitInterval: card['spend_limit_duration'],
   };

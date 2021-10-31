@@ -2,14 +2,14 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('VirtualCards', 'provider', { type: Sequelize.ENUM('stripe', 'privacy') });
+    await queryInterface.addColumn('VirtualCards', 'provider', { type: Sequelize.ENUM('STRIPE', 'PRIVACY') });
 
     await queryInterface.sequelize.query(
       `
         UPDATE
           "VirtualCards"
         SET
-          "provider" = 'privacy'
+          "provider" = 'PRIVACY'
       `,
     );
   },

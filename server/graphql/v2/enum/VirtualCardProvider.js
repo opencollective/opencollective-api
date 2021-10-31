@@ -3,7 +3,7 @@ import { GraphQLEnumType } from 'graphql';
 export const VirtualCardProvider = new GraphQLEnumType({
   name: 'VirtualCardProvider',
   values: {
-    privacy: {},
-    stripe: {},
+    PRIVACY: {},
+    STRIPE: {},
   },
 });
