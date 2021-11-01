@@ -937,12 +937,7 @@ export async function addFundsToCollective(order, remoteUser) {
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  if (fromCollective.isHostAccount && fromCollective.id === collective.id) {
-    // Special Case, adding funds to itself
-    await models.Transaction.creditHost(orderCreated, collective);
-  } else {
-    await libPayments.executeOrder(remoteUser || user, orderCreated);
-  }
+  await libPayments.executeOrder(remoteUser || user, orderCreated);
 
   // Invalidate Cloudflare cache for the collective pages
   purgeCacheForCollective(collective.slug);
