@@ -218,7 +218,7 @@ const queries = {
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
-      kinds: { type: GraphQLList(GraphQLString) },
+      kinds: { type: new GraphQLList(GraphQLString) },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
         default: true,
