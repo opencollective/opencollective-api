@@ -1198,7 +1198,7 @@ export const ContributorsStatsType = new GraphQLObjectType({
   fields: () => {
     return {
       id: {
-        type: GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLString),
         description: "We always have to return an id for apollo's caching",
       },
       all: {

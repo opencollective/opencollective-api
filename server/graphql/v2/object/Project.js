@@ -18,7 +18,7 @@ export const Project = new GraphQLObjectType({
       ...AccountWithParentFields,
       isApproved: {
         description: "Returns whether it's approved by the Fiscal Host",
-        type: GraphQLNonNull(GraphQLBoolean),
+        type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(project, _, req) {
           if (!project.ParentCollectiveId) {
             return false;

@@ -7,11 +7,11 @@ export const CaptchaInput = new GraphQLInputObjectType({
   description: 'Captcha related information',
   fields: () => ({
     token: {
-      type: GraphQLNonNull(GraphQLString),
+      type: new GraphQLNonNull(GraphQLString),
       description: 'Captcha validation token',
     },
     provider: {
-      type: GraphQLNonNull(CaptchaProvider),
+      type: new GraphQLNonNull(CaptchaProvider),
       description: 'Catpcha provider',
     },
   }),

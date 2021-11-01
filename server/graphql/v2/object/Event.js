@@ -21,7 +21,7 @@ export const Event = new GraphQLObjectType({
       ...AccountWithParentFields,
       isApproved: {
         description: "Returns whether it's approved by the Fiscal Host",
-        type: GraphQLNonNull(GraphQLBoolean),
+        type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(event, _, req) {
           if (!event.ParentCollectiveId) {
             return false;
