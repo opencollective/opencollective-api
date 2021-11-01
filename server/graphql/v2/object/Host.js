@@ -124,7 +124,6 @@ export const Host = new GraphQLObjectType({
           let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, {
-              throwIfMissing: true,
               attributes: ['id'],
             });
             collectiveIds = collectives.map(collective => collective.id);
