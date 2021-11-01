@@ -513,6 +513,11 @@ function defineModel() {
     transaction.TransactionGroup = transaction.TransactionGroup || uuid();
     transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
+    // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
+    if (transaction.FromCollectiveId === transaction.CollectiveId) {
+      return Transaction.create(transaction, opts);
+    }
+
     if (!isUndefined(transaction.amountInHostCurrency)) {
       // ensure this is always INT
       transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
