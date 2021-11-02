@@ -144,9 +144,6 @@ const expenseMutations = {
         if (!existingExpense) {
           throw new NotFound('Expense not found.');
         }
-        if (existingExpense.status !== expenseStatus.DRAFT) {
-          throw new Unauthorized('Expense can not be edited.');
-        }
         if (existingExpense.data.draftKey !== args.draftKey) {
           throw new Unauthorized('You need to submit the right draft key to edit this expense');
         }
