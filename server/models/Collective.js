@@ -39,6 +39,7 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
+  getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalMoneyManagedAmount,
   getTotalNetAmountReceivedAmount,
@@ -2472,6 +2473,14 @@ function defineModel() {
 
   Collective.prototype.getTotalAmountReceived = function (options) {
     return getTotalAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalAmountPaidExpensesAmount = function (options) {
+    return getTotalAmountPaidExpenses(this, options);
+  };
+
+  Collective.prototype.getTotalAmountPaidExpenses = function (options) {
+    return getTotalAmountPaidExpenses(this, options).then(result => result.value);
   };
 
   Collective.prototype.getTotalNetAmountReceivedAmount = function (options) {

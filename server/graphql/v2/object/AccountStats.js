@@ -3,7 +3,6 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
-import models, { Op, sequelize } from '../../../models';
 import { ExpenseType } from '../enum/ExpenseType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
@@ -101,28 +100,12 @@ export const AccountStats = new GraphQLObjectType({
           },
         },
         async resolve(collective, args) {
-          const where = {
-            FromCollectiveId: collective.id,
-            status: 'PAID',
-          };
-          if (args.expenseType) {
-            where.type = args.expenseType;
-          }
-          if (args.dateFrom) {
-            where.createdAt = where.createdAt || {};
-            where.createdAt[Op.gte] = args.dateFrom;
-          }
-          if (args.dateTo) {
-            where.createdAt = where.createdAt || {};
-            where.createdAt[Op.lt] = args.dateTo;
-          }
-          const result = await models.Expense.findOne({
-            attributes: [[sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount']],
-            where: where,
-            raw: true,
-          });
           return {
-            value: result.amount,
+            value: await collective.getTotalAmountPaidExpensesAmount({
+              startDate: args.dateFrom,
+              endDate: args.dateTo,
+              expenseType: args.expenseType,
+            }),
             currency: collective.currency,
           };
         },
