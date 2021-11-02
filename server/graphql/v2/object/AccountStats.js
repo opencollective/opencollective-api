@@ -3,6 +3,8 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
+import models, { Op, sequelize } from '../../../models';
+import { ExpenseType } from '../enum/ExpenseType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
@@ -65,6 +67,7 @@ export const AccountStats = new GraphQLObjectType({
         args: {
           kind: {
             type: new GraphQLList(TransactionKind),
+            description: 'Filter by kind',
           },
           dateTo: {
             type: GraphQLDateTime,
@@ -78,6 +81,50 @@ export const AccountStats = new GraphQLObjectType({
         resolve(collective, args) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
           return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom, endDate: args.dateTo });
+        },
+      },
+      totalPaidExpense: {
+        description: 'Total of paid expenses, filter per expensetype',
+        type: new GraphQLNonNull(Amount),
+        args: {
+          expenseType: {
+            type: new GraphQLList(ExpenseType),
+            description: 'Filter by ExpenseType',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received before this date',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received after this date',
+          },
+        },
+        async resolve(collective, args) {
+          const where = {
+            FromCollectiveId: collective.id,
+            status: 'PAID',
+          };
+          if (args.expenseType) {
+            where.type = args.expenseType;
+          }
+          if (args.dateFrom) {
+            where.createdAt = where.createdAt || {};
+            where.createdAt[Op.gte] = args.dateFrom;
+          }
+          if (args.dateTo) {
+            where.createdAt = where.createdAt || {};
+            where.createdAt[Op.lt] = args.dateTo;
+          }
+          const result = await models.Expense.findOne({
+            attributes: [[sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount']],
+            where: where,
+            raw: true,
+          });
+          return {
+            value: result.amount,
+            currency: collective.currency,
+          };
         },
       },
       yearlyBudget: {
