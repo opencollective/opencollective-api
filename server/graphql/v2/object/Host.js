@@ -340,7 +340,7 @@ export const Host = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
           merchantAccount: { type: AccountReferenceInput, defaultValue: null },
-          collectiveAccountIds: { type: GraphQLList(AccountReferenceInput), defaultValue: null },
+          collectiveAccountIds: { type: new GraphQLList(AccountReferenceInput), defaultValue: null },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {

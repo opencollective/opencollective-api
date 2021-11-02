@@ -43,14 +43,14 @@ export const AccountWithHostFields = {
   },
   isApproved: {
     description: "Returns whether it's approved by the Fiscal Host",
-    type: GraphQLNonNull(GraphQLBoolean),
+    type: new GraphQLNonNull(GraphQLBoolean),
     resolve(account: typeof models.Collective): boolean {
       return account.isApproved();
     },
   },
   isActive: {
     description: "Returns whether it's active: can accept financial contributions and pay expenses.",
-    type: GraphQLNonNull(GraphQLBoolean),
+    type: new GraphQLNonNull(GraphQLBoolean),
     resolve(account: typeof models.Collective): boolean {
       return Boolean(account.isActive);
     },

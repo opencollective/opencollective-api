@@ -47,7 +47,7 @@ const OrderWithPayment = new GraphQLObjectType({
 
 const orderMutations = {
   createOrder: {
-    type: GraphQLNonNull(OrderWithPayment),
+    type: new GraphQLNonNull(OrderWithPayment),
     description: 'To submit a new order',
     args: {
       order: {
