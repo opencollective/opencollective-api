@@ -14,7 +14,7 @@ const DRY = process.env.DRY;
 
 async function reconcileConnectedAccount(connectedAccount) {
   const host = await models.Collective.findByPk(connectedAccount.CollectiveId);
-  const cards = await models.VirtualCard.findAll({ where: { HostCollectiveId: host.id } });
+  const cards = await models.VirtualCard.findAll({ where: { HostCollectiveId: host.id, provider: 'PRIVACY' } });
   logger.info(`Found ${cards.length} cards connected to host #${connectedAccount.CollectiveId} ${host.slug}...`);
 
   for (const card of cards) {

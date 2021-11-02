@@ -1,4 +1,4 @@
-import { GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSONObject } from 'graphql-type-json';
 
@@ -84,6 +84,29 @@ export const VirtualCard = new GraphQLObjectType({
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.get('privateData');
+        }
+      },
+    },
+    provider: { type: GraphQLString },
+    spendingLimitAmount: {
+      type: GraphQLInt,
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.spendingLimitAmount;
+        }
+      },
+    },
+    spendingLimitInterval: {
+      type: GraphQLString,
+      resolve(virtualCard, _, req) {
+        if (
+          req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
+        ) {
+          return virtualCard.spendingLimitInterval;
         }
       },
     },
