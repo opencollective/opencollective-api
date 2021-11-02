@@ -134,12 +134,18 @@ export async function getTotalNetAmountReceivedAmount(collective, { startDate, e
   return { ...totalReceived, value: totalReceived.value + totalFees.value };
 }
 
-export async function getTotalMoneyManagedAmount(host, { startDate, endDate, currency, version } = {}) {
+export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
   version = version || host.settings?.budget?.version || 'v1';
   currency = currency || host.currency;
 
-  const hostedCollectives = await host.getHostedCollectives();
-  const ids = hostedCollectives.map(c => c.id);
+  let hostedCollectives, ids;
+  if (collectiveIds?.length > 0) {
+    ids = collectiveIds;
+  } else {
+    hostedCollectives = await host.getHostedCollectives();
+    ids = hostedCollectives.map(c => c.id);
+  }
+
   if (host.isActive) {
     ids.push(host.id);
   }

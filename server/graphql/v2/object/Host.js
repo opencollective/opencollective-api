@@ -105,6 +105,10 @@ export const Host = new GraphQLObjectType({
       hostMetrics: {
         type: new GraphQLNonNull(HostMetrics),
         args: {
+          account: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the metrics should be returned.',
+          },
           from: {
             type: GraphQLString,
             description: "Inferior date limit in which we're calculating the metrics",
@@ -125,7 +129,14 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
-          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to);
+          let collectiveIds;
+          if (args.account) {
+            const collectives = await fetchAccountsWithReferences(args.account, {
+              attributes: ['id'],
+            });
+            collectiveIds = collectives.map(collective => collective.id);
+          }
+          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },

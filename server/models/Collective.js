@@ -3002,8 +3002,9 @@ function defineModel() {
    * Returns financial metrics from the Host collective.
    * @param {Date} from Defaults to beginning of the current month.
    * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
+   * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
-  Collective.prototype.getHostMetrics = async function (from, to) {
+  Collective.prototype.getHostMetrics = async function (from, to, collectiveIds) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
@@ -3014,16 +3015,24 @@ function defineModel() {
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
-    const hostFees = await getHostFees(this, { startDate: from, endDate: to });
+    const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
 
-    const hostFeeShare = await getHostFeeShare(this, { startDate: from, endDate: to });
-    const pendingHostFeeShare = await getPendingHostFeeShare(this, { startDate: from, endDate: to });
+    const hostFeeShare = await getHostFeeShare(this, {
+      startDate: from,
+      endDate: to,
+      collectiveIds,
+    });
+    const pendingHostFeeShare = await getPendingHostFeeShare(this, {
+      startDate: from,
+      endDate: to,
+      collectiveIds,
+    });
     const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
 
-    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to });
+    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to, collectiveIds });
 
-    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to });
-    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to });
+    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
+    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
 
     // We don't support platform fees anymore
     const platformFees = 0;

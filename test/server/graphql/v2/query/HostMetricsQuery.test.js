@@ -1,0 +1,104 @@
+import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
+import sinon from 'sinon';
+
+import * as ManualPaymentMethod from '../../../../../server/lib/payments';
+import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+
+describe('server/graphql/v2/query/HostMetricsQuery', () => {
+  before(resetTestDB);
+
+  let host, collectiveAdminUser, hostAdminUser, collective1, collective2;
+
+  const hostMetricsQuery = gqlV2/* GraphQL */ `
+    query HostMetrics($slug: String!, $dateFrom: DateTime!, $dateTo: DateTime!, $account: [AccountReferenceInput!]) {
+      host(slug: $slug) {
+        id
+        hostMetrics(dateFrom: $dateFrom, dateTo: $dateTo, account: $account) {
+          hostFees {
+            valueInCents
+            currency
+          }
+          hostFeeShare {
+            valueInCents
+            currency
+          }
+        }
+      }
+    }
+  `;
+
+  before(async () => {
+    await fakeCollective({
+      id: 8686,
+      slug: 'open-collective',
+      HostCollectiveId: 8686,
+    });
+    collectiveAdminUser = await fakeUser();
+    hostAdminUser = await fakeUser();
+    host = await fakeHost({ plan: 'grow-plan-2021' });
+    await host.addUserWithRole(hostAdminUser, 'ADMIN');
+
+    collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
+    collective2 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
+
+    let clock = sinon.useFakeTimers(new Date('2021-02-01 0:0').getTime());
+    try {
+      const order1 = await fakeOrder({
+        CollectiveId: collective1.id,
+        totalAmount: 1000,
+      });
+      order1.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await ManualPaymentMethod.processOrder(order1);
+    } finally {
+      clock.restore();
+    }
+
+    clock = sinon.useFakeTimers(new Date('2021-06-01 0:0').getTime());
+    try {
+      const order2 = await fakeOrder({
+        CollectiveId: collective2.id,
+        totalAmount: 2000,
+      });
+      order2.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await ManualPaymentMethod.processOrder(order2);
+    } finally {
+      clock.restore();
+    }
+  });
+
+  describe('hostMetricsQuery', () => {
+    describe('hostMetrics', () => {
+      it('correctly returns hostFees and hostFeeShare', async () => {
+        const dateFrom = new Date('2019-01-01').toISOString();
+        const dateTo = new Date().toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        expect(hostMetrics.hostFees.valueInCents).to.equal(900);
+        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(135);
+      });
+
+      it('correctly calculates hostFees and hostFeeShare based on date filter passed', async () => {
+        const dateFrom = new Date('2021-04-01').toISOString();
+        const dateTo = new Date().toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        expect(hostMetrics.hostFees.valueInCents).to.equal(600);
+        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(90);
+      });
+
+      it('correctly calculates hostFees and hostFeeShare based on collective filter passed', async () => {
+        const dateFrom = new Date('2021-01-01').toISOString();
+        const dateTo = new Date().toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo, account: [{ legacyId: collective1.id }] };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        expect(hostMetrics.hostFees.valueInCents).to.equal(300);
+        expect(hostMetrics.hostFeeShare.valueInCents).to.equal(45);
+      });
+    });
+  });
+});
