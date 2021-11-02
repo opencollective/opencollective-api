@@ -591,10 +591,7 @@ function defineModel() {
     if (transaction.amount < 0) {
       index = 0;
       transactions.push(transaction);
-      // Skip CREDIT when inserting a DEBIT to itself
-      if (transaction.CollectiveId !== transaction.FromCollectiveId) {
-        transactions.push(oppositeTransaction);
-      }
+      transactions.push(oppositeTransaction);
     } else {
       index = 1;
       transactions.push(oppositeTransaction);
