@@ -2639,6 +2639,11 @@ type HostMetricsTimeSeries {
   History of the share of host fees collected owed to Open Collective Inc.
   """
   hostFeeShare: TimeSeriesAmountWithSettlement!
+
+  """
+  History of the total money managed by this host
+  """
+  totalMoneyManagedProgress: TimeSeriesAmount!
 }
 
 """

@@ -258,6 +258,30 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   return orderBy(mergedTimeSeries, 'date');
 }
 
+export async function getTotalMoneyManagedTimeSeries(host, { startDate, endDate, timeUnit } = {}) {
+  const results = await sequelize.query(
+    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+FROM "Transactions" as t1
+WHERE t1."HostCollectiveId" = :HostCollectiveId
+AND t1."kind" != 'PLATFORM_FEE'
+AND t1."kind" != 'PLATFORM_TIP'
+AND t1."kind" != 'HOST_FEE'
+AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
+AND t1."deletedAt" IS NULL
+GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
+    {
+      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate), timeUnit },
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
+
+  const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
+  const mergedTimeSeries = [...timeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }))];
+
+  return orderBy(mergedTimeSeries, 'date');
+}
+
 export async function getHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
     const results = await sequelize.query(
