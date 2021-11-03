@@ -488,6 +488,12 @@ async function notifyByEmail(activity) {
       });
       break;
 
+    case activityType.ACTIVATED_COLLECTIVE_AS_INDEPENDENT:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, {
+        template: 'activated.collective.as.independent',
+      });
+      break;
+
     case activityType.DEACTIVATED_COLLECTIVE_AS_HOST:
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'deactivated.collective.as.host',

@@ -941,6 +941,12 @@ function defineModel() {
         CollectiveId: this.id,
         data: { collective: this.info },
       });
+    } else if (this.type === types.COLLECTIVE) {
+      await models.Activity.create({
+        type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
+        CollectiveId: this.id,
+        data: { collective: this.info },
+      });
     }
 
     await this.activateBudget();
