@@ -67,5 +67,9 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'The address of the payee',
     },
+    status: {
+      type: GraphQLString,
+      description: 'The status of the expense such as DRAFT, PENDING etc',
+    },
   }),
 });

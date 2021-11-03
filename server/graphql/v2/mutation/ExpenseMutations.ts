@@ -135,7 +135,7 @@ const expenseMutations = {
         fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
       };
 
-      if (args.draftKey) {
+      if (args.draftKey && expense.status === expenseStatus.DRAFT) {
         // It is a submit on behalf being completed
         const expenseId = getDatabaseIdFromExpenseReference(args.expense);
         let existingExpense = await models.Expense.findByPk(expenseId, {
@@ -143,6 +143,9 @@ const expenseMutations = {
         });
         if (!existingExpense) {
           throw new NotFound('Expense not found.');
+        }
+        if (existingExpense.status !== expenseStatus.DRAFT) {
+          throw new Unauthorized('Expense can not be edited.');
         }
         if (existingExpense.data.draftKey !== args.draftKey) {
           throw new Unauthorized('You need to submit the right draft key to edit this expense');
