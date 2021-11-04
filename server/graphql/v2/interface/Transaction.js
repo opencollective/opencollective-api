@@ -500,7 +500,7 @@ export const TransactionFields = () => {
       type: GraphQLString,
       description: 'Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)',
       resolve(transaction, _, req) {
-        if (!req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
+        if (!req.remoteUser || !req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
           return;
         }
 
