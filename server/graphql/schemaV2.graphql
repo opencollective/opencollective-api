@@ -492,6 +492,11 @@ interface Transaction {
     """
     kind: [TransactionKind]
   ): [Transaction]!
+
+  """
+  Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)
+  """
+  merchantId: String
 }
 
 """
@@ -1224,6 +1229,7 @@ enum ActivityType {
   ORDERS_SUSPICIOUS
   BACKYOURSTACK_DISPATCH_CONFIRMED
   ACTIVATED_COLLECTIVE_AS_HOST
+  ACTIVATED_COLLECTIVE_AS_INDEPENDENT
   DEACTIVATED_COLLECTIVE_AS_HOST
   VIRTUAL_CARD_REQUESTED
   ADDED_FUND_TO_ORG
@@ -3579,6 +3585,11 @@ type Credit implements Transaction {
     """
     kind: [TransactionKind]
   ): [Transaction]!
+
+  """
+  Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)
+  """
+  merchantId: String
 }
 
 """
@@ -3672,6 +3683,11 @@ type Debit implements Transaction {
     """
     kind: [TransactionKind]
   ): [Transaction]!
+
+  """
+  Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)
+  """
+  merchantId: String
 }
 
 """
@@ -5090,6 +5106,9 @@ type VirtualCard {
   last4: String
   data: JSONObject
   privateData: JSONObject
+  provider: String
+  spendingLimitAmount: Int
+  spendingLimitInterval: String
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -9457,6 +9476,12 @@ input VirtualCardInput {
   last4: String
   data: JSONObject
   privateData: JSONObject
+  provider: VirtualCardProvider
+}
+
+enum VirtualCardProvider {
+  PRIVACY
+  STRIPE
 }
 
 input VirtualCardUpdateInput {
