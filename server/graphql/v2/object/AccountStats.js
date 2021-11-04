@@ -98,16 +98,18 @@ export const AccountStats = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate total amount received after this date',
           },
+          currency: {
+            type: GraphQLString,
+            description: 'An optional currency. If not provided, will use the collective currency.',
+          },
         },
         async resolve(collective, args) {
-          return {
-            value: await collective.getTotalAmountPaidExpensesAmount({
-              startDate: args.dateFrom,
-              endDate: args.dateTo,
-              expenseType: args.expenseType,
-            }),
-            currency: collective.currency,
-          };
+          return await collective.getTotalAmountPaidExpensesAmount({
+            startDate: args.dateFrom,
+            endDate: args.dateTo,
+            expenseType: args.expenseType,
+            currency: args.currency,
+          });
         },
       },
       yearlyBudget: {

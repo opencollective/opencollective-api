@@ -2295,6 +2295,11 @@ type AccountStats {
     Calculate total amount received after this date
     """
     dateFrom: DateTime
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: String
   ): Amount!
   yearlyBudget: Amount!
   yearlyBudgetManaged: Amount!
