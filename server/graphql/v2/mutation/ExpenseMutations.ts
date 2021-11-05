@@ -135,7 +135,7 @@ const expenseMutations = {
         fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
       };
 
-      if (args.draftKey && expense.status === expenseStatus.DRAFT) {
+      if (args.draftKey) {
         // It is a submit on behalf being completed
         const expenseId = getDatabaseIdFromExpenseReference(args.expense);
         let existingExpense = await models.Expense.findByPk(expenseId, {
