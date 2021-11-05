@@ -259,19 +259,20 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
 }
 
 export async function getTotalMoneyManagedTimeSeries(host, { startDate, endDate, timeUnit } = {}) {
+  const hostedCollectives = await host.getHostedCollectives();
+  const ids = hostedCollectives.map(c => c.id);
+
   const results = await sequelize.query(
-    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+    `SELECT t1."netAmountInCollectiveCurrency" as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
-WHERE t1."HostCollectiveId" = :HostCollectiveId
-AND t1."kind" != 'PLATFORM_FEE'
-AND t1."kind" != 'PLATFORM_TIP'
-AND t1."kind" != 'HOST_FEE'
-AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
+WHERE t1."CollectiveId" IN (${ids})
+AND t1."type" = 'CREDIT'
+AND t1."createdAt" >= :startDate AND t1."createdAt" < :endDate
 AND t1."deletedAt" IS NULL
-GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+GROUP BY t1."netAmountInCollectiveCurrency", t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     {
-      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate), timeUnit },
+      replacements: { ...computeDates(startDate, endDate), timeUnit },
       type: sequelize.QueryTypes.SELECT,
     },
   );

@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
+import { sumBy } from 'lodash';
 import sinon from 'sinon';
 
 import * as ManualPaymentMethod from '../../../../../server/lib/payments';
@@ -23,6 +24,22 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
           hostFeeShare {
             valueInCents
             currency
+          }
+          totalMoneyManaged {
+            valueInCents
+            currency
+          }
+        }
+        hostMetricsTimeSeries(dateFrom: $dateFrom, dateTo: $dateTo, timeUnit: MONTH) {
+          totalMoneyManagedTimeSeries {
+            nodes {
+              date
+              amount {
+                value
+                valueInCents
+                currency
+              }
+            }
           }
         }
       }
@@ -98,6 +115,18 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const hostMetrics = queryResponse.data.host.hostMetrics;
         expect(hostMetrics.hostFees.valueInCents).to.equal(300);
         expect(hostMetrics.hostFeeShare.valueInCents).to.equal(45);
+      });
+
+      it('correctly calculates totalMoneyManagedTimeSeries', async () => {
+        const dateFrom = new Date('2021-01-01').toISOString();
+        const dateTo = new Date().toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        const hostMetricsTimeSeriesNodes =
+          queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManagedTimeSeries.nodes;
+        const totalMoneyManaged = sumBy(hostMetricsTimeSeriesNodes, node => node.amount.valueInCents);
+        expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
       });
     });
   });

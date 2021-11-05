@@ -51,7 +51,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
         return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithSettlementNode(results) };
       },
     },
-    totalMoneyManagedProgress: {
+    totalMoneyManagedTimeSeries: {
       type: new GraphQLNonNull(TimeSeriesAmount),
       description: 'History of the total money managed by this host',
       resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
