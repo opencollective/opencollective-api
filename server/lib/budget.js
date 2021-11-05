@@ -134,7 +134,7 @@ export async function getTotalAmountPaidExpenses(collective, { startDate, endDat
   });
 
   let total = 0;
-  for (const result of Object.values(results)) {
+  for (const result of results) {
     const fxRate = await getFxRate(result.currency, currency);
     total += Math.round(result.amount * fxRate);
   }

@@ -3,10 +3,12 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';
+import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
+
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
   description: 'Stats for the Account',
@@ -82,7 +84,7 @@ export const AccountStats = new GraphQLObjectType({
           return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom, endDate: args.dateTo });
         },
       },
-      totalPaidExpense: {
+      totalPaidExpenses: {
         description: 'Total of paid expenses, filter per expensetype',
         type: new GraphQLNonNull(Amount),
         args: {
@@ -99,12 +101,12 @@ export const AccountStats = new GraphQLObjectType({
             description: 'Calculate total amount received after this date',
           },
           currency: {
-            type: GraphQLString,
+            type: Currency,
             description: 'An optional currency. If not provided, will use the collective currency.',
           },
         },
         async resolve(collective, args) {
-          return await collective.getTotalAmountPaidExpensesAmount({
+          return collective.getTotalPaidExpensesAmount({
             startDate: args.dateFrom,
             endDate: args.dateTo,
             expenseType: args.expenseType,

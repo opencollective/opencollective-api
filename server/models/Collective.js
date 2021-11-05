@@ -2475,11 +2475,11 @@ function defineModel() {
     return getTotalAmountReceivedAmount(this, options).then(result => result.value);
   };
 
-  Collective.prototype.getTotalAmountPaidExpensesAmount = function (options) {
+  Collective.prototype.getTotalPaidExpensesAmount = function (options) {
     return getTotalAmountPaidExpenses(this, options);
   };
 
-  Collective.prototype.getTotalAmountPaidExpenses = function (options) {
+  Collective.prototype.getTotalPaidExpenses = function (options) {
     return getTotalAmountPaidExpenses(this, options).then(result => result.value);
   };
 
