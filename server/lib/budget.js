@@ -107,6 +107,42 @@ export function getTotalAmountReceivedAmount(collective, { startDate, endDate, c
   });
 }
 
+export async function getTotalAmountPaidExpenses(collective, { startDate, endDate, expenseType, currency } = {}) {
+  currency = currency || collective.currency;
+
+  const where = {
+    FromCollectiveId: collective.id,
+    status: 'PAID',
+  };
+  if (expenseType) {
+    where.type = expenseType;
+  }
+  if (startDate) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt[Op.gte] = startDate;
+  }
+  if (endDate) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt[Op.lt] = endDate;
+  }
+
+  const results = await models.Expense.findAll({
+    attributes: ['currency', [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount']],
+    where: where,
+    group: 'currency',
+    raw: true,
+  });
+
+  let total = 0;
+  for (const result of results) {
+    const fxRate = await getFxRate(result.currency, currency);
+    total += Math.round(result.amount * fxRate);
+  }
+
+  // Sum and convert to final currency
+  return { value: total, currency };
+}
+
 export async function getTotalNetAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
