@@ -210,6 +210,8 @@ export default {
   webhook: request => {
     const requestBody = request.body;
 
+    debug(`Stripe webhook event received : ${request.rawBody}`);
+
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
     // NOTE: not using config.env because of ugly tests
