@@ -1,3 +1,4 @@
+import config from 'config';
 import { omit } from 'lodash';
 import Stripe from 'stripe';
 
@@ -17,7 +18,8 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, collec
     throw new Error('Host is not connected to Stripe');
   }
 
-  const stripe = Stripe(connectedAccount.token);
+  const secretKey = host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token;
+  const stripe = Stripe(secretKey);
 
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
   const cards = list.data;
@@ -85,7 +87,8 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
     return;
   }
 
-  const stripe = Stripe(connectedAccount.token);
+  const secretKey = host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token;
+  const stripe = Stripe(secretKey);
 
   try {
     stripe.webhooks.constructEvent(stripeEventRawBody, stripeSignature, connectedAccount.data.stripeEndpointSecret);
@@ -99,8 +102,6 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
   if (amount === 0) {
     return;
   }
-
-  console.log(stripeTransaction.id);
 
   const existingExpense = await models.Expense.findOne({
     where: {
