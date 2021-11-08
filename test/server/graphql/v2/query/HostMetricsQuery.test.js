@@ -31,7 +31,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
           }
         }
         hostMetricsTimeSeries(dateFrom: $dateFrom, dateTo: $dateTo, timeUnit: MONTH) {
-          totalMoneyManagedTimeSeries {
+          totalMoneyManaged {
             nodes {
               date
               amount {
@@ -117,14 +117,13 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         expect(hostMetrics.hostFeeShare.valueInCents).to.equal(45);
       });
 
-      it('correctly calculates totalMoneyManagedTimeSeries', async () => {
+      it('correctly calculates totalMoneyManaged', async () => {
         const dateFrom = new Date('2021-01-01').toISOString();
         const dateTo = new Date().toISOString();
         const variables = { slug: host.slug, dateFrom, dateTo };
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;
-        const hostMetricsTimeSeriesNodes =
-          queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManagedTimeSeries.nodes;
+        const hostMetricsTimeSeriesNodes = queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManaged.nodes;
         const totalMoneyManaged = sumBy(hostMetricsTimeSeriesNodes, node => node.amount.valueInCents);
         expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
       });
