@@ -101,7 +101,7 @@
     "nodemailer": "6.7.0",
     "p-queue": "6.6.2",
     "p-throttle": "4.1.1",
-    "passport": "0.4.1",
+    "passport": "0.5.0",
     "passport-github": "1.1.0",
     "passport-twitter": "1.0.4",
     "paypal-adaptive": "0.4.2",
