@@ -200,7 +200,7 @@ export async function updatePaymentMethod(args, remoteUser) {
 
 /** Update payment method with given args */
 export async function replaceCreditCard(args, remoteUser) {
-  logger.info(`Replacing Credit Card: ${args.id} ${remoteUser.id}`);
+  logger.info(`Replacing Credit Card: ${args.id} ${remoteUser?.id}`);
   const oldPaymentMethod = await models.PaymentMethod.findByPk(args.id);
   if (!oldPaymentMethod || !remoteUser || !remoteUser.isAdmin(oldPaymentMethod.CollectiveId)) {
     throw PaymentMethodPermissionError;
