@@ -278,9 +278,7 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   );
 
   const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
-  const mergedTimeSeries = [...timeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }))];
-
-  return orderBy(mergedTimeSeries, 'date');
+  return [...timeSeries.map(point => ({ ...point, amount: point.amount }))];
 }
 
 export async function getHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
