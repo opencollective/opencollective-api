@@ -104,8 +104,6 @@ export async function processOrder(order, options) {
  * @param {string} message a optional message to explain why the transaction is rejected
  */
 export async function refundTransaction(transaction, user, message) {
-  debug('refundTransaction PaymentMethod');
-
   // If no payment method was used, it means that we're using a manual payment method
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
@@ -118,19 +116,17 @@ export async function refundTransaction(transaction, user, message) {
   let result;
 
   try {
-    debug('refundTransaction try');
     result = await paymentMethodProvider.refundTransaction(transaction, user, message);
   } catch (e) {
-    debug(`refundTransaction error ${e.message}`);
-    if (e.message.includes('has already been refunded')) {
-      debug('refundTransaction "has already been refunded"');
-      if (paymentMethodProvider && paymentMethodProvider.refundTransactionOnlyInDatabase) {
-        debug('refundTransaction refundTransactionOnlyInDatabase');
-        result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
-      }
-      debug('refundTransaction not refundTransactionOnlyInDatabase');
+    if (
+      e.message.includes('has already been refunded') &&
+      paymentMethodProvider &&
+      paymentMethodProvider.refundTransactionOnlyInDatabase
+    ) {
+      result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
+    } else {
+      throw e;
     }
-    throw e;
   }
 
   return result;
