@@ -25,7 +25,7 @@ const CreditCardWithStripeError = new GraphQLObjectType({
 });
 
 const addCreditCard = {
-  type: GraphQLNonNull(CreditCardWithStripeError),
+  type: new GraphQLNonNull(CreditCardWithStripeError),
   description: 'Add a new payment method to be used with an Order',
   args: {
     creditCardInfo: {
@@ -99,7 +99,7 @@ const addCreditCard = {
 };
 
 const confirmCreditCard = {
-  type: GraphQLNonNull(CreditCardWithStripeError),
+  type: new GraphQLNonNull(CreditCardWithStripeError),
   description: 'Confirm a credit card is ready for use after strong customer authentication',
   args: {
     paymentMethod: {

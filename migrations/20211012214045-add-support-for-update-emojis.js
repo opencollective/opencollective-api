@@ -1,7 +1,16 @@
 'use strict';
 
+import { hasCompletedMigration, removeMigration } from './lib/helpers';
 module.exports = {
   up: async (queryInterface, DataTypes) => {
+    // Migration was renamed
+    const scriptName = 'dev-20210621-add-support-for-update-emojis.js';
+    if (await hasCompletedMigration(queryInterface, scriptName)) {
+      console.info(`Skipping execution of script as it's already executed: ${scriptName}`);
+      await removeMigration(queryInterface, scriptName);
+      return;
+    }
+
     await queryInterface.sequelize.query('ALTER TABLE "CommentReactions" RENAME TO "EmojiReactions";').then(() => {
       queryInterface.sequelize.query(
         'ALTER TABLE "EmojiReactions" RENAME CONSTRAINT "CommentReactions_CommentId_fkey" TO "EmojiReactions_CommentId_fkey";',

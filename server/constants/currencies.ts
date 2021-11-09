@@ -186,6 +186,7 @@ export const SUPPORTED_CURRENCIES = [
   'HKD',
   'HRK',
   'HUF',
+  'IDR',
   'INR',
   'ISK',
   'JPY',

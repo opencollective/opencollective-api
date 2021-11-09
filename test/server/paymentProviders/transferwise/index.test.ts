@@ -336,6 +336,10 @@ describe('server/paymentProviders/transferwise/index', () => {
       });
       expense.PayoutMethod = payoutMethod;
       cancelBatchGroup.resolves({ id: batchGroupId, status: 'MARKED_FOR_CANCELLATION' });
+      getBatchGroup.resolves({
+        version: 6,
+        id: batchGroupId,
+      });
       await transferwise.unscheduleExpenseForPayment(expenses[0]);
       await Promise.all(expenses.map(e => e.reload()));
     });

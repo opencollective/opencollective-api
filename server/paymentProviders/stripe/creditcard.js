@@ -331,6 +331,7 @@ export default {
         'The zip code you supplied failed validation.',
         'Invalid amount.',
         'Payment Intent require action',
+        'Invalid account.',
       ];
 
       if (knownErrors.includes(error.message)) {

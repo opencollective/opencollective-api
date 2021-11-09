@@ -1235,7 +1235,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         const paypalEmail = payoutMethod.data.email;
         let paypalPaymentMethod = null;
         try {
-          paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal' });
+          paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' });
         } catch {
           // ignore missing paypal payment method
         }

@@ -6,6 +6,8 @@ import { get, remove } from 'lodash';
 
 import { activities, channels } from '../constants';
 import activityType from '../constants/activities';
+import { TransactionKind } from '../constants/transaction-kind';
+import { TransactionTypes } from '../constants/transactions';
 import activitiesLib from '../lib/activities';
 import emailLib, { NO_REPLY_EMAIL } from '../lib/email';
 import models from '../models';
@@ -147,7 +149,7 @@ async function notifyUserId(UserId, activity, options = {}) {
     options.attachments = [{ filename: `${event.slug}.ics`, content: ics }];
 
     const transaction = await models.Transaction.findOne({
-      where: { OrderId: activity.data.order.id, type: 'CREDIT' },
+      where: { OrderId: activity.data.order.id, type: TransactionTypes.CREDIT, kind: TransactionKind.CONTRIBUTION },
     });
 
     if (transaction) {
@@ -483,6 +485,12 @@ async function notifyByEmail(activity) {
     case activityType.ACTIVATED_COLLECTIVE_AS_HOST:
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'activated.collective.as.host',
+      });
+      break;
+
+    case activityType.ACTIVATED_COLLECTIVE_AS_INDEPENDENT:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, {
+        template: 'activated.collective.as.independent',
       });
       break;
 

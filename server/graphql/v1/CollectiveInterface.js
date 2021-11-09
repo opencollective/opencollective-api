@@ -1,6 +1,7 @@
 import {
   GraphQLBoolean,
   GraphQLEnumType,
+  GraphQLFloat,
   GraphQLInt,
   GraphQLInterfaceType,
   GraphQLList,
@@ -623,7 +624,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       startsAt: { type: DateString },
       endsAt: { type: DateString },
       timezone: { type: GraphQLString },
-      hostFeePercent: { type: GraphQLInt },
+      hostFeePercent: { type: GraphQLFloat },
       platformFeePercent: { type: GraphQLInt },
       currency: { type: GraphQLString },
       image: { type: GraphQLString },
@@ -670,7 +671,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isArchived: { type: GraphQLBoolean },
       isApproved: { type: GraphQLBoolean },
       isDeletable: { type: GraphQLBoolean },
-      hasVirtualCards: { type: GraphQLBoolean },
+      hasVirtualCards: { type: GraphQLBoolean, deprecationReason: '2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE' },
       host: { type: CollectiveInterfaceType },
       hostCollective: { type: CollectiveInterfaceType },
       members: {
@@ -1048,7 +1049,7 @@ const CollectiveFields = () => {
       },
     },
     hostFeePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       resolve(collective) {
         return collective.hostFeePercent;
       },
@@ -1917,6 +1918,7 @@ const CollectiveFields = () => {
     },
     hasVirtualCards: {
       type: new GraphQLNonNull(GraphQLBoolean),
+      deprecationReason: '2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE',
       resolve(collective) {
         return models.VirtualCard.count({ where: { CollectiveId: collective.id } });
       },

@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, difference, find, first, has, max, omit, pick, split, toNumber } from 'lodash';
+import { compact, difference, find, first, has, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -143,15 +143,12 @@ async function createTransfer(
         : await createRecipient(connectedAccount, payoutMethod);
 
     const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
-    const paymentOption = quote.paymentOptions.find(
-      p => p.disabled === false && p.payIn === 'BALANCE' && p.payOut === quote.payOut,
-    );
-    if (!paymentOption) {
-      throw new TransferwiseError(
-        `We can't find a compatible wise payment method for this transaction. Please re-connecte Wise or contact support at support@opencollective.com`,
-        null,
-        { quote },
-      );
+    const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+    if (!paymentOption || paymentOption.disabled) {
+      const message =
+        paymentOption?.disabledReason?.message ||
+        `We can't find a compatible wise payment method for this transaction. Please re-connecte Wise or contact support at support@opencollective.com`;
+      throw new TransferwiseError(message, null, { quote });
     }
 
     const account = await transferwise.getBorderlessAccount(token, <number>profileId);
@@ -304,8 +301,7 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
 }
 
 async function unscheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
-  const batchGroup: BatchGroup = expense.data.batchGroup;
-  if (!batchGroup) {
+  if (!expense.data.batchGroup) {
     throw new Error(`Expense does not belong to any batch group`);
   }
 
@@ -318,16 +314,16 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
   if (!connectedAccount) {
     throw new Error('Host is not connected to TransferWise');
   }
+  const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
 
+  const batchGroup = await transferwise.getBatchGroup(token, profileId, expense.data.batchGroup.id);
   const expensesInBatch = await models.Expense.findAll({
     where: { data: { batchGroup: { id: batchGroup.id } } },
   });
 
   logger.warn(`Wise: canceling batchGroup ${batchGroup.id} with ${expensesInBatch.length} for host ${host.slug}`);
-  const profileId = connectedAccount.data.id;
-  const version: number = max(expensesInBatch.map(expense => expense.data.batchGroup.version));
-  await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, version);
+  await transferwise.cancelBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
   await Promise.all(
     expensesInBatch.map(expense => {
       return expense.update({

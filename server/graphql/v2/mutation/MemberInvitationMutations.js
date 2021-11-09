@@ -21,15 +21,15 @@ const memberInvitationMutations = {
     description: 'Invite a new member to the Collective',
     args: {
       memberAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the invitee',
       },
       account: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the inviting Collective',
       },
       role: {
-        type: GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(MemberRole),
         description: 'Role of the invitee',
       },
       description: {
@@ -72,11 +72,11 @@ const memberInvitationMutations = {
     description: 'Edit an existing member invitation of the Collective',
     args: {
       memberAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the member to edit.',
       },
       account: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the Collective',
       },
       role: {

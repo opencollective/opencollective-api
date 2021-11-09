@@ -7,6 +7,7 @@ import logger from '../../../lib/logger';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
+import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { VirtualCardInput, VirtualCardUpdateInput } from '../input/VirtualCardInput';
@@ -51,6 +52,7 @@ const virtualCardMutations = {
       }
 
       const { cardNumber, expireDate, cvv } = args.virtualCard.privateData;
+
       if (!cardNumber || !expireDate || !cvv) {
         throw new BadRequest('VirtualCard missing cardNumber, expireDate and/or cvv', undefined, {
           cardNumber: !cardNumber && 'Card Number is required',
@@ -59,9 +61,16 @@ const virtualCardMutations = {
         });
       }
 
-      const virtualCard = await privacy.assignCardToCollective({ cardNumber, expireDate, cvv }, collective, host, {
-        UserId: user.id,
-      });
+      const providerService = args.virtualCard.provider === 'STRIPE' ? stripe : privacy;
+
+      const virtualCard = await providerService.assignCardToCollective(
+        cardNumber,
+        expireDate,
+        cvv,
+        collective.id,
+        host,
+        user.id,
+      );
 
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,

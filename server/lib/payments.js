@@ -637,8 +637,8 @@ const sendCryptoOrderProcessingEmail = async order => {
       collective: collective.info,
       host: host.info,
       fromCollective: fromCollective.activity,
-      pledgeAmount: order.data.customData.pledgeAmount,
-      pledgeCurrency: order.data.customData.pledgeCurrency,
+      pledgeAmount: order.data.thegivingblock.pledgeAmount,
+      pledgeCurrency: order.data.thegivingblock.pledgeCurrency,
     };
 
     return emailLib.send('order.crypto.processing', user.email, data, {
@@ -695,11 +695,6 @@ const sendManualPendingOrderEmail = async order => {
   const { collective, fromCollective } = order;
   const host = await collective.getHostCollective();
 
-  const pendingOrderLink =
-    host.type === 'COLLECTIVE'
-      ? `${config.host.website}/${host.slug}/edit/pending-orders?searchTerm=%23${order.id}`
-      : `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`;
-
   let replyTo = [];
   if (fromCollective.isIncognito) {
     // We still want to surface incognito emails to the host as they often need to contact them to reconciliate the bank transfer
@@ -717,7 +712,7 @@ const sendManualPendingOrderEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    pendingOrderLink,
+    pendingOrderLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
   };
 
   return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data }, { replyTo });
@@ -734,17 +729,12 @@ export const sendReminderPendingOrderEmail = async order => {
     return;
   }
 
-  const viewDetailsLink =
-    host.type === 'COLLECTIVE'
-      ? `${config.host.website}/${host.slug}/edit/pending-orders?searchTerm=%23${order.id}`
-      : `${config.host.website}/${host.slug}/dashboard/donations?searchTerm=%23${order.id}`;
-
   const data = {
     order: order.info,
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    viewDetailsLink,
+    viewDetailsLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
   };
 
   return notifyAdminsOfCollective(host.id, { type: 'order.reminder.pendingFinancialContribution', data });

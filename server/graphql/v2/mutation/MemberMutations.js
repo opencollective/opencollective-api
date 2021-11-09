@@ -28,11 +28,11 @@ const memberMutations = {
     description: 'Edit the public message for the given Member of a Collective',
     args: {
       fromAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the donating Collective',
       },
       toAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the receiving Collective',
       },
       message: {
@@ -63,15 +63,15 @@ const memberMutations = {
     description: '[Root only] Create a member entry directly. For non-root users, use `inviteMember`',
     args: {
       memberAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the member',
       },
       account: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'memberAccount will become a member of this account',
       },
       role: {
-        type: GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(MemberRole),
         description: 'Role of the member',
       },
       description: {
@@ -102,11 +102,11 @@ const memberMutations = {
     description: 'Edit an existing member of the Collective',
     args: {
       memberAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the member to edit.',
       },
       account: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account for the Collective',
       },
       role: {
@@ -168,15 +168,15 @@ const memberMutations = {
     description: 'Remove a member from the Collective',
     args: {
       memberAccount: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to an account of member to remove',
       },
       account: {
-        type: GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to the Collective account',
       },
       role: {
-        type: GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(MemberRole),
         description: 'Role of member',
       },
       isInvitation: {

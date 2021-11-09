@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { invert, isNil } from 'lodash';
+import { cloneDeep, invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models, { Op, sequelize } from '../../../models';
@@ -68,28 +68,8 @@ export const IsMemberOfFields = {
         collectiveConditions.deactivatedAt = { [args.isArchived ? Op.not : Op.is]: null };
       }
 
-      // No await needed, GraphQL will take care of it
-      // TODO: try to skip if it's not a requested field
-      const existingRoles = models.Member.findAll({
-        attributes: ['role', 'collective.type'],
-        where,
-        include: [
-          {
-            model: models.Collective,
-            as: 'collective',
-            required: true,
-            attributes: ['type'],
-            where: collectiveConditions,
-          },
-        ],
-        group: ['role', 'collective.type'],
-        raw: true,
-      }).then(results =>
-        results.map(m => ({
-          role: m.role,
-          type: invert(AccountTypeToModelMapping)[m.type],
-        })),
-      );
+      // We don't want to apply the other filters for fetching the existing roles
+      const existingRolesCollectiveConditions = cloneDeep(collectiveConditions);
 
       if (args.role && args.role.length > 0) {
         where.role = { [Op.in]: args.role };
@@ -206,7 +186,27 @@ export const IsMemberOfFields = {
         totalCount: result.count,
         limit: args.limit,
         offset: args.offset,
-        roles: existingRoles,
+        roles: () =>
+          models.Member.findAll({
+            attributes: ['role', 'collective.type'],
+            where: { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } },
+            include: [
+              {
+                model: models.Collective,
+                as: 'collective',
+                required: true,
+                attributes: ['type'],
+                where: existingRolesCollectiveConditions,
+              },
+            ],
+            group: ['role', 'collective.type'],
+            raw: true,
+          }).then(results =>
+            results.map(m => ({
+              role: m.role,
+              type: invert(AccountTypeToModelMapping)[m.type],
+            })),
+          ),
       };
     },
   },

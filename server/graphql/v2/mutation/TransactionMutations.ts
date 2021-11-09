@@ -23,7 +23,7 @@ const transactionMutations = {
         description: 'Reference to the transaction in the platform tip',
       },
       amount: {
-        type: GraphQLNonNull(AmountInput),
+        type: new GraphQLNonNull(AmountInput),
         description: 'Amount of the platform tip',
       },
     },

@@ -156,7 +156,7 @@ const expenseMutations = {
           const { organization: organizationData, ...payee } = expense.payee;
           const { user, organization } = await createUser(
             {
-              ...pick(payee, ['email', 'newsletterOptIn']),
+              ...pick(payee, ['email', 'legalName', 'newsletterOptIn']),
               ...models.User.splitName(payee.name),
               location: expenseData.payeeLocation,
             },

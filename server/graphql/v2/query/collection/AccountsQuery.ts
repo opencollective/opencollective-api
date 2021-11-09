@@ -54,8 +54,8 @@ const AccountsQuery = {
       where['isActive'] = args.isActive;
     }
 
-    if (typeof args.hasCustomContribution === 'boolean') {
-      if (args.hasCustomContribution) {
+    if (typeof args.hasCustomContributionsEnabled === 'boolean') {
+      if (args.hasCustomContributionsEnabled) {
         where['settings'] = { disableCustomContributions: { [Op.not]: true } };
       } else {
         where['settings'] = { disableCustomContributions: true };

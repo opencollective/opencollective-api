@@ -47,7 +47,7 @@ const OrderWithPayment = new GraphQLObjectType({
 
 const orderMutations = {
   createOrder: {
-    type: GraphQLNonNull(OrderWithPayment),
+    type: new GraphQLNonNull(OrderWithPayment),
     description: 'To submit a new order',
     args: {
       order: {
@@ -75,6 +75,7 @@ const orderMutations = {
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
+
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
 
       const legacyOrderObj = {
@@ -90,6 +91,7 @@ const orderMutations = {
         fromCollective: fromCollective && { id: fromCollective.id },
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
+        data: order.data,
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
         tier: tier && { id: tier.id },

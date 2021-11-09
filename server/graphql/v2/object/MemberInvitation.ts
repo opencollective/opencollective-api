@@ -13,29 +13,29 @@ export const MemberInvitation = new GraphQLObjectType({
   fields: () => {
     return {
       id: {
-        type: GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MEMBER_INVITATION),
       },
       createdAt: {
-        type: GraphQLNonNull(GraphQLDateTime),
+        type: new GraphQLNonNull(GraphQLDateTime),
         resolve(member) {
           return member.createdAt;
         },
       },
       account: {
-        type: GraphQLNonNull(Account),
+        type: new GraphQLNonNull(Account),
         resolve(member, args, req) {
           return req.loaders.Collective.byId.load(member.CollectiveId);
         },
       },
       memberAccount: {
-        type: GraphQLNonNull(Account),
+        type: new GraphQLNonNull(Account),
         resolve(member, args, req) {
           return req.loaders.Collective.byId.load(member.MemberCollectiveId);
         },
       },
       role: {
-        type: GraphQLNonNull(MemberRole),
+        type: new GraphQLNonNull(MemberRole),
         resolve(member) {
           return member.role;
         },

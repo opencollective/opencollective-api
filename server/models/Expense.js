@@ -45,6 +45,15 @@ function defineModel() {
         allowNull: false,
       },
 
+      HostCollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+        allowNull: true,
+      },
+
       FromCollectiveId: {
         type: DataTypes.INTEGER,
         references: { key: 'id', model: 'Collectives' },
@@ -363,7 +372,8 @@ function defineModel() {
   };
 
   Expense.prototype.setPaid = async function (lastEditedById) {
-    await this.update({ status: status.PAID, lastEditedById });
+    const collective = this.collective || (await this.getCollective());
+    await this.update({ status: status.PAID, lastEditedById, HostCollectiveId: collective.HostCollectiveId });
 
     // Update transactions settlement
     if (this.type === expenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {

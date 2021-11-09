@@ -1,5 +1,6 @@
 import config from 'config';
 
+import { BadRequest } from '../graphql/errors';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import errors from '../lib/errors';
@@ -141,6 +142,8 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     }
 
     await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null });
+  } else {
+    return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
   }
 
   const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);

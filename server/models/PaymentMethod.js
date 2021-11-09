@@ -439,21 +439,6 @@ function defineModel() {
   };
 
   /**
-   * Returns the sum of the children PaymenMethod values (aka the gift cards which
-   * have `sourcePaymentMethod` set to this PM).
-   */
-  PaymentMethod.prototype.getChildrenPMTotalSum = async function () {
-    return models.PaymentMethod.findAll({
-      attributes: ['initialBalance', 'monthlyLimitPerMember'],
-      where: { SourcePaymentMethodId: this.id },
-    }).then(children => {
-      return children.reduce((total, pm) => {
-        return total + (pm.initialBalance || pm.monthlyLimitPerMember);
-      }, 0);
-    });
-  };
-
-  /**
    * Check if gift card is claimed.
    * Always return true for other payment methods.
    */

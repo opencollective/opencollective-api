@@ -18,8 +18,6 @@ if (!process.env.NODE_CONFIG_ENV) {
   process.env.NODE_CONFIG_ENV = process.env.OC_ENV;
 }
 
-dotenv.config();
-
 // Load extra env file on demand
 // `npm run dev staging` / `npm run dev production`
 if (process.env.EXTRA_ENV || process.env.OC_ENV === 'development') {
@@ -29,6 +27,8 @@ if (process.env.EXTRA_ENV || process.env.OC_ENV === 'development') {
     dotenv.config({ path: extraEnvPath });
   }
 }
+
+dotenv.config();
 
 debug.enable(process.env.DEBUG);
 

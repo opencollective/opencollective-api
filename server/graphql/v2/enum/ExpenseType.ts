@@ -13,7 +13,10 @@ export const ExpenseType = new GraphQLEnumType({
       description: 'Receipt: Get paid back for a purchase already made.',
     },
     [expenseType.FUNDING_REQUEST]: {
-      description: 'Funding Request: Request funding for a project or initiative.',
+      description: 'Funding Request: Request funding for a project or initiative.', // to be replaced by GRANT
+    },
+    [expenseType.GRANT]: {
+      description: 'Grant: Request funding for a project or initiative.',
     },
     [expenseType.UNCLASSIFIED]: {
       description: 'Unclassified expense',

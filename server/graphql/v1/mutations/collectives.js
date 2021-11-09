@@ -3,7 +3,6 @@ import config from 'config';
 import slugify from 'limax';
 import { get, omit, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
-import sequelize from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -13,6 +12,7 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { Op } from '../../../models';
@@ -455,7 +455,14 @@ export async function archiveCollective(_, args, req) {
   }
 
   if (collective.type === types.EVENT || collective.type === types.PROJECT) {
-    return collective.update({ isActive: false, deactivatedAt: Date.now() });
+    const updatedCollective = await collective.update({ isActive: false, deactivatedAt: Date.now() });
+    const parent = await updatedCollective.getParentCollective();
+    if (parent) {
+      // purge cache for parent to make sure the card gets updated on the collective page
+      purgeCacheForCollective(parent.slug);
+    }
+
+    return updatedCollective;
   }
 
   // TODO: cascade deactivation to EVENTs and PROJECTs?
@@ -477,14 +484,18 @@ export async function unarchiveCollective(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  if (collective.type === types.EVENT) {
+  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
     const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
-    return collective.update({
+    const updatedCollective = collective.update({
       deactivatedAt: null,
       isActive: parentCollective.isActive,
       HostCollectiveId: parentCollective.HostCollectiveId,
       approvedAt: collective.approvedAt || Date.now(),
     });
+
+    // purge cache for parent to make sure the card gets updated on the collective page
+    purgeCacheForCollective(parentCollective.slug);
+    return updatedCollective;
   }
 
   return collective.update({ deactivatedAt: null });
@@ -774,7 +785,8 @@ export async function deleteUserCollective(_, args, req) {
 }
 
 export async function sendMessageToCollective(_, args, req) {
-  if (!canUseFeature(req.remoteUser, FEATURE.CONTACT_COLLECTIVE)) {
+  const user = req.remoteUser;
+  if (!canUseFeature(user, FEATURE.CONTACT_COLLECTIVE)) {
     throw new FeatureNotAllowedForUser(
       'You are not authorized to contact Collectives. Please contact support@opencollective.com if you think this is an error.',
     );
@@ -798,24 +810,16 @@ export async function sendMessageToCollective(_, args, req) {
     args.subject && sanitize(args.subject, { allowedTags: [], allowedAttributes: {} }).trim().slice(0, 60);
 
   // User sending the email must have an associated collective
-  const fromCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
   if (!fromCollective) {
     throw new Error("Your user account doesn't have any profile associated. Please contact support");
   }
 
   // Limit email sent per user
-  const user = req.remoteUser;
   const maxEmailMessagePerHour = config.limits.collectiveEmailMessagePerHour;
-  const existingCount = await models.Activity.count({
-    where: {
-      type: activities.COLLECTIVE_CONTACT,
-      UserId: user.id,
-      createdAt: {
-        [Op.gte]: sequelize.literal("NOW() - INTERVAL '1 hour'"),
-      },
-    },
-  });
-  if (existingCount > maxEmailMessagePerHour) {
+  const cacheKey = `user_contact_send_message_${user.id}`;
+  const rateLimit = new RateLimit(cacheKey, maxEmailMessagePerHour, ONE_HOUR_IN_SECONDS);
+  if (!(await rateLimit.registerCall())) {
     throw new RateLimitExceeded('Too many messages sent in a limited time frame. Please try again later.');
   }
 

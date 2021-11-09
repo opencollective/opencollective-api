@@ -1,4 +1,12 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 import moment from 'moment';
@@ -9,8 +17,8 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
-import { getFxRate } from '../../../lib/currency';
 import { days } from '../../../lib/utils';
+import { getFxRate } from '../../../lib/currency';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -73,7 +81,7 @@ export const Host = new GraphQLObjectType({
       ...AccountFields,
       ...AccountWithContributionsFields,
       hostFeePercent: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         resolve(collective) {
           return collective.hostFeePercent;
         },
@@ -105,6 +113,10 @@ export const Host = new GraphQLObjectType({
       hostMetrics: {
         type: new GraphQLNonNull(HostMetrics),
         args: {
+          account: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the metrics should be returned.',
+          },
           from: {
             type: GraphQLString,
             description: "Inferior date limit in which we're calculating the metrics",
@@ -125,7 +137,14 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
-          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to);
+          let collectiveIds;
+          if (args.account) {
+            const collectives = await fetchAccountsWithReferences(args.account, {
+              attributes: ['id'],
+            });
+            collectiveIds = collectives.map(collective => collective.id);
+          }
+          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
           const toAmount = value => ({ value, currency: host.currency });
           return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
         },
@@ -217,14 +236,25 @@ export const Host = new GraphQLObjectType({
       supportedPayoutMethods: {
         type: new GraphQLList(PayoutMethodType),
         description: 'The list of payout methods this Host accepts for its expenses',
-        async resolve(collective, _, req) {
-          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+        async resolve(host, _, req) {
+          const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(host.id);
           const supportedPayoutMethods = [PayoutMethodTypes.ACCOUNT_BALANCE, PayoutMethodTypes.BANK_ACCOUNT];
-          if (!collective.settings?.disableCustomPayoutMethod) {
-            supportedPayoutMethods.push(PayoutMethodTypes.OTHER);
+
+          // Check for PayPal
+          if (connectedAccounts?.find?.(c => c.service === 'paypal') && !host.settings?.disablePaypalPayouts) {
+            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Payout
+          } else {
+            try {
+              if (await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' })) {
+                supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL); // Adaptive
+              }
+            } catch {
+              // ignore missing paypal payment method
+            }
           }
-          if (connectedAccounts?.find?.(c => c.service === 'paypal') || !collective.settings?.disablePaypalPayouts) {
-            supportedPayoutMethods.push(PayoutMethodTypes.PAYPAL);
+
+          if (!host.settings?.disableCustomPayoutMethod) {
+            supportedPayoutMethods.push(PayoutMethodTypes.OTHER);
           }
           if (connectedAccounts?.find?.(c => c.service === 'privacy')) {
             supportedPayoutMethods.push(PayoutMethodTypes.CREDIT_CARD);
@@ -329,7 +359,7 @@ export const Host = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
           merchantAccount: { type: AccountReferenceInput, defaultValue: null },
-          collectiveAccountIds: { type: GraphQLList(AccountReferenceInput), defaultValue: null },
+          collectiveAccountIds: { type: new GraphQLList(AccountReferenceInput), defaultValue: null },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.isAdmin(host.id)) {
@@ -501,21 +531,24 @@ export const Host = new GraphQLObjectType({
             HostCollectiveId: host.id,
             kind: TransactionKind.CONTRIBUTION,
             type: TransactionTypes.CREDIT,
+            isRefund: false,
+            RefundTransactionId: null,
           };
-          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host) || 1;
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
           }
           let collectiveIds;
           if (args.account) {
-            const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
-            collectiveIds = collectives.map(collective => collective.id);
+            const collectives = await fetchAccountsWithReferences(args.account, {
+              throwIfMissing: true,
+              attributes: ['id'],
+            });
+            const collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
-          const contributionsCount = await models.Transaction.count({
-            where,
-          });
+
           let contributionAmountOverTime;
           if (args.timeUnit) {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
@@ -568,22 +601,33 @@ export const Host = new GraphQLObjectType({
             nodes: resultsToAmountNode(contributionAmountOverTime),
           };
 
-          const contributionsAmountSum = await models.Transaction.sum('amount', { where });
-          const dailyAverageIncomeAmount = contributionsAmountSum ? contributionsAmountSum / numberOfDays : 0;
+          const distinct = { distinct: true, col: 'OrderId' };
+
           return {
-            contributionsCount,
             contributionAmountOverTime,
-            oneTimeContributionsCount: models.Transaction.count({
-              where,
-              include: [{ model: models.Order, where: { interval: null } }],
-            }),
-            recurringContributionsCount: models.Transaction.count({
-              where,
-              include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
-            }),
-            dailyAverageIncomeAmount: {
-              value: dailyAverageIncomeAmount,
-              currency: host.currency,
+            contributionsCount: () =>
+              models.Transaction.count({
+                where,
+              }),
+            oneTimeContributionsCount: () =>
+              models.Transaction.count({
+                where,
+                include: [{ model: models.Order, where: { interval: null } }],
+                ...distinct,
+              }),
+            recurringContributionsCount: () =>
+              models.Transaction.count({
+                where,
+                include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
+                ...distinct,
+              }),
+            dailyAverageIncomeAmount: async () => {
+              const contributionsAmountSum = await models.Transaction.sum('amount', { where });
+              const dailyAverageIncomeAmount = contributionsAmountSum / numberOfDays;
+              return {
+                value: dailyAverageIncomeAmount,
+                currency: host.currency,
+              };
             },
           };
         },
@@ -613,8 +657,8 @@ export const Host = new GraphQLObjectType({
           if (!req.remoteUser?.isAdmin(host.id)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
           }
-          const where = { HostCollectiveId: host.id, kind: TransactionKind.EXPENSE, type: TransactionTypes.DEBIT };
-          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host);
+          const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
+          const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host) || 1;
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
             where.createdAt = dateRange;
@@ -622,12 +666,10 @@ export const Host = new GraphQLObjectType({
           let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
-            collectiveIds = collectives.map(collective => collective.id);
+            const collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
-          const expensesCount = await models.Transaction.count({
-            where,
-          });
+
           let expenseAmountOverTime;
           if (args.timeUnit) {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
@@ -674,29 +716,51 @@ export const Host = new GraphQLObjectType({
             nodes: resultsToAmountNode(expenseAmountOverTime),
           };
 
-          const expensesAmountSum = await models.Transaction.sum('amount', { where });
-          const dailyAverageAmount = expensesCount ? Math.abs(expensesAmountSum) / numberOfDays : 0;
+          const distinct = { distinct: true, col: 'ExpenseId' };
+
           return {
-            expensesCount,
             expenseAmountOverTime,
+            expensesCount: () =>
+              models.Transaction.count({
+                where,
+                ...distinct,
+              }),
             invoicesCount: models.Transaction.count({
               where,
               include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
+              ...distinct,
             }),
             reimbursementsCount: models.Transaction.count({
               where,
               include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
+              ...distinct,
             }),
-            grantsCount: models.Transaction.count({
-              where,
-              include: [{ model: models.Expense, where: { type: expenseType.FUNDING_REQUEST } }],
-            }),
-            dailyAverageAmount: {
-              value: dailyAverageAmount,
-              currency: host.currency,
+            grantsCount: () =>
+              models.Transaction.count({
+                where,
+                include: [
+                  {
+                    model: models.Expense,
+                    where: { type: { [Op.in]: [expenseType.FUNDING_REQUEST, expenseType.GRANT] } },
+                  },
+                ],
+                ...distinct,
+              }),
+            dailyAverageAmount: async () => {
+              const expensesAmountSum = await models.Transaction.sum('amount', { where });
+              const dailyAverageAmount = Math.abs(expensesAmountSum) / numberOfDays;
+              return {
+                value: dailyAverageAmount,
+                currency: host.currency,
+              };
             },
           };
         },
+      },
+      isTrustedHost: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host is trusted or not',
+        resolve: account => get(account, 'data.isTrustedHost', false),
       },
     };
   },

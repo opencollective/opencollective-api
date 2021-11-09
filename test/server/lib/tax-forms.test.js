@@ -292,7 +292,7 @@ describe('server/lib/tax-forms', () => {
     };
     await fakeExpense({ ...baseParams, type: 'INVOICE' });
     await fakeExpense({ ...baseParams, type: 'UNCLASSIFIED' });
-    await fakeExpense({ ...baseParams, type: 'FUNDING_REQUEST' });
+    await fakeExpense({ ...baseParams, type: 'INVOICE' });
 
     // Add some PayPal-specific expenses (PayPal has a higher tax form threshold)
     await fakeExpense({

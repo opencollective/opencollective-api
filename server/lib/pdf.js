@@ -23,7 +23,7 @@ export const getTransactionPdf = async (transaction, user) => {
     .then(response => {
       const { status } = response;
       if (status >= 200 && status < 300) {
-        return response.body;
+        return response.arrayBuffer().then(ab => Buffer.from(ab));
       } else {
         logger.warn('Failed to fetch PDF');
         return null;
@@ -138,7 +138,7 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
 
       const { status } = response;
       if (status >= 200 && status < 300) {
-        invoicePdf = response.body;
+        invoicePdf = await response.text();
       } else {
         logger.warn('Failed to fetch PDF');
       }

@@ -92,7 +92,7 @@ export function getBalancesWithBlockedFunds(collectiveIds, { startDate, endDate,
   });
 }
 
-export function getTotalAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
+export function getTotalAmountReceivedAmount(collective, { startDate, endDate, currency, version, kind } = {}) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
   return sumCollectiveTransactions(collective, {
@@ -101,9 +101,46 @@ export function getTotalAmountReceivedAmount(collective, { startDate, endDate, c
     currency,
     column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
     transactionType: CREDIT,
+    kind: kind,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
   });
+}
+
+export async function getTotalAmountPaidExpenses(collective, { startDate, endDate, expenseType, currency } = {}) {
+  currency = currency || collective.currency;
+
+  const where = {
+    FromCollectiveId: collective.id,
+    status: 'PAID',
+  };
+  if (expenseType) {
+    where.type = expenseType;
+  }
+  if (startDate) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt[Op.gte] = startDate;
+  }
+  if (endDate) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt[Op.lt] = endDate;
+  }
+
+  const results = await models.Expense.findAll({
+    attributes: ['currency', [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount']],
+    where: where,
+    group: 'currency',
+    raw: true,
+  });
+
+  let total = 0;
+  for (const result of results) {
+    const fxRate = await getFxRate(result.currency, currency);
+    total += Math.round(result.amount * fxRate);
+  }
+
+  // Sum and convert to final currency
+  return { value: total, currency };
 }
 
 export async function getTotalNetAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
@@ -133,12 +170,18 @@ export async function getTotalNetAmountReceivedAmount(collective, { startDate, e
   return { ...totalReceived, value: totalReceived.value + totalFees.value };
 }
 
-export async function getTotalMoneyManagedAmount(host, { startDate, endDate, currency, version } = {}) {
+export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
   version = version || host.settings?.budget?.version || 'v1';
   currency = currency || host.currency;
 
-  const hostedCollectives = await host.getHostedCollectives();
-  const ids = hostedCollectives.map(c => c.id);
+  let hostedCollectives, ids;
+  if (collectiveIds?.length > 0) {
+    ids = collectiveIds;
+  } else {
+    hostedCollectives = await host.getHostedCollectives();
+    ids = hostedCollectives.map(c => c.id);
+  }
+
   if (host.isActive) {
     ids.push(host.id);
   }

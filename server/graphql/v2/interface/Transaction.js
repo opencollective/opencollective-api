@@ -11,6 +11,8 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { pick } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
+import roles from '../../../constants/roles';
+import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind';
 import { generateDescription } from '../../../lib/transactions';
 import models from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -194,6 +196,10 @@ const transactionFieldsDefinition = () => ({
         description: 'Filter by kind',
       },
     },
+  },
+  merchantId: {
+    type: GraphQLString,
+    description: 'Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)',
   },
 });
 
@@ -487,6 +493,33 @@ export const TransactionFields = () => {
           return relatedTransactions.filter(t => args.kind.includes(t.kind));
         } else {
           return relatedTransactions;
+        }
+      },
+    },
+    merchantId: {
+      type: GraphQLString,
+      description: 'Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)',
+      resolve(transaction, _, req) {
+        if (!req.remoteUser || !req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
+          return;
+        }
+
+        if (transaction.kind === TransactionKinds.CONTRIBUTION) {
+          const stripeId = transaction.data?.charge?.id;
+          const onetimePaypalPaymentId = transaction.data?.capture?.id;
+          const recurringPaypalPaymentId = transaction.data?.paypalSale?.id;
+
+          return stripeId || onetimePaypalPaymentId || recurringPaypalPaymentId;
+        }
+
+        if (transaction.kind === TransactionKinds.EXPENSE) {
+          const wiseId = transaction.data?.transfer?.id;
+          // TODO: PayPal Adaptive is missing
+          // https://github.com/opencollective/opencollective/issues/4891
+          const paypalPayoutId = transaction.data?.payout_item_id;
+          const privacyId = transaction.data?.token;
+
+          return wiseId || paypalPayoutId || privacyId;
         }
       },
     },

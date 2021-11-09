@@ -4,6 +4,7 @@ import { DataTypes, Model, Transaction } from 'sequelize';
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
 import models from '.';
@@ -77,6 +78,14 @@ export class ExpenseItem extends Model {
   }
 }
 
+const descriptionSanitizerOptions = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+});
+
 function setupModel(ExpenseItem) {
   // Link the model to database fields
   ExpenseItem.init(
@@ -112,6 +121,13 @@ function setupModel(ExpenseItem) {
       description: {
         type: DataTypes.TEXT,
         allowNull: true,
+        set(value) {
+          if (value) {
+            this.setDataValue('description', sanitizeHTML(value, descriptionSanitizerOptions));
+          } else {
+            this.setDataValue('description', null);
+          }
+        },
       },
       createdAt: {
         type: DataTypes.DATE,

@@ -61,6 +61,12 @@ enum FEATURE {
   /** Whether this profile can receive donations using AliPay */
   ALIPAY = 'ALIPAY',
 
+  /** Whether an account can add and use payment methods */
+  USE_PAYMENT_METHODS = 'USE_PAYMENT_METHODS',
+
+  /** Whether an account can emit gift cards */
+  EMIT_GIFT_CARDS = 'EMIT_GIFT_CARDS',
+
   /** Virtual Cards */
   // Whether this profile can assign virtual cards
   VIRTUAL_CARDS = 'VIRTUAL_CARDS',

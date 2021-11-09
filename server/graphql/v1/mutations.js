@@ -299,8 +299,8 @@ const mutations = {
     type: new GraphQLList(MemberType),
     description: 'A mutation to edit the public message of all matching members.',
     args: {
-      FromCollectiveId: { type: GraphQLNonNull(GraphQLInt) },
-      CollectiveId: { type: GraphQLNonNull(GraphQLInt) },
+      FromCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
+      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       message: { type: GraphQLString },
     },
     resolve: editPublicMessage,

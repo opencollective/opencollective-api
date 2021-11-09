@@ -1,12 +1,17 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
+import { cloneDeep, flatten, uniq } from 'lodash';
 
 import models, { Op, sequelize } from '../../../../models';
 import { TransactionCollection } from '../../collection/TransactionCollection';
 import { TransactionKind } from '../../enum/TransactionKind';
 import { TransactionType } from '../../enum/TransactionType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+} from '../../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
@@ -24,9 +29,9 @@ const TransactionsCollectionQuery = {
         'Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.',
     },
     account: {
-      type: AccountReferenceInput,
+      type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
       description:
-        'Reference of the account assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
+        'Reference of the account(s) assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
     },
     host: {
       type: AccountReferenceInput,
@@ -120,8 +125,8 @@ const TransactionsCollectionQuery = {
 
     // Load accounts
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-    const [fromAccount, account, host] = await Promise.all(
-      [args.fromAccount, args.account, args.host].map(
+    const [fromAccount, host] = await Promise.all(
+      [args.fromAccount, args.host].map(
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
@@ -166,27 +171,32 @@ const TransactionsCollectionQuery = {
       }
     }
 
-    if (account) {
+    if (args.account) {
       const accountCondition = [];
-
-      if (args.includeRegularTransactions) {
-        accountCondition.push(account.id);
-      }
-
+      const attributes = ['id']; // We only need IDs
+      const fetchAccountsParams = { throwIfMissing: true, attributes };
       if (args.includeChildrenTransactions) {
-        const childIds = await account.getChildren().then(children => children.map(child => child.id));
-        accountCondition.push(...childIds);
+        fetchAccountsParams['include'] = [{ association: 'children', required: false, attributes }];
       }
 
-      // When users are admins, also fetch their incognito contributions
-      if (
-        args.includeIncognitoTransactions &&
-        req.remoteUser?.isAdminOfCollective(account) &&
-        req.remoteUser.CollectiveId === account.id
-      ) {
-        const accountUser = await account.getUser();
-        if (accountUser) {
-          const incognitoProfile = await accountUser.getIncognitoProfile();
+      // Fetch accounts (and optionally their children)
+      const accounts = await fetchAccountsWithReferences(args.account, fetchAccountsParams);
+      const accountsIds = uniq(
+        flatten(
+          accounts.map(account => {
+            const accountIds = args.includeRegularTransactions ? [account.id] : [];
+            const childrenIds = account.children?.map(child => child.id) || [];
+            return [...accountIds, ...childrenIds];
+          }),
+        ),
+      );
+
+      accountCondition.push(...accountsIds);
+
+      // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
+      if (req.remoteUser && args.includeIncognitoTransactions) {
+        if (accountCondition.includes(req.remoteUser.CollectiveId)) {
+          const incognitoProfile = await req.remoteUser.getIncognitoProfile();
           if (incognitoProfile) {
             accountCondition.push(incognitoProfile.id);
           }
@@ -196,7 +206,7 @@ const TransactionsCollectionQuery = {
       if (args.includeGiftCardTransactions) {
         where.push({
           [Op.or]: [
-            { UsingGiftCardFromCollectiveId: account.id, type: 'DEBIT' },
+            { UsingGiftCardFromCollectiveId: accountsIds, type: 'DEBIT' },
             // prettier, please keep line break for readability please
             { CollectiveId: accountCondition },
           ],
@@ -210,14 +220,8 @@ const TransactionsCollectionQuery = {
       where.push({ HostCollectiveId: host.id });
     }
 
-    // No await needed, GraphQL will take care of it
-    // TODO: try to skip if it's not a requested field
-    const existingKinds = models.Transaction.findAll({
-      attributes: ['kind'],
-      where,
-      group: ['kind'],
-      raw: true,
-    }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+    // Backup the conditions as they're now to fetch the list of all available kinds
+    const whereKinds = cloneDeep(where);
 
     if (args.searchTerm) {
       const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
@@ -293,7 +297,14 @@ const TransactionsCollectionQuery = {
       totalCount: result.count,
       limit: args.limit,
       offset: args.offset,
-      kinds: existingKinds,
+      kinds: () => {
+        return models.Transaction.findAll({
+          attributes: ['kind'],
+          where: whereKinds,
+          group: ['kind'],
+          raw: true,
+        }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+      },
     };
   },
 };

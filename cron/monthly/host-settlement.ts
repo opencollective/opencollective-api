@@ -102,17 +102,21 @@ AND ts."status" != 'SETTLED'`,
       },
     );
 
-    items.push({
-      incurredAt: new Date(),
-      amount: pendingPlatformTips,
-      description: 'Platform Tips',
-    });
+    if (pendingPlatformTips) {
+      items.push({
+        incurredAt: new Date(),
+        amount: pendingPlatformTips,
+        description: 'Platform Tips',
+      });
+    }
 
-    items.push({
-      incurredAt: new Date(),
-      amount: pendingHostFeeShare,
-      description: 'Shared Revenue',
-    });
+    if (pendingHostFeeShare) {
+      items.push({
+        incurredAt: new Date(),
+        amount: pendingHostFeeShare,
+        description: 'Shared Revenue',
+      });
+    }
 
     if (plan.pricePerCollective) {
       const activeHostedCollectives = await host.getHostedCollectivesCount();

@@ -613,6 +613,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       hostPaypalPm = await fakePaymentMethod({
         name: randEmail(),
         service: 'paypal',
+        type: 'adaptive',
         CollectiveId: host.id,
         token: 'abcdefg',
         confirmedAt: new Date(),

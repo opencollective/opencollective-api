@@ -68,6 +68,15 @@ describe('server/lib/currency', () => {
       const result = await CurrencyLib.getRatesFromDb('EUR', ['USD']);
       expect(result.USD).to.eq(1 / usdToEurRate.rate);
     });
+
+    it('works with other supported currencies', async () => {
+      const eurToNzdRate = await fakeCurrencyExchangeRate({ from: 'EUR', to: 'NZD' });
+      const result1 = await CurrencyLib.getRatesFromDb('EUR', ['NZD']);
+      expect(result1.NZD).to.eq(eurToNzdRate.rate);
+
+      const result2 = await CurrencyLib.getRatesFromDb('NZD', ['EUR']);
+      expect(result2.EUR).to.eq(1 / eurToNzdRate.rate);
+    });
   });
 
   describe('convertToCurrency', () => {

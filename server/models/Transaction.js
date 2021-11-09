@@ -513,6 +513,11 @@ function defineModel() {
     transaction.TransactionGroup = transaction.TransactionGroup || uuid();
     transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
+    // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
+    if (transaction.FromCollectiveId === transaction.CollectiveId) {
+      return Transaction.create(transaction, opts);
+    }
+
     if (!isUndefined(transaction.amountInHostCurrency)) {
       // ensure this is always INT
       transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
@@ -586,10 +591,7 @@ function defineModel() {
     if (transaction.amount < 0) {
       index = 0;
       transactions.push(transaction);
-      // Skip CREDIT when inserting a DEBIT to itself
-      if (transaction.CollectiveId !== transaction.FromCollectiveId) {
-        transactions.push(oppositeTransaction);
-      }
+      transactions.push(oppositeTransaction);
     } else {
       index = 1;
       transactions.push(oppositeTransaction);
@@ -1024,36 +1026,6 @@ function defineModel() {
           ),
         )
     );
-  };
-
-  Transaction.creditHost = (order, collective) => {
-    // Special Case, adding funds to itself
-    const amount = order.totalAmount;
-    const platformFeePercent = get(order, 'data.platformFeePercent', 0);
-    const platformFee = calcFee(order.totalAmount, platformFeePercent);
-    const payload = {
-      type: 'CREDIT',
-      kind: TransactionKind.ADDED_FUNDS,
-      amount,
-      description: order.description,
-      currency: order.currency,
-      CollectiveId: order.CollectiveId,
-      FromCollectiveId: order.CollectiveId,
-      CreatedByUserId: order.CreatedByUserId,
-      PaymentMethodId: order.PaymentMethodId,
-      OrderId: order.id,
-      platformFeeInHostCurrency: -platformFee,
-      hostFeeInHostCurrency: 0,
-      paymentProcessorFeeInHostCurrency: 0,
-      HostCollectiveId: collective.id,
-      hostCurrency: collective.currency,
-      hostCurrencyFxRate: 1,
-      amountInHostCurrency: amount,
-      netAmountInCollectiveCurrency: amount - platformFee,
-      TransactionGroup: uuid(),
-    };
-
-    return models.Transaction.create(payload);
   };
 
   Transaction.calculateNetAmountInCollectiveCurrency = function (transaction) {

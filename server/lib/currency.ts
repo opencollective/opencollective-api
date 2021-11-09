@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { get, has, keys, zipObject } from 'lodash';
 import fetch from 'node-fetch';
 
-import { currencyFormats } from '../constants/currencies';
+import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
 import models from '../models';
 
 import cache from './cache';
@@ -42,20 +42,20 @@ export const getRatesFromDb = async (
   toCurrencies: string[],
   date: string | Date = 'latest',
 ): Promise<Record<string, number>> => {
-  let isInverted = false;
+  // TODO: This function is a bit messy, refactor it
 
-  // All rates are currently stored with from=USD, so we need to reverse from/to when converting EUR to USD
-  if (fromCurrency !== 'USD') {
-    if (toCurrencies.length > 1 || toCurrencies[0] !== 'USD') {
-      // Can only convert *currency* -> USD at the moment (so we don't support multiple targets)
+  const hasOnlyOneCurrency = toCurrencies.length === 1;
+  let isInverted = false;
+  if (!SUPPORTED_CURRENCIES.includes(fromCurrency)) {
+    isInverted = true;
+    if (!hasOnlyOneCurrency || !SUPPORTED_CURRENCIES.includes(toCurrencies[0])) {
+      // Can only convert *currency* -> *one of the supported currency* at the moment (so we don't support multiple targets)
       logger.warn(
         `getRatesFromDb: Tried to convert ${fromCurrency} to ${toCurrencies.join(', ')}, which is not supported `,
       );
       throw new Error(
         'We are not able to fetch some currencies FX rate at the moment, some statistics may be unavailable',
       );
-    } else {
-      isInverted = true;
     }
   }
 
@@ -63,6 +63,7 @@ export const getRatesFromDb = async (
   const [from, to] = isInverted ? [toCurrencies[0], [fromCurrency]] : [fromCurrency, toCurrencies];
   const allRates = await models.CurrencyExchangeRate.getMany(from, to, date);
   const result = {};
+  let missingCurrencies = [];
   if (isInverted) {
     allRates.forEach(rate => (result[from] = 1 / rate.rate));
   } else {
@@ -70,10 +71,29 @@ export const getRatesFromDb = async (
   }
 
   // Make sure we got all currencies
-  if (!toCurrencies.every(currency => has(result, currency))) {
-    throw new Error(
-      'We are not able to fetch the currency FX rates for some currencies at the moment, some statistics may be unavailable',
-    );
+  missingCurrencies = to.filter(currency => !has(result, currency));
+  if (missingCurrencies.length > 0) {
+    // When doing 1 on 1 conversion with supported currencies, try to fetch the opposite if it fails
+    if (
+      !isInverted &&
+      hasOnlyOneCurrency &&
+      SUPPORTED_CURRENCIES.includes(toCurrencies[0]) &&
+      SUPPORTED_CURRENCIES.includes(fromCurrency)
+    ) {
+      const usdRates = await models.CurrencyExchangeRate.getMany(toCurrencies[0], [fromCurrency], date);
+      if (usdRates[0]) {
+        result[toCurrencies[0]] = 1 / usdRates[0].rate;
+        missingCurrencies = [];
+      }
+    }
+
+    // If some currencies are still missing, we have no choice but to throw an error
+    if (missingCurrencies.length > 0) {
+      logger.error(`FX rate error: missing currencies in CurrencyExchangeRate: ${missingCurrencies.join(', ')}`);
+      throw new Error(
+        'We are not able to fetch the currency FX rates for some currencies at the moment, some statistics may be unavailable',
+      );
+    }
   }
 
   return result;

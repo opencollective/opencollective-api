@@ -5,7 +5,21 @@ import debugLib from 'debug';
 import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
-import { defaults, difference, differenceBy, get, includes, isNull, omit, pick, sum, sumBy, trim, unset } from 'lodash';
+import {
+  defaults,
+  difference,
+  differenceBy,
+  get,
+  includes,
+  isNull,
+  omit,
+  pick,
+  round,
+  sum,
+  sumBy,
+  trim,
+  unset,
+} from 'lodash';
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
@@ -25,6 +39,7 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
+  getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalMoneyManagedAmount,
   getTotalNetAmountReceivedAmount,
@@ -224,6 +239,13 @@ function defineModel() {
 
       hostFeePercent: {
         type: DataTypes.FLOAT,
+        set(hostFeePercent) {
+          if (hostFeePercent) {
+            this.setDataValue('hostFeePercent', round(hostFeePercent, 2));
+          } else {
+            this.setDataValue('hostFeePercent', hostFeePercent);
+          }
+        },
         validate: {
           min: 0,
           max: 100,
@@ -920,6 +942,12 @@ function defineModel() {
         CollectiveId: this.id,
         data: { collective: this.info },
       });
+    } else if (this.type === types.COLLECTIVE) {
+      await models.Activity.create({
+        type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
+        CollectiveId: this.id,
+        data: { collective: this.info },
+      });
     }
 
     await this.activateBudget();
@@ -1210,6 +1238,11 @@ function defineModel() {
   Collective.prototype.getProjects = function (query = {}) {
     return this.getChildren({
       ...query,
+      order: [
+        ['deactivatedAt', 'DESC'], // Will put active projects first, ordering the others by deactivation date
+        ['createdAt', 'DESC'],
+        ['id', 'DESC'],
+      ],
       where: { ...query.where, type: types.PROJECT },
     });
   };
@@ -1663,7 +1696,7 @@ function defineModel() {
         recipient: {
           collective: memberUser.collective.activity,
         },
-        loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/edit`,
+        loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/admin`,
       },
       { bcc: remoteUser.email },
     );
@@ -2096,8 +2129,6 @@ function defineModel() {
 
     // Self Hosted Collective
     if (this.id === this.HostCollectiveId) {
-      this.isHostAccount = false;
-      this.plan = null;
       await models.ConnectedAccount.destroy({
         where: {
           service: 'stripe',
@@ -2105,13 +2136,6 @@ function defineModel() {
         },
       });
     }
-
-    // Prepare collective to receive a new host
-    this.HostCollectiveId = null;
-    this.isActive = false;
-    this.approvedAt = null;
-    this.hostFeePercent = null;
-    this.platformFeePercent = null;
 
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
@@ -2123,6 +2147,18 @@ function defineModel() {
       await Promise.all(projects.map(e => e.changeHost(null)));
     }
 
+    // Reset current host
+    await this.update({
+      HostCollectiveId: null,
+      isActive: false,
+      approvedAt: null,
+      hostFeePercent: null,
+      platformFeePercent: null,
+      isHostAccount: false,
+      plan: null,
+    });
+
+    // Add new host
     if (newHostCollectiveId) {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
@@ -2135,9 +2171,6 @@ function defineModel() {
         message: options?.message,
         applicationData: options?.applicationData,
       });
-    } else {
-      // if we remove the host
-      return this.save();
     }
   };
 
@@ -2440,6 +2473,14 @@ function defineModel() {
 
   Collective.prototype.getTotalAmountReceived = function (options) {
     return getTotalAmountReceivedAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getTotalPaidExpensesAmount = function (options) {
+    return getTotalAmountPaidExpenses(this, options);
+  };
+
+  Collective.prototype.getTotalPaidExpenses = function (options) {
+    return getTotalAmountPaidExpenses(this, options).then(result => result.value);
   };
 
   Collective.prototype.getTotalNetAmountReceivedAmount = function (options) {
@@ -2976,8 +3017,9 @@ function defineModel() {
    * Returns financial metrics from the Host collective.
    * @param {Date} from Defaults to beginning of the current month.
    * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
+   * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
-  Collective.prototype.getHostMetrics = async function (from, to) {
+  Collective.prototype.getHostMetrics = async function (from, to, collectiveIds) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
@@ -2988,16 +3030,24 @@ function defineModel() {
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
-    const hostFees = await getHostFees(this, { startDate: from, endDate: to });
+    const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
 
-    const hostFeeShare = await getHostFeeShare(this, { startDate: from, endDate: to });
-    const pendingHostFeeShare = await getPendingHostFeeShare(this, { startDate: from, endDate: to });
+    const hostFeeShare = await getHostFeeShare(this, {
+      startDate: from,
+      endDate: to,
+      collectiveIds,
+    });
+    const pendingHostFeeShare = await getPendingHostFeeShare(this, {
+      startDate: from,
+      endDate: to,
+      collectiveIds,
+    });
     const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
 
-    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to });
+    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to, collectiveIds });
 
-    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to });
-    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to });
+    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
+    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
 
     // We don't support platform fees anymore
     const platformFees = 0;

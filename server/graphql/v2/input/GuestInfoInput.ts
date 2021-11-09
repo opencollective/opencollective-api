@@ -10,7 +10,7 @@ export const GuestInfoInput = new GraphQLInputObjectType({
   description: 'Input type for guest contributions',
   fields: () => ({
     email: {
-      type: GraphQLNonNull(EmailAddress),
+      type: new GraphQLNonNull(EmailAddress),
       description: "Contributor's email",
     },
     name: {

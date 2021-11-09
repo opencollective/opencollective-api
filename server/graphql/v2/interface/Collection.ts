@@ -59,7 +59,7 @@ export interface TransactionsCollectionReturnType {
   totalCount: number;
   limit: number;
   offset: number;
-  kinds?: Array<string>;
+  kinds?: string[] | (() => string[]);
 }
 
 export { Collection, CollectionFields, CollectionArgs };

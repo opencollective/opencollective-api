@@ -4,39 +4,30 @@ import { GraphQLDateTime } from 'graphql-iso-date';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
 import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
+import { AccountWithParent, AccountWithParentFields } from '../interface/AccountWithParent';
 
 import { Collective } from './Collective';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event account',
-  interfaces: () => [Account, AccountWithHost, AccountWithContributions],
+  interfaces: () => [Account, AccountWithHost, AccountWithContributions, AccountWithParent],
   isTypeOf: collective => collective.type === 'EVENT',
   fields: () => {
     return {
       ...AccountFields,
       ...AccountWithHostFields,
       ...AccountWithContributionsFields,
-      parent: {
-        description: 'The Account hosting this Event',
-        type: Account,
-        async resolve(event, _, req) {
-          if (!event.ParentCollectiveId) {
-            return null;
-          } else {
-            return req.loaders.Collective.byId.load(event.ParentCollectiveId);
-          }
-        },
-      },
+      ...AccountWithParentFields,
       isApproved: {
         description: "Returns whether it's approved by the Fiscal Host",
-        type: GraphQLNonNull(GraphQLBoolean),
+        type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(event, _, req) {
           if (!event.ParentCollectiveId) {
             return false;
           } else {
             const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
-            return Boolean(parent && parent.isApproved());
+            return Boolean(parent?.isApproved());
           }
         },
       },
