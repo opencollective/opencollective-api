@@ -115,21 +115,25 @@ export async function refundTransaction(transaction, user, message) {
     throw new Error('This payment method provider does not support refunds');
   }
 
+  let result;
+
   try {
     debug('refundTransaction try');
-    return paymentMethodProvider.refundTransaction(transaction, user, message);
+    result = await paymentMethodProvider.refundTransaction(transaction, user, message);
   } catch (e) {
     debug(`refundTransaction error ${e.message}`);
     if (e.message.includes('has already been refunded')) {
       debug('refundTransaction "has already been refunded"');
       if (paymentMethodProvider && paymentMethodProvider.refundTransactionOnlyInDatabase) {
         debug('refundTransaction refundTransactionOnlyInDatabase');
-        return paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
+        result = await paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
       }
       debug('refundTransaction not refundTransactionOnlyInDatabase');
     }
     throw e;
   }
+
+  return result;
 }
 
 /** Calculates how much an amount's fee is worth.
