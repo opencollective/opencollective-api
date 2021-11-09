@@ -53,7 +53,6 @@ Subject: Thank you for your contribution to {{collective.name}}
 <p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency}}</p>
 {{/if}}
 
-{{#if order.isGuest}}
 <p>
   {{#if order.interval}}
     To manage your recurring contributions, <a href="{{config.host.website}}/signin?next={{fromCollective.slug}}/recurring-contributions">Sign in</a> and
@@ -62,7 +61,6 @@ Subject: Thank you for your contribution to {{collective.name}}
   {{/if}}
   If you need help, contact <a href="mailto:support@opencollective.com">support</a>.
 </p>
-{{/if}}
 
 <p>Warmly,</p>
 
