@@ -149,6 +149,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   hostApplicationsCreated: { model: models.HostApplication, field: 'CollectiveId' },
   hostedCollectives: { model: models.Collective, field: 'HostCollectiveId' },
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
+  locations: { model: models.Location, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'MemberCollectiveId' },
   members: { model: models.Member, field: 'MemberCollectiveId' },
   membershipInvitations: { model: models.MemberInvitation, field: 'CollectiveId' },
