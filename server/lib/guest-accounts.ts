@@ -15,8 +15,9 @@ type GuestProfileDetails = {
 };
 
 type Location = {
-  country: string | null;
-  address: string | null;
+  country?: string | null;
+  address?: string | null;
+  structured?: Record<string, string> | null;
 };
 
 /**
@@ -35,6 +36,9 @@ const updateCollective = async (collective, newInfo, transaction) => {
     }
     if (newInfo.location.address && newInfo.location.address !== collective.address) {
       fieldsToUpdate['address'] = newInfo.location.address;
+    }
+    if (newInfo.location.structured) {
+      fieldsToUpdate['data'] = { ...(collective.data || {}), address: newInfo.location.structured };
     }
   }
 
@@ -95,7 +99,7 @@ export const getOrCreateGuestProfile = async (
           type: COLLECTIVE_TYPE.USER,
           slug: `guest-${uuid().split('-')[0]}`,
           name: name || DEFAULT_GUEST_NAME,
-          data: { isGuest: true },
+          data: { isGuest: true, address: location?.structured },
           address: location?.address,
           countryISO: location?.country,
           CreatedByUserId: user.id,
