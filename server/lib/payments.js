@@ -113,7 +113,16 @@ export async function refundTransaction(transaction, user, message) {
     throw new Error('This payment method provider does not support refunds');
   }
 
-  return await paymentMethodProvider.refundTransaction(transaction, user, message);
+  try {
+    return paymentMethodProvider.refundTransaction(transaction, user, message);
+  } catch (e) {
+    if (e.message.includes('has already been refunded')) {
+      if (paymentMethodProvider && paymentMethodProvider.refundTransactionOnlyInDatabase) {
+        return paymentMethodProvider.refundTransactionOnlyInDatabase(transaction);
+      }
+    }
+    throw e;
+  }
 }
 
 /** Calculates how much an amount's fee is worth.
