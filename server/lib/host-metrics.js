@@ -308,7 +308,7 @@ export async function getHostFeeShareTimeSeries(host, { startDate, endDate, time
       SUM(t1."amountInHostCurrency") as "_amount",
       t1."hostCurrency" as "_currency",
       DATE_TRUNC(:timeUnit, t1."createdAt") as "date",
-      COALESCE(ts."status", 'OWED') as "settlementStatus"
+      COALESCE(ts."status", 'SETTLED') as "settlementStatus"
     FROM "Transactions" as t1
     LEFT JOIN "TransactionSettlements" ts
       ON t1."TransactionGroup" = ts."TransactionGroup"
@@ -319,8 +319,8 @@ export async function getHostFeeShareTimeSeries(host, { startDate, endDate, time
     AND t1."kind" = 'HOST_FEE_SHARE'
     AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
     AND t1."deletedAt" IS NULL
-    GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt"), ts."status"
-    ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt"), ts."status"`,
+    GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')
+    ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')`,
     {
       replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate), timeUnit },
       type: sequelize.QueryTypes.SELECT,
