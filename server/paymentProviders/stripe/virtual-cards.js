@@ -15,8 +15,7 @@ import { getConnectedAccountForPaymentProvider } from '../utils';
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
   const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
 
-  const secretKey = host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token;
-  const stripe = Stripe(secretKey);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
 
   const list = await stripe.issuing.cards.list({ last4: cardNumber.slice(-4) });
   const cards = list.data;
@@ -84,8 +83,7 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
     return;
   }
 
-  const secretKey = host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token;
-  const stripe = Stripe(secretKey);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
 
   try {
     stripe.webhooks.constructEvent(stripeEventRawBody, stripeSignature, connectedAccount.data.stripeEndpointSecret);
@@ -225,4 +223,9 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
     }
     throw e;
   }
+};
+
+const getStripeClient = (slug, token) => {
+  const secretKey = slug === 'opencollective' ? config.stripe.secret : token;
+  return Stripe(secretKey);
 };
