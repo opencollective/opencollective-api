@@ -223,7 +223,8 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   );
 
   let legacyResults = [];
-  const newHostFeeIntroductionDate = new Date('2021-01-01T00:00:00.000Z');
+
+  const newHostFeeIntroductionDate = new Date('2021-07-01T00:00:00.000Z');
   if (startDate < newHostFeeIntroductionDate) {
     legacyResults = await sequelize.query(
       `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
@@ -243,17 +244,20 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
 
   const newTimeSeries = await convertCurrencyForTimeSeries(newResults, host.currency);
   const legacyTimeSeries = await convertCurrencyForTimeSeries(legacyResults, host.currency);
+
   const mergedTimeSeries = [...newTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }))];
 
   // Merge legacy time series with new time series
-  legacyTimeSeries.forEach(point => {
-    const existingDataPoint = mergedTimeSeries.find(({ date }) => point.date === date);
+  for (const point of legacyTimeSeries) {
+    const existingDataPoint = mergedTimeSeries.find(({ date }) => {
+      return point.date.getTime() === date.getTime();
+    });
     if (existingDataPoint) {
       existingDataPoint.amount += Math.abs(point.amount);
     } else {
       mergedTimeSeries.push({ ...point, amount: Math.abs(point.amount) });
     }
-  });
+  }
 
   return orderBy(mergedTimeSeries, 'date');
 }
