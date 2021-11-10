@@ -557,7 +557,7 @@ export const Host = new GraphQLObjectType({
               const contributionsAmountSum = await models.Transaction.sum('amount', { where });
               const dailyAverageIncomeAmount = contributionsAmountSum / numberOfDays;
               return {
-                value: dailyAverageIncomeAmount,
+                value: dailyAverageIncomeAmount || 0,
                 currency: host.currency,
               };
             },
@@ -628,7 +628,7 @@ export const Host = new GraphQLObjectType({
               const expensesAmountSum = await models.Transaction.sum('amount', { where });
               const dailyAverageAmount = Math.abs(expensesAmountSum) / numberOfDays;
               return {
-                value: dailyAverageAmount,
+                value: dailyAverageAmount || 0,
                 currency: host.currency,
               };
             },
