@@ -75,13 +75,7 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
 
   const host = virtualCard.host;
   const collective = virtualCard.collective;
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'stripe' } });
-
-  if (!connectedAccount) {
-    logger.error('stripe/webhook: host is not connected to Stripe', { body: stripeTransaction });
-    return;
-  }
-
+  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
   try {
