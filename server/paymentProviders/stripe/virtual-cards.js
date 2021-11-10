@@ -70,8 +70,7 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
   });
 
   if (!virtualCard) {
-    logger.error('stripe/webhook: could not find VirtualCard', { body: stripeTransaction });
-    return;
+    throw new Error('Could not find VirtualCard');
   }
 
   const host = virtualCard.host;
@@ -88,8 +87,7 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
   try {
     stripe.webhooks.constructEvent(stripeEventRawBody, stripeSignature, connectedAccount.data.stripeEndpointSecret);
   } catch {
-    logger.error('stripe/webhook: source of event not recognized', { body: stripeTransaction });
-    return;
+    throw new Error('Source of event not recognized');
   }
 
   const amount = -stripeTransaction.amount;
@@ -215,11 +213,10 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
 
     return expense;
   } catch (e) {
-    logger.error(e);
     if (expense) {
       await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
       await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
-      await expense.destroy().catch(logger.error);
+      await expense.destroy();
     }
     throw e;
   }
