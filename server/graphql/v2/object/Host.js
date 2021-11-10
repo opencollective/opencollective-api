@@ -18,6 +18,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { getFxRate } from '../../../lib/currency';
+import queries from '../../../lib/queries';
 import { days } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -554,28 +555,14 @@ export const Host = new GraphQLObjectType({
             if (args.timeUnit) {
               const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
               const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-              contributionAmountOverTime = await sequelize.query(
-                `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) as "amount", "currency"
-                 FROM "Transactions"
-                 WHERE kind = 'CONTRIBUTION'
-                   AND "HostCollectiveId" = :hostCollectiveId
-                   AND type = 'CREDIT'
-                   ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
-                   ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``}
-                   ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
-                 GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
-                 ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
-                `,
-                {
-                  type: sequelize.QueryTypes.SELECT,
-                  replacements: {
-                    hostCollectiveId: host.id,
-                    timeUnit: args.timeUnit,
-                    collectiveIds,
-                    dateFrom,
-                    dateTo,
-                  },
-                },
+              contributionAmountOverTime = await queries.getTransactionsTimeSeries(
+                TransactionKind.CONTRIBUTION,
+                TransactionTypes.CREDIT,
+                host.id,
+                args.timeUnit,
+                collectiveIds,
+                dateFrom,
+                dateTo,
               );
               contributionAmountOverTime = contributionAmountOverTime.map(contributionAmount =>
                 convertCurrencyAmount(
@@ -586,14 +573,7 @@ export const Host = new GraphQLObjectType({
                 ),
               );
               contributionAmountOverTime = await Promise.all(contributionAmountOverTime);
-
-              const counts = contributionAmountOverTime.reduce((prev, curr) => {
-                const count = prev.get(curr.date) || 0;
-                prev.set(curr.date.toISOString(), curr.amount + count);
-                return prev;
-              }, new Map());
-
-              contributionAmountOverTime = [...counts].map(([date, amount]) => {
+              contributionAmountOverTime = contributionAmountOverTime.map(({ date, amount }) => {
                 return { date, amount, currency: host.currency };
               });
             }
@@ -680,40 +660,20 @@ export const Host = new GraphQLObjectType({
             if (args.timeUnit) {
               const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
               const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-              expenseAmountOverTime = await sequelize.query(
-                `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) AS "amount", "currency"
-                 FROM "Transactions"
-                 WHERE kind = 'EXPENSE'
-                   AND "HostCollectiveId" = :hostCollectiveId
-                   AND type = 'DEBIT'
-                   ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
-                   ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``}
-                   ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
-                 GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
-                 ORDER BY DATE_TRUNC(:timeUnit, "createdAt")`,
-                {
-                  type: sequelize.QueryTypes.SELECT,
-                  replacements: {
-                    hostCollectiveId: host.id,
-                    timeUnit: args.timeUnit,
-                    collectiveIds,
-                    dateFrom,
-                    dateTo,
-                  },
-                },
+              expenseAmountOverTime = await queries.getTransactionsTimeSeries(
+                TransactionKind.EXPENSE,
+                TransactionTypes.DEBIT,
+                host.id,
+                args.timeUnit,
+                collectiveIds,
+                dateFrom,
+                dateTo,
               );
               expenseAmountOverTime = expenseAmountOverTime.map(expenseAmount =>
                 convertCurrencyAmount(expenseAmount.currency, host.currency, expenseAmount.date, expenseAmount.amount),
               );
               expenseAmountOverTime = await Promise.all(expenseAmountOverTime);
-
-              const counts = expenseAmountOverTime.reduce((prev, curr) => {
-                const count = prev.get(curr.date) || 0;
-                prev.set(curr.date.toISOString(), curr.amount + count);
-                return prev;
-              }, new Map());
-
-              expenseAmountOverTime = [...counts].map(([date, amount]) => {
+              expenseAmountOverTime = expenseAmountOverTime.map(({ date, amount }) => {
                 return { date, amount: Math.abs(amount), currency: host.currency };
               });
             }

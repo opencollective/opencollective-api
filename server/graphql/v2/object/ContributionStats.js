@@ -9,7 +9,7 @@ export const ContributionStats = new GraphQLObjectType({
   fields: () => ({
     contributionsCount: { type: new GraphQLNonNull(GraphQLInt), description: 'The total number of contributions' },
     contributionAmountOverTime: {
-      type: new GraphQLNonNull(TimeSeriesAmount),
+      type: TimeSeriesAmount,
       description: 'The contribution amounts over time',
     },
     oneTimeContributionsCount: {

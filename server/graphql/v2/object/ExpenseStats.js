@@ -9,7 +9,7 @@ export const ExpenseStats = new GraphQLObjectType({
   fields: () => ({
     expensesCount: { type: new GraphQLNonNull(GraphQLInt), description: 'The total number of expenses' },
     expenseAmountOverTime: {
-      type: new GraphQLNonNull(TimeSeriesAmount),
+      type: TimeSeriesAmount,
       description: 'The total number of expenses over time',
     },
     dailyAverageAmount: { type: new GraphQLNonNull(Amount), description: 'The daily average paid in expenses' },
