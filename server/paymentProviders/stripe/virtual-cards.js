@@ -10,13 +10,10 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import models from '../../models';
+import { getConnectedAccountForPaymentProvider } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'stripe' } });
-
-  if (!connectedAccount) {
-    throw new Error('Host is not connected to Stripe');
-  }
+  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
 
   const secretKey = host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token;
   const stripe = Stripe(secretKey);
