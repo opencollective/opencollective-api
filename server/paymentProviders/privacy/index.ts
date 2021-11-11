@@ -13,26 +13,16 @@ import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
-import { getConnectedAccountForPaymentProvider, persistTransaction } from '../utils';
+import {
+  getConnectedAccountForPaymentProvider,
+  persistTransaction,
+  getVirtualCardForTransaction
+} from '../utils';
 
 const processTransaction = async (
   privacyTransaction: Transaction,
 ): Promise<typeof models.Expense | undefined> => {
-  const virtualCard = await models.VirtualCard.findOne({
-    where: {
-      id: privacyTransaction.card.token,
-    },
-    include: [
-      { association: 'collective', required: true },
-      { association: 'host', required: true },
-      { association: 'user' },
-    ],
-  });
-  if (!virtualCard) {
-    logger.error(`Couldn't find the related Virtual Card ${privacyTransaction.card.last_four}`);
-    return;
-  }
-
+  const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
   const amount = privacyTransaction.settled_amount;
   const isRefund = amount < 0;
 

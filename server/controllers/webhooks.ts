@@ -48,6 +48,7 @@ export async function privacyWebhook(
     await privacyWebhookHandler(req);
     res.sendStatus(200);
   } catch (e) {
+    logger.error('privacy/webhook : ' + error.message, { body: req.body });
     next(e);
   }
 }

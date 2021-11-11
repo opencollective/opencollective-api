@@ -16,6 +16,25 @@ export const getConnectedAccountForPaymentProvider = async (host, provider) => {
   return connectedAccount;
 };
 
+export const getVirtualCardForTransaction = async cardId => {
+  const virtualCard = await models.VirtualCard.findOne({
+    where: {
+      id: cardId,
+    },
+    include: [
+      { association: 'collective', required: true },
+      { association: 'host', required: true },
+      { association: 'user' },
+    ],
+  });
+
+  if (!virtualCard) {
+    throw new Error('Could not find VirtualCard');
+  }
+
+  return virtualCard;
+};
+
 export const persistTransaction = async (
   virtualCard,
   amount,

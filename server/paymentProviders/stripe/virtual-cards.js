@@ -10,7 +10,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import models from '../../models';
-import { getConnectedAccountForPaymentProvider, persistTransaction } from '../utils';
+import { getConnectedAccountForPaymentProvider, persistTransaction, getVirtualCardForTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
   const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
@@ -58,23 +58,9 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, collec
 };
 
 export const processTransaction = async (stripeTransaction, stripeSignature, stripeEventRawBody) => {
-  const virtualCard = await models.VirtualCard.findOne({
-    where: {
-      id: stripeTransaction.card,
-    },
-    include: [
-      { association: 'collective', required: true },
-      { association: 'host', required: true },
-      { association: 'user' },
-    ],
-  });
-
-  if (!virtualCard) {
-    throw new Error('Could not find VirtualCard');
-  }
-
+  const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
   const host = virtualCard.host;
-  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'stripe');
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
   try {
