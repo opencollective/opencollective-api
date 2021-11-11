@@ -17,7 +17,6 @@ import { getConnectedAccountForPaymentProvider } from '../utils';
 
 const processTransaction = async (
   privacyTransaction: Transaction,
-  opts?: { host?: any; collective?: any; hostCurrencyFxRate?: number },
 ): Promise<typeof models.Expense | undefined> => {
   const amount = privacyTransaction.settled_amount;
   // Privacy can set transactions amount to zero in certain cases. We'll ignore those.
@@ -40,10 +39,8 @@ const processTransaction = async (
     return;
   }
 
-  const collective = opts?.collective || virtualCard.collective;
-  if (!collective) {
-    logger.error(`Couldn't find the related collective`);
-  }
+  const collective = virtualCard.collective;
+
   const existingExpense = await models.Expense.findOne({
     where: {
       CollectiveId: collective.id,
@@ -56,8 +53,8 @@ const processTransaction = async (
     return;
   }
 
-  const host = opts?.host || virtualCard.host;
-  const hostCurrencyFxRate = opts?.hostCurrencyFxRate || (await getFxRate('USD', host.currency));
+  const host = virtualCard.host;
+  const hostCurrencyFxRate = await getFxRate('USD', host.currency);
   const UserId = virtualCard.UserId || collective.CreatedByUserId || collective.LastEditedByUserId;
   const isRefund = amount < 0;
 

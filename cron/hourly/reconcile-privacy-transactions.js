@@ -4,7 +4,6 @@ import '../../server/env';
 import moment from 'moment';
 
 import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
-import { getFxRate } from '../../server/lib/currency';
 import logger from '../../server/lib/logger';
 import * as privacyLib from '../../server/lib/privacy';
 import models from '../../server/models';
@@ -39,16 +38,13 @@ async function reconcileConnectedAccount(connectedAccount) {
         },
         'approvals',
       );
-      const hostCurrencyFxRate = await getFxRate('USD', host.currency);
 
       if (DRY) {
         logger.info(`Found ${transactions.length} pending transactions...`);
         logger.debug(JSON.stringify(transactions, null, 2));
       } else {
         logger.info(`Syncing ${transactions.length} pending transactions...`);
-        await Promise.all(
-          transactions.map(transaction => privacy.processTransaction(transaction, { host, hostCurrencyFxRate })),
-        );
+        await Promise.all(transactions.map(transaction => privacy.processTransaction(transaction)));
         logger.info(`Refreshing card details'...`);
         await privacy.refreshCardDetails(card);
       }

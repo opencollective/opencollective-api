@@ -34,7 +34,7 @@ async function webhook(req: Request & { body: Transaction; rawBody: string }): P
   const event = privacyLib.verifyEvent(req, connectedAccount.token);
 
   if (event.result === 'APPROVED' && event.status === 'SETTLED') {
-    await privacy.processTransaction(event, { host, collective });
+    await privacy.processTransaction(event);
   }
 }
 
