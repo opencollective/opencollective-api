@@ -13,6 +13,7 @@ import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
+import * as privacyLib from '../../lib/privacy';
 import {
   getConnectedAccountForPaymentProvider,
   persistTransaction,
@@ -21,8 +22,16 @@ import {
 
 const processTransaction = async (
   privacyTransaction: Transaction,
+  privacySignature: string,
+  privacyEventRawBody: string,
+  req: any,
 ): Promise<typeof models.Expense | undefined> => {
   const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
+  const host = virtualCard.host;
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
+
+  privacyLib.verifyEvent(privacySignature, privacyEventRawBody, connectedAccount.token);
+
   const amount = privacyTransaction.settled_amount;
   const isRefund = amount < 0;
 
