@@ -91,7 +91,7 @@ export const updateCard = async (
   return response.data;
 };
 
-export const verifyEvent = (signature: string, rawBody: string, key: string): Transaction => {
+export const verifyEvent = (signature: string, rawBody: string, key: string) => {
   const hmac = crypto.createHmac('sha256', key);
   hmac.update(rawBody);
   const verified = signature === hmac.digest('base64');

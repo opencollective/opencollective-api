@@ -6,7 +6,7 @@ import models from '../../models';
 import { getConnectedAccountForPaymentProvider, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
-  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'stripe');
 
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 

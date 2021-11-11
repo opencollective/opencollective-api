@@ -43,7 +43,7 @@ const assignCardToCollective = async (
   host: any,
   userId: number,
 ): Promise<VirtualCardModel> => {
-  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
 
   const last_four = cardNumber.slice(-4);
   const card = await privacy.findCard(connectedAccount.token, { last_four });
@@ -71,7 +71,7 @@ const assignCardToCollective = async (
 
 const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
 
   const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
   if (!card) {
@@ -88,7 +88,7 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
 
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
 
   // eslint-disable-next-line camelcase
   const card = await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state });
@@ -106,7 +106,7 @@ const resumeCard = async (virtualCard: VirtualCardModel): Promise<VirtualCardMod
 
 const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
 
   const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
   if (!card) {
