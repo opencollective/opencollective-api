@@ -7,16 +7,6 @@ import { getFxRate } from '../lib/currency';
 import logger from '../lib/logger';
 import models from '../models';
 
-export const getConnectedAccountForPaymentProvider = async (host, provider) => {
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: provider } });
-
-  if (!connectedAccount) {
-    throw new Error(`Host ${host.slug} is not connected to ${provider}`);
-  }
-
-  return connectedAccount;
-};
-
 export const getVirtualCardForTransaction = async cardId => {
   const virtualCard = await models.VirtualCard.findOne({
     where: {

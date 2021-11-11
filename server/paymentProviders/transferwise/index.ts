@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, difference, find, first, has, omit, pick, split, toNumber } from 'lodash';
+import { compact, difference, find, has, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -23,7 +23,8 @@ import {
   RecipientAccount,
   Transfer,
 } from '../../types/transferwise';
-import { getConnectedAccountForPaymentProvider } from '../utils';
+
+const providerName = 'transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
@@ -255,7 +256,7 @@ const getOrCreateActiveBatch = async (
   if (expense) {
     return expense.data.batchGroup as BatchGroup;
   } else {
-    const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+    const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
     const profileId = connectedAccount.data.id;
     const token = options?.token || (await getToken(connectedAccount));
@@ -279,7 +280,8 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
     throw new Error('Can not batch an expense with a currency different from its host currency');
   }
 
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const token = await getToken(connectedAccount);
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
@@ -303,7 +305,7 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }
 
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
@@ -326,7 +328,7 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
 }
 
 async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
@@ -379,7 +381,7 @@ async function getAvailableCurrencies(
   host: typeof models.Collective,
   ignoreBlockedCurrencies = true,
 ): Promise<{ code: string; minInvoiceAmount: number }[]> {
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   let currencyBlockList = [];
   if (ignoreBlockedCurrencies) {
@@ -442,7 +444,7 @@ async function getRequiredBankInformation(
     return fromCache;
   }
 
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const token = await getToken(connectedAccount);
   await populateProfileId(connectedAccount);

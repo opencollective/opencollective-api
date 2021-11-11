@@ -3,10 +3,12 @@ import { omit } from 'lodash';
 import Stripe from 'stripe';
 
 import models from '../../models';
-import { getConnectedAccountForPaymentProvider, getVirtualCardForTransaction, persistTransaction } from '../utils';
+import { getVirtualCardForTransaction, persistTransaction } from '../utils';
+
+const providerName = 'stripe';
 
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'stripe');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
@@ -53,7 +55,7 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, collec
 export const processTransaction = async (stripeTransaction, stripeSignature, stripeEventRawBody) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
   const host = virtualCard.host;
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'stripe');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
   try {

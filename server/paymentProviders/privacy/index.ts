@@ -7,7 +7,9 @@ import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
-import { getConnectedAccountForPaymentProvider, getVirtualCardForTransaction, persistTransaction } from '../utils';
+import { getVirtualCardForTransaction, persistTransaction } from '../utils';
+
+const providerName = 'privacy';
 
 const processTransaction = async (
   privacyTransaction: Transaction,
@@ -16,7 +18,7 @@ const processTransaction = async (
 ): Promise<typeof models.Expense | undefined> => {
   const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
   const host = virtualCard.host;
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   privacyLib.verifyEvent(privacySignature, privacyEventRawBody, connectedAccount.token);
 
@@ -43,7 +45,7 @@ const assignCardToCollective = async (
   host: any,
   userId: number,
 ): Promise<VirtualCardModel> => {
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const last_four = cardNumber.slice(-4);
   const card = await privacy.findCard(connectedAccount.token, { last_four });
@@ -71,7 +73,7 @@ const assignCardToCollective = async (
 
 const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
   if (!card) {
@@ -88,7 +90,7 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
 
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   // eslint-disable-next-line camelcase
   const card = await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state });
@@ -106,7 +108,7 @@ const resumeCard = async (virtualCard: VirtualCardModel): Promise<VirtualCardMod
 
 const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
   const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'privacy');
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
   if (!card) {
