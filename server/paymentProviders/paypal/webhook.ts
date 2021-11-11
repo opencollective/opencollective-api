@@ -21,7 +21,13 @@ import { checkBatchItemStatus } from './payouts';
 
 const debug = Debug('paypal:webhook');
 
-const providerName = 'paypal';
+const getPaypalAccount = async host => {
+  if (!host) {
+    throw new Error('PayPal webhook: no host found');
+  }
+
+  return host.getAccountForPaymentProvider('paypal');
+};
 
 async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   const event = req.body as PayoutWebhookRequest;
@@ -37,7 +43,7 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
   }
 
   const host = await expense.collective.getHostCollective();
-  const paypalAccount = await host.getAccountForPaymentProvider(providerName);
+  const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
   const item = event.resource;
@@ -74,7 +80,7 @@ const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: str
   }
 
   const host = await order.collective.getHostCollective();
-  const paypalAccount = await host.getAccountForPaymentProvider(providerName);
+  const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
   return { host, order, paypalAccount };
 };
@@ -154,7 +160,7 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
 
   // 2. Validate webhook event
   const host = await order.collective.getHostCollective();
-  const paypalAccount = await host.getAccountForPaymentProvider(providerName);
+  const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
   // 3. Record the transaction
@@ -176,7 +182,7 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
 
   // Validate webhook event
   const host = await models.Collective.findByPk(req.params.hostId);
-  const paypalAccount = await host.getAccountForPaymentProvider(providerName);
+  const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
   // Retrieve the data for this event
