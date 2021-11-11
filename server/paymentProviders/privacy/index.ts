@@ -13,17 +13,11 @@ import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
-import { getConnectedAccountForPaymentProvider } from '../utils';
+import { getConnectedAccountForPaymentProvider, persistTransaction } from '../utils';
 
 const processTransaction = async (
   privacyTransaction: Transaction,
 ): Promise<typeof models.Expense | undefined> => {
-  const amount = privacyTransaction.settled_amount;
-  // Privacy can set transactions amount to zero in certain cases. We'll ignore those.
-  if (!amount) {
-    return;
-  }
-
   const virtualCard = await models.VirtualCard.findOne({
     where: {
       id: privacyTransaction.card.token,
@@ -39,134 +33,19 @@ const processTransaction = async (
     return;
   }
 
-  const collective = virtualCard.collective;
-
-  const existingExpense = await models.Expense.findOne({
-    where: {
-      CollectiveId: collective.id,
-      VirtualCardId: virtualCard.id,
-      data: { token: privacyTransaction.token },
-    },
-  });
-  if (existingExpense) {
-    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${privacyTransaction.token}`);
-    return;
-  }
-
-  const host = virtualCard.host;
-  const hostCurrencyFxRate = await getFxRate('USD', host.currency);
-  const UserId = virtualCard.UserId || collective.CreatedByUserId || collective.LastEditedByUserId;
+  const amount = privacyTransaction.settled_amount;
   const isRefund = amount < 0;
 
-  // If it is refund, we'll check if the transaction was already created because there are no expenses created for refunds.
-  if (isRefund) {
-    const existingTransaction = await models.Transaction.findOne({
-      where: {
-        CollectiveId: collective.id,
-        data: { token: privacyTransaction.token },
-      },
-    });
-    if (existingTransaction) {
-      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${privacyTransaction.token}`);
-      return;
-    }
-  }
-
-  let expense;
-  try {
-    const slug = toString(privacyTransaction.merchant.acceptor_id).toLowerCase();
-    const [vendor] = await models.Collective.findOrCreate({
-      where: { slug },
-      defaults: { name: privacyTransaction.merchant.descriptor, type: CollectiveTypes.VENDOR },
-    });
-
-    // If it is a refund, we'll just create the transaction pair
-    if (isRefund) {
-      await models.Transaction.createDoubleEntry({
-        CollectiveId: vendor.id,
-        FromCollectiveId: collective.id,
-        HostCollectiveId: host.id,
-        description: `Virtual Card refund: ${vendor.name}`,
-        type: 'DEBIT',
-        currency: 'USD',
-        amount,
-        netAmountInCollectiveCurrency: amount,
-        hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
-        paymentProcessorFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: 0,
-        platformFeeInHostCurrency: 0,
-        hostCurrencyFxRate,
-        isRefund: true,
-        kind: TransactionKind.EXPENSE,
-        data: privacyTransaction,
-      });
-    } else {
-      const description = `Virtual Card charge: ${vendor.name}`;
-
-      expense = await models.Expense.create({
-        UserId,
-        CollectiveId: collective.id,
-        FromCollectiveId: vendor.id,
-        currency: 'USD',
-        amount,
-        description,
-        VirtualCardId: virtualCard.id,
-        lastEditedById: UserId,
-        status: ExpenseStatus.PAID,
-        type: ExpenseType.CHARGE,
-        incurredAt: privacyTransaction.created,
-        data: { ...privacyTransaction, missingDetails: true },
-      });
-
-      await models.ExpenseItem.create({
-        ExpenseId: expense.id,
-        incurredAt: privacyTransaction.created,
-        CreatedByUserId: UserId,
-        amount,
-      });
-
-      await models.Transaction.createDoubleEntry({
-        // Note that Colective and FromCollective here are inverted because this is the CREDIT transaction
-        CollectiveId: vendor.id,
-        FromCollectiveId: collective.id,
-        HostCollectiveId: host.id,
-        description,
-        type: 'CREDIT',
-        currency: 'USD',
-        ExpenseId: expense.id,
-        amount,
-        netAmountInCollectiveCurrency: amount,
-        hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
-        paymentProcessorFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: 0,
-        platformFeeInHostCurrency: 0,
-        hostCurrencyFxRate,
-        kind: TransactionKind.EXPENSE,
-      });
-
-      expense.fromCollective = vendor;
-      expense.collective = collective;
-      if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
-        expense.createActivity(
-          activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-          { id: UserId },
-          { ...expense.data, user: virtualCard.user },
-        );
-      }
-    }
-
-    return expense;
-  } catch (e) {
-    logger.error(e);
-    if (expense) {
-      await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
-      await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
-      await expense.destroy().catch(logger.error);
-    }
-    throw e;
-  }
+  return persistTransaction(
+    virtualCard,
+    amount,
+    privacyTransaction.merchant.acceptor_id,
+    privacyTransaction.merchant.descriptor,
+    privacyTransaction.created,
+    privacyTransaction.token,
+    privacyTransaction,
+    isRefund,
+  );
 };
 
 const assignCardToCollective = async (

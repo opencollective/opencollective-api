@@ -26,6 +26,10 @@ export const persistTransaction = async (
   providerTransaction,
   isRefund = false,
 ) => {
+  if (amount === 0) {
+    return;
+  }
+
   const UserId = virtualCard.UserId;
   const host = virtualCard.host;
   const collective = virtualCard.collective;
