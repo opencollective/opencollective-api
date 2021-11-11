@@ -10,7 +10,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import models from '../../models';
-import { getConnectedAccountForPaymentProvider } from '../utils';
+import { getConnectedAccountForPaymentProvider, persistTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
   const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');
@@ -90,130 +90,18 @@ export const processTransaction = async (stripeTransaction, stripeSignature, str
     return;
   }
 
-  const existingExpense = await models.Expense.findOne({
-    where: {
-      VirtualCardId: virtualCard.id,
-      data: { id: stripeTransaction.id },
-    },
-  });
-  if (existingExpense) {
-    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${stripeTransaction.id}`);
-    return;
-  }
-
-  const UserId = virtualCard.UserId;
   const isRefund = stripeTransaction.type === 'refund';
 
-  // If it is refund, we'll check if the transaction was already created because there are no expenses created for refunds.
-  if (isRefund) {
-    const existingTransaction = await models.Transaction.findOne({
-      where: {
-        CollectiveId: collective.id,
-        data: { id: stripeTransaction.id },
-      },
-    });
-    if (existingTransaction) {
-      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${stripeTransaction.id}`);
-      return;
-    }
-  }
-
-  let expense;
-  try {
-    const slug = stripeTransaction['merchant_data']['network_id'].toString().toLowerCase();
-    const [vendor] = await models.Collective.findOrCreate({
-      where: { slug },
-      defaults: { name: stripeTransaction['merchant_data']['name'], type: CollectiveTypes.VENDOR },
-    });
-
-    const hostCurrencyFxRate = await getFxRate('USD', host.currency);
-
-    // If it is a refund, we'll just create the transaction pair
-    if (isRefund) {
-      await models.Transaction.createDoubleEntry({
-        CollectiveId: vendor.id,
-        FromCollectiveId: collective.id,
-        HostCollectiveId: host.id,
-        description: `Virtual Card refund: ${vendor.name}`,
-        type: 'DEBIT',
-        currency: 'USD',
-        amount: amount,
-        netAmountInCollectiveCurrency: amount,
-        hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
-        paymentProcessorFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: 0,
-        platformFeeInHostCurrency: 0,
-        hostCurrencyFxRate,
-        isRefund: true,
-        kind: TransactionKind.EXPENSE,
-        data: stripeTransaction,
-      });
-    } else {
-      const description = `Virtual Card charge: ${vendor.name}`;
-
-      expense = await models.Expense.create({
-        UserId,
-        CollectiveId: collective.id,
-        FromCollectiveId: vendor.id,
-        currency: 'USD',
-        amount,
-        description,
-        VirtualCardId: virtualCard.id,
-        lastEditedById: UserId,
-        status: ExpenseStatus.PAID,
-        type: ExpenseType.CHARGE,
-        incurredAt: stripeTransaction.created,
-        data: { ...stripeTransaction, missingDetails: true },
-      });
-
-      await models.ExpenseItem.create({
-        ExpenseId: expense.id,
-        incurredAt: stripeTransaction.created,
-        CreatedByUserId: UserId,
-        amount,
-      });
-
-      await models.Transaction.createDoubleEntry({
-        // Note that Collective and FromCollective here are inverted because this is the CREDIT transaction
-        CollectiveId: vendor.id,
-        FromCollectiveId: collective.id,
-        HostCollectiveId: host.id,
-        description,
-        type: 'CREDIT',
-        currency: 'USD',
-        ExpenseId: expense.id,
-        amount,
-        netAmountInCollectiveCurrency: amount,
-        hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
-        paymentProcessorFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: 0,
-        platformFeeInHostCurrency: 0,
-        hostCurrencyFxRate,
-        kind: TransactionKind.EXPENSE,
-      });
-
-      expense.fromCollective = vendor;
-      expense.collective = collective;
-      if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
-        expense.createActivity(
-          activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-          { id: UserId },
-          { ...expense.data, user: virtualCard.user },
-        );
-      }
-    }
-
-    return expense;
-  } catch (e) {
-    if (expense) {
-      await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
-      await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
-      await expense.destroy();
-    }
-    throw e;
-  }
+  return persistTransaction(
+    virtualCard,
+    amount,
+    stripeTransaction['merchant_data']['network_id'],
+    stripeTransaction['merchant_data']['name'],
+    stripeTransaction.created,
+    stripeTransaction.id,
+    stripeTransaction,
+    isRefund,
+  );
 };
 
 const getStripeClient = (slug, token) => {
