@@ -2,15 +2,8 @@ import config from 'config';
 import { omit } from 'lodash';
 import Stripe from 'stripe';
 
-import activities from '../../constants/activities';
-import { types as CollectiveTypes } from '../../constants/collectives';
-import ExpenseStatus from '../../constants/expense_status';
-import ExpenseType from '../../constants/expense_type';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { getFxRate } from '../../lib/currency';
-import logger from '../../lib/logger';
 import models from '../../models';
-import { getConnectedAccountForPaymentProvider, persistTransaction, getVirtualCardForTransaction } from '../utils';
+import { getConnectedAccountForPaymentProvider, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
   const connectedAccount = getConnectedAccountForPaymentProvider(host, 'stripe');

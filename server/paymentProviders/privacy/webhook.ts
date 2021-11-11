@@ -1,8 +1,5 @@
 import { Request } from 'express';
 
-import logger from '../../lib/logger';
-import * as privacyLib from '../../lib/privacy';
-import models from '../../models';
 import { Transaction } from '../../types/privacy';
 
 import privacy from './index';

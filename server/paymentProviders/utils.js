@@ -1,3 +1,4 @@
+import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
 import ExpenseType from '../constants/expense_type';

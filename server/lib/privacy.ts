@@ -5,7 +5,6 @@ import crypto from 'crypto';
 import Axios from 'axios';
 import config from 'config';
 import Debug from 'debug';
-import { Request } from 'express';
 import { find, pick } from 'lodash';
 
 import { Card, PagingParams, PrivacyResponse, Transaction } from '../types/privacy';
