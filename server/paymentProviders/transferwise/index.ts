@@ -23,6 +23,7 @@ import {
   RecipientAccount,
   Transfer,
 } from '../../types/transferwise';
+import { getConnectedAccountForPaymentProvider } from '../utils';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
@@ -254,12 +255,7 @@ const getOrCreateActiveBatch = async (
   if (expense) {
     return expense.data.batchGroup as BatchGroup;
   } else {
-    const connectedAccount =
-      options?.connectedAccount ||
-      (await host.getConnectedAccounts({ where: { service: 'transferwise' } }).then(first));
-    if (!connectedAccount) {
-      throw new Error('Host is not connected to TransferWise');
-    }
+    const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
 
     const profileId = connectedAccount.data.id;
     const token = options?.token || (await getToken(connectedAccount));
@@ -283,11 +279,7 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
     throw new Error('Can not batch an expense with a currency different from its host currency');
   }
 
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
-  if (!connectedAccount) {
-    throw new Error('Host is not connected to TransferWise');
-  }
-  const token = await getToken(connectedAccount);
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
@@ -310,10 +302,9 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
   if (!host) {
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'transferwise' } });
-  if (!connectedAccount) {
-    throw new Error('Host is not connected to TransferWise');
-  }
+
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+
   const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
 
@@ -335,12 +326,8 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
 }
 
 async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'transferwise', deletedAt: null },
-  });
-  if (!connectedAccount) {
-    throw new Error('Host is not connected to TransferWise');
-  }
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+
   const profileId = connectedAccount.data.id;
   const token = await getToken(connectedAccount);
 
@@ -392,12 +379,7 @@ async function getAvailableCurrencies(
   host: typeof models.Collective,
   ignoreBlockedCurrencies = true,
 ): Promise<{ code: string; minInvoiceAmount: number }[]> {
-  const connectedAccount = await models.ConnectedAccount.findOne({
-    where: { service: 'transferwise', CollectiveId: host.id },
-  });
-  if (!connectedAccount) {
-    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
-  }
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
 
   let currencyBlockList = [];
   if (ignoreBlockedCurrencies) {
@@ -460,12 +442,8 @@ async function getRequiredBankInformation(
     return fromCache;
   }
 
-  const connectedAccount = await models.ConnectedAccount.findOne({
-    where: { service: 'transferwise', CollectiveId: host.id },
-  });
-  if (!connectedAccount) {
-    throw new TransferwiseError('Host is not connected to Transferwise', 'transferwise.error.notConnected');
-  }
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'transferwise');
+
   const token = await getToken(connectedAccount);
   await populateProfileId(connectedAccount);
 

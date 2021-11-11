@@ -18,6 +18,7 @@ import { PayoutWebhookRequest } from '../../types/paypal';
 import { paypalRequestV2 } from './api';
 import { recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
+import { getConnectedAccountForPaymentProvider } from '../utils';
 
 const debug = Debug('paypal:webhook');
 
@@ -26,10 +27,7 @@ const getPaypalAccount = async host => {
     throw new Error('PayPal webhook: no host found');
   }
 
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'paypal', deletedAt: null } });
-  if (!connectedAccount) {
-    throw new Error(`Host ${host.slug} is not connected to PayPal`);
-  }
+  const connectedAccount = await getConnectedAccountForPaymentProvider(host, 'paypal');
 
   return connectedAccount;
 };
