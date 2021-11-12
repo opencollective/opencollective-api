@@ -69,7 +69,9 @@ const accountMutations = {
           throwIfMissing: true,
         });
 
-        if (!req.remoteUser.isAdminOfCollective(account)) {
+        const isKeyEditableByHostAdmins = ['expenseTypes'].includes(args.key);
+        const permissionMethod = isKeyEditableByHostAdmins ? 'isAdminOfCollectiveOrHost' : 'isAdminOfCollective';
+        if (!req.remoteUser[permissionMethod](account)) {
           throw new Forbidden();
         }
 
