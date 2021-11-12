@@ -13,14 +13,16 @@ const providerName = 'privacy';
 
 const processTransaction = async (
   privacyTransaction: Transaction,
-  privacySignature: string,
-  privacyEventRawBody: string,
+  privacyEvent: any,
 ): Promise<typeof models.Expense | undefined> => {
   const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
-  const host = virtualCard.host;
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
-  privacyLib.verifyEvent(privacySignature, privacyEventRawBody, connectedAccount.token);
+  if (privacyEvent) {
+    const host = virtualCard.host;
+    const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+
+    privacyLib.verifyEvent(privacyEvent.signature, privacyEvent.rawBody, connectedAccount.token);
+  }
 
   const amount = privacyTransaction.settled_amount;
   const isRefund = amount < 0;
