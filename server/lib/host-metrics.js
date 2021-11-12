@@ -279,7 +279,7 @@ GROUP BY t1."hostCurrency"`,
       {
         replacements: {
           CollectiveId: host.id,
-          CollectiveIds: collectiveIds?.toString(),
+          CollectiveIds: collectiveIds,
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
@@ -358,7 +358,7 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, collect
       {
         replacements: {
           CollectiveId: host.id,
-          FromCollectiveIds: collectiveIds?.toString(),
+          FromCollectiveIds: collectiveIds,
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
