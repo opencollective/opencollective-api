@@ -109,7 +109,7 @@ describe('server/lib/host', () => {
     });
     expect(res.byCurrency).to.have.length(2);
     expect(res.totalInHostCurrency).to.equal(0);
-    const cad = res.byCurrency.find(a => a.currency === 'CAD');
+    const cad = res.byCurrency.find(a => a.hostCurrency === 'CAD');
     expect(cad.amount).to.equal(0);
     // TODO: test with new host metrics
   });
