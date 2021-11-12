@@ -52,16 +52,23 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, collec
   return await models.VirtualCard.create(cardData);
 };
 
-export const processTransaction = async (stripeTransaction, stripeSignature, stripeEventRawBody) => {
+export const processTransaction = async (stripeTransaction, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
-  const host = virtualCard.host;
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
-  const stripe = getStripeClient(host.slug, connectedAccount.token);
 
-  try {
-    stripe.webhooks.constructEvent(stripeEventRawBody, stripeSignature, connectedAccount.data.stripeEndpointSecret);
-  } catch {
-    throw new Error('Source of event not recognized');
+  if (stripeEvent) {
+    const host = virtualCard.host;
+    const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+    const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+    try {
+      stripe.webhooks.constructEvent(
+        stripeEvent.rawBody,
+        stripeEvent.signature,
+        connectedAccount.data.stripeEndpointSecret,
+      );
+    } catch {
+      throw new Error('Source of event not recognized');
+    }
   }
 
   const amount = -stripeTransaction.amount;
