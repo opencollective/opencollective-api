@@ -156,7 +156,6 @@ describe('server/lib/notification', () => {
             '<div>Test<iframe src="https://www.youtube.com/watch?v=X<script>xxx</script>XX\\"YY<script>xxx</script>Y><</iframe>"\'aYjD<script>xxx</script></aler>yjyQ&ab_channel=NPRMusic"></iframe>',
             '<div>Test<iframe src="https://www.youtube.com/watch?v=xxx<script></script>"></iframe>',
             '<div>Test<iframe src="https://www.youtube.com/watch?v=xxx<script></script>yyy"></iframe>',
-            '<div>Test<iframe src="https://www.test.com/watch?v=xxx<script></script>"></iframe>',
           ];
           const updates = await Promise.all(tests.map(html => fakeUpdate({ CollectiveId: collective.id, html })));
 
