@@ -3,6 +3,7 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, remove } from 'lodash';
+import sanitizeHtml from 'sanitize-html';
 
 import { activities, channels } from '../constants';
 import activityType from '../constants/activities';
@@ -13,6 +14,7 @@ import emailLib, { NO_REPLY_EMAIL } from '../lib/email';
 import models from '../models';
 
 import { getTransactionPdf } from './pdf';
+import { buildSanitizerOptions } from './sanitize-html';
 import slackLib from './slack';
 import twitter from './twitter';
 import { parseToBoolean, toIsoDateStr } from './utils';
@@ -241,26 +243,42 @@ const notifyUpdateSubscribers = async activity => {
 };
 
 function replaceVideosByImagePreviews(activity) {
-  const iframePreviewRegex = /<iframe\s[^>]*src="([^"]+)"[^>]*><\/iframe>/gi;
-  activity.data.update.html = activity.data.update.html
-    .replace(iframePreviewRegex, (_, href) => {
-      const { service, id } = parseServiceLink(href);
+  const sanitizeOptions = buildSanitizerOptions({
+    links: true,
+    mainTitles: true,
+    titles: true,
+    basicTextFormatting: true,
+    multilineTextFormatting: true,
+    images: true,
+    tables: true,
+  });
+  sanitizeOptions.transformTags = {
+    ...sanitizeOptions.transformTags,
+    iframe: (tagName, attribs) => {
+      const { service, id } = parseServiceLink(attribs.src);
       const imgSrc = constructPreviewImageURL(service, id);
       if (imgSrc) {
-        return `<img src="${imgSrc}" alt="${service} content">`;
+        return {
+          tagName: 'img',
+          attribs: {
+            src: imgSrc,
+            alt: `${service} content`,
+          },
+        };
       } else {
         return '';
       }
-    })
-    .replace(/<iframe\s[^>]><\/iframe>/gi, '');
+    },
+  };
+  activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizeOptions);
   return activity;
 }
 
 function constructPreviewImageURL(service, id) {
-  if (service === 'youtube') {
+  if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
   } else if (service === 'anchorFm') {
-    return `https://theme.zdassets.com/theme_assets/2009830/ed34a3258bf8d79c3db30e4269dd95052481fc50.png`;
+    return `https://opencollective.com/static/images/anchor-fm-logo.png`;
   } else {
     return null;
   }
