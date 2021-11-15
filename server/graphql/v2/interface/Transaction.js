@@ -19,7 +19,7 @@ import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-pe
 import * as TransactionLib from '../../common/transactions';
 import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
-import { getIdEncodeResolver, idEncode, IDENTIFIER_TYPES } from '../identifiers';
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
 import { Order } from '../object/Order';
@@ -215,7 +215,7 @@ export const TransactionFields = () => {
     id: {
       type: new GraphQLNonNull(GraphQLString),
       resolve(transaction) {
-        return idEncode(transaction.id, 'transaction');
+        return transaction.uuid;
       },
     },
     legacyId: {
