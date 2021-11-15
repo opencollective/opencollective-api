@@ -18,7 +18,7 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 {{#if event.address}}
   {{#if isOffline }}
     The location is {{ event.locationName }} ({{event.address}}).
-  {{else if event.address}}
+  {{else}}
     Join us at {{event.address}}.
   {{/if}}
 {{/if}}
