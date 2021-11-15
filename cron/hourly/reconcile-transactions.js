@@ -14,6 +14,8 @@ import { processTransaction } from '../../server/paymentProviders/stripe/virtual
 
 const DRY = process.env.DRY;
 
+const HOST_ID = process.env.HOST_ID || null;
+
 async function reconcileConnectedAccount(connectedAccount) {
   const host = await models.Collective.findByPk(connectedAccount.CollectiveId);
 
@@ -34,7 +36,7 @@ async function reconcileConnectedAccount(connectedAccount) {
 
       logger.info(`\nReconciling card ${card.id}: fetching transactions since ${begin}`);
 
-      if (card.provider === 'PRIVACY') {
+      if (card.provider === 'PRIVACY' && connectedAccount.service === 'privacy') {
         const { data: transactions } = await privacyLib.listTransactions(
           connectedAccount.token,
           card.id,
@@ -58,7 +60,7 @@ async function reconcileConnectedAccount(connectedAccount) {
         }
       }
 
-      if (card.provider === 'STRIPE') {
+      if (card.provider === 'STRIPE' && connectedAccount.service === 'stripe') {
         const stripe = Stripe(host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token);
 
         const { data: transactions } = await stripe.issuing.transactions.list({
@@ -86,8 +88,30 @@ export async function run() {
     logger.warn(`Running DRY, no changes to the DB`);
   }
 
+  const where = {
+    service: { [Op.or]: [ConnectedAccountServices.PRIVACY, ConnectedAccountServices.STRIPE] },
+  };
+
+  if (HOST_ID) {
+    where.CollectiveId = HOST_ID;
+  }
+
   const connectedAccounts = await models.ConnectedAccount.findAll({
-    where: { service: { [Op.or]: [ConnectedAccountServices.PRIVACY, ConnectedAccountServices.STRIPE] } },
+    where,
+    include: [
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        include: [
+          {
+            model: models.VirtualCard,
+            as: 'virtualCards',
+            required: true,
+          },
+        ],
+      },
+    ],
   });
   logger.info(`Found ${connectedAccounts.length} connected Privacy and Stripe accounts...`);
 
