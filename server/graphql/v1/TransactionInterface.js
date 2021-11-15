@@ -9,7 +9,6 @@ import {
 import { get } from 'lodash';
 
 import models from '../../models';
-import { idEncode } from '../v2/identifiers';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
 import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
@@ -88,7 +87,7 @@ const TransactionFields = () => {
     idV2: {
       type: GraphQLString,
       resolve(transaction) {
-        return idEncode(transaction.id, 'transaction');
+        return transaction.uuid;
       },
     },
     refundTransaction: {
