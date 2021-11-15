@@ -15,9 +15,8 @@ import { processTransaction } from '../../server/paymentProviders/stripe/virtual
 const DRY = process.env.DRY;
 
 async function reconcileConnectedAccount(connectedAccount) {
-  const host = await models.Collective.findByPk(connectedAccount.CollectiveId);
-
-  const cards = await models.VirtualCard.findAll({ where: { HostCollectiveId: host.id } });
+  const host = connectedAccount.collective;
+  const cards = host.virtualCards.filter(card => card.provider === connectedAccount.service.toUpperCase());
 
   logger.info(`Found ${cards.length} cards connected to host #${connectedAccount.CollectiveId} ${host.slug}...`);
 
@@ -88,6 +87,20 @@ export async function run() {
 
   const connectedAccounts = await models.ConnectedAccount.findAll({
     where: { service: { [Op.or]: [ConnectedAccountServices.PRIVACY, ConnectedAccountServices.STRIPE] } },
+    include: [
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        include: [
+          {
+            model: models.VirtualCard,
+            as: 'virtualCards',
+            required: true,
+          },
+        ],
+      },
+    ],
   });
   logger.info(`Found ${connectedAccounts.length} connected Privacy and Stripe accounts...`);
 
