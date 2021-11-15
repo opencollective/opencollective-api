@@ -12,9 +12,9 @@ import { TransactionTypes } from '../constants/transactions';
 import activitiesLib from '../lib/activities';
 import emailLib, { NO_REPLY_EMAIL } from '../lib/email';
 import models from '../models';
+import { sanitizerOptions } from '../models/Update';
 
 import { getTransactionPdf } from './pdf';
-import { buildSanitizerOptions } from './sanitize-html';
 import slackLib from './slack';
 import twitter from './twitter';
 import { parseToBoolean, toIsoDateStr } from './utils';
@@ -243,17 +243,8 @@ const notifyUpdateSubscribers = async activity => {
 };
 
 function replaceVideosByImagePreviews(activity) {
-  const sanitizeOptions = buildSanitizerOptions({
-    links: true,
-    mainTitles: true,
-    titles: true,
-    basicTextFormatting: true,
-    multilineTextFormatting: true,
-    images: true,
-    tables: true,
-  });
-  sanitizeOptions.transformTags = {
-    ...sanitizeOptions.transformTags,
+  sanitizerOptions.transformTags = {
+    ...sanitizerOptions.transformTags,
     iframe: (tagName, attribs) => {
       const { service, id } = parseServiceLink(attribs.src);
       const imgSrc = constructPreviewImageURL(service, id);
@@ -270,7 +261,7 @@ function replaceVideosByImagePreviews(activity) {
       }
     },
   };
-  activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizeOptions);
+  activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizerOptions);
   return activity;
 }
 

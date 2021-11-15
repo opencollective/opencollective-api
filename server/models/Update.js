@@ -12,7 +12,7 @@ import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 
-const sanitizerOptions = buildSanitizerOptions({
+export const sanitizerOptions = buildSanitizerOptions({
   titles: true,
   mainTitles: true,
   basicTextFormatting: true,

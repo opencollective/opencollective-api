@@ -156,6 +156,7 @@ describe('server/lib/notification', () => {
             '<div>Test<iframe src="https://www.youtube.com/watch?v=X<script>xxx</script>XX\\"YY<script>xxx</script>Y><</iframe>"\'aYjD<script>xxx</script></aler>yjyQ&ab_channel=NPRMusic"></iframe>',
             '<div>Test<iframe src="https://www.youtube.com/watch?v=xxx<script></script>"></iframe>',
             '<div>Test<iframe src="https://www.youtube.com/watch?v=xxx<script></script>yyy"></iframe>',
+            '<div>Test<iframe src="https://www.test.com/watch?v=xxx<script></script>"></iframe>',
           ];
           const updates = await Promise.all(tests.map(html => fakeUpdate({ CollectiveId: collective.id, html })));
 
@@ -166,7 +167,11 @@ describe('server/lib/notification', () => {
             await notify(activity);
           }
 
-          await utils.waitForCondition(() => sendEmailSpy.callCount === tests.length);
+          /*
+           * The first three tests should pass as they are allowed domains. The final test with www.test.com should
+           * be stripped out since this is not a domain that we should not allow.
+           */
+          await utils.waitForCondition(() => sendEmailSpy.callCount === tests.length - 1);
 
           for (const call of sendEmailSpy.getCalls()) {
             const result = call.args[2].update.html;
