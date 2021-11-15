@@ -220,7 +220,10 @@ export default {
     }
 
     if (requestBody.type === 'issuing_transaction.created') {
-      return processTransaction(requestBody.data.object, request.headers['stripe-signature'], request.rawBody);
+      return processTransaction(requestBody.data.object, {
+        signature: request.headers['stripe-signature'],
+        rawBody: request.rawBody,
+      });
     }
 
     /**

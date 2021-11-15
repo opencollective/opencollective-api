@@ -2807,6 +2807,18 @@ function defineModel() {
       });
   };
 
+  Collective.prototype.getAccountForPaymentProvider = async function (provider) {
+    const connectedAccount = await models.ConnectedAccount.findOne({
+      where: { service: provider, CollectiveId: this.id },
+    });
+
+    if (!connectedAccount) {
+      throw new Error(`Host ${this.slug} is not connected to ${provider}`);
+    }
+
+    return connectedAccount;
+  };
+
   Collective.prototype.getTopBackers = async function (since, until, limit) {
     const backers = await queries.getMembersWithTotalDonations(
       { CollectiveId: this.id, role: 'BACKER' },
