@@ -83,11 +83,11 @@ export const persistTransaction = async (
     // If it is a refund, we'll just create the transaction pair
     if (isRefund) {
       await models.Transaction.createDoubleEntry({
-        CollectiveId: vendor.id,
-        FromCollectiveId: collective.id,
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
         HostCollectiveId: host.id,
         description: `Virtual Card refund: ${vendor.name}`,
-        type: 'DEBIT',
+        type: 'CREDIT',
         currency: 'USD',
         amount: amount,
         netAmountInCollectiveCurrency: amount,
@@ -127,12 +127,11 @@ export const persistTransaction = async (
       });
 
       await models.Transaction.createDoubleEntry({
-        // Note that Collective and FromCollective here are inverted because this is the CREDIT transaction
-        CollectiveId: vendor.id,
-        FromCollectiveId: collective.id,
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
         HostCollectiveId: host.id,
         description,
-        type: 'CREDIT',
+        type: 'DEBIT',
         currency: 'USD',
         ExpenseId: expense.id,
         amount,
