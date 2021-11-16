@@ -59,9 +59,26 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, 
 
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
+
+  if (!virtualCard) {
+    throw new Error(`Virtual card ${stripeAuthorization.card.id} not found`);
+  }
+
   const host = virtualCard.host;
 
   checkStripeEvent(host, stripeEvent);
+
+  const amount = stripeAuthorization.amount;
+  const balance = await host.getBalanceWithBlockedFundsAmount();
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+  if (balance >= amount) {
+    await stripe.issuing.authorizations.approve(stripeAuthorization.id);
+  } else {
+    await stripe.issuing.authorizations.decline(stripeAuthorization.id);
+    throw new Error('Balance not sufficient');
+  }
 
   const existingExpense = await models.Expense.findOne({
     where: {
@@ -74,7 +91,6 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     return;
   }
 
-  const amount = stripeAuthorization.amount;
   const vendor = getOrCreateVendor(
     stripeAuthorization['merchant_data']['network_id'],
     stripeAuthorization['merchant_data']['name'],
