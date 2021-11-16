@@ -78,11 +78,7 @@ export const persistTransaction = async (
   let expense;
 
   try {
-    const slug = vendorProviderId.toString().toLowerCase();
-    const [vendor] = await models.Collective.findOrCreate({
-      where: { slug },
-      defaults: { name: vendorName, type: CollectiveTypes.VENDOR },
-    });
+    const vendor = getOrCreateVendor(vendorProviderId, vendorName);
 
     const hostCurrencyFxRate = await getFxRate('USD', host.currency);
     const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
@@ -172,4 +168,15 @@ export const persistTransaction = async (
     }
     throw e;
   }
+};
+
+export const getOrCreateVendor = (vendorProviderId, vendorName) => {
+  const slug = vendorProviderId.toString().toLowerCase();
+
+  const [vendor] = await models.Collective.findOrCreate({
+    where: { slug },
+    defaults: { name: vendorName, type: CollectiveTypes.VENDOR },
+  });
+
+  return vendor;
 };
