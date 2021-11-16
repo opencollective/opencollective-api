@@ -73,7 +73,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
-  if (balance >= amount) {
+  if (balance.value >= amount) {
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
   } else {
     await stripe.issuing.authorizations.decline(stripeAuthorization.id);
