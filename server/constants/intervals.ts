@@ -1,4 +1,5 @@
 enum INTERVALS {
+  WEEK = 'week',
   MONTH = 'month',
   YEAR = 'year',
   FLEXIBLE = 'flexible',

@@ -190,8 +190,8 @@ function defineModel() {
         type: DataTypes.STRING(8),
         validate: {
           isIn: {
-            args: [['month', 'year', 'flexible']],
-            msg: 'Must be month, year or flexible',
+            args: [['week', 'month', 'year', 'flexible']],
+            msg: 'Must be week, month, year or flexible',
           },
           isValidTier(value) {
             if (this.amountType === 'FIXED' && value === 'flexible') {

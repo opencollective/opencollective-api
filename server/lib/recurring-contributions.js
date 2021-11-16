@@ -231,7 +231,9 @@ export function getNextChargeAndPeriodStartDates(status, order) {
   const response = {};
 
   if (status === 'new' || status === 'success') {
-    if (order.Subscription.interval === intervals.MONTH) {
+    if (order.Subscription.interval === intervals.WEEK) {
+      nextChargeDate.add(1, 'weeks');
+    } else if (order.Subscription.interval === intervals.MONTH) {
       nextChargeDate.add(1, 'months');
     } else if (order.Subscription.interval === intervals.YEAR) {
       nextChargeDate.add(1, 'years');
