@@ -160,6 +160,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     stripeTransaction.id,
     stripeTransaction,
     isRefund,
+    stripeTransaction.authorization,
   );
 };
 

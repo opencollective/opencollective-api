@@ -38,6 +38,7 @@ export const persistTransaction = async (
   transactionToken,
   providerTransaction,
   isRefund = false,
+  fromAuthorizationId = null,
 ) => {
   if (amount === 0) {
     return;
@@ -45,6 +46,26 @@ export const persistTransaction = async (
 
   // Make sure amount is an absolute value
   amount = Math.abs(amount);
+
+  const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
+
+  if (fromAuthorizationId) {
+    const processingExpense = await models.Expense.findOne({
+      where: {
+        VirtualCardId: virtualCard.id,
+        data: { authorizationId: fromAuthorizationId },
+      },
+    });
+
+    if (processingExpense && processingExpense.status === ExpenseStatus.PROCESSING) {
+      await processingExpense.update({
+        status: ExpenseStatus.PAID,
+        data,
+      });
+
+      return processingExpense;
+    }
+  }
 
   const UserId = virtualCard.UserId;
   const host = virtualCard.host;
@@ -79,9 +100,7 @@ export const persistTransaction = async (
 
   try {
     const vendor = getOrCreateVendor(vendorProviderId, vendorName);
-
     const hostCurrencyFxRate = await getFxRate('USD', host.currency);
-    const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
 
     // If it is a refund, we'll just create the transaction pair
     if (isRefund) {
