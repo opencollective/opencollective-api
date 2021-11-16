@@ -85,7 +85,11 @@ const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
     await virtualCard.destroy();
   } else {
     const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
-    await virtualCard.update({ data: newData });
+    await virtualCard.update({
+      spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
+      spendingLimitInterval: card['spend_limit_duration'],
+      data: newData,
+    });
   }
   return virtualCard;
 };
