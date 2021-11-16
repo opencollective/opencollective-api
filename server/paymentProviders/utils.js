@@ -1,3 +1,5 @@
+import { omit } from 'lodash';
+
 import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
@@ -83,6 +85,7 @@ export const persistTransaction = async (
     });
 
     const hostCurrencyFxRate = await getFxRate('USD', host.currency);
+    const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
 
     // If it is a refund, we'll just create the transaction pair
     if (isRefund) {
@@ -103,7 +106,7 @@ export const persistTransaction = async (
         hostCurrencyFxRate,
         isRefund: true,
         kind: TransactionKind.EXPENSE,
-        data: providerTransaction,
+        data,
       });
     } else {
       const description = `Virtual Card charge: ${vendor.name}`;
@@ -120,7 +123,7 @@ export const persistTransaction = async (
         status: ExpenseStatus.PAID,
         type: ExpenseType.CHARGE,
         incurredAt,
-        data: { ...providerTransaction, missingDetails: true },
+        data: { ...data, missingDetails: true },
       });
 
       await models.ExpenseItem.create({
