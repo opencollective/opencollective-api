@@ -1130,7 +1130,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
  */
 const getTransactionsTimeSeries = async (kind, type, hostCollectiveId, timeUnit, collectiveIds, dateFrom, dateTo) => {
   return sequelize.query(
-    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum(amount) as "amount", "currency"
+    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
        FROM "Transactions"
        WHERE kind = :kind
          AND "HostCollectiveId" = :hostCollectiveId
@@ -1139,7 +1139,7 @@ const getTransactionsTimeSeries = async (kind, type, hostCollectiveId, timeUnit,
          ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
          ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``}
          ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
-       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "currency"
+       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
       `,
     {

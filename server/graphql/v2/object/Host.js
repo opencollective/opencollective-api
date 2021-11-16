@@ -73,6 +73,40 @@ const convertCurrencyAmount = async (fromCurrency, toCurrency, date, amount) => 
   return { date: date, amount: convertedAmount };
 };
 
+const amountsOverTimeInHostCurrency = async (
+  host,
+  transactionKind,
+  transactionType,
+  timeUnit,
+  collectiveIds,
+  dateFrom,
+  dateTo,
+) => {
+  const transactionDatePoints = await queries.getTransactionsTimeSeries(
+    transactionKind,
+    transactionType,
+    host.id,
+    timeUnit,
+    collectiveIds,
+    dateFrom,
+    dateTo,
+  );
+  const dataPointsInHostCurrency = transactionDatePoints.map(async contributionAmount => {
+    const contributionAmountInHostCurrency = await convertCurrencyAmount(
+      contributionAmount.currency,
+      host.currency,
+      contributionAmount.date,
+      contributionAmount.amount,
+    );
+    return {
+      date: contributionAmountInHostCurrency.date,
+      amount: contributionAmountInHostCurrency.amount,
+      currency: host.currency,
+    };
+  });
+  return await Promise.all(dataPointsInHostCurrency);
+};
+
 export const Host = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
@@ -551,38 +585,24 @@ export const Host = new GraphQLObjectType({
           }
 
           const contributionAmountOverTime = async () => {
-            let contributionAmountOverTime;
-            if (args.timeUnit) {
-              const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
-              const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-              contributionAmountOverTime = await queries.getTransactionsTimeSeries(
-                TransactionKind.CONTRIBUTION,
-                TransactionTypes.CREDIT,
-                host.id,
-                args.timeUnit,
-                collectiveIds,
-                dateFrom,
-                dateTo,
-              );
-              contributionAmountOverTime = contributionAmountOverTime.map(contributionAmount =>
-                convertCurrencyAmount(
-                  contributionAmount.currency,
-                  host.currency,
-                  contributionAmount.date,
-                  contributionAmount.amount,
-                ),
-              );
-              contributionAmountOverTime = await Promise.all(contributionAmountOverTime);
-              contributionAmountOverTime = contributionAmountOverTime.map(({ date, amount }) => {
-                return { date, amount, currency: host.currency };
-              });
-            }
+            const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
+            const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+
+            const amountDataPoints = await amountsOverTimeInHostCurrency(
+              host,
+              TransactionKind.CONTRIBUTION,
+              TransactionTypes.CREDIT,
+              args.timeUnit,
+              collectiveIds,
+              dateFrom,
+              dateTo,
+            );
 
             return {
               dateFrom: args.dateFrom || host.createdAt,
               dateTo: args.dateTo || new Date(),
               timeUnit: args.timeUnit,
-              nodes: resultsToAmountNode(contributionAmountOverTime),
+              nodes: resultsToAmountNode(amountDataPoints),
             };
           };
 
@@ -656,33 +676,23 @@ export const Host = new GraphQLObjectType({
           }
 
           const expenseAmountOverTime = async () => {
-            let expenseAmountOverTime;
-            if (args.timeUnit) {
-              const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
-              const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-              expenseAmountOverTime = await queries.getTransactionsTimeSeries(
-                TransactionKind.EXPENSE,
-                TransactionTypes.DEBIT,
-                host.id,
-                args.timeUnit,
-                collectiveIds,
-                dateFrom,
-                dateTo,
-              );
-              expenseAmountOverTime = expenseAmountOverTime.map(expenseAmount =>
-                convertCurrencyAmount(expenseAmount.currency, host.currency, expenseAmount.date, expenseAmount.amount),
-              );
-              expenseAmountOverTime = await Promise.all(expenseAmountOverTime);
-              expenseAmountOverTime = expenseAmountOverTime.map(({ date, amount }) => {
-                return { date, amount: Math.abs(amount), currency: host.currency };
-              });
-            }
+            const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
+            const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+            const amountDataPoints = await amountsOverTimeInHostCurrency(
+              host,
+              TransactionKind.EXPENSE,
+              TransactionTypes.DEBIT,
+              args.timeUnit,
+              collectiveIds,
+              dateFrom,
+              dateTo,
+            );
 
             return {
               dateFrom: args.dateFrom || host.createdAt,
               dateTo: args.dateTo || new Date(),
               timeUnit: args.timeUnit,
-              nodes: resultsToAmountNode(expenseAmountOverTime),
+              nodes: resultsToAmountNode(amountDataPoints),
             };
           };
 
