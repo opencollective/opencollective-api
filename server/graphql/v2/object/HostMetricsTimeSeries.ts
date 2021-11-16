@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import * as HostMetricsLib from '../../../lib/host-metrics';
+import { fetchAccountsWithReferences } from '../input/AccountReferenceInput';
 
 import { TimeSeriesAmount } from './TimeSeriesAmount';
 import { TimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement';
@@ -54,8 +55,13 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
     totalMoneyManaged: {
       type: new GraphQLNonNull(TimeSeriesAmount),
       description: 'History of the total money managed by this host',
-      resolve: async ({ host, dateFrom, dateTo, timeUnit }) => {
-        const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, timeUnit };
+      resolve: async ({ host, account, dateFrom, dateTo, timeUnit }) => {
+        let collectiveIds;
+        if (account) {
+          const collectives = await fetchAccountsWithReferences(account);
+          collectiveIds = collectives.map(collective => collective.id);
+        }
+        const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, collectiveIds, timeUnit };
         const results = await HostMetricsLib.getTotalMoneyManagedTimeSeries(host, timeSeriesParams);
         return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountNode(results) };
       },

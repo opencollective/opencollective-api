@@ -4,6 +4,7 @@ import moment from 'moment';
 
 import { sequelize } from '../models';
 
+import { getBalanceAmount, getTotalMoneyManagedAmount } from './budget';
 import { getFxRate } from './currency';
 import { parseToBoolean } from './utils';
 
@@ -258,27 +259,43 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   return orderBy(mergedTimeSeries, 'date');
 }
 
-export async function getTotalMoneyManagedTimeSeries(host, { startDate, endDate, timeUnit } = {}) {
+export async function getTotalMoneyManagedTimeSeries(
+  host,
+  { startDate, endDate, collectiveIds = null, timeUnit } = {},
+) {
   const hostedCollectives = await host.getHostedCollectives();
-  const ids = hostedCollectives.map(c => c.id);
+  if (!collectiveIds) {
+    collectiveIds = hostedCollectives.map(c => c.id);
+  }
 
   const results = await sequelize.query(
-    `SELECT t1."netAmountInCollectiveCurrency" as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+    `SELECT t1."amountInHostCurrency" as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
-WHERE t1."CollectiveId" IN (${ids})
+WHERE t1."HostCollectiveId" = :HostCollectiveId
+AND t1."CollectiveId" IN (:CollectiveIds)
 AND t1."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER')
 AND t1."createdAt" >= :startDate AND t1."createdAt" < :endDate
 AND t1."deletedAt" IS NULL
-GROUP BY t1."netAmountInCollectiveCurrency", t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+GROUP BY t1."amountInHostCurrency", t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     {
-      replacements: { ...computeDates(startDate, endDate), timeUnit },
+      replacements: {
+        ...computeDates(startDate, endDate),
+        timeUnit,
+        HostCollectiveId: host.id,
+        CollectiveIds: collectiveIds,
+      },
       type: sequelize.QueryTypes.SELECT,
     },
   );
 
+  const balanceAtStartDate = await getTotalMoneyManagedAmount(host, {
+    endDate: startDate,
+    collectiveIds,
+    currency: host.currency,
+  });
   const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
-  return [...timeSeries.map(point => ({ ...point, amount: point.amount }))];
+  return timeSeries.map(point => ({ ...point, amount: point.amount + balanceAtStartDate.value }));
 }
 
 export async function getHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
