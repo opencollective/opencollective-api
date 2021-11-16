@@ -99,7 +99,7 @@ export const persistTransaction = async (
   let expense;
 
   try {
-    const vendor = getOrCreateVendor(vendorProviderId, vendorName);
+    const vendor = await getOrCreateVendor(vendorProviderId, vendorName);
     const hostCurrencyFxRate = await getFxRate('USD', host.currency);
 
     // If it is a refund, we'll just create the transaction pair
@@ -189,7 +189,7 @@ export const persistTransaction = async (
   }
 };
 
-export const getOrCreateVendor = (vendorProviderId, vendorName) => {
+export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
   const slug = vendorProviderId.toString().toLowerCase();
 
   const [vendor] = await models.Collective.findOrCreate({

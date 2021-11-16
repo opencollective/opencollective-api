@@ -66,7 +66,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   const host = virtualCard.host;
 
-  checkStripeEvent(host, stripeEvent);
+  await checkStripeEvent(host, stripeEvent);
 
   const amount = stripeAuthorization.amount;
   const balance = await host.getBalanceWithBlockedFundsAmount();
@@ -91,7 +91,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     return;
   }
 
-  const vendor = getOrCreateVendor(
+  const vendor = await getOrCreateVendor(
     stripeAuthorization['merchant_data']['network_id'],
     stripeAuthorization['merchant_data']['name'],
   );
@@ -161,7 +161,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
 
   if (stripeEvent) {
-    checkStripeEvent(virtualCard.host, stripeEvent);
+    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
   const amount = -stripeTransaction.amount;
@@ -180,7 +180,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
   );
 };
 
-const checkStripeEvent = (stripeEvent, host) => {
+const checkStripeEvent = async (stripeEvent, host) => {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
