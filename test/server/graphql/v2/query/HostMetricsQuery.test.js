@@ -54,7 +54,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
     });
     collectiveAdminUser = await fakeUser();
     hostAdminUser = await fakeUser();
-    host = await fakeHost({ plan: 'grow-plan-2021' });
+    host = await fakeHost({ plan: 'grow-plan-2021', createdAt: '2015-01-01' });
     await host.addUserWithRole(hostAdminUser, 'ADMIN');
 
     collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
@@ -117,9 +117,20 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         expect(hostMetrics.hostFeeShare.valueInCents).to.equal(45);
       });
 
-      it('correctly calculates totalMoneyManaged', async () => {
-        const dateFrom = new Date('2021-01-01').toISOString();
+      it('correctly calculates totalMoneyManaged for the whole period', async () => {
+        const dateFrom = new Date(host.createdAt).toISOString();
         const dateTo = new Date().toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        const hostMetricsTimeSeriesNodes = queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManaged.nodes;
+        const totalMoneyManaged = sumBy(hostMetricsTimeSeriesNodes, node => node.amount.valueInCents);
+        expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
+      });
+
+      it('correctly calculates totalMoneyManaged for a given month', async () => {
+        const dateFrom = new Date(host.createdAt).toISOString();
+        const dateTo = new Date('2021-03-01').toISOString();
         const variables = { slug: host.slug, dateFrom, dateTo };
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;

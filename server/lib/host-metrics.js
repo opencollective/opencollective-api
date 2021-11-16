@@ -266,7 +266,7 @@ export async function getTotalMoneyManagedTimeSeries(host, { startDate, endDate,
     `SELECT t1."netAmountInCollectiveCurrency" as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
 WHERE t1."CollectiveId" IN (${ids})
-AND t1."type" = 'CREDIT'
+AND t1."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER')
 AND t1."createdAt" >= :startDate AND t1."createdAt" < :endDate
 AND t1."deletedAt" IS NULL
 GROUP BY t1."netAmountInCollectiveCurrency", t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
