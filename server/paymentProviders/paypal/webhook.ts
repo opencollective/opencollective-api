@@ -26,12 +26,7 @@ const getPaypalAccount = async host => {
     throw new Error('PayPal webhook: no host found');
   }
 
-  const [connectedAccount] = await host.getConnectedAccounts({ where: { service: 'paypal', deletedAt: null } });
-  if (!connectedAccount) {
-    throw new Error(`Host ${host.slug} is not connected to PayPal`);
-  }
-
-  return connectedAccount;
+  return host.getAccountForPaymentProvider('paypal');
 };
 
 async function handlePayoutTransactionUpdate(req: Request): Promise<void> {

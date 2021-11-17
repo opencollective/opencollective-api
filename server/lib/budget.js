@@ -238,9 +238,11 @@ async function sumCollectivesTransactions(
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
 
-  const where = {
-    CollectiveId: ids,
-  };
+  const where = {};
+
+  if (ids) {
+    where.CollectiveId = ids;
+  }
   if (transactionType) {
     where.type = transactionType;
   }
@@ -272,9 +274,11 @@ async function sumCollectivesTransactions(
 
   const totals = {};
 
-  // Initialize total
-  for (const CollectiveId of ids) {
-    totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+  // Initialize totals
+  if (ids) {
+    for (const CollectiveId of ids) {
+      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+    }
   }
 
   const results = await models.Transaction.findAll({
@@ -307,6 +311,10 @@ async function sumCollectivesTransactions(
     const CollectiveId = result['CollectiveId'];
     const value = result[column];
 
+    // Initialize Collective total
+    if (!totals[CollectiveId]) {
+      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+    }
     // If it's the first total collected, set the currency
     if (totals[CollectiveId].value === 0) {
       totals[CollectiveId].currency = result[groupBy];
@@ -345,6 +353,10 @@ async function sumCollectivesTransactions(
       const CollectiveId = blockedFundResult['CollectiveId'];
       const value = blockedFundResult['amount'];
 
+      // Initialize Collective total
+      if (!totals[CollectiveId]) {
+        totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+      }
       // If it's the first total collected, set the currency
       if (totals[CollectiveId].value === 0) {
         totals[CollectiveId].currency = blockedFundResult['currency'];

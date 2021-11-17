@@ -2,6 +2,7 @@ import config from 'config';
 import { pick } from 'lodash';
 
 import INTERVALS from '../../constants/intervals';
+import ORDER_STATUS from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
@@ -200,6 +201,7 @@ export const setupPaypalSubscriptionForOrder = async (
 
   // TODO handle case where a payment arrives on a cancelled subscription
   // TODO refactor payment method to PayPal<>Subscription
+  // Prepare the subscription in DB, cancel the existing one if necessary
   try {
     const newPaypalSubscription = await fetchPaypalSubscription(hostCollective, paypalSubscriptionId);
     await verifySubscription(order, newPaypalSubscription);
@@ -220,11 +222,6 @@ export const setupPaypalSubscriptionForOrder = async (
     } else {
       await createSubscription(order, paypalSubscriptionId);
     }
-
-    await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/activate`, null, hostCollective, 'POST');
-    if (order.PaymentMethodId !== paymentMethod.id) {
-      order = await order.update({ PaymentMethodId: paymentMethod.id });
-    }
   } catch (e) {
     logger.error(`[PayPal] Error while creating subscription: ${e}`);
 
@@ -233,8 +230,22 @@ export const setupPaypalSubscriptionForOrder = async (
       await existingSubscription.update(initialSubscriptionParams);
     }
 
+    const error = new Error('Failed to configure PayPal subscription');
+    error['rootException'] = e;
+    throw error;
+  }
+
+  // Activate the subscription and update the order
+  try {
+    await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/activate`, null, hostCollective, 'POST');
+    if (order.PaymentMethodId !== paymentMethod.id) {
+      order = await order.update({ PaymentMethodId: paymentMethod.id });
+    }
+  } catch (e) {
+    logger.error(`[PayPal] Error while activating subscription: ${e}`);
     const error = new Error('Failed to activate PayPal subscription');
     error['rootException'] = e;
+    order.update({ status: ORDER_STATUS.ERROR });
     throw error;
   }
 

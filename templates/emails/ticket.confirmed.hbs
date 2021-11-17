@@ -14,10 +14,13 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 <p>You have booked {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} to {{ event.name }}{{#if order.totalAmount}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}}.</p>
 
 <p>We are excited that you'll be joining us! <a href="{{config.host.website}}/{{collective.slug}}/events/{{event.slug}}">{{ event.name }}</a> will take place {{#if event.endsAt}} between {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY h:mm a" }} and {{ moment event.endsAt timezone=event.timezone format="MMMM Do YYYY h:mm a" }} (UTC{{moment-timezone event.timezone}}) {{else}} on {{ moment event.startsAt timezone=event.timezone format="MMMM Do YYYY" }} at {{ moment event.startsAt timezone=event.timezone format="h:mm a" }} (UTC{{moment-timezone event.timezone}}) {{/if}}.
-{{#if isOffline }}
-  The location is {{ event.locationName }} ({{event.address}}).
-{{else if event.address}}
-  Join us at {{event.address}}.
+
+{{#if event.address}}
+  {{#if isOffline }}
+    The location is {{ event.locationName }} ({{event.address}}).
+  {{else}}
+    Join us at {{event.address}}.
+  {{/if}}
 {{/if}}
 </p>
 

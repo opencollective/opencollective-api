@@ -503,7 +503,12 @@ async function notifyByEmail(activity) {
     case activityType.COLLECTIVE_EXPENSE_INVITE_DRAFTED:
       // New User
       if (activity.data.payee?.email) {
-        await emailLib.send(activity.type, activity.data.payee.email, activity.data, { sendEvenIfNotProduction: true });
+        const collectiveId = activity.data.user?.id; // TODO: It's confusing that we store a collective ID in `data.user.id`, should rather be a User id
+        const sender = collectiveId && (await models.User.findOne({ where: { CollectiveId: collectiveId } }));
+        await emailLib.send(activity.type, activity.data.payee.email, activity.data, {
+          sendEvenIfNotProduction: true,
+          replyTo: sender?.email,
+        });
       } else if (activity.data.payee.id) {
         await notifyAdminsOfCollective(activity.data.payee.id, activity, { sendEvenIfNotProduction: true });
       }

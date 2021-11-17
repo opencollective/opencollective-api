@@ -12,6 +12,8 @@ import { createFromPaidExpense as createTransactionFromPaidExpense } from '../..
 import models from '../../models';
 import { PayoutItemDetails } from '../../types/paypal';
 
+const providerName = 'paypal';
+
 export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promise<typeof models.Expense[]> => {
   const [firstExpense] = expenses;
   const isSameHost = expenses.every(
@@ -28,12 +30,7 @@ export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promi
     throw new Error(`Could not find the host embursing the expense.`);
   }
 
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'paypal', deletedAt: null },
-  });
-  if (!connectedAccount) {
-    throw new Error(`Host is not connected to PayPal Payouts.`);
-  }
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
   const getExpenseItem = expense => ({
@@ -135,12 +132,7 @@ export const checkBatchStatus = async (batch: typeof models.Expense[]): Promise<
     throw new Error(`Could not find the host embursing the expense.`);
   }
 
-  const [connectedAccount] = await host.getConnectedAccounts({
-    where: { service: 'paypal', deletedAt: null },
-  });
-  if (!connectedAccount) {
-    throw new Error(`Host is not connected to PayPal Payouts.`);
-  }
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const batchId = firstExpense.data.payout_batch_id;
   const batchInfo = await paypal.getBatchInfo(connectedAccount, batchId);

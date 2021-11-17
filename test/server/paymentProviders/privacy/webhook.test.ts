@@ -1,13 +1,10 @@
 /* eslint-disable camelcase */
 
-import { expect } from 'chai';
 import sinon from 'sinon';
 import request from 'supertest';
 
 import app from '../../../../server/index';
-import * as privacyLib from '../../../../server/lib/privacy';
 import privacy from '../../../../server/paymentProviders/privacy';
-import { fakeCollective, fakeConnectedAccount, fakeVirtualCard } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/paymentProviders/privacy/webhook', () => {
@@ -63,52 +60,19 @@ describe('server/paymentProviders/privacy/webhook', () => {
     status: 'SETTLED' as const,
     token: '9c63b54a-897c-49b7-9210-fc4dfa15b8d0',
   };
-  let verifyEvent, processTransaction;
-  let collective;
+  let processTransaction;
 
   afterEach(sandbox.restore);
-  beforeEach(utils.resetTestDB);
+
   beforeEach(() => {
-    verifyEvent = sandbox.stub(privacyLib, 'verifyEvent').callsFake(req => req.body);
+    utils.resetTestDB;
     processTransaction = sandbox.stub(privacy, 'processTransaction').resolves();
-  });
-  beforeEach(async () => {
-    const host = await fakeCollective({ isHostAccount: true });
-    collective = await fakeCollective({ isHostAccount: false, HostCollectiveId: host.id });
-    await fakeVirtualCard({
-      CollectiveId: collective.id,
-      HostCollectiveId: host.id,
-      name: '1234',
-      id: event.card.token,
-    });
-    await fakeConnectedAccount({
-      CollectiveId: host.id,
-      service: 'privacy',
-      token: 'fake-token',
-    });
-  });
-
-  it('assigns rawBody to request and verifies the event signature', async () => {
-    await api.post('/webhooks/privacy').send(event).expect(200);
-
-    sinon.assert.calledOnce(verifyEvent);
-    const { args } = verifyEvent.getCall(0);
-    expect(args[0]).to.have.property('rawBody');
   });
 
   it('should complete processing transactions if transfer was sent', async () => {
     await api.post('/webhooks/privacy').send(event).expect(200);
 
     sinon.assert.calledOnce(processTransaction);
-  });
-
-  it('should ignore if card does not exist', async () => {
-    await api
-      .post('/webhooks/privacy')
-      .send({ ...event, card: { token: 'a-token-that-does-not-exist' } })
-      .expect(200);
-
-    sinon.assert.notCalled(processTransaction);
   });
 
   it('should ignore if event.result is not APPROVED', async () => {

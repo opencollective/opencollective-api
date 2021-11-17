@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 
+import logger from '../lib/logger';
 import paymentProviders from '../paymentProviders';
 import paypalWebhookHandler from '../paymentProviders/paypal/webhook';
 import privacyWebhookHandler from '../paymentProviders/privacy/webhook';
@@ -7,10 +8,13 @@ import thegivingblockWebhookHandler from '../paymentProviders/thegivingblock/web
 import transferwiseWebhookHandler from '../paymentProviders/transferwise/webhook';
 
 export async function stripeWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
-  await paymentProviders.stripe
-    .webhook(req)
-    .then(() => res.sendStatus(200))
-    .catch(next);
+  try {
+    await paymentProviders.stripe.webhook(req);
+    res.sendStatus(200);
+  } catch (error) {
+    logger.error(`stripe/webhook : ${error.message}`, { body: req.body });
+    next(error);
+  }
 }
 
 export async function transferwiseWebhook(
@@ -43,8 +47,9 @@ export async function privacyWebhook(
   try {
     await privacyWebhookHandler(req);
     res.sendStatus(200);
-  } catch (e) {
-    next(e);
+  } catch (error) {
+    logger.error(`privacy/webhook : ${error.message}`, { body: req.body });
+    next(error);
   }
 }
 

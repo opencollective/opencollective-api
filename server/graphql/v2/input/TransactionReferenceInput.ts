@@ -2,7 +2,6 @@ import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
 const TransactionReferenceInput = new GraphQLInputObjectType({
   name: 'TransactionReferenceInput',
@@ -18,16 +17,6 @@ const TransactionReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-const getDatabaseIdFromTransactionReference = (input: Record<string, unknown>): number => {
-  if (input['id']) {
-    return idDecode(input['id'], IDENTIFIER_TYPES.TRANSACTION);
-  } else if (input['legacyId']) {
-    return <number>input['legacyId'];
-  } else {
-    return null;
-  }
-};
-
 /**
  * Retrieve an expense from an `ExpenseReferenceInput`
  */
@@ -35,10 +24,13 @@ const fetchTransactionWithReference = async (
   input: Record<string, unknown>,
   { loaders = null, throwIfMissing = false } = {},
 ): Promise<typeof models.Transaction> => {
-  const dbId = getDatabaseIdFromTransactionReference(input);
   let transaction = null;
-  if (dbId) {
-    transaction = await (loaders ? loaders.Transaction.byId.load(dbId) : models.Transaction.findByPk(dbId));
+  if (input.id) {
+    transaction = await models.Transaction.findOne({ where: { uuid: input.id } });
+  } else if (input.legacyId) {
+    transaction = await (loaders
+      ? loaders.Transaction.byId.load(input.legacyId)
+      : models.Transaction.findByPk(input.legacyId));
   }
 
   if (!transaction && throwIfMissing) {
@@ -48,4 +40,4 @@ const fetchTransactionWithReference = async (
   return transaction;
 };
 
-export { TransactionReferenceInput, fetchTransactionWithReference, getDatabaseIdFromTransactionReference };
+export { TransactionReferenceInput, fetchTransactionWithReference };

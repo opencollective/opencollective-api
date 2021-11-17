@@ -159,9 +159,10 @@ const checkGuestContribution = async (order, loaders) => {
   } else if (!guestInfo.email || !isEmail(guestInfo.email)) {
     throw new BadRequest('You need to provide a valid email');
   } else if (order.totalAmount > 25000) {
+    const location = guestInfo.location || {};
     if (!guestInfo.name) {
       throw new BadRequest('Contributions that are more than $250 must have a name attached');
-    } else if (order.totalAmount > 500000 && (!guestInfo.location?.address || !guestInfo.location.country)) {
+    } else if (order.totalAmount > 500000 && !location.structured && (!location.address || !location.country)) {
       throw new BadRequest('Contributions that are more than $5000 must have an address attached');
     }
   } else if (order.fromCollective) {

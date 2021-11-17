@@ -47,13 +47,17 @@ describe('server/lib/guest-accounts.ts', () => {
 
     it('Updates the profile with new info', async () => {
       const email = randEmail();
-      const firstResult = await getOrCreateGuestProfile({ email });
-      const secondResult = await getOrCreateGuestProfile({ email, name: 'Updated name' });
+      const firstLocation = { structured: { country: 'US', address1: '422 Beverly Plaza' } };
+      const firstResult = await getOrCreateGuestProfile({ email, location: firstLocation });
+      const secondLocation = { structured: { country: 'US', address1: '422 Beverly Plaza' } };
+      const secondResult = await getOrCreateGuestProfile({ email, name: 'Updated name', location: secondLocation });
       expect(firstResult.collective).to.exist;
       expect(secondResult.collective).to.exist;
       expect(firstResult.collective.id).to.eq(secondResult.collective.id);
       expect(firstResult.collective.name).to.eq('Guest');
       expect(secondResult.collective.name).to.eq('Updated name');
+      expect(firstResult.collective.data.address).to.deep.eq(firstLocation.structured);
+      expect(secondResult.collective.data.address).to.deep.eq(secondLocation.structured);
     });
   });
 
