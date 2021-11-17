@@ -67,6 +67,7 @@ const virtualCardMutations = {
         cardNumber,
         expireDate,
         cvv,
+        args.virtualCard.name,
         collective.id,
         host,
         user.id,

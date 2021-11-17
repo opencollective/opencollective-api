@@ -7,7 +7,7 @@ import { getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 const providerName = 'stripe';
 
-export const assignCardToCollective = async (cardNumber, expireDate, cvv, collectiveId, host, userId) => {
+export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, collectiveId, host, userId) => {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const stripe = getStripeClient(host.slug, connectedAccount.token);
@@ -37,7 +37,7 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, collec
 
   const cardData = {
     id: matchingCard.id,
-    name: matchingCard.last4,
+    name,
     last4: matchingCard.last4,
     privateData: { cardNumber, expireDate, cvv },
     data: omit(matchingCard, ['number', 'cvc', 'exp_year', 'exp_month']),
