@@ -4,8 +4,6 @@ import Stripe from 'stripe';
 
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
-import { TransactionKind } from '../../constants/transaction-kind';
-import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
@@ -87,6 +85,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       data: { authorizationId: stripeAuthorization.id },
     },
   });
+
   if (existingExpense) {
     logger.warn(`Virtual Card authorization already reconciled, ignoring it: ${stripeAuthorization.id}`);
     return;
@@ -96,7 +95,6 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     stripeAuthorization['merchant_data']['network_id'],
     stripeAuthorization['merchant_data']['name'],
   );
-  const hostCurrencyFxRate = await getFxRate('USD', host.currency);
   const UserId = virtualCard.UserId;
   const collective = virtualCard.collective;
   const description = `Virtual Card charge: ${vendor.name}`;
@@ -126,29 +124,8 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       CreatedByUserId: UserId,
       amount,
     });
-
-    await models.Transaction.createDoubleEntry({
-      // Note that Collective and FromCollective here are inverted because this is the CREDIT transaction
-      CollectiveId: vendor.id,
-      FromCollectiveId: collective.id,
-      HostCollectiveId: host.id,
-      description,
-      type: 'CREDIT',
-      currency: 'USD',
-      ExpenseId: expense.id,
-      amount,
-      netAmountInCollectiveCurrency: amount,
-      hostCurrency: host.currency,
-      amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
-      paymentProcessorFeeInHostCurrency: 0,
-      hostFeeInHostCurrency: 0,
-      platformFeeInHostCurrency: 0,
-      hostCurrencyFxRate,
-      kind: TransactionKind.EXPENSE,
-    });
   } catch (error) {
     if (expense) {
-      await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
       await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
       await expense.destroy();
     }
