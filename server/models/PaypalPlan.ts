@@ -63,7 +63,7 @@ PaypalPlan.init(
       allowNull: false,
     },
     interval: {
-      type: DataTypes.ENUM('month', 'year'),
+      type: DataTypes.ENUM('week', 'month', 'year'),
       allowNull: false,
     },
     ProductId: {
