@@ -67,6 +67,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   await checkStripeEvent(host, stripeEvent);
 
+  // TODO : convert balance to the same currency as amount
   const amount = convertToStripeAmount(host.currency, stripeAuthorization.amount);
   const balance = await host.getBalanceWithBlockedFundsAmount();
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
