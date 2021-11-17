@@ -7,6 +7,7 @@ import ExpenseType from '../../constants/expense_type';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
@@ -68,7 +69,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   await checkStripeEvent(host, stripeEvent);
 
-  const amount = stripeAuthorization.amount;
+  const amount = convertToStripeAmount(host.currency, stripeAuthorization.amount);
   const balance = await host.getBalanceWithBlockedFundsAmount();
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
@@ -164,7 +165,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
-  const amount = -stripeTransaction.amount;
+  const amount = -convertToStripeAmount(virtualCard.host.currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
 
   return persistTransaction(
