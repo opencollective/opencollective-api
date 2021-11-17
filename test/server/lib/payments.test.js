@@ -138,11 +138,11 @@ describe('server/lib/payments', () => {
    */
   describe('Checks payload', () => {
     describe('and fails to create a payment if', () => {
-      it('interval is present and it is not month or year', () => {
+      it('interval is present and it is not week, month or year', () => {
         order.interval = 'something';
         return payments
           .executeOrder(user, order)
-          .catch(err => expect(err.message).to.equal('Interval should be null, month or year.'));
+          .catch(err => expect(err.message).to.equal('Interval should be null, week, month or year.'));
       });
 
       it('payment amount is missing', () => {
