@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { sumBy } from 'lodash';
 import sinon from 'sinon';
 
 import * as ManualPaymentMethod from '../../../../../server/lib/payments';

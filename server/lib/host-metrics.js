@@ -4,7 +4,7 @@ import moment from 'moment';
 
 import { sequelize } from '../models';
 
-import { getBalanceAmount, getTotalMoneyManagedAmount } from './budget';
+import { getTotalMoneyManagedAmount } from './budget';
 import { getFxRate } from './currency';
 import { parseToBoolean } from './utils';
 
