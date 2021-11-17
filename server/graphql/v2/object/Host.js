@@ -17,7 +17,6 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
-import { getFxRate } from '../../../lib/currency';
 import queries from '../../../lib/queries';
 import { days } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
@@ -65,46 +64,6 @@ const getFilterDateRange = (startDate, endDate) => {
 const getNumberOfDays = (startDate, endDate, host) => {
   const since = startDate || host.createdAt;
   return days(since, endDate || undefined);
-};
-
-const convertCurrencyAmount = async (fromCurrency, toCurrency, date, amount) => {
-  const fxRate = await getFxRate(fromCurrency, toCurrency, date);
-  const convertedAmount = Math.round(amount * fxRate);
-  return { date: date, amount: convertedAmount };
-};
-
-const amountsOverTimeInHostCurrency = async (
-  host,
-  transactionKind,
-  transactionType,
-  timeUnit,
-  collectiveIds,
-  dateFrom,
-  dateTo,
-) => {
-  const transactionDatePoints = await queries.getTransactionsTimeSeries(
-    transactionKind,
-    transactionType,
-    host.id,
-    timeUnit,
-    collectiveIds,
-    dateFrom,
-    dateTo,
-  );
-  const dataPointsInHostCurrency = transactionDatePoints.map(async contributionAmount => {
-    const contributionAmountInHostCurrency = await convertCurrencyAmount(
-      contributionAmount.currency,
-      host.currency,
-      contributionAmount.date,
-      contributionAmount.amount,
-    );
-    return {
-      date: contributionAmountInHostCurrency.date,
-      amount: contributionAmountInHostCurrency.amount,
-      currency: host.currency,
-    };
-  });
-  return await Promise.all(dataPointsInHostCurrency);
 };
 
 export const Host = new GraphQLObjectType({
@@ -588,10 +547,10 @@ export const Host = new GraphQLObjectType({
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
 
-            const amountDataPoints = await amountsOverTimeInHostCurrency(
-              host,
+            const amountDataPoints = await queries.getTransactionsTimeSeries(
               TransactionKind.CONTRIBUTION,
               TransactionTypes.CREDIT,
+              host.id,
               args.timeUnit,
               collectiveIds,
               dateFrom,
@@ -678,10 +637,10 @@ export const Host = new GraphQLObjectType({
           const expenseAmountOverTime = async () => {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-            const amountDataPoints = await amountsOverTimeInHostCurrency(
-              host,
+            const amountDataPoints = await queries.getTransactionsTimeSeries(
               TransactionKind.EXPENSE,
               TransactionTypes.DEBIT,
+              host.id,
               args.timeUnit,
               collectiveIds,
               dateFrom,
