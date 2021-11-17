@@ -263,8 +263,8 @@ export async function getTotalMoneyManagedTimeSeries(
   host,
   { startDate, endDate, collectiveIds = null, timeUnit } = {},
 ) {
-  const hostedCollectives = await host.getHostedCollectives();
   if (!collectiveIds) {
+    const hostedCollectives = await host.getHostedCollectives();
     collectiveIds = hostedCollectives.map(c => c.id);
   }
 
@@ -295,7 +295,11 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     currency: host.currency,
   });
   const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
-  return timeSeries.map(point => ({ ...point, amount: point.amount + balanceAtStartDate.value }));
+  let sum;
+  return timeSeries.map(point => {
+    sum = (sum || 0) + point.amount + balanceAtStartDate.value;
+    return { ...point, amount: sum };
+  });
 }
 
 export async function getHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {

@@ -124,7 +124,10 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;
         const hostMetricsTimeSeriesNodes = queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManaged.nodes;
-        const totalMoneyManaged = sumBy(hostMetricsTimeSeriesNodes, node => node.amount.valueInCents);
+        const totalMoneyManaged =
+          hostMetricsTimeSeriesNodes.length > 0
+            ? hostMetricsTimeSeriesNodes[hostMetricsTimeSeriesNodes.length - 1].amount.valueInCents
+            : 0;
         expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
       });
 
@@ -135,7 +138,10 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
         const hostMetrics = queryResponse.data.host.hostMetrics;
         const hostMetricsTimeSeriesNodes = queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManaged.nodes;
-        const totalMoneyManaged = sumBy(hostMetricsTimeSeriesNodes, node => node.amount.valueInCents);
+        const totalMoneyManaged =
+          hostMetricsTimeSeriesNodes.length > 0
+            ? hostMetricsTimeSeriesNodes[hostMetricsTimeSeriesNodes.length - 1].amount.valueInCents
+            : 0;
         expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
       });
     });
