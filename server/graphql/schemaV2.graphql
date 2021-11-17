@@ -1326,6 +1326,7 @@ enum OrderStatus {
 }
 
 enum ContributionFrequency {
+  WEEKLY
   MONTHLY
   YEARLY
   ONETIME

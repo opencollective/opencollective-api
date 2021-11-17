@@ -68,7 +68,9 @@ export const Order = new GraphQLObjectType({
           if (!subscription) {
             return 'ONETIME';
           }
-          if (subscription.interval === 'month') {
+          if (subscription.interval === 'week') {
+            return 'WEEKLY';
+          } else if (subscription.interval === 'month') {
             return 'MONTHLY';
           } else if (subscription.interval === 'year') {
             return 'YEARLY';

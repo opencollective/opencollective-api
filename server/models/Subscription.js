@@ -20,8 +20,8 @@ function defineModel() {
         type: DataTypes.STRING(8),
         validate: {
           isIn: {
-            args: [['month', 'year']],
-            msg: 'Must be month or year',
+            args: [['week', 'month', 'year']],
+            msg: 'Must be week, month or year',
           },
         },
       },

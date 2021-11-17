@@ -5,6 +5,7 @@ import INTERVALS from '../../../constants/intervals';
 export const ContributionFrequency = new GraphQLEnumType({
   name: 'ContributionFrequency',
   values: {
+    WEEKLY: {},
     MONTHLY: {},
     YEARLY: {},
     ONETIME: {},
@@ -17,6 +18,8 @@ export const ContributionFrequency = new GraphQLEnumType({
  */
 export const getIntervalFromContributionFrequency = (input: string): INTERVALS | null => {
   switch (input) {
+    case 'WEEKLY':
+      return INTERVALS.WEEK;
     case 'MONTHLY':
       return INTERVALS.MONTH;
     case 'YEARLY':

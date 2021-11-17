@@ -477,7 +477,7 @@ export const createSubscription = async order => {
 /**
  * Execute an order as user using paymentMethod
  * Note: validation of the paymentMethod happens in `models.Order.setPaymentMethod`. Not here anymore.
- * @param {Object} order { tier, description, totalAmount, currency, interval (null|month|year), paymentMethod }
+ * @param {Object} order { tier, description, totalAmount, currency, interval (null|week|month|year), paymentMethod }
  * @param {Object} options { hostFeePercent, platformFeePercent} (only for add funds and if remoteUser is admin of host or root)
  */
 export const executeOrder = async (user, order, options = {}) => {
@@ -552,8 +552,8 @@ export const executeOrder = async (user, order, options = {}) => {
 };
 
 const validatePayment = payment => {
-  if (payment.interval && !includes(['month', 'year'], payment.interval)) {
-    throw new Error('Interval should be null, month or year.');
+  if (payment.interval && !includes(['week', 'month', 'year'], payment.interval)) {
+    throw new Error('Interval should be null, week, month or year.');
   }
 
   if (!payment.amount) {
