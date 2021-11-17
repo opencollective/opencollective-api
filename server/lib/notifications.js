@@ -12,7 +12,7 @@ import { TransactionTypes } from '../constants/transactions';
 import activitiesLib from '../lib/activities';
 import emailLib, { NO_REPLY_EMAIL } from '../lib/email';
 import models from '../models';
-import { sanitizerOptions } from '../models/Update';
+import { sanitizerOptions as updateSanitizerOptions } from '../models/Update';
 
 import { getTransactionPdf } from './pdf';
 import slackLib from './slack';
@@ -243,22 +243,28 @@ const notifyUpdateSubscribers = async activity => {
 };
 
 function replaceVideosByImagePreviews(activity) {
-  sanitizerOptions.transformTags = {
-    ...sanitizerOptions.transformTags,
-    iframe: (tagName, attribs) => {
-      const { service, id } = parseServiceLink(attribs.src);
-      const imgSrc = constructPreviewImageURL(service, id);
-      if (imgSrc) {
-        return {
-          tagName: 'img',
-          attribs: {
-            src: imgSrc,
-            alt: `${service} content`,
-          },
-        };
-      } else {
-        return '';
-      }
+  const sanitizerOptions = {
+    ...updateSanitizerOptions,
+    transformTags: {
+      ...updateSanitizerOptions.transformTags,
+      iframe: (tagName, attribs) => {
+        if (!attribs.src) {
+          return '';
+        }
+        const { service, id } = parseServiceLink(attribs.src);
+        const imgSrc = constructPreviewImageURL(service, id);
+        if (imgSrc) {
+          return {
+            tagName: 'img',
+            attribs: {
+              src: imgSrc,
+              alt: `${service} content`,
+            },
+          };
+        } else {
+          return '';
+        }
+      },
     },
   };
   activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizerOptions);

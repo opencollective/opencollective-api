@@ -167,11 +167,7 @@ describe('server/lib/notification', () => {
             await notify(activity);
           }
 
-          /*
-           * The first three tests should pass as they are allowed domains. The final test with www.test.com should
-           * be stripped out since this is not a domain that we should not allow.
-           */
-          await utils.waitForCondition(() => sendEmailSpy.callCount === tests.length - 1);
+          await utils.waitForCondition(() => sendEmailSpy.callCount === tests.length);
 
           for (const call of sendEmailSpy.getCalls()) {
             const result = call.args[2].update.html;
