@@ -43,6 +43,7 @@ const assignCardToCollective = async (
   cardNumber: string,
   expireDate: string,
   cvv: string,
+  name: string,
   collectiveId: number,
   host: any,
   userId: number,
@@ -58,7 +59,7 @@ const assignCardToCollective = async (
 
   const cardData = {
     id: card.token,
-    name: card.memo || card.last_four,
+    name,
     last4: card.last_four,
     privateData: { cardNumber, expireDate, cvv },
     data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
