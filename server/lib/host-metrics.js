@@ -269,14 +269,14 @@ export async function getTotalMoneyManagedTimeSeries(
   }
 
   const results = await sequelize.query(
-    `SELECT t1."amountInHostCurrency" as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."CollectiveId" IN (:CollectiveIds)
 AND t1."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER')
 AND t1."createdAt" >= :startDate AND t1."createdAt" < :endDate
 AND t1."deletedAt" IS NULL
-GROUP BY t1."amountInHostCurrency", t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
+GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     {
       replacements: {
@@ -297,8 +297,8 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
   const timeSeries = await convertCurrencyForTimeSeries(results, host.currency);
   let sum;
   return timeSeries.map(point => {
-    sum = (sum || 0) + point.amount + balanceAtStartDate.value;
-    return { ...point, amount: sum };
+    sum = (sum || 0) + point.amount;
+    return { ...point, amount: Math.abs(sum + balanceAtStartDate.value) };
   });
 }
 
