@@ -64,10 +64,8 @@ export const persistTransaction = async (
     });
 
     if (processingExpense && processingExpense.status === ExpenseStatus.PROCESSING) {
-      await processingExpense.update({
-        status: ExpenseStatus.PAID,
-        data,
-      });
+      await processingExpense.setPaid();
+      await processingExpense.update({ data });
 
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
