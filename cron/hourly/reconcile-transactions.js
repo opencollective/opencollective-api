@@ -2,6 +2,7 @@
 import '../../server/env';
 
 import config from 'config';
+import { omit } from 'lodash';
 import moment from 'moment';
 import Stripe from 'stripe';
 
@@ -52,8 +53,21 @@ async function reconcileConnectedAccount(connectedAccount) {
         } else {
           logger.info(`Syncing ${transactions.length} pending transactions...`);
           await Promise.all(transactions.map(transaction => privacy.processTransaction(transaction)));
+
           logger.info(`Refreshing card details'...`);
-          await privacy.refreshCardDetails(card);
+          const [privacyCard] = await privacyLib.listCards(connectedAccount.token, card.id);
+          if (!privacyCard) {
+            throw new Error(`Could not find card ${card.id}`);
+          }
+          if (privacyCard.state === 'CLOSED') {
+            await card.destroy();
+          } else {
+            await card.update({
+              spendingLimitAmount: privacyCard['spend_limit'] === 0 ? null : privacyCard['spend_limit'],
+              spendingLimitInterval: privacyCard['spend_limit_duration'],
+              data: omit(privacyCard, ['pan', 'cvv', 'exp_year', 'exp_month']),
+            });
+          }
         }
       }
 
@@ -71,6 +85,18 @@ async function reconcileConnectedAccount(connectedAccount) {
         } else {
           logger.info(`Syncing ${transactions.length} pending transactions...`);
           await Promise.all(transactions.map(transaction => processTransaction(transaction)));
+
+          logger.info(`Refreshing card details'...`);
+          const stripeCard = await stripe.issuing.cards.retrieve(card.id);
+          if (stripeCard.status === 'canceled' || stripeCard.deleted) {
+            await card.destroy();
+          } else {
+            await card.update({
+              spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+              spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
+              data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
+            });
+          }
         }
       }
     } catch (error) {

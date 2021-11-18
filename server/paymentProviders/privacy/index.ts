@@ -2,7 +2,6 @@
 import { isEmpty, omit } from 'lodash';
 
 import * as privacy from '../../lib/privacy';
-import * as privacyLib from '../../lib/privacy';
 import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
@@ -21,7 +20,7 @@ const processTransaction = async (
     const host = virtualCard.host;
     const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
-    privacyLib.verifyEvent(privacyEvent.signature, privacyEvent.rawBody, connectedAccount.token);
+    privacy.verifyEvent(privacyEvent.signature, privacyEvent.rawBody, connectedAccount.token);
   }
 
   const amount = privacyTransaction.settled_amount;
@@ -71,27 +70,6 @@ const assignCardToCollective = async (
   };
 
   return await models.VirtualCard.create(cardData);
-};
-
-const refreshCardDetails = async (virtualCard: VirtualCardModel) => {
-  const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
-
-  const [card] = await privacy.listCards(connectedAccount.token, virtualCard.id);
-  if (!card) {
-    throw new Error(`Could not find card ${virtualCard.id}`);
-  }
-  if (card.state === 'CLOSED') {
-    await virtualCard.destroy();
-  } else {
-    const newData = omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']);
-    await virtualCard.update({
-      spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
-      spendingLimitInterval: card['spend_limit_duration'],
-      data: newData,
-    });
-  }
-  return virtualCard;
 };
 
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
@@ -147,7 +125,6 @@ const PrivacyCardProviderService = {
   pauseCard,
   resumeCard,
   deleteCard,
-  refreshCardDetails,
 } as CardProviderService;
 
 export default PrivacyCardProviderService;
