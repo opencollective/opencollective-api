@@ -6,6 +6,7 @@ export const HostMetrics = new GraphQLObjectType({
   name: 'HostMetrics',
   description: 'Host metrics related to collected and pending fees/tips.',
   fields: () => ({
+    balance: { type: Amount, description: 'Balance of the Host budget' },
     hostFees: { type: Amount, description: 'Amount collected in host fees for given period' },
     platformFees: { type: Amount, description: 'Amount collected in platform fees for given period' },
     pendingPlatformFees: { type: Amount, description: 'Amount collected in platform fees requiring settlement' },

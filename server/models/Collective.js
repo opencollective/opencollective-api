@@ -3042,6 +3042,8 @@ function defineModel() {
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
 
+    const balance = await this.getTotalMoneyManaged({ endDate: to, collectiveIds: [this.id] });
+
     const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
 
     const hostFeeShare = await getHostFeeShare(this, {
@@ -3066,6 +3068,7 @@ function defineModel() {
     const pendingPlatformFees = 0;
 
     const metrics = {
+      balance,
       hostFees,
       platformFees,
       pendingPlatformFees,
