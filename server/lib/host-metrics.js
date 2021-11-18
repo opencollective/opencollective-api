@@ -266,6 +266,7 @@ export async function getTotalMoneyManagedTimeSeries(
   if (!collectiveIds) {
     const hostedCollectives = await host.getHostedCollectives();
     collectiveIds = hostedCollectives.map(c => c.id);
+    collectiveIds.push(host.id);
   }
 
   const results = await sequelize.query(
@@ -273,7 +274,6 @@ export async function getTotalMoneyManagedTimeSeries(
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."CollectiveId" IN (:CollectiveIds)
-AND t1."kind" IN ('CONTRIBUTION', 'EXPENSE', 'ADDED_FUNDS', 'BALANCE_TRANSFER')
 AND t1."createdAt" >= :startDate AND t1."createdAt" < :endDate
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
