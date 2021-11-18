@@ -238,10 +238,10 @@ describe('test/stories/ledger', () => {
         pendingPlatformFees: 0,
         platformTips: 0, // There was a 1000 tip, but it was refunded
         pendingPlatformTips: -1000,
-        hostFeeShare: 68,
+        hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
         pendingHostFeeShare: 0,
-        settledHostFeeShare: 68, // TODO(Ledger): After refund, should it be -68?
+        settledHostFeeShare: 0, // Refunded
         totalMoneyManaged: -1268,
       });
 
@@ -344,10 +344,10 @@ describe('test/stories/ledger', () => {
         pendingPlatformFees: 0,
         platformTips: 0, // There was a 1000 tip, but it was refunded
         pendingPlatformTips: -1000,
-        hostFeeShare: 68,
+        hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
         pendingHostFeeShare: 0,
-        settledHostFeeShare: 68,
+        settledHostFeeShare: 0, // Refunded
         totalMoneyManaged: -1268,
       });
 
@@ -461,10 +461,10 @@ describe('test/stories/ledger', () => {
         pendingPlatformFees: 0,
         platformTips: 0, // There was a 1000 tip, but it was refunded
         pendingPlatformTips: -platformTipInHostCurrency,
-        hostFeeShare: expectedHostFeeShareInHostCurrency,
+        hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
         pendingHostFeeShare: 0,
-        settledHostFeeShare: expectedHostFeeShareInHostCurrency,
+        settledHostFeeShare: 0, // Refunded
         totalMoneyManaged: -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       });
 
