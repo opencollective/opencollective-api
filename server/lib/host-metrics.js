@@ -121,6 +121,10 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
 
 // NOTE: we're not looking at the settlementStatus and just SUM all debts of the month
 export async function getPendingPlatformTips(host, { startDate, endDate, collectiveIds = null } = {}) {
+  if (config.env === 'production' && host.slug === 'opencollective') {
+    return 0;
+  }
+
   const results = await sequelize.query(
     `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
 FROM "Transactions" t
@@ -263,6 +267,10 @@ ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
 }
 
 export async function getHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
+  if (config.env === 'production' && host.slug === 'opencollective') {
+    return 0;
+  }
+
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
     const results = await sequelize.query(
       `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
@@ -272,10 +280,10 @@ ${
     ? `INNER JOIN "Transactions" AS t2 ON t1."TransactionGroup" = t2."TransactionGroup"
        INNER JOIN "Orders" AS O ON O.id = t1."OrderId"
        INNER JOIN "Collectives" AS C ON C.id = O."CollectiveId"
-       WHERE t2.kind='CONTRIBUTION' AND t2.type='DEBIT' AND t2."deletedAt" IS NULL AND C.id IN (:CollectiveIds)`
+       WHERE t2.kind='CONTRIBUTION' AND t2.type='DEBIT' AND t2."deletedAt" IS NULL AND C.id IN (:CollectiveIds)
+       AND t1."CollectiveId" = :CollectiveId`
     : `WHERE t1."CollectiveId" = :CollectiveId`
 }
-AND t1."type" = 'DEBIT'
 AND t1."kind" = 'HOST_FEE_SHARE'
 AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
 AND t1."deletedAt" IS NULL
