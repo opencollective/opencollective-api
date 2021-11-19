@@ -10,6 +10,7 @@ import {
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 
+import { roles } from '../../../constants';
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
@@ -515,8 +516,10 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see the contribution stats.');
+          if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see the contribution stats.',
+            );
           }
           const where = {
             HostCollectiveId: host.id,
@@ -561,7 +564,7 @@ export const Host = new GraphQLObjectType({
               const contributionsAmountSum = await models.Transaction.sum('amount', { where });
               const dailyAverageIncomeAmount = contributionsAmountSum / numberOfDays;
               return {
-                value: dailyAverageIncomeAmount,
+                value: dailyAverageIncomeAmount || 0,
                 currency: host.currency,
               };
             },
@@ -585,8 +588,10 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args, req) {
-          if (!req.remoteUser?.isAdmin(host.id)) {
-            throw new Unauthorized('You need to be logged in as an admin of the host to see the expense stats.');
+          if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
+            throw new Unauthorized(
+              'You need to be logged in as an admin or an accountant of the host to see the expense stats.',
+            );
           }
           const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
           const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host) || 1;
@@ -632,7 +637,7 @@ export const Host = new GraphQLObjectType({
               const expensesAmountSum = await models.Transaction.sum('amount', { where });
               const dailyAverageAmount = Math.abs(expensesAmountSum) / numberOfDays;
               return {
-                value: dailyAverageAmount,
+                value: dailyAverageAmount || 0,
                 currency: host.currency,
               };
             },

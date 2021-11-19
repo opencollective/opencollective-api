@@ -1054,7 +1054,7 @@ const lockExpense = async (id, callback) => {
   });
 
   try {
-    return callback();
+    return await callback();
   } finally {
     // Unlock expense
     const expense = await models.Expense.findByPk(id);

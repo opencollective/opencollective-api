@@ -39,7 +39,6 @@ Subject: Thank you for your {{currency donation.amount currency=donation.currenc
 </ul>
 {{/if}}
 
-{{#if order.isGuest}}
 <p>
   {{#if order.interval}}
     To manage your recurring contributions, <a href="{{config.host.website}}/signin?next={{fromCollective.slug}}/recurring-contributions">Sign in</a> and
@@ -48,7 +47,6 @@ Subject: Thank you for your {{currency donation.amount currency=donation.currenc
   {{/if}}
   If you need help with this contribution, please do not hesitate to contact <a href="mailto:support@opencollective.com">support</a>.
 </p>
-{{/if}}
 
 <p>Warmly,</p>
 

@@ -39,7 +39,7 @@ const enrichTransactionsWithHostFee = async transactions => {
     const hostFeeInHostCurrency = hostFees[idx];
     if (transaction.kind === 'ADDED_FUNDS' || transaction.kind === 'CONTRIBUTION') {
       if (hostFeeInHostCurrency && hostFeeInHostCurrency !== transaction.hostFeeInHostCurrency) {
-        transaction.hostFeeInHostCurrency = hostFees[idx];
+        transaction.hostFeeInHostCurrency = hostFeeInHostCurrency;
         transaction.netAmountInCollectiveCurrency =
           models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
       }
@@ -125,6 +125,13 @@ async function HostReport(year, month, hostId) {
         (
           await sumTransactions(
             'paymentProcessorFeeInHostCurrency',
+            { where: { ...where, createdAt: { [Op.lt]: endDate } } },
+            host.currency,
+          )
+        ).totalInHostCurrency +
+        (
+          await sumTransactions(
+            'hostFeeInHostCurrency',
             { where: { ...where, createdAt: { [Op.lt]: endDate } } },
             host.currency,
           )

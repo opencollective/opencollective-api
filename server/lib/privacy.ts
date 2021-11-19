@@ -5,7 +5,6 @@ import crypto from 'crypto';
 import Axios from 'axios';
 import config from 'config';
 import Debug from 'debug';
-import { Request } from 'express';
 import { find, pick } from 'lodash';
 
 import { Card, PagingParams, PrivacyResponse, Transaction } from '../types/privacy';
@@ -92,15 +91,12 @@ export const updateCard = async (
   return response.data;
 };
 
-export const verifyEvent = (req: Request & { body: Transaction; rawBody: string }, key: string): Transaction => {
-  const signature = req.headers['X-Lithic-HMAC'] as string;
+export const verifyEvent = (signature: string, rawBody: string, key: string) => {
   const hmac = crypto.createHmac('sha256', key);
-  hmac.update(req.rawBody);
+  hmac.update(rawBody);
   const verified = signature === hmac.digest('base64');
 
   if (!verified) {
     throw new Error('Could not verify event signature');
   }
-
-  return req.body;
 };

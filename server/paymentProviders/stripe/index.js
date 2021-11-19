@@ -14,6 +14,7 @@ import models from '../../models';
 
 import alipay from './alipay';
 import creditcard from './creditcard';
+import { processAuthorization, processTransaction } from './virtual-cards';
 
 const debug = debugLib('stripe');
 
@@ -206,13 +207,31 @@ export default {
     }
   },
 
-  webhook: requestBody => {
+  webhook: request => {
+    const requestBody = request.body;
+
+    debug(`Stripe webhook event received : ${request.rawBody}`);
+
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
     // NOTE: not using config.env because of ugly tests
     if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
       return Promise.resolve();
     }
+
+    const stripeEvent = {
+      signature: request.headers['stripe-signature'],
+      rawBody: request.rawBody,
+    };
+
+    if (requestBody.type === 'issuing_authorization.request') {
+      return processAuthorization(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'issuing_transaction.created') {
+      return processTransaction(requestBody.data.object, stripeEvent);
+    }
+
     /**
      * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else

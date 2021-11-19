@@ -86,16 +86,6 @@ describe('server/graphql/v1/createOrder', () => {
 
   before(() => {
     nock('https://data.fixer.io')
-      .get(/20[0-9]{2}\-[0-9]{2}\-[0-9]{2}/)
-      .times(5)
-      .query({
-        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
-        base: 'EUR',
-        symbols: 'USD',
-      })
-      .reply(200, { base: 'EUR', date: '2017-09-01', rates: { USD: 1.192 } });
-
-    nock('https://data.fixer.io')
       .get('/latest')
       .times(5)
       .query({
@@ -770,7 +760,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(res.errors).to.not.exist;
 
     const availableBalance = await paymentMethod.getBalanceForUser(duc);
-    expect(availableBalance.amount).to.equal(1160);
+    expect(availableBalance.amount).to.equal(1078);
 
     const orderCreated = res.data.createOrder;
     const fromCollective = orderCreated.fromCollective;
@@ -795,7 +785,7 @@ describe('server/graphql/v1/createOrder', () => {
     res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      "You don't have enough funds available ($11.60 left) to execute this order (€200.00 ~= $239.22)",
+      "You don't have enough funds available ($10.78 left) to execute this order (€200.00 ~= $239.22)",
     );
   });
 

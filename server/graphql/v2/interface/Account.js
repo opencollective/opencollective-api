@@ -427,6 +427,10 @@ const accountFieldsDefinition = () => ({
         defaultValue: null,
         description: 'Only return expenses that were created before this date',
       },
+      orderBy: {
+        type: ChronologicalOrderInput,
+        defaultValue: ChronologicalOrderInput.defaultValue,
+      },
     },
     async resolve(account, args, req) {
       if (!req.remoteUser?.isAdminOfCollective(account)) {
@@ -445,6 +449,7 @@ const accountFieldsDefinition = () => ({
         },
         limit: args.limit,
         offset: args.offset,
+        order: [[args.orderBy.field, args.orderBy.direction]],
       };
 
       if (args.dateFrom) {
