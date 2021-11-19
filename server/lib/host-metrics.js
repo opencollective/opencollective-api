@@ -278,7 +278,14 @@ export async function getTotalMoneyManagedTimeSeries(
   }
 
   const results = await sequelize.query(
-    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency", DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
+    `SELECT
+       SUM(COALESCE("amountInHostCurrency", 0)) +
+       SUM(COALESCE("platformFeeInHostCurrency", 0)) +
+       SUM(COALESCE("hostFeeInHostCurrency", 0)) +
+       SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) +
+       SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0)) as "_amount",
+       t1."hostCurrency" as "_currency",
+       DATE_TRUNC(:timeUnit, t1."createdAt") as "date"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
 AND t1."CollectiveId" IN (:CollectiveIds)
