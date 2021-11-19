@@ -6,7 +6,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { getFxRate } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
-import models from '../models';
+import models, { Op } from '../models';
 
 export const getVirtualCardForTransaction = async cardId => {
   const virtualCard = await models.VirtualCard.findOne({
@@ -51,7 +51,7 @@ export const persistTransaction = async (
   const existingExpense = await models.Expense.findOne({
     where: {
       VirtualCardId: virtualCard.id,
-      data: { id: transactionToken },
+      data: { [Op.or]: [{ id: transactionToken }, { token: transactionToken }] },
     },
   });
   if (existingExpense) {
@@ -64,7 +64,7 @@ export const persistTransaction = async (
     const existingTransaction = await models.Transaction.findOne({
       where: {
         CollectiveId: collective.id,
-        data: { id: transactionToken },
+        data: { [Op.or]: [{ id: transactionToken }, { token: transactionToken }] },
       },
     });
     if (existingTransaction) {
