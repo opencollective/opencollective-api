@@ -146,16 +146,15 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
   const amount = -convertToStripeAmount(virtualCard.host.currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
 
-  return persistTransaction(
-    virtualCard,
+  return persistTransaction(virtualCard, {
+    id: stripeTransaction.id,
     amount,
-    stripeTransaction['merchant_data']['network_id'],
-    stripeTransaction['merchant_data']['name'],
-    stripeTransaction.created,
-    stripeTransaction.id,
+    vendorProviderId: stripeTransaction['merchant_data']['network_id'],
+    vendorName: stripeTransaction['merchant_data']['name'],
+    incurredAt: stripeTransaction.created,
     isRefund,
-    stripeTransaction.authorization,
-  );
+    fromAuthorizationId: stripeTransaction.authorization,
+  });
 };
 
 const checkStripeEvent = async (stripeEvent, host) => {
