@@ -14,7 +14,7 @@ import models from '../../models';
 
 import alipay from './alipay';
 import creditcard from './creditcard';
-import { processTransaction } from './virtual-cards';
+import { processAuthorization, processTransaction } from './virtual-cards';
 
 const debug = debugLib('stripe');
 
@@ -219,11 +219,17 @@ export default {
       return Promise.resolve();
     }
 
+    const stripeEvent = {
+      signature: request.headers['stripe-signature'],
+      rawBody: request.rawBody,
+    };
+
+    if (requestBody.type === 'issuing_authorization.request') {
+      return processAuthorization(requestBody.data.object, stripeEvent);
+    }
+
     if (requestBody.type === 'issuing_transaction.created') {
-      return processTransaction(requestBody.data.object, {
-        signature: request.headers['stripe-signature'],
-        rawBody: request.rawBody,
-      });
+      return processTransaction(requestBody.data.object, stripeEvent);
     }
 
     /**

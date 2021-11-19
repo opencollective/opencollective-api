@@ -2,8 +2,12 @@ import config from 'config';
 import { omit } from 'lodash';
 import Stripe from 'stripe';
 
+import ExpenseStatus from '../../constants/expense_status';
+import ExpenseType from '../../constants/expense_type';
+import logger from '../../lib/logger';
+import { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
-import { getVirtualCardForTransaction, persistTransaction } from '../utils';
+import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 const providerName = 'stripe';
 
@@ -52,26 +56,94 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, 
   return await models.VirtualCard.create(cardData);
 };
 
+export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
+  const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
+
+  if (!virtualCard) {
+    throw new Error(`Virtual card ${stripeAuthorization.card.id} not found`);
+  }
+
+  const host = virtualCard.host;
+
+  await checkStripeEvent(host, stripeEvent);
+
+  // TODO : convert balance to the same currency as amount
+  const amount = convertToStripeAmount(host.currency, stripeAuthorization.amount);
+  const balance = await host.getBalanceWithBlockedFundsAmount();
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+  if (balance.value >= amount) {
+    await stripe.issuing.authorizations.approve(stripeAuthorization.id);
+  } else {
+    await stripe.issuing.authorizations.decline(stripeAuthorization.id);
+    throw new Error('Balance not sufficient');
+  }
+
+  const existingExpense = await models.Expense.findOne({
+    where: {
+      VirtualCardId: virtualCard.id,
+      data: { authorizationId: stripeAuthorization.id },
+    },
+  });
+
+  if (existingExpense) {
+    logger.warn(`Virtual Card authorization already reconciled, ignoring it: ${stripeAuthorization.id}`);
+    return;
+  }
+
+  const vendor = await getOrCreateVendor(
+    stripeAuthorization['merchant_data']['network_id'],
+    stripeAuthorization['merchant_data']['name'],
+  );
+  const UserId = virtualCard.UserId;
+  const collective = virtualCard.collective;
+  const description = `Virtual Card charge: ${vendor.name}`;
+  const incurredAt = stripeAuthorization.created;
+
+  let expense;
+
+  try {
+    expense = await models.Expense.create({
+      UserId,
+      CollectiveId: collective.id,
+      FromCollectiveId: vendor.id,
+      currency: 'USD',
+      amount,
+      description,
+      VirtualCardId: virtualCard.id,
+      lastEditedById: UserId,
+      status: ExpenseStatus.PROCESSING,
+      type: ExpenseType.CHARGE,
+      incurredAt,
+      data: { authorizationId: stripeAuthorization.id },
+    });
+
+    await models.ExpenseItem.create({
+      ExpenseId: expense.id,
+      incurredAt,
+      CreatedByUserId: UserId,
+      amount,
+    });
+  } catch (error) {
+    if (expense) {
+      await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
+      await expense.destroy();
+    }
+    throw error;
+  }
+
+  return expense;
+};
+
 export const processTransaction = async (stripeTransaction, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
 
   if (stripeEvent) {
-    const host = virtualCard.host;
-    const connectedAccount = await host.getAccountForPaymentProvider(providerName);
-    const stripe = getStripeClient(host.slug, connectedAccount.token);
-
-    try {
-      stripe.webhooks.constructEvent(
-        stripeEvent.rawBody,
-        stripeEvent.signature,
-        connectedAccount.data.stripeEndpointSecret,
-      );
-    } catch {
-      throw new Error('Source of event not recognized');
-    }
+    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
-  const amount = -stripeTransaction.amount;
+  const amount = -convertToStripeAmount(virtualCard.host.currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
 
   return persistTransaction(
@@ -83,7 +155,23 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     stripeTransaction.id,
     stripeTransaction,
     isRefund,
+    stripeTransaction.authorization,
   );
+};
+
+const checkStripeEvent = async (stripeEvent, host) => {
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+  try {
+    stripe.webhooks.constructEvent(
+      stripeEvent.rawBody,
+      stripeEvent.signature,
+      connectedAccount.data.stripeEndpointSecret,
+    );
+  } catch {
+    throw new Error('Source of event not recognized');
+  }
 };
 
 const getStripeClient = (slug, token) => {

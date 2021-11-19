@@ -371,8 +371,9 @@ function defineModel() {
     return this.save();
   };
 
-  Expense.prototype.setPaid = async function (lastEditedById) {
+  Expense.prototype.setPaid = async function (editedById) {
     const collective = this.collective || (await this.getCollective());
+    const lastEditedById = editedById || this.lastEditedById;
     await this.update({ status: status.PAID, lastEditedById, HostCollectiveId: collective.HostCollectiveId });
 
     // Update transactions settlement

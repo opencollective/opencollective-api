@@ -1,3 +1,5 @@
+import { omit } from 'lodash';
+
 import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
@@ -36,6 +38,7 @@ export const persistTransaction = async (
   transactionToken,
   providerTransaction,
   isRefund = false,
+  fromAuthorizationId = null,
 ) => {
   if (amount === 0) {
     return;
@@ -44,91 +47,25 @@ export const persistTransaction = async (
   // Make sure amount is an absolute value
   amount = Math.abs(amount);
 
+  const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
   const UserId = virtualCard.UserId;
   const host = virtualCard.host;
   const collective = virtualCard.collective;
+  const vendor = await getOrCreateVendor(vendorProviderId, vendorName);
+  const hostCurrencyFxRate = await getFxRate('USD', host.currency);
+  const description = `Virtual Card charge: ${vendor.name}`;
 
-  const existingExpense = await models.Expense.findOne({
-    where: {
-      VirtualCardId: virtualCard.id,
-      data: { id: transactionToken },
-    },
-  });
-  if (existingExpense) {
-    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${transactionToken}`);
-    return;
-  }
-
-  // If it is refund, we'll check if the transaction was already created because there are no expenses created for refunds.
-  if (isRefund) {
-    const existingTransaction = await models.Transaction.findOne({
+  if (fromAuthorizationId) {
+    const processingExpense = await models.Expense.findOne({
       where: {
-        CollectiveId: collective.id,
-        data: { id: transactionToken },
+        VirtualCardId: virtualCard.id,
+        data: { authorizationId: fromAuthorizationId },
       },
     });
-    if (existingTransaction) {
-      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${transactionToken}`);
-      return;
-    }
-  }
 
-  let expense;
-
-  try {
-    const slug = vendorProviderId.toString().toLowerCase();
-    const [vendor] = await models.Collective.findOrCreate({
-      where: { slug },
-      defaults: { name: vendorName, type: CollectiveTypes.VENDOR },
-    });
-
-    const hostCurrencyFxRate = await getFxRate('USD', host.currency);
-
-    // If it is a refund, we'll just create the transaction pair
-    if (isRefund) {
-      await models.Transaction.createDoubleEntry({
-        CollectiveId: collective.id,
-        FromCollectiveId: vendor.id,
-        HostCollectiveId: host.id,
-        description: `Virtual Card refund: ${vendor.name}`,
-        type: 'CREDIT',
-        currency: 'USD',
-        amount: amount,
-        netAmountInCollectiveCurrency: amount,
-        hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
-        paymentProcessorFeeInHostCurrency: 0,
-        hostFeeInHostCurrency: 0,
-        platformFeeInHostCurrency: 0,
-        hostCurrencyFxRate,
-        isRefund: true,
-        kind: TransactionKind.EXPENSE,
-        data: providerTransaction,
-      });
-    } else {
-      const description = `Virtual Card charge: ${vendor.name}`;
-
-      expense = await models.Expense.create({
-        UserId,
-        CollectiveId: collective.id,
-        FromCollectiveId: vendor.id,
-        currency: 'USD',
-        amount,
-        description,
-        VirtualCardId: virtualCard.id,
-        lastEditedById: UserId,
-        status: ExpenseStatus.PAID,
-        type: ExpenseType.CHARGE,
-        incurredAt,
-        data: { ...providerTransaction, missingDetails: true },
-      });
-
-      await models.ExpenseItem.create({
-        ExpenseId: expense.id,
-        incurredAt,
-        CreatedByUserId: UserId,
-        amount,
-      });
+    if (processingExpense && processingExpense.status === ExpenseStatus.PROCESSING) {
+      await processingExpense.setPaid();
+      await processingExpense.update({ data });
 
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
@@ -149,15 +86,110 @@ export const persistTransaction = async (
         kind: TransactionKind.EXPENSE,
       });
 
-      expense.fromCollective = vendor;
-      expense.collective = collective;
-      if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
-        expense.createActivity(
-          activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-          { id: UserId },
-          { ...expense.data, user: virtualCard.user },
-        );
-      }
+      return processingExpense;
+    }
+  }
+
+  const existingExpense = await models.Expense.findOne({
+    where: {
+      VirtualCardId: virtualCard.id,
+      data: { id: transactionToken },
+    },
+  });
+
+  if (existingExpense) {
+    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${transactionToken}`);
+    return;
+  }
+
+  if (isRefund) {
+    const existingTransaction = await models.Transaction.findOne({
+      where: {
+        CollectiveId: collective.id,
+        data: { id: transactionToken },
+      },
+    });
+
+    if (existingTransaction) {
+      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${transactionToken}`);
+      return;
+    }
+
+    await models.Transaction.createDoubleEntry({
+      CollectiveId: collective.id,
+      FromCollectiveId: vendor.id,
+      HostCollectiveId: host.id,
+      description: `Virtual Card refund: ${vendor.name}`,
+      type: 'CREDIT',
+      currency: 'USD',
+      amount: amount,
+      netAmountInCollectiveCurrency: amount,
+      hostCurrency: host.currency,
+      amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
+      paymentProcessorFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      platformFeeInHostCurrency: 0,
+      hostCurrencyFxRate,
+      isRefund: true,
+      kind: TransactionKind.EXPENSE,
+      data,
+    });
+
+    return;
+  }
+
+  let expense;
+
+  try {
+    expense = await models.Expense.create({
+      UserId,
+      CollectiveId: collective.id,
+      FromCollectiveId: vendor.id,
+      currency: 'USD',
+      amount,
+      description,
+      VirtualCardId: virtualCard.id,
+      lastEditedById: UserId,
+      status: ExpenseStatus.PAID,
+      type: ExpenseType.CHARGE,
+      incurredAt,
+      data: { ...data, missingDetails: true },
+    });
+
+    await models.ExpenseItem.create({
+      ExpenseId: expense.id,
+      incurredAt,
+      CreatedByUserId: UserId,
+      amount,
+    });
+
+    await models.Transaction.createDoubleEntry({
+      CollectiveId: collective.id,
+      FromCollectiveId: vendor.id,
+      HostCollectiveId: host.id,
+      description,
+      type: 'DEBIT',
+      currency: 'USD',
+      ExpenseId: expense.id,
+      amount,
+      netAmountInCollectiveCurrency: amount,
+      hostCurrency: host.currency,
+      amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
+      paymentProcessorFeeInHostCurrency: 0,
+      hostFeeInHostCurrency: 0,
+      platformFeeInHostCurrency: 0,
+      hostCurrencyFxRate,
+      kind: TransactionKind.EXPENSE,
+    });
+
+    expense.fromCollective = vendor;
+    expense.collective = collective;
+    if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
+      expense.createActivity(
+        activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+        { id: UserId },
+        { ...expense.data, user: virtualCard.user },
+      );
     }
 
     return expense;
@@ -169,4 +201,15 @@ export const persistTransaction = async (
     }
     throw e;
   }
+};
+
+export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
+  const slug = vendorProviderId.toString().toLowerCase();
+
+  const [vendor] = await models.Collective.findOrCreate({
+    where: { slug },
+    defaults: { name: vendorName, type: CollectiveTypes.VENDOR },
+  });
+
+  return vendor;
 };
