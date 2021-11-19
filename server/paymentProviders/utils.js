@@ -1,5 +1,3 @@
-import { omit } from 'lodash';
-
 import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
@@ -36,7 +34,6 @@ export const persistTransaction = async (
   vendorName,
   incurredAt,
   transactionToken,
-  providerTransaction,
   isRefund = false,
   fromAuthorizationId = null,
 ) => {
@@ -47,7 +44,7 @@ export const persistTransaction = async (
   // Make sure amount is an absolute value
   amount = Math.abs(amount);
 
-  const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
+  const data = { transactionId: transactionToken };
   const UserId = virtualCard.UserId;
   const host = virtualCard.host;
   const collective = virtualCard.collective;
@@ -93,7 +90,8 @@ export const persistTransaction = async (
   const existingExpense = await models.Expense.findOne({
     where: {
       VirtualCardId: virtualCard.id,
-      data: { [Op.or]: [{ id: transactionToken }, { token: transactionToken }] },
+      // TODO : only let transactionId in a few months (today : 11/2021) or make a migration to update data on existing expenses and transactions
+      data: { [Op.or]: [{ transactionId: transactionToken }, { id: transactionToken }, { token: transactionToken }] },
     },
   });
 
@@ -106,7 +104,10 @@ export const persistTransaction = async (
     const existingTransaction = await models.Transaction.findOne({
       where: {
         CollectiveId: collective.id,
-        data: { [Op.or]: [{ id: transactionToken }, { token: transactionToken }] },
+        // TODO : only let refundTransactionId in a few months (today : 11/2021) or make a migration to update data on existing expenses and transactions
+        data: {
+          [Op.or]: [{ refundTransactionId: transactionToken }, { id: transactionToken }, { token: transactionToken }],
+        },
       },
     });
 
@@ -132,7 +133,7 @@ export const persistTransaction = async (
       hostCurrencyFxRate,
       isRefund: true,
       kind: TransactionKind.EXPENSE,
-      data,
+      data: { refundTransactionId: transactionToken },
     });
 
     return;

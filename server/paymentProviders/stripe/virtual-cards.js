@@ -153,7 +153,6 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     stripeTransaction['merchant_data']['name'],
     stripeTransaction.created,
     stripeTransaction.id,
-    stripeTransaction,
     isRefund,
     stripeTransaction.authorization,
   );

@@ -33,7 +33,6 @@ const processTransaction = async (
     privacyTransaction.merchant.descriptor,
     privacyTransaction.created,
     privacyTransaction.token,
-    privacyTransaction,
     isRefund,
   );
 };
