@@ -5,6 +5,7 @@ import ExpenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
 import { getFxRate } from '../lib/currency';
 import logger from '../lib/logger';
+import { toNegative } from '../lib/math';
 import models from '../models';
 
 export const getVirtualCardForTransaction = async cardId => {
@@ -39,6 +40,9 @@ export const persistTransaction = async (
   if (amount === 0) {
     return;
   }
+
+  // Make sure amount is an absolute value
+  amount = Math.abs(amount);
 
   const UserId = virtualCard.UserId;
   const host = virtualCard.host;
@@ -134,10 +138,10 @@ export const persistTransaction = async (
         type: 'DEBIT',
         currency: 'USD',
         ExpenseId: expense.id,
-        amount,
-        netAmountInCollectiveCurrency: amount,
+        amount: toNegative(amount),
+        netAmountInCollectiveCurrency: toNegative(amount),
         hostCurrency: host.currency,
-        amountInHostCurrency: Math.round(amount * hostCurrencyFxRate),
+        amountInHostCurrency: Math.round(toNegative(amount) * hostCurrencyFxRate),
         paymentProcessorFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
         platformFeeInHostCurrency: 0,
