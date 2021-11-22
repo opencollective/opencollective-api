@@ -30,7 +30,6 @@ import errorHandler from './middleware/error_handler';
 import * as params from './middleware/params';
 import required from './middleware/required_param';
 import sanitizer from './middleware/sanitizer';
-import * as paypal from './paymentProviders/paypal/payment';
 import alipay from './paymentProviders/stripe/alipay';
 
 const upload = multer();
@@ -254,9 +253,6 @@ export default async app => {
     authentication.parseJwtNoExpiryCheck,
     connectedAccounts.verify,
   );
-
-  /* PayPal Payment Method Helpers */
-  app.post('/services/paypal/create-payment', paypal.createPayment);
 
   /* AliPay Payment Callback */
   app.get('/services/stripe/alipay/callback', noCache, alipay.confirmOrder);

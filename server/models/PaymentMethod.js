@@ -177,7 +177,7 @@ function defineModel() {
       hooks: {
         beforeCreate: instance => {
           if (instance.service !== 'opencollective') {
-            if (!instance.token && !instance.isNewPaypalPaymentAPI()) {
+            if (!instance.token && !instance.isPaypalPayment()) {
               throw new Error(`${instance.service} payment method requires a token`);
             }
             if (
@@ -357,8 +357,8 @@ function defineModel() {
     return await paymentProvider.updateBalance(this);
   };
 
-  PaymentMethod.prototype.isNewPaypalPaymentAPI = async function () {
-    return Boolean(this.service === 'paypal' && this.type === 'payment' && this.data?.isNewApi);
+  PaymentMethod.prototype.isPaypalPayment = async function () {
+    return Boolean(this.service === 'paypal' && this.type === 'payment');
   };
 
   /**
