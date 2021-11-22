@@ -3,6 +3,7 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, remove } from 'lodash';
+import sanitizeHtml from 'sanitize-html';
 
 import { activities, channels } from '../constants';
 import activityType from '../constants/activities';
@@ -11,6 +12,7 @@ import { TransactionTypes } from '../constants/transactions';
 import activitiesLib from '../lib/activities';
 import emailLib, { NO_REPLY_EMAIL } from '../lib/email';
 import models from '../models';
+import { sanitizerOptions as updateSanitizerOptions } from '../models/Update';
 
 import { getTransactionPdf } from './pdf';
 import slackLib from './slack';
@@ -236,8 +238,73 @@ const notifyUpdateSubscribers = async activity => {
   const emailOpts = { from: activity.data.fromEmail };
   const update = await models.Update.findByPk(activity.data.update.id);
   const allUsers = await update.getUsersToNotify();
-  return notifySubscribers(allUsers, activity, emailOpts);
+  const modifiedActivity = replaceVideosByImagePreviews(activity);
+  return notifySubscribers(allUsers, modifiedActivity, emailOpts);
 };
+
+function replaceVideosByImagePreviews(activity) {
+  const sanitizerOptions = {
+    ...updateSanitizerOptions,
+    transformTags: {
+      ...updateSanitizerOptions.transformTags,
+      iframe: (tagName, attribs) => {
+        if (!attribs.src) {
+          return '';
+        }
+        const { service, id } = parseServiceLink(attribs.src);
+        const imgSrc = constructPreviewImageURL(service, id);
+        if (imgSrc) {
+          return {
+            tagName: 'img',
+            attribs: {
+              src: imgSrc,
+              alt: `${service} content`,
+            },
+          };
+        } else {
+          return '';
+        }
+      },
+    },
+  };
+  activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizerOptions);
+  return activity;
+}
+
+function constructPreviewImageURL(service, id) {
+  if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {
+    return `https://img.youtube.com/vi/${id}/0.jpg`;
+  } else if (service === 'anchorFm') {
+    return `https://opencollective.com/static/images/anchor-fm-logo.png`;
+  } else {
+    return null;
+  }
+}
+
+function parseServiceLink(videoLink) {
+  const regexps = {
+    youtube: new RegExp(
+      '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
+      'i',
+    ),
+    anchorFm: /^(http|https)?:\/\/(www\.)?anchor\.fm\/([^/]+)(\/embed)?(\/episodes\/)?([^/]+)?\/?$/,
+  };
+  for (const service in regexps) {
+    videoLink = videoLink.replace('/?showinfo=0', '');
+    const matches = regexps[service].exec(videoLink);
+    if (matches) {
+      if (service === 'anchorFm') {
+        const podcastName = matches[3];
+        const episodeId = matches[6];
+        const podcastUrl = `${podcastName}/embed`;
+        return { service, id: episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl };
+      } else {
+        return { service, id: matches[matches.length - 1] };
+      }
+    }
+  }
+  return {};
+}
 
 async function notifyByEmail(activity) {
   debug('notifyByEmail', activity.type);
