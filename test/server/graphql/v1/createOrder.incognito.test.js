@@ -18,8 +18,6 @@ const collectiveQuery = gql`
           createdByUser {
             id
             email
-            firstName
-            lastName
           }
         }
       }
@@ -29,8 +27,6 @@ const collectiveQuery = gql`
         createdByUser {
           id
           email
-          firstName
-          lastName
         }
       }
       orders {
@@ -40,8 +36,6 @@ const collectiveQuery = gql`
         createdByUser {
           id
           email
-          firstName
-          lastName
         }
         fromCollective {
           slug
@@ -49,8 +43,6 @@ const collectiveQuery = gql`
           createdByUser {
             id
             email
-            firstName
-            lastName
           }
         }
       }
@@ -63,9 +55,9 @@ describe('server/graphql/v1/createOrder.incognito', () => {
 
   before(async () => {
     await utils.resetTestDB();
-    ({ user: adminUser } = await store.newUser('new admin user', { firstName: 'admin', lastName: 'user' }));
-    ({ user: backerUser } = await store.newUser('new backerUser', { firstName: 'backer', lastName: 'user' }));
-    ({ user } = await store.newUser('new user', { firstName: 'u', lastName: 'ser' }));
+    ({ user: adminUser } = await store.newUser('new admin user', { name: 'admin user' }));
+    ({ user: backerUser } = await store.newUser('new backerUser', { name: 'backer user' }));
+    ({ user } = await store.newUser('new user', { name: 'u ser' }));
     incognitoCollective = await store.newIncognitoProfile(user);
     ({ hostCollective, collective, hostAdmin } = await store.newCollectiveWithHost('test', 'USD', 'USD', 10));
     await collective.addUserWithRole(adminUser, 'ADMIN');
@@ -102,28 +94,20 @@ describe('server/graphql/v1/createOrder.incognito', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.firstName).to.be.null;
-      expect(collectiveData.orders[0].createdByUser.lastName).to.be.null;
       expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.firstName).to.be.null;
-      expect(collectiveData.orders[0].fromCollective.createdByUser.lastName).to.be.null;
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
-      expect(collectiveData.orders[0].fromCollective.createdByUser.firstName).to.be.null;
       expect(collectiveData.members.length).to.equal(4);
 
       const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
       const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
       const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.firstName).to.be.null;
-      expect(backerMember.member.createdByUser.firstName).to.be.null;
+      expect(adminMember.member.createdByUser.email).to.be.null;
+      expect(backerMember.member.createdByUser.email).to.be.null;
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.firstName).to.be.null;
       expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.firstName).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.firstName).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.lastName).to.be.null;
+      expect(hostMember.member.createdByUser.email).to.be.null;
       expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
 
@@ -132,26 +116,19 @@ describe('server/graphql/v1/createOrder.incognito', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.firstName).to.be.null;
-      expect(collectiveData.orders[0].createdByUser.lastName).to.be.null;
       expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.firstName).to.be.null;
-      expect(collectiveData.orders[0].fromCollective.createdByUser.lastName).to.be.null;
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
       const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
       const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
       const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.firstName).to.be.null;
-      expect(backerMember.member.createdByUser.firstName).to.eq('backer');
+      expect(adminMember.member.createdByUser.email).to.be.null;
+      expect(backerMember.member.createdByUser.email).to.not.be.null;
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.firstName).to.be.null;
       expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.firstName).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.firstName).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.lastName).be.null;
+      expect(hostMember.member.createdByUser.email).to.be.null;
       expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
 
@@ -160,27 +137,19 @@ describe('server/graphql/v1/createOrder.incognito', () => {
       res.errors && console.error(res.errors[0]);
       expect(res.errors).to.not.exist;
       const collectiveData = res.data.Collective;
-      expect(collectiveData.orders[0].createdByUser.firstName).to.be.null;
-      expect(collectiveData.orders[0].createdByUser.lastName).to.be.null;
       expect(collectiveData.orders[0].createdByUser.email).to.be.null;
       expect(collectiveData.orders[0].fromCollective.name).to.equal('incognito');
-      expect(collectiveData.orders[0].fromCollective.createdByUser.firstName).to.be.null;
-      expect(collectiveData.orders[0].fromCollective.createdByUser.lastName).to.be.null;
       expect(collectiveData.orders[0].fromCollective.createdByUser.email).to.be.null;
 
       const adminMember = collectiveData.members.find(m => m.member.id === adminUser.CollectiveId);
       const backerMember = collectiveData.members.find(m => m.member.id === backerUser.CollectiveId);
       const incognitoMember = collectiveData.members.find(m => m.member.id === incognitoCollective.id);
       const hostMember = collectiveData.members.find(m => m.member.id === hostCollective.id);
-      expect(adminMember.member.createdByUser.firstName).to.equal('admin');
-      expect(backerMember.member.createdByUser.firstName).to.equal('backer');
+      expect(adminMember.member.createdByUser.email).to.not.be.null;
+      expect(backerMember.member.createdByUser.email).to.not.be.null;
       expect(incognitoMember.member.slug).to.not.be.null;
-      expect(incognitoMember.member.createdByUser.firstName).to.be.null;
-      expect(incognitoMember.member.createdByUser.lastName).to.be.null;
       expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.firstName).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.firstName).to.be.null;
-      expect(collectiveData.transactions[0].createdByUser.lastName).to.be.null;
+      expect(hostMember.member.createdByUser.email).to.be.null;
       expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
 
@@ -201,7 +170,7 @@ describe('server/graphql/v1/createOrder.incognito', () => {
       expect(backerMember.member.createdByUser.email).to.equal(backerUser.email);
       expect(incognitoMember.member.slug).to.not.be.null;
       expect(incognitoMember.member.createdByUser.email).to.be.null;
-      expect(hostMember.member.createdByUser.firstName).to.equal('host');
+      expect(hostMember.member.createdByUser.email).to.not.be.null;
       expect(collectiveData.transactions[0].createdByUser.email).to.be.null;
     });
   });

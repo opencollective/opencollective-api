@@ -28,27 +28,23 @@ const { Collective } = models;
 
 const usersData = [
   {
-    firstName: 'Xavier',
-    lastName: 'Damman',
+    name: 'Xavier Damman',
     email: 'xdamman+test@gmail.com',
     role: 'ADMIN',
     image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c.jpeg',
   },
   {
-    firstName: 'Aseem',
-    lastName: 'Sood',
+    name: 'Aseem Sood',
     email: randEmail('test@opencollective.com'),
     role: 'ADMIN',
   },
   {
-    firstName: 'Pia',
-    lastName: 'Mancini',
+    name: 'Pia Mancini',
     email: randEmail('test@opencollective.com'),
     role: 'BACKER',
   },
   {
-    firstName: 'github',
-    lastName: '',
+    name: 'github',
     email: 'github+test@opencollective.com',
     image: 'https://assets-cdn.github.com/images/modules/logos_page/GitHub-Logo.png',
     role: 'BACKER',

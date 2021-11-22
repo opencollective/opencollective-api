@@ -27,7 +27,13 @@ type CreateUserOptions = {
 };
 
 export const createUser = (
-  userData: { firstName: string; lastName: string; legalName: string; email: string; newsletterOptIn: boolean },
+  userData: {
+    name?: string;
+    legalName?: string;
+    email: string;
+    newsletterOptIn: boolean;
+    location: Record<string, unknown>;
+  },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
 ): Promise<{ user: typeof models.User; organization?: typeof models.Collective }> => {
   return sequelize.transaction(async transaction => {

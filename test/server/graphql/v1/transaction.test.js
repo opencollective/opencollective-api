@@ -59,7 +59,6 @@ describe('server/graphql/v1/transaction', () => {
               type
               createdByUser {
                 id
-                firstName
                 email
               }
               host {
@@ -99,7 +98,6 @@ describe('server/graphql/v1/transaction', () => {
             type
             createdByUser {
               id
-              firstName
               email
             }
             host {
@@ -131,7 +129,6 @@ describe('server/graphql/v1/transaction', () => {
             type
             createdByUser {
               id
-              firstName
               email
             }
             host {
@@ -256,8 +253,6 @@ describe('server/graphql/v1/transaction', () => {
             kind
             createdByUser {
               id
-              firstName
-              lastName
               email
             }
             fromCollective {

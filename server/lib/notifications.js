@@ -104,7 +104,7 @@ function publishToWebhook(activity, webhookUrl) {
 /**
  * Send the notification email (using emailLib.sendMessageFromActivity)
  * to all users that have not unsubscribed
- * @param {*} users: [ { id, email, firstName, lastName }]
+ * @param {*} users: [ { id, email }]
  * @param {*} activity [ { type, CollectiveId }]
  */
 async function notifySubscribers(users, activity, options = {}) {

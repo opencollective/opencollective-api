@@ -266,11 +266,7 @@ export async function createCollectiveFromGithub(_, args, req) {
 
   await Promise.all(promises);
 
-  const data = {
-    firstName: user.firstName,
-    lastName: user.lastName,
-    collective: collective.info,
-  };
+  const data = { collective: collective.info };
 
   await emailLib.send('github.signup', user.email, data);
 

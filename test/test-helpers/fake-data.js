@@ -48,8 +48,6 @@ export const fakeUUID = firstHeightChars => {
 export const fakeUser = async (userData, collectiveData) => {
   const user = await models.User.create({
     email: randEmail(),
-    firstName: randStr('FirstName '),
-    lastName: randStr('LastName '),
     ...userData,
   });
 

@@ -104,7 +104,7 @@ export async function newIncognitoProfile(user) {
 export async function newHost(name, currency, hostFee, userData = {}, hostData = {}) {
   // Host Admin
   const slug = slugify(name);
-  const hostAdmin = (await newUser(`${name} Admin`, { firstName: 'host', lastName: 'admin', ...userData })).user;
+  const hostAdmin = (await newUser(`${name} Admin`, { name: 'host admin', ...userData })).user;
   const hostFeePercent = hostFee ? parseInt(hostFee) : 0;
   const hostCollective = await models.Collective.create({
     name,

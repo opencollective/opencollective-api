@@ -404,7 +404,6 @@ describe('server/graphql/v1/queries', () => {
                 backgroundImage
                 createdByUser {
                   id
-                  firstName
                 }
                 tiers {
                   id
@@ -420,7 +419,6 @@ describe('server/graphql/v1/queries', () => {
                     description
                     createdByUser {
                       id
-                      firstName
                     }
                   }
                 }
@@ -441,7 +439,7 @@ describe('server/graphql/v1/queries', () => {
                     address: '505 Broadway, NY 10012',
                   },
                   backgroundImage: null,
-                  createdByUser: { id: 1, firstName: null },
+                  createdByUser: { id: 1 },
                   tiers: [
                     {
                       id: 3,
@@ -462,7 +460,7 @@ describe('server/graphql/v1/queries', () => {
                     address: '547 Broadway, NY 10012',
                   },
                   backgroundImage: 'http://opencollective.com/backgroundimage.png',
-                  createdByUser: { id: 1, firstName: null },
+                  createdByUser: { id: 1 },
                   tiers: [
                     {
                       id: 1,
@@ -474,19 +472,18 @@ describe('server/graphql/v1/queries', () => {
                         {
                           id: 1,
                           description: 'I work on bitcoin',
-                          createdByUser: { id: 2, firstName: null },
+                          createdByUser: { id: 2 },
                         },
                         {
                           id: 2,
                           description: 'I have been working on open source for over a decade',
-                          createdByUser: { id: 3, firstName: null },
+                          createdByUser: { id: 3 },
                         },
                         {
                           id: 3,
                           description: 'I have been working on open source for over a decade',
                           createdByUser: {
                             id: 1,
-                            firstName: null,
                           },
                         },
                       ],
@@ -501,7 +498,7 @@ describe('server/graphql/v1/queries', () => {
                         {
                           id: 4,
                           description: null,
-                          createdByUser: { id: 3, firstName: null },
+                          createdByUser: { id: 3 },
                         },
                       ],
                     },

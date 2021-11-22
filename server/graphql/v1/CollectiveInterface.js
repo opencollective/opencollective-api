@@ -1973,20 +1973,6 @@ export const UserCollectiveType = new GraphQLObjectType({
   fields: () => {
     return {
       ...CollectiveFields(),
-      firstName: {
-        type: GraphQLString,
-        deprecationReason: '2020-03-27: These field are now deprecated in favor of collective.name',
-        resolve() {
-          return null;
-        },
-      },
-      lastName: {
-        type: GraphQLString,
-        deprecationReason: '2020-03-27: These field are now deprecated in favor of collective.name',
-        resolve() {
-          return null;
-        },
-      },
       email: {
         type: GraphQLString,
         async resolve(userCollective, args, req) {

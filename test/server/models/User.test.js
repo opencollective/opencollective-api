@@ -22,22 +22,18 @@ describe('server/models/User', () => {
    */
   describe('#create', () => {
     it('fails without email', () => {
-      return expect(User.create({ firstName: userData.firstName })).to.be.rejectedWith(
+      return expect(User.create({})).to.be.rejectedWith(
         SequelizeValidationError,
         'notNull Violation: User.email cannot be null',
       );
     });
 
-    it('fails if invalid email', () =>
-      User.create({ firstName: userData.firstName, email: 'johndoe' }).catch(err => expect(err).to.exist));
-
-    it('fails if no email is given', () => {
-      User.create({ firstName: 'blah' }).catch(err => expect(err).to.exist);
+    it('fails if invalid email', () => {
+      User.create({ email: 'johndoe' }).catch(err => expect(err).to.exist);
     });
 
     it('successfully creates a user and lowercase email', async () => {
-      const user = await User.create({ firstName: userData.firstName, email: userData.email });
-      expect(user).to.have.property('firstName', userData.firstName);
+      const user = await User.create({ email: userData.email });
       expect(user).to.have.property('email', userData.email.toLowerCase());
       expect(user).to.have.property('createdAt');
       expect(user).to.have.property('updatedAt');
@@ -53,11 +49,7 @@ describe('server/models/User', () => {
     });
 
     it('uses "user" slug if name is not sluggifyable', () => {
-      return User.createUserWithCollective({
-        email: randEmail('user@domain.com'),
-        firstName: '...',
-        lastName: '?????',
-      }).then(user => {
+      return User.createUserWithCollective({ email: randEmail('user@domain.com'), name: '????...' }).then(user => {
         expect(user.collective.slug.startsWith('user')).to.equal(true);
       });
     });
@@ -65,8 +57,7 @@ describe('server/models/User', () => {
     it('knows how to deal with special characters', () => {
       return User.createUserWithCollective({
         email: randEmail('user@domain.com'),
-        firstName: '很棒的用户',
-        lastName: 'awesome',
+        name: '很棒的用户 awesome',
       }).then(user => {
         expect(user.collective.slug).to.equal('hen3-bang4-de-yong4-hu4-awesome');
       });
@@ -169,24 +160,20 @@ describe('server/models/User', () => {
       const email = 'xavier.damman@email.com';
       return User.createUserWithCollective({
         email,
-        firstName: 'Xavier',
-        lastName: 'Damman',
+        name: 'Xavier Damman',
       })
         .then(user => {
           expect(user.email).to.equal(email);
           expect(user.collective.slug).to.equal('xavier-damman');
           expect(user.collective.type).to.equal('USER');
           return User.createUserWithCollective({
-            firstName: 'Xavier',
-            lastName: 'Damman',
+            name: 'Xavier Damman',
             email: 'xavierdamman+test@mail.com',
           });
         })
         .then(user2 => {
           expect(user2.collective.slug).to.equal('xavier-damman1');
           expect(user2.collective.name).to.equal('Xavier Damman');
-          expect(user2.firstName).to.equal('Xavier');
-          expect(user2.lastName).to.equal('Damman');
         });
     });
   });
