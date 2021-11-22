@@ -304,7 +304,7 @@ describe('server/graphql/v1/query', () => {
                     address: '505 Broadway, NY 10012',
                   },
                   backgroundImage: null,
-                  createdByUser: { id: 1, firstName: 'Phil' },
+                  createdByUser: { id: 1, firstName: null },
                   tiers: [
                     {
                       id: 3,
@@ -325,7 +325,7 @@ describe('server/graphql/v1/query', () => {
                     address: '547 Broadway, NY 10012',
                   },
                   backgroundImage: 'http://opencollective.com/backgroundimage.png',
-                  createdByUser: { id: 1, firstName: 'Phil' },
+                  createdByUser: { id: 1, firstName: null },
                   tiers: [
                     {
                       id: 1,
@@ -337,19 +337,19 @@ describe('server/graphql/v1/query', () => {
                         {
                           id: 1,
                           description: 'I work on bitcoin',
-                          createdByUser: { id: 2, firstName: 'Anish' },
+                          createdByUser: { id: 2, firstName: null },
                         },
                         {
                           id: 2,
                           description: 'I have been working on open source for over a decade',
-                          createdByUser: { id: 3, firstName: 'Xavier' },
+                          createdByUser: { id: 3, firstName: null },
                         },
                         {
                           id: 3,
                           description: 'I have been working on open source for over a decade',
                           createdByUser: {
                             id: 1,
-                            firstName: 'Phil',
+                            firstName: null,
                           },
                         },
                       ],
@@ -364,7 +364,7 @@ describe('server/graphql/v1/query', () => {
                         {
                           id: 4,
                           description: null,
-                          createdByUser: { id: 3, firstName: 'Xavier' },
+                          createdByUser: { id: 3, firstName: null },
                         },
                       ],
                     },
