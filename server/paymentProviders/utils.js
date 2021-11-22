@@ -1,5 +1,3 @@
-import { omit } from 'lodash';
-
 import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
@@ -29,43 +27,34 @@ export const getVirtualCardForTransaction = async cardId => {
   return virtualCard;
 };
 
-export const persistTransaction = async (
-  virtualCard,
-  amount,
-  vendorProviderId,
-  vendorName,
-  incurredAt,
-  transactionToken,
-  providerTransaction,
-  isRefund = false,
-  fromAuthorizationId = null,
-) => {
+export const persistTransaction = async (virtualCard, transaction) => {
+  // Make sure amount is an absolute value
+  const amount = Math.abs(transaction.amount);
+
   if (amount === 0) {
     return;
   }
 
-  // Make sure amount is an absolute value
-  amount = Math.abs(amount);
-
-  const data = { ...omit(providerTransaction, ['id']), id: transactionToken };
+  const transactionId = transaction.id;
+  const expenseData = { transactionId };
   const UserId = virtualCard.UserId;
   const host = virtualCard.host;
   const collective = virtualCard.collective;
-  const vendor = await getOrCreateVendor(vendorProviderId, vendorName);
+  const vendor = await getOrCreateVendor(transaction.vendorProviderId, transaction.vendorName);
   const hostCurrencyFxRate = await getFxRate('USD', host.currency);
   const description = `Virtual Card charge: ${vendor.name}`;
 
-  if (fromAuthorizationId) {
+  if (transaction.fromAuthorizationId) {
     const processingExpense = await models.Expense.findOne({
       where: {
         VirtualCardId: virtualCard.id,
-        data: { authorizationId: fromAuthorizationId },
+        data: { authorizationId: transaction.fromAuthorizationId },
       },
     });
 
     if (processingExpense && processingExpense.status === ExpenseStatus.PROCESSING) {
       await processingExpense.setPaid();
-      await processingExpense.update({ data });
+      await processingExpense.update({ data: expenseData });
 
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
@@ -93,25 +82,29 @@ export const persistTransaction = async (
   const existingExpense = await models.Expense.findOne({
     where: {
       VirtualCardId: virtualCard.id,
-      data: { [Op.or]: [{ id: transactionToken }, { token: transactionToken }] },
+      // TODO : only let transactionId in a few months (today : 11/2021) or make a migration to update data on existing expenses and transactions
+      data: { [Op.or]: [{ transactionId }, { id: transactionId }, { token: transactionId }] },
     },
   });
 
   if (existingExpense) {
-    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${transactionToken}`);
+    logger.warn(`Virtual Card charge already reconciled, ignoring it: ${transactionId}`);
     return;
   }
 
-  if (isRefund) {
+  if (transaction.isRefund) {
     const existingTransaction = await models.Transaction.findOne({
       where: {
         CollectiveId: collective.id,
-        data: { [Op.or]: [{ id: transactionToken }, { token: transactionToken }] },
+        // TODO : only let refundTransactionId in a few months (today : 11/2021) or make a migration to update data on existing expenses and transactions
+        data: {
+          [Op.or]: [{ refundTransactionId: transactionId }, { id: transactionId }, { token: transactionId }],
+        },
       },
     });
 
     if (existingTransaction) {
-      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${transactionToken}`);
+      logger.warn(`Virtual Card refund already reconciled, ignoring it: ${transactionId}`);
       return;
     }
 
@@ -132,7 +125,7 @@ export const persistTransaction = async (
       hostCurrencyFxRate,
       isRefund: true,
       kind: TransactionKind.EXPENSE,
-      data,
+      data: { refundTransactionId: transactionId },
     });
 
     return;
@@ -152,13 +145,13 @@ export const persistTransaction = async (
       lastEditedById: UserId,
       status: ExpenseStatus.PAID,
       type: ExpenseType.CHARGE,
-      incurredAt,
-      data: { ...data, missingDetails: true },
+      incurredAt: transaction.incurredAt,
+      data: { ...expenseData, missingDetails: true },
     });
 
     await models.ExpenseItem.create({
       ExpenseId: expense.id,
-      incurredAt,
+      incurredAt: transaction.incurredAt,
       CreatedByUserId: UserId,
       amount,
     });
