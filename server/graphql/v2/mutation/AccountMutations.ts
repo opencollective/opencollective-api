@@ -386,6 +386,13 @@ const accountMutations = {
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
 
+      // This request can take some time to execute, so we set a custom 3min timeout
+      req.setTimeout(3 * 60 * 60 * 1000, () =>
+        console.warn(
+          `Request for mergeAccounts (${fromAccount.slug} into ${toAccount} with dryRun=${args.dryRun}) timed out`,
+        ),
+      );
+
       if (args.dryRun) {
         const message = await simulateMergeAccounts(fromAccount, toAccount);
         return { account: toAccount, message };
