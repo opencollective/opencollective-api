@@ -29,7 +29,7 @@ const DEFAULT_PROJECT_SETTINGS = {
 };
 
 async function createProject(_, args, req) {
-  const { remoteUser } = req;
+  const { loaders, remoteUser } = req;
 
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create a Project');
@@ -62,7 +62,16 @@ async function createProject(_, args, req) {
     throw new Error(`The slug '${projectData.slug}' is already taken. Please use another slug for your Project.`);
   }
 
-  return models.Collective.create(projectData);
+  const project = await models.Collective.create(projectData);
+
+  if (project.HostCollectiveId) {
+    const host = await loaders.Collective.byId.load(project.HostCollectiveId);
+    if (host) {
+      await project.addHost(host, remoteUser);
+    }
+  }
+
+  return project;
 }
 
 const createProjectMutation = {
