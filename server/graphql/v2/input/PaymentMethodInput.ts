@@ -82,7 +82,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       data: pick(pm.creditCardInfo, ['brand', 'country', 'expMonth', 'expYear', 'fullName', 'funding', 'zip']),
     };
   } else if (pm.paypalInfo) {
-    if (pm.paypalInfo.isNewApi && pm.paypalInfo.subscriptionId) {
+    if (pm.paypalInfo.subscriptionId) {
       return {
         service: PAYMENT_METHOD_SERVICE.PAYPAL,
         type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -95,7 +95,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
         ...pick(pm.paypalInfo, ['token']),
         data: {
           ...(pm.paypalInfo.data || {}),
-          ...pick(pm.paypalInfo, ['isNewApi', 'orderId']),
+          ...pick(pm.paypalInfo, ['orderId']),
         },
       };
     }

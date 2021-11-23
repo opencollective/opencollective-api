@@ -2,7 +2,6 @@ import { get, truncate } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import {
   createRefundTransaction,
@@ -15,59 +14,10 @@ import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 
-import { paypalRequest, paypalRequestV2 } from './api';
-
-/** Create a new payment object in the PayPal API
- *
- * It's just a wrapper to the PayPal API method `create-payment':
- * https://developer.paypal.com/docs/integration/direct/express-checkout/integration-jsv4/advanced-payments-api/create-express-checkout-payments/
- */
-export async function createPayment(req, res) {
-  const { amount, currency, hostId } = req.body;
-  if (!amount || !currency) {
-    throw new Error('Amount & Currency are required');
-  }
-  const hostCollective = await models.Collective.findByPk(hostId);
-  if (!hostCollective) {
-    throw new Error("Couldn't find host collective");
-  }
-  /* eslint-disable camelcase */
-  const paymentParams = {
-    intent: 'sale',
-    payer: { payment_method: 'paypal' },
-    transactions: [{ amount: { total: amount, currency } }],
-    /* The values bellow are required by the PayPal API but they're
-       not really used so they were just filled in with something
-       reasonable. */
-    redirect_urls: {
-      return_url: 'https://opencollective.com',
-      cancel_url: 'https://opencollective.com',
-    },
-  };
-  /* eslint-enable camelcase */
-  const payment = await paypalRequest('payments/payment', paymentParams, hostCollective);
-  return res.json({ id: payment.id });
-}
-
-/** Execute an already created payment
- *
- * It's just a wrapper to the PayPal API method `execute-payment':
- * https://developer.paypal.com/docs/integration/direct/express-checkout/execute-payments/
- */
-export async function executePayment(order) {
-  const hostCollective = await order.collective.getHostCollective();
-  const { paymentID, payerID } = order.paymentMethod.data;
-  return paypalRequest(
-    `payments/payment/${paymentID}/execute`,
-    {
-      payer_id: payerID, // eslint-disable-line camelcase
-    },
-    hostCollective,
-  );
-}
+import { paypalRequestV2 } from './api';
 
 /** Create transaction in our database to reflect a PayPal charge */
-const recordTransaction = async (order, amount, currency, paypalFee, payload) => {
+const recordTransaction = async (order, amount, currency, paypalFee, payload): Promise<typeof models.Transaction> => {
   const host = await order.collective.getHostCollective();
   if (!host) {
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
@@ -81,7 +31,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
   const paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paypalFee);
 
   const hostFee = await getHostFee(order, host);
-  const hostFeeInHostCurrency = Math.round(hostFee, hostCurrencyFxRate);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
 
   const platformTipEligible = await isPlatformTipEligible(order, host);
   const platformTip = getPlatformTip(order);
@@ -117,37 +67,31 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload) =>
   });
 };
 
-export async function createTransaction(order, paymentInfo) {
-  const transaction = paymentInfo.transactions[0];
-  const currency = transaction.amount.currency;
-  const amount = paypalAmountToCents(transaction.amount.total);
-  const paypalTransactionFee = parseFloat(get(transaction, 'related_resources.0.sale.transaction_fee.value', '0.0'));
-  const paymentProcessorFee = floatAmountToCents(paypalTransactionFee);
-  return recordTransaction(order, amount, currency, paymentProcessorFee, paymentInfo);
-}
-
-export function recordPaypalSale(order, paypalSale) {
+export function recordPaypalSale(order: typeof models.Order, paypalSale): Promise<typeof models.Transaction> {
   const currency = paypalSale.amount.currency;
   const amount = paypalAmountToCents(paypalSale.amount.total);
   const fee = paypalAmountToCents(get(paypalSale, 'transaction_fee.value', '0.0'));
   return recordTransaction(order, amount, currency, fee, { paypalSale });
 }
 
-export function recordPaypalTransaction(order, paypalTransaction) {
+export function recordPaypalTransaction(
+  order: typeof models.Order,
+  paypalTransaction,
+): Promise<typeof models.Transaction> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
   const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
   return recordTransaction(order, amount, currency, fee, { paypalTransaction });
 }
 
-export const recordPaypalCapture = async (order, capture) => {
+export const recordPaypalCapture = async (order: typeof models.Order, capture): Promise<typeof models.Transaction> => {
   const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
   return recordTransaction(order, amount, currency, fee, { capture });
 };
 
-const processPaypalOrder = async (order, paypalOrderId) => {
+const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.Transaction | undefined> => {
   const hostCollective = await order.collective.getHostCollective();
   const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
 
@@ -180,7 +124,12 @@ const processPaypalOrder = async (order, paypalOrderId) => {
   return recordPaypalCapture(order, captureDetails);
 };
 
-export const refundPaypalCapture = async (transaction, captureId, user, reason) => {
+export const refundPaypalCapture = async (
+  transaction: typeof models.Transaction,
+  captureId: string,
+  user: typeof models.User,
+  reason: string,
+): Promise<typeof models.Transaction> => {
   const host = await transaction.getHostCollective();
   if (!host) {
     throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
@@ -194,7 +143,7 @@ export const refundPaypalCapture = async (transaction, captureId, user, reason) 
     const payload = { note_to_payer: truncate(reason, { length: 255 }) || undefined };
     const result = await paypalRequestV2(`payments/captures/${captureId}/refund`, host, 'POST', payload);
     const refundDetails = await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET');
-    const rawRefundedPaypalFee = get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
+    const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
     const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
     return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
   } catch (error) {
@@ -205,21 +154,11 @@ export const refundPaypalCapture = async (transaction, captureId, user, reason) 
 };
 
 /** Process order in paypal and create transactions in our db */
-export async function processOrder(order) {
-  if (order.paymentMethod.data?.isNewApi) {
-    if (order.paymentMethod.data.orderId) {
-      return processPaypalOrder(order, order.paymentMethod.data.orderId);
-    } else {
-      throw new Error('Must provide an orderId');
-    }
+export async function processOrder(order: typeof models.Order): Promise<typeof models.Transaction | undefined> {
+  if (order.paymentMethod.data.orderId) {
+    return processPaypalOrder(order, order.paymentMethod.data.orderId);
   } else {
-    const paymentInfo = await executePayment(order);
-    logger.info('PayPal Payment');
-    logger.info(paymentInfo);
-    const transaction = await createTransaction(order, paymentInfo);
-    await order.update({ processedAt: new Date() });
-    await order.paymentMethod.update({ confirmedAt: new Date() });
-    return transaction;
+    throw new Error('Must provide an orderId');
   }
 }
 
@@ -234,7 +173,11 @@ const getCaptureIdFromPaypalTransaction = transaction => {
   }
 };
 
-const refundPaypalPaymentTransaction = async (transaction, user, reason) => {
+const refundPaypalPaymentTransaction = async (
+  transaction: typeof models.Transaction,
+  user: typeof models.User,
+  reason: string,
+): Promise<typeof models.Transaction> => {
   const captureId = getCaptureIdFromPaypalTransaction(transaction);
   if (!captureId) {
     throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);

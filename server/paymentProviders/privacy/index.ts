@@ -26,16 +26,14 @@ const processTransaction = async (
   const amount = privacyTransaction.settled_amount;
   const isRefund = amount < 0;
 
-  return persistTransaction(
-    virtualCard,
+  return persistTransaction(virtualCard, {
+    id: privacyTransaction.token,
     amount,
-    privacyTransaction.merchant.acceptor_id,
-    privacyTransaction.merchant.descriptor,
-    privacyTransaction.created,
-    privacyTransaction.token,
-    privacyTransaction,
+    vendorProviderId: privacyTransaction.merchant.acceptor_id,
+    vendorName: privacyTransaction.merchant.descriptor,
+    incurredAt: privacyTransaction.created,
     isRefund,
-  );
+  });
 };
 
 const assignCardToCollective = async (
