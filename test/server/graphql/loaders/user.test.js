@@ -94,16 +94,16 @@ describe('server/graphql/loaders/user', () => {
         expect(result).to.be.true;
       });
 
-      it('Can see infos if collective admin', async () => {
+      it('Cannot see infos if collective admin', async () => {
         const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: collectiveAdmin });
         const result = await loader.load(userWithPrivateInfo);
-        expect(result).to.be.true;
+        expect(result).to.be.false;
       });
 
-      it('Can see infos if host admin', async () => {
+      it('Cannot see infos if host admin', async () => {
         const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: hostAdmin });
         const result = await loader.load(userWithPrivateInfo);
-        expect(result).to.be.true;
+        expect(result).to.be.false;
       });
     });
   });

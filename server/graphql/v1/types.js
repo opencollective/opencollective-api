@@ -161,15 +161,19 @@ export const UserType = new GraphQLObjectType({
       firstName: {
         type: GraphQLString,
         deprecationReason: '2021-09-24: Use "name"',
-        resolve(user) {
-          return user.firstName;
+        async resolve(user, _, req) {
+          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.firstName;
+          }
         },
       },
       lastName: {
         type: GraphQLString,
         deprecationReason: '2021-09-24: Use "name"',
-        resolve(user) {
-          return user.lastName;
+        async resolve(user, _, req) {
+          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.lastName;
+          }
         },
       },
       name: {
