@@ -73,11 +73,10 @@ const searchTermToTsVector = term => {
  * See `migrations/20201119100223-update-collectives-search-index.js`
  */
 export const TS_VECTOR = `
-  to_tsvector('simple', name)
+  to_tsvector('english', name)
   || to_tsvector('simple', slug)
-  || to_tsvector('simple', COALESCE(description, ''))
+  || to_tsvector('english', COALESCE(description, ''))
   || COALESCE(array_to_tsvector(tags), '')
-  || to_tsvector('simple', COALESCE("longDescription", ''))
 `;
 
 /**
@@ -91,6 +90,7 @@ export const searchCollectivesInDB = async (
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
+  let isUsingTsVector = false;
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
@@ -115,7 +115,18 @@ export const searchCollectivesInDB = async (
   // Cleanup term
   if (term && term.length > 0) {
     term = term.replace(/(_|%|\\)/g, ' ').trim();
-    dynamicConditions += `AND (${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;
+    if (term[0] === '@') {
+      // When the search starts with a `@`, we search by slug only
+      term = term.replace(/^@+/, '');
+      dynamicConditions += `AND slug ILIKE '%' || :term || '%' `;
+    } else {
+      isUsingTsVector = true;
+      dynamicConditions += `
+        AND (${TS_VECTOR} @@ plainto_tsquery('english', :vectorizedTerm)
+        OR ${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm)
+        OR name ILIKE '%' || :term || '%'
+        OR slug ILIKE '%' || :term || '%')`;
+    }
   } else {
     term = '';
   }
@@ -130,7 +141,7 @@ export const searchCollectivesInDB = async (
         CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
           1
         ELSE
-          ts_rank(${TS_VECTOR}, plainto_tsquery('simple', :vectorizedTerm))
+          ${isUsingTsVector ? `ts_rank(${TS_VECTOR}, plainto_tsquery('english', :vectorizedTerm))` : '0'}
         END
       ) AS __rank__
     FROM "Collectives" c
