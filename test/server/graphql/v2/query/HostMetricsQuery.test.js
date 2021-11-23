@@ -24,6 +24,22 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
             valueInCents
             currency
           }
+          totalMoneyManaged {
+            valueInCents
+            currency
+          }
+        }
+        hostMetricsTimeSeries(dateFrom: $dateFrom, dateTo: $dateTo, timeUnit: MONTH) {
+          totalMoneyManaged {
+            nodes {
+              date
+              amount {
+                value
+                valueInCents
+                currency
+              }
+            }
+          }
         }
       }
     }
@@ -37,7 +53,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
     });
     collectiveAdminUser = await fakeUser();
     hostAdminUser = await fakeUser();
-    host = await fakeHost({ plan: 'grow-plan-2021' });
+    host = await fakeHost({ plan: 'grow-plan-2021', createdAt: '2015-01-01' });
     await host.addUserWithRole(hostAdminUser, 'ADMIN');
 
     collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
@@ -98,6 +114,34 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
         const hostMetrics = queryResponse.data.host.hostMetrics;
         expect(hostMetrics.hostFees.valueInCents).to.equal(300);
         expect(hostMetrics.hostFeeShare.valueInCents).to.equal(45);
+      });
+
+      it('correctly calculates totalMoneyManaged for the whole period', async () => {
+        const dateFrom = new Date(host.createdAt).toISOString();
+        const dateTo = new Date().toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        const hostMetricsTimeSeriesNodes = queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManaged.nodes;
+        const totalMoneyManaged =
+          hostMetricsTimeSeriesNodes.length > 0
+            ? hostMetricsTimeSeriesNodes[hostMetricsTimeSeriesNodes.length - 1].amount.valueInCents
+            : 0;
+        expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
+      });
+
+      it('correctly calculates totalMoneyManaged for a given month', async () => {
+        const dateFrom = new Date(host.createdAt).toISOString();
+        const dateTo = new Date('2021-03-01').toISOString();
+        const variables = { slug: host.slug, dateFrom, dateTo };
+        const queryResponse = await graphqlQueryV2(hostMetricsQuery, variables);
+        const hostMetrics = queryResponse.data.host.hostMetrics;
+        const hostMetricsTimeSeriesNodes = queryResponse.data.host.hostMetricsTimeSeries.totalMoneyManaged.nodes;
+        const totalMoneyManaged =
+          hostMetricsTimeSeriesNodes.length > 0
+            ? hostMetricsTimeSeriesNodes[hostMetricsTimeSeriesNodes.length - 1].amount.valueInCents
+            : 0;
+        expect(hostMetrics.totalMoneyManaged.valueInCents).to.equal(totalMoneyManaged);
       });
     });
   });

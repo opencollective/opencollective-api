@@ -174,12 +174,18 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   version = version || host.settings?.budget?.version || 'v1';
   currency = currency || host.currency;
 
-  let hostedCollectives, ids;
+  let ids;
   if (collectiveIds?.length > 0) {
     ids = collectiveIds;
   } else {
-    hostedCollectives = await host.getHostedCollectives();
-    ids = hostedCollectives.map(c => c.id);
+    const results = await sequelize.query(
+      `SELECT id FROM "Collectives" WHERE "HostCollectiveId" = :HostCollectiveId AND "deletedAt" IS NULL AND "isActive" = TRUE`,
+      {
+        replacements: { HostCollectiveId: host.id },
+        type: sequelize.QueryTypes.SELECT,
+      },
+    );
+    ids = results.map(result => result.id);
   }
 
   if (host.isActive) {

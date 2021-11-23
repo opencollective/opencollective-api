@@ -145,6 +145,10 @@ export const Host = new GraphQLObjectType({
       hostMetricsTimeSeries: {
         type: new GraphQLNonNull(HostMetricsTimeSeries),
         args: {
+          account: {
+            type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+            description: 'A collection of accounts for which the metrics should be returned.',
+          },
           dateFrom: {
             type: new GraphQLNonNull(GraphQLDateTime),
             description: 'The start date of the time series',
@@ -159,7 +163,7 @@ export const Host = new GraphQLObjectType({
           },
         },
         async resolve(host, args) {
-          return { host, ...pick(args, ['dateFrom', 'dateTo', 'timeUnit']) };
+          return { host, ...pick(args, ['dateFrom', 'dateTo', 'timeUnit', 'account']) };
         },
       },
       supportedPaymentMethods: {
