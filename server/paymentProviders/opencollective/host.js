@@ -16,6 +16,10 @@ paymentMethodProvider.features = {
 };
 
 paymentMethodProvider.refundTransaction = async (transaction, user) => {
+  if (transaction.CollectiveId === transaction.FromCollectiveId) {
+    throw new Error('Cannot refund a transaction from the same collective');
+  }
+
   const host = await models.Collective.findByPk(transaction.CollectiveId);
 
   const balance = await host.getBalanceWithBlockedFunds();
