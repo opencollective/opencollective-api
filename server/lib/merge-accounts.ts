@@ -1,10 +1,22 @@
-import { flatten, isEmpty, some } from 'lodash';
+import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
 
 import { types as CollectiveTypes } from '../constants/collectives';
 import models, { Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
 
 import { DEFAULT_GUEST_NAME } from './guest-accounts';
+
+const countEntities = async (fieldsConfig, entityId) => {
+  const resultsList = await Promise.all(
+    Object.keys(fieldsConfig).map(async entity => {
+      const entityConfig = fieldsConfig[entity];
+      return { entity, count: await entityConfig.model.count({ where: { [entityConfig.field]: entityId } }) };
+    }),
+  );
+
+  // Transform the results from `[{entity: 'updates', count: 42}]` to `{updates: 42}`
+  return mapValues(keyBy(resultsList, 'entity'), 'count');
+};
 
 /**
  * Get a summary of all items handled by the `mergeAccounts` function
@@ -15,30 +27,22 @@ export const getMovableItemsCounts = async (
   account: Record<keyof CollectiveFieldsConfig, number>;
   user: Record<keyof UserFieldsConfig, number>;
 }> => {
-  const result = { account: {}, user: null };
-  for (const entity of Object.keys(collectiveFieldsConfig)) {
-    const entityConfig = collectiveFieldsConfig[entity];
-    result['account'][entity] = await entityConfig.model.count({
-      where: { [entityConfig.field]: fromCollective.id },
-    });
-  }
-
   if (fromCollective.type === CollectiveTypes.USER) {
     const user = await fromCollective.getUser({ paranoid: false });
     if (!user) {
       throw new Error('Cannot find user for this account');
     }
 
-    result['user'] = {};
-    for (const entity of Object.keys(userFieldsConfig)) {
-      const entityConfig = userFieldsConfig[entity];
-      result['user'][entity] = await entityConfig.model.count({
-        where: { [entityConfig.field]: user.id },
-      });
-    }
+    return {
+      account: await countEntities(collectiveFieldsConfig, fromCollective.id),
+      user: await countEntities(userFieldsConfig, user.id),
+    };
+  } else {
+    return {
+      account: await countEntities(collectiveFieldsConfig, fromCollective.id),
+      user: null,
+    };
   }
-
-  return result;
 };
 
 const checkMergeCollective = (from: typeof models.Collective, into: typeof models.Collective): void => {
