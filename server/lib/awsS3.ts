@@ -32,7 +32,7 @@ export const uploadToS3 = (
     } else {
       const Location = `/tmp/${params.Key}`;
       logger.warn(`S3 is not set, saving file to ${Location}. This should only be done in development.`);
-      fs.writeFile(Location, params.Body, logger.info);
+      fs.writeFile(Location, params.Body.toString('utf8'), logger.info);
       resolve({ Location: `file://${Location}`, Bucket: 'local-tmp', Key: params.Key });
     }
   });

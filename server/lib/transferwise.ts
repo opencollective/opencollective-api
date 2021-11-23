@@ -101,6 +101,7 @@ export const requestDataAndThrowParsedError = (
   },
   defaultErrorMessage?: string,
 ): Promise<any> => {
+  const start = process.hrtime.bigint();
   debug(`calling ${config.transferwise.apiUrl}${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
   const pRequest = data ? fn(url, data, options) : fn(url, options);
   return pRequest
@@ -126,6 +127,11 @@ export const requestDataAndThrowParsedError = (
       const error = parseError(e, defaultErrorMessage);
       logger.error(error.toString());
       throw error;
+    })
+    .finally(() => {
+      const end = process.hrtime.bigint();
+      const executionTime = Math.round(Number(end - start) / 1000000);
+      debug(`called ${config.transferwise.apiUrl}${url} in ${executionTime}ms`);
     });
 };
 
