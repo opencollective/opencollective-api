@@ -1,8 +1,11 @@
+import Promise from 'bluebird';
+
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -10,6 +13,22 @@ const paymentMethodProvider = {};
 paymentMethodProvider.features = {
   recurring: false,
   waitToCharge: false,
+};
+
+paymentMethodProvider.refundTransaction = async (transaction, user) => {
+  const host = await models.Collective.findByPk(transaction.CollectiveId);
+
+  const balance = await host.getBalanceWithBlockedFunds();
+  if (balance < transaction.amount) {
+    throw new Error(
+      `Not enough funds available (${formatCurrency(
+        balance,
+        host.currency,
+      )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
+    );
+  }
+
+  return await createRefundTransaction(transaction, 0, null, user);
 };
 
 // We don't check balance for "Added Funds"
