@@ -5,12 +5,21 @@ import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../../server/lib/search';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('server/lib/search', () => {
+  before(resetTestDB);
+
   describe('Search in DB', () => {
     it('By slug', async () => {
       const { userCollective } = await newUser();
       const [results] = await searchCollectivesInDB(userCollective.slug);
+      expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+    });
+
+    it('By slug (prefixed with an @)', async () => {
+      const { userCollective } = await newUser();
+      const [results] = await searchCollectivesInDB(`@${userCollective.slug}`);
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
@@ -19,13 +28,6 @@ describe('server/lib/search', () => {
       const { userCollective } = await newUser(name);
       const [results] = await searchCollectivesInDB(name);
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
-    });
-
-    it('By long description', async () => {
-      const longDescription = 'Wow thats AVeryUniqueDescription I swear!!!';
-      const collective = await fakeCollective({ longDescription });
-      const [results] = await searchCollectivesInDB('AVeryUniqueDescription');
-      expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
     it('By tag', async () => {
@@ -44,11 +46,18 @@ describe('server/lib/search', () => {
     });
 
     it('Does not break if submitting strange input', async () => {
-      const longDescription = 'Wow thats&&}{\'" !%|wow AVeryUniqueDescriptionZZZzzz I swear!!!';
+      const description = 'Wow thats&&}{\'" !%|wow AVeryUniqueDescriptionZZZzzz I swear!!!';
       const tags = ['\'"{}[]!&|dsa🔥️das'];
-      const collective = await fakeCollective({ longDescription, tags });
+      const collective = await fakeCollective({ description, tags });
       const [results] = await searchCollectivesInDB('!%|wow🔥️🔥️ AVeryUniqueDescriptionZZZzzz!! &&}{\'"');
       expect(results.find(c => c.id === collective.id)).to.exist;
+    });
+
+    it('Works with punctuation', async () => {
+      const name = "The Watchers' defense Collective";
+      const collective = await fakeCollective({ name });
+      const [results] = await searchCollectivesInDB("Watcher's defense");
+      expect(results.find(res => res.id === collective.id)).to.exist;
     });
 
     describe('By email', async () => {
