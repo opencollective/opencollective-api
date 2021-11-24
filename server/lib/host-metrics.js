@@ -272,14 +272,8 @@ export async function getTotalMoneyManagedTimeSeries(
   { startDate, endDate, collectiveIds = null, timeUnit } = {},
 ) {
   if (!collectiveIds) {
-    const results = await sequelize.query(
-      `SELECT id FROM "Collectives" WHERE "HostCollectiveId" = :HostCollectiveId AND "deletedAt" IS NULL AND "isActive" = TRUE`,
-      {
-        replacements: { HostCollectiveId: host.id },
-        type: sequelize.QueryTypes.SELECT,
-      },
-    );
-    collectiveIds = results.map(result => result.id);
+    const collectives = await host.getHostedCollectives({ attributes: ['id'] });
+    collectiveIds = collectives.map(result => result.id);
     collectiveIds.push(host.id);
   }
 
