@@ -174,22 +174,17 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   version = version || host.settings?.budget?.version || 'v1';
   currency = currency || host.currency;
 
-  let ids;
-  if (collectiveIds?.length > 0) {
-    ids = collectiveIds;
-  } else {
+  if (!collectiveIds) {
     const collectives = await host.getHostedCollectives({ attributes: ['id'] });
-    ids = collectives.map(result => result.id);
+    collectiveIds = collectives.map(result => result.id);
+    collectiveIds.push(host.id);
   }
 
-  if (host.isActive) {
-    ids.push(host.id);
-  }
-  if (ids.length === 0) {
+  if (collectiveIds.length === 0) {
     return { value: 0, currency };
   }
 
-  const results = await sumCollectivesTransactions(ids, {
+  const results = await sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
     excludeRefunds: false,
