@@ -1979,8 +1979,8 @@ function defineModel() {
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
-    // events should take the currency of their parent collective, not necessarily the host of their host.
-    if (this.type === 'COLLECTIVE') {
+    // events should take the currency of their parent collective, not necessarily the one from their host.
+    if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
       updatedValues.currency = hostCollective.currency;
     }
 
@@ -2010,7 +2010,7 @@ function defineModel() {
       );
     }
 
-    if (this.type === types.COLLECTIVE) {
+    if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
       let tiers = await this.getTiers();
       if (!tiers || tiers.length === 0) {
         tiers = defaultTiers(hostCollective.currency);
