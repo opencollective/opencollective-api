@@ -1728,6 +1728,7 @@ enum ActivityType {
   COLLECTIVE_UPDATE_PUBLISHED
   COLLECTIVE_CONTACT
   COLLECTIVE_VIRTUAL_CARD_ASSIGNED
+  COLLECTIVE_VIRTUAL_CARD_CREATED
   ORGANIZATION_COLLECTIVE_CREATED
   SUBSCRIPTION_ACTIVATED
   SUBSCRIPTION_CONFIRMED
@@ -7094,6 +7095,31 @@ type Mutation {
     Virtual Card data
     """
     virtualCard: VirtualCardInput!
+
+    """
+    Account where the virtual card will be associated
+    """
+    account: AccountReferenceInput!
+
+    """
+    Individual account responsible for the card
+    """
+    assignee: AccountReferenceInput!
+  ): VirtualCard!
+
+  """
+  Create new virtual card for existing hosted collective
+  """
+  createVirtualCard(
+    """
+    Virtual card name
+    """
+    name: String!
+
+    """
+    Virtual card monthly limit
+    """
+    monthlyLimit: Int!
 
     """
     Account where the virtual card will be associated

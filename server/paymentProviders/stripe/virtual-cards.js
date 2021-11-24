@@ -39,21 +39,40 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, 
     throw new Error('Could not find a Stripe Card matching the submitted card');
   }
 
-  const cardData = {
-    id: matchingCard.id,
-    name,
-    last4: matchingCard.last4,
-    privateData: { cardNumber, expireDate, cvv },
-    data: omit(matchingCard, ['number', 'cvc', 'exp_year', 'exp_month']),
-    CollectiveId: collectiveId,
-    HostCollectiveId: host.id,
-    UserId: userId,
-    provider: 'STRIPE',
-    spendingLimitAmount: matchingCard['spending_controls']['spending_limits'][0]['amount'],
-    spendingLimitInterval: matchingCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
-  };
+  return createCard(matchingCard, name, collectiveId, host.id, userId);
+};
 
-  return await models.VirtualCard.create(cardData);
+export const createVirtualCard = async (host, collectiveId, userId, name, monthlyLimit) => {
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+  const cardholders = await stripe.issuing.cardholders.list();
+
+  if (cardholders.data.length === 0) {
+    throw new Error(`No cardholder for account ${host.slug}`);
+  }
+
+  const issuingCard = await stripe.issuing.cards.create({
+    cardholder: cardholders.data[0].id,
+    currency: 'usd',
+    type: 'virtual',
+    status: 'active',
+    // eslint-disable-next-line camelcase
+    spending_controls: {
+      // eslint-disable-next-line camelcase
+      spending_limits: [
+        {
+          amount: monthlyLimit,
+          interval: 'monthly',
+        },
+      ],
+    },
+  });
+
+  const stripeCard = await stripe.issuing.cards.retrieve(issuingCard.id, { expand: ['number', 'cvc'] });
+
+  return createCard(stripeCard, name, collectiveId, host.id, userId);
 };
 
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
@@ -155,6 +174,28 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     isRefund,
     fromAuthorizationId: stripeTransaction.authorization,
   });
+};
+
+const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
+  const cardData = {
+    id: stripeCard.id,
+    name,
+    last4: stripeCard.last4,
+    privateData: {
+      cardNumber: stripeCard.number,
+      expireDate: `${stripeCard['exp_month']}/${stripeCard['exp_year']}`,
+      cvv: stripeCard.cvc,
+    },
+    data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
+    CollectiveId: collectiveId,
+    HostCollectiveId: hostId,
+    UserId: userId,
+    provider: 'STRIPE',
+    spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+    spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
+  };
+
+  return models.VirtualCard.create(cardData);
 };
 
 const checkStripeEvent = async (stripeEvent, host) => {
