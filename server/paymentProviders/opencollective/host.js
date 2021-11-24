@@ -37,7 +37,7 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
     throw new Error(
       `Not enough funds available (${formatCurrency(
         balance,
-        collective.currency,
+        transaction.currency,
       )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
     );
   }
