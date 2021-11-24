@@ -20,19 +20,29 @@ paymentMethodProvider.refundTransaction = async (transaction, user) => {
     throw new Error('Cannot refund a transaction from the same collective');
   }
 
-  const host = await models.Collective.findByPk(transaction.CollectiveId);
+  if (transaction.type === TransactionTypes.DEBIT) {
+    transaction = await transaction.getRelatedTransaction({ type: TransactionTypes.CREDIT });
+  }
 
-  const balance = await host.getBalanceWithBlockedFunds();
+  if (!transaction) {
+    throw new Error('Cannot find any CREDIT transaction to refund');
+  } else if (transaction.RefundTransactionId) {
+    throw new Error('This transaction has already been refunded');
+  }
+
+  const collective = await models.Collective.findByPk(transaction.CollectiveId);
+
+  const balance = await collective.getBalanceWithBlockedFunds({ currency: transaction.currency });
   if (balance < transaction.amount) {
     throw new Error(
       `Not enough funds available (${formatCurrency(
         balance,
-        host.currency,
+        collective.currency,
       )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
     );
   }
 
-  return await createRefundTransaction(transaction, 0, null, user);
+  return createRefundTransaction(transaction, 0, null, user);
 };
 
 // We don't check balance for "Added Funds"
