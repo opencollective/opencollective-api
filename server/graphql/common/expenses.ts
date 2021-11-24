@@ -615,7 +615,7 @@ export async function createExpense(
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-  if (!remoteUser.isAdmin(fromCollective.id)) {
+  if (!remoteUser.isAdminOfCollective(fromCollective)) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
     throw new ValidationFailed('This account cannot be used for payouts');
@@ -818,7 +818,7 @@ export async function editExpense(
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || expense.fromCollective;
   if (expenseData.fromCollective && expenseData.fromCollective.id !== expense.fromCollective.id) {
-    if (!options?.['skipPermissionCheck'] && !remoteUser.isAdmin(fromCollective.id)) {
+    if (!options?.['skipPermissionCheck'] && !remoteUser.isAdminOfCollective(fromCollective)) {
       throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
     } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
       throw new ValidationFailed('This account cannot be used for payouts');
