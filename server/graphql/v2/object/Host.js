@@ -9,6 +9,7 @@ import {
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
+import moment from 'moment';
 
 import { roles } from '../../../constants';
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
@@ -17,6 +18,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
+import queries from '../../../lib/queries';
 import { days } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -43,7 +45,7 @@ import { Amount } from './Amount';
 import { ContributionStats } from './ContributionStats';
 import { ExpenseStats } from './ExpenseStats';
 import { HostMetrics } from './HostMetrics';
-import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
+import { HostMetricsTimeSeries, resultsToAmountNode } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -514,6 +516,11 @@ export const Host = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate contribution statistics until this date.',
           },
+          timeUnit: {
+            type: new GraphQLNonNull(TimeUnit),
+            defaultValue: 'YEAR',
+            description: 'The time unit of the time series',
+          },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
@@ -533,6 +540,7 @@ export const Host = new GraphQLObjectType({
           if (dateRange) {
             where.createdAt = dateRange;
           }
+          let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, {
               throwIfMissing: true,
@@ -541,9 +549,33 @@ export const Host = new GraphQLObjectType({
             const collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
+
+          const contributionAmountOverTime = async () => {
+            const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
+            const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+
+            const amountDataPoints = await queries.getTransactionsTimeSeries(
+              TransactionKind.CONTRIBUTION,
+              TransactionTypes.CREDIT,
+              host.id,
+              args.timeUnit,
+              collectiveIds,
+              dateFrom,
+              dateTo,
+            );
+
+            return {
+              dateFrom: args.dateFrom || host.createdAt,
+              dateTo: args.dateTo || new Date(),
+              timeUnit: args.timeUnit,
+              nodes: resultsToAmountNode(amountDataPoints),
+            };
+          };
+
           const distinct = { distinct: true, col: 'OrderId' };
 
           return {
+            contributionAmountOverTime,
             contributionsCount: () =>
               models.Transaction.count({
                 where,
@@ -586,6 +618,11 @@ export const Host = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate expense statistics until this date.',
           },
+          timeUnit: {
+            type: new GraphQLNonNull(TimeUnit),
+            defaultValue: 'YEAR',
+            description: 'The time unit of the time series',
+          },
         },
         async resolve(host, args, req) {
           if (!req.remoteUser?.hasRole([roles.ADMIN, roles.ACCOUNTANT], host.id)) {
@@ -599,14 +636,38 @@ export const Host = new GraphQLObjectType({
           if (dateRange) {
             where.createdAt = dateRange;
           }
+          let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
             const collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
+
+          const expenseAmountOverTime = async () => {
+            const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
+            const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+            const amountDataPoints = await queries.getTransactionsTimeSeries(
+              TransactionKind.EXPENSE,
+              TransactionTypes.DEBIT,
+              host.id,
+              args.timeUnit,
+              collectiveIds,
+              dateFrom,
+              dateTo,
+            );
+
+            return {
+              dateFrom: args.dateFrom || host.createdAt,
+              dateTo: args.dateTo || new Date(),
+              timeUnit: args.timeUnit,
+              nodes: resultsToAmountNode(amountDataPoints),
+            };
+          };
+
           const distinct = { distinct: true, col: 'ExpenseId' };
 
           return {
+            expenseAmountOverTime,
             expensesCount: () =>
               models.Transaction.count({
                 where,

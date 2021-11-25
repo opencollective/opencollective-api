@@ -6,7 +6,7 @@ import { fetchAccountsWithReferences } from '../input/AccountReferenceInput';
 import { TimeSeriesAmount } from './TimeSeriesAmount';
 import { TimeSeriesAmountWithSettlement } from './TimeSeriesAmountWithSettlement';
 
-const resultsToAmountNode = results => {
+export const resultsToAmountNode = results => {
   return results.map(result => ({
     date: result.date,
     amount: { value: result.amount, currency: result.currency },

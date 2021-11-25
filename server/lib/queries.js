@@ -324,14 +324,14 @@ const getCollectivesWithBalance = async (where = {}, options) => {
 
 export const usersToNotifyForUpdateSQLQuery = `
   WITH collective AS (
-    SELECT c.* 
+    SELECT c.*
     FROM "Collectives" c
     WHERE id = :collectiveId
   ), hosted_collectives AS (
     SELECT hc.*
     FROM "Collectives" hc
     INNER JOIN "Members" m ON hc.id = m."CollectiveId"
-    INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId" 
+    INNER JOIN "Collectives" mc ON mc."id" = m."CollectiveId"
     INNER JOIN collective c ON m."MemberCollectiveId" = c.id
     WHERE :includeHostedAccounts = TRUE
     AND c."isHostAccount" = TRUE
@@ -379,7 +379,7 @@ export const usersToNotifyForUpdateSQLQuery = `
         hosted_collective_admins."type" != 'USER'
         AND m."CollectiveId" = hosted_collective_admins.id
       )
-    WHERE 
+    WHERE
       (org_admin_collectives.id IS NOT NULL OR hosted_collective_admins.id IS NOT NULL)
       AND m."role" IN ('ADMIN', 'MEMBER')
       AND m."deletedAt" IS NULL
@@ -1125,6 +1125,38 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
   return getTaxFormsOverTheLimit(results, 'collectiveId');
 };
 
+/**
+ * Returns the contribution or expense amounts over time.
+ */
+const getTransactionsTimeSeries = async (kind, type, hostCollectiveId, timeUnit, collectiveIds, dateFrom, dateTo) => {
+  return sequelize.query(
+    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
+       FROM "Transactions"
+       WHERE kind = :kind
+         AND "HostCollectiveId" = :hostCollectiveId
+         AND type = :type
+         AND "deletedAt" IS NULL
+         ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+         ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``}
+         ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
+       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
+       ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
+      `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        kind,
+        type,
+        hostCollectiveId,
+        timeUnit,
+        collectiveIds,
+        dateFrom,
+        dateTo,
+      },
+    },
+  );
+};
+
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1170,6 +1202,7 @@ const queries = {
   getTotalNumberOfDonors,
   getUniqueCollectiveTags,
   getGiftCardBatchesForCollective,
+  getTransactionsTimeSeries,
 };
 
 export default queries;
