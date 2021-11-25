@@ -205,6 +205,12 @@ function defineModel() {
         defaultValue: expenseType.UNCLASSIFIED,
       },
 
+      feesPayer: {
+        type: DataTypes.ENUM('COLLECTIVE', 'PAYEE'),
+        defaultValue: 'COLLECTIVE',
+        allowNull: false,
+      },
+
       incurredAt: {
         type: DataTypes.DATE,
         allowNull: false,

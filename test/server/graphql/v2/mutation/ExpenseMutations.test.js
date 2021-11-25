@@ -1153,6 +1153,71 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(success).to.exist;
         expect(success.data.processExpense.status).to.eq('PAID');
       });
+
+      it('pays 100% of the balance and stores the fees in data when covered by the payee', async () => {
+        const paymentProcessorFee = 100;
+        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          feesPayer: 'PAYEE',
+        });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'PAY',
+          paymentParams: { paymentProcessorFee, forceManual: true },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check transactions
+        const getTransaction = type => models.Transaction.findOne({ where: { ExpenseId: expense.id, type } });
+        const debitTransaction = await getTransaction('DEBIT');
+        expect(debitTransaction.amount).to.equal(-expense.amount);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(0);
+        expect(debitTransaction.data.payeeFees.paymentProcessorFeeInHostCurrency).to.equal(
+          Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate),
+        );
+
+        const creditTransaction = await getTransaction('CREDIT');
+        expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
+        expect(creditTransaction.amount).to.equal(expense.amount);
+      });
+
+      it('can only put fees on the payee for bank account', async () => {
+        // Updates the collective balance and pay the expense
+        const amount = 10000;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount });
+        const testWithPayoutMethodType = async type => {
+          const paymentProcessorFee = 100;
+          const payoutMethod = await fakePayoutMethod({ type });
+          const expense = await fakeExpense({
+            amount,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+            feesPayer: 'PAYEE',
+          });
+
+          const paymentParams = { paymentProcessorFee, forceManual: true };
+          const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          expect(result.errors).to.exist;
+          expect(result.errors[0].message).to.eq(
+            'Putting the payment processor fees on the payee is only supported for bank accounts at the moment',
+          );
+        };
+
+        await testWithPayoutMethodType('ACCOUNT_BALANCE');
+        await testWithPayoutMethodType('PAYPAL');
+        await testWithPayoutMethodType('OTHER');
+      });
     });
 
     describe('MARK_AS_UNPAID', () => {
