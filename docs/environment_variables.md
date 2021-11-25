@@ -44,7 +44,3 @@
 | HELLO_WORKS_DOCUMENT_ENCRYPTION_KEY | .helloworks.documentEncryptionKey           | base64 encoded secret key for encrypting document before storage.              |
 | HELLO_WORKS_AWS_S3_BUCKET           | .helloworks.aws.s3.bucket                   | the bucket where tax forms will be uploaded                                    |
 | GITHUB_FLOW_MIN_NB_STARS            | .githubFlow.minNbStars                      | Minimum number of Github stars required to apply to the open source collective |
-| GOOGLE_DRIVE_CLIENT_ID              | .googleDrive.clientId                       | Google Drive client ID                                                         |
-| GOOGLE_DRIVE_CLIENT_SECRET          | .googleDrive.clientSecret                   | Google Drive client secret                                                     |
-| GOOGLE_DRIVE_REDIRECT_URI           | .googleDrive.redirectUri                    | Google Drive redirect uri                                                      |
-| GOOGLE_DRIVE_REFRESH_TOKEN          | .googleDrive.refresh_token                  | Google Drive refresh token                                                     |
