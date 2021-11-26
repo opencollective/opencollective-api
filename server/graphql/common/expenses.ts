@@ -482,8 +482,8 @@ const checkExpenseItems = (expenseData, items) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
-  } else if (items.length > 100) {
-    throw new ValidationFailed('Expenses cannot have more than 100 items');
+  } else if (items.length > 300) {
+    throw new ValidationFailed('Expenses cannot have more than 300 items');
   }
 
   // Check amounts
