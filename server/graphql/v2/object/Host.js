@@ -67,6 +67,16 @@ const getNumberOfDays = (startDate, endDate, host) => {
   return days(since, endDate || undefined);
 };
 
+const getTimeUnit = numberOfDays => {
+  if (numberOfDays <= 7) {
+    return 'WEEK';
+  } else if (numberOfDays <= 365) {
+    return 'MONTH';
+  } else {
+    return 'YEAR';
+  }
+};
+
 export const Host = new GraphQLObjectType({
   name: 'Host',
   description: 'This represents an Host account',
@@ -555,12 +565,13 @@ export const Host = new GraphQLObjectType({
           const contributionAmountOverTime = async () => {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+            const timeUnit = getTimeUnit(numberOfDays);
 
             const amountDataPoints = await queries.getTransactionsTimeSeries(
               TransactionKind.CONTRIBUTION,
               TransactionTypes.CREDIT,
               host.id,
-              args.timeUnit,
+              timeUnit,
               collectiveIds,
               dateFrom,
               dateTo,
@@ -569,7 +580,7 @@ export const Host = new GraphQLObjectType({
             return {
               dateFrom: args.dateFrom || host.createdAt,
               dateTo: args.dateTo || new Date(),
-              timeUnit: args.timeUnit,
+              timeUnit,
               nodes: resultsToAmountNode(amountDataPoints),
             };
           };
@@ -648,11 +659,13 @@ export const Host = new GraphQLObjectType({
           const expenseAmountOverTime = async () => {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
+            const timeUnit = getTimeUnit(numberOfDays);
+
             const amountDataPoints = await queries.getTransactionsTimeSeries(
               TransactionKind.EXPENSE,
               TransactionTypes.DEBIT,
               host.id,
-              args.timeUnit,
+              timeUnit,
               collectiveIds,
               dateFrom,
               dateTo,
@@ -661,7 +674,7 @@ export const Host = new GraphQLObjectType({
             return {
               dateFrom: args.dateFrom || host.createdAt,
               dateTo: args.dateTo || new Date(),
-              timeUnit: args.timeUnit,
+              timeUnit,
               nodes: resultsToAmountNode(amountDataPoints),
             };
           };
