@@ -1,8 +1,11 @@
+import Promise from 'bluebird';
+
 import { maxInteger } from '../../constants/math';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
-import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import { createRefundTransaction, getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 
 const paymentMethodProvider = {};
@@ -10,6 +13,36 @@ const paymentMethodProvider = {};
 paymentMethodProvider.features = {
   recurring: false,
   waitToCharge: false,
+};
+
+paymentMethodProvider.refundTransaction = async (transaction, user) => {
+  if (transaction.CollectiveId === transaction.FromCollectiveId) {
+    throw new Error('Cannot refund a transaction from the same collective');
+  }
+
+  if (transaction.type === TransactionTypes.DEBIT) {
+    transaction = await transaction.getRelatedTransaction({ type: TransactionTypes.CREDIT });
+  }
+
+  if (!transaction) {
+    throw new Error('Cannot find any CREDIT transaction to refund');
+  } else if (transaction.RefundTransactionId) {
+    throw new Error('This transaction has already been refunded');
+  }
+
+  const collective = await models.Collective.findByPk(transaction.CollectiveId);
+
+  const balance = await collective.getBalanceWithBlockedFunds({ currency: transaction.currency });
+  if (balance < transaction.amount) {
+    throw new Error(
+      `Not enough funds available (${formatCurrency(
+        balance,
+        transaction.currency,
+      )} left) to process this refund (${formatCurrency(transaction.amount, transaction.currency)})`,
+    );
+  }
+
+  return createRefundTransaction(transaction, 0, null, user);
 };
 
 // We don't check balance for "Added Funds"
