@@ -70,7 +70,7 @@ const getNumberOfDays = (startDate, endDate, host) => {
 const getTimeUnit = numberOfDays => {
   if (numberOfDays <= 7) {
     return 'WEEK';
-  } else if (numberOfDays <= 365) {
+  } else if (numberOfDays <= 366) {
     return 'MONTH';
   } else {
     return 'YEAR';
