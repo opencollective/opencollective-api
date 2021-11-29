@@ -238,10 +238,10 @@ describe('test/stories/ledger', () => {
         pendingPlatformFees: 0,
         platformTips: 0, // There was a 1000 tip, but it was refunded
         pendingPlatformTips: -1000,
-        hostFeeShare: 0, // Refunded
+        hostFeeShare: 0, // Refunded. -> 68 - 68 = 0
         hostFeeSharePercent: 15,
-        pendingHostFeeShare: 0,
-        settledHostFeeShare: 0, // Refunded
+        pendingHostFeeShare: -68, // -> 0 - 68 = -68 (Negative because owed by platform)
+        settledHostFeeShare: 68, // hostFeeShare - pendingHostFeeShare (weak metric)
         totalMoneyManaged: -1268,
       });
 
@@ -346,8 +346,8 @@ describe('test/stories/ledger', () => {
         pendingPlatformTips: -1000,
         hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
-        pendingHostFeeShare: 0,
-        settledHostFeeShare: 0, // Refunded
+        pendingHostFeeShare: -68, // -> 0 - 68 = -68 (Negative because owed by platform)
+        settledHostFeeShare: 68, // hostFeeShare - pendingHostFeeShare (weak metric)
         totalMoneyManaged: -1268,
       });
 
@@ -463,8 +463,8 @@ describe('test/stories/ledger', () => {
         pendingPlatformTips: -platformTipInHostCurrency,
         hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
-        pendingHostFeeShare: 0,
-        settledHostFeeShare: 0, // Refunded
+        pendingHostFeeShare: -expectedHostFeeShareInHostCurrency, // Negative because owed by platform
+        settledHostFeeShare: expectedHostFeeShareInHostCurrency, // hostFeeShare - pendingHostFeeShare (weak metric)
         totalMoneyManaged: -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       });
 
