@@ -329,9 +329,10 @@ FROM "Transactions" as t1
 ${
   collectiveIds
     ? `INNER JOIN "Transactions" AS t2 ON t1."TransactionGroup" = t2."TransactionGroup"
-       INNER JOIN "Orders" AS O ON O.id = t1."OrderId"
-       INNER JOIN "Collectives" AS C ON C.id = O."CollectiveId"
-       WHERE t2.kind='CONTRIBUTION' AND t2.type='DEBIT' AND t2."deletedAt" IS NULL AND C.id IN (:CollectiveIds)
+       WHERE t2.kind IN ('CONTRIBUTION', 'ADDED_FUNDS')
+       AND t2."HostCollectiveId" = :CollectiveId
+       AND t2."deletedAt" IS NULL
+       AND t2."CollectiveId" IN (:CollectiveIds)
        AND t1."CollectiveId" = :CollectiveId`
     : `WHERE t1."CollectiveId" = :CollectiveId`
 }
@@ -378,7 +379,6 @@ export async function getHostFeeShareTimeSeries(host, { startDate, endDate, time
       AND ts.kind = 'HOST_FEE_SHARE_DEBT'
       AND ts."deletedAt" IS NULL
     WHERE t1."CollectiveId" = :CollectiveId
-    AND t1."type" = 'DEBIT'
     AND t1."kind" = 'HOST_FEE_SHARE'
     AND t1."createdAt" >= :startDate AND t1."createdAt" <= :endDate
     AND t1."deletedAt" IS NULL
@@ -405,12 +405,12 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, collect
         ${
           collectiveIds
             ? `INNER JOIN "Transactions" AS t2 ON t."TransactionGroup" = t2."TransactionGroup"
-               INNER JOIN "Orders" AS O ON O.id = t."OrderId"
-               INNER JOIN "Collectives" AS C ON C.id = O."CollectiveId"
-               WHERE t2.kind='CONTRIBUTION' AND t2.type='DEBIT' AND t2."deletedAt" IS NULL AND C.id IN (:FromCollectiveIds)`
+               WHERE t2.kind IN ('CONTRIBUTION', 'ADDED_FUNDS')
+               AND t2."deletedAt" IS NULL
+               AND t2."CollectiveId" IN (:FromCollectiveIds)
+               AND t."CollectiveId" = :CollectiveId`
             : `WHERE t."CollectiveId" = :CollectiveId`
         }
-          AND t."type" = 'CREDIT'
           AND t."kind" = 'HOST_FEE_SHARE_DEBT'
           AND t."deletedAt" IS NULL
           AND ts."deletedAt" IS NULL
