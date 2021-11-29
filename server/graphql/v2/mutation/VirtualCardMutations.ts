@@ -46,6 +46,7 @@ const virtualCardMutations = {
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
+        throwIfMissing: true,
       });
       const user = await assignee.getUser();
       if (!user) {
@@ -131,7 +132,9 @@ const virtualCardMutations = {
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
+        throwIfMissing: true,
       });
+
       const user = await assignee.getUser();
 
       if (!user) {
