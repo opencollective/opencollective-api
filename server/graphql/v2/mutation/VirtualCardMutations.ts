@@ -114,6 +114,14 @@ const virtualCardMutations = {
         throw new Unauthorized('You need to be logged in to create a virtual card');
       }
 
+      const monthlyLimitInCents = args.monthlyLimit.valueInCents;
+
+      if (monthlyLimitInCents > 100000) {
+        throw new BadRequest('Monthly limit should not exceed 1000$', undefined, {
+          monthlyLimit: 'Monthly limit should not exceed 1000$',
+        });
+      }
+
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       const host = await collective.getHostCollective();
 
@@ -130,13 +138,7 @@ const virtualCardMutations = {
         throw new BadRequest('Could not find the assigned user');
       }
 
-      const virtualCard = await stripe.createVirtualCard(
-        host,
-        collective,
-        user.id,
-        args.name,
-        args.monthlyLimit.valueInCents,
-      );
+      const virtualCard = await stripe.createVirtualCard(host, collective, user.id, args.name, monthlyLimitInCents);
 
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_CREATED,
