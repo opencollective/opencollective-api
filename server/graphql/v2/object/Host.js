@@ -385,6 +385,7 @@ export const Host = new GraphQLObjectType({
             },
             limit: args.limit,
             offset: args.offset,
+            order: [['createdAt', 'DESC']],
           };
 
           if (args.state) {
