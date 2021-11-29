@@ -132,7 +132,7 @@ const virtualCardMutations = {
 
       const virtualCard = await stripe.createVirtualCard(
         host,
-        collective.id,
+        collective,
         user.id,
         args.name,
         args.monthlyLimit.valueInCents,

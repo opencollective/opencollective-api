@@ -42,7 +42,7 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, 
   return createCard(matchingCard, name, collectiveId, host.id, userId);
 };
 
-export const createVirtualCard = async (host, collectiveId, userId, name, monthlyLimit) => {
+export const createVirtualCard = async (host, collective, userId, name, monthlyLimit) => {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const stripe = getStripeClient(host.slug, connectedAccount.token);
@@ -68,11 +68,14 @@ export const createVirtualCard = async (host, collectiveId, userId, name, monthl
         },
       ],
     },
+    metadata: {
+      collective: collective.slug,
+    },
   });
 
   const stripeCard = await stripe.issuing.cards.retrieve(issuingCard.id, { expand: ['number', 'cvc'] });
 
-  return createCard(stripeCard, name, collectiveId, host.id, userId);
+  return createCard(stripeCard, name, collective.id, host.id, userId);
 };
 
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
