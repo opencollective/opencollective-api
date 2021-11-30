@@ -48,6 +48,7 @@ const updateCollective = async (collective, newInfo, transaction) => {
 type UserInfoInput = {
   email?: string | null;
   name?: string | null;
+  legalName?: string | null;
   location?: Location;
 };
 
@@ -60,7 +61,7 @@ type UserCreationRequest = {
  * Retrieves or create an guest profile by email.
  */
 export const getOrCreateGuestProfile = async (
-  { email, name, location }: UserInfoInput,
+  { email, name, legalName, location }: UserInfoInput,
   creationRequest: UserCreationRequest = null,
 ): Promise<GuestProfileDetails> => {
   const emailConfirmationToken = crypto.randomBytes(48).toString('hex');
@@ -88,7 +89,9 @@ export const getOrCreateGuestProfile = async (
     } else if (user.CollectiveId) {
       collective = await models.Collective.findByPk(user.CollectiveId, { transaction });
       if (!user.confirmedAt) {
-        collective = await updateCollective(collective, { name, location }, transaction);
+        const newLegalName = legalName || collective.legalName;
+        const newValues = { name, location, legalName: newLegalName };
+        collective = await updateCollective(collective, newValues, transaction);
       }
     }
 
@@ -99,6 +102,7 @@ export const getOrCreateGuestProfile = async (
           type: COLLECTIVE_TYPE.USER,
           slug: `guest-${uuid().split('-')[0]}`,
           name: name || DEFAULT_GUEST_NAME,
+          legalName,
           data: { isGuest: true, address: location?.structured },
           address: location?.address,
           countryISO: location?.country,

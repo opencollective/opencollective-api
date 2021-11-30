@@ -42,6 +42,7 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
           legacyId
           slug
           name
+          legalName
           ... on Individual {
             isGuest
           }
@@ -292,7 +293,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const orderData = {
           ...validOrderParams,
           fromAccount: null,
-          guestInfo: { email, captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' } },
+          guestInfo: {
+            email,
+            legalName: 'Real name',
+            captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+          },
         };
         const result = await callCreateOrder({ order: orderData });
         result.errors && console.error(result.errors);
@@ -300,8 +305,12 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         const order = result.data.createOrder.order;
         expect(order.fromAccount.isGuest).to.eq(true);
+        expect(order.fromAccount.legalName).to.eq(null); // For security reasons
         expect(order.paymentMethod.account.id).to.eq(order.fromAccount.id);
         expect(order.status).to.eq('PAID');
+
+        const fromCollective = await models.Collective.findByPk(order.fromAccount.legacyId);
+        expect(fromCollective.legalName).to.eq('Real name');
       });
 
       it('Works with an email that already exists (unverified)', async () => {
