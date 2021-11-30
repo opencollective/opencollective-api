@@ -560,6 +560,7 @@ function defineModel() {
             isHostAccount: this.isHostAccount,
             slug: this.slug,
             tiers: this.tiers,
+            type: this.type,
             settings: this.settings,
             website: this.website,
             twitterHandle: this.twitterHandle,
