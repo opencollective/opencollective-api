@@ -32,6 +32,7 @@ export default {
   COLLECTIVE_UPDATE_PUBLISHED: 'collective.update.published',
   COLLECTIVE_CONTACT: 'collective.contact',
   COLLECTIVE_VIRTUAL_CARD_ASSIGNED: 'collective.virtualcard.assigned',
+  COLLECTIVE_VIRTUAL_CARD_CREATED: 'collective.virtualcard.created',
   ORGANIZATION_COLLECTIVE_CREATED: 'organization.collective.created',
   SUBSCRIPTION_ACTIVATED: 'subscription.activated',
   SUBSCRIPTION_CONFIRMED: 'subscription.confirmed',

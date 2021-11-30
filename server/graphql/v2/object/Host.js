@@ -35,7 +35,7 @@ import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
 } from '../input/AccountReferenceInput';
-import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
 import { CollectionArgs } from '../interface/Collection';
@@ -292,7 +292,7 @@ export const Host = new GraphQLObjectType({
           },
           orderBy: {
             type: new GraphQLNonNull(ChronologicalOrderInput),
-            defaultValue: { field: 'createdAt', direction: 'DESC' },
+            defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
             description: 'Order of the results',
           },
         },
@@ -357,6 +357,7 @@ export const Host = new GraphQLObjectType({
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           state: { type: GraphQLString, defaultValue: null },
+          orderBy: { type: ChronologicalOrderInput, defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE },
           merchantAccount: { type: AccountReferenceInput, defaultValue: null },
           collectiveAccountIds: { type: new GraphQLList(AccountReferenceInput), defaultValue: null },
         },
@@ -387,6 +388,7 @@ export const Host = new GraphQLObjectType({
             },
             limit: args.limit,
             offset: args.offset,
+            order: [[args.orderBy.field, args.orderBy.direction]],
           };
 
           if (args.state) {

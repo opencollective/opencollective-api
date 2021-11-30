@@ -10,13 +10,14 @@ import privacy from '../../../paymentProviders/privacy';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { AmountInput } from '../input/AmountInput';
 import { VirtualCardInput, VirtualCardUpdateInput } from '../input/VirtualCardInput';
 import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
 import { VirtualCard } from '../object/VirtualCard';
 
 const virtualCardMutations = {
   assignNewVirtualCard: {
-    description: 'Assign new Virtual Card information to existing hosted collective',
+    description: 'Assign Virtual Card information to existing hosted collective',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -45,6 +46,7 @@ const virtualCardMutations = {
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
+        throwIfMissing: true,
       });
       const user = await assignee.getUser();
       if (!user) {
@@ -83,6 +85,74 @@ const virtualCardMutations = {
           host: host.activity,
         },
       }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ASSIGNED activity', e));
+
+      return virtualCard;
+    },
+  },
+  createVirtualCard: {
+    description: 'Create new Stripe Virtual Card for existing hosted collective',
+    type: new GraphQLNonNull(VirtualCard),
+    args: {
+      name: {
+        type: GraphQLNonNull(GraphQLString),
+        description: 'Virtual Card name',
+      },
+      monthlyLimit: {
+        type: new GraphQLNonNull(AmountInput),
+        description: 'Virtual Card monthly limit',
+      },
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account where the virtual card will be associated',
+      },
+      assignee: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Individual account responsible for the card',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to create a virtual card');
+      }
+
+      const monthlyLimitInCents = args.monthlyLimit.valueInCents;
+
+      if (monthlyLimitInCents > 100000) {
+        throw new BadRequest('Monthly limit should not exceed 1000$', undefined, {
+          monthlyLimit: 'Monthly limit should not exceed 1000$',
+        });
+      }
+
+      const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      const host = await collective.getHostCollective();
+
+      if (!req.remoteUser.isAdminOfCollective(host)) {
+        throw new Unauthorized("You don't have permission to edit this collective");
+      }
+
+      const assignee = await fetchAccountWithReference(args.assignee, {
+        loaders: req.loaders,
+        throwIfMissing: true,
+      });
+
+      const user = await assignee.getUser();
+
+      if (!user) {
+        throw new BadRequest('Could not find the assigned user');
+      }
+
+      const virtualCard = await stripe.createVirtualCard(host, collective, user.id, args.name, monthlyLimitInCents);
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_VIRTUAL_CARD_CREATED,
+        UserId: req.remoteUser.id,
+        CollectiveId: collective.id,
+        data: {
+          assignee: assignee.activity,
+          collective: collective.activity,
+          host: host.activity,
+        },
+      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_CREATED activity', e));
 
       return virtualCard;
     },
