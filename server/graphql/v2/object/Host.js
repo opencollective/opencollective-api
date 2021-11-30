@@ -171,7 +171,8 @@ export const Host = new GraphQLObjectType({
           },
           timeUnit: {
             type: new GraphQLNonNull(TimeUnit),
-            description: 'The time unit of the time series',
+            description:
+              'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
           },
         },
         async resolve(host, args) {
@@ -529,8 +530,7 @@ export const Host = new GraphQLObjectType({
             description: 'Calculate contribution statistics until this date.',
           },
           timeUnit: {
-            type: new GraphQLNonNull(TimeUnit),
-            defaultValue: 'YEAR',
+            type: TimeUnit,
             description: 'The time unit of the time series',
           },
         },
@@ -565,7 +565,7 @@ export const Host = new GraphQLObjectType({
           const contributionAmountOverTime = async () => {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-            const timeUnit = getTimeUnit(numberOfDays);
+            const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
 
             const amountDataPoints = await queries.getTransactionsTimeSeries(
               TransactionKind.CONTRIBUTION,
@@ -632,9 +632,9 @@ export const Host = new GraphQLObjectType({
             description: 'Calculate expense statistics until this date.',
           },
           timeUnit: {
-            type: new GraphQLNonNull(TimeUnit),
-            defaultValue: 'YEAR',
-            description: 'The time unit of the time series',
+            type: TimeUnit,
+            description:
+              'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
           },
         },
         async resolve(host, args, req) {
@@ -659,7 +659,7 @@ export const Host = new GraphQLObjectType({
           const expenseAmountOverTime = async () => {
             const dateFrom = args.dateFrom ? moment(args.dateFrom).toISOString() : undefined;
             const dateTo = args.dateTo ? moment(args.dateTo).toISOString() : undefined;
-            const timeUnit = getTimeUnit(numberOfDays);
+            const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
 
             const amountDataPoints = await queries.getTransactionsTimeSeries(
               TransactionKind.EXPENSE,
