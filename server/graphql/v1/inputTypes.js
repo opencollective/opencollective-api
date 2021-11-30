@@ -315,7 +315,11 @@ export const GuestInfoInput = new GraphQLInputObjectType({
     },
     name: {
       type: GraphQLString,
-      description: 'Full name of the user',
+      description: 'Display name of the user',
+    },
+    legalName: {
+      type: GraphQLString,
+      description: 'Legal name of the user',
     },
     token: {
       type: GraphQLString,
