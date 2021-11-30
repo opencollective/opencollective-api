@@ -327,6 +327,7 @@ export default {
         'Your card does not support this type of purchase.',
         'Your card has expired.',
         "Your card's security code is incorrect.",
+        "Your card's security code is invalid.",
         'Your card number is incorrect.',
         'The zip code you supplied failed validation.',
         'Invalid amount.',
