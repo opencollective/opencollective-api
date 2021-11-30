@@ -201,7 +201,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
   return models.VirtualCard.create(cardData);
 };
 
-const checkStripeEvent = async (stripeEvent, host) => {
+const checkStripeEvent = async (host, stripeEvent) => {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
