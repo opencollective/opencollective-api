@@ -1043,6 +1043,14 @@ function defineModel() {
       approvedAt: new Date(),
     });
 
+    await models.PaymentMethod.destroy({
+      where: {
+        CollectiveId: this.id,
+        service: 'opencollective',
+        type: 'collective',
+      },
+    });
+
     await models.PaymentMethod.create({
       CollectiveId: this.id,
       service: 'opencollective',
@@ -1074,18 +1082,13 @@ function defineModel() {
       },
     });
 
-    const collectivePaymentMethod = await models.PaymentMethod.findOne({
+    await models.PaymentMethod.destroy({
       where: {
         CollectiveId: this.id,
         service: 'opencollective',
         type: 'collective',
-        deletedAt: null,
       },
     });
-
-    if (collectivePaymentMethod) {
-      await collectivePaymentMethod.destroy();
-    }
 
     return this;
   };
@@ -1992,7 +1995,6 @@ function defineModel() {
         CollectiveId: this.id,
         service: 'opencollective',
         type: 'collective',
-        deletedAt: null,
       },
     });
 
