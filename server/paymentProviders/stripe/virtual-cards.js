@@ -81,10 +81,6 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
 
-  if (!virtualCard) {
-    throw new Error(`Virtual card ${stripeAuthorization.card.id} not found`);
-  }
-
   const host = virtualCard.host;
 
   await checkStripeEvent(host, stripeEvent);

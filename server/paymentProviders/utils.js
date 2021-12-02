@@ -21,7 +21,7 @@ export const getVirtualCardForTransaction = async cardId => {
   });
 
   if (!virtualCard) {
-    throw new Error('Could not find VirtualCard');
+    throw new Error(`Could not find VirtualCard : ${cardId}`);
   }
 
   return virtualCard;
