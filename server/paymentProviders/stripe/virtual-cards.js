@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
@@ -95,6 +96,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
   } else {
     await stripe.issuing.authorizations.decline(stripeAuthorization.id, {
+      // eslint-disable-next-line camelcase
       metadata: { oc_decline_code: 'collective_balance' },
     });
     throw new Error('Balance not sufficient');
@@ -154,6 +156,20 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   }
 
   return expense;
+};
+
+export const processDeclinedAuthorization = async (stripeAuthorization, stripeEvent) => {
+  const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
+
+  const host = virtualCard.host;
+
+  await checkStripeEvent(host, stripeEvent);
+
+  const reason = stripeAuthorization.metadata.oc_decline_code
+    ? stripeAuthorization.metadata.oc_decline_code
+    : stripeAuthorization.request_history[0].reason;
+
+  return emailLib.send('authorization.declined', virtualCard.user.email, { reason });
 };
 
 export const processTransaction = async (stripeTransaction, stripeEvent) => {

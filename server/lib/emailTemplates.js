@@ -99,6 +99,7 @@ export const templateNames = [
   'deactivated.collective.as.host',
   'contribution.rejected',
   'virtualcard.requested',
+  'authorization.declined',
 ];
 
 const templatesPath = `${__dirname}/../../templates`;
