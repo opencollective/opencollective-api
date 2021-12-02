@@ -95,7 +95,7 @@ describe('server/routes/webhooks.stripe', () => {
           error: {
             code: 400,
             type: 'bad_request',
-            message: 'Wrong event type received',
+            message: 'Wrong event type received : application_fee.created',
           },
         })
         .end(done);
