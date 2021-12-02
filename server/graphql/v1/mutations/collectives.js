@@ -44,6 +44,10 @@ export async function createCollective(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
+  if (collectiveData.type === 'EVENT' && (!collectiveData.startsAt || !collectiveData.endsAt)) {
+    throw new Error('The start and end date times need to be specified for the event.');
+  }
+
   const location = args.collective.location;
   if (location) {
     collectiveData.locationName = location.name;
