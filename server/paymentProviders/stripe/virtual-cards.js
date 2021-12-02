@@ -98,7 +98,9 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   if (balance.value >= amount) {
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
   } else {
-    await stripe.issuing.authorizations.decline(stripeAuthorization.id);
+    await stripe.issuing.authorizations.decline(stripeAuthorization.id, {
+      metadata: { oc_decline_code: 'collective_balance' },
+    });
     throw new Error('Balance not sufficient');
   }
 
