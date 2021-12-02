@@ -5,50 +5,187 @@ import { describe, it } from 'mocha';
 
 import schema from '../../../../server/graphql/v1/schema';
 import models from '../../../../server/models';
+import { fakeCollective, fakeHost, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
-describe('server/graphql/v1/query', () => {
-  let user1, user2, user3, collective1, collective2, collective3, event1, event2, ticket1, ticket2;
+describe('server/graphql/v1/queries', () => {
+  describe('TransactionInvoice', () => {
+    let transaction, host, collective, fromCollective, collectiveAdmin, hostAdmin;
 
-  /* SETUP
-    collective1: 2 events
-      event1: 2 tiers
-        ticket1: 2 orders
-        ticket2: 1 order
-      event2: 1 tier
-        tier3: no order
-    collective2: 1 event
-      event3: no tiers // event3 not declared above due to linting
-    collective3: no events
-  */
+    before(async () => {
+      await utils.resetTestDB();
+      collectiveAdmin = await fakeUser();
+      hostAdmin = await fakeUser();
+      const hostSettings = { invoiceTitle: 'Hello', invoice: { extraInfo: 'Not tax deductible' } };
+      host = await fakeHost({ admin: hostAdmin, settings: hostSettings });
+      collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
+      fromCollective = (await fakeUser()).collective;
+      transaction = await fakeTransaction(
+        {
+          type: 'CREDIT',
+          description: 'Fake transaction for invoice test',
+          CollectiveId: collective.id,
+          FromCollectiveId: fromCollective.id,
+          HostCollectiveId: host.id,
+        },
+        { createDoubleEntry: true },
+      );
+    });
 
-  beforeEach(() => utils.resetTestDB());
+    const transactionInvoiceQuery = gql`
+      query TransactionInvoice($transactionUuid: String!) {
+        TransactionInvoice(transactionUuid: $transactionUuid) {
+          title
+          extraInfo
+          slug
+          dateFrom
+          dateTo
+          year
+          month
+          day
+          host {
+            id
+          }
+          fromCollective {
+            id
+          }
+          transactions {
+            id
+            createdAt
+            description
+            amount
+            currency
+            type
+            hostCurrency
+            netAmountInCollectiveCurrency
+            taxAmount
+            fromCollective {
+              id
+              slug
+              name
+              legalName
+              type
+            }
+            usingGiftCardFromCollective {
+              id
+              slug
+              name
+              legalName
+              type
+            }
+            refundTransaction {
+              id
+            }
+            collective {
+              id
+              slug
+              name
+              legalName
+              type
+            }
+            ... on Order {
+              order {
+                id
+                quantity
+                tier {
+                  id
+                  type
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
 
-  beforeEach(async () => {
-    user1 = await models.User.createUserWithCollective(utils.data('user1'));
-  });
+    it('must be authenticated', async () => {
+      const variables = { transactionUuid: transaction.uuid };
+      const result = await utils.graphqlQuery(transactionInvoiceQuery, variables, null);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to generate a receipt');
+    });
 
-  beforeEach(async () => {
-    user2 = await models.User.createUserWithCollective(utils.data('user2'));
-  });
+    it('must be an admin of the host or the contributor profile', async () => {
+      // Random user => not allowed
+      const randomUser = await fakeUser();
+      const variables = { transactionUuid: transaction.uuid };
+      const randomUserResult = await utils.graphqlQuery(transactionInvoiceQuery, variables, randomUser);
+      expect(randomUserResult.errors).to.exist;
+      expect(randomUserResult.errors[0].message).to.equal('You are not allowed to download this receipt');
 
-  beforeEach(async () => {
-    user3 = await models.User.createUserWithCollective(utils.data('user3'));
-  });
+      // Collective admin => not allowed
+      const collectiveAdminResult = await utils.graphqlQuery(transactionInvoiceQuery, variables, collectiveAdmin);
+      expect(collectiveAdminResult.errors).to.exist;
+      expect(randomUserResult.errors[0].message).to.equal('You are not allowed to download this receipt');
 
-  beforeEach(async () => {
-    collective1 = await models.Collective.create(utils.data('collective1'));
-  });
+      // Host admin => allowed
+      const hostAdminResult = await utils.graphqlQuery(transactionInvoiceQuery, variables, hostAdmin);
+      expect(hostAdminResult.errors).to.not.exist;
 
-  beforeEach(async () => {
-    collective2 = await models.Collective.create(utils.data('collective2'));
-  });
+      // Contributor => allowed
+      const fromUser = await models.User.findOne({ where: { CollectiveId: fromCollective.id } });
+      const fromCollectiveResult = await utils.graphqlQuery(transactionInvoiceQuery, variables, fromUser);
+      expect(fromCollectiveResult.errors).to.not.exist;
+    });
 
-  beforeEach(async () => {
-    collective3 = await models.Collective.create(utils.data('collective4'));
+    it('returns the full invoice information', async () => {
+      const variables = { transactionUuid: transaction.uuid };
+      const result = await utils.graphqlQuery(transactionInvoiceQuery, variables, hostAdmin);
+      const invoice = result.data.TransactionInvoice;
+      expect(invoice.title).to.eq('Hello');
+      expect(invoice.extraInfo).to.eq('Not tax deductible');
+      const dateStr = transaction.createdAt.toISOString().split('T')[0];
+      expect(invoice.slug).to.eq(`${host.name}_${dateStr}_${transaction.uuid}`);
+      expect(invoice.year).to.eq(transaction.createdAt.getFullYear());
+      expect(invoice.month).to.eq(transaction.createdAt.getMonth() + 1);
+      expect(invoice.day).to.eq(transaction.createdAt.getDate());
+      expect(invoice.host.id).to.eq(host.id);
+      expect(invoice.fromCollective.id).to.eq(fromCollective.id);
+      expect(invoice.transactions.length).to.eq(1);
+    });
   });
 
   describe('Root query tests', () => {
+    let user1, user2, user3, collective1, collective2, collective3, event1, event2, ticket1, ticket2;
+
+    /* SETUP
+      collective1: 2 events
+        event1: 2 tiers
+          ticket1: 2 orders
+          ticket2: 1 order
+        event2: 1 tier
+          tier3: no order
+      collective2: 1 event
+        event3: no tiers // event3 not declared above due to linting
+      collective3: no events
+    */
+
+    beforeEach(() => utils.resetTestDB());
+
+    beforeEach(async () => {
+      user1 = await models.User.createUserWithCollective(utils.data('user1'));
+    });
+
+    beforeEach(async () => {
+      user2 = await models.User.createUserWithCollective(utils.data('user2'));
+    });
+
+    beforeEach(async () => {
+      user3 = await models.User.createUserWithCollective(utils.data('user3'));
+    });
+
+    beforeEach(async () => {
+      collective1 = await models.Collective.create(utils.data('collective1'));
+    });
+
+    beforeEach(async () => {
+      collective2 = await models.Collective.create(utils.data('collective2'));
+    });
+
+    beforeEach(async () => {
+      collective3 = await models.Collective.create(utils.data('collective4'));
+    });
+
     beforeEach(() =>
       models.Collective.createMany([utils.data('event1'), utils.data('event2')], {
         CreatedByUserId: user1.id,
