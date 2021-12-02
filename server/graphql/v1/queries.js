@@ -179,8 +179,8 @@ const queries = {
       const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
       // Generate invoice
       const invoice = {
-        title: get(transaction.host, 'settings.invoiceTitle'),
-        extraInfo: get(transaction.host, 'settings.invoice.extraInfo'),
+        title: get(host, 'settings.invoiceTitle'),
+        extraInfo: get(host, 'settings.invoice.extraInfo'),
         HostCollectiveId: host.id,
         FromCollectiveId: fromCollectiveId,
         slug: `${host.name}_${createdAtString}_${args.transactionUuid}`,
