@@ -68,10 +68,12 @@ const getNumberOfDays = (startDate, endDate, host) => {
 };
 
 const getTimeUnit = numberOfDays => {
-  if (numberOfDays <= 7) {
-    return 'WEEK';
-  } else if (numberOfDays <= 366) {
-    return 'MONTH';
+  if (numberOfDays < 21) {
+    return 'DAY'; // Up to 3 weeks
+  } else if (numberOfDays < 90) {
+    return 'WEEK'; // Up to 3 months
+  } else if (numberOfDays < 365 * 3) {
+    return 'MONTH'; // Up to 3 years
   } else {
     return 'YEAR';
   }
@@ -558,7 +560,7 @@ export const Host = new GraphQLObjectType({
               throwIfMissing: true,
               attributes: ['id'],
             });
-            const collectiveIds = collectives.map(collective => collective.id);
+            collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
@@ -652,7 +654,7 @@ export const Host = new GraphQLObjectType({
           let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
-            const collectiveIds = collectives.map(collective => collective.id);
+            collectiveIds = collectives.map(collective => collective.id);
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
