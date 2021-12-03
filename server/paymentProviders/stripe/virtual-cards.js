@@ -169,7 +169,7 @@ export const processDeclinedAuthorization = async (stripeAuthorization, stripeEv
     ? stripeAuthorization.metadata.oc_decline_code
     : stripeAuthorization.request_history[0].reason;
 
-  return emailLib.send('authorization.declined', virtualCard.user.email, { reason });
+  return emailLib.send('authorization.declined', virtualCard.user.email, { reason, cardName: virtualCard.name });
 };
 
 export const processTransaction = async (stripeTransaction, stripeEvent) => {
