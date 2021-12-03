@@ -1,5 +1,6 @@
 import {
   GraphQLBoolean,
+  GraphQLFloat,
   GraphQLInt,
   GraphQLInterfaceType,
   GraphQLList,
@@ -94,6 +95,11 @@ const transactionFieldsDefinition = () => ({
   },
   amountInHostCurrency: {
     type: new GraphQLNonNull(Amount),
+  },
+  hostCurrencyFxRate: {
+    type: GraphQLFloat,
+    description:
+      'Exchange rate between the currency of the transaction and the currency of the host (transaction.amount * transaction.hostCurrencyFxRate = transaction.amountInHostCurrency)',
   },
   netAmount: {
     type: new GraphQLNonNull(Amount),
@@ -259,6 +265,11 @@ export const TransactionFields = () => {
       resolve(transaction) {
         return { value: transaction.amountInHostCurrency, currency: transaction.hostCurrency };
       },
+    },
+    hostCurrencyFxRate: {
+      type: GraphQLFloat,
+      description:
+        'Exchange rate between the currency of the transaction and the currency of the host (transaction.amount * transaction.hostCurrencyFxRate = transaction.amountInHostCurrency)',
     },
     netAmount: {
       type: new GraphQLNonNull(Amount),

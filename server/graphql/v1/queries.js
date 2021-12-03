@@ -135,7 +135,7 @@ const queries = {
       }
 
       // Fetch transaction
-      const transaction = await models.Transaction.findOne({ where: { uuid: args.transactionUuid } });
+      let transaction = await models.Transaction.findOne({ where: { uuid: args.transactionUuid } });
       if (!transaction) {
         throw new NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
       }
@@ -143,14 +143,18 @@ const queries = {
       // If using a gift card, then billed collective will be the emitter
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
+      // Always take the CREDIT transaction if available
+      if (transaction.type === 'DEBIT') {
+        const oppositeTransaction = await transaction.getOppositeTransaction();
+        if (oppositeTransaction) {
+          transaction = oppositeTransaction;
+        }
+      }
+
       // Load transaction host
       let host;
-      if (transaction.type === 'DEBIT') {
-        // If it's a DEBIT, we load the host from the CREDIT
-        const oppositeTransaction = await transaction.getOppositeTransaction();
-        host = oppositeTransaction && (await oppositeTransaction.getHostCollective());
-      } else if (transaction.HostCollectiveId) {
-        // Otherwise if a `HostCollectiveId` is defined, we load it directly
+      if (transaction.HostCollectiveId) {
+        // If a `HostCollectiveId` is defined, we load it directly
         host = await transaction.getHostCollective();
       } else {
         // TODO: Keeping the code below to be safe and not break anything, but the logic is wrong:
@@ -172,11 +176,9 @@ const queries = {
         throw new Forbidden('You are not allowed to download this receipt');
       }
 
-      // Get total in host currency
-      const totalAmountInHostCurrency =
-        transaction.type === 'CREDIT' ? transaction.amount : transaction.netAmountInCollectiveCurrency * -1;
-
+      // Generate date string for receipt slug
       const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+
       // Generate invoice
       const invoice = {
         title: get(host, 'settings.invoiceTitle'),
@@ -185,7 +187,7 @@ const queries = {
         FromCollectiveId: fromCollectiveId,
         slug: `${host.name}_${createdAtString}_${args.transactionUuid}`,
         currency: transaction.hostCurrency,
-        totalAmount: totalAmountInHostCurrency,
+        totalAmount: Math.abs(transaction.amountInHostCurrency),
         transactions: [transaction],
         year: transaction.createdAt.getFullYear(),
         month: transaction.createdAt.getMonth() + 1,
