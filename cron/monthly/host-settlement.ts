@@ -74,12 +74,12 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
   );
 
   for (const host of hosts) {
-    const pendingPlatformTips = await getPendingPlatformTips(host, { startDate, endDate });
-    const pendingHostFeeShare = await getPendingHostFeeShare(host, { startDate, endDate });
-
     if (HOST_ID && host.id !== parseInt(HOST_ID)) {
       continue;
     }
+
+    const pendingPlatformTips = await getPendingPlatformTips(host);
+    const pendingHostFeeShare = await getPendingHostFeeShare(host);
 
     const plan = await host.getPlan();
 
@@ -90,11 +90,10 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
 FROM "Transactions" as t
 INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
 WHERE t."CollectiveId" = :CollectiveId
-AND t."createdAt" >= :startDate AND t."createdAt" < :endDate
 AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
 AND t."isDebt" IS TRUE
 AND t."deletedAt" IS NULL
-AND ts."status" != 'SETTLED'`,
+AND ts."status" = 'OWED'`,
       {
         replacements: { CollectiveId: host.id, startDate: startDate, endDate: endDate },
         model: models.Transaction,
