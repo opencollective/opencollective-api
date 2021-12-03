@@ -1,0 +1,39 @@
+Subject: Virtual Card created and assigned to {{collective.name}}
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{host.name}} created and assigned a new Virtual Card to {{collective.name}}
+  </h1>
+</center>
+
+<p>
+  {{host.name}} created and assigned a new Virtual Card to your collective {{collective.name}}. This means that you also agreed with
+  the policy defined by {{host.name}} for using Virtual Cards. As a reminder, you have agreed to their virtual card use
+  policy and you can find it <a href="{{config.host.website}}/{{collective.slug}}/admin/virtual-cards">here</a></p>
+<p>
+  <strong>Please, make sure to keep all expenses up-to-date, uploading the payment receipt to every charge you have
+    on
+    this card. After each charge, you will receive an email with an
+    invitation to submit the receipt of the purchase made. Your host may pause the card for future charges until you
+    do.</strong>
+</p>
+<p>
+  For more info, please go ahead and read <a
+    href="https://docs.opencollective.com/help/expenses-and-getting-paid/virtual-cards">the virtual cards documentation
+    and FAQs</a>.
+</p>
+
+
+<br />
+<br />
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}/admin/virtual-cards" class="btn blue">
+    See Virtual Cards
+  </a>
+</center>
+
+{{> footer}}

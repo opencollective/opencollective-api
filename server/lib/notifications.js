@@ -598,5 +598,11 @@ async function notifyByEmail(activity) {
         sendEvenIfNotProduction: true,
       });
       break;
+
+    case activityType.COLLECTIVE_VIRTUAL_CARD_CREATED:
+      notifyAdminsOfCollective(activity.CollectiveId, activity, {
+        sendEvenIfNotProduction: true,
+      });
+      break;
   }
 }
