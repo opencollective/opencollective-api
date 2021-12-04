@@ -10,7 +10,7 @@ import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';
 import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
-import { getTokenFromRequestHeaders } from '../lib/utils';
+import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -143,11 +143,13 @@ export const _authenticateUserByJwt = async (req, res, next) => {
       await confirmGuestAccount(user);
     }
 
-    await user.update({
-      // The login was accepted, we can update lastLoginAt. This will invalidate all older tokens.
-      lastLoginAt: new Date(),
-      data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
-    });
+    if (!parseToBoolean(config.database.readOnly)) {
+      await user.update({
+        // The login was accepted, we can update lastLoginAt. This will invalidate all older tokens.
+        lastLoginAt: new Date(),
+        data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
+      });
+    }
   }
 
   await user.populateRoles();
