@@ -76,7 +76,7 @@ const virtualCardMutations = {
       );
 
       await models.Activity.create({
-        type: activities.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,
+        type: activities.COLLECTIVE_VIRTUAL_CARD_ADDED,
         UserId: req.remoteUser.id,
         CollectiveId: collective.id,
         data: {
@@ -84,7 +84,7 @@ const virtualCardMutations = {
           collective: collective.activity,
           host: host.activity,
         },
-      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ASSIGNED activity', e));
+      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ADDED activity', e));
 
       return virtualCard;
     },
@@ -144,7 +144,7 @@ const virtualCardMutations = {
       const virtualCard = await stripe.createVirtualCard(host, collective, user.id, args.name, monthlyLimitInCents);
 
       await models.Activity.create({
-        type: activities.COLLECTIVE_VIRTUAL_CARD_CREATED,
+        type: activities.COLLECTIVE_VIRTUAL_CARD_ADDED,
         UserId: req.remoteUser.id,
         CollectiveId: collective.id,
         data: {
@@ -152,7 +152,7 @@ const virtualCardMutations = {
           collective: collective.activity,
           host: host.activity,
         },
-      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_CREATED activity', e));
+      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ADDED activity', e));
 
       return virtualCard;
     },
