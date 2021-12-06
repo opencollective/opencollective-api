@@ -461,7 +461,7 @@ const queries = {
     },
     async resolve(_, args) {
       const query = {
-        where: {},
+        where: { data: { hideFromSearch: { [Op.not]: true } } },
         limit: args.limit,
         include: [],
       };
