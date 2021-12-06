@@ -3045,9 +3045,8 @@ function defineModel() {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
-
-    from = from ? moment(from) : moment().utc().startOf('month');
-    to = to ? moment(to) : moment(from).utc().endOf('month');
+    from = from ? moment(from) : null;
+    to = to ? moment(to) : null;
 
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
