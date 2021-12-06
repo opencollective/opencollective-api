@@ -1,0 +1,23 @@
+Subject: Transaction declined
+
+{{> header}}
+
+<p>You recently attempted to make a purchase with your virtual card {{cardName}}.</p>
+
+{{#ifCond reason '===' 'collective_balance'}}
+  <p>
+    We declined this transaction because there were insufficient funds in the Collective at the time of the purchase.
+    If there aren't adequate funds in the Collective consider using a personal card and claiming the purchase as an expense instead.
+  </p>
+{{else}}
+  <p>
+    Stripe, the payment provider for this card, declined your transaction with the code : {{reason}}.
+  </p>
+  <p>
+    You can have more information about this here : https://stripe.com/docs/declines/codes
+  </p>
+{{/ifCond}}
+
+<p>If you believe this is an error please forward this message to support@opencollective.com</p>
+
+{{> footer}}

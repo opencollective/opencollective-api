@@ -14,7 +14,7 @@ import models from '../../models';
 
 import alipay from './alipay';
 import creditcard from './creditcard';
-import { processAuthorization, processTransaction } from './virtual-cards';
+import { processAuthorization, processDeclinedAuthorization, processTransaction } from './virtual-cards';
 
 const debug = debugLib('stripe');
 
@@ -228,6 +228,10 @@ export default {
       return processAuthorization(requestBody.data.object, stripeEvent);
     }
 
+    if (requestBody.type === 'issuing_authorization.created' && !requestBody.data.object.approved) {
+      return processDeclinedAuthorization(requestBody.data.object, stripeEvent);
+    }
+
     if (requestBody.type === 'issuing_transaction.created') {
       return processTransaction(requestBody.data.object, stripeEvent);
     }
@@ -250,7 +254,7 @@ export default {
          * since they discontinued the support. */
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
       } else {
-        throw new errors.BadRequest('Wrong event type received');
+        throw new errors.BadRequest(`Wrong event type received : ${event.type}`);
       }
     });
   },
