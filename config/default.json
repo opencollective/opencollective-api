@@ -14,7 +14,8 @@
       },
       "logging": false,
       "benchmark": true
-    }
+    },
+    "readOnly": false
   },
   "maintenancedb": {
     "url": "postgres://127.0.0.1:5432/postgres"

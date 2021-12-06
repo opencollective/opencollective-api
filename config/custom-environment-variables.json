@@ -19,7 +19,8 @@
         "min": "PG_MIN_CONNECTIONS",
         "max": "PG_MAX_CONNECTIONS"
       }
-    }
+    },
+    "readOnly": "DATABASE_READ_ONLY"
   },
   "graphql": {
     "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY",
