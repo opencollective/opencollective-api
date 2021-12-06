@@ -186,6 +186,13 @@ export async function createFromPaidExpense(
 
   transaction.hostCurrencyFxRate = hostCurrencyFxRate;
   transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * expense.amount); // amountInHostCurrency is an INTEGER (in cents)
+
+  // If the payee is assuming the fees, we adapt the amounts
+  if (expense.feesPayer === 'PAYEE') {
+    transaction.amount += paymentProcessorFeeInCollectiveCurrency;
+    transaction.netAmountInCollectiveCurrency += paymentProcessorFeeInCollectiveCurrency;
+  }
+
   return models.Transaction.createDoubleEntry(transaction);
 }
 

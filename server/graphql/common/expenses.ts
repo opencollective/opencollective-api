@@ -986,21 +986,13 @@ async function createTransactions(
   data = {},
 ) {
   debug('marking expense as paid and creating transactions in the ledger', expense.id);
-  let paymentProcessorFeeInHostCurrency = fees['paymentProcessorFeeInHostCurrency'] || 0;
-
-  // Move the fee to `data` if paid by the payee
-  if (expense.feesPayer === 'PAYEE') {
-    data['payeeFees'] = { paymentProcessorFeeInHostCurrency };
-    paymentProcessorFeeInHostCurrency = 0;
-  }
-
   return await createTransactionFromPaidExpense(
     host,
     null,
     expense,
     null,
     expense.UserId,
-    paymentProcessorFeeInHostCurrency,
+    fees['paymentProcessorFeeInHostCurrency'],
     fees['hostFeeInHostCurrency'],
     fees['platformFeeInHostCurrency'],
     data,

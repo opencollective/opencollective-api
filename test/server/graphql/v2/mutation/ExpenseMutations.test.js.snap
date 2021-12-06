@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance and stores the fees as a separate transaction for payee 1`] = `
+"
+| type   | kind    | To    | From  | amount | paymentFee | netAmountInCollectiveCurrency |
+| ------ | ------- | ----- | ----- | ------ | ---------- | ----------------------------- |
+| DEBIT  | EXPENSE | Babel | Payee | -9425  | -575       | -10000                        |
+| CREDIT | EXPENSE | Payee | Babel | 10000  | -575       | 9425                          |"
+`;
