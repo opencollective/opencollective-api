@@ -78,8 +78,8 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       continue;
     }
 
-    const pendingPlatformTips = await getPendingPlatformTips(host);
-    const pendingHostFeeShare = await getPendingHostFeeShare(host);
+    const pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'] });
+    const pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'] });
 
     const plan = await host.getPlan();
 
