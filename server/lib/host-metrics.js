@@ -121,7 +121,10 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
 }
 
 // NOTE: we're not looking at the settlementStatus and just SUM all debts of the month
-export async function getPendingPlatformTips(host, { startDate, endDate, collectiveIds = null } = {}) {
+export async function getPendingPlatformTips(
+  host,
+  { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
+) {
   if (config.env === 'production' && host.slug === 'opencollective') {
     return 0;
   }
@@ -139,14 +142,15 @@ AND t."isDebt" IS TRUE
 AND t."kind" = 'PLATFORM_TIP_DEBT'
 AND t."deletedAt" IS NULL
 AND ts."deletedAt" IS NULL
-AND ts."status" IN ('OWED', 'INVOICED')
-AND t."createdAt" >= :startDate
-AND t."createdAt" <= :endDate
+AND ts."status" IN (:status)
+${startDate ? `AND t."createdAt" >= :startDate` : ``}
+${endDate ? `AND t."createdAt" <= :endDate` : ``}
 GROUP BY t."hostCurrency"`,
     {
       replacements: {
         HostCollectiveId: host.id,
         CollectiveIds: collectiveIds,
+        status: status,
         ...computeDates(startDate, endDate),
       },
       type: sequelize.QueryTypes.SELECT,
@@ -394,7 +398,10 @@ export async function getHostFeeShareTimeSeries(host, { startDate, endDate, time
   return preparedTimeSeries.map(point => ({ ...point, amount: Math.abs(point.amount) }));
 }
 
-export async function getPendingHostFeeShare(host, { startDate, endDate, collectiveIds = null } = {}) {
+export async function getPendingHostFeeShare(
+  host,
+  { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
+) {
   if (parseToBoolean(config.ledger.separateHostFees) === true) {
     const results = await sequelize.query(
       `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
@@ -414,14 +421,15 @@ export async function getPendingHostFeeShare(host, { startDate, endDate, collect
           AND t."kind" = 'HOST_FEE_SHARE_DEBT'
           AND t."deletedAt" IS NULL
           AND ts."deletedAt" IS NULL
-          AND ts."status" IN ('OWED', 'INVOICED')
-          AND t."createdAt" >= :startDate
-          AND t."createdAt" <= :endDate
+          AND ts."status" IN (:status)
+          ${startDate ? `AND t."createdAt" >= :startDate` : ``}
+          ${endDate ? `AND t."createdAt" <= :endDate` : ``}
         GROUP BY t."hostCurrency"`,
       {
         replacements: {
           CollectiveId: host.id,
           FromCollectiveIds: collectiveIds,
+          status: status,
           ...computeDates(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
