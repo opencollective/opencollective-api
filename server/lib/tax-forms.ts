@@ -1,4 +1,5 @@
 import config from 'config';
+import deepMerge from 'deepmerge';
 import HelloWorks from 'helloworks-sdk';
 import { truncate } from 'lodash';
 
@@ -6,6 +7,7 @@ import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../cons
 import models, { Op } from '../models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../models/LegalDocument';
 
+import emailLib from './email';
 import logger from './logger';
 import queries from './queries';
 import { isEmailInternal } from './utils';
@@ -96,6 +98,14 @@ const generateParticipantName = (account, mainUser): string => {
   }
 };
 
+const saveDocumentStatus = (account, year, requestStatus, data) => {
+  return models.LegalDocument.findOrCreate({
+    where: { documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM, year, CollectiveId: account.id },
+  }).then(([doc]) => {
+    return doc.update({ requestStatus, data });
+  });
+};
+
 export async function sendHelloWorksUsTaxForm(
   client: HelloWorks,
   account: typeof models.Collective,
@@ -105,7 +115,6 @@ export async function sendHelloWorksUsTaxForm(
 ): Promise<typeof models.LegalDocument> {
   const adminUsers = await getAdminsForAccount(account);
   const mainUser = await getMainAdminToContact(account, adminUsers);
-
   if (!mainUser) {
     logger.error(`No contact found for account #${account.id} (@${account.slug}). Skipping tax form.`);
     return;
@@ -120,20 +129,12 @@ export async function sendHelloWorksUsTaxForm(
     },
   };
 
-  const saveDocumentStatus = status => {
-    return models.LegalDocument.findOrCreate({
-      where: { documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM, year, CollectiveId: account.id },
-    }).then(([doc]) => {
-      doc.requestStatus = status;
-      return doc.save();
-    });
-  };
-
   try {
-    await client.workflowInstances.createInstance({
+    const instance = await client.workflowInstances.createInstance({
       callbackUrl,
       workflowId,
       documentDelivery: true,
+      delegatedAuthentication: true, // See "authenticated link" below. While not fully supported yet, this flag at least ensures that HelloWorks doesn't send its own email
       participants,
       metadata: {
         accountType: account.type,
@@ -145,10 +146,40 @@ export async function sendHelloWorksUsTaxForm(
       },
     });
 
-    return saveDocumentStatus(LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED);
+    // Save the full instance in the database (for debugging purposes)
+    const document = await saveDocumentStatus(account, year, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED, {
+      helloWorks: { instance },
+    });
+
+    // Get the authenticated link ("delegated authentication")
+    const step = instance.steps[0];
+    let documentLink = step.url;
+    try {
+      documentLink = await client.workflowInstances.getAuthenticatedLinkForStep({
+        instanceId: instance.id,
+        step: step.step,
+      });
+    } catch (e) {
+      // Fallback to the default `step.url` (unauthenticated link)
+      logger.warn(`Tax form: error getting authenticated link for ${instance.id}: ${e.message}`);
+    }
+
+    // Save the authenticated link to the database, in case we want to send it again later
+    await document.update({ data: deepMerge(document.data, { helloWorks: { documentLink } }) });
+
+    // Send the actual email
+    const recipientName = mainUser.collective.name || mainUser.collective.legalName;
+    const accountName = account.legalName || account.name || account.slug;
+    const emailData = { documentLink, recipientName, accountName };
+    return emailLib.send('tax-form-request', mainUser.email, emailData);
   } catch (error) {
     logger.error(`Failed to initialize tax form for account #${account.id} (${mainUser.email})`, error);
-    return saveDocumentStatus(LEGAL_DOCUMENT_REQUEST_STATUS.ERROR);
+    return saveDocumentStatus(account, year, LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, {
+      error: {
+        message: error.message,
+        stack: error.stack,
+      },
+    });
   }
 }
 

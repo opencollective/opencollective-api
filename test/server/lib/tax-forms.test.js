@@ -5,6 +5,7 @@ import sinon from 'sinon';
 
 import expenseTypes from '../../../server/constants/expense_type';
 import { US_TAX_FORM_THRESHOLD } from '../../../server/constants/tax-form';
+import emailLib from '../../../server/lib/email';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
@@ -14,6 +15,8 @@ import {
   fakeHost,
   fakeLegalDocument,
   fakePayoutMethod,
+  fakeUser,
+  randStr,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const { RECEIPT, INVOICE } = expenseTypes;
@@ -346,20 +349,43 @@ describe('server/lib/tax-forms', () => {
       sinon.restore();
     });
 
+    it('creates the documents if it does no exists', async () => {
+      const documentLink = 'https://hello-works.com/fake-tax-form';
+      const createInstanceReponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
+      sinon.replace(client.workflowInstances, 'createInstance', sinon.fake.resolves(createInstanceReponse));
+      sinon.replace(client.workflowInstances, 'getAuthenticatedLinkForStep', sinon.fake.resolves(documentLink));
+
+      const newUser = await fakeUser({ email: `${randStr()}@opencollective.com` });
+      await sendHelloWorksUsTaxForm(client, newUser.collective, year, callbackUrl, workflowId, newUser);
+
+      const doc = await models.LegalDocument.findOne({ where: { CollectiveId: newUser.collective.id } });
+      expect(doc.requestStatus).to.eq(REQUESTED);
+    });
+
     it('updates the documents status to requested when the client request succeeds', async () => {
+      const sendMessageSpy = sinon.spy(emailLib, 'sendMessage');
       const legalDoc = Object.assign({}, documentData, { CollectiveId: userCollective.id });
       const doc = await LegalDocument.create(legalDoc);
 
-      const resolves = sinon.fake.resolves(null);
-      sinon.replace(client.workflowInstances, 'createInstance', resolves);
+      const documentLink = 'https://hello-works.com/fake-tax-form';
+      const createInstanceReponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
+      sinon.replace(client.workflowInstances, 'createInstance', sinon.fake.resolves(createInstanceReponse));
+      sinon.replace(client.workflowInstances, 'getAuthenticatedLinkForStep', sinon.fake.resolves(documentLink));
 
       await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
 
       await doc.reload();
-      expect(client.workflowInstances.createInstance.called);
+      expect(client.workflowInstances.createInstance.called).to.be.true;
       const callArgs = client.workflowInstances.createInstance.firstCall.args;
       expect(callArgs[0].participants['participant_swVuvW'].fullName).to.eq('Mr. Legal Name');
+      expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
       expect(doc.requestStatus).to.eq(REQUESTED);
+
+      sinon.assert.callCount(sendMessageSpy, 1);
+      const [recipient, title, content] = sendMessageSpy.firstCall.args;
+      expect(recipient).to.eq(user.email);
+      expect(title).to.eq(`Action required: Submit your tax form for ${user.collective.legalName}`);
+      expect(content).to.include(documentLink);
     });
 
     it('sets updates the documents status to error when the client request fails', async () => {

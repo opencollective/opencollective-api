@@ -67,6 +67,10 @@ function defineModel() {
         allowNull: false,
         unique: 'yearTypeCollective',
       },
+      data: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
     },
     {
       paranoid: true,
