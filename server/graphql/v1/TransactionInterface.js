@@ -46,6 +46,9 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           },
         },
       },
+      amountInHostCurrency: {
+        type: GraphQLInt,
+      },
       hostFeeInHostCurrency: {
         type: GraphQLInt,
         description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
@@ -202,6 +205,12 @@ const TransactionFields = () => {
           return models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
         }
         return transaction.netAmountInCollectiveCurrency;
+      },
+    },
+    amountInHostCurrency: {
+      type: GraphQLInt,
+      async resolve(transaction) {
+        return transaction.amountInHostCurrency;
       },
     },
     host: {
