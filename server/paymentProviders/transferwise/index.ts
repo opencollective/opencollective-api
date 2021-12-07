@@ -104,6 +104,15 @@ async function quoteExpense(
 ): Promise<QuoteV2> {
   await populateProfileId(connectedAccount);
 
+  const isExistingQuoteValid =
+    expense.data?.quote &&
+    expense.data.quote.paymentOption &&
+    moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote.expirationTime);
+  if (isExistingQuoteValid) {
+    logger.debug(`quoteExpense(): reusing existing quote...`);
+    return expense.data.quote;
+  }
+
   const token = await getToken(connectedAccount);
 
   const quoteParams = {
@@ -122,7 +131,12 @@ async function quoteExpense(
     quoteParams['targetAmount'] = (expense.amount / 100) * rate;
   }
 
-  return transferwise.createQuote(token, quoteParams);
+  const quote = await transferwise.createQuote(token, quoteParams);
+
+  quote['paymentOption'] = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+  await expense.update({ data: { ...expense.data, quote: omit(quote, ['paymentOptions']) } });
+
+  return quote;
 }
 
 async function createTransfer(
@@ -150,7 +164,7 @@ async function createTransfer(
         : await createRecipient(connectedAccount, payoutMethod);
 
     const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
-    const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+    const paymentOption = quote['paymentOption'];
     if (!paymentOption || paymentOption.disabled) {
       const message =
         paymentOption?.disabledReason?.message ||
