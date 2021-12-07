@@ -1135,8 +1135,8 @@ const getTransactionsTimeSeries = async (
   hostCollectiveId,
   timeUnit,
   collectiveIds,
-  dateFrom = null,
-  dateTo = null,
+  startDate = null,
+  endDate = null,
 ) => {
   return sequelize.query(
     `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
@@ -1146,8 +1146,8 @@ const getTransactionsTimeSeries = async (
          AND type = :type
          AND "deletedAt" IS NULL
          ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
-         ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
-         ${dateTo ? `AND "createdAt" <= :endDate` : ``}
+         ${startDate ? `AND "createdAt" >= :startDate` : ``}
+         ${endDate ? `AND "createdAt" <= :endDate` : ``}
        GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
       `,
@@ -1159,7 +1159,7 @@ const getTransactionsTimeSeries = async (
         hostCollectiveId,
         timeUnit,
         collectiveIds,
-        ...computeDates(dateFrom, dateTo),
+        ...computeDates(startDate, endDate),
       },
     },
   );

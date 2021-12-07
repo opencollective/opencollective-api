@@ -659,8 +659,8 @@ export const Host = new GraphQLObjectType({
           }
 
           const expenseAmountOverTime = async () => {
-            const dateFrom = args.dateFrom ? moment(args.dateFrom): null;
-            const dateTo = args.dateTo ? moment(args.dateTo): null;
+            const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+            const dateTo = args.dateTo ? moment(args.dateTo) : null;
             const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
 
             const amountDataPoints = await queries.getTransactionsTimeSeries(
