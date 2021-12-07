@@ -1406,3 +1406,30 @@ export async function markExpenseAsUnpaid(
   await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser);
   return updatedExpense;
 }
+
+export async function quoteExpense(expense_, { req }) {
+  const expense = await models.Expense.findByPk(expense_.id, {
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+    ],
+  });
+  const payoutMethod = await expense.getPayoutMethod();
+  const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
+  if (!(await canPayExpense(req, expense))) {
+    throw new Unauthorized("You don't have permission to pay this expense");
+  }
+
+  const host = await expense.collective.getHostCollective();
+  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
+    const [connectedAccount] = await host.getConnectedAccounts({
+      where: { service: 'transferwise', deletedAt: null },
+    });
+    if (!connectedAccount) {
+      throw new Error('Host is not connected to Transferwise');
+    }
+
+    const quote = await paymentProviders.transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
+    return quote;
+  }
+}

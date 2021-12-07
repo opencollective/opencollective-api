@@ -6,7 +6,7 @@ import { pick } from 'lodash';
 import expenseStatus from '../../../constants/expense_status';
 import models, { Op } from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import * as ExpensePermissionsLib from '../../common/expenses';
+import * as ExpenseLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
 import { Currency } from '../enum';
 import ExpenseStatus from '../enum/ExpenseStatus';
@@ -22,6 +22,7 @@ import { Activity } from './Activity';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
+import ExpenseQuote from './ExpenseQuote';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
 import { VirtualCard } from './VirtualCard';
@@ -91,7 +92,7 @@ const Expense = new GraphQLObjectType({
           },
         },
         async resolve(expense, { limit, offset, orderBy }, req) {
-          if (!(await ExpensePermissionsLib.canComment(req, expense))) {
+          if (!(await ExpenseLib.canComment(req, expense))) {
             return null;
           }
 
@@ -119,7 +120,7 @@ const Expense = new GraphQLObjectType({
         description: 'The account being paid by this expense',
         async resolve(expense, _, req) {
           // Allow users to see account's legal names if they can see expense invoice details
-          if (await ExpensePermissionsLib.canSeeExpenseInvoiceInfo(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, expense.FromCollectiveId);
           }
 
@@ -130,7 +131,7 @@ const Expense = new GraphQLObjectType({
         type: Location,
         description: 'The address of the payee',
         async resolve(expense, _, req) {
-          const canSeeLocation = await ExpensePermissionsLib.canSeeExpensePayeeLocation(req, expense);
+          const canSeeLocation = await ExpenseLib.canSeeExpensePayeeLocation(req, expense);
           return !canSeeLocation ? null : expense.payeeLocation;
         },
       },
@@ -166,7 +167,7 @@ const Expense = new GraphQLObjectType({
         description: 'The payout method to use for this expense',
         async resolve(expense, _, req) {
           if (expense.PayoutMethodId) {
-            if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
+            if (await ExpenseLib.canSeeExpensePayoutMethod(req, expense)) {
               allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, expense.PayoutMethodId);
             }
 
@@ -187,7 +188,7 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFile)),
         description: '(Optional) files attached to the expense',
         async resolve(expense, _, req) {
-          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             return req.loaders.Expense.attachedFiles.load(expense.id);
           }
         },
@@ -196,28 +197,28 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLList(ExpenseItem),
         deprecationReason: '2020-04-08: Field has been renamed to "items"',
         async resolve(expense, _, req) {
-          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return ExpensePermissionsLib.getExpenseItems(expense.id, req);
+          return ExpenseLib.getExpenseItems(expense.id, req);
         },
       },
       items: {
         type: new GraphQLList(ExpenseItem),
         async resolve(expense, _, req) {
-          if (await ExpensePermissionsLib.canSeeExpenseAttachments(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return ExpensePermissionsLib.getExpenseItems(expense.id, req);
+          return ExpenseLib.getExpenseItems(expense.id, req);
         },
       },
       privateMessage: {
         type: GraphQLString,
         description: 'Additional information about the payment as HTML. Only visible to user and admins.',
         async resolve(expense, _, req) {
-          if (await ExpensePermissionsLib.canSeeExpensePayoutMethod(req, expense)) {
+          if (await ExpenseLib.canSeeExpensePayoutMethod(req, expense)) {
             return expense.privateMessage;
           }
         },
@@ -226,7 +227,7 @@ const Expense = new GraphQLObjectType({
         type: GraphQLString,
         description: 'Information to display on the invoice. Only visible to user and admins.',
         async resolve(expense, _, req) {
-          if (await ExpensePermissionsLib.canSeeExpenseInvoiceInfo(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
             return expense.invoiceInfo;
           }
         },
@@ -260,7 +261,7 @@ const Expense = new GraphQLObjectType({
         description:
           'Returns the list of legal documents required from the payee before the expense can be payed. Must be logged in.',
         async resolve(expense, _, req) {
-          if (!(await ExpensePermissionsLib.canViewRequiredLegalDocuments(req, expense))) {
+          if (!(await ExpenseLib.canViewRequiredLegalDocuments(req, expense))) {
             return null;
           } else {
             return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
@@ -282,6 +283,24 @@ const Expense = new GraphQLObjectType({
         async resolve(expense, _, req) {
           if (expense.data?.invitedByCollectiveId) {
             return await req.loaders.Collective.byId.load(expense.data.invitedByCollectiveId);
+          }
+        },
+      },
+      quote: {
+        type: ExpenseQuote,
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canPayExpense(req, expense)) {
+            const quote = await ExpenseLib.quoteExpense(expense, { req });
+            const sourceAmount = {
+              value: quote.paymentOption.sourceAmount * 100,
+              currency: quote.paymentOption.sourceCurrency,
+            };
+            const estimatedDeliveryAt = quote.paymentOption.estimatedDelivery;
+            const paymentProcessorFeeAmount = {
+              value: quote.paymentOption.fee.total * 100,
+              currency: quote.sourceCurrency,
+            };
+            return { sourceAmount, estimatedDeliveryAt, paymentProcessorFeeAmount };
           }
         },
       },
