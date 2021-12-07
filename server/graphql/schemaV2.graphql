@@ -2336,7 +2336,7 @@ type Host implements Account & AccountWithContributions {
     dateTo: DateTime!
 
     """
-    The time unit of the time series
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
     """
     timeUnit: TimeUnit!
   ): HostMetricsTimeSeries!
@@ -2395,6 +2395,7 @@ type Host implements Account & AccountWithContributions {
     limit: Int! = 100
     offset: Int! = 0
     state: String = null
+    orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
     merchantAccount: AccountReferenceInput = null
     collectiveAccountIds: [AccountReferenceInput] = null
   ): VirtualCardCollection!
@@ -2419,7 +2420,7 @@ type Host implements Account & AccountWithContributions {
     """
     The time unit of the time series
     """
-    timeUnit: TimeUnit! = YEAR
+    timeUnit: TimeUnit
   ): ContributionStats!
   expenseStats(
     """
@@ -2438,9 +2439,9 @@ type Host implements Account & AccountWithContributions {
     dateTo: DateTime
 
     """
-    The time unit of the time series
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
     """
-    timeUnit: TimeUnit! = YEAR
+    timeUnit: TimeUnit
   ): ExpenseStats!
 
   """
@@ -7108,7 +7109,7 @@ type Mutation {
   setChangelogViewDate(changelogViewDate: DateTime!): Individual!
 
   """
-  Assign new Virtual Card information to existing hosted collective
+  Assign Virtual Card information to existing hosted collective
   """
   assignNewVirtualCard(
     """
@@ -7128,18 +7129,18 @@ type Mutation {
   ): VirtualCard!
 
   """
-  Create new virtual card for existing hosted collective
+  Create new Stripe Virtual Card for existing hosted collective
   """
   createVirtualCard(
     """
-    Virtual card name
+    Virtual Card name
     """
     name: String!
 
     """
-    Virtual card monthly limit
+    Virtual Card monthly limit
     """
-    monthlyLimit: Int!
+    monthlyLimit: AmountInput!
 
     """
     Account where the virtual card will be associated
