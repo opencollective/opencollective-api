@@ -5,7 +5,7 @@ import { sequelize } from '../models';
 
 import { getTotalMoneyManagedAmount } from './budget';
 import { getFxRate } from './currency';
-import { computeDates, parseToBoolean } from './utils';
+import { computeDatesAsISOStrings, parseToBoolean } from './utils';
 
 function oppositeTotal(total) {
   return total !== 0 ? -total : total;
@@ -102,7 +102,7 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
       replacements: {
         HostCollectiveId: host.id,
         CollectiveIds: collectiveIds,
-        ...computeDates(startDate, endDate),
+        ...computeDatesAsISOStrings(startDate, endDate),
         groupTimeUnit,
       },
       type: sequelize.QueryTypes.SELECT,
@@ -147,7 +147,7 @@ GROUP BY t."hostCurrency"`,
         HostCollectiveId: host.id,
         CollectiveIds: collectiveIds,
         status: status,
-        ...computeDates(startDate, endDate),
+        ...computeDatesAsISOStrings(startDate, endDate),
       },
       type: sequelize.QueryTypes.SELECT,
     },
@@ -173,7 +173,7 @@ GROUP BY t1."hostCurrency"`,
         replacements: {
           CollectiveId: host.id,
           FromCollectiveIds: fromCollectiveIds,
-          ...computeDates(startDate, endDate),
+          ...computeDatesAsISOStrings(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
       },
@@ -195,7 +195,7 @@ GROUP BY t1."hostCurrency"`,
       replacements: {
         HostCollectiveId: host.id,
         FromCollectiveIds: fromCollectiveIds,
-        ...computeDates(startDate, endDate),
+        ...computeDatesAsISOStrings(startDate, endDate),
       },
       type: sequelize.QueryTypes.SELECT,
     },
@@ -225,7 +225,7 @@ AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     {
-      replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate), timeUnit },
+      replacements: { CollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
       type: sequelize.QueryTypes.SELECT,
     },
   );
@@ -245,7 +245,7 @@ AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
       {
-        replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate), timeUnit },
+        replacements: { HostCollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
         type: sequelize.QueryTypes.SELECT,
       },
     );
@@ -300,7 +300,7 @@ GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt")
 ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt")`,
     {
       replacements: {
-        ...computeDates(startDate, endDate),
+        ...computeDatesAsISOStrings(startDate, endDate),
         timeUnit,
         HostCollectiveId: host.id,
         CollectiveIds: collectiveIds,
@@ -350,7 +350,7 @@ GROUP BY t1."hostCurrency"`,
         replacements: {
           CollectiveId: host.id,
           CollectiveIds: collectiveIds,
-          ...computeDates(startDate, endDate),
+          ...computeDatesAsISOStrings(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
       },
@@ -392,7 +392,7 @@ export async function getHostFeeShareTimeSeries(host, { startDate = null, endDat
     GROUP BY t1."hostCurrency", DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')
     ORDER BY DATE_TRUNC(:timeUnit, t1."createdAt"), COALESCE(ts."status", 'SETTLED')`,
     {
-      replacements: { CollectiveId: host.id, ...computeDates(startDate, endDate), timeUnit },
+      replacements: { CollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate), timeUnit },
       type: sequelize.QueryTypes.SELECT,
     },
   );
@@ -433,7 +433,7 @@ export async function getPendingHostFeeShare(
           CollectiveId: host.id,
           FromCollectiveIds: collectiveIds,
           status: status,
-          ...computeDates(startDate, endDate),
+          ...computeDatesAsISOStrings(startDate, endDate),
         },
         type: sequelize.QueryTypes.SELECT,
       },
@@ -463,7 +463,7 @@ AND (
 )
 GROUP BY t1."hostCurrency"`,
     {
-      replacements: { HostCollectiveId: host.id, ...computeDates(startDate, endDate) },
+      replacements: { HostCollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate) },
       type: sequelize.QueryTypes.SELECT,
     },
   );

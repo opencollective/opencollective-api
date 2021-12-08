@@ -3037,8 +3037,8 @@ function defineModel() {
 
   /**
    * Returns financial metrics from the Host collective.
-   * @param {Date} from Defaults to beginning of the current month.
-   * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
+   * @param {Date} from The start date from which the metrics should be calculated.
+   * @param {Date} to The end date upto which the metrics should be calculated.
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
   Collective.prototype.getHostMetrics = async function (from, to, collectiveIds) {

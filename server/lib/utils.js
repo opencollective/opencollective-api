@@ -7,7 +7,6 @@ import Promise from 'bluebird';
 import config from 'config';
 import pdf from 'html-pdf';
 import { filter, get, isEqual, padStart, sumBy } from 'lodash';
-import moment from 'moment';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 
@@ -555,9 +554,12 @@ export const getTokenFromRequestHeaders = req => {
 
 export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
 
-export const computeDates = (startDate, endDate) => {
-  startDate = startDate ? moment(startDate) : moment().utc().startOf('month');
-  endDate = endDate ? moment(endDate) : moment(startDate).utc().endOf('month');
+/**
+ * Returns the start and end dates as ISO 8601 strings.
+ */
+export const computeDatesAsISOStrings = (startDate, endDate) => {
+  startDate = startDate ? startDate.toISOString() : null;
+  endDate = endDate ? endDate.toISOString() : null;
 
-  return { startDate: startDate.toISOString(), endDate: endDate.toISOString() };
+  return { startDate, endDate };
 };
