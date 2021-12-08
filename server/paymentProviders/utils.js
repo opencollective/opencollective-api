@@ -138,6 +138,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       UserId,
       CollectiveId: collective.id,
       FromCollectiveId: vendor.id,
+      HostCollectiveId: host.id,
       currency: 'USD',
       amount,
       description,
