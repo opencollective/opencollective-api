@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import sinon from 'sinon';
+import { createSandbox, stub } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
 import { TransactionKind } from '../../../../server/constants/transaction-kind';
@@ -113,7 +113,7 @@ describe('server/graphql/v1/paymentMethods', () => {
     const fxrate = 1.1654; // 1 EUR = 1.1654 USD
 
     beforeEach(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(fxrate));
       return models.PaymentMethod.findOne({
         where: {
@@ -323,7 +323,7 @@ describe('server/graphql/v1/paymentMethods', () => {
     let preapprovalDetailsStub = null;
 
     before(() => {
-      preapprovalDetailsStub = sinon.stub(paypalAdaptive, 'preapprovalDetails').callsFake(() => {
+      preapprovalDetailsStub = stub(paypalAdaptive, 'preapprovalDetails').callsFake(() => {
         return Promise.resolve({
           ...paypalMock.adaptive.preapprovalDetails.completed,
           curPaymentsAmount: '12.50',

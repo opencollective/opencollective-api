@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { isValidUploadedImage } from '../../../server/lib/images';
 
-const sandbox = sinon.createSandbox();
+const sandbox = createSandbox();
 
 describe('server/lib/images', () => {
   describe('isValidUploadedImage', () => {

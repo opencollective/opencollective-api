@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import nock from 'nock';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../../../../server/constants/currencies';
 import * as constants from '../../../../server/constants/transactions';
@@ -181,7 +181,7 @@ describe('server/graphql/v1/refundTransaction', () => {
   describe('Save CreatedByUserId', () => {
     let userStub;
     beforeEach(() => {
-      userStub = sinon.stub(models.User.prototype, 'isRoot').callsFake(() => true);
+      userStub = stub(models.User.prototype, 'isRoot').callsFake(() => true);
     });
     afterEach(() => userStub.restore());
 
@@ -232,7 +232,7 @@ describe('server/graphql/v1/refundTransaction', () => {
   describe('Stripe Transaction - for hosts created before September 17th 2017', () => {
     let userStub;
     beforeEach(() => {
-      userStub = sinon.stub(models.User.prototype, 'isRoot').callsFake(() => true);
+      userStub = stub(models.User.prototype, 'isRoot').callsFake(() => true);
     });
     afterEach(() => userStub.restore());
 
@@ -345,7 +345,7 @@ describe('server/graphql/v1/refundTransaction', () => {
   describe('Stripe Transaction - for hosts created after September 17th 2017', () => {
     let userStub;
     beforeEach(() => {
-      userStub = sinon.stub(models.User.prototype, 'isRoot').callsFake(() => true);
+      userStub = stub(models.User.prototype, 'isRoot').callsFake(() => true);
     });
     afterEach(() => userStub.restore());
 

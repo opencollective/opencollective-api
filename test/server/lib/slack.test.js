@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import _ from 'lodash';
 import Slack from 'node-slack';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 
 import activitiesLib from '../../../server/lib/activities';
 import slackLib from '../../../server/lib/slack';
@@ -47,8 +47,8 @@ describe('server/lib/slack', () => {
     const webhookUrl = 'hookurl';
 
     beforeEach(() => {
-      formatMessageStub = sinon.stub(activitiesLib, 'formatMessageForPublicChannel');
-      postMessageStub = sinon.stub(slackLib, 'postMessage');
+      formatMessageStub = stub(activitiesLib, 'formatMessageForPublicChannel');
+      postMessageStub = stub(slackLib, 'postMessage');
     });
 
     afterEach(() => {

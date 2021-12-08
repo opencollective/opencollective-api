@@ -3,7 +3,7 @@ import config from 'config';
 import gql from 'fake-tag';
 import { cloneDeep } from 'lodash';
 import nock from 'nock';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
 import { maxInteger } from '../../../../server/constants/math';
@@ -100,7 +100,7 @@ describe('server/graphql/v1/createOrder', () => {
 
   beforeEach(async () => {
     await utils.resetTestDB();
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     tweetStatusSpy = sandbox.spy(twitter, 'tweetStatus');
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
 

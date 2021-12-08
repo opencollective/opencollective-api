@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
@@ -44,7 +44,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
     `;
 
     before(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
     });
 

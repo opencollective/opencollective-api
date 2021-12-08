@@ -3,7 +3,7 @@ import gql from 'fake-tag';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { dispatch } from '../../../../server/lib/backyourstack/dispatcher';
 import models from '../../../../server/models';
@@ -92,7 +92,7 @@ describe('server/graphql/v1/createOrder.backyourstack', () => {
 
   before(async () => {
     await utils.resetTestDB();
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
 
     initNock();
 

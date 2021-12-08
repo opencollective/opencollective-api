@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../server/constants';
 import { canDownloadInvoice, canRefund } from '../../../../server/graphql/common/transactions';
@@ -46,7 +46,7 @@ describe('server/graphql/common/transactions', () => {
       amount: 100000,
       OrderId: order.id,
     });
-    timer = sinon.useFakeTimers(new Date('2020-07-23 0:0').getTime());
+    timer = useFakeTimers(new Date('2020-07-23 0:0').getTime());
     oldTransaction = await fakeTransaction({
       CollectiveId: collective.id,
       FromCollectiveId: contributor.CollectiveId,

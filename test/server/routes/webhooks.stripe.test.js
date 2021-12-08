@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import _ from 'lodash';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../server/index';
@@ -38,7 +38,7 @@ describe('server/routes/webhooks.stripe', () => {
 
   describe('Webhook events: ', () => {
     beforeEach(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
     });
 
     afterEach(() => {

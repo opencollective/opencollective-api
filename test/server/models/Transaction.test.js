@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import models from '../../../server/models';
@@ -193,7 +193,7 @@ describe('server/models/Transaction', () => {
   });
 
   it('createFromContributionPayload() generates a new activity', done => {
-    const createActivityStub = sinon.stub(Transaction, 'createActivity').callsFake(t => {
+    const createActivityStub = stub(Transaction, 'createActivity').callsFake(t => {
       expect(Math.abs(t.amount)).to.equal(Math.abs(transactionsData[7].amount));
       createActivityStub.restore();
       done();

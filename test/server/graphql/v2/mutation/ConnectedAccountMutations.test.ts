@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import sinon from 'sinon';
+import { createSandbox, stub } from 'sinon';
 
 import * as transferwise from '../../../../../server/lib/transferwise';
 import models from '../../../../../server/models';
@@ -9,7 +9,7 @@ import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
   beforeEach(() => {
     sandbox.restore();
     sandbox.stub(transferwise, 'getProfiles').resolves();
@@ -103,7 +103,7 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
         service: 'transferwise',
       };
 
-      (transferwise.getProfiles as sinon.stub).rejects();
+      (transferwise.getProfiles as stub).rejects();
 
       const result = await graphqlQueryV2(
         createConnectedAccountMutation,

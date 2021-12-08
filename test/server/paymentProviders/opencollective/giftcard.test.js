@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import gql from 'fake-tag';
 import moment from 'moment';
 import nock from 'nock';
-import sinon from 'sinon';
+import { createSandbox, stub } from 'sinon';
 
 import { maxInteger } from '../../../../server/constants/math';
 import emailLib from '../../../../server/lib/email';
@@ -107,7 +107,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
   });
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
     // And given that the endpoint for creating customers on Stripe
     // is patched
@@ -554,7 +554,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
         let creditCardProcessOrderMock;
 
         beforeEach(() => {
-          creditCardProcessOrderMock = sinon.stub(creditCardLib, 'processOrder');
+          creditCardProcessOrderMock = stub(creditCardLib, 'processOrder');
         });
 
         afterEach(() => {

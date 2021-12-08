@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { idEncode, IDENTIFIER_TYPES } from '../../../../server/graphql/v2/identifiers';
 import stripe from '../../../../server/lib/stripe';
@@ -13,9 +13,8 @@ import {
   fakeUser,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
-
 describe('server/paymentProviders/stripe/alipay', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
   let order;
   before(async () => {

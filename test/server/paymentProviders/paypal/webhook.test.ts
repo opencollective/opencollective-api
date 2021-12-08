@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Request } from 'express';
 /* eslint-disable camelcase */
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as PaypalLib from '../../../../server/lib/paypal';
 import models from '../../../../server/models';
@@ -32,7 +32,7 @@ describe('server/paymentProviders/paypal/webhook', () => {
 
   before(async () => {
     await resetTestDB();
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
   });
 
   afterEach(() => {

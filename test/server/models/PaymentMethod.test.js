@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
-import sinon from 'sinon';
+import { useFakeTimers } from 'sinon';
 
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
@@ -16,7 +16,7 @@ describe('server/models/PaymentMethod', () => {
       .query({ access_key: config.fixer.accessKey, base: 'EUR', symbols: 'USD' }) // eslint-disable-line camelcase
       .reply(200, { base: 'EUR', date: '2017-09-01', rates: { USD: 1.192 } });
     await utils.resetTestDB();
-    timer = sinon.useFakeTimers(new Date('2017-09-01 00:00:00').getTime());
+    timer = useFakeTimers(new Date('2017-09-01 00:00:00').getTime());
   });
   after(() => {
     timer.restore();

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import sinon from 'sinon';
+import { stub, useFakeTimers } from 'sinon';
 
 import slackLib from '../../../server/lib/slack';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam';
@@ -10,7 +10,7 @@ describe('server/lib/spam', () => {
   let clock;
 
   before(() => {
-    clock = sinon.useFakeTimers(new Date('2020-01-01T00:00:00.000Z'));
+    clock = useFakeTimers(new Date('2020-01-01T00:00:00.000Z'));
   });
 
   after(() => {
@@ -119,7 +119,7 @@ describe('server/lib/spam', () => {
     let slackPostMessageStub = null;
 
     before(() => {
-      slackPostMessageStub = sinon.stub(slackLib, 'postMessage');
+      slackPostMessageStub = stub(slackLib, 'postMessage');
     });
 
     after(() => {

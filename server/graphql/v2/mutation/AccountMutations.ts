@@ -1,7 +1,7 @@
 import cryptoRandomString from 'crypto-random-string';
 import express from 'express';
 import { GraphQLBoolean, GraphQLFloat, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
 import plans from '../../../constants/plans';

@@ -5,7 +5,7 @@
 
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import sinon from 'sinon';
+import { useFakeTimers } from 'sinon';
 
 import * as store from '../../../stores';
 import * as utils from '../../../utils';
@@ -18,7 +18,7 @@ import * as utils from '../../../utils';
  * The payment method is always stripe for now.
  */
 async function donate(user, currency, amount, createdAt, collective) {
-  const timer = sinon.useFakeTimers(new Date(createdAt).getTime());
+  const timer = useFakeTimers(new Date(createdAt).getTime());
   try {
     await store.stripeConnectedAccount(collective.HostCollectiveId);
     await store.stripeOneTimeDonation({

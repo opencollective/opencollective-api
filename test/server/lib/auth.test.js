@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import config from 'config';
 import jwt from 'jsonwebtoken';
-import sinon from 'sinon';
+import { useFakeTimers } from 'sinon';
 
 import * as auth from '../../../server/lib/auth';
 
 describe('server/lib/auth', () => {
   it('should generate valid tokens', () => {
     // Given that time `Date.now` returns zero (0)
-    const clock = sinon.useFakeTimers();
+    const clock = useFakeTimers();
 
     // When the token is generated
     const token = auth.createJwt('subject', { foo: 'bar' }, 5);

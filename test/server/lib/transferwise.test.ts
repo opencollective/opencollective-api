@@ -1,9 +1,9 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import { formatAccountDetails, requestDataAndThrowParsedError } from '../../../server/lib/transferwise';
 
-const sandbox = sinon.createSandbox();
+const sandbox = createSandbox();
 
 describe('server/lib/transferwise', () => {
   describe('formatAccountDetails', () => {
@@ -76,7 +76,7 @@ describe('server/lib/transferwise', () => {
 
     it('should request using passing parameters', async () => {
       await requestDataAndThrowParsedError(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
-      sinon.assert.calledWith(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
+      assert.calledWith(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
     });
 
     it('should inject post data, if passed', async () => {
@@ -84,12 +84,7 @@ describe('server/lib/transferwise', () => {
         data: { hasBody: true },
         headers: { Authentication: 'Bearer fake-tokinzes' },
       });
-      sinon.assert.calledWith(
-        stub,
-        'fake-url',
-        { hasBody: true },
-        { headers: { Authentication: 'Bearer fake-tokinzes' } },
-      );
+      assert.calledWith(stub, 'fake-url', { hasBody: true }, { headers: { Authentication: 'Bearer fake-tokinzes' } });
     });
 
     it('should extract data from the response', async () => {

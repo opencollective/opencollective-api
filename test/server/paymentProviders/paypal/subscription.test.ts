@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
 import { setupPaypalSubscriptionForOrder } from '../../../../server/paymentProviders/paypal/subscription';
@@ -28,7 +28,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
     await resetTestDB();
     host = await fakeHost();
     await fakeConnectedAccount({ service: 'paypal', clientId: randStr(), token: randStr(), CollectiveId: host.id });
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     plan = await fakePaypalPlan({ product: { CollectiveId: host.id }, amount: 1000, interval: 'month' });
   });
 
@@ -56,7 +56,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
       paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
       paypalRequestStub.withArgs(`${subscriptionUrl}/activate`).resolves();
       await setupPaypalSubscriptionForOrder(order, paymentMethod);
-      sinon.assert.calledWith(paypalRequestStub, `${subscriptionUrl}/activate`);
+      assert.calledWith(paypalRequestStub, `${subscriptionUrl}/activate`);
       const createdSubscription = await order.getSubscription();
       expect(createdSubscription.paypalSubscriptionId).to.eq(validSubscriptionParams.id);
       expect(createdSubscription.isActive).to.be.false; // Will be activated when the first payment hits
@@ -72,7 +72,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
         const error = await setupPaypalSubscriptionForOrder(order, paymentMethod).catch(e => e);
         expect(error).to.exist;
         expect(error['rootException'].message).to.eq('Subscription must be approved to be activated');
-        sinon.assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
+        assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
       });
 
       it('must have an existing plan', async () => {
@@ -86,7 +86,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
         expect(error['rootException'].message).to.eq(
           `PayPal plan does not match the subscription (#${validSubscriptionParams.id})`,
         );
-        sinon.assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
+        assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
       });
 
       it('must have a plan that match amount', async () => {
@@ -98,7 +98,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
         const error = await setupPaypalSubscriptionForOrder(order, paymentMethod).catch(e => e);
         expect(error).to.exist;
         expect(error['rootException'].message).to.eq('The plan amount does not match the order amount');
-        sinon.assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
+        assert.calledOnce(paypalRequestStub); // We only fetch the subscription, not approving it
       });
     });
 
@@ -135,9 +135,9 @@ describe('server/paymentProviders/paypal/subscription', () => {
         paypalRequestStub.withArgs(`${oldSubscriptionUrl}/cancel`).resolves();
 
         await setupPaypalSubscriptionForOrder(order, newSubscriptionPm);
-        sinon.assert.calledWith(paypalRequestStub, subscriptionUrl);
-        sinon.assert.calledWith(paypalRequestStub, `${subscriptionUrl}/activate`);
-        sinon.assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
+        assert.calledWith(paypalRequestStub, subscriptionUrl);
+        assert.calledWith(paypalRequestStub, `${subscriptionUrl}/activate`);
+        assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
 
         const updatedSubscription = await order.getSubscription();
         expect(updatedSubscription.paypalSubscriptionId).to.eq(newSubscriptionPm.token);
@@ -158,9 +158,9 @@ describe('server/paymentProviders/paypal/subscription', () => {
         paypalRequestStub.withArgs(`${oldSubscriptionUrl}/cancel`).rejects();
 
         await expect(setupPaypalSubscriptionForOrder(order, newSubscriptionPm)).to.be.rejected;
-        sinon.assert.calledWith(paypalRequestStub, subscriptionUrl);
-        sinon.assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
-        sinon.assert.callCount(paypalRequestStub, 2); // Must NOT call activate if cancellation fails
+        assert.calledWith(paypalRequestStub, subscriptionUrl);
+        assert.calledWith(paypalRequestStub, `${oldSubscriptionUrl}/cancel`);
+        assert.callCount(paypalRequestStub, 2); // Must NOT call activate if cancellation fails
       });
     });
   });

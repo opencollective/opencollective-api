@@ -2,7 +2,7 @@ import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../server/index';
@@ -76,7 +76,7 @@ describe('server/routes/email', () => {
   before(initNock);
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
   });
 
   afterEach(() => {

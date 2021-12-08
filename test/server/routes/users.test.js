@@ -3,7 +3,7 @@ import config from 'config';
 import crypto from 'crypto-js';
 import moment from 'moment';
 import nodemailer from 'nodemailer';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 import speakeasy from 'speakeasy';
 import request from 'supertest';
 
@@ -45,11 +45,11 @@ describe('server/routes/users', () => {
       },
       logger: false,
     });
-    sinon.stub(nodemailer, 'createTransport').callsFake(() => nm);
+    stub(nodemailer, 'createTransport').callsFake(() => nm);
   });
 
   // stub the transport
-  beforeEach(() => sinon.stub(nm, 'sendMail').callsFake((object, cb) => cb(null, object)));
+  beforeEach(() => stub(nm, 'sendMail').callsFake((object, cb) => cb(null, object)));
 
   afterEach(() => nm.sendMail.restore());
 

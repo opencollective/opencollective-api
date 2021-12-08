@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -124,7 +124,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       fromUser = await fakeUser();
 
       // Stub the payment
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       sandbox.stub(payments, 'executeOrder').callsFake(stubExecuteOrderFn);
 
       // Add Stripe to host

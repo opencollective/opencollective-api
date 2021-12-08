@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import sinon from 'sinon';
+import { useFakeTimers } from 'sinon';
 
 import * as ManualPaymentMethod from '../../../../../server/lib/payments';
 import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
@@ -59,7 +59,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
     collective1 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
     collective2 = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id, hostFeePercent: 30 });
 
-    let clock = sinon.useFakeTimers(new Date('2021-02-01 0:0').getTime());
+    let clock = useFakeTimers(new Date('2021-02-01 0:0').getTime());
     try {
       const order1 = await fakeOrder({
         CollectiveId: collective1.id,
@@ -71,7 +71,7 @@ describe('server/graphql/v2/query/HostMetricsQuery', () => {
       clock.restore();
     }
 
-    clock = sinon.useFakeTimers(new Date('2021-06-01 0:0').getTime());
+    clock = useFakeTimers(new Date('2021-06-01 0:0').getTime());
     try {
       const order2 = await fakeOrder({
         CollectiveId: collective2.id,

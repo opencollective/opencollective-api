@@ -3,7 +3,7 @@ import { URL } from 'url';
 import { expect } from 'chai';
 import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
-import sinon from 'sinon';
+import { stub, useFakeTimers } from 'sinon';
 
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
@@ -93,7 +93,7 @@ describe('server/models/User', () => {
     // Ensure the date will start at 0 instead of starting at epoch so
     // date related things can be tested
     let clock;
-    beforeEach(() => (clock = sinon.useFakeTimers()));
+    beforeEach(() => (clock = useFakeTimers()));
     afterEach(() => clock.restore());
 
     it('should generate valid JWTokens with user data', async () => {
@@ -125,7 +125,7 @@ describe('server/models/User', () => {
         email: 'foo@oc.com',
         password: '123456',
       });
-      const mockUser = sinon.stub(user, 'jwt').callsFake(() => 'foo');
+      const mockUser = stub(user, 'jwt').callsFake(() => 'foo');
 
       // When a login link is created
       const link = user.generateLoginLink('/path/to/redirect');
@@ -148,7 +148,7 @@ describe('server/models/User', () => {
         email: 'foo@oc.com',
         password: '123456',
       });
-      const mockUser = sinon.stub(user, 'jwt').callsFake((payload, expiration) => ({ payload, expiration }));
+      const mockUser = stub(user, 'jwt').callsFake((payload, expiration) => ({ payload, expiration }));
 
       // When an account verification link is created
       const output = user.generateConnectedAccountVerifiedToken(1, 'user');

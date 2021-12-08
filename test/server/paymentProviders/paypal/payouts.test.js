@@ -2,7 +2,7 @@
 import crypto from 'crypto';
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import status from '../../../../server/constants/expense_status';
 import * as paypalLib from '../../../../server/lib/paypal';
@@ -12,7 +12,7 @@ import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } f
 import * as utils from '../../../utils';
 
 describe('paymentMethods/paypal/payouts.js', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
   let expense, host, collective, payoutMethod;
 
   afterEach(sandbox.restore);
@@ -64,7 +64,7 @@ describe('paymentMethods/paypal/payouts.js', () => {
       await paypalPayouts.payExpensesBatch([expense]);
       await expense.reload();
 
-      sinon.assert.calledOnce(paypalLib.executePayouts);
+      assert.calledOnce(paypalLib.executePayouts);
       expect(expense.data).to.deep.equals({ payout_batch_id: 'fake' });
     });
 

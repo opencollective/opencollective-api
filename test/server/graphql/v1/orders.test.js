@@ -2,7 +2,7 @@ import Promise from 'bluebird';
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
@@ -16,7 +16,7 @@ describe('server/graphql/v1/orders', () => {
   let host, hostAdmin, sandbox, emailSendMessageSpy;
   before('reset test db', () => utils.resetTestDB());
   before('spies', () => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
   });
   after('cleaning', () => {

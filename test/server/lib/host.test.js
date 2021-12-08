@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as libcurrency from '../../../server/lib/currency';
 import * as libhost from '../../../server/lib/hostlib';
@@ -30,7 +30,7 @@ describe('server/lib/host', () => {
   before(async () => {
     await utils.resetTestDB();
     // Given that we stub the currency conversion machinery
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(0.75779));
     sandbox.stub(libcurrency, 'convertToCurrency').callsFake(a => a * 2);
 
