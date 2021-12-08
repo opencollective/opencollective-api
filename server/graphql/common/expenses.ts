@@ -7,6 +7,7 @@ import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
+import { hasOptedInForFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -244,6 +245,14 @@ export const canPayExpense = async (req: express.Request, expense: typeof models
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
+    const collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+    const host = await collective.getHostCollective();
+    if (hasOptedInForFeature(host, FEATURE.APPROVERS_CANNOT_PAY_EXPENSES)) {
+      const approver = await expense.getApproverUser();
+      if (approver && approver.id === req.remoteUser.id) {
+        return false;
+      }
+    }
     return isHostAdmin(req, expense);
   }
 };

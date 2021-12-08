@@ -34,6 +34,7 @@ const FeatureAllowedForTypes = {
   [FEATURE.PAYPAL_PAYOUTS]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_DONATIONS]: [types.ORGANIZATION],
   [FEATURE.ALIPAY]: [types.ORGANIZATION],
+  [FEATURE.APPROVERS_CANNOT_PAY_EXPENSES]: [types.ORGANIZATION],
 };
 
 /**
@@ -50,6 +51,7 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
   [FEATURE.ALIPAY]: 'settings.features.alipay',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
+  [FEATURE.APPROVERS_CANNOT_PAY_EXPENSES]: 'settings.approversCannotPayExpenses',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
