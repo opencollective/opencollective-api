@@ -110,6 +110,7 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
+    currency: { type: GraphQLString },
     createdAt: { type: GraphQLDateTime },
     updatedAt: { type: GraphQLDateTime },
   }),
