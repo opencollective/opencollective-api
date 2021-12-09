@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import models from '../../../../server/models';
 import collectivePaymentProvider from '../../../../server/paymentProviders/opencollective/collective';
@@ -184,7 +184,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
     });
 
     beforeEach(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       // And given that the endpoint for creating customers on Stripe
       // is patched
       utils.stubStripeCreate(sandbox, {

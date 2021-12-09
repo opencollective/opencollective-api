@@ -1,6 +1,6 @@
 /* eslint-disable camelcase */
 
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../../server/index';
@@ -14,7 +14,7 @@ describe('server/paymentProviders/privacy/webhook', () => {
     api = request(expressApp);
   });
 
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
   const event = {
     amount: 243,
@@ -72,7 +72,7 @@ describe('server/paymentProviders/privacy/webhook', () => {
   it('should complete processing transactions if transfer was sent', async () => {
     await api.post('/webhooks/privacy').send(event).expect(200);
 
-    sinon.assert.calledOnce(processTransaction);
+    assert.calledOnce(processTransaction);
   });
 
   it('should ignore if event.result is not APPROVED', async () => {
@@ -81,7 +81,7 @@ describe('server/paymentProviders/privacy/webhook', () => {
       .send({ ...event, result: 'WHAT_EVER' })
       .expect(200);
 
-    sinon.assert.notCalled(processTransaction);
+    assert.notCalled(processTransaction);
   });
 
   it('should ignore if event.status is not SETTLED', async () => {
@@ -90,6 +90,6 @@ describe('server/paymentProviders/privacy/webhook', () => {
       .send({ ...event, status: 'PENDING' })
       .expect(200);
 
-    sinon.assert.notCalled(processTransaction);
+    assert.notCalled(processTransaction);
   });
 });

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 
 import models from '../../../../server/models';
 import { paypalRequest, paypalUrl, retrieveOAuthToken } from '../../../../server/paymentProviders/paypal/api';
@@ -18,13 +18,13 @@ describe('server/paymentProviders/paypal/api', () => {
     }); /* End of `afterEach()' */
 
     it('should use Sandbox API when config says so', () => {
-      configStub = sinon.stub(config.paypal.payment, 'environment').get(() => 'sandbox');
+      configStub = stub(config.paypal.payment, 'environment').get(() => 'sandbox');
       const url = paypalUrl('foo');
       expect(url).to.equal('https://api.sandbox.paypal.com/v1/foo');
     }); /* End of `should use Sandbox API when config says so' */
 
     it('should use Production API when config says so', () => {
-      configStub = sinon.stub(config.paypal.payment, 'environment').get(() => 'production');
+      configStub = stub(config.paypal.payment, 'environment').get(() => 'production');
       const url = paypalUrl('foo');
       expect(url).to.equal('https://api.paypal.com/v1/foo');
     }); /* End of `should use Production API when config says so' */
@@ -41,7 +41,7 @@ describe('server/paymentProviders/paypal/api', () => {
     before(() => {
       /* Stub out the configuration with authentication information
          and environment name. */
-      configStub = sinon.stub(config.paypal, 'payment').get(() => ({
+      configStub = stub(config.paypal, 'payment').get(() => ({
         environment: 'sandbox',
       }));
       /* Catch the retrieval of auth tokens */

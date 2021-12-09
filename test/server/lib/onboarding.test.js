@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import emailLib from '../../../server/lib/email';
 import { processOnBoardingTemplate } from '../../../server/lib/onboarding';
@@ -11,7 +11,7 @@ describe('server/lib/onboarding', () => {
   let admins, sandbox, emailLibSendSpy;
   before(async () => {
     await utils.resetTestDB();
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     emailLibSendSpy = sandbox.spy(emailLib, 'send');
   });
 

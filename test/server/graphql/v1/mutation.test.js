@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
 import emailLib from '../../../../server/lib/email';
@@ -20,7 +20,7 @@ describe('server/graphql/v1/mutation', () => {
   */
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     emailSendSpy = sandbox.spy(emailLib, 'send');
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     executeOrderStub = sandbox.stub(payments, 'executeOrder').callsFake((user, order) => {

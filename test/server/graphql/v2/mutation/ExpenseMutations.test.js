@@ -3,7 +3,7 @@ import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
 import { defaultsDeep, omit, pick } from 'lodash';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { expenseStatus, expenseTypes } from '../../../../../server/constants';
@@ -164,7 +164,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     beforeEach(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     });
 
@@ -630,7 +630,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       let sandbox, emailSendMessageSpy;
 
       beforeEach(() => {
-        sandbox = sinon.createSandbox();
+        sandbox = createSandbox();
         emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
       });
 
@@ -771,7 +771,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       let sandbox, emailSendMessageSpy;
 
       beforeEach(() => {
-        sandbox = sinon.createSandbox();
+        sandbox = createSandbox();
         emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
       });
 
@@ -1319,7 +1319,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     };
 
     before(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       sandbox.stub(paymentProviders.transferwise, 'payExpense').resolves({ quote });
       sandbox.stub(paymentProviders.transferwise, 'getTemporaryQuote').resolves(quote);
     });
@@ -1513,7 +1513,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     after(() => sandbox.restore());
 
     before(async () => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       sandbox.stub(emailLib, 'sendMessage').resolves();
       user = await fakeUser();
       collective = await fakeCollective();

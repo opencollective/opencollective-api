@@ -2,7 +2,7 @@ import Promise from 'bluebird';
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
@@ -82,7 +82,7 @@ describe('server/graphql/v1/tiers', () => {
   });
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
   });
 
   after(() => sandbox.restore());

@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';

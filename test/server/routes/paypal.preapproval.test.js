@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../server/index';
@@ -19,7 +19,7 @@ describe('server/routes/paypal.preapproval', () => {
   });
 
   beforeEach(() => {
-    sinon.stub(paypalAdaptive, 'preapproval').callsFake(() => Promise.resolve(paypalMock.adaptive.preapproval));
+    stub(paypalAdaptive, 'preapproval').callsFake(() => Promise.resolve(paypalMock.adaptive.preapproval));
   });
 
   afterEach(() => {
@@ -93,9 +93,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Details from Paypal COMPLETED', () => {
       beforeEach('stub paypalAdaptive', () => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed),
+        );
       });
 
       afterEach('restore paypalAdaptive', () => {
@@ -148,9 +148,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Details from Paypal CREATED', () => {
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.created));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.created),
+        );
       });
 
       afterEach(() => {
@@ -172,9 +172,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Details from Paypal ERROR', () => {
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.reject(paypalMock.adaptive.preapprovalDetails.error));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.reject(paypalMock.adaptive.preapprovalDetails.error),
+        );
       });
 
       afterEach(() => {
@@ -196,9 +196,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Preapproval details', () => {
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed),
+        );
       });
 
       afterEach(() => {
@@ -238,9 +238,9 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed),
+        );
       });
 
       afterEach(() => {

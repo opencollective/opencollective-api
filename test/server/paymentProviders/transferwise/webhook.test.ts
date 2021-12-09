@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
 import { roles } from '../../../../server/constants';
@@ -28,7 +28,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     api = request(expressApp);
   });
 
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
   const event = {
     data: {
@@ -107,7 +107,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   it('assigns rawBody to request and verifies the event signature', async () => {
     await api.post('/webhooks/transferwise').send(event).expect(200);
 
-    sinon.assert.calledOnce(verifyEvent);
+    assert.calledOnce(verifyEvent);
     const { args } = verifyEvent.getCall(0);
     expect(args[0]).to.have.property('rawBody');
   });

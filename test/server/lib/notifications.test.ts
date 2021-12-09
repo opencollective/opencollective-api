@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { expect } from 'chai';
 import { before } from 'mocha';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import channels from '../../../server/constants/channels';
@@ -34,7 +34,7 @@ describe('server/lib/notification', () => {
 
   before(async () => {
     await resetTestDB();
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
   });
 
   beforeEach(() => {
@@ -58,7 +58,7 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notify(activity);
-        sinon.assert.calledWithMatch(axiosPostStub, notification.webhookUrl, { type: 'collective.apply' });
+        assert.calledWithMatch(axiosPostStub, notification.webhookUrl, { type: 'collective.apply' });
       });
 
       it('posts to slack webhooks', async () => {
@@ -72,8 +72,8 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notify(activity);
-        sinon.assert.notCalled(axiosPostStub);
-        sinon.assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
+        assert.notCalled(axiosPostStub);
+        assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
 
       it("posts to discord's slack-compatible webhooks", async () => {
@@ -87,8 +87,8 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notify(activity);
-        sinon.assert.notCalled(axiosPostStub);
-        sinon.assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
+        assert.notCalled(axiosPostStub);
+        assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
 
       it("posts to Mattermost's slack-compatible webhooks", async () => {
@@ -102,8 +102,8 @@ describe('server/lib/notification', () => {
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
         await notify(activity);
-        sinon.assert.notCalled(axiosPostStub);
-        sinon.assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
+        assert.notCalled(axiosPostStub);
+        assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
     });
   });

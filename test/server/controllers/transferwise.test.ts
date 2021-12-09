@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { expenseStatus } from '../../../server/constants';
 import * as transferwiseController from '../../../server/controllers/transferwise';
@@ -15,7 +15,7 @@ import {
 } from '../../test-helpers/fake-data';
 
 describe('server/controllers/transferwise', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
   after(sandbox.restore);
 

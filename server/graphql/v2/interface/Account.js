@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';

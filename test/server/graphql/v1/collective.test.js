@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
@@ -1009,7 +1009,7 @@ describe('server/graphql/v1/collective', () => {
       });
       pubnubCollective = collectiveWithHost.collective;
       pubnubHostCollective = collectiveWithHost.hostCollective;
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
       cacheDelSpy = sandbox.spy(cache, 'del');
     });
     afterEach(() => sandbox.restore());

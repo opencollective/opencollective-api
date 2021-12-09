@@ -2,7 +2,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 
 // import request from 'supertest';
 // import { v4 as uuid } from 'uuid';
@@ -22,7 +22,7 @@ describe('server/paymentProviders/paypal/payment', () => {
     let configStub;
     before(() => {
       // Stub out the configuration with authentication information and environment name.
-      configStub = sinon.stub(config.paypal, 'payment').get(() => ({
+      configStub = stub(config.paypal, 'payment').get(() => ({
         environment: 'sandbox',
       }));
     });

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import nodemailer from 'nodemailer';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 
 import emailLib from '../../../server/lib/email';
 import { md5 } from '../../../server/lib/utils';
@@ -26,7 +26,7 @@ describe('server/lib/email', () => {
         },
         logger: false,
       });
-      sinon.stub(nodemailer, 'createTransport').callsFake(() => {
+      stub(nodemailer, 'createTransport').callsFake(() => {
         return nm;
       });
       done();
@@ -34,7 +34,7 @@ describe('server/lib/email', () => {
 
     // stub the transport
     beforeEach(done => {
-      sinon.stub(nm, 'sendMail').callsFake((object, cb) => {
+      stub(nm, 'sendMail').callsFake((object, cb) => {
         cb(null, object);
       });
       done();

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import sinon from 'sinon';
+import { mock, spy, stub, useFakeTimers } from 'sinon';
 
 import status from '../../../server/constants/order_status';
 import emailLib from '../../../server/lib/email';
@@ -118,7 +118,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // And given that we freeze time
-      const clock = sinon.useFakeTimers(new Date('2018-01-28 0:0').getTime());
+      const clock = useFakeTimers(new Date('2018-01-28 0:0').getTime());
 
       // When dates are updated with failure
       const updatedDates = getNextChargeAndPeriodStartDates('failure', order);
@@ -182,7 +182,7 @@ describe('server/lib/recurring-contributions', () => {
       };
 
       // And given that we freeze time
-      const clock = sinon.useFakeTimers(new Date('2018-01-28 0:0').getTime());
+      const clock = useFakeTimers(new Date('2018-01-28 0:0').getTime());
 
       // when dates are updated with 'updated' status
       const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
@@ -216,7 +216,7 @@ describe('server/lib/recurring-contributions', () => {
 
   describe('#handleRetryStatus', () => {
     let emailMock;
-    beforeEach(() => (emailMock = sinon.mock(emailLib)));
+    beforeEach(() => (emailMock = mock(emailLib)));
     afterEach(() => emailMock.restore());
     it('should send confirmation email when processing is successful', async () => {
       // Given the following order with fields required by the email
@@ -319,13 +319,13 @@ describe('server/lib/recurring-contributions', () => {
 
   describe('#processOrderWithSubscription', () => {
     let emailMock;
-    beforeEach(() => (emailMock = sinon.mock(emailLib)));
+    beforeEach(() => (emailMock = mock(emailLib)));
     afterEach(() => emailMock.restore());
 
     it('not do anything if dryRun is true', async () => {
       // Given the following order
       const order = {
-        Subscription: { id: 1, save: sinon.spy() },
+        Subscription: { id: 1, save: spy() },
         collective: {},
         fromCollective: { slug: 'cslug', minimal: { id: 1 } },
         createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
@@ -349,9 +349,9 @@ describe('server/lib/recurring-contributions', () => {
       let paymentsStub, emailMock, clock;
 
       beforeEach(async () => {
-        clock = sinon.useFakeTimers(new Date('2018-01-28 0:0').getTime());
-        emailMock = sinon.mock(emailLib);
-        paymentsStub = sinon.stub(paymentsLib, 'processOrder');
+        clock = useFakeTimers(new Date('2018-01-28 0:0').getTime());
+        emailMock = mock(emailLib);
+        paymentsStub = stub(paymentsLib, 'processOrder');
         await utils.resetTestDB();
       });
 

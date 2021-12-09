@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
@@ -11,7 +11,7 @@ import * as utils from '../../../utils';
 describe('server/graphql/v1/user', () => {
   let user1, user2, host, collective1, collective2, tier1, ticket1, sandbox;
 
-  before(() => (sandbox = sinon.createSandbox()));
+  before(() => (sandbox = createSandbox()));
 
   before(() => {
     sandbox.stub(payments, 'executeOrder').callsFake((user, order) => {

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as orders from '../../../../../server/graphql/v1/mutations/orders';
 import emailLib from '../../../../../server/lib/email';
@@ -32,7 +32,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
   });
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));

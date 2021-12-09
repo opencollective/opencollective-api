@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import { run as checkPendingTransfers } from '../../../cron/hourly/check-pending-transferwise-transactions.js';
 import { roles } from '../../../server/constants';
@@ -19,7 +19,7 @@ import {
 import * as utils from '../../utils';
 
 describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
   let getTransfer, sendMessage;
   let expense, host, collective, payoutMethod;
 
@@ -103,8 +103,8 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
 
     await checkPendingTransfers();
 
-    sinon.assert.calledWith(spy, `\nProcessing expense #${expense.id}...`);
-    sinon.assert.neverCalledWith(spy, `\nProcessing expense #${manualExpense.id}...`);
+    assert.calledWith(spy, `\nProcessing expense #${expense.id}...`);
+    assert.neverCalledWith(spy, `\nProcessing expense #${manualExpense.id}...`);
   });
 
   it('should set expense as error and clear existing transactions when funds are refunded', async () => {

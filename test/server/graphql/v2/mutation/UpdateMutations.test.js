@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -21,7 +21,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
   */
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
     sendTweetSpy = sandbox.spy(twitterLib, 'tweetStatus');
   });

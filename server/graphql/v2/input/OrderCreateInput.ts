@@ -6,7 +6,7 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { ContributionFrequency } from '../enum';
 

@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
@@ -15,7 +15,7 @@ describe('server/models/Notification', () => {
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
   });
 

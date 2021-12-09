@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import config from 'config';
 import { get } from 'lodash';
-import Sinon from 'sinon';
+import { assert, spy, stub } from 'sinon';
 
 import helloworksController from '../../../server/controllers/helloworks';
 import s3 from '../../../server/lib/awsS3';
@@ -55,7 +55,7 @@ const mockCallbackPayload = ({ accountType, accountId, userId, year }) => {
 };
 
 const getMockedRes = () => ({
-  sendStatus: Sinon.spy(),
+  sendStatus: spy(),
 });
 
 describe('server/controllers/helloworks', () => {
@@ -67,7 +67,7 @@ describe('server/controllers/helloworks', () => {
     const requiredDoc = { HostCollectiveId: host.id, documentType: 'US_TAX_FORM' };
     await models.RequiredLegalDocument.create(requiredDoc);
     expectedDocLocation = randUrl();
-    s3Stub = Sinon.stub(s3, 'upload');
+    s3Stub = stub(s3, 'upload');
   });
 
   after(() => {
@@ -101,7 +101,7 @@ describe('server/controllers/helloworks', () => {
     const res = getMockedRes();
 
     await helloworksController.callback(req, res);
-    Sinon.assert.calledWith(res.sendStatus, 200);
+    assert.calledWith(res.sendStatus, 200);
     await document.reload();
 
     expect(s3Stub.args[0][0].Key).to.eq(`US_TAX_FORM_${year}_${user.collective.name}.pdf`);
@@ -133,7 +133,7 @@ describe('server/controllers/helloworks', () => {
     const res = getMockedRes();
 
     await helloworksController.callback(req, res);
-    Sinon.assert.calledWith(res.sendStatus, 200);
+    assert.calledWith(res.sendStatus, 200);
     await document.reload();
 
     expect(s3Stub.args[0][0].Key).to.eq(`US_TAX_FORM_${year}_${organization.name}.pdf`);

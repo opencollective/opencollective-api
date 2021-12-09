@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import moment from 'moment';
 import { SequelizeValidationError } from 'sequelize';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
@@ -127,7 +127,7 @@ describe('server/models/Collective', () => {
   });
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
   });
 

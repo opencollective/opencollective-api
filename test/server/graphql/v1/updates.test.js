@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
 import models from '../../../../server/models';
@@ -17,7 +17,7 @@ describe('server/graphql/v1/updates', () => {
   */
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
   });
 
   after(() => sandbox.restore());

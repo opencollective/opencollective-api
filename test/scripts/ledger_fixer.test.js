@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { spy, useFakeTimers } from 'sinon';
 
 import { Migration } from '../../scripts/ledger_fixer';
 
@@ -8,13 +8,13 @@ describe('scripts/ledger_fixer', () => {
   // JSON key that contains the date the change happened. So to test
   // it properly here time has to be frozen.
   let clock;
-  beforeEach(() => (clock = sinon.useFakeTimers(new Date('2018-03-20 0:0').getTime())));
+  beforeEach(() => (clock = useFakeTimers(new Date('2018-03-20 0:0').getTime())));
   afterEach(() => clock.restore());
 
   describe('#saveTransactionChange', () => {
     it('should create a new change within the data field', () => {
       // Given a transaction with an empty data field
-      const transaction = { data: null, changed: sinon.spy() };
+      const transaction = { data: null, changed: spy() };
 
       // When a new change is added
       new Migration().saveTransactionChange(transaction, 'hostCurrencyFxRate', null, 1);
@@ -38,7 +38,7 @@ describe('scripts/ledger_fixer', () => {
             20180320: { hostCurrencyFxRate: { oldValue: null, newValue: 1 } },
           },
         },
-        changed: sinon.spy(),
+        changed: spy(),
       };
 
       // When a new field is added
@@ -59,7 +59,7 @@ describe('scripts/ledger_fixer', () => {
   describe('#ensureHostCurrencyFxRate', () => {
     it('should not touch transactions that contain a hostCurrencyFxRate value', () => {
       // Given a transaction *with a value* for hostCurrencyFxRate
-      const transaction = { hostCurrencyFxRate: 1.5, changed: sinon.spy() };
+      const transaction = { hostCurrencyFxRate: 1.5, changed: spy() };
 
       // When we call the function that ensures the value exists
       new Migration().ensureHostCurrencyFxRate(transaction);
@@ -74,7 +74,7 @@ describe('scripts/ledger_fixer', () => {
         currency: 'MXN',
         hostCurrency: 'USD',
         hostCurrencyFxRate: 18.2,
-        changed: sinon.spy(),
+        changed: spy(),
       };
       // when we call the function to that the value exists
       new Migration().ensureHostCurrencyFxRate(transaction);
@@ -87,7 +87,7 @@ describe('scripts/ledger_fixer', () => {
         amount: 10,
         amountInHostCurrency: 20,
         hostCurrencyFxRate: 2,
-        changed: sinon.spy(),
+        changed: spy(),
       };
       // when we call the function to that the value exists
       new Migration().ensureHostCurrencyFxRate(transaction);
@@ -99,12 +99,12 @@ describe('scripts/ledger_fixer', () => {
     it('should find hostFeeInHostCurrency in the credit transaction & ensure it is negative in both credit & debit', () => {
       // Given a credit and a debit transactions
       const [credit1, debit1] = [
-        { hostFeeInHostCurrency: 250, changed: sinon.spy() },
-        { hostFeeInHostCurrency: 0, changed: sinon.spy() },
+        { hostFeeInHostCurrency: 250, changed: spy() },
+        { hostFeeInHostCurrency: 0, changed: spy() },
       ];
       const [credit2, debit2] = [
-        { hostFeeInHostCurrency: null, changed: sinon.spy() },
-        { hostFeeInHostCurrency: 250, changed: sinon.spy() },
+        { hostFeeInHostCurrency: null, changed: spy() },
+        { hostFeeInHostCurrency: 250, changed: spy() },
       ];
 
       // When the fee is rewritten
@@ -134,12 +134,12 @@ describe('scripts/ledger_fixer', () => {
     it('should find platformFeeInHostCurrency in the credit transaction & ensure it is negative in both credit & debit', () => {
       // Given a credit and a debit transactions
       const [credit1, debit1] = [
-        { platformFeeInHostCurrency: 250, changed: sinon.spy() },
-        { platformFeeInHostCurrency: 0, changed: sinon.spy() },
+        { platformFeeInHostCurrency: 250, changed: spy() },
+        { platformFeeInHostCurrency: 0, changed: spy() },
       ];
       const [credit2, debit2] = [
-        { platformFeeInHostCurrency: null, changed: sinon.spy() },
-        { platformFeeInHostCurrency: 250, changed: sinon.spy() },
+        { platformFeeInHostCurrency: null, changed: spy() },
+        { platformFeeInHostCurrency: 250, changed: spy() },
       ];
 
       // When the fee is rewritten
@@ -169,12 +169,12 @@ describe('scripts/ledger_fixer', () => {
     it('should find paymentProcessorFeeInHostCurrency in the credit transaction & ensure it is negative in both credit & debit', () => {
       // Given a credit and a debit transactions
       const [credit1, debit1] = [
-        { paymentProcessorFeeInHostCurrency: 250, changed: sinon.spy() },
-        { paymentProcessorFeeInHostCurrency: 0, changed: sinon.spy() },
+        { paymentProcessorFeeInHostCurrency: 250, changed: spy() },
+        { paymentProcessorFeeInHostCurrency: 0, changed: spy() },
       ];
       const [credit2, debit2] = [
-        { paymentProcessorFeeInHostCurrency: null, changed: sinon.spy() },
-        { paymentProcessorFeeInHostCurrency: 250, changed: sinon.spy() },
+        { paymentProcessorFeeInHostCurrency: null, changed: spy() },
+        { paymentProcessorFeeInHostCurrency: 250, changed: spy() },
       ];
 
       // When the fee is rewritten
