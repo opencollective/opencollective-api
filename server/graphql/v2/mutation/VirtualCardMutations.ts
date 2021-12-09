@@ -95,11 +95,11 @@ const virtualCardMutations = {
     args: {
       name: {
         type: GraphQLNonNull(GraphQLString),
-        description: 'Virtual Card name',
+        description: 'Virtual card name',
       },
       monthlyLimit: {
         type: new GraphQLNonNull(AmountInput),
-        description: 'Virtual Card monthly limit',
+        description: 'Virtual card monthly limit',
       },
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -107,7 +107,7 @@ const virtualCardMutations = {
       },
       assignee: {
         type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'Individual account responsible for the card',
+        description: 'Individual account responsible for the virtual card',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
@@ -115,16 +115,16 @@ const virtualCardMutations = {
         throw new Unauthorized('You need to be logged in to create a virtual card');
       }
 
+      const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
+      const host = await collective.getHostCollective();
+
       const monthlyLimitInCents = args.monthlyLimit.valueInCents;
 
       if (monthlyLimitInCents > 100000) {
-        throw new BadRequest('Monthly limit should not exceed 1000$', undefined, {
-          monthlyLimit: 'Monthly limit should not exceed 1000$',
+        throw new BadRequest(`Monthly limit should not exceed 1000 ${host.currency}`, undefined, {
+          monthlyLimit: `Monthly limit should not exceed 1000 ${host.currency}`,
         });
       }
-
-      const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-      const host = await collective.getHostCollective();
 
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");

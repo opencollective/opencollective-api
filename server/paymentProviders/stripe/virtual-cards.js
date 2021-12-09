@@ -56,7 +56,7 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
 
   const issuingCard = await stripe.issuing.cards.create({
     cardholder: cardholders.data[0].id,
-    currency: 'usd',
+    currency: host.currency.toLowerCase(),
     type: 'virtual',
     status: 'active',
     // eslint-disable-next-line camelcase
