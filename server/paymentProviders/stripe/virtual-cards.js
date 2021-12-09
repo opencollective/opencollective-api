@@ -121,7 +121,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   const UserId = virtualCard.UserId;
   const collective = virtualCard.collective;
   const description = `Virtual Card charge: ${vendor.name}`;
-  const incurredAt = stripeAuthorization.created;
+  const incurredAt = new Date(stripeAuthorization.created * 1000);
 
   let expense;
 
@@ -187,7 +187,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     amount,
     vendorProviderId: stripeTransaction['merchant_data']['network_id'],
     vendorName: stripeTransaction['merchant_data']['name'],
-    incurredAt: stripeTransaction.created,
+    incurredAt: new Date(stripeTransaction.created * 1000),
     isRefund,
     fromAuthorizationId: stripeTransaction.authorization,
   });
