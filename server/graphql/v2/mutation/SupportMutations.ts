@@ -29,6 +29,9 @@ const supportMessageMutation = {
       topic: {
         type: new GraphQLNonNull(GraphQLString),
       },
+      link: {
+        type: GraphQLString,
+      },
       message: {
         type: new GraphQLNonNull(GraphQLString),
       },
@@ -39,13 +42,14 @@ const supportMessageMutation = {
       }
 
       const subject = 'New support message';
+      const additionalLink = args.link ? `Additional Link: <a href="https://${args.link}">${args.link}</a></br>` : '';
 
       const emailBody = `
           Name: <strong>${args.name}</strong></br>
           Email: <strong>${args.email}</strong></br>
-          Topic: <strong>${args.topic}</strong></br></br>
-
-          ${args.message}
+          Topic: <strong>${args.topic}</strong></br>
+          ${additionalLink}
+          </br>${args.message}
       `;
 
       await emailLib.sendMessage(SUPPORT_EMAIL, subject, emailBody);
