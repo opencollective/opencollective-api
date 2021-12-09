@@ -61,12 +61,13 @@ export const stringify = json => {
 };
 
 export const makeRequest = (remoteUser, query) => {
-  return {
+  const req = {
     remoteUser,
     body: { query },
-    loaders: loaders({ remoteUser }),
     header: () => null,
   };
+  req.loaders = loaders(req);
+  return req;
 };
 
 export const inspectSpy = (spy, argsCount) => {
