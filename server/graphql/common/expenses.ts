@@ -245,8 +245,7 @@ export const canPayExpense = async (req: express.Request, expense: typeof models
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
   } else {
-    const collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
-    const host = await collective.getHostCollective();
+    const host = await req.loaders.Expense.host.load(expense.id);
     if (hasOptedInForFeature(host, FEATURE.APPROVERS_CANNOT_PAY_EXPENSES)) {
       const approver = await expense.getApproverUser();
       if (approver && approver.id === req.remoteUser.id) {
