@@ -41,7 +41,8 @@ export const persistTransaction = async (virtualCard, transaction) => {
   const host = virtualCard.host;
   const collective = virtualCard.collective;
   const vendor = await getOrCreateVendor(transaction.vendorProviderId, transaction.vendorName);
-  const hostCurrencyFxRate = await getFxRate('USD', host.currency);
+  const currency = transaction.currency || 'USD';
+  const hostCurrencyFxRate = await getFxRate(currency, host.currency);
   const description = `Virtual Card charge: ${vendor.name}`;
 
   if (transaction.fromAuthorizationId) {
@@ -62,7 +63,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
         HostCollectiveId: host.id,
         description,
         type: 'DEBIT',
-        currency: 'USD',
+        currency,
         ExpenseId: expense.id,
         amount: toNegative(amount),
         netAmountInCollectiveCurrency: toNegative(amount),
@@ -114,7 +115,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       HostCollectiveId: host.id,
       description: `Virtual Card refund: ${vendor.name}`,
       type: 'CREDIT',
-      currency: 'USD',
+      currency,
       amount: amount,
       netAmountInCollectiveCurrency: amount,
       hostCurrency: host.currency,
@@ -139,7 +140,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       CollectiveId: collective.id,
       FromCollectiveId: vendor.id,
       HostCollectiveId: host.id,
-      currency: 'USD',
+      currency,
       amount,
       description,
       VirtualCardId: virtualCard.id,
@@ -163,7 +164,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       HostCollectiveId: host.id,
       description,
       type: 'DEBIT',
-      currency: 'USD',
+      currency,
       ExpenseId: expense.id,
       amount: toNegative(amount),
       netAmountInCollectiveCurrency: toNegative(amount),

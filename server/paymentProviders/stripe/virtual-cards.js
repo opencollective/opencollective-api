@@ -86,9 +86,9 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   await checkStripeEvent(host, stripeEvent);
 
-  // TODO : convert balance to the same currency as amount
-  const amount = convertToStripeAmount(host.currency, stripeAuthorization.amount);
-  const balance = await host.getBalanceWithBlockedFundsAmount();
+  const currency = stripeAuthorization.currency.toUpperCase();
+  const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.amount));
+  const balance = await host.getBalanceWithBlockedFundsAmount({ currency });
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
@@ -130,7 +130,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       UserId,
       CollectiveId: collective.id,
       FromCollectiveId: vendor.id,
-      currency: 'USD',
+      currency,
       amount,
       description,
       VirtualCardId: virtualCard.id,
@@ -179,12 +179,14 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
-  const amount = -convertToStripeAmount(virtualCard.host.currency, stripeTransaction.amount);
+  const currency = stripeTransaction.currency.toUpperCase();
+  const amount = convertToStripeAmount(currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
 
   return persistTransaction(virtualCard, {
     id: stripeTransaction.id,
     amount,
+    currency,
     vendorProviderId: stripeTransaction['merchant_data']['network_id'],
     vendorName: stripeTransaction['merchant_data']['name'],
     incurredAt: new Date(stripeTransaction.created * 1000),
