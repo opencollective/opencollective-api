@@ -86,6 +86,18 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   await checkStripeEvent(host, stripeEvent);
 
+  const existingExpense = await models.Expense.findOne({
+    where: {
+      VirtualCardId: virtualCard.id,
+      data: { authorizationId: stripeAuthorization.id },
+    },
+  });
+
+  if (existingExpense) {
+    logger.warn(`Virtual Card authorization already reconciled, ignoring it: ${stripeAuthorization.id}`);
+    return;
+  }
+
   const currency = stripeAuthorization.currency.toUpperCase();
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.amount));
   const balance = await host.getBalanceWithBlockedFundsAmount({ currency });
@@ -100,18 +112,6 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       metadata: { oc_decline_code: 'collective_balance' },
     });
     throw new Error('Balance not sufficient');
-  }
-
-  const existingExpense = await models.Expense.findOne({
-    where: {
-      VirtualCardId: virtualCard.id,
-      data: { authorizationId: stripeAuthorization.id },
-    },
-  });
-
-  if (existingExpense) {
-    logger.warn(`Virtual Card authorization already reconciled, ignoring it: ${stripeAuthorization.id}`);
-    return;
   }
 
   const vendor = await getOrCreateVendor(
