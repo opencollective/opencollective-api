@@ -78,8 +78,8 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
       continue;
     }
 
-    const pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'] });
-    const pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'] });
+    const pendingPlatformTips = await getPendingPlatformTips(host, { status: ['OWED'], endDate });
+    const pendingHostFeeShare = await getPendingHostFeeShare(host, { status: ['OWED'], endDate });
 
     const plan = await host.getPlan();
 
@@ -93,9 +93,10 @@ WHERE t."CollectiveId" = :CollectiveId
 AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
 AND t."isDebt" IS TRUE
 AND t."deletedAt" IS NULL
-AND ts."status" = 'OWED'`,
+AND ts."status" = 'OWED'
+AND t."createdAt" < :endDate`,
       {
-        replacements: { CollectiveId: host.id, startDate: startDate, endDate: endDate },
+        replacements: { CollectiveId: host.id, endDate: endDate },
         model: models.Transaction,
         mapToModel: true, // pass true here if you have any mapped fields
       },
