@@ -128,7 +128,7 @@ jobs:
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Install dependencies (api)
         if: steps.api-node-modules.outputs.cache-hit != 'true'
