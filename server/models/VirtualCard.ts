@@ -32,7 +32,7 @@ export interface VirtualCardCreateAttributes {
   provider: string;
   spendingLimitAmount: number;
   spendingLimitInterval: string;
-  currency: string;
+  currency?: string;
 }
 
 class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttributes> implements VirtualCardAttributes {

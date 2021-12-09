@@ -210,6 +210,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
     provider: 'STRIPE',
     spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
+    currency: stripeCard.currency.toUpperCase(),
   };
 
   return models.VirtualCard.create(cardData);
