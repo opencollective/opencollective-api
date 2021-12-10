@@ -9,6 +9,7 @@ import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
+import { computeDatesAsISOStrings } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;
@@ -1128,7 +1129,15 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
 /**
  * Returns the contribution or expense amounts over time.
  */
-const getTransactionsTimeSeries = async (kind, type, hostCollectiveId, timeUnit, collectiveIds, dateFrom, dateTo) => {
+const getTransactionsTimeSeries = async (
+  kind,
+  type,
+  hostCollectiveId,
+  timeUnit,
+  collectiveIds,
+  startDate = null,
+  endDate = null,
+) => {
   return sequelize.query(
     `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
        FROM "Transactions"
@@ -1137,8 +1146,8 @@ const getTransactionsTimeSeries = async (kind, type, hostCollectiveId, timeUnit,
          AND type = :type
          AND "deletedAt" IS NULL
          ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
-         ${dateFrom ? `AND "createdAt" >= :dateFrom` : ``}
-         ${dateTo ? `AND "createdAt" <= :dateTo` : ``}
+         ${startDate ? `AND "createdAt" >= :startDate` : ``}
+         ${endDate ? `AND "createdAt" <= :endDate` : ``}
        GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
       `,
@@ -1150,8 +1159,7 @@ const getTransactionsTimeSeries = async (kind, type, hostCollectiveId, timeUnit,
         hostCollectiveId,
         timeUnit,
         collectiveIds,
-        dateFrom,
-        dateTo,
+        ...computeDatesAsISOStrings(startDate, endDate),
       },
     },
   );

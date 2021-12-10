@@ -3037,17 +3037,16 @@ function defineModel() {
 
   /**
    * Returns financial metrics from the Host collective.
-   * @param {Date} from Defaults to beginning of the current month.
-   * @param {Date} [to] Optional, defaults to the end of the 'from' month and 'from' is reseted to the beginning of its month.
+   * @param {Date} from The start date from which the metrics should be calculated.
+   * @param {Date} to The end date upto which the metrics should be calculated.
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
   Collective.prototype.getHostMetrics = async function (from, to, collectiveIds) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
-
-    from = from ? moment(from) : moment().utc().startOf('month');
-    to = to ? moment(to) : moment(from).utc().endOf('month');
+    from = from ? moment(from) : null;
+    to = to ? moment(to) : null;
 
     const plan = await this.getPlan();
     const hostFeeSharePercent = plan.hostFeeSharePercent || 0;

@@ -553,3 +553,13 @@ export const getTokenFromRequestHeaders = req => {
 };
 
 export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
+
+/**
+ * Returns the start and end dates as ISO 8601 strings.
+ */
+export const computeDatesAsISOStrings = (startDate, endDate) => {
+  startDate = startDate ? startDate.toISOString() : null;
+  endDate = endDate ? endDate.toISOString() : null;
+
+  return { startDate, endDate };
+};
