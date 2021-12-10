@@ -48,6 +48,7 @@ export const loaders = req => {
     cache,
   );
   context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments(req, cache);
+  context.loaders.Expense.host = expenseLoaders.host(req, cache);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);

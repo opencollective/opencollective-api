@@ -97,3 +97,22 @@ export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
     return expenseIds.map(id => (expenseIdsPendingTaxForm.has(id) ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
   });
 };
+
+/**
+ * Loader for expense's host.
+ */
+export const host = (req: express.Request): DataLoader<number, typeof models.Collective> => {
+  return new DataLoader(async (expenseIds: number[]) => {
+    const expenses = await req.loaders.Expense.byId.loadMany(expenseIds);
+    return expenses.map(async expense => {
+      if (expense.HostCollectiveId) {
+        return req.loaders.Collective.byId.load(expense.HostCollectiveId);
+      } else {
+        const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
+        if (collective.HostCollectiveId) {
+          return req.loaders.Collective.byId.load(collective.HostCollectiveId);
+        }
+      }
+    });
+  });
+};

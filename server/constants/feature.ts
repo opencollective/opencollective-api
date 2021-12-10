@@ -72,6 +72,7 @@ enum FEATURE {
   VIRTUAL_CARDS = 'VIRTUAL_CARDS',
   // Whether this profile can request a virtual card
   REQUEST_VIRTUAL_CARDS = 'REQUEST_VIRTUAL_CARDS',
+  APPROVERS_CANNOT_PAY_EXPENSES = 'APPROVERS_CANNOT_PAY_EXPENSES',
 }
 
 export const FeaturesList = Object.values(FEATURE);
