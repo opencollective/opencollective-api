@@ -398,7 +398,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       }
     }
 
-    const paymentRequired = (order.totalAmount > 0 || (tier && tier.amount > 0)) && collective.isActive;
+    const paymentRequired = (order.totalAmount > 0 || tier?.requiresPayment()) && collective.isActive;
     debug('paymentRequired', paymentRequired, 'total amount:', order.totalAmount, 'isActive', collective.isActive);
     if (paymentRequired && !hasPaymentMethod(order)) {
       throw new Error('This order requires a payment method');

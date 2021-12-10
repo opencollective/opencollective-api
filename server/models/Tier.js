@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults } from 'lodash';
+import { defaults, min } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
@@ -393,6 +393,21 @@ function defineModel() {
     }
 
     return this.update({ currency });
+  };
+
+  /**
+   * To check if free contributions are possible for this tier
+   */
+  Tier.prototype.requiresPayment = function () {
+    if (this.amountType === 'FIXED') {
+      return Boolean(this.amount);
+    } else if (this.minimumAmount !== null) {
+      return Boolean(this.minimumAmount);
+    } else if (this.presets?.length && min(this.presets) === 0) {
+      return false;
+    } else {
+      return true;
+    }
   };
 
   /**

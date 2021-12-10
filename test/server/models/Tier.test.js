@@ -4,6 +4,7 @@ import { SequelizeValidationError } from 'sequelize';
 
 import models from '../../../server/models';
 import { newCollectiveWithHost, randEmail } from '../../stores';
+import { fakeTier } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Collective, User } = models;
@@ -145,6 +146,29 @@ describe('server/models/Tier', () => {
           'Validation error: In "A valid tier name" tier, the description is too long (must be less than 510 characters)',
         );
       });
+    });
+  });
+
+  describe('requiresPayment', () => {
+    it('returns true if configured for it', async () => {
+      const shouldHavePayment = async params => {
+        const tier = await fakeTier(params);
+        expect(tier.requiresPayment()).to.be.true;
+      };
+
+      await shouldHavePayment({ amountType: 'FIXED', minimumAmount: 500, amount: 500, presets: null });
+      await shouldHavePayment({ amountType: 'FLEXIBLE', minimumAmount: 500, amount: 500, presets: [500, 1000, 10000] });
+    });
+
+    it('only allow free contributions if configured for it', async () => {
+      const shouldNotHavePayment = async params => {
+        const tier = await fakeTier({ ...params });
+        expect(tier.requiresPayment()).to.be.false;
+      };
+
+      await shouldNotHavePayment({ amountType: 'FIXED', amount: 0 });
+      await shouldNotHavePayment({ amountType: 'FLEXIBLE', amount: 50, minimumAmount: 0 });
+      await shouldNotHavePayment({ amountType: 'FLEXIBLE', amount: 50, presets: [0, 50, 100] });
     });
   });
 });
