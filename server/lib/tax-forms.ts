@@ -134,7 +134,7 @@ export async function sendHelloWorksUsTaxForm(
       callbackUrl,
       workflowId,
       documentDelivery: true,
-      delegatedAuthentication: true, // See "authenticated link" below. While not fully supported yet, this flag at least ensures that HelloWorks doesn't send its own email
+      // delegatedAuthentication: true, // See "authenticated link" below.
       participants,
       metadata: {
         accountType: account.type,
@@ -152,19 +152,20 @@ export async function sendHelloWorksUsTaxForm(
     });
 
     // Get the authenticated link ("delegated authentication")
-    const step = instance.steps[0];
-    let documentLink = step.url;
-    try {
-      documentLink = await client.workflowInstances.getAuthenticatedLinkForStep({
-        instanceId: instance.id,
-        step: step.step,
-      });
-    } catch (e) {
-      // Fallback to the default `step.url` (unauthenticated link)
-      logger.warn(`Tax form: error getting authenticated link for ${instance.id}: ${e.message}`);
-    }
+    // We currently don't have access to this feature with our pricing plan
+    // try {
+    //   documentLink = await client.workflowInstances.getAuthenticatedLinkForStep({
+    //     instanceId: instance.id,
+    //     step: step.step,
+    //   });
+    // } catch (e) {
+    //   // Fallback to the default `step.url` (unauthenticated link)
+    //   logger.warn(`Tax form: error getting authenticated link for ${instance.id}: ${e.message}`);
+    // }
 
     // Save the authenticated link to the database, in case we want to send it again later
+    const step = instance.steps[0];
+    const documentLink = step.url;
     await document.update({ data: deepMerge(document.data, { helloWorks: { documentLink } }) });
 
     // Send the actual email
