@@ -24,7 +24,7 @@ import {
   fakePayoutMethod,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { makeRequest, nockFixerRates, resetTestDB, snapshotLedger } from '../utils';
+import { nockFixerRates, resetTestDB, snapshotLedger } from '../utils';
 
 const SNAPSHOT_COLUMNS = [
   'kind',
@@ -97,9 +97,7 @@ const executeAllSettlement = async remoteUser => {
   const settlementExpense = await models.Expense.findOne();
   expect(settlementExpense, 'Settlement expense has not been created').to.exist;
   await settlementExpense.update({ status: 'APPROVED' });
-
-  const req = makeRequest(remoteUser) as any as express.Request;
-  await payExpense(req, { id: settlementExpense.id, forceManual: true });
+  await payExpense(<express.Request>{ remoteUser }, { id: settlementExpense.id, forceManual: true });
 };
 
 describe('test/stories/ledger', () => {
@@ -267,13 +265,12 @@ describe('test/stories/ledger', () => {
         status: 'APPROVED',
       });
 
-      const req = makeRequest(hostAdmin) as any as express.Request;
-      await payExpense(req, {
+      await payExpense({ remoteUser: hostAdmin } as any, {
         id: expense.id,
         forceManual: true,
         paymentProcessorFeeInCollectiveCurrency: 500,
       });
-      await markExpenseAsUnpaid(req, expense.id, false);
+      await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance()).to.eq(150000 + 500);

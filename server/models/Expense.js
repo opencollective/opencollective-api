@@ -3,7 +3,6 @@ import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
 import { roles } from '../constants';
-import activities from '../constants/activities';
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import { TransactionTypes } from '../constants/transactions';
@@ -352,19 +351,6 @@ function defineModel() {
       this.user = await models.User.findByPk(this.UserId);
     }
     return this.user;
-  };
-
-  Expense.prototype.getApproverUser = async function () {
-    const approvalActivity = await models.Activity.findOne({
-      where: {
-        type: activities.COLLECTIVE_EXPENSE_APPROVED,
-        ExpenseId: this.id,
-      },
-      order: [['createdAt', 'DESC']],
-    });
-    if (approvalActivity) {
-      return await models.User.findByPk(approvalActivity.UserId);
-    }
   };
 
   Expense.prototype.setApproved = function (lastEditedById) {
