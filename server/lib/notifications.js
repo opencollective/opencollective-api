@@ -593,7 +593,7 @@ async function notifyByEmail(activity) {
       });
       break;
 
-    case activityType.COLLECTIVE_VIRTUAL_CARD_ASSIGNED:
+    case activityType.COLLECTIVE_VIRTUAL_CARD_ADDED:
       notifyAdminsOfCollective(activity.CollectiveId, activity, {
         sendEvenIfNotProduction: true,
       });

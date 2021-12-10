@@ -31,8 +31,7 @@ export default {
   COLLECTIVE_UPDATE_CREATED: 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED: 'collective.update.published',
   COLLECTIVE_CONTACT: 'collective.contact',
-  COLLECTIVE_VIRTUAL_CARD_ASSIGNED: 'collective.virtualcard.assigned',
-  COLLECTIVE_VIRTUAL_CARD_CREATED: 'collective.virtualcard.created',
+  COLLECTIVE_VIRTUAL_CARD_ADDED: 'collective.virtualcard.added',
   ORGANIZATION_COLLECTIVE_CREATED: 'organization.collective.created',
   SUBSCRIPTION_ACTIVATED: 'subscription.activated',
   SUBSCRIPTION_CONFIRMED: 'subscription.confirmed',
@@ -53,4 +52,6 @@ export default {
   ADDED_FUND_TO_ORG: 'added.fund.to.org',
   COLLECTIVE_TRANSACTION_PAID: 'collective.transaction.paid', // replaced with COLLECTIVE_EXPENSE_PAID
   COLLECTIVE_USER_ADDED: 'collective.user.added',
+  COLLECTIVE_VIRTUAL_CARD_ASSIGNED: 'collective.virtualcard.assigned', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
+  COLLECTIVE_VIRTUAL_CARD_CREATED: 'collective.virtualcard.created', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
 };
