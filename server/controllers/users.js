@@ -10,7 +10,7 @@ import {
   verifyTwoFactorAuthenticationRecoveryCode,
   verifyTwoFactorAuthenticatorCode,
 } from '../lib/two-factor-authentication';
-import { isValidEmail } from '../lib/utils';
+import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
 
 const { Unauthorized, ValidationFailed, TooManyRequests } = errors;
@@ -87,7 +87,7 @@ export const signin = (req, res, next) => {
  * the 2FA flow on the frontend
  */
 export const updateToken = async (req, res) => {
-  if (req.remoteUser.twoFactorAuthToken !== null) {
+  if (req.remoteUser.twoFactorAuthToken !== null && !parseToBoolean(config.database.readOnly)) {
     const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_SESSION);
     res.send({ token });
   } else {
