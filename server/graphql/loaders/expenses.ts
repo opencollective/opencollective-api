@@ -3,12 +3,12 @@ import express from 'express';
 
 import ACTIVITY from '../../constants/activities';
 import queries from '../../lib/queries';
-import models, { Op } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
-import { sortResultsArray } from './helpers';
+import { sortResultsArray, sortResultsSimple } from './helpers';
 
 /**
  * Loader for expense's items.
@@ -101,18 +101,27 @@ export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
 /**
  * Loader for expense's host.
  */
-export const host = (req: express.Request): DataLoader<number, typeof models.Collective> => {
+export const host = (): DataLoader<number, typeof models.Collective> => {
   return new DataLoader(async (expenseIds: number[]) => {
-    const expenses = await req.loaders.Expense.byId.loadMany(expenseIds);
-    return expenses.map(async expense => {
-      if (expense.HostCollectiveId) {
-        return req.loaders.Collective.byId.load(expense.HostCollectiveId);
-      } else {
-        const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-        if (collective.HostCollectiveId) {
-          return req.loaders.Collective.byId.load(collective.HostCollectiveId);
-        }
-      }
-    });
+    const results = await sequelize.query(
+      `
+      SELECT e.id AS __expense_id__, host.*
+      FROM "Expenses" e
+      INNER JOIN "Collectives" expense_collective
+        ON e."CollectiveId" = expense_collective.id
+      INNER JOIN "Collectives" host
+        ON (e."HostCollectiveId" = host.id)
+        OR (expense_collective."HostCollectiveId" = host.id AND expense_collective."isActive" IS TRUE)
+      WHERE e.id IN (:expenseIds)
+    `,
+      {
+        type: sequelize.QueryTypes.SELECT,
+        mapToModel: true,
+        model: models.Collective,
+        replacements: { expenseIds },
+      },
+    );
+
+    return sortResultsSimple(expenseIds, results, r => r.dataValue.__expense_id__);
   });
 };
