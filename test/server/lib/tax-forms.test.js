@@ -351,8 +351,8 @@ describe('server/lib/tax-forms', () => {
 
     it('creates the documents if it does no exists', async () => {
       const documentLink = 'https://hello-works.com/fake-tax-form';
-      const createInstanceReponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
-      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceReponse));
+      const createInstanceResponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
+      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
       replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
 
       const newUser = await fakeUser({ email: `${randStr()}@opencollective.com` });
@@ -368,8 +368,8 @@ describe('server/lib/tax-forms', () => {
       const doc = await LegalDocument.create(legalDoc);
 
       const documentLink = 'https://hello-works.com/fake-tax-form';
-      const createInstanceReponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
-      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceReponse));
+      const createInstanceResponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
+      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
       replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
 
       await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
@@ -378,7 +378,7 @@ describe('server/lib/tax-forms', () => {
       expect(client.workflowInstances.createInstance.called).to.be.true;
       const callArgs = client.workflowInstances.createInstance.firstCall.args;
       expect(callArgs[0].participants['participant_swVuvW'].fullName).to.eq('Mr. Legal Name');
-      expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
+      // when we'll activate authenticated links  expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
       expect(doc.requestStatus).to.eq(REQUESTED);
 
       assert.callCount(sendMessageSpy, 1);
