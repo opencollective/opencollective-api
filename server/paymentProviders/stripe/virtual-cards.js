@@ -100,7 +100,8 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   const currency = stripeAuthorization.currency.toUpperCase();
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.amount));
-  const balance = await host.getBalanceWithBlockedFundsAmount({ currency });
+  const collective = virtualCard.collective;
+  const balance = await collective.getBalanceWithBlockedFundsAmount({ currency });
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
@@ -118,8 +119,8 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     stripeAuthorization['merchant_data']['network_id'],
     stripeAuthorization['merchant_data']['name'],
   );
+
   const UserId = virtualCard.UserId;
-  const collective = virtualCard.collective;
   const description = `Virtual Card charge: ${vendor.name}`;
   const incurredAt = new Date(stripeAuthorization.created * 1000);
 

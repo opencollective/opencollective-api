@@ -2,6 +2,7 @@ import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSONObject } from 'graphql-type-json';
 
+import { Currency } from '../enum/Currency';
 import { Account } from '../interface/Account';
 import { Individual } from '../object/Individual';
 
@@ -110,7 +111,7 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
-    currency: { type: GraphQLString },
+    currency: { type: Currency },
     createdAt: { type: GraphQLDateTime },
     updatedAt: { type: GraphQLDateTime },
   }),
