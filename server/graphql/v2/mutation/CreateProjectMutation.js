@@ -47,7 +47,7 @@ async function createProject(_, args, req) {
     type: 'PROJECT',
     slug: args.project.slug.toLowerCase(),
     ...pick(args.project, ['name', 'description']),
-    ...pick(parent.info, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),
+    ...pick(parent.info, ['currency', 'isActive', 'platformFeePercent', 'hostFeePercent']),
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
     CreatedByUserId: remoteUser.id,
@@ -64,8 +64,8 @@ async function createProject(_, args, req) {
 
   const project = await models.Collective.create(projectData);
 
-  if (project.HostCollectiveId) {
-    const host = await loaders.Collective.byId.load(project.HostCollectiveId);
+  if (parent.HostCollectiveId) {
+    const host = await loaders.Collective.byId.load(parent.HostCollectiveId);
     if (host) {
       await project.addHost(host, remoteUser);
     }
