@@ -1175,7 +1175,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           status: 'APPROVED',
           PayoutMethodId: payoutMethod.id,
           FromCollectiveId: fromUser.CollectiveId,
-          feesPayer: 'PAYEE',
         });
 
         // Updates the collective balance and pay the expense
@@ -1183,7 +1182,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = {
           expenseId: expense.id,
           action: 'PAY',
-          paymentParams: { paymentProcessorFee, forceManual: true },
+          paymentParams: { paymentProcessorFee, forceManual: true, feesPayer: 'PAYEE' },
         };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         result.errors && console.error(result.errors);
@@ -1217,15 +1216,16 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const testWithPayoutMethodType = async type => {
           const paymentProcessorFee = 100;
           const payoutMethod = await fakePayoutMethod({ type });
+          const fromCollective = type === 'ACCOUNT_BALANCE' && (await fakeCollective());
           const expense = await fakeExpense({
             amount,
             CollectiveId: collective.id,
             status: 'APPROVED',
             PayoutMethodId: payoutMethod.id,
-            feesPayer: 'PAYEE',
+            FromCollectiveId: fromCollective.id,
           });
 
-          const paymentParams = { paymentProcessorFee, forceManual: true };
+          const paymentParams = { paymentProcessorFee, forceManual: true, feesPayer: 'PAYEE' };
           const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams };
           const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
           expect(result.errors).to.exist;

@@ -289,6 +289,7 @@ const expenseMutations = {
             paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,
             twoFactorAuthenticatorCode: args.paymentParams?.twoFactorAuthenticatorCode,
+            feesPayer: args.paymentParams?.feesPayer,
           });
         default:
           return expense;
