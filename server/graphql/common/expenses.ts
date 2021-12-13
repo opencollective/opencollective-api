@@ -1,6 +1,6 @@
 import debugLib from 'debug';
 import express from 'express';
-import { flatten, get, isEqual, isNil, omit, omitBy, pick, size } from 'lodash';
+import { flatten, get, isEqual, isNil, omitBy, pick, size } from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
@@ -413,6 +413,7 @@ export const markExpenseAsSpam = async (
 export const scheduleExpenseForPayment = async (
   req: express.Request,
   expense: typeof models.Expense,
+  feesPayer: 'COLLECTIVE' | 'PAYEE',
 ): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
     throw new BadRequest('Expense is already scheduled for payment');
@@ -420,19 +421,15 @@ export const scheduleExpenseForPayment = async (
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
   }
 
-  // Warning: expense.collective is only loaded because we call `canPayExpense`
-  const balance = await expense.collective.getBalanceWithBlockedFunds();
-  if (expense.amount > balance) {
-    throw new Unauthorized(
-      `You don't have enough funds to pay this expense. Current balance: ${formatCurrency(
-        balance,
-        expense.collective.currency,
-      )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
-    );
+  const host = await expense.collective.getHostCollective();
+  const payoutMethod = await expense.getPayoutMethod();
+  await checkHasBalanceToPayExpense(host, expense, payoutMethod);
+
+  if (feesPayer && feesPayer !== expense.feesPayer) {
+    await expense.update({ feesPayer: feesPayer });
   }
 
   // If Wise, add expense to a new batch group
-  const payoutMethod = await expense.getPayoutMethod();
   if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
     await paymentProviders.transferwise.scheduleExpenseForPayment(expense);
   }
@@ -1071,6 +1068,15 @@ const lockExpense = async (id, callback) => {
   }
 };
 
+type FeesArgs = {
+  paymentProcessorFeeInCollectiveCurrency?: number;
+  hostFeeInCollectiveCurrency?: number;
+  platformFeeInCollectiveCurrency?: number;
+};
+
+/**
+ * Estimates the fees for an expense
+ */
 export const getExpenseFeesInHostCurrency = async ({
   host,
   expense,
@@ -1083,12 +1089,9 @@ export const getExpenseFeesInHostCurrency = async ({
     hostFeeInHostCurrency: number;
     platformFeeInHostCurrency: number;
   };
-  fees: {
-    paymentProcessorFeeInCollectiveCurrency: number;
-    hostFeeInCollectiveCurrency: number;
-    platformFeeInCollectiveCurrency: number;
-  };
+  fees: FeesArgs;
 }> => {
+  const resultFees = { ...fees };
   const feesInHostCurrency = {
     paymentProcessorFeeInHostCurrency: undefined,
     hostFeeInHostCurrency: undefined,
@@ -1115,9 +1118,9 @@ export const getExpenseFeesInHostCurrency = async ({
       throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
     }
     // Notice this is the FX rate between Host and Collective, that's why we use `fxrate`.
-    fees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(paymentOption.fee.total / fxrate);
+    resultFees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(paymentOption.fee.total / fxrate);
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !forceManual) {
-    fees.paymentProcessorFeeInCollectiveCurrency = await paymentProviders.paypal.types['adaptive'].fees({
+    resultFees.paymentProcessorFeeInCollectiveCurrency = await paymentProviders.paypal.types['adaptive'].fees({
       amount: expense.amount,
       currency: expense.collective.currency,
       host,
@@ -1125,17 +1128,80 @@ export const getExpenseFeesInHostCurrency = async ({
   }
 
   feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
-    fxrate * (<number>fees.paymentProcessorFeeInCollectiveCurrency || 0),
+    fxrate * (<number>resultFees.paymentProcessorFeeInCollectiveCurrency || 0),
   );
   feesInHostCurrency.hostFeeInHostCurrency = Math.round(fxrate * (<number>fees.hostFeeInCollectiveCurrency || 0));
   feesInHostCurrency.platformFeeInHostCurrency = Math.round(
-    fxrate * (<number>fees.platformFeeInCollectiveCurrency || 0),
+    fxrate * (<number>resultFees.platformFeeInCollectiveCurrency || 0),
   );
 
-  if (!fees.paymentProcessorFeeInCollectiveCurrency) {
-    fees.paymentProcessorFeeInCollectiveCurrency = 0;
+  if (!resultFees.paymentProcessorFeeInCollectiveCurrency) {
+    resultFees.paymentProcessorFeeInCollectiveCurrency = 0;
   }
-  return { fees, feesInHostCurrency };
+  return { fees: resultFees, feesInHostCurrency };
+};
+
+/**
+ * Check if the collective balance is enough to pay the expense. Throws if not.
+ */
+const checkHasBalanceToPayExpense = async (
+  host,
+  expense,
+  payoutMethod,
+  { forceManual = false, manualFees = {} } = {},
+) => {
+  const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
+  const balance = await expense.collective.getBalanceWithBlockedFunds();
+  if (expense.amount > balance) {
+    // We assume that the expense currency is the same as the collective currency
+    throw new Unauthorized(
+      `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
+        balance,
+        expense.collective.currency,
+      )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
+    );
+  }
+
+  const { feesInHostCurrency, fees } = await getExpenseFeesInHostCurrency({
+    host,
+    expense,
+    fees: manualFees,
+    payoutMethod,
+    forceManual,
+  });
+
+  // Estimate the total amount to pay from the collective, based on who's supposed to pay the fee
+  let totalAmountToPay;
+  if (expense.feesPayer === 'COLLECTIVE') {
+    totalAmountToPay = expense.amount + fees.paymentProcessorFeeInCollectiveCurrency;
+  } else if (expense.feesPayer === 'PAYEE') {
+    totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
+    if (payoutMethodType !== PayoutMethodTypes.BANK_ACCOUNT) {
+      throw new Error(
+        'Putting the payment processor fees on the payee is only supported for bank accounts at the moment',
+      );
+    }
+  } else {
+    throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
+  }
+
+  // Ensure the collective has enough funds to pay the expense
+  if (totalAmountToPay > balance) {
+    throw new Error(
+      `Collective does not have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
+        balance,
+        expense.collective.currency,
+      )}, Expense amount: ${formatCurrency(
+        expense.amount,
+        expense.collective.currency,
+      )}, Estimated ${payoutMethodType} fees: ${formatCurrency(
+        fees.paymentProcessorFeeInCollectiveCurrency,
+        expense.collective.currency,
+      )}`,
+    );
+  }
+
+  return { fees, feesInHostCurrency, totalAmountToPay };
 };
 
 /**
@@ -1146,6 +1212,7 @@ export const getExpenseFeesInHostCurrency = async ({
 export async function payExpense(req: express.Request, args: Record<string, unknown>): Promise<typeof models.Expense> {
   const { remoteUser } = req;
   const expenseId = args.id;
+  const forceManual = Boolean(args.forceManual);
 
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to pay an expense');
@@ -1174,7 +1241,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     if (
       expense.status !== statuses.APPROVED &&
       // Allow errored expenses to be marked as paid
-      !(expense.status === statuses.ERROR && args.forceManual)
+      !(expense.status === statuses.ERROR && forceManual)
     ) {
       throw new Unauthorized(`Expense needs to be approved. Current status of the expense: ${expense.status}.`);
     }
@@ -1187,41 +1254,22 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       throw new Error('"In kind" donations are not supported anymore');
     }
 
-    const balance = await expense.collective.getBalanceWithBlockedFunds();
-    if (expense.amount > balance) {
-      throw new Unauthorized(
-        `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
-          balance,
-          expense.collective.currency,
-        )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
-      );
+    if (args.feesPayer && args.feesPayer !== expense.feesPayer) {
+      await expense.update({ feesPayer: args.feesPayer });
     }
 
     const payoutMethod = await expense.getPayoutMethod();
     const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-
-    const { feesInHostCurrency, fees } = await getExpenseFeesInHostCurrency({
-      host,
-      expense,
-      fees: omit(args, ['id', 'forceManual']),
-      payoutMethod,
-      forceManual: args.forceManual,
+    const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
+      forceManual,
+      manualFees: <FeesArgs>(
+        pick(args, [
+          'paymentProcessorFeeInCollectiveCurrency',
+          'hostFeeInCollectiveCurrency',
+          'platformFeeInCollectiveCurrency',
+        ])
+      ),
     });
-
-    if (expense.amount + fees.paymentProcessorFeeInCollectiveCurrency > balance) {
-      throw new Error(
-        `Collective does not have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
-          balance,
-          expense.collective.currency,
-        )}, Expense amount: ${formatCurrency(
-          expense.amount,
-          expense.collective.currency,
-        )}, Estimated ${payoutMethodType} fees: ${formatCurrency(
-          fees.paymentProcessorFeeInCollectiveCurrency,
-          expense.collective.currency,
-        )}`,
-      );
-    }
 
     // 2FA for payouts
     const isTwoFactorAuthenticationRequiredForPayoutMethod = [
@@ -1230,9 +1278,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     ].includes(payoutMethodType);
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
     const useTwoFactorAuthentication =
-      isTwoFactorAuthenticationRequiredForPayoutMethod &&
-      !args.forceManual &&
-      hostHasPayoutTwoFactorAuthenticationEnabled;
+      isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
     if (useTwoFactorAuthentication) {
       await handleTwoFactorAuthenticationPayoutLimit(req.remoteUser, args.twoFactorAuthenticatorCode, expense);
@@ -1253,7 +1299,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
           await createTransactions(host, expense, feesInHostCurrency);
-        } else if (args.forceManual) {
+        } else if (forceManual) {
           await createTransactions(host, expense, feesInHostCurrency);
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
@@ -1261,8 +1307,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-        if (args.forceManual) {
-          feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
+        if (forceManual) {
           await createTransactions(host, expense, feesInHostCurrency);
         } else {
           const [connectedAccount] = await host.getConnectedAccounts({

@@ -225,7 +225,7 @@ export const fakePayoutMethod = async (data = {}) => {
         details: { iban: 'DE1237812738192OK' },
       };
     } else {
-      return null;
+      return {};
     }
   };
 

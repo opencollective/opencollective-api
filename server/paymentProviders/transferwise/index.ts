@@ -105,19 +105,24 @@ async function quoteExpense(
   await populateProfileId(connectedAccount);
 
   const token = await getToken(connectedAccount);
-  // Guarantees the target amount if in the same currency of expense
-  const { rate } = await getTemporaryQuote(connectedAccount, payoutMethod, expense);
-  const targetAmount = (expense.amount / 100) * rate;
 
-  const quote = await transferwise.createQuote(token, {
+  const quoteParams = {
     profileId: connectedAccount.data.id,
     sourceCurrency: expense.currency,
     targetCurrency: <string>payoutMethod.unfilteredData.currency,
-    targetAmount,
     targetAccount,
-  });
+  };
 
-  return quote;
+  if (expense.feesPayer === 'PAYEE') {
+    // We assume that expense.currency is always collective.currency
+    quoteParams['sourceAmount'] = expense.amount / 100;
+  } else {
+    // Guarantees the target amount if in the same currency of expense
+    const { rate } = await getTemporaryQuote(connectedAccount, payoutMethod, expense);
+    quoteParams['targetAmount'] = (expense.amount / 100) * rate;
+  }
+
+  return transferwise.createQuote(token, quoteParams);
 }
 
 async function createTransfer(

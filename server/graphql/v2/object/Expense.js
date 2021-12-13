@@ -11,6 +11,7 @@ import { CommentCollection } from '../collection/CommentCollection';
 import { Currency } from '../enum';
 import ExpenseStatus from '../enum/ExpenseStatus';
 import { ExpenseType } from '../enum/ExpenseType';
+import { FeesPayer } from '../enum/FeesPayer';
 import { LegalDocumentType } from '../enum/LegalDocumentType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -229,6 +230,10 @@ const Expense = new GraphQLObjectType({
             return expense.invoiceInfo;
           }
         },
+      },
+      feesPayer: {
+        type: new GraphQLNonNull(FeesPayer),
+        description: 'The fees payer for this expense',
       },
       permissions: {
         type: new GraphQLNonNull(ExpensePermissions),

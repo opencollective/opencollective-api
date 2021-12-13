@@ -29,6 +29,7 @@ import {
 import { createUser } from '../../common/user';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
+import { FeesPayer } from '../enum/FeesPayer';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ExpenseCreateInput } from '../input/ExpenseCreateInput';
@@ -252,6 +253,11 @@ const expenseMutations = {
               type: GraphQLString,
               description: '2FA code for if the host account has 2FA for payouts turned on.',
             },
+            feesPayer: {
+              type: FeesPayer,
+              description: '2FA code for if the host account has 2FA for payouts turned on.',
+              defaultValue: 'COLLECTIVE',
+            },
           }),
         }),
       },
@@ -274,7 +280,7 @@ const expenseMutations = {
         case 'MARK_AS_UNPAID':
           return markExpenseAsUnpaid(req, expense.id, args.paymentParams?.paymentProcessorFee);
         case 'SCHEDULE_FOR_PAYMENT':
-          return scheduleExpenseForPayment(req, expense);
+          return scheduleExpenseForPayment(req, expense, args.paymentParams?.feesPayer);
         case 'UNSCHEDULE_PAYMENT':
           return unscheduleExpensePayment(req, expense);
         case 'PAY':

@@ -506,7 +506,6 @@ function defineModel() {
    * and we should move paymentProcessorFee, platformFee, hostFee to the Order model
    *
    */
-
   Transaction.createDoubleEntry = async (transaction, opts) => {
     transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
     transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;

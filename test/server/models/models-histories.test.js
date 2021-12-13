@@ -105,7 +105,7 @@ describe('server/models/models-histories', () => {
                     return false;
                   } else if (column[k].includes('::"enum_')) {
                     // sequelize-temporal creates a new type for Enums, ie. enum_Expenses_type -> enum_ExpenseHistories_type
-                    const cleanValue = historyEquivalent[k].replace('Histories_type', 's_type');
+                    const cleanValue = historyEquivalent[k].replace('Histories_', 's_');
                     if (cleanValue === column[k]) {
                       return false;
                     }
