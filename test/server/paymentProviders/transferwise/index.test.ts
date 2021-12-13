@@ -26,6 +26,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     targetAmount: 90.44,
     rate: 0.9044,
     payOut: 'BANK_TRANSFER',
+    expirationTime: moment().add(5, 'minutes').format(),
     paymentOptions: [
       {
         formattedEstimatedDelivery: 'by March 18th',
@@ -181,6 +182,18 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(quote)
         .to.have.nested.property('targetAmount')
         .equals((expense.amount / 100) * quote.rate);
+    });
+
+    it('should set expense.data.quote', async () => {
+      await expense.reload();
+      expect(expense).to.have.nested.property('data.quote');
+    });
+
+    it('should use existing quote if available', async () => {
+      createQuote.resetHistory();
+      const newQuote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
+      console.log(JSON.stringify(newQuote, null, 2));
+      expect(createQuote.callCount).to.be.equal(0);
     });
   });
 
