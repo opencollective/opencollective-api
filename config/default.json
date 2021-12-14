@@ -157,7 +157,8 @@
     "blockedCurrencies": "NGN, CUC, CUP, IRR, KPW, SDG, SYP, VED, VES, AFN, BIF, XAF, CDF, ERN, IQD, LYD, SOS, SSP",
     "blockedCurrenciesForBusinessProfiles": "BRL, PKR",
     "blockedCurrenciesForNonProfits": "INR",
-    "currenciesThatRequireReference": "RUB"
+    "currenciesThatRequireReference": "RUB",
+    "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO"
   },
   "fixie": {},
   "hyperwatch": {

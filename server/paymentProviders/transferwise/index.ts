@@ -21,6 +21,7 @@ import {
   QuoteV2,
   QuoteV2PaymentOption,
   RecipientAccount,
+  TransactionRequirementsType,
   Transfer,
 } from '../../types/transferwise';
 
@@ -29,6 +30,7 @@ const providerName = 'transferwise';
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
 const splitCSV = string => compact(split(string, /,\s*/));
 
+export const blockedCountries = splitCSV(config.transferwise.blockedCountries);
 export const blockedCurrencies = splitCSV(config.transferwise.blockedCurrencies);
 export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise.blockedCurrenciesForBusinessProfiles);
 export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
@@ -452,7 +454,7 @@ async function getRequiredBankInformation(
   host: typeof models.Collective,
   currency: string,
   accountDetails?: Record<string, unknown>,
-): Promise<any> {
+): Promise<Array<TransactionRequirementsType>> {
   const cacheKey = accountDetails
     ? `transferwise_required_bank_info_${host.id}_${currency}_${hashObject(
         pick(accountDetails, ['type', 'details.bankCode', 'details.legalType', 'details.address.country']),
@@ -483,6 +485,19 @@ async function getRequiredBankInformation(
     accountDetails && has(accountDetails, 'details')
       ? await transferwise.validateAccountRequirements(token, transactionParams, accountDetails)
       : await transferwise.getAccountRequirements(token, transactionParams);
+
+  // Filter out countries blocked by sanctions on Wise
+  requiredFields?.forEach?.((type, itype) => {
+    type.fields?.forEach?.((field, ifield) => {
+      field.group?.forEach?.((group, igroup) => {
+        if (group?.key === 'address.country') {
+          requiredFields[itype].fields[ifield].group[igroup].valuesAllowed = group.valuesAllowed.filter(
+            value => !blockedCountries.includes(value.key),
+          );
+        }
+      });
+    });
+  });
 
   cache.set(cacheKey, requiredFields, 24 * 60 * 60 /* a whole day and we could probably increase */);
   return requiredFields;

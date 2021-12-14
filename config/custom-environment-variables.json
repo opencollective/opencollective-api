@@ -160,6 +160,7 @@
     "clientSecret": "TRANSFERWISE_CLIENT_SECRET",
     "redirectUri": "TRANSFERWISE_REDIRECT_URI",
     "privateKey": "TRANSFERWISE_PRIVATE_KEY",
+    "blockedCountries": "TRANSFERWISE_BLOCKED_COUNTRIES",
     "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT"
