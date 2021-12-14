@@ -22,6 +22,7 @@ import {
   fakeConnectedAccount,
   fakeExpense,
   fakeExpenseItem,
+  fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
   fakeTransaction,
@@ -1165,20 +1166,29 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(success.data.processExpense.status).to.eq('PAID');
       });
 
-      it('pays 100% of the balance and stores the fees as a separate transaction for payee', async () => {
+      it('pays 100% of the balance by putting the fees on the payee', async () => {
         const paymentProcessorFee = 575;
-        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT' });
-        const fromUser = await fakeUser({}, { name: 'Payee' });
+        const fromOrganization = await fakeOrganization({ name: 'Facebook' });
+        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT', CollectiveId: fromOrganization.id });
+        const collective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
         const expense = await fakeExpense({
           amount: 10000,
           CollectiveId: collective.id,
           status: 'APPROVED',
           PayoutMethodId: payoutMethod.id,
-          FromCollectiveId: fromUser.CollectiveId,
+          FromCollectiveId: fromOrganization.id,
         });
 
-        // Updates the collective balance and pay the expense
+        // Updates the balances
+        const initialOrgBalance = 42000;
         await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: fromOrganization.id, amount: initialOrgBalance });
+
+        // Check initial balances
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Pay expense
         const mutationParams = {
           expenseId: expense.id,
           action: 'PAY',
@@ -1187,6 +1197,27 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check balance (post-payment)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(0);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(
+          initialOrgBalance + expense.amount - paymentProcessorFee,
+        );
+
+        // Marks the expense as unpaid (aka. refund transaction)
+        await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'MARK_AS_UNPAID',
+            paymentProcessorFee: 1, // Also refund payment processor fees
+          },
+          hostAdmin,
+        );
+
+        // Check balances (post-refund)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance - paymentProcessorFee);
 
         // Check transactions
         const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
@@ -1202,9 +1233,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
         expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
 
-        const columns = ['type', 'kind', 'CollectiveId', 'FromCollectiveId'];
+        const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
         columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
-        const allTransactions = [debitTransaction, creditTransaction];
+        const allTransactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'ASC']],
+        });
         await preloadAssociationsForTransactions(allTransactions, columns);
         snapshotTransactions(allTransactions, { columns });
       });

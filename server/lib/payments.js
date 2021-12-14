@@ -321,8 +321,13 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
         ? await transaction.getRelatedTransaction({ type: DEBIT })
         : transaction;
-      // Host take at their charge the payment processor fee that is lost when refunding a transaction
-      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+
+      // If the fees were not charged on the collective, we don't need to refund them.
+      const feesPayer = transaction.data?.feesPayer || 'COLLECTIVE';
+      if (feesPayer === 'COLLECTIVE') {
+        // Host take at their charge the payment processor fee that is lost when refunding a transaction
+        await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+      }
     }
   }
 
