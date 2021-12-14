@@ -9,20 +9,24 @@ import * as utils from '../../utils';
 
 describe('server/lib/onboarding', () => {
   let admins, sandbox, emailLibSendSpy;
-  before(async () => {
-    await utils.resetTestDB();
+
+  before(() => {
     sandbox = createSandbox();
     emailLibSendSpy = sandbox.spy(emailLib, 'send');
   });
 
-  before(async () => {
+  beforeEach(async () => {
+    await utils.resetTestDB();
     admins = await Promise.all([
       models.User.createUserWithCollective({ name: 'test adminUser1', email: 'testadminUser1@gmail.com' }),
       models.User.createUserWithCollective({ name: 'test adminUser2', email: 'testadminUser2@gmail.com' }),
     ]);
   });
 
-  after(() => sandbox.restore());
+  afterEach(() => {
+    emailLibSendSpy.resetHistory();
+    sandbox.restore();
+  });
 
   it('sends onboarding after 2 days for new organizations', async () => {
     const createdAt = new Date();
@@ -60,5 +64,32 @@ describe('server/lib/onboarding', () => {
       expect(emailServiceCall[1]).to.equal(admin.email);
       expect(emailServiceCall[2].unsubscribeUrl).to.contain(encodeURIComponent(admin.email));
     });
+  });
+
+  it('does not send anything if filter returns false', async () => {
+    const createdAt = new Date();
+    createdAt.setDate(createdAt.getDate() - 2);
+    const org = await models.Collective.create({
+      name: 'airbnb',
+      slug: 'airbnb',
+      isActive: true,
+      type: 'ORGANIZATION',
+      CreatedByUserId: admins[0].id,
+      createdAt,
+    });
+
+    await Promise.each(admins, admin =>
+      models.Member.create({
+        CreatedByUserId: admins[0].id,
+        CollectiveId: org.id,
+        MemberCollectiveId: admin.CollectiveId,
+        role: 'ADMIN',
+      }),
+    );
+
+    const startsAt = new Date(createdAt);
+    startsAt.setHours(0);
+    await processOnBoardingTemplate('onboarding.day2', startsAt, () => Promise.resolve(false));
+    expect(emailLibSendSpy.callCount).to.equal(0);
   });
 });
