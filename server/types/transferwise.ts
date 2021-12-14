@@ -313,3 +313,28 @@ export type BatchGroup = {
   transferIds: Array<number>;
   payInDetails?: Array<Record<string, any>>;
 };
+
+export type TransactionRequiredFieldsGroup = {
+  key: string;
+  name: string;
+  type: string;
+  required: boolean;
+  example: string;
+  validationRegexp: null | string;
+  refreshRequirementsOnChange: boolean;
+  valuesAllowed?: Array<{
+    key: string;
+    name: string;
+  }>;
+};
+
+export type TransactionRequiredFields = {
+  name: string;
+  group: Array<TransactionRequiredFieldsGroup>;
+};
+
+export type TransactionRequirementsType = {
+  type: string;
+  title: string;
+  fields: Array<TransactionRequiredFields>;
+};
