@@ -56,7 +56,7 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
 
   const issuingCard = await stripe.issuing.cards.create({
     cardholder: cardholders.data[0].id,
-    currency: 'usd',
+    currency: host.currency.toLowerCase(),
     type: 'virtual',
     status: 'active',
     // eslint-disable-next-line camelcase
@@ -86,9 +86,22 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
   await checkStripeEvent(host, stripeEvent);
 
-  // TODO : convert balance to the same currency as amount
-  const amount = convertToStripeAmount(host.currency, stripeAuthorization.amount);
-  const balance = await host.getBalanceWithBlockedFundsAmount();
+  const existingExpense = await models.Expense.findOne({
+    where: {
+      VirtualCardId: virtualCard.id,
+      data: { authorizationId: stripeAuthorization.id },
+    },
+  });
+
+  if (existingExpense) {
+    logger.warn(`Virtual Card authorization already reconciled, ignoring it: ${stripeAuthorization.id}`);
+    return;
+  }
+
+  const currency = stripeAuthorization.currency.toUpperCase();
+  const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.amount));
+  const collective = virtualCard.collective;
+  const balance = await collective.getBalanceWithBlockedFundsAmount({ currency });
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
@@ -102,24 +115,12 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     throw new Error('Balance not sufficient');
   }
 
-  const existingExpense = await models.Expense.findOne({
-    where: {
-      VirtualCardId: virtualCard.id,
-      data: { authorizationId: stripeAuthorization.id },
-    },
-  });
-
-  if (existingExpense) {
-    logger.warn(`Virtual Card authorization already reconciled, ignoring it: ${stripeAuthorization.id}`);
-    return;
-  }
-
   const vendor = await getOrCreateVendor(
     stripeAuthorization['merchant_data']['network_id'],
     stripeAuthorization['merchant_data']['name'],
   );
+
   const UserId = virtualCard.UserId;
-  const collective = virtualCard.collective;
   const description = `Virtual Card charge: ${vendor.name}`;
   const incurredAt = new Date(stripeAuthorization.created * 1000);
 
@@ -130,7 +131,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       UserId,
       CollectiveId: collective.id,
       FromCollectiveId: vendor.id,
-      currency: 'USD',
+      currency,
       amount,
       description,
       VirtualCardId: virtualCard.id,
@@ -179,12 +180,14 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
-  const amount = -convertToStripeAmount(virtualCard.host.currency, stripeTransaction.amount);
+  const currency = stripeTransaction.currency.toUpperCase();
+  const amount = convertToStripeAmount(currency, stripeTransaction.amount);
   const isRefund = stripeTransaction.type === 'refund';
 
   return persistTransaction(virtualCard, {
     id: stripeTransaction.id,
     amount,
+    currency,
     vendorProviderId: stripeTransaction['merchant_data']['network_id'],
     vendorName: stripeTransaction['merchant_data']['name'],
     incurredAt: new Date(stripeTransaction.created * 1000),
@@ -210,6 +213,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
     provider: 'STRIPE',
     spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
+    currency: stripeCard.currency.toUpperCase(),
   };
 
   return models.VirtualCard.create(cardData);

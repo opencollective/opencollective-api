@@ -14,6 +14,7 @@ interface VirtualCardAttributes {
   provider: string;
   spendingLimitAmount: number;
   spendingLimitInterval: string;
+  currency: string;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date;
@@ -31,6 +32,7 @@ export interface VirtualCardCreateAttributes {
   provider: string;
   spendingLimitAmount: number;
   spendingLimitInterval: string;
+  currency?: string;
 }
 
 class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttributes> implements VirtualCardAttributes {
@@ -45,6 +47,7 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   public provider: string;
   public spendingLimitAmount: number;
   public spendingLimitInterval: string;
+  public currency: string;
   public createdAt!: Date;
   public updatedAt!: Date;
   public deletedAt: Date;
@@ -131,6 +134,11 @@ VirtualCard.init(
     spendingLimitInterval: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    currency: {
+      type: DataTypes.STRING,
+      defaultValue: 'USD',
+      allowNull: false,
     },
     createdAt: {
       type: DataTypes.DATE,
