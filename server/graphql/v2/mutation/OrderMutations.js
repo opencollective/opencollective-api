@@ -3,6 +3,7 @@ import { isNil, isNull, isUndefined } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
+import { floatAmountToCents } from '../../../lib/math';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
@@ -18,6 +19,7 @@ import { getDecodedId } from '../identifiers';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
+import { OrderDetailsInput } from '../input/OrderDetailsInput';
 import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
@@ -301,6 +303,9 @@ const orderMutations = {
       action: {
         type: new GraphQLNonNull(ProcessOrderAction),
       },
+      details: {
+        type: OrderDetailsInput,
+      },
     },
     async resolve(_, args, req) {
       const order = await fetchOrderWithReference(args.order);
@@ -313,6 +318,42 @@ const orderMutations = {
       if (args.action === 'MARK_AS_PAID') {
         if (!(await canMarkAsPaid(req, order))) {
           throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
+        }
+
+        if (args?.details) {
+          const { totalAmount, paymentProcessorFeesAmount, platformTipAmount } = args.details;
+          const host = await toAccount.getHostCollective();
+          if (totalAmount) {
+            if (totalAmount?.currency !== order.currency) {
+              throw new ValidationFailed('totalAmount currency must match expense currency');
+            }
+            order.set('totalAmount', totalAmount.valueInCents || floatAmountToCents(totalAmount.value));
+          }
+          if (paymentProcessorFeesAmount) {
+            if (paymentProcessorFeesAmount?.currency !== host.currency) {
+              throw new ValidationFailed('paymentProcessorFeesAmount currency must match host currency');
+            }
+            if (!order.data) {
+              order.set('data', {});
+            }
+            order.set(
+              'data.paymentProcessorFeeInHostCurrency',
+              paymentProcessorFeesAmount.valueInCents || floatAmountToCents(paymentProcessorFeesAmount.value),
+            );
+          }
+          if (platformTipAmount) {
+            if (platformTipAmount?.currency !== order.currency) {
+              throw new ValidationFailed('platformTipAmount currency must match order currency');
+            }
+            if (!order.data) {
+              order.set('data', {});
+            }
+            order.set(
+              'data.platformTip',
+              platformTipAmount.valueInCents || floatAmountToCents(platformTipAmount.value),
+            );
+          }
+          await order.save();
         }
 
         return order.markAsPaid(req.remoteUser);
