@@ -79,6 +79,25 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
   return createCard(stripeCard, name, collective.id, host.id, userId);
 };
 
+export const updateVirtualCardMonthlyLimit = async (virtualCard, monthlyLimit) => {
+  const host = virtualCard.host;
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+  return stripe.issuing.cards.update(virtualCard.id, {
+    // eslint-disable-next-line camelcase
+    spending_controls: {
+      // eslint-disable-next-line camelcase
+      spending_limits: [
+        {
+          amount: monthlyLimit,
+          interval: 'monthly',
+        },
+      ],
+    },
+  });
+};
+
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
 

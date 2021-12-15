@@ -11,7 +11,7 @@ import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput } from '../input/AmountInput';
-import { VirtualCardInput, VirtualCardUpdateInput } from '../input/VirtualCardInput';
+import { VirtualCardInput } from '../input/VirtualCardInput';
 import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
 import { VirtualCard } from '../object/VirtualCard';
 
@@ -162,12 +162,20 @@ const virtualCardMutations = {
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
-        type: new GraphQLNonNull(VirtualCardUpdateInput),
-        description: 'Virtual Card being edited its new values',
+        type: new GraphQLNonNull(VirtualCardReferenceInput),
+        description: 'Virtual card reference',
+      },
+      name: {
+        type: GraphQLString,
+        description: 'Virtual card name',
       },
       assignee: {
         type: AccountReferenceInput,
-        description: 'The individual account reference to attach the Virtual Card to if desired',
+        description: 'Individual account responsible for the card',
+      },
+      monthlyLimit: {
+        type: AmountInput,
+        description: 'Virtual card monthly limit',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
@@ -175,15 +183,10 @@ const virtualCardMutations = {
         throw new Unauthorized('You need to be logged in to assign a virtual card');
       }
 
-      const { expireDate, cvv } = args.virtualCard.privateData;
-      if (!expireDate || !cvv) {
-        throw new BadRequest('VirtualCard missing cardNumber, expireDate and/or cvv', undefined, {
-          expireDate: !expireDate && 'Expire Date is required',
-          cvv: !cvv && 'CVV is required',
-        });
-      }
-
-      const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
+      const virtualCard = await models.VirtualCard.findOne({
+        where: { id: args.virtualCard.id },
+        include: [{ association: 'host', required: true }],
+      });
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
       }
@@ -191,22 +194,41 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to update this Virtual Card");
       }
 
-      let UserId;
+      const updateAttributes = {};
+
       if (args.assignee) {
         const userCollective = await fetchAccountWithReference(args.assignee, {
           loaders: req.loaders,
         });
+
         const user = await userCollective.getUser();
+        
         if (!user) {
           throw new BadRequest('Could not find the assigned user');
         }
-        UserId = user.id;
+
+        updateAttributes['UserId'] = user.id;
       }
 
-      return await virtualCard.update({
-        privateData: { ...(virtualCard.get('privateData') as Object), cvv, expireDate },
-        UserId,
-      });
+      if (args.name) {
+        updateAttributes['name'] = args.name;
+      }
+
+      if (args.monthlyLimit && virtualCard.spendingLimitInterval === 'MONTHLY' && virtualCard.provider === 'STRIPE') {
+        const monthlyLimitInCents = args.monthlyLimit.valueInCents;
+
+        if (monthlyLimitInCents > 100000) {
+          throw new BadRequest(`Monthly limit should not exceed 1000 ${virtualCard.currency}`, undefined, {
+            monthlyLimit: `Monthly limit should not exceed 1000 ${virtualCard.currency}`,
+          });
+        }
+
+        updateAttributes['spendingLimitAmount'] = monthlyLimitInCents;
+
+        await stripe.updateVirtualCardMonthlyLimit(virtualCard, monthlyLimitInCents);
+      }
+
+      return virtualCard.update(updateAttributes);
     },
   },
   requestVirtualCard: {
