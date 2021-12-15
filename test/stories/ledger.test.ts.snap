@@ -175,3 +175,21 @@ exports[`test/stories/ledger Level 3: Host and collective with different currenc
 | PLATFORM_TIP            | CREDIT | 10000000  | JPY      | 90000                | USD          | 0          | OC Inc | Ben    | OC Inc |            | false    |
 | PLATFORM_TIP            | DEBIT  | -10000000 | JPY      | -90000               | USD          | 0          | Ben    | OC Inc | NULL   |            | false    |"
 `;
+
+exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds with different collectives 1`] = `
+"
+| kind        | type   | amount | paymentFee | To      | From    | Host | Settlement | isRefund |
+| ----------- | ------ | ------ | ---------- | ------- | ------- | ---- | ---------- | -------- |
+| ADDED_FUNDS | CREDIT | 10000  | 0          | Webpack | ESLint  | OSC  |            | true     |
+| ADDED_FUNDS | DEBIT  | -10000 | 0          | ESLint  | Webpack | OSC  |            | true     |
+| ADDED_FUNDS | CREDIT | 10000  | 0          | ESLint  | Webpack | OSC  |            | false    |
+| ADDED_FUNDS | DEBIT  | -10000 | 0          | Webpack | ESLint  | OSC  |            | false    |"
+`;
+
+exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds with same collective 1`] = `
+"
+| kind        | type   | amount | paymentFee | To     | From   | Host | Settlement | isRefund |
+| ----------- | ------ | ------ | ---------- | ------ | ------ | ---- | ---------- | -------- |
+| ADDED_FUNDS | DEBIT  | -10000 | 0          | ESLint | ESLint | OSC  |            | true     |
+| ADDED_FUNDS | CREDIT | 10000  | 0          | ESLint | ESLint | OSC  |            | false    |"
+`;

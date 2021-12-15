@@ -16,10 +16,6 @@ paymentMethodProvider.features = {
 };
 
 paymentMethodProvider.refundTransaction = async (transaction, user) => {
-  if (transaction.CollectiveId === transaction.FromCollectiveId) {
-    throw new Error('Cannot refund a transaction from the same collective');
-  }
-
   if (transaction.type === TransactionTypes.DEBIT) {
     transaction = await transaction.getRelatedTransaction({ type: TransactionTypes.CREDIT });
   }

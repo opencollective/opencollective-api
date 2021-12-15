@@ -396,14 +396,20 @@ export async function associateTransactionRefundId(transaction, refund, data) {
     credit.data = data;
   }
 
-  debit.RefundTransactionId = refundCredit.id;
-  await debit.save(); // User Ledger
+  if (refundCredit && debit) {
+    debit.RefundTransactionId = refundCredit.id;
+    await debit.save(); // User Ledger
+  }
+
   credit.RefundTransactionId = refundDebit.id;
   await credit.save(); // Collective Ledger
   refundDebit.RefundTransactionId = credit.id;
   await refundDebit.save(); // Collective Ledger
-  refundCredit.RefundTransactionId = debit.id;
-  await refundCredit.save(); // User Ledger
+
+  if (refundCredit && debit) {
+    refundCredit.RefundTransactionId = debit.id;
+    await refundCredit.save(); // User Ledger
+  }
 
   // We need to return the same transactions we received because the
   // graphql mutation needs it to return to the user. However we have

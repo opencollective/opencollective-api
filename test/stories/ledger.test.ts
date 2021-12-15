@@ -9,12 +9,14 @@ import moment from 'moment';
 import nock from 'nock';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
+import { TransactionKind } from '../../server/constants/transaction-kind';
 import {
   PLATFORM_TIP_TRANSACTION_PROPERTIES,
   SETTLEMENT_EXPENSE_PROPERTIES,
 } from '../../server/constants/transactions';
 import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/expenses';
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
+import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
 import {
   fakeCollective,
@@ -55,7 +57,12 @@ const RATES = {
 /**
  * Setup all tests with a similar environment, the only variables being the host/collective currencies
  */
-const setupTestData = async (hostCurrency, collectiveCurrency) => {
+const setupTestData = async (
+  hostCurrency,
+  collectiveCurrency,
+  selfContribution = false,
+  contributionFromCollective = false,
+) => {
   // TODO: The setup should ideally insert other hosts and transactions to make sure the balance queries are filtering correctly
   await resetTestDB();
   const hostAdmin = await fakeUser();
@@ -74,14 +81,23 @@ const setupTestData = async (hostCurrency, collectiveCurrency) => {
     currency: collectiveCurrency,
   });
   const contributorUser = await fakeUser(undefined, { name: 'Ben' });
+  const contributorCollective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
   const ocInc = await fakeHost({ name: 'OC Inc', id: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId });
   await fakePayoutMethod({ type: 'OTHER', CollectiveId: ocInc.id }); // For the settlement expense
   await fakeUser({ id: SETTLEMENT_EXPENSE_PROPERTIES.UserId, name: 'Pia' });
+  let FromCollectiveId;
+  if (selfContribution) {
+    FromCollectiveId = collective.id;
+  } else if (contributionFromCollective) {
+    FromCollectiveId = contributorCollective.id;
+  } else {
+    FromCollectiveId = contributorUser.CollectiveId;
+  }
   const baseOrderData = {
     description: `Financial contribution to ${collective.name}`,
     totalAmount: 10000,
     currency: collectiveCurrency,
-    FromCollectiveId: contributorUser.CollectiveId,
+    FromCollectiveId: FromCollectiveId,
     CollectiveId: collective.id,
     PaymentMethodId: null,
   };
@@ -470,6 +486,34 @@ describe('test/stories/ledger', () => {
 
       // Run OC settlement
       // TODO: We should run the opposite settlement and check amount
+    });
+  });
+
+  describe('Level 4: Refund added funds️', async () => {
+    const refundTransaction = async (collective, host, contributorUser, baseOrderData) => {
+      const order = await fakeOrder(baseOrderData);
+      order.paymentMethod = { service: 'opencollective', type: 'host', CollectiveId: host.id };
+      await executeOrder(contributorUser, order);
+
+      // ---- Refund transaction -----
+      const contributionTransaction = await models.Transaction.findOne({
+        where: { OrderId: order.id, kind: TransactionKind.ADDED_FUNDS, type: 'CREDIT' },
+      });
+
+      const paymentMethod = libPayments.findPaymentMethodProvider(order.PaymentMethod);
+      await paymentMethod.refundTransaction(contributionTransaction, 0, null, null);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+      expect(await collective.getBalance()).to.eq(0);
+    };
+
+    it('Refund added funds with same collective', async () => {
+      const { collective, host, contributorUser, baseOrderData } = await setupTestData('USD', 'USD', true);
+      await refundTransaction(collective, host, contributorUser, baseOrderData);
+    });
+
+    it('Refund added funds with different collectives', async () => {
+      const { collective, host, contributorUser, baseOrderData } = await setupTestData('USD', 'USD', false, true);
+      await refundTransaction(collective, host, contributorUser, baseOrderData);
     });
   });
 });
