@@ -56,11 +56,11 @@ export async function processCollective(collective, template) {
   );
 }
 
-export async function processOnBoardingTemplate(template, startsAt, filter = () => true) {
+export async function processOnBoardingTemplate(template, startsAt, filter = null) {
   const endsAt = new Date(startsAt.getFullYear(), startsAt.getMonth(), startsAt.getDate() + 1);
   logger.info(`\n>>> ${template} (from ${startsAt.toString()} to ${endsAt.toString()})`);
   try {
-    let collectives = await models.Collective.findAll({
+    const collectives = await models.Collective.findAll({
       where: {
         type: { [Op.in]: ['ORGANIZATION', 'COLLECTIVE'] },
         isActive: true,
@@ -68,10 +68,17 @@ export async function processOnBoardingTemplate(template, startsAt, filter = () 
       },
     });
     logger.info(`${template}> processing ${collectives.length} collectives`);
-    collectives = collectives.filter(filter);
+
+    let filteredCollectives = [];
+    for (const collective of collectives) {
+      if (!filter || (await filter(collective))) {
+        filteredCollectives.push(collective);
+      }
+    }
+
     logger.info(`${template}> processing ${collectives.length} collectives after filter`);
-    collectives = await Promise.map(collectives, c => processCollective(c, template));
-    logger.info(`${collectives.length} collectives processed.`);
+    filteredCollectives = await Promise.map(filteredCollectives, c => processCollective(c, template));
+    logger.info(`${filteredCollectives.length} collectives processed.`);
   } catch (e) {
     logger.error('>>> error caught', e);
   }
