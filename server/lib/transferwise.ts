@@ -19,6 +19,7 @@ import {
   Profile,
   QuoteV2,
   RecipientAccount,
+  TransactionRequirementsType,
   Transfer,
   Webhook,
   WebhookCreateInput,
@@ -307,7 +308,7 @@ export const getTransfer = async (token: string, transferId: number): Promise<Tr
 export const getAccountRequirements = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
-): Promise<any> => {
+): Promise<Array<TransactionRequirementsType>> => {
   const params = {
     source: sourceCurrency,
     target: targetCurrency,
@@ -328,7 +329,7 @@ export const validateAccountRequirements = async (
   token: string,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
   accountDetails: Record<string, unknown>,
-): Promise<any> => {
+): Promise<Array<TransactionRequirementsType>> => {
   const params = {
     source: sourceCurrency,
     target: targetCurrency,
