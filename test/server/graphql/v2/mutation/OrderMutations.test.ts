@@ -97,6 +97,15 @@ const cancelRecurringContributionMutation = gqlV2/* GraphQL */ `
   }
 `;
 
+const processPendingOrderMutation = gqlV2/* GraphQL */ `
+  mutation ProcessPendingOrder($id: String!, $action: ProcessOrderAction!, $details: OrderDetailsInput) {
+    processPendingOrder(order: { id: $id }, action: $action, details: $details) {
+      id
+      status
+    }
+  }
+`;
+
 const callCreateOrder = (params, remoteUser = null) => {
   return graphqlQueryV2(CREATE_ORDER_MUTATION, params, remoteUser);
 };
@@ -438,13 +447,28 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     // but these tests would need to be reconciliated before we can put them in the same
     // `describe` than `createOrder`
 
-    let adminUser, user, randomUser, collective, order, order2, paymentMethod, paymentMethod2, fixedTier, flexibleTier;
+    let adminUser,
+      user,
+      randomUser,
+      collective,
+      order,
+      order2,
+      paymentMethod,
+      paymentMethod2,
+      fixedTier,
+      flexibleTier,
+      host,
+      hostAdminUser;
 
     before(async () => {
+      await resetTestDB();
+      await fakeHost({ id: 8686, slug: 'opencollective' });
       adminUser = await fakeUser();
       user = await fakeUser();
       randomUser = await fakeUser();
+      hostAdminUser = await fakeUser();
       collective = await fakeCollective();
+      host = collective.host;
       order = await fakeOrder(
         {
           CreatedByUserId: user.id,
@@ -500,6 +524,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         amountType: 'FLEXIBLE',
       });
       await collective.addUserWithRole(adminUser, roles.ADMIN);
+      await host.addUserWithRole(hostAdminUser, roles.ADMIN);
     });
 
     describe('cancelOrder', () => {
@@ -670,6 +695,80 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.amount.value).to.eq(73);
         expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
+      });
+    });
+
+    describe('processPendingOrder', () => {
+      beforeEach(async () => {
+        order = await fakeOrder({
+          CreatedByUserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: collective.id,
+          status: 'PENDING',
+          frequency: 'ONETIME',
+          totalAmount: 10000,
+          currency: 'USD',
+        });
+      });
+
+      it('should mark as expired', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            id: idEncode(order.id, 'order'),
+            action: 'MARK_AS_EXPIRED',
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('EXPIRED');
+      });
+
+      it('should mark as paid', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            id: idEncode(order.id, 'order'),
+            action: 'MARK_AS_PAID',
+          },
+          hostAdminUser,
+        );
+
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+      });
+
+      it('should mark as paid and update amount details', async () => {
+        const result = await graphqlQueryV2(
+          processPendingOrderMutation,
+          {
+            id: idEncode(order.id, 'order'),
+            action: 'MARK_AS_PAID',
+            details: {
+              totalAmount: { valueInCents: 10200, currency: 'USD' },
+              paymentProcessorFeesAmount: { valueInCents: 100, currency: 'USD' },
+              platformTipAmount: { valueInCents: 100, currency: 'USD' },
+            },
+          },
+          hostAdminUser,
+        );
+
+        if (result.errors) {
+          console.log(result.errors);
+        }
+        expect(result.errors).to.not.exist;
+        expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+        const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
+        const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
+        expect(contribution).to.have.property('amount').equal(10100);
+        expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(10000);
+        expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-100);
+        expect(contribution).to.have.nested.property('data.platformTip').equal(100);
+
+        const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
+        expect(tip).to.have.property('amount').equal(100);
       });
     });
   });
