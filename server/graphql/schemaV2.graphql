@@ -659,6 +659,11 @@ type Expense {
   invoiceInfo: String
 
   """
+  The fees payer for this expense
+  """
+  feesPayer: FeesPayer!
+
+  """
   The permissions given to current logged in user for this expense
   """
   permissions: ExpensePermissions!
@@ -1600,6 +1605,21 @@ type ExpenseItem {
   """
   description: String
   url: URL
+}
+
+"""
+All supported expense types
+"""
+enum FeesPayer {
+  """
+  The collective will be responsible for paying the fees
+  """
+  COLLECTIVE
+
+  """
+  The payee will be responsible for paying the fees (they'll be deduced from the total amount)
+  """
+  PAYEE
 }
 
 """
@@ -6920,7 +6940,7 @@ type Mutation {
   """
   A mutation for the host to approve or reject an order
   """
-  processPendingOrder(order: OrderReferenceInput!, action: ProcessOrderAction!): Order!
+  processPendingOrder(order: OrderReferenceInput!, action: ProcessOrderAction!, details: OrderDetailsInput): Order!
 
   """
   Add a new payment method to be used with an Order
@@ -7171,12 +7191,12 @@ type Mutation {
   """
   createVirtualCard(
     """
-    Virtual Card name
+    Virtual card name
     """
     name: String!
 
     """
-    Virtual Card monthly limit
+    Virtual card monthly limit
     """
     monthlyLimit: AmountInput!
 
@@ -7186,7 +7206,7 @@ type Mutation {
     account: AccountReferenceInput!
 
     """
-    Individual account responsible for the card
+    Individual account responsible for the virtual card
     """
     assignee: AccountReferenceInput!
   ): VirtualCard!
@@ -9606,6 +9626,11 @@ input ProcessExpensePaymentParams {
   2FA code for if the host account has 2FA for payouts turned on.
   """
   twoFactorAuthenticatorCode: String
+
+  """
+  2FA code for if the host account has 2FA for payouts turned on.
+  """
+  feesPayer: FeesPayer = COLLECTIVE
 }
 
 input ExpenseInviteDraftInput {
@@ -10062,6 +10087,15 @@ enum ProcessOrderAction {
   To mark the order as paid
   """
   MARK_AS_PAID
+}
+
+"""
+Input to set amount details received by the host
+"""
+input OrderDetailsInput {
+  totalAmount: AmountInput
+  paymentProcessorFeesAmount: AmountInput
+  platformTipAmount: AmountInput
 }
 
 type CreditCardWithStripeError {
