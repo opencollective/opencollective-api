@@ -754,9 +754,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           hostAdminUser,
         );
 
-        if (result.errors) {
-          console.log(result.errors);
-        }
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
 
