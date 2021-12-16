@@ -1,3 +1,4 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 import { get, pick } from 'lodash';
@@ -21,7 +22,7 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 
 async function createCollective(_, args, req) {
   let shouldAutomaticallyApprove = false;
-
+  const isProd = config.env === 'production';
   const { remoteUser, loaders } = req;
 
   let user = remoteUser,
@@ -52,6 +53,10 @@ async function createCollective(_, args, req) {
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
       };
 
+      if (!isProd && args.testPayload) {
+        collectiveData.data = args.testPayload.data;
+      }
+
       if (isCollectiveSlugReserved(collectiveData.slug)) {
         throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
       }
@@ -72,18 +77,20 @@ async function createCollective(_, args, req) {
         const opensourceHost = defaultHostCollective('opensource');
         host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
         try {
-          const githubAccount = await models.ConnectedAccount.findOne(
-            {
-              where: { CollectiveId: user.CollectiveId, service: 'github' },
-            },
-            { transaction },
-          );
-          if (!githubAccount) {
-            throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
+          // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
+          const bypassGithubValidation = !isProd && user.email.match(/.*test.*@opencollective.com$/);
+          if (!bypassGithubValidation) {
+            const githubAccount = await models.ConnectedAccount.findOne(
+              { where: { CollectiveId: user.CollectiveId, service: 'github' } },
+              { transaction },
+            );
+            if (!githubAccount) {
+              throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
+            }
+            // In e2e/CI environment, checkGithubAdmin and checkGithubStars will be stubbed
+            await github.checkGithubAdmin(githubHandle, githubAccount.token);
+            await github.checkGithubStars(githubHandle, githubAccount.token);
           }
-          // In e2e/CI environment, checkGithubAdmin and checkGithubStars will be stubbed
-          await github.checkGithubAdmin(githubHandle, githubAccount.token);
-          await github.checkGithubStars(githubHandle, githubAccount.token);
           shouldAutomaticallyApprove = true;
         } catch (error) {
           throw new ValidationFailed(error.message);
@@ -173,6 +180,10 @@ const createCollectiveMutation = {
     applicationData: {
       type: GraphQLJSON,
       description: 'Further information about collective applying to host',
+    },
+    testPayload: {
+      type: GraphQLJSON,
+      description: 'Additional data for the collective creation. This argument has no effect in production',
     },
   },
   resolve: (_, args, req) => {
