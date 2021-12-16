@@ -98,7 +98,7 @@ const cancelRecurringContributionMutation = gqlV2/* GraphQL */ `
 `;
 
 const processPendingOrderMutation = gqlV2/* GraphQL */ `
-  mutation ProcessPendingOrder($id: String!, $action: ProcessOrderAction!, $details: OrderDetailsInput) {
+  mutation ProcessPendingOrder($id: String!, $action: ProcessOrderAction!, $details: OrderUpdateInput) {
     processPendingOrder(order: { id: $id }, action: $action, details: $details) {
       id
       status
