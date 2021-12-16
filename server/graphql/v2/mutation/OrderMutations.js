@@ -319,37 +319,43 @@ const orderMutations = {
 
         const hasUpdates = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasUpdates) {
-          const { totalAmount, paymentProcessorFeesAmount, platformTipAmount } = args.order;
+          const getAmountInCents = amount => (amount ? amount.valueInCents || floatAmountToCents(amount.value) : 0);
           const host = await toAccount.getHostCollective();
-          if (totalAmount) {
-            if (totalAmount?.currency !== order.currency) {
-              throw new ValidationFailed('totalAmount currency must match expense currency');
+
+          const amount = getAmountInCents(args.order.amount);
+          const paymentProcessorFeesAmount = getAmountInCents(args.order.paymentProcessorFeesAmount);
+          const platformTipAmount = getAmountInCents(args.order.platformTipAmount);
+          if (amount) {
+            if (args.order.amount?.currency !== order.currency) {
+              throw new ValidationFailed('amount currency must match order currency');
             }
-            order.set('totalAmount', totalAmount.valueInCents || floatAmountToCents(totalAmount.value));
+
+            if (
+              args.order.paymentProcessorFeesAmount?.currency !== order.currency ||
+              args.order.paymentProcessorFeesAmount?.currency !== host.currency
+            ) {
+              throw new ValidationFailed('platformTipAmount currency must match order and host currency');
+            }
+            const totalAmount = amount + paymentProcessorFeesAmount;
+            order.set('totalAmount', totalAmount);
           }
           if (paymentProcessorFeesAmount) {
-            if (paymentProcessorFeesAmount?.currency !== host.currency) {
+            if (args.order.paymentProcessorFeesAmount?.currency !== host.currency) {
               throw new ValidationFailed('paymentProcessorFeesAmount currency must match host currency');
             }
             if (!order.data) {
               order.set('data', {});
             }
-            order.set(
-              'data.paymentProcessorFeeInHostCurrency',
-              paymentProcessorFeesAmount.valueInCents || floatAmountToCents(paymentProcessorFeesAmount.value),
-            );
+            order.set('data.paymentProcessorFeeInHostCurrency', paymentProcessorFeesAmount);
           }
           if (platformTipAmount) {
-            if (platformTipAmount?.currency !== order.currency) {
+            if (args.order.platformTipAmount?.currency !== order.currency) {
               throw new ValidationFailed('platformTipAmount currency must match order currency');
             }
             if (!order.data) {
               order.set('data', {});
             }
-            order.set(
-              'data.platformTip',
-              platformTipAmount.valueInCents || floatAmountToCents(platformTipAmount.value),
-            );
+            order.set('data.platformTip', platformTipAmount);
           }
           await order.save();
         }

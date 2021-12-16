@@ -13,14 +13,18 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
       type: GraphQLInt,
       description: 'The legacy public id identifying the order (ie: 4242)',
     },
-    totalAmount: {
+    amount: {
       type: AmountInput,
+      description: 'Amount received by host including platform tip',
     },
     paymentProcessorFeesAmount: {
       type: AmountInput,
+      description:
+        'Amount paid in fees for the payment processor, the difference between the intended order and what was received in the host account',
     },
     platformTipAmount: {
       type: AmountInput,
+      description: 'Amount intended as tip for the platform',
     },
   }),
 });

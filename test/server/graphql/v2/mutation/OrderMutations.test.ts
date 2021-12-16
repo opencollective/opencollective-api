@@ -698,7 +698,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    describe.only('processPendingOrder', () => {
+    describe('processPendingOrder', () => {
       beforeEach(async () => {
         order = await fakeOrder({
           CreatedByUserId: user.id,
@@ -751,8 +751,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             action: 'MARK_AS_PAID',
             order: {
               id: idEncode(order.id, 'order'),
-              totalAmount: { valueInCents: 10200, currency: 'USD' },
-              paymentProcessorFeesAmount: { valueInCents: 100, currency: 'USD' },
+              amount: { valueInCents: 10100, currency: 'USD' },
+              paymentProcessorFeesAmount: { valueInCents: 50, currency: 'USD' },
               platformTipAmount: { valueInCents: 100, currency: 'USD' },
             },
           },
@@ -764,9 +764,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
         const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
-        expect(contribution).to.have.property('amount').equal(10100);
+        expect(contribution).to.have.property('amount').equal(10050);
         expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(10000);
-        expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-100);
+        expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-50);
         expect(contribution).to.have.nested.property('data.platformTip').equal(100);
 
         const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');

@@ -10084,8 +10084,20 @@ input OrderUpdateInput {
   The legacy public id identifying the order (ie: 4242)
   """
   legacyId: Int
-  totalAmount: AmountInput
+
+  """
+  Amount received by host including platform tip
+  """
+  amount: AmountInput
+
+  """
+  Amount paid in fees for the payment processor, the difference between the intended order and what was received in the host account
+  """
   paymentProcessorFeesAmount: AmountInput
+
+  """
+  Amount intended as tip for the platform
+  """
   platformTipAmount: AmountInput
 }
 
