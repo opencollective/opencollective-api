@@ -98,8 +98,8 @@ const cancelRecurringContributionMutation = gqlV2/* GraphQL */ `
 `;
 
 const processPendingOrderMutation = gqlV2/* GraphQL */ `
-  mutation ProcessPendingOrder($id: String!, $action: ProcessOrderAction!, $details: OrderUpdateInput) {
-    processPendingOrder(order: { id: $id }, action: $action, details: $details) {
+  mutation ProcessPendingOrder($action: ProcessOrderAction!, $order: OrderUpdateInput!) {
+    processPendingOrder(order: $order, action: $action) {
       id
       status
     }
@@ -698,7 +698,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    describe('processPendingOrder', () => {
+    describe.only('processPendingOrder', () => {
       beforeEach(async () => {
         order = await fakeOrder({
           CreatedByUserId: user.id,
@@ -715,12 +715,15 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const result = await graphqlQueryV2(
           processPendingOrderMutation,
           {
-            id: idEncode(order.id, 'order'),
+            order: {
+              id: idEncode(order.id, 'order'),
+            },
             action: 'MARK_AS_EXPIRED',
           },
           hostAdminUser,
         );
 
+        result.errors && console.log(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('EXPIRED');
       });
@@ -729,7 +732,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const result = await graphqlQueryV2(
           processPendingOrderMutation,
           {
-            id: idEncode(order.id, 'order'),
+            order: {
+              id: idEncode(order.id, 'order'),
+            },
             action: 'MARK_AS_PAID',
           },
           hostAdminUser,
@@ -743,9 +748,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const result = await graphqlQueryV2(
           processPendingOrderMutation,
           {
-            id: idEncode(order.id, 'order'),
             action: 'MARK_AS_PAID',
-            details: {
+            order: {
+              id: idEncode(order.id, 'order'),
               totalAmount: { valueInCents: 10200, currency: 'USD' },
               paymentProcessorFeesAmount: { valueInCents: 100, currency: 'USD' },
               platformTipAmount: { valueInCents: 100, currency: 'USD' },
