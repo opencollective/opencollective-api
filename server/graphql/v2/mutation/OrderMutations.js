@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil, isNull, isUndefined } from 'lodash';
+import { difference, isEmpty, isNil, isNull, isUndefined, keys } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
@@ -298,13 +298,10 @@ const orderMutations = {
     description: 'A mutation for the host to approve or reject an order',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(OrderUpdateInput),
       },
       action: {
         type: new GraphQLNonNull(ProcessOrderAction),
-      },
-      orderUpdate: {
-        type: OrderUpdateInput,
       },
     },
     async resolve(_, args, req) {
@@ -320,8 +317,9 @@ const orderMutations = {
           throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
         }
 
-        if (args?.details) {
-          const { totalAmount, paymentProcessorFeesAmount, platformTipAmount } = args.details;
+        const hasUpdates = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        if (hasUpdates) {
+          const { totalAmount, paymentProcessorFeesAmount, platformTipAmount } = args.order;
           const host = await toAccount.getHostCollective();
           if (totalAmount) {
             if (totalAmount?.currency !== order.currency) {
