@@ -19,8 +19,8 @@ import { getDecodedId } from '../identifiers';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
-import { OrderDetailsInput } from '../input/OrderDetailsInput';
 import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
+import { OrderUpdateInput } from '../input/OrderUpdateInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
@@ -303,8 +303,8 @@ const orderMutations = {
       action: {
         type: new GraphQLNonNull(ProcessOrderAction),
       },
-      details: {
-        type: OrderDetailsInput,
+      orderUpdate: {
+        type: OrderUpdateInput,
       },
     },
     async resolve(_, args, req) {

@@ -6940,7 +6940,7 @@ type Mutation {
   """
   A mutation for the host to approve or reject an order
   """
-  processPendingOrder(order: OrderReferenceInput!, action: ProcessOrderAction!, details: OrderDetailsInput): Order!
+  processPendingOrder(order: OrderReferenceInput!, action: ProcessOrderAction!, orderUpdate: OrderUpdateInput): Order!
 
   """
   Add a new payment method to be used with an Order
@@ -10089,10 +10089,7 @@ enum ProcessOrderAction {
   MARK_AS_PAID
 }
 
-"""
-Input to set amount details received by the host
-"""
-input OrderDetailsInput {
+input OrderUpdateInput {
   totalAmount: AmountInput
   paymentProcessorFeesAmount: AmountInput
   platformTipAmount: AmountInput
