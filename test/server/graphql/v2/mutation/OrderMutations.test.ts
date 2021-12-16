@@ -698,7 +698,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    describe.only('processPendingOrder', () => {
+    describe('processPendingOrder', () => {
       beforeEach(async () => {
         order = await fakeOrder({
           CreatedByUserId: user.id,
@@ -751,22 +751,28 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             action: 'MARK_AS_PAID',
             order: {
               id: idEncode(order.id, 'order'),
-              totalAmount: { valueInCents: 10200, currency: 'USD' },
-              paymentProcessorFeesAmount: { valueInCents: 100, currency: 'USD' },
-              platformTipAmount: { valueInCents: 100, currency: 'USD' },
+              amount: 10000,
+              paymentProcessorFee: 50,
+              platformTip: 100,
             },
           },
           hostAdminUser,
         );
 
+        result.errors && console.log(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
 
+        await order.reload();
+        expect(order).to.have.property('totalAmount').equal(10100);
+        expect(order).to.have.nested.property('data.platformTip').equal(100);
+        expect(order).to.have.nested.property('data.platformFee').equal(100);
+
         const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
         const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
-        expect(contribution).to.have.property('amount').equal(10100);
-        expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(10000);
-        expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-100);
+        expect(contribution).to.have.property('amount').equal(10000);
+        expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(9950);
+        expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-50);
         expect(contribution).to.have.nested.property('data.platformTip').equal(100);
 
         const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');

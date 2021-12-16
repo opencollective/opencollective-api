@@ -10084,9 +10084,21 @@ input OrderUpdateInput {
   The legacy public id identifying the order (ie: 4242)
   """
   legacyId: Int
-  totalAmount: AmountInput
-  paymentProcessorFeesAmount: AmountInput
-  platformTipAmount: AmountInput
+
+  """
+  Amount received by collective, excluding any tips or fees, in order currency in cents
+  """
+  amount: Int
+
+  """
+  Amount paid in fees for the payment processor in order currency in cents
+  """
+  paymentProcessorFee: Int
+
+  """
+  Amount intended as tip for the platform in order currency in cents
+  """
+  platformTip: Int
 }
 
 """

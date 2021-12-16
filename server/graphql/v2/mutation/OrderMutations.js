@@ -3,7 +3,6 @@ import { difference, isEmpty, isNil, isNull, isUndefined, keys } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
-import { floatAmountToCents } from '../../../lib/math';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
@@ -319,37 +318,25 @@ const orderMutations = {
 
         const hasUpdates = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasUpdates) {
-          const { totalAmount, paymentProcessorFeesAmount, platformTipAmount } = args.order;
-          const host = await toAccount.getHostCollective();
-          if (totalAmount) {
-            if (totalAmount?.currency !== order.currency) {
-              throw new ValidationFailed('totalAmount currency must match expense currency');
-            }
-            order.set('totalAmount', totalAmount.valueInCents || floatAmountToCents(totalAmount.value));
+          const { amount, paymentProcessorFee, platformTip } = args.order;
+
+          if (amount) {
+            const totalAmount = amount + platformTip;
+            order.set('totalAmount', totalAmount);
           }
-          if (paymentProcessorFeesAmount) {
-            if (paymentProcessorFeesAmount?.currency !== host.currency) {
-              throw new ValidationFailed('paymentProcessorFeesAmount currency must match host currency');
-            }
+          if (paymentProcessorFee) {
             if (!order.data) {
               order.set('data', {});
             }
-            order.set(
-              'data.paymentProcessorFeeInHostCurrency',
-              paymentProcessorFeesAmount.valueInCents || floatAmountToCents(paymentProcessorFeesAmount.value),
-            );
+            order.set('data.paymentProcessorFee', paymentProcessorFee);
           }
-          if (platformTipAmount) {
-            if (platformTipAmount?.currency !== order.currency) {
-              throw new ValidationFailed('platformTipAmount currency must match order currency');
-            }
+          if (platformTip) {
             if (!order.data) {
               order.set('data', {});
             }
-            order.set(
-              'data.platformTip',
-              platformTipAmount.valueInCents || floatAmountToCents(platformTipAmount.value),
-            );
+            order.set('data.platformTip', platformTip);
+            // Some parts of the order flow still uses data.platformFee
+            order.set('data.platformFee', platformTip);
           }
           await order.save();
         }
