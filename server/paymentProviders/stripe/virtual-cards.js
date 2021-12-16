@@ -98,6 +98,16 @@ export const updateVirtualCardMonthlyLimit = async (virtualCard, monthlyLimit) =
   });
 };
 
+export const deleteCard = async virtualCard => {
+  const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
+  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+  const stripe = getStripeClient(host.slug, connectedAccount.token);
+
+  return stripe.issuing.cards.update(virtualCard.id, {
+    status: 'canceled',
+  });
+};
+
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
 

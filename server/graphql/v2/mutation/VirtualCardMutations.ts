@@ -357,7 +357,11 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
-      await privacy.deleteCard(virtualCard);
+      const providerService = virtualCard.provider === 'STRIPE' ? stripe : privacy;
+
+      await providerService.deleteCard(virtualCard);
+      await virtualCard.destroy();
+
       return true;
     },
   },
