@@ -1361,7 +1361,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
 export async function markExpenseAsUnpaid(
   req: express.Request,
   expenseId: number,
-  processorFeeRefunded: boolean,
+  shouldRefundPaymentProcessorFee: boolean,
 ): Promise<typeof models.Expense> {
   const { remoteUser } = req;
 
@@ -1397,7 +1397,9 @@ export async function markExpenseAsUnpaid(
       include: [{ model: models.Expense }],
     });
 
-    const paymentProcessorFeeInHostCurrency = processorFeeRefunded ? transaction.paymentProcessorFeeInHostCurrency : 0;
+    const paymentProcessorFeeInHostCurrency = shouldRefundPaymentProcessorFee
+      ? transaction.paymentProcessorFeeInHostCurrency
+      : 0;
     await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
 
     return expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });

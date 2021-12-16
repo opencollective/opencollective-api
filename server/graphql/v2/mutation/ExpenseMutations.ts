@@ -242,8 +242,11 @@ const expenseMutations = {
           fields: () => ({
             paymentProcessorFee: {
               type: GraphQLInt,
-              description:
-                'The fee charged by payment processor in collective currency, or the fee refunded when used with MARK_AS_UNPAID',
+              description: 'The fee charged by payment processor in collective currency',
+            },
+            shouldRefundPaymentProcessorFee: {
+              type: GraphQLBoolean,
+              description: 'Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID',
             },
             forceManual: {
               type: GraphQLBoolean,
@@ -278,7 +281,11 @@ const expenseMutations = {
         case 'MARK_AS_SPAM':
           return markExpenseAsSpam(req, expense);
         case 'MARK_AS_UNPAID':
-          return markExpenseAsUnpaid(req, expense.id, args.paymentParams?.paymentProcessorFee);
+          return markExpenseAsUnpaid(
+            req,
+            expense.id,
+            args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
+          );
         case 'SCHEDULE_FOR_PAYMENT':
           return scheduleExpenseForPayment(req, expense, args.paymentParams?.feesPayer);
         case 'UNSCHEDULE_PAYMENT':
