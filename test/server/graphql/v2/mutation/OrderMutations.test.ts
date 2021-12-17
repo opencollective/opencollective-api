@@ -34,7 +34,7 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
         amount {
           valueInCents
         }
-        platformContributionAmount {
+        platformTipAmount {
           valueInCents
         }
         fromAccount {
@@ -224,7 +224,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             order: {
               ...validOrderParams,
               toAccount: { legacyId: collectiveWithoutPlaformFee.id },
-              platformContributionAmount: {
+              platformTipAmount: {
                 valueInCents: 2500,
               },
             },
@@ -236,7 +236,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors).to.not.exist;
         const order = result.data.createOrder.order;
         expect(order.amount.valueInCents).to.eq(5000);
-        expect(order.platformContributionAmount.valueInCents).to.eq(2500);
+        expect(order.platformTipAmount.valueInCents).to.eq(2500);
       });
 
       it('can add taxes', async () => {
