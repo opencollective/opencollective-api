@@ -1,5 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
+import { AmountInput } from './AmountInput';
+
 export const OrderUpdateInput = new GraphQLInputObjectType({
   name: 'OrderUpdateInput',
   fields: () => ({
@@ -12,16 +14,16 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
       description: 'The legacy public id identifying the order (ie: 4242)',
     },
     amount: {
-      type: GraphQLInt,
-      description: 'Amount received by collective, excluding any tips or fees, in order currency in cents',
+      type: AmountInput,
+      description: 'Amount received by collective, excluding any tips or fees',
     },
     paymentProcessorFee: {
-      type: GraphQLInt,
-      description: 'Amount paid in fees for the payment processor in order currency in cents',
+      type: AmountInput,
+      description: 'Amount paid in fees for the payment processor',
     },
     platformTip: {
-      type: GraphQLInt,
-      description: 'Amount intended as tip for the platform in order currency in cents',
+      type: AmountInput,
+      description: 'Amount intended as tip for the platform',
     },
   }),
 });

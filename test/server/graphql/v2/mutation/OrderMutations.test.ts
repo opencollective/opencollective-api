@@ -751,9 +751,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             action: 'MARK_AS_PAID',
             order: {
               id: idEncode(order.id, 'order'),
-              amount: 10000,
-              paymentProcessorFee: 50,
-              platformTip: 100,
+              amount: { valueInCents: 10000, currency: order.currency },
+              paymentProcessorFee: { valueInCents: 50, currency: order.currency },
+              platformTip: { valueInCents: 100, currency: order.currency },
             },
           },
           hostAdminUser,

@@ -316,27 +316,44 @@ const orderMutations = {
           throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
         }
 
-        const hasUpdates = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
-        if (hasUpdates) {
+        const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        if (hasAmounts) {
           const { amount, paymentProcessorFee, platformTip } = args.order;
-
           if (amount) {
-            const totalAmount = amount + platformTip;
+            if (amount.currency !== order.currency) {
+              throw new ValidationFailed('Amount currency must match order currency.');
+            }
+            if (platformTip.currency !== order.currency) {
+              throw new ValidationFailed('Platform tip currency must match order currency.');
+            }
+
+            const amountInCents = getValueInCentsFromAmountInput(amount);
+            const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+            const totalAmount = amountInCents + platformTipInCents;
             order.set('totalAmount', totalAmount);
           }
           if (paymentProcessorFee) {
+            if (paymentProcessorFee.currency !== order.currency) {
+              throw new ValidationFailed('Payment processor fee currency must match order currency.');
+            }
             if (!order.data) {
               order.set('data', {});
             }
-            order.set('data.paymentProcessorFee', paymentProcessorFee);
+
+            const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+            order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
           }
           if (platformTip) {
+            if (platformTip.currency !== order.currency) {
+              throw new ValidationFailed('Platform tip currency must match order currency.');
+            }
+            const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             if (!order.data) {
               order.set('data', {});
             }
-            order.set('data.platformTip', platformTip);
+            order.set('data.platformTip', platformTipInCents);
             // Some parts of the order flow still uses data.platformFee
-            order.set('data.platformFee', platformTip);
+            order.set('data.platformFee', platformTipInCents);
           }
           await order.save();
         }

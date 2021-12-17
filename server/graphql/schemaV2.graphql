@@ -10086,19 +10086,19 @@ input OrderUpdateInput {
   legacyId: Int
 
   """
-  Amount received by collective, excluding any tips or fees, in order currency in cents
+  Amount received by collective, excluding any tips or fees
   """
-  amount: Int
+  amount: AmountInput
 
   """
-  Amount paid in fees for the payment processor in order currency in cents
+  Amount paid in fees for the payment processor
   """
-  paymentProcessorFee: Int
+  paymentProcessorFee: AmountInput
 
   """
-  Amount intended as tip for the platform in order currency in cents
+  Amount intended as tip for the platform
   """
-  platformTip: Int
+  platformTip: AmountInput
 }
 
 """
