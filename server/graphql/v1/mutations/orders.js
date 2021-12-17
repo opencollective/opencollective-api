@@ -203,6 +203,7 @@ async function checkCaptcha(order, remoteUser, reqIp) {
   }
 
   if (response.success !== true) {
+    logger.warn('Captcha verification failed:', response);
     throw new BadRequest('Captcha verification failed');
   }
 
