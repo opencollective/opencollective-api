@@ -323,7 +323,7 @@ const orderMutations = {
             if (amount.currency !== order.currency) {
               throw new ValidationFailed('Amount currency must match order currency.');
             }
-            if (platformTip.currency !== order.currency) {
+            if (platformTip && platformTip.currency !== order.currency) {
               throw new ValidationFailed('Platform tip currency must match order currency.');
             }
 
