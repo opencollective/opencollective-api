@@ -2,7 +2,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { activities } from '../../../constants';
+import { activities, frequencies, providers } from '../../../constants';
 import logger from '../../../lib/logger';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
@@ -63,7 +63,7 @@ const virtualCardMutations = {
         });
       }
 
-      const providerService = args.virtualCard.provider === 'STRIPE' ? stripe : privacy;
+      const providerService = args.virtualCard.provider === providers.STRIPE ? stripe : privacy;
 
       const virtualCard = await providerService.assignCardToCollective(
         cardNumber,
@@ -202,7 +202,7 @@ const virtualCardMutations = {
         });
 
         const user = await userCollective.getUser();
-        
+
         if (!user) {
           throw new BadRequest('Could not find the assigned user');
         }
@@ -214,7 +214,11 @@ const virtualCardMutations = {
         updateAttributes['name'] = args.name;
       }
 
-      if (args.monthlyLimit && virtualCard.spendingLimitInterval === 'MONTHLY' && virtualCard.provider === 'STRIPE') {
+      if (
+        args.monthlyLimit &&
+        virtualCard.spendingLimitInterval === frequencies.MONTHLY &&
+        virtualCard.provider === providers.STRIPE
+      ) {
         const monthlyLimitInCents = args.monthlyLimit.valueInCents;
 
         if (monthlyLimitInCents > 100000) {
@@ -357,7 +361,7 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
-      const providerService = virtualCard.provider === 'STRIPE' ? stripe : privacy;
+      const providerService = virtualCard.provider === providers.STRIPE ? stripe : privacy;
 
       await providerService.deleteCard(virtualCard);
       await virtualCard.destroy();
