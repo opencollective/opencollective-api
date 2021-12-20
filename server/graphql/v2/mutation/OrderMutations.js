@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil, isNull, isUndefined } from 'lodash';
+import { difference, isEmpty, isNil, isNull, isUndefined, keys } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
@@ -19,6 +19,7 @@ import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
 import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
+import { OrderUpdateInput } from '../input/OrderUpdateInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
@@ -296,7 +297,7 @@ const orderMutations = {
     description: 'A mutation for the host to approve or reject an order',
     args: {
       order: {
-        type: new GraphQLNonNull(OrderReferenceInput),
+        type: new GraphQLNonNull(OrderUpdateInput),
       },
       action: {
         type: new GraphQLNonNull(ProcessOrderAction),
@@ -313,6 +314,48 @@ const orderMutations = {
       if (args.action === 'MARK_AS_PAID') {
         if (!(await canMarkAsPaid(req, order))) {
           throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
+        }
+
+        const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        if (hasAmounts) {
+          const { amount, paymentProcessorFee, platformTip } = args.order;
+          if (amount) {
+            if (amount.currency !== order.currency) {
+              throw new ValidationFailed('Amount currency must match order currency.');
+            }
+            if (platformTip && platformTip.currency !== order.currency) {
+              throw new ValidationFailed('Platform tip currency must match order currency.');
+            }
+
+            const amountInCents = getValueInCentsFromAmountInput(amount);
+            const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
+            const totalAmount = amountInCents + platformTipInCents;
+            order.set('totalAmount', totalAmount);
+          }
+          if (paymentProcessorFee) {
+            if (paymentProcessorFee.currency !== order.currency) {
+              throw new ValidationFailed('Payment processor fee currency must match order currency.');
+            }
+            if (!order.data) {
+              order.set('data', {});
+            }
+
+            const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
+            order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
+          }
+          if (platformTip) {
+            if (platformTip.currency !== order.currency) {
+              throw new ValidationFailed('Platform tip currency must match order currency.');
+            }
+            const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
+            if (!order.data) {
+              order.set('data', {});
+            }
+            order.set('data.platformTip', platformTipInCents);
+            // Some parts of the order flow still uses data.platformFee
+            order.set('data.platformFee', platformTipInCents);
+          }
+          await order.save();
         }
 
         return order.markAsPaid(req.remoteUser);
