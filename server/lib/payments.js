@@ -6,6 +6,7 @@ import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
@@ -323,8 +324,8 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         : transaction;
 
       // If the fees were not charged on the collective, we don't need to refund them.
-      const feesPayer = transaction.data?.feesPayer || 'COLLECTIVE';
-      if (feesPayer === 'COLLECTIVE') {
+      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+      if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
         // Host take at their charge the payment processor fee that is lost when refunding a transaction
         await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
       }
