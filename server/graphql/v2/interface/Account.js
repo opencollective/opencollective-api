@@ -6,7 +6,8 @@ import { assign, get, invert, isEmpty } from 'lodash';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
-import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { PayoutMethodTypes } from '../../../models/PayoutMethod';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
@@ -829,11 +830,20 @@ export const AccountFields = {
     type: new GraphQLList(PayoutMethod),
     description: 'The list of payout methods that this collective can use to get paid',
     async resolve(collective, _, req) {
-      if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
-        return null;
-      } else {
+      if (req.remoteUser && req.remoteUser.isAdminOfCollective(collective)) {
         return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
       }
+      // Exception for Fiscal Hosts so people can post Expense accross hosts
+      if (collective.isHostAccount) {
+        const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
+        for (const payoutMethod of payoutMethods) {
+          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, payoutMethod.id);
+        }
+        return payoutMethods.filter(
+          pm => pm.isSaved && [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type),
+        );
+      }
+      return null;
     },
   },
   paymentMethods: {
