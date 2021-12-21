@@ -837,7 +837,7 @@ export const AccountFields = {
       if (collective.isHostAccount) {
         const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
         for (const payoutMethod of payoutMethods) {
-          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, payoutMethod.id);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
         }
         return payoutMethods.filter(
           pm => pm.isSaved && [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type),
