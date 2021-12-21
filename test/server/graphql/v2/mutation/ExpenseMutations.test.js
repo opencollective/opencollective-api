@@ -1210,7 +1210,89 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           {
             expenseId: expense.id,
             action: 'MARK_AS_UNPAID',
-            paymentProcessorFee: 1, // Also refund payment processor fees
+            paymentParams: {
+              shouldRefundPaymentProcessorFee: true, // Also refund payment processor fees
+            },
+          },
+          hostAdmin,
+        );
+
+        // Check balances (post-refund)
+        // expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        // expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+        // console.log('Balances are ok');
+
+        // // Check transactions
+        // const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
+
+        // const debitTransaction = await getTransaction('DEBIT');
+        // const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
+        // expect(debitTransaction.amount).to.equal(-expense.amount + expectedFee);
+        // expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+        // expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+
+        // const creditTransaction = await getTransaction('CREDIT');
+        // expect(creditTransaction.amount).to.equal(expense.amount);
+        // expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
+        // expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+
+        const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
+        columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
+        const allTransactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'ASC']],
+        });
+        await preloadAssociationsForTransactions(allTransactions, columns);
+        snapshotTransactions(allTransactions, { columns });
+      });
+
+      it('pays 100% of the balance by putting the fees on the payee but do not refund processor fees', async () => {
+        const paymentProcessorFee = 575;
+        const fromOrganization = await fakeOrganization({ name: 'Facebook' });
+        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT', CollectiveId: fromOrganization.id });
+        const collective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
+        const expense = await fakeExpense({
+          amount: 10000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          FromCollectiveId: fromOrganization.id,
+        });
+
+        // Updates the balances
+        const initialOrgBalance = 42000;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: fromOrganization.id, amount: initialOrgBalance });
+
+        // Check initial balances
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Pay expense
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'PAY',
+          paymentParams: { paymentProcessorFee, forceManual: true, feesPayer: 'PAYEE' },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check balance (post-payment)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(0);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(
+          initialOrgBalance + expense.amount - paymentProcessorFee,
+        );
+
+        // Marks the expense as unpaid (aka. refund transaction)
+        await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'MARK_AS_UNPAID',
+            paymentParams: {
+              shouldRefundPaymentProcessorFee: false, // Do not refund payment processor fees
+            },
           },
           hostAdmin,
         );

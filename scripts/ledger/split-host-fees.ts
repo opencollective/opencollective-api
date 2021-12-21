@@ -142,11 +142,12 @@ const migrate = async () => {
       await PaymentLib.associateTransactionRefundId(hostFeeTransaction, hostFeeRefundTransaction);
 
       // Refund payment processor fee from the host to the collective
-      await PaymentLib.refundPaymentProcessorFeeToCollective(
+      await PaymentLib.createProcessorFeesCoverTransactions(
         credit,
+        credit.HostCollectiveId,
+        credit.CollectiveId,
         refundCredit.TransactionGroup,
-        transactionsData,
-        refundCredit.createdAt,
+        { data: transactionsData, createdAt: refundCredit.createdAt },
       );
     }
   }
