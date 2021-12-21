@@ -45,7 +45,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
   const hostCurrencyFxRate = await getFxRate(currency, host.currency);
   const description = `Virtual Card charge: ${vendor.name}`;
 
-  //Case when expense is already created after the stripe authorization request event
+  // Case when expense is already created after the stripe authorization request event
   if (transaction.fromAuthorizationId) {
     const processingExpense = await models.Expense.findOne({
       where: {

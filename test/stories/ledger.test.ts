@@ -516,4 +516,51 @@ describe('test/stories/ledger', () => {
       await refundTransaction(collective, host, contributorUser, baseOrderData);
     });
   });
+
+  describe('Level 5: Refund Expenses️', async () => {
+    const refundTransaction = async (collective, fromCollective, host, hostAdmin, contributorUser, baseOrderData) => {
+      const order = await fakeOrder(baseOrderData);
+      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await executeOrder(contributorUser, order);
+
+      const expense = await fakeExpense({
+        description: `Invoice #2`,
+        amount: 1000,
+        currency: host.currency,
+        FromCollectiveId: fromCollective.id,
+        CollectiveId: collective.id,
+        legacyPayoutMethod: 'manual',
+        status: 'APPROVED',
+      });
+
+      await payExpense({ remoteUser: hostAdmin } as any, {
+        id: expense.id,
+        forceManual: true,
+        paymentProcessorFeeInCollectiveCurrency: 0,
+      });
+
+      // ---- Refund transaction -----
+      const expenseTransaction = await models.Transaction.findOne({
+        where: { ExpenseId: expense.id, kind: TransactionKind.EXPENSE, type: 'DEBIT' },
+      });
+
+      const paymentMethod = libPayments.findPaymentMethodProvider(expense.PaymentMethod);
+      await paymentMethod.refundTransaction(expenseTransaction, 0, null, null);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+    };
+
+    it('Refund expense with same collective', async () => {
+      const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
+      await refundTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
+      expect(await collective.getBalance()).to.eq(9500);
+    });
+
+    it('Refund expense with different collectives', async () => {
+      const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
+      const secondCollective = await fakeCollective({ name: 'JHipster', HostCollectiveId: host.id });
+
+      await refundTransaction(collective, secondCollective, host, hostAdmin, contributorUser, baseOrderData);
+      expect(await secondCollective.getBalance()).to.eq(0);
+    });
+  });
 });
