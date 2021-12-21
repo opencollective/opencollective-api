@@ -217,7 +217,7 @@ export const Host = new GraphQLObjectType({
           const payoutMethod = payoutMethods.find(c => c.type === 'BANK_ACCOUNT' && c.data?.isManualBankTransfer);
           if (payoutMethod && get(collective, 'settings.paymentMethods.manual')) {
             // Make bank account's data public if manual payment method is enabled
-            allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DATA, payoutMethod.id);
+            allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id);
           }
 
           return payoutMethod;
