@@ -102,8 +102,6 @@ const deleteCard = async (virtualCard: VirtualCardModel): Promise<void> => {
     // eslint-disable-next-line camelcase
     await privacy.updateCard(connectedAccount.token, { card_token: virtualCard.id, state: 'CLOSED' });
   }
-
-  return virtualCard.destroy();
 };
 
 const autoPauseResumeCard = async (virtualCard: VirtualCardModel) => {

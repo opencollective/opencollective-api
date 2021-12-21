@@ -14,11 +14,3 @@ export const VirtualCardInput = new GraphQLInputObjectType({
     provider: { type: VirtualCardProvider },
   }),
 });
-
-export const VirtualCardUpdateInput = new GraphQLInputObjectType({
-  name: 'VirtualCardUpdateInput',
-  fields: () => ({
-    id: { type: GraphQLString },
-    privateData: { type: GraphQLJSONObject },
-  }),
-});
