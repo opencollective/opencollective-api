@@ -194,20 +194,32 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   if (parseToBoolean(config.ledger.separateHostFees)) {
     // We're handling host fees in separate transactions
     refund.hostFeeInHostCurrency = 0;
-    refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
+
+    // Adjust refunded payment processor fee based on the fees payer
+    const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      refund.paymentProcessorFeeInHostCurrency = 0;
+    } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
+      if (refundedPaymentProcessorFee) {
+        // If the fee gets refunded, we add it as a positive value on the refund transactions
+        refund.amountInHostCurrency += Math.abs(refundedPaymentProcessorFee);
+        refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
+      } else {
+        // Otherwise, payment processor fees are deducted from the refunded amount which means
+        // the collective will receive the original expense minus payment processor fees
+        refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
+        refund.amount += Math.abs(t.paymentProcessorFeeInHostCurrency);
+      }
+    }
+
+    // Re-compute the net amount
     refund.netAmountInCollectiveCurrency = netAmount(refund);
   }
 
   return refund;
 };
 
-export const createProcessorFeesCoverTransactions = async (
-  transaction,
-  refundFromCollectiveId,
-  refundToCollectiveId,
-  refundTransactionGroup,
-  attributes,
-) => {
+export const refundPaymentProcessorFeeToCollective = async (transaction, refundTransactionGroup, data, createdAt) => {
   if (!transaction.paymentProcessorFeeInHostCurrency) {
     return;
   }
@@ -216,12 +228,11 @@ export const createProcessorFeesCoverTransactions = async (
   const amountInHostCurrency = Math.abs(transaction.paymentProcessorFeeInHostCurrency);
   const amount = Math.round(amountInHostCurrency / hostCurrencyFxRate);
   await models.Transaction.createDoubleEntry({
-    ...attributes,
     type: CREDIT,
     kind: TransactionKind.PAYMENT_PROCESSOR_COVER,
-    CollectiveId: refundToCollectiveId,
-    FromCollectiveId: refundFromCollectiveId,
-    HostCollectiveId: refundFromCollectiveId,
+    CollectiveId: transaction.CollectiveId,
+    FromCollectiveId: transaction.HostCollectiveId,
+    HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
     ExpenseId: transaction.ExpenseId,
     description: 'Cover of payment processor fee for refund',
@@ -236,6 +247,8 @@ export const createProcessorFeesCoverTransactions = async (
     platformFeeInHostCurrency: 0,
     paymentProcessorFeeInHostCurrency: 0,
     hostFeeInHostCurrency: 0,
+    data,
+    createdAt,
   });
 };
 
@@ -324,33 +337,16 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
       );
     } else if (transaction.paymentProcessorFeeInHostCurrency) {
-      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
       // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
       const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
         ? await transaction.getRelatedTransaction({ type: DEBIT })
         : transaction;
 
       if (!refundedPaymentProcessorFee) {
+        const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
         if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
           // Host take at their charge the payment processor fee that is lost when refunding a transaction
-          await createProcessorFeesCoverTransactions(
-            transactionToRefundPaymentProcessorFee,
-            transactionToRefundPaymentProcessorFee.HostCollectiveId,
-            transactionToRefundPaymentProcessorFee.CollectiveId,
-            transactionGroup,
-          );
-        }
-      } else {
-        if (feesPayer === ExpenseFeesPayer.PAYEE) {
-          // We don't want payees to end up with a negative balance when fees are refunded,
-          // so we're taking them back from the collective to the payee - which means the collective
-          // won't be refunded for the full amount
-          await createProcessorFeesCoverTransactions(
-            transactionToRefundPaymentProcessorFee,
-            transactionToRefundPaymentProcessorFee.CollectiveId,
-            transactionToRefundPaymentProcessorFee.FromCollectiveId,
-            transactionGroup,
-          );
+          await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
         }
       }
     }

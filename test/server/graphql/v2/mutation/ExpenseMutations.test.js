@@ -1217,25 +1217,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        // Check balances (post-refund)
-        // expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
-        // expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
-        // console.log('Balances are ok');
-
-        // // Check transactions
-        // const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
-
-        // const debitTransaction = await getTransaction('DEBIT');
-        // const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
-        // expect(debitTransaction.amount).to.equal(-expense.amount + expectedFee);
-        // expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount);
-        // expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
-
-        // const creditTransaction = await getTransaction('CREDIT');
-        // expect(creditTransaction.amount).to.equal(expense.amount);
-        // expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
-        // expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
-
+        // Snapshot
         const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
         columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
         const allTransactions = await models.Transaction.findAll({
@@ -1244,6 +1226,25 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
         await preloadAssociationsForTransactions(allTransactions, columns);
         snapshotTransactions(allTransactions, { columns });
+
+        // Check balances (post-refund)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Check individual transactions
+        await Promise.all(allTransactions.map(t => t.validate()));
+        const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
+
+        const debitTransaction = await getTransaction('DEBIT');
+        const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
+        expect(debitTransaction.amount).to.equal(-expense.amount + expectedFee);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+
+        const creditTransaction = await getTransaction('CREDIT');
+        expect(creditTransaction.amount).to.equal(expense.amount);
+        expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
+        expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
       });
 
       it('pays 100% of the balance by putting the fees on the payee but do not refund processor fees', async () => {
@@ -1297,11 +1298,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
+        // Snapshot
+        const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
+        columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
+        const allTransactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'ASC']],
+        });
+        await preloadAssociationsForTransactions(allTransactions, columns);
+        snapshotTransactions(allTransactions, { columns });
+
         // Check balances (post-refund)
-        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
-        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance - paymentProcessorFee);
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(9425); // Fees are lost in the process
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
 
         // Check transactions
+        await Promise.all(allTransactions.map(t => t.validate()));
         const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
 
         const debitTransaction = await getTransaction('DEBIT');
@@ -1314,15 +1326,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(creditTransaction.amount).to.equal(expense.amount);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
         expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
-
-        const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
-        columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
-        const allTransactions = await models.Transaction.findAll({
-          where: { ExpenseId: expense.id },
-          order: [['id', 'ASC']],
-        });
-        await preloadAssociationsForTransactions(allTransactions, columns);
-        snapshotTransactions(allTransactions, { columns });
       });
 
       it('can only put fees on the payee for bank account', async () => {
