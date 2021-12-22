@@ -519,18 +519,21 @@ const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromColle
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
       const pm = await models.PayoutMethod.findByPk(expenseData.payoutMethod.id);
-      if (!pm || !remoteUser.isAdmin(pm.CollectiveId)) {
-        throw new Error("This payout method does not exist or you don't have the permission to use it");
+      if (!pm) {
+        throw new Error('This payout method does not exist.');
       }
+      // Special case: Payout Method from the Host for "Expense Accross Hosts"
+      // No need for extra checks
       if (
-        // Payout Method from Collective
-        pm.CollectiveId !== fromCollective.id &&
-        // Bank Account or PayPal Payout Method from Host
-        !(
-          pm.CollectiveId === fromCollective.HostCollectiveId &&
-          [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type)
-        )
+        pm.CollectiveId === fromCollective.HostCollectiveId &&
+        [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type)
       ) {
+        return pm;
+      }
+      if (!remoteUser.isAdmin(pm.CollectiveId)) {
+        throw new Error("You don't have the permission to use this payout method.");
+      }
+      if (pm.CollectiveId !== fromCollective.id) {
         throw new Error('This payout method cannot be used for this collective');
       }
       return pm;
