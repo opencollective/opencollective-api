@@ -197,5 +197,8 @@
     "aesEncryptionIv": "",
     "aesEncryptionMethod": "aes-256-cbc",
     "apiUrl": "https://public-api.tgb-preprod.com/v1"
+  },
+  "twoFactorAuthentication": {
+    "enabled": true
   }
 }

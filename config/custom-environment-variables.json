@@ -205,5 +205,8 @@
     "aesEncryptionIv": "THEGIVINGBLOCK_AES_ENCRYPTION_IV",
     "aesEncryptionMethod": "THEGIVINGBLOCK_AES_ENCRYPTION_METHOD",
     "apiUrl": "THEGIVINGBLOCK_API_URL"
+  },
+  "twoFactorAuthentication": {
+    "enabled": "TWO_FACTOR_AUTHENTICATION_ENABLED"
   }
 }
