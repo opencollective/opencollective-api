@@ -15,6 +15,8 @@ import { VirtualCardInput } from '../input/VirtualCardInput';
 import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
 import { VirtualCard } from '../object/VirtualCard';
 
+const MAXIMUM_MONTHLY_LIMIT = 2000;
+
 const virtualCardMutations = {
   assignNewVirtualCard: {
     description: 'Assign Virtual Card information to existing hosted collective',
@@ -120,9 +122,9 @@ const virtualCardMutations = {
 
       const monthlyLimitInCents = args.monthlyLimit.valueInCents;
 
-      if (monthlyLimitInCents > 100000) {
-        throw new BadRequest(`Monthly limit should not exceed 1000 ${host.currency}`, undefined, {
-          monthlyLimit: `Monthly limit should not exceed 1000 ${host.currency}`,
+      if (monthlyLimitInCents > MAXIMUM_MONTHLY_LIMIT * 100) {
+        throw new BadRequest(`Monthly limit should not exceed ${MAXIMUM_MONTHLY_LIMIT} ${host.currency}`, undefined, {
+          monthlyLimit: `Monthly limit should not exceed ${MAXIMUM_MONTHLY_LIMIT} ${host.currency}`,
         });
       }
 
@@ -221,10 +223,14 @@ const virtualCardMutations = {
       ) {
         const monthlyLimitInCents = args.monthlyLimit.valueInCents;
 
-        if (monthlyLimitInCents > 100000) {
-          throw new BadRequest(`Monthly limit should not exceed 1000 ${virtualCard.currency}`, undefined, {
-            monthlyLimit: `Monthly limit should not exceed 1000 ${virtualCard.currency}`,
-          });
+        if (monthlyLimitInCents > MAXIMUM_MONTHLY_LIMIT * 100) {
+          throw new BadRequest(
+            `Monthly limit should not exceed ${MAXIMUM_MONTHLY_LIMIT} ${virtualCard.currency}`,
+            undefined,
+            {
+              monthlyLimit: `Monthly limit should not exceed ${MAXIMUM_MONTHLY_LIMIT} ${virtualCard.currency}`,
+            },
+          );
         }
 
         updateAttributes['spendingLimitAmount'] = monthlyLimitInCents;
