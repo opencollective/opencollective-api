@@ -146,6 +146,11 @@ const processExpenseMutation = gqlV2/* GraphQL */ `
   }
 `;
 
+const REFUND_SNAPSHOT_COLS = [
+  ...['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'],
+  ...['amount', 'amountInHostCurrency', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency'],
+];
+
 /** A small helper to prepare an expense item to be submitted to GQLV2 */
 const convertExpenseItemId = item => {
   return item?.id ? { ...item, id: idEncode(item.id, IDENTIFIER_TYPES.EXPENSE_ITEM) } : item;
@@ -1217,15 +1222,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        // Snapshot
-        const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
-        columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
         const allTransactions = await models.Transaction.findAll({
           where: { ExpenseId: expense.id },
           order: [['id', 'ASC']],
         });
-        await preloadAssociationsForTransactions(allTransactions, columns);
-        snapshotTransactions(allTransactions, { columns });
+
+        // Snapshot
+        await preloadAssociationsForTransactions(allTransactions, REFUND_SNAPSHOT_COLS);
+        snapshotTransactions(allTransactions, { columns: REFUND_SNAPSHOT_COLS });
 
         // Check balances (post-refund)
         expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
@@ -1298,15 +1302,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           hostAdmin,
         );
 
-        // Snapshot
-        const columns = ['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'];
-        columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
         const allTransactions = await models.Transaction.findAll({
           where: { ExpenseId: expense.id },
           order: [['id', 'ASC']],
         });
-        await preloadAssociationsForTransactions(allTransactions, columns);
-        snapshotTransactions(allTransactions, { columns });
+
+        // Snapshot
+        await preloadAssociationsForTransactions(allTransactions, REFUND_SNAPSHOT_COLS);
+        snapshotTransactions(allTransactions, { columns: REFUND_SNAPSHOT_COLS });
 
         // Check balances (post-refund)
         expect(await collective.getBalanceWithBlockedFunds()).to.eq(9425); // Fees are lost in the process

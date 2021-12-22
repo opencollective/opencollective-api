@@ -202,13 +202,13 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
       if (refundedPaymentProcessorFee) {
         // If the fee gets refunded, we add it as a positive value on the refund transactions
-        refund.amountInHostCurrency += Math.abs(refundedPaymentProcessorFee);
         refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
       } else {
         // Otherwise, payment processor fees are deducted from the refunded amount which means
-        // the collective will receive the original expense minus payment processor fees
+        // the collective will receive the original expense amount minus payment processor fees
         refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-        refund.amount += Math.abs(t.paymentProcessorFeeInHostCurrency);
+        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+        refund.paymentProcessorFeeInHostCurrency = 0;
       }
     }
 
@@ -342,12 +342,10 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
         ? await transaction.getRelatedTransaction({ type: DEBIT })
         : transaction;
 
-      if (!refundedPaymentProcessorFee) {
-        const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-        if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-          // Host take at their charge the payment processor fee that is lost when refunding a transaction
-          await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
-        }
+      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+      if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+        // Host take at their charge the payment processor fee that is lost when refunding a transaction
+        await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
       }
     }
   }
