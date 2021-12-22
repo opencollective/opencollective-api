@@ -194,7 +194,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     // We're handling payment processor fees and host fees in separate transactions
     refund.hostFeeInHostCurrency = 0;
     refund.paymentProcessorFeeInHostCurrency = 0;
-    refund.netAmountInCollectiveCurrency = -netAmount({ ...t, paymentProcessorFeeInHostCurrency: 0 });
+    refund.netAmountInCollectiveCurrency = netAmount(refund);
   }
 
   return refund;
