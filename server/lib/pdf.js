@@ -51,6 +51,11 @@ export const getConsolidatedInvoicesData = async fromCollective => {
     [Op.or]: [{ FromCollectiveId: fromAccountCondition }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
   };
 
+  // If collective is a Host account, we'll ignore receipts that were fulfilled by the same host
+  if (fromCollective.isHostAccount) {
+    where['HostCollectiveId'] = { [Op.ne]: fromCollective.id };
+  }
+
   const transactions = await models.Transaction.findAll({
     attributes: ['createdAt', 'HostCollectiveId'],
     where,
