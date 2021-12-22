@@ -674,7 +674,6 @@ export const sendOrderProcessingEmail = async order => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
-  const parentCollective = await collective.getParentCollective();
   const manualPayoutMethod = await models.PayoutMethod.findOne({
     where: { CollectiveId: host.id, data: { isManualBankTransfer: true } },
   });
@@ -695,7 +694,7 @@ export const sendOrderProcessingEmail = async order => {
       account,
       reference: order.id,
       amount: formatCurrency(order.totalAmount, order.currency, 2),
-      collective: parentCollective ? `${parentCollective.slug} event` : order.collective.slug,
+      collective: order.collective.name,
       tier: get(order, 'tier.slug') || get(order, 'tier.name'),
       // @deprecated but we still have some entries in the DB
       OrderId: order.id,
