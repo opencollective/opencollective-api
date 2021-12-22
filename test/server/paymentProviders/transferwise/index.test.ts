@@ -447,7 +447,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     it('should fail if batchGroup status !== NEW', async () => {
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [], status: 'COMPLETED' });
       const call = transferwise.payExpensesBatchGroup(host, [expense]);
-      await expect(call).to.be.eventually.rejectedWith(Error, `Can not pay batch group, status !== NEW`);
+      await expect(call).to.be.eventually.rejectedWith(Error, `Can not pay batch group, existing batch group was already processed`);
     });
 
     it('should fail if batchGroup does not contain every expense', async () => {
