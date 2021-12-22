@@ -68,18 +68,18 @@ export async function payBatch(
 
     expenses.forEach(expense => {
       if (expense.status !== expenseStatus.SCHEDULED_FOR_PAYMENT) {
-        throw new Error('Expense must be scheduled for payment');
+        throw new Error(`Expense ${expense.id} must be scheduled for payment`);
       }
     });
 
     if (expenseIds.length !== expenses.length) {
       logger.error(
-        `Wise Batch Pay: Could not find every requested expense. ${JSON.stringify({
+        `Wise Batch Pay: Could not find all requested expenses. ${JSON.stringify({
           requested: expenseIds,
           found: expenses.map(e => e.id),
         })}`,
       );
-      throw new errors.NotFound('Could not find every expense requested');
+      throw new errors.NotFound('Could not find requested expenses');
     }
     const ottHeader = headers['x-2fa-approval'] as string;
 

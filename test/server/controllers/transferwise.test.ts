@@ -126,7 +126,7 @@ describe('server/controllers/transferwise', () => {
 
     expect(res.status.called).to.be.true;
     expect(res.status.firstCall.firstArg).to.equal(404);
-    expect(res.send.firstCall.firstArg).to.equal('Error: Could not find every expense requested');
+    expect(res.send.firstCall.firstArg).to.equal('Error: Could not find requested expenses');
   });
 
   it('should throw if an expense is not scheduled for payment', async () => {
@@ -135,7 +135,7 @@ describe('server/controllers/transferwise', () => {
 
     expect(res.status.called).to.be.true;
     expect(res.status.firstCall.firstArg).to.equal(500);
-    expect(res.send.firstCall.firstArg).to.equal('Error: Expense must be scheduled for payment');
+    expect(res.send.firstCall.firstArg).to.include('must be scheduled for payment');
   });
 
   it('should proxy OTT headers from TransferWise', async () => {
