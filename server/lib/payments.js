@@ -258,7 +258,13 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
  */
 export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data, user) {
   /* If the transaction passed isn't the one from the collective
-   * perspective, the opposite transaction is retrieved. */
+   * perspective, the opposite transaction is retrieved.
+   *
+   * However when the transaction is between the same collective (say an
+   * an expense from a collective to itself), then there will be no CREDIT
+   * transaction, and therefore we skip.
+   *
+   * */
   if (transaction.type === DEBIT && transaction.FromCollectiveId !== transaction.CollectiveId) {
     transaction = await transaction.getRelatedTransaction({ type: CREDIT });
   }
