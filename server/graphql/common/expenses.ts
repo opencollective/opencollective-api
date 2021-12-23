@@ -7,6 +7,8 @@ import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -1396,7 +1398,13 @@ export async function markExpenseAsUnpaid(
     }
 
     const transaction = await models.Transaction.findOne({
-      where: { ExpenseId: expenseId, RefundTransactionId: null },
+      where: {
+        ExpenseId: expenseId,
+        RefundTransactionId: null,
+        kind: TransactionKind.EXPENSE,
+        isRefund: false,
+        type: TransactionTypes.CREDIT,
+      },
       include: [{ model: models.Expense }],
     });
 
