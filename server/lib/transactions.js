@@ -1,4 +1,4 @@
-import { round, toNumber, truncate } from 'lodash';
+import { round, set, toNumber, truncate } from 'lodash';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
@@ -191,6 +191,7 @@ export async function createFromPaidExpense(
   if (expense.feesPayer === 'PAYEE') {
     transaction.amount += paymentProcessorFeeInCollectiveCurrency;
     transaction.netAmountInCollectiveCurrency += paymentProcessorFeeInCollectiveCurrency;
+    transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
   }
 
   return models.Transaction.createDoubleEntry(transaction);

@@ -6,6 +6,7 @@ import { find, get, includes, isNil, isNumber, omit, pick } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
+import { ExpenseFeesPayer } from '../constants/expense-fees-payer';
 import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import roles from '../constants/roles';
@@ -191,9 +192,27 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.isRefund = true;
 
   if (parseToBoolean(config.ledger.separateHostFees)) {
-    // We're handling payment processor fees and host fees in separate transactions
+    // We're handling host fees in separate transactions
     refund.hostFeeInHostCurrency = 0;
-    refund.paymentProcessorFeeInHostCurrency = 0;
+
+    // Adjust refunded payment processor fee based on the fees payer
+    const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      refund.paymentProcessorFeeInHostCurrency = 0;
+    } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
+      if (refundedPaymentProcessorFee) {
+        // If the fee gets refunded, we add it as a positive value on the refund transactions
+        refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
+      } else {
+        // Otherwise, payment processor fees are deducted from the refunded amount which means
+        // the collective will receive the original expense amount minus payment processor fees
+        refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
+        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+        refund.paymentProcessorFeeInHostCurrency = 0;
+      }
+    }
+
+    // Re-compute the net amount
     refund.netAmountInCollectiveCurrency = netAmount(refund);
   }
 
@@ -215,6 +234,7 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
     FromCollectiveId: transaction.HostCollectiveId,
     HostCollectiveId: transaction.HostCollectiveId,
     OrderId: transaction.OrderId,
+    ExpenseId: transaction.ExpenseId,
     description: 'Cover of payment processor fee for refund',
     isRefund: true,
     TransactionGroup: refundTransactionGroup,
@@ -321,8 +341,12 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
         ? await transaction.getRelatedTransaction({ type: DEBIT })
         : transaction;
-      // Host take at their charge the payment processor fee that is lost when refunding a transaction
-      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+
+      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+      if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+        // Host take at their charge the payment processor fee that is lost when refunding a transaction
+        await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
+      }
     }
   }
 

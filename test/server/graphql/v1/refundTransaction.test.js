@@ -269,6 +269,9 @@ describe('server/graphql/v1/refundTransaction', () => {
       // paymentMethod, an order and a transaction
       const { user, collective, host, transaction } = await setupTestObjects();
 
+      // Balance pre-refund
+      expect(await collective.getBalance()).to.eq(4075);
+
       // When the above transaction is refunded
       const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
 
@@ -291,15 +294,14 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(await collective.getBalance()).to.eq(0);
 
       // And two new transactions should be created in the
-      // database.  This only makes sense in an empty database. For
+      // database. This only makes sense in an empty database. For
       // order with subscriptions we'd probably find more than 4
       expect(allTransactions.length).to.equal(10);
-
-      const allContributions = allTransactions.filter(t => t.kind === 'CONTRIBUTION');
 
       // And then the transaction created for the refund operation
       // should decrement all the fees in the CREDIT from collective
       // to user.
+      const allContributions = allTransactions.filter(t => t.kind === 'CONTRIBUTION');
       const [tr1, tr2, tr3, tr4] = allContributions;
       const refunds = allTransactions.filter(t => t.isRefund);
       const processorFeeRefund = refunds.find(t => t.kind === 'PAYMENT_PROCESSOR_COVER' && t.type === 'CREDIT');

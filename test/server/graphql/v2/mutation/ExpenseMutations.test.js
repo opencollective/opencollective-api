@@ -22,6 +22,7 @@ import {
   fakeConnectedAccount,
   fakeExpense,
   fakeExpenseItem,
+  fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
   fakeTransaction,
@@ -144,6 +145,11 @@ const processExpenseMutation = gqlV2/* GraphQL */ `
     }
   }
 `;
+
+const REFUND_SNAPSHOT_COLS = [
+  ...['type', 'kind', 'isRefund', 'CollectiveId', 'FromCollectiveId'],
+  ...['amount', 'amountInHostCurrency', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency'],
+];
 
 /** A small helper to prepare an expense item to be submitted to GQLV2 */
 const convertExpenseItemId = item => {
@@ -1165,20 +1171,29 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(success.data.processExpense.status).to.eq('PAID');
       });
 
-      it('pays 100% of the balance and stores the fees as a separate transaction for payee', async () => {
+      it('pays 100% of the balance by putting the fees on the payee', async () => {
         const paymentProcessorFee = 575;
-        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT' });
-        const fromUser = await fakeUser({}, { name: 'Payee' });
+        const fromOrganization = await fakeOrganization({ name: 'Facebook' });
+        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT', CollectiveId: fromOrganization.id });
+        const collective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
         const expense = await fakeExpense({
           amount: 10000,
           CollectiveId: collective.id,
           status: 'APPROVED',
           PayoutMethodId: payoutMethod.id,
-          FromCollectiveId: fromUser.CollectiveId,
+          FromCollectiveId: fromOrganization.id,
         });
 
-        // Updates the collective balance and pay the expense
+        // Updates the balances
+        const initialOrgBalance = 42000;
         await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: fromOrganization.id, amount: initialOrgBalance });
+
+        // Check initial balances
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Pay expense
         const mutationParams = {
           expenseId: expense.id,
           action: 'PAY',
@@ -1188,7 +1203,40 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         result.errors && console.error(result.errors);
         expect(result.data.processExpense.status).to.eq('PAID');
 
-        // Check transactions
+        // Check balance (post-payment)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(0);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(
+          initialOrgBalance + expense.amount - paymentProcessorFee,
+        );
+
+        // Marks the expense as unpaid (aka. refund transaction)
+        await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'MARK_AS_UNPAID',
+            paymentParams: {
+              shouldRefundPaymentProcessorFee: true, // Also refund payment processor fees
+            },
+          },
+          hostAdmin,
+        );
+
+        const allTransactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'ASC']],
+        });
+
+        // Snapshot
+        await preloadAssociationsForTransactions(allTransactions, REFUND_SNAPSHOT_COLS);
+        snapshotTransactions(allTransactions, { columns: REFUND_SNAPSHOT_COLS });
+
+        // Check balances (post-refund)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Check individual transactions
+        await Promise.all(allTransactions.map(t => t.validate()));
         const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
 
         const debitTransaction = await getTransaction('DEBIT');
@@ -1201,12 +1249,86 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(creditTransaction.amount).to.equal(expense.amount);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
         expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+      });
 
-        const columns = ['type', 'kind', 'CollectiveId', 'FromCollectiveId'];
-        columns.push(...['amount', 'paymentProcessorFeeInHostCurrency', 'netAmountInCollectiveCurrency']);
-        const allTransactions = [debitTransaction, creditTransaction];
-        await preloadAssociationsForTransactions(allTransactions, columns);
-        snapshotTransactions(allTransactions, { columns });
+      it('pays 100% of the balance by putting the fees on the payee but do not refund processor fees', async () => {
+        const paymentProcessorFee = 575;
+        const fromOrganization = await fakeOrganization({ name: 'Facebook' });
+        const payoutMethod = await fakePayoutMethod({ type: 'BANK_ACCOUNT', CollectiveId: fromOrganization.id });
+        const collective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
+        const expense = await fakeExpense({
+          amount: 10000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          FromCollectiveId: fromOrganization.id,
+        });
+
+        // Updates the balances
+        const initialOrgBalance = 42000;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expense.amount });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: fromOrganization.id, amount: initialOrgBalance });
+
+        // Check initial balances
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(10000);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Pay expense
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'PAY',
+          paymentParams: { paymentProcessorFee, forceManual: true, feesPayer: 'PAYEE' },
+        };
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check balance (post-payment)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(0);
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(
+          initialOrgBalance + expense.amount - paymentProcessorFee,
+        );
+
+        // Marks the expense as unpaid (aka. refund transaction)
+        await graphqlQueryV2(
+          processExpenseMutation,
+          {
+            expenseId: expense.id,
+            action: 'MARK_AS_UNPAID',
+            paymentParams: {
+              shouldRefundPaymentProcessorFee: false, // Do not refund payment processor fees
+            },
+          },
+          hostAdmin,
+        );
+
+        const allTransactions = await models.Transaction.findAll({
+          where: { ExpenseId: expense.id },
+          order: [['id', 'ASC']],
+        });
+
+        // Snapshot
+        await preloadAssociationsForTransactions(allTransactions, REFUND_SNAPSHOT_COLS);
+        snapshotTransactions(allTransactions, { columns: REFUND_SNAPSHOT_COLS });
+
+        // Check balances (post-refund)
+        expect(await collective.getBalanceWithBlockedFunds()).to.eq(9425); // Fees are lost in the process
+        expect(await fromOrganization.getBalanceWithBlockedFunds()).to.eq(initialOrgBalance);
+
+        // Check transactions
+        await Promise.all(allTransactions.map(t => t.validate()));
+        const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
+
+        const debitTransaction = await getTransaction('DEBIT');
+        const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
+        expect(debitTransaction.amount).to.equal(-expense.amount + expectedFee);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
+
+        const creditTransaction = await getTransaction('CREDIT');
+        expect(creditTransaction.amount).to.equal(expense.amount);
+        expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount - expectedFee);
+        expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-expectedFee);
       });
 
       it('can only put fees on the payee for bank account', async () => {

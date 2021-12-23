@@ -43,7 +43,7 @@ export const refundTransaction = async (
   /* Create negative transactions for the received transaction */
   return await createRefundTransaction(
     transaction,
-    fees.stripeFee,
+    fees.stripeFee, // TODO: Ignoring `other` fees here could be a problem
     {
       ...transaction.data,
       refund,
