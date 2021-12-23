@@ -1,0 +1,49 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/graphql/v1/refundTransaction Stripe Transaction - for hosts created after September 17th 2017 should be able to refund a stripe transaction with zero decimal currencies 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount | paymentFee | platformFee | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------ | ---------- | ----------- | ----------------------------- |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -175   | 0          | 0           | -175                          |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 175    | 0          | 0           | 175                           |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -500   | 0          | 0           | -500                          |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 500    | 0          | 0           | 500                           |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -500   | 0          | 0           | -500                          |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 500    | 0          | 0           | 500                           |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -4575  | -175       | -250        | -5000                         |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 5000   | -175       | -250        | 4575                          |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -5000  | 0          | 250         | -4750                         |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 4750   | 0          | 250         | 5000                          |"
+`;
+
+exports[`server/graphql/v1/refundTransaction Stripe Transaction - for hosts created after September 17th 2017 should create negative transactions without the stripe fee being refunded 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount | paymentFee | platformFee | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------ | ---------- | ----------- | ----------------------------- |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -175   | 0          | 0           | -175                          |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 175    | 0          | 0           | 175                           |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -500   | 0          | 0           | -500                          |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 500    | 0          | 0           | 500                           |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -500   | 0          | 0           | -500                          |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 500    | 0          | 0           | 500                           |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -4575  | -175       | -250        | -5000                         |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 5000   | -175       | -250        | 4575                          |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -5000  | 0          | 250         | -4750                         |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 4750   | 0          | 250         | 5000                          |"
+`;
+
+exports[`server/graphql/v1/refundTransaction Stripe Transaction - for hosts created before September 17th 2017 should create negative transactions with all the fees refunded 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount | paymentFee | platformFee | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------ | ---------- | ----------- | ----------------------------- |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -500   | 0          | 0           | -500                          |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 500    | 0          | 0           | 500                           |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -4575  | -175       | -250        | -5000                         |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 5000   | -175       | -250        | 4575                          |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -175   | 0          | 0           | -175                          |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 175    | 0          | 0           | 175                           |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -500   | 0          | 0           | -500                          |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 500    | 0          | 0           | 500                           |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -5000  | 0          | 250         | -4750                         |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 4750   | 0          | 250         | 5000                          |"
+`;

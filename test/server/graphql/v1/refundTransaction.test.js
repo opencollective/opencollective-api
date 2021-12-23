@@ -20,6 +20,23 @@ const refundTransactionMutation = gql`
   }
 `;
 
+const snapshotTransactionsForRefund = async transactions => {
+  const columns = [
+    'type',
+    'kind',
+    'isRefund',
+    'CollectiveId',
+    'FromCollectiveId',
+    'amount',
+    'paymentProcessorFeeInHostCurrency',
+    'platformFeeInHostCurrency',
+    'netAmountInCollectiveCurrency',
+  ];
+
+  await utils.preloadAssociationsForTransactions(transactions, columns);
+  utils.snapshotTransactions(transactions, { columns });
+};
+
 /**
  * Handles the zero-decimal currencies for Stripe testing; https://stripe.com/docs/currencies#zero-decimal
  */
@@ -267,6 +284,12 @@ describe('server/graphql/v1/refundTransaction', () => {
         where: { OrderId: transaction.OrderId },
       });
 
+      // Snapshot
+      await snapshotTransactionsForRefund(allTransactions);
+
+      // Collective balance should go back to 0
+      expect(await collective.getBalance()).to.eq(0);
+
       // And two new transactions should be created in the
       // database.  This only makes sense in an empty database. For
       // order with subscriptions we'd probably find more than 4
@@ -315,7 +338,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr3.amount).to.equal(-5000);
       expect(tr3.amountInHostCurrency).to.equal(-5000);
-      expect(tr3.netAmountInCollectiveCurrency).to.equal(-5000);
+      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4750);
       expect(tr3.RefundTransactionId).to.equal(tr2.id);
       expect(processorFeeRefund).to.exist;
       expect(processorFeeRefund.amount).to.eq(175);
@@ -331,8 +354,8 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr4.hostFeeInHostCurrency).to.equal(0);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
-      expect(tr4.amount).to.equal(5000);
-      expect(tr4.amountInHostCurrency).to.equal(5000);
+      expect(tr4.amount).to.equal(4750);
+      expect(tr4.amountInHostCurrency).to.equal(4750);
       expect(tr4.RefundTransactionId).to.equal(tr1.id);
     });
   }); /* describe("Stripe Transaction - for hosts created before September 17th 2017") */
@@ -372,6 +395,9 @@ describe('server/graphql/v1/refundTransaction', () => {
       const allTransactions = await models.Transaction.findAll({
         where: { OrderId: transaction.OrderId },
       });
+
+      // Snapshot
+      await snapshotTransactionsForRefund(allTransactions);
 
       // And two new transactions should be created in the
       // database.  This only makes sense in an empty database. For
@@ -419,7 +445,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr3.amount).to.equal(-5000);
       expect(tr3.amountInHostCurrency).to.equal(-5000);
-      expect(tr3.netAmountInCollectiveCurrency).to.equal(-5000);
+      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4750);
       expect(tr3.RefundTransactionId).to.equal(tr2.id);
 
       // 4. Refund User Ledger
@@ -429,8 +455,8 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr4.platformFeeInHostCurrency).to.equal(250);
       expect(tr4.hostFeeInHostCurrency).to.equal(0);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(tr4.amount).to.equal(5000);
-      expect(tr4.amountInHostCurrency).to.equal(5000);
+      expect(tr4.amount).to.equal(4750);
+      expect(tr4.amountInHostCurrency).to.equal(4750);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
       expect(tr4.RefundTransactionId).to.equal(tr1.id);
     }

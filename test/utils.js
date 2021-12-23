@@ -309,6 +309,7 @@ const prettifyTransactionsData = (transactions, columns) => {
     settlementStatus: 'Settlement',
     TransactionGroup: 'Group',
     paymentProcessorFeeInHostCurrency: 'paymentFee',
+    platformFeeInHostCurrency: 'platformFee',
   };
 
   // Prettify values
