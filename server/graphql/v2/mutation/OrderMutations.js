@@ -91,6 +91,7 @@ const orderMutations = {
         isFeesOnTop: !isNil(platformFee),
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
+        fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
         data: order.data,

@@ -18,6 +18,7 @@ export const OrderTaxInput = new GraphQLInputObjectType({
     country: {
       type: CountryISO,
       description: 'Country of the account ordering, to know from where to apply the tax',
+      // TODO: Create an issue to deprecate this field and use `order.location` instead
     },
     idNumber: {
       type: GraphQLString,

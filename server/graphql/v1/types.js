@@ -615,6 +615,10 @@ export const LocationType = new GraphQLObjectType({
       type: GraphQLFloat,
       description: 'Longitude',
     },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
+    },
   }),
 });
 
