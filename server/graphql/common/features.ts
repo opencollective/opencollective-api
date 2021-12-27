@@ -14,19 +14,27 @@ const checkIsActive = async (
   return promise.then(result => (result ? FEATURE_STATUS.ACTIVE : fallback));
 };
 
-const checkReceiveFinancialContributions = collective => {
+const checkReceiveFinancialContributions = async collective => {
   if (!collective.HostCollectiveId || !collective.approvedAt) {
     return FEATURE_STATUS.DISABLED;
   } else if (!collective.isActive) {
     return FEATURE_STATUS.UNSUPPORTED;
-  } else {
-    return checkIsActive(
-      models.Order.count({
-        where: { CollectiveId: collective.id, status: { [Op.or]: ['PAID', 'ACTIVE'] } },
-        limit: 1,
-      }),
-    );
   }
+
+  // If `/donate` is disabled, the collective needs to have at least one active tier
+  if (collective.settings?.disableCustomContributions) {
+    const hasSomeActiveTiers = await models.Tier.count({ where: { CollectiveId: collective.id }, limit: 1 });
+    if (!hasSomeActiveTiers) {
+      return FEATURE_STATUS.DISABLED;
+    }
+  }
+
+  return checkIsActive(
+    models.Order.count({
+      where: { CollectiveId: collective.id, status: { [Op.or]: ['PAID', 'ACTIVE'] } },
+      limit: 1,
+    }),
+  );
 };
 
 const checkVirtualCardFeatureStatus = async account => {
