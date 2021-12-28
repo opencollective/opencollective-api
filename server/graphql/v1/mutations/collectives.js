@@ -161,11 +161,12 @@ export async function createCollective(_, args, req) {
   }
 
   // Inherit fees from parent collective after setting its host (events)
-  if (parentCollective && parentCollective.hostFeePercent !== collective.hostFeePercent) {
-    await collective.update({ hostFeePercent: parentCollective.hostFeePercent });
+  if (parentCollective) {
+    await collective.update({
+      hostFeePercent: parentCollective.hostFeePercent,
+      data: { ...collective.data, useCustomHostFee: Boolean(parentCollective.data?.useCustomHostFee) },
+    });
   }
-
-  // if the type of collective is an organization or an event, we don't send notification
 
   return collective;
 }

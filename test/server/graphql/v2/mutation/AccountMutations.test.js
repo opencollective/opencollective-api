@@ -4,7 +4,7 @@ import speakeasy from 'speakeasy';
 
 import { roles } from '../../../../../server/constants';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
 const editSettingsMutation = gqlV2/* GraphQL */ `
@@ -30,14 +30,43 @@ const addTwoFactorAuthTokenMutation = gqlV2/* GraphQL */ `
   }
 `;
 
+const editAccountFeeStructureMutation = gqlV2/* GraphQL */ `
+  mutation EditAccountFeeStructure($account: AccountReferenceInput!, $hostFeePercent: Float!, $isCustomFee: Boolean!) {
+    editAccountFeeStructure(account: $account, hostFeePercent: $hostFeePercent, isCustomFee: $isCustomFee) {
+      id
+      childrenAccounts {
+        nodes {
+          ... on AccountWithHost {
+            hostFeePercent
+            hostFeesStructure
+          }
+        }
+      }
+      ... on AccountWithHost {
+        hostFeePercent
+        hostFeesStructure
+      }
+    }
+  }
+`;
+
 describe('server/graphql/v2/mutation/AccountMutations', () => {
-  let adminUser, randomUser, collective;
+  let adminUser, randomUser, hostAdminUser, backerUser, collective;
 
   before(async () => {
     adminUser = await fakeUser();
     randomUser = await fakeUser();
-    collective = await fakeCollective();
-    await collective.addUserWithRole(adminUser, roles.ADMIN);
+    backerUser = await fakeUser();
+    hostAdminUser = await fakeUser();
+    const host = await fakeHost({ admin: hostAdminUser });
+    collective = await fakeCollective({ admin: adminUser, HostCollectiveId: host.id });
+    await collective.addUserWithRole(backerUser, roles.BACKER);
+
+    // Create some children (event + project)
+    await Promise.all([
+      fakeEvent({ ParentCollectiveId: collective.id }),
+      fakeProject({ ParentCollectiveId: collective.id }),
+    ]);
   });
 
   beforeEach(async () => {
@@ -232,6 +261,43 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.match(/This account already has 2FA enabled/);
+    });
+  });
+
+  describe('editAccountFeeStructure', () => {
+    it('must be a host admin', async () => {
+      const expectedError =
+        'You need to be logged in as an host admin to change the fees structure of the hosted accounts';
+      const mutationParams = { account: { legacyId: collective.id }, hostFeePercent: 8.88, isCustomFee: true };
+      const resultUnauthenticated = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams);
+      expect(resultUnauthenticated.errors).to.exist;
+      expect(resultUnauthenticated.errors[0].message).to.eq(expectedError);
+
+      const resultRandomUser = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, randomUser);
+      expect(resultRandomUser.errors).to.exist;
+      expect(resultRandomUser.errors[0].message).to.eq(expectedError);
+
+      const resultBacker = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, backerUser);
+      expect(resultBacker.errors).to.exist;
+      expect(resultBacker.errors[0].message).to.eq(expectedError);
+
+      const resultCollectiveAdmin = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, adminUser);
+      expect(resultCollectiveAdmin.errors).to.exist;
+      expect(resultCollectiveAdmin.errors[0].message).to.eq(expectedError);
+    });
+
+    it('updates the main account and all its children', async () => {
+      const mutationParams = { account: { legacyId: collective.id }, hostFeePercent: 9.99, isCustomFee: true };
+      const result = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, hostAdminUser);
+      const editedAccount = result.data.editAccountFeeStructure;
+      const children = editedAccount.childrenAccounts.nodes;
+      expect(editedAccount.hostFeePercent).to.eq(9.99);
+      expect(editedAccount.hostFeesStructure).to.eq('CUSTOM_FEE');
+      expect(children.length).to.eq(2);
+      children.forEach(child => {
+        expect(child.hostFeePercent).to.eq(9.99);
+        expect(child.hostFeesStructure).to.eq('CUSTOM_FEE');
+      });
     });
   });
 });
