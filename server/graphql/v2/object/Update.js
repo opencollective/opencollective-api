@@ -86,6 +86,10 @@ const Update = new GraphQLObjectType({
           let membersStats = {};
           let hostedCollectivesCount = 0;
 
+          if (audience === 'NO_ONE') {
+            return null;
+          }
+
           if (audience !== 'COLLECTIVE_ADMINS') {
             membersStats = await update.getAudienceMembersStats(audience);
           }

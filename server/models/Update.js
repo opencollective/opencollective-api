@@ -343,7 +343,12 @@ function defineModel() {
    * Get the member users to notify for this update.
    */
   Update.prototype.getUsersToNotify = async function () {
-    const audience = this.audience || 'ALL';
+    const audience = this.notificationAudience || this.audience || 'ALL';
+
+    if (audience === 'NO_ONE') {
+      return [];
+    }
+
     return sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
       mapToModel: true,
@@ -365,6 +370,10 @@ function defineModel() {
   Update.prototype.countUsersToNotify = async function (notificationAudience) {
     this.collective = this.collective || (await this.getCollective());
     const audience = notificationAudience || this.audience || 'ALL';
+
+    if (audience === 'NO_ONE') {
+      return 0;
+    }
 
     const [result] = await sequelize.query(SQLQueries.countUsersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
