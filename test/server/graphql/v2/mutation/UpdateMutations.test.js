@@ -209,7 +209,7 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     });
 
     describe('publishes an update', async () => {
-      let result, user4;
+      let result, noOneAudienceResult, update2, user4;
 
       before(async () => {
         sendEmailSpy.resetHistory();
@@ -265,6 +265,29 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         expect(sendTweetSpy.callCount).to.equal(1);
         expect(sendTweetSpy.firstCall.args[1]).to.equal('Latest update from the collective: first update & "love"');
         expect(sendTweetSpy.firstCall.args[2]).to.contain('/scouts/updates/first-update-and-love');
+      });
+
+      it('should publish update without notifying anyone', async () => {
+        sendEmailSpy.resetHistory();
+
+        update2 = await models.Update.create({
+          CollectiveId: collective1.id,
+          FromCollectiveId: user1.CollectiveId,
+          CreatedByUserId: user1.id,
+          notificationAudience: 'NO_ONE',
+          title: 'second update',
+          html: 'long text for the update #2 <a href="https://google.com">here is a link</a>',
+        });
+
+        noOneAudienceResult = await utils.graphqlQueryV2(
+          publishUpdateMutation,
+          { id: idEncode(update2.id, IDENTIFIER_TYPES.UPDATE), notificationAudience: update2.notificationAudience },
+          user1,
+        );
+
+        expect(sendEmailSpy.callCount).to.equal(0);
+        expect(noOneAudienceResult.data.publishUpdate.slug).to.equal('second-update');
+        expect(noOneAudienceResult.data.publishUpdate.publishedAt).to.not.be.null;
       });
     });
   });
