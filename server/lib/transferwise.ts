@@ -596,6 +596,7 @@ export const getOrRefreshToken = async ({
     debug(`getOrRefreshUserToken: ${JSON.stringify(token, null, 2)}`);
     return token;
   } catch (e) {
+    debug(JSON.stringify(e));
     const error = parseError(e, "There was an error while refreshing host's Wise token");
     logger.error(error.toString());
     throw error;
