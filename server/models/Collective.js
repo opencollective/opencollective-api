@@ -12,6 +12,7 @@ import {
   get,
   includes,
   isNull,
+  isUndefined,
   omit,
   pick,
   round,
@@ -1185,35 +1186,62 @@ function defineModel() {
 
   /**
    * Get the admin users { id, email } of this collective
+   *
    */
-  Collective.prototype.getAdminUsers = async function ({ userQueryParams, paranoid = true } = {}) {
+  Collective.prototype.getAdminUsers = async function ({ collectiveAttributes, paranoid = true } = {}) {
     if (this.type === 'USER' && !this.isIncognito) {
       // Incognito profiles rely on the `Members` entry to know which user it belongs to
-      return [await this.getUser({ paranoid, ...userQueryParams })];
-    }
-
-    const collectiveId = ['EVENT', 'PROJECT'].includes(this.type) ? this.ParentCollectiveId : this.id;
-
-    const admins = await models.Member.findAll({
-      where: {
-        CollectiveId: collectiveId,
+      return [
+        await this.getUser({
+          paranoid,
+          include: !isUndefined(collectiveAttributes)
+            ? [{ association: 'collective', required: true, attributes: collectiveAttributes }]
+            : [],
+        }),
+      ];
+    } else {
+      return this.getMembersUsers({
+        CollectiveId: ['EVENT', 'PROJECT'].includes(this.type) ? this.ParentCollectiveId : this.id,
         role: roles.ADMIN,
-      },
-      paranoid,
-    });
-
-    return models.User.findAll({
-      where: { CollectiveId: { [Op.in]: admins.map(m => m.MemberCollectiveId) } },
-      paranoid,
-      ...userQueryParams,
-    });
+        collectiveAttributes,
+        paranoid,
+      });
+    }
   };
 
   /**
-   * Get the email addresses of the admins of this collective
+   * Returns all the users that are members of this collective for the given roles
+   * If a collective profile (COLLECTIVE, ORGANIZATION, etc) matches the given roles,
+   * nothing is returned for them.
    */
-  Collective.prototype.getEmails = async function () {
-    return this.getAdminUsers().then(users => users.map(u => u && u.email));
+  Collective.prototype.getMembersUsers = async function ({
+    CollectiveId = this.id,
+    role = [],
+    collectiveAttributes = [], // Don't include the member collective by default. Pass `null` to fetch all attributes.
+    paranoid = true,
+  } = {}) {
+    return models.User.findAll({
+      group: ['User.id', 'collective.id'],
+      order: [['id', 'ASC']], // Not needed, but it's always nice to have a consistent order (e.g. for tests)
+      paranoid,
+      include: [
+        {
+          association: 'collective',
+          required: true,
+          attributes: collectiveAttributes,
+          paranoid,
+          include: [
+            {
+              association: 'memberships',
+              required: true,
+              attributes: [],
+              paranoid,
+              where: { CollectiveId, role },
+            },
+          ],
+        },
+      ],
+    });
   };
 
   Collective.prototype.getChildren = function (query = {}) {

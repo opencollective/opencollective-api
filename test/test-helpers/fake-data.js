@@ -562,17 +562,22 @@ export const fakeTransaction = async (
 /**
  * Creates a fake member. All params are optionals.
  */
-export const fakeMember = async data => {
+export const fakeMember = async (data = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)
     : await fakeCollective();
-  return models.Member.create({
+  const member = await models.Member.create({
     CollectiveId: collective.id,
     MemberCollectiveId: memberCollective.id,
     role: data.role || roles.ADMIN,
     CreatedByUserId: collective.CreatedByUserId,
   });
+
+  // Attach associations
+  member.collective = collective;
+  member.memberCollective = memberCollective;
+  return member;
 };
 
 const fakePaymentMethodToken = (service, type) => {

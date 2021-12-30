@@ -5,8 +5,9 @@ import debugLib from 'debug';
 import { get, remove } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
-import { activities, channels } from '../constants';
+import { activities, channels, roles } from '../constants';
 import activityType from '../constants/activities';
+import { types as CollectiveType } from '../constants/collectives';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import activitiesLib from '../lib/activities';
@@ -206,6 +207,31 @@ export async function notifyAdminsOfCollective(CollectiveId, activity, options =
   debug('Total users to notify:', adminUsers.length);
   activity.CollectiveId = collective.id;
   return notifySubscribers(adminUsers, activity, options);
+}
+
+export async function notifyAdminsAndAccountantsOfCollective(CollectiveId, activity, options = {}) {
+  debug('notify admins and accountants of CollectiveId', CollectiveId);
+  const collective = await models.Collective.findByPk(CollectiveId);
+  if (!collective) {
+    throw new Error(
+      `notifyAdminsAndAccountantsOfCollective> can't notify ${activity.type}: no collective found with id ${CollectiveId}`,
+    );
+  }
+
+  let usersToNotify = [];
+  if (collective.type === CollectiveType.USER && !collective.isIncognito) {
+    // Incognito profiles rely on the `Members` entry to know which user it belongs to
+    usersToNotify = [await collective.getUser()];
+  } else {
+    usersToNotify = await collective.getMembersUsers({ role: [roles.ACCOUNTANT, roles.ADMIN] });
+  }
+
+  if (options.exclude) {
+    usersToNotify = usersToNotify.filter(u => options.exclude.indexOf(u.id) === -1);
+  }
+  debug('Total users to notify:', usersToNotify.length);
+  activity.CollectiveId = collective.id;
+  return notifySubscribers(usersToNotify, activity, options);
 }
 
 /**

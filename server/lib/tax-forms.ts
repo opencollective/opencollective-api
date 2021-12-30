@@ -36,7 +36,7 @@ export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise
 
 const getAdminsForAccount = async account => {
   const adminUsers = await account.getAdminUsers({
-    userQueryParams: { include: [{ association: 'collective', required: true }] },
+    collectiveAttributes: null, // Will fetch all the attributes
   });
 
   if (config.env === 'production') {
