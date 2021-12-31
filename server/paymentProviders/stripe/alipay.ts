@@ -191,7 +191,7 @@ const webhook = async (_, event) => {
         where: { type: 'CREDIT', isRefund: false, data: { charge: { id: refund.charge } } },
         include: [
           { model: models.Collective, as: 'collective' },
-          { model: models.PaymentMethod, require: true, where: { type: 'alipay' } },
+          { model: models.PaymentMethod, required: true, where: { type: 'alipay' } },
         ],
       });
       if (!transaction) {
