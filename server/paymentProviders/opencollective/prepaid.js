@@ -34,7 +34,7 @@ async function getBalance(paymentMethod) {
     include: [
       {
         model: models.PaymentMethod,
-        require: true,
+        required: true,
         attributes: [],
         where: {
           [Op.or]: {

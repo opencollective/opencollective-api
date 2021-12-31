@@ -414,7 +414,7 @@ function defineModel() {
       include: [
         {
           model: models.PaymentMethod,
-          require: true,
+          required: true,
           attributes: [],
           where: { [Op.or]: { id: this.id, SourcePaymentMethodId: this.id } },
         },
