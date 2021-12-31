@@ -29,12 +29,12 @@
     }
   },
   "dependencies": {
-    "@babel/core": "7.16.5",
-    "@babel/node": "7.16.5",
-    "@babel/plugin-proposal-class-properties": "7.16.5",
-    "@babel/plugin-transform-async-to-generator": "7.16.5",
-    "@babel/preset-env": "7.16.5",
-    "@babel/preset-typescript": "7.16.5",
+    "@babel/core": "7.16.7",
+    "@babel/node": "7.16.7",
+    "@babel/plugin-proposal-class-properties": "7.16.7",
+    "@babel/plugin-transform-async-to-generator": "7.16.7",
+    "@babel/preset-env": "7.16.7",
+    "@babel/preset-typescript": "7.16.7",
     "@hyperwatch/hyperwatch": "3.8.2",
     "@octokit/auth-oauth-app": "4.3.0",
     "@octokit/rest": "18.12.0",
