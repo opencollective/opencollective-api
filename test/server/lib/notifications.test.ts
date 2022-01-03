@@ -14,6 +14,7 @@ import slackLib from '../../../server/lib/slack';
 import {
   fakeActivity,
   fakeCollective,
+  fakeEvent,
   fakeMember,
   fakeNotification,
   fakeOrganization,
@@ -259,6 +260,42 @@ describe('server/lib/notification', () => {
 
       // Checks
       await notifyAdminsAndAccountantsOfCollective(collective.id, activity);
+      expect(sendEmailSpy.callCount).to.equal(2);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
+      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
+    });
+
+    it('notifies only admins and accountants of parent', async () => {
+      const collective = await fakeCollective();
+      const event = await fakeEvent({ ParentCollectiveId: collective.id });
+      const activity = { type: 'TEST', CollectiveId: event.id, data: {} };
+
+      // Some random members to make sure our select query is working
+      await fakeMember();
+      await fakeMember();
+
+      // Add a bunch of members
+      const backerOrg = await fakeOrganization();
+      const backerUser = await fakeUser();
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const memberUser = await fakeUser();
+
+      const addMemberToEvent = (MemberCollectiveId, role) =>
+        fakeMember({ CollectiveId: event.id, MemberCollectiveId, role });
+      const addMemberToParent = (MemberCollectiveId, role) =>
+        fakeMember({ CollectiveId: collective.id, MemberCollectiveId, role });
+      await addMemberToParent(backerOrg.id, 'BACKER');
+      await addMemberToParent(backerUser.CollectiveId, 'BACKER');
+      await addMemberToParent(adminUser.CollectiveId, 'ADMIN');
+      await addMemberToParent(accountantUser.CollectiveId, 'ACCOUNTANT');
+      await addMemberToParent(memberUser.CollectiveId, 'MEMBER');
+
+      await addMemberToEvent(backerOrg.id, 'BACKER');
+      await addMemberToEvent(backerUser.CollectiveId, 'BACKER');
+
+      // Checks
+      await notifyAdminsAndAccountantsOfCollective(event.id, activity);
       expect(sendEmailSpy.callCount).to.equal(2);
       expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
       expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);

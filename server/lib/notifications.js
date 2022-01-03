@@ -223,7 +223,10 @@ export async function notifyAdminsAndAccountantsOfCollective(CollectiveId, activ
     // Incognito profiles rely on the `Members` entry to know which user it belongs to
     usersToNotify = [await collective.getUser()];
   } else {
-    usersToNotify = await collective.getMembersUsers({ role: [roles.ACCOUNTANT, roles.ADMIN] });
+    usersToNotify = await collective.getMembersUsers({
+      CollectiveId: collective.ParentCollectiveId ? [collective.ParentCollectiveId, collective.id] : collective.id,
+      role: [roles.ACCOUNTANT, roles.ADMIN],
+    });
   }
 
   if (options.exclude) {
