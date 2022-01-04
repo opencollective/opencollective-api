@@ -914,11 +914,15 @@ export const getHostFeeSharePercent = async (order, host = null) => {
   const possibleValues = [];
 
   if (order) {
-    if (order.paymentMethod?.service === 'stripe' && order.paymentMethod?.type === 'creditcard') {
-      possibleValues.push(plan?.creditCardHostFeeSharePercent);
+    // Preload payment method
+    if (!order.paymentMethod && order.PaymentMethodId) {
+      order.paymentMethod = await order.getPaymentMethod();
     }
 
-    if (order.paymentMethod?.service === 'paypal' && order.paymentMethod?.type === 'payment') {
+    // Assign different fees based on the payment provider
+    if (order.paymentMethod?.service === 'stripe' && order.paymentMethod?.type === 'creditcard') {
+      possibleValues.push(plan?.creditCardHostFeeSharePercent);
+    } else if (order.paymentMethod?.service === 'paypal') {
       possibleValues.push(plan?.paypalHostFeeSharePercent);
     }
   }

@@ -805,7 +805,7 @@ function defineModel() {
   ) => {
     let order;
     if (transaction.OrderId) {
-      order = await Transaction.findByPk(transaction.OrderId);
+      order = await models.Order.findByPk(transaction.OrderId);
     }
     const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
     if (!hostFeeSharePercent) {

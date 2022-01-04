@@ -3,7 +3,14 @@ import { stub } from 'sinon';
 
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import models from '../../../server/models';
-import { fakeCollective, fakeHost, fakeOrder, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Transaction } = models;
@@ -44,7 +51,7 @@ describe('server/models/Transaction', () => {
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(async () => {
-    user = await fakeUser({}, { id: 10, name: 'User' });
+    user = await fakeUser({}, { name: 'User' });
     inc = await fakeHost({
       id: 8686,
       slug: 'opencollectiveinc',
@@ -53,12 +60,10 @@ describe('server/models/Transaction', () => {
       HostCollectiveId: 8686,
     });
     host = await fakeHost({
-      id: 2,
       name: 'Random Host',
       CreatedByUserId: user.id,
     });
     collective = await fakeCollective({
-      id: 3,
       HostCollectiveId: host.id,
       CreatedByUserId: user.id,
       name: 'Collective',
@@ -456,5 +461,49 @@ describe('server/models/Transaction', () => {
     expect(credit).to.have.property('currency').equal('EUR');
 
     expect(credit).to.have.property('amount').equal(402);
+  });
+
+  describe('createHostFeeShareTransactions', () => {
+    it('applies different host fees share based on the payment method / host plan', async () => {
+      await host.update({
+        plan: 'default',
+        hostFeePercent: 10,
+        data: {
+          plan: {
+            hostFeeSharePercent: 20,
+            creditCardHostFeeSharePercent: 0,
+            paypalHostFeeSharePercent: 0,
+          },
+        },
+      });
+
+      const amount = 1000;
+
+      // Helper to test with a given payment provider
+      const testFeesWithPaymentMethod = async (service, type) => {
+        const paymentMethod = await fakePaymentMethod({ service, type });
+        const order = await fakeOrder({
+          CollectiveId: collective.id,
+          totalAmount: amount,
+          PaymentMethodId: paymentMethod.id,
+        });
+        const transaction = await fakeTransaction({ OrderId: order.id, amount }, { createDoubleEntry: true });
+        const hostFeeTransaction = { amountInHostCurrency: amount * 0.1, hostCurrency: host.currency };
+        return Transaction.createHostFeeShareTransactions({ transaction, hostFeeTransaction }, host);
+      };
+
+      // Paypal payment
+      let result = await testFeesWithPaymentMethod('paypal', 'payment');
+      expect(result).to.be.undefined; // no host fee share
+
+      // Stripe
+      result = await testFeesWithPaymentMethod('stripe', 'creditcard');
+      expect(result).to.be.undefined; // no host fee share
+
+      // Manual
+      result = await testFeesWithPaymentMethod('opencollective', 'manual');
+      expect(result.hostFeeShareTransaction.amount).to.equal(Math.round(amount * 0.1 * 0.2));
+      expect(result.hostFeeShareDebtTransaction.amount).to.equal(-Math.round(amount * 0.1 * 0.2));
+    });
   });
 });
