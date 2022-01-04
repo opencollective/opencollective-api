@@ -8,8 +8,11 @@ const cleanStaleExpenseDrafts = async () => {
 
   const [, meta] = await sequelize.query(
     `
-    DELETE FROM "Expenses"
-    WHERE ("status" = 'DRAFT' OR "status" = 'UNVERIFIED') AND "updatedAt" <= (NOW() - interval '1 month');
+    UPDATE "Expenses"
+    SET "deletedAt" = NOW()
+    WHERE "deletedAt" IS NULL
+    AND ("status" = 'DRAFT' OR "status" = 'UNVERIFIED')
+    AND "updatedAt" <= (NOW() - interval '1 month');
     `,
   );
 
