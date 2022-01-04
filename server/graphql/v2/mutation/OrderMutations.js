@@ -61,21 +61,17 @@ const orderMutations = {
       }
 
       const getOrderTotalAmount = ({ platformTipAmount, platformContributionAmount, taxes, quantity }) => {
+        platformTipAmount = platformTipAmount || platformContributionAmount;
         let totalAmount = getValueInCentsFromAmountInput(order.amount) * quantity;
-        totalAmount +=
-          platformTipAmount || platformContributionAmount
-            ? getValueInCentsFromAmountInput(platformTipAmount || platformContributionAmount)
-            : 0;
+        totalAmount += platformTipAmount ? getValueInCentsFromAmountInput(platformTipAmount) : 0;
         totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
         return totalAmount;
       };
 
       const { order } = args;
-      const { platformTipAmount, platformContributionAmount } = order;
+      const platformTipAmount = order.platformTipAmount || order.platformContributionAmount;
       const tax = order.taxes?.[0];
-      const platformFee =
-        (platformTipAmount || platformContributionAmount) &&
-        getValueInCentsFromAmountInput(platformTipAmount || platformContributionAmount);
+      const platformFee = platformTipAmount && getValueInCentsFromAmountInput(platformTipAmount);
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
