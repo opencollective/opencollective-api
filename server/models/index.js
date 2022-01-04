@@ -94,7 +94,9 @@ export function setupModels() {
     through: { model: m.Member, unique: false, foreignKey: 'CollectiveId' },
     as: 'memberOfCollectives',
   });
-  m.Collective.hasMany(m.Member);
+  m.Collective.hasMany(m.Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
+  m.Collective.hasMany(m.Member); // TODO: This one probably has the same effect as the one below, we should check and remove if that's the case
+  m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
   m.Collective.hasMany(m.Activity);
   m.Collective.hasMany(m.Notification);
   m.Collective.hasMany(m.Tier, { as: 'tiers' });
@@ -265,7 +267,6 @@ export function setupModels() {
   m.Order.belongsTo(m.Tier);
   // m.Collective.hasMany(m.Order); // makes the test `mocha test/graphql.transaction.test.js -g "insensitive" fail
   m.Collective.hasMany(m.Collective, { foreignKey: 'ParentCollectiveId', as: 'children' });
-  m.Collective.hasMany(m.Member, { foreignKey: 'CollectiveId', as: 'members' });
   m.Collective.hasMany(m.Order, { foreignKey: 'CollectiveId', as: 'orders' });
   m.Collective.hasMany(m.LegalDocument, { foreignKey: 'CollectiveId', as: 'legalDocuments' });
   m.Collective.hasOne(m.User, {

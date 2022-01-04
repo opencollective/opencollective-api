@@ -20,7 +20,7 @@ import paymentProviders from '../paymentProviders';
 import { getFxRate } from './currency';
 import emailLib from './email';
 import logger from './logger';
-import { notifyAdminsOfCollective } from './notifications';
+import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
@@ -660,12 +660,8 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       attachments,
     };
 
-    const activity = {
-      type: 'thankyou',
-      data,
-    };
-
-    return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
+    const activity = { type: 'thankyou', data };
+    return notifyAdminsAndAccountantsOfCollective(data.fromCollective.id, activity, emailOptions);
   }
 };
 

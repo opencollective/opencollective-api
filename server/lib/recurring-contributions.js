@@ -9,7 +9,7 @@ import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import models from '../models';
 
 import logger from './logger';
-import { notifyAdminsOfCollective } from './notifications';
+import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
 import { sleep, toIsoDateStr } from './utils';
@@ -434,12 +434,8 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     attachments,
   };
 
-  const activity = {
-    type: 'thankyou',
-    data,
-  };
-
-  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
+  const activity = { type: 'thankyou', data };
+  return notifyAdminsAndAccountantsOfCollective(data.fromCollective.id, activity, emailOptions);
 }
 
 export async function sendCreditCardConfirmationEmail(order) {

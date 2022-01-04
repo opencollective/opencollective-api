@@ -6,9 +6,21 @@ import { assert, createSandbox } from 'sinon';
 import { activities } from '../../../server/constants';
 import channels from '../../../server/constants/channels';
 import emailLib from '../../../server/lib/email';
-import notify from '../../../server/lib/notifications';
+import notify, {
+  notifyAdminsAndAccountantsOfCollective,
+  notifyAdminsOfCollective,
+} from '../../../server/lib/notifications';
 import slackLib from '../../../server/lib/slack';
-import { fakeActivity, fakeCollective, fakeNotification, fakeUpdate, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeActivity,
+  fakeCollective,
+  fakeEvent,
+  fakeMember,
+  fakeNotification,
+  fakeOrganization,
+  fakeUpdate,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 import * as utils from '../../utils';
 
@@ -176,6 +188,117 @@ describe('server/lib/notification', () => {
           }
         });
       });
+    });
+  });
+
+  describe('notifyAdminsOfCollective', () => {
+    let sendEmailSpy;
+
+    beforeEach(async () => {
+      sendEmailSpy = sandbox.spy(emailLib, 'send');
+    });
+
+    it('notifies only admins', async () => {
+      const collective = await fakeCollective();
+      const activity = { type: 'TEST', CollectiveId: collective.id, data: {} };
+
+      // Some random members to make sure our select query is working
+      await fakeMember();
+      await fakeMember();
+
+      // Add a bunch of members to the collective
+      const backerOrg = await fakeOrganization();
+      const backerUser = await fakeUser();
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const memberUser = await fakeUser();
+
+      const addMember = (MemberCollectiveId, role) =>
+        fakeMember({ CollectiveId: collective.id, MemberCollectiveId, role });
+      await addMember(backerOrg.id, 'BACKER');
+      await addMember(backerUser.CollectiveId, 'BACKER');
+      await addMember(adminUser.CollectiveId, 'ADMIN');
+      await addMember(accountantUser.CollectiveId, 'ACCOUNTANT');
+      await addMember(memberUser.CollectiveId, 'MEMBER');
+
+      // Checks
+      await notifyAdminsOfCollective(collective.id, activity);
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
+    });
+  });
+
+  describe('notifyAdminsAndAccountantsOfCollective', () => {
+    let sendEmailSpy;
+
+    beforeEach(async () => {
+      sendEmailSpy = sandbox.spy(emailLib, 'send');
+    });
+
+    it('notifies only admins and accountants', async () => {
+      const collective = await fakeCollective();
+      const activity = { type: 'TEST', CollectiveId: collective.id, data: {} };
+
+      // Some random members to make sure our select query is working
+      await fakeMember();
+      await fakeMember();
+
+      // Add a bunch of members to the collective
+      const backerOrg = await fakeOrganization();
+      const backerUser = await fakeUser();
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const memberUser = await fakeUser();
+
+      const addMember = (MemberCollectiveId, role) =>
+        fakeMember({ CollectiveId: collective.id, MemberCollectiveId, role });
+      await addMember(backerOrg.id, 'BACKER');
+      await addMember(backerUser.CollectiveId, 'BACKER');
+      await addMember(adminUser.CollectiveId, 'ADMIN');
+      await addMember(accountantUser.CollectiveId, 'ACCOUNTANT');
+      await addMember(memberUser.CollectiveId, 'MEMBER');
+
+      // Checks
+      await notifyAdminsAndAccountantsOfCollective(collective.id, activity);
+      expect(sendEmailSpy.callCount).to.equal(2);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
+      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
+    });
+
+    it('notifies only admins and accountants of parent', async () => {
+      const collective = await fakeCollective();
+      const event = await fakeEvent({ ParentCollectiveId: collective.id });
+      const activity = { type: 'TEST', CollectiveId: event.id, data: {} };
+
+      // Some random members to make sure our select query is working
+      await fakeMember();
+      await fakeMember();
+
+      // Add a bunch of members
+      const backerOrg = await fakeOrganization();
+      const backerUser = await fakeUser();
+      const adminUser = await fakeUser();
+      const accountantUser = await fakeUser();
+      const memberUser = await fakeUser();
+
+      const addMemberToEvent = (MemberCollectiveId, role) =>
+        fakeMember({ CollectiveId: event.id, MemberCollectiveId, role });
+      const addMemberToParent = (MemberCollectiveId, role) =>
+        fakeMember({ CollectiveId: collective.id, MemberCollectiveId, role });
+      await addMemberToParent(backerOrg.id, 'BACKER');
+      await addMemberToParent(backerUser.CollectiveId, 'BACKER');
+      await addMemberToParent(adminUser.CollectiveId, 'ADMIN');
+      await addMemberToParent(accountantUser.CollectiveId, 'ACCOUNTANT');
+      await addMemberToParent(memberUser.CollectiveId, 'MEMBER');
+
+      await addMemberToEvent(backerOrg.id, 'BACKER');
+      await addMemberToEvent(backerUser.CollectiveId, 'BACKER');
+
+      // Checks
+      await notifyAdminsAndAccountantsOfCollective(event.id, activity);
+      expect(sendEmailSpy.callCount).to.equal(2);
+      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
+      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
     });
   });
 });
