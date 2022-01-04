@@ -6,7 +6,7 @@
 
 import '../../server/env';
 
-import { Command } from 'commander'; // eslint-disable-line node/no-unpublished-import
+import { Command } from 'commander';
 import { groupBy, pick } from 'lodash';
 
 import models, { Op } from '../../server/models';
