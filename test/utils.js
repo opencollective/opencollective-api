@@ -300,7 +300,7 @@ export function traverse(obj, cb) {
   }
 }
 
-const prettifyTransactionsData = (transactions, columns) => {
+export const prettifyTransactionsData = (transactions, columns) => {
   // Alias some columns for a simpler output
   const TRANSACTION_KEY_ALIASES = {
     HostCollectiveId: 'Host',

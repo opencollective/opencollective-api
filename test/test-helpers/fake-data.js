@@ -157,7 +157,7 @@ export const fakeOrganization = (organizationData = {}) => {
 };
 
 /**
- * Creates a fake update. All params are optionals.
+ * Creates a fake event. All params are optionals.
  */
 export const fakeEvent = async (collectiveData = {}) => {
   const ParentCollectiveId = collectiveData.ParentCollectiveId || (await fakeCollective()).id;
@@ -167,6 +167,22 @@ export const fakeEvent = async (collectiveData = {}) => {
     slug: randStr('event-'),
     ...collectiveData,
     type: 'EVENT',
+    ParentCollectiveId: ParentCollectiveId,
+    HostCollectiveId: parentCollective.HostCollectiveId,
+  });
+};
+
+/**
+ * Creates a fake project. All params are optionals.
+ */
+export const fakeProject = async (collectiveData = {}) => {
+  const ParentCollectiveId = collectiveData.ParentCollectiveId || (await fakeCollective()).id;
+  const parentCollective = await models.Collective.findByPk(ParentCollectiveId);
+  return fakeCollective({
+    name: randStr('Test Project '),
+    slug: randStr('project-'),
+    ...collectiveData,
+    type: 'PROJECT',
     ParentCollectiveId: ParentCollectiveId,
     HostCollectiveId: parentCollective.HostCollectiveId,
   });

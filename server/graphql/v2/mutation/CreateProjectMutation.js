@@ -47,7 +47,7 @@ async function createProject(_, args, req) {
     type: 'PROJECT',
     slug: args.project.slug.toLowerCase(),
     ...pick(args.project, ['name', 'description']),
-    ...pick(parent.info, ['currency', 'isActive', 'platformFeePercent', 'hostFeePercent']),
+    ...pick(parent, ['currency', 'isActive', 'platformFeePercent', 'hostFeePercent', 'data.useCustomHostFee']),
     approvedAt: parent.isActive ? new Date() : null,
     ParentCollectiveId: parent.id,
     CreatedByUserId: remoteUser.id,
@@ -68,6 +68,12 @@ async function createProject(_, args, req) {
     const host = await loaders.Collective.byId.load(parent.HostCollectiveId);
     if (host) {
       await project.addHost(host, remoteUser);
+
+      // Inherit fees from parent collective after setting its host
+      await project.update({
+        hostFeePercent: parent.hostFeePercent,
+        data: { ...project.data, useCustomHostFee: Boolean(parent.data?.useCustomHostFee) },
+      });
     }
   }
 

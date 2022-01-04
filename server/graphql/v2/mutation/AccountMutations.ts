@@ -126,13 +126,27 @@ const accountMutations = {
           throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
         }
 
-        return account.update(
-          {
-            hostFeePercent: args.hostFeePercent,
-            data: { ...account.data, useCustomHostFee: args.isCustomFee },
-          },
-          { transaction: dbTransaction },
-        );
+        const updateAccountFees = account => {
+          return account.update(
+            {
+              hostFeePercent: args.hostFeePercent,
+              data: { ...account.data, useCustomHostFee: args.isCustomFee },
+            },
+            { transaction: dbTransaction },
+          );
+        };
+
+        // Update main account
+        await updateAccountFees(account);
+
+        // Cascade host update to events and projects
+        // Passing platformFeePercent through options so we don't request the parent collective on every children update
+        const children = await account.getChildren({ transaction: dbTransaction });
+        if (children.length > 0) {
+          await Promise.all(children.map(updateAccountFees));
+        }
+
+        return account;
       });
     },
   },
