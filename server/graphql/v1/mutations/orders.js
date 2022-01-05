@@ -204,7 +204,8 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest) => {
 
   // Update account with new info, unless we're making a guest contribution for an existing account
   // (we don't want to let guests update the profile of an existing account that they may not own)
-  if (!isGuest || fromAccount.data?.isGuest) {
+  const isVerifiedProfile = !fromAccount.data?.isGuest;
+  if (!isGuest || !isVerifiedProfile) {
     if (mustUpdateLocation(fromAccount.location, location)) {
       accountUpdatePayload.data = { ...fromAccount.data, address: location.structured || fromAccount.data?.structured };
       accountUpdatePayload.locationName = location.name || fromAccount.locationName;
