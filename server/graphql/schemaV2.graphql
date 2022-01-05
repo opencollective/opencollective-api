@@ -6424,6 +6424,11 @@ type Mutation {
     Further information about collective applying to host
     """
     applicationData: JSON
+
+    """
+    Additional data for the collective creation. This argument has no effect in production
+    """
+    testPayload: JSON
   ): Collective
   createFund(
     """
@@ -7216,24 +7221,24 @@ type Mutation {
   """
   editVirtualCard(
     """
-    Virtual Card reference
+    Virtual card reference
     """
     virtualCard: VirtualCardReferenceInput!
 
     """
     Virtual card name
     """
-    name: String!
+    name: String
+
+    """
+    Individual account responsible for the card
+    """
+    assignee: AccountReferenceInput
 
     """
     Virtual card monthly limit
     """
     monthlyLimit: AmountInput
-
-    """
-    Individual account responsible for the card
-    """
-    assignee: AccountReferenceInput!
   ): VirtualCard!
 
   """
@@ -9623,9 +9628,14 @@ Parameters for paying an expense
 """
 input ProcessExpensePaymentParams {
   """
-  The fee charged by payment processor in collective currency, or the fee refunded when used with MARK_AS_UNPAID
+  The fee charged by payment processor in collective currency
   """
   paymentProcessorFee: Int
+
+  """
+  Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID
+  """
+  shouldRefundPaymentProcessorFee: Boolean
 
   """
   Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually
@@ -9888,7 +9898,12 @@ input OrderCreateInput {
   """
   Platform contribution attached to this order
   """
-  platformContributionAmount: AmountInput
+  platformContributionAmount: AmountInput @deprecated(reason: "2021-12-17: Use platformTipAmount")
+
+  """
+  Platform tip attached to this order
+  """
+  platformTipAmount: AmountInput
 
   """
   Use this field to set the taxes associated to this order
