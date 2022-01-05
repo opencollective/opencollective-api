@@ -179,13 +179,13 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
  * Checks that the profile has all requirements for this contribution (name, address, etc) and updates
  * it if necessary. Must be called **after** checking permissions and authentication!
  */
-const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest) => {
+const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
   const { totalAmount, fromAccountInfo, guestInfo } = order;
   const accountUpdatePayload = {};
   const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
 
-  // Only enforce profile checks for guests at the moment
-  if (isGuest) {
+  // Only enforce profile checks for guests and USD contributions at the moment
+  if (isGuest && currency === 'USD') {
     // Contributions that are more than $5000 must have an address attached
     if (totalAmount > 5000e2) {
       if (!location.structured && (!location.address || !location.country)) {
