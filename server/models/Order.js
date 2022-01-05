@@ -103,6 +103,13 @@ function defineModel() {
         },
       },
 
+      platformTipAmount: {
+        type: DataTypes.INTEGER, // Total amount of the order in cents
+        validate: {
+          min: 0,
+        },
+      },
+
       taxAmount: {
         type: DataTypes.INTEGER,
         validate: {
