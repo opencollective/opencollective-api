@@ -1,5 +1,5 @@
 import config from 'config';
-import { get } from 'lodash';
+import { get, toUpper } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
@@ -16,6 +16,7 @@ import models from '../../models';
 import { refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
+const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /**
  * Get or create a customer under the platform stripe account
@@ -121,6 +122,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const host = await order.collective.getHostCollective();
   const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
+  const isPlatformRevenueDirectlyCollected = !APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(order.currency));
 
   // Compute Application Fee (Shared Revenue + Platform Tip)
   const applicationFee = await getApplicationFee(order, host);
@@ -145,7 +147,11 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       },
     };
     // We don't add a platform fee if the host is the root account
-    if (applicationFee && hostStripeAccount.username !== config.stripe.accountId) {
+    if (
+      applicationFee &&
+      isPlatformRevenueDirectlyCollected &&
+      hostStripeAccount.username !== config.stripe.accountId
+    ) {
       createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
     }
     if (order.interval) {
@@ -255,7 +261,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   };
 
   return models.Transaction.createFromContributionPayload(transactionPayload, {
-    isPlatformRevenueDirectlyCollected: true,
+    isPlatformRevenueDirectlyCollected,
   });
 };
 
