@@ -45,6 +45,7 @@ async function processExpense(expense) {
 }
 /**
  * Updates the status of expenses being processed through Transferwise.
+ * This process is redundant and it works as a fallback for the Webhook endpoint.
  */
 export async function run() {
   const expenses = await models.Expense.findAll({
