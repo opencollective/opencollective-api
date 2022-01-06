@@ -231,6 +231,34 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         expect(createIntentRequest).to.have.property('amount', '1100');
         expect(createIntentRequest).to.have.property('application_fee_amount', `${1000 * 0.1 * 0.15 + 100}`);
       });
+
+      it('should create a debt for platform tip and share if currency does not support application_fee', async () => {
+        nock.cleanAll();
+        setupNock({
+          balanceTransactions: {
+            amount: 1100,
+            currency: 'BRL',
+            fee_details: [],
+          },
+        });
+        const { order, host, collective } = await createOrderWithPaymentMethod('name', {
+          totalAmount: 1100,
+          currency: 'BRL',
+          data: { isFeesOnTop: true, platformFee: 100 },
+        });
+        await collective.update({ hostFeePercent: 10 });
+        await host.update({ plan: 'grow-plan-2021' });
+        await cache.clear();
+
+        await creditcard.processOrder(order);
+
+        expect(createIntentRequest).to.have.property('amount', '1100');
+        expect(createIntentRequest).to.not.have.property('application_fee_amount');
+
+        const transactions = await order.getTransactions();
+        expect(transactions.filter(t => t.kind === 'HOST_FEE_SHARE_DEBT')).to.have.lengthOf(2);
+        expect(transactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
+      });
     });
   });
 });
