@@ -4,7 +4,7 @@ import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
 import * as hcaptcha from 'hcaptcha';
-import { get, isNil, omit, pick, set } from 'lodash';
+import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
 import { isEmail } from 'validator';
 
 import activities from '../../../constants/activities';
@@ -158,17 +158,67 @@ const checkGuestContribution = async (order, loaders) => {
     throw new BadRequest('You need to provide a guest profile with an email for logged out contributions');
   } else if (!guestInfo.email || !isEmail(guestInfo.email)) {
     throw new BadRequest('You need to provide a valid email');
-  } else if (order.totalAmount > 25000) {
-    const location = guestInfo.location || {};
-    if (!guestInfo.name) {
-      throw new BadRequest('Contributions that are more than $250 must have a name attached');
-    } else if (order.totalAmount > 500000 && !location.structured && (!location.address || !location.country)) {
-      throw new BadRequest('Contributions that are more than $5000 must have an address attached');
-    }
   } else if (order.fromCollective) {
     throw new BadRequest('You need to be logged in to specify a contributing profile');
   } else if (order.paymentMethod?.id || order.paymentMethod?.uuid) {
     throw new BadRequest('You need to be logged in to be able to use an existing payment method');
+  }
+};
+
+const mustUpdateLocation = (existingLocation, newLocation) => {
+  const simpleFields = ['country', 'name', 'address'];
+  const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
+  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
+};
+
+const mustUpdateNames = (fromAccount, fromAccountInfo) => {
+  return (!fromAccount.name && fromAccountInfo?.name) || (!fromAccount.legalName && fromAccountInfo?.legalName);
+};
+
+/**
+ * Checks that the profile has all requirements for this contribution (name, address, etc) and updates
+ * it if necessary. Must be called **after** checking permissions and authentication!
+ */
+const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
+  const { totalAmount, fromAccountInfo, guestInfo } = order;
+  const accountUpdatePayload = {};
+  const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
+
+  // Only enforce profile checks for guests and USD contributions at the moment
+  if (isGuest && currency === 'USD') {
+    // Contributions that are more than $5000 must have an address attached
+    if (totalAmount > 5000e2) {
+      if (!location.structured && (!location.address || !location.country)) {
+        throw new BadRequest('Contributions that are more than $5000 must have an address attached');
+      }
+    }
+
+    // Contributions that are more than $250 must have a name attached
+    if (totalAmount > 250e2) {
+      const name = fromAccountInfo?.name || fromAccountInfo?.legalName || fromAccount.name || fromAccount.legalName;
+      if (!name) {
+        throw new BadRequest('Contributions that are more than $250 must have a name attached');
+      }
+    }
+  }
+
+  // Update account with new info, unless we're making a guest contribution for an existing account
+  // (we don't want to let guests update the profile of an existing account that they may not own)
+  const isVerifiedProfile = !fromAccount.data?.isGuest;
+  if (!isGuest || !isVerifiedProfile) {
+    if (mustUpdateLocation(fromAccount.location, location)) {
+      accountUpdatePayload.data = { ...fromAccount.data, address: location.structured || fromAccount.data?.structured };
+      accountUpdatePayload.locationName = location.name || fromAccount.locationName;
+      accountUpdatePayload.address = location.address || fromAccount.address;
+      accountUpdatePayload.countryISO = location.country || fromAccount.countryISO;
+    }
+    if (mustUpdateNames(fromAccount, fromAccountInfo)) {
+      accountUpdatePayload.name = fromAccountInfo.name || fromAccountInfo.name;
+      accountUpdatePayload.legalName = fromAccountInfo.legalName || fromAccountInfo.legalName;
+    }
+    if (!isEmpty(accountUpdatePayload)) {
+      await fromAccount.update(accountUpdatePayload);
+    }
   }
 };
 
@@ -461,6 +511,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       }
     }
 
+    // Update the contributing profile with legal name / location
+    await checkAndUpdateProfileInfo(order, fromCollective, isGuest);
+
+    // Check currency
     const currency = (tier && tier.currency) || collective.currency;
     if (order.currency && order.currency !== currency) {
       throw new Error(`Invalid currency. Expected ${currency}.`);
@@ -560,6 +614,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
+        fromAccountInfo: order.fromAccountInfo,
       },
       status: orderStatus,
     };

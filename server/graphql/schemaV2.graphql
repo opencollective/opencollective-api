@@ -9881,6 +9881,11 @@ input OrderCreateInput {
   fromAccount: AccountReferenceInput
 
   """
+  Additional information about the contributing profile
+  """
+  fromAccountInfo: OrderFromAccountInfo
+
+  """
   The profile you want to contribute to
   """
   toAccount: AccountReferenceInput!
@@ -9939,6 +9944,18 @@ input OrderCreateInput {
   Tags associated to the order
   """
   tags: [String]
+}
+
+"""
+Some context about how an order was created
+"""
+input OrderFromAccountInfo {
+  """
+  The location of the contributor. Account location will be updated with this address if different from the existing one.
+  """
+  location: LocationInput
+  name: String
+  legalName: String
 }
 
 """
