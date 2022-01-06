@@ -1844,6 +1844,7 @@ type Order {
   Platform Tip attached to the Order.
   """
   platformTipAmount: Amount
+  platformTipEligible: Boolean
   tags: [String]!
   taxes: [OrderTax]!
 
