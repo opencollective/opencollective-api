@@ -110,6 +110,11 @@ function defineModel() {
         },
       },
 
+      platformTipEligible: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+
       taxAmount: {
         type: DataTypes.INTEGER,
         validate: {
