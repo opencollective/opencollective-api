@@ -580,6 +580,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
     }
 
+    const platformTipEligible = await libPayments.isPlatformTipEligible({ ...order, collective }, host);
+
     const orderData = {
       CreatedByUserId: remoteUser.id,
       FromCollectiveId: fromCollective.id,
@@ -596,6 +598,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       tags: order.tags,
       platformTipAmount: order.platformTipAmount,
+      platformTipEligible,
       data: {
         ...orderPublicData,
         reqIp,
@@ -604,7 +607,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         tax: taxInfo,
         customData: order.customData,
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
-        isFeesOnTop: order.isFeesOnTop,
+        // Backward compatible
+        isFeesOnTop: order.platformTipAmount > 0,
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,

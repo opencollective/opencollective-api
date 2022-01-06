@@ -88,7 +88,6 @@ const orderMutations = {
         taxType: tax?.type,
         countryISO: tax?.country,
         taxIDNumber: tax?.idNumber,
-        isFeesOnTop: platformTipAmount > 0,
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,

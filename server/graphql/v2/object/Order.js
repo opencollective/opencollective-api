@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
@@ -170,6 +170,9 @@ export const Order = new GraphQLObjectType({
             return null;
           }
         },
+      },
+      platformTipEligible: {
+        type: GraphQLBoolean,
       },
       tags: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
