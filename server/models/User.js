@@ -272,6 +272,7 @@ function defineModel() {
   };
 
   User.prototype.getIncognitoProfile = function () {
+    // TODO: We should rely on the `Members` table for this
     return models.Collective.findOne({ where: { isIncognito: true, CreatedByUserId: this.id } });
   };
 

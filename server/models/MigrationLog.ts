@@ -5,6 +5,7 @@ export enum MigrationLogType {
   MIGRATION = 'MIGRATION',
   MANUAL = 'MANUAL',
   MERGE_ACCOUNTS = 'MERGE_ACCOUNTS',
+  MOVE_ORDERS = 'MOVE_ORDERS',
 }
 
 interface MigrationLogAttributes {

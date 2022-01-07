@@ -1352,15 +1352,15 @@ const CollectiveFields = () => {
         if (roles && roles.length > 0) {
           where.role = { [Op.in]: roles };
         }
-        const collectiveConditions = { deletedAt: null };
+        const collectiveConditions = { deletedAt: null, isIncognito: false };
         if (args.type) {
           collectiveConditions.type = args.type;
         }
         if (args.onlyActiveCollectives) {
           collectiveConditions.isActive = true;
         }
-        if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id)) {
-          collectiveConditions.isIncognito = false;
+        if (args.includeIncognito && (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot())) {
+          collectiveConditions.isIncognito = true;
         }
         return models.Member.findAll({
           where,
