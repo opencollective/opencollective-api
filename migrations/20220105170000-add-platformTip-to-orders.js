@@ -2,12 +2,25 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('Orders', 'platformTipAmount', { type: Sequelize.INTEGER, defaultValue: 0 });
-    await queryInterface.addColumn('OrderHistories', 'platformTipAmount', { type: Sequelize.INTEGER, defaultValue: 0 });
-    await queryInterface.addColumn('Orders', 'platformTipEligible', { type: Sequelize.BOOLEAN, defaultValue: false });
+    await queryInterface.addColumn('Orders', 'platformTipAmount', {
+      type: Sequelize.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+    });
+    await queryInterface.addColumn('OrderHistories', 'platformTipAmount', {
+      type: Sequelize.INTEGER,
+      allowNull: true,
+      defaultValue: null,
+    });
+    await queryInterface.addColumn('Orders', 'platformTipEligible', {
+      type: Sequelize.BOOLEAN,
+      allowNull: true,
+      defaultValue: null,
+    });
     await queryInterface.addColumn('OrderHistories', 'platformTipEligible', {
       type: Sequelize.BOOLEAN,
-      defaultValue: false,
+      allowNull: true,
+      defaultValue: null,
     });
   },
 

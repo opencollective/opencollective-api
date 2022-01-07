@@ -105,6 +105,8 @@ function defineModel() {
 
       platformTipAmount: {
         type: DataTypes.INTEGER, // Total amount of the order in cents
+        allowNull: true,
+        defaultValue: null,
         validate: {
           min: 0,
         },
@@ -112,7 +114,8 @@ function defineModel() {
 
       platformTipEligible: {
         type: DataTypes.BOOLEAN,
-        defaultValue: false,
+        allowNull: true,
+        defaultValue: null,
       },
 
       taxAmount: {
