@@ -609,6 +609,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
         // Backward compatible
         isFeesOnTop: order.platformTipAmount > 0,
+        platformFee: order.platformTipAmount,
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,

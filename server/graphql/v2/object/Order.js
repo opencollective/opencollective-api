@@ -44,9 +44,11 @@ export const Order = new GraphQLObjectType({
       amount: {
         type: new GraphQLNonNull(Amount),
         resolve(order) {
-          let value = order.totalAmount - order.platformTipAmount;
+          let value = order.totalAmount;
           // We remove Platform Tip from totalAmount
-          if (order.data?.isFeesOnTop && order.data?.platformFee) {
+          if (order.platformTipAmount) {
+            value = value - order.platformTipAmount;
+          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
             value = value - order.data.platformFee;
           }
           return { value, currency: order.currency };
