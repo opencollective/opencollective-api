@@ -97,6 +97,10 @@ export default {
       debug('state', state);
       const { CollectiveId, CreatedByUserId, redirect } = state;
 
+      if (req.query.error === 'access_denied') {
+        return res.redirect(redirect);
+      }
+
       if (!CollectiveId) {
         return next(new errors.BadRequest('No state in the callback'));
       }
