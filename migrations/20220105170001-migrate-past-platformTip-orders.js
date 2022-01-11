@@ -13,23 +13,6 @@ module.exports = {
       `,
     );
 
-    await queryInterface.sequelize.query(
-      `
-        UPDATE
-          "Orders" as o
-        SET
-          "platformTipAmount" = (o."data"->'platformFee')::int,
-          "platformTipEligible" = true
-        FROM
-          "Transactions" as t
-        WHERE
-          t."OrderId" = o."id"
-          AND t."kind" = 'CONTRIBUTION'
-          AND t."type" = 'CREDIT'
-          AND t."data"->>'platformTipEligible' = 'true';
-      `,
-    );
-
     await queryInterface.sequelize.query(`
       UPDATE
         "Orders"
