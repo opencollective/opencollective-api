@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { difference, isEmpty, isNil, isNull, isUndefined, keys } from 'lodash';
+import { difference, isEmpty, isNull, isUndefined, keys } from 'lodash';
 
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
@@ -68,9 +68,9 @@ const orderMutations = {
       };
 
       const { order } = args;
-      const platformTipAmount = order.platformTipAmount;
       const tax = order.taxes?.[0];
-      const platformFee = platformTipAmount && getValueInCentsFromAmountInput(platformTipAmount);
+      const platformTip = order.platformTipAmount;
+      const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
@@ -87,7 +87,6 @@ const orderMutations = {
         taxType: tax?.type,
         countryISO: tax?.country,
         taxIDNumber: tax?.idNumber,
-        isFeesOnTop: !isNil(platformFee),
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
@@ -100,7 +99,7 @@ const orderMutations = {
         guestInfo: order.guestInfo,
         context: order.context,
         tags: order.tags,
-        platformFee,
+        platformTipAmount,
       };
 
       const userAgent = req.header('user-agent');

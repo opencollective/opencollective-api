@@ -804,10 +804,11 @@ export const getApplicationFee = async (order, host = null) => {
 };
 
 export const getPlatformTip = object => {
-  if (object.data?.platformTip) {
+  if (object.platformTipAmount > 0) {
+    return object.platformTipAmount;
+  } else if (object.data?.platformTip) {
     return object.data?.platformTip;
-  }
-  if (object.data?.platformFee) {
+  } else if (object.data?.platformFee) {
     return object.data?.platformFee;
   }
   // Compatibility with some older tests

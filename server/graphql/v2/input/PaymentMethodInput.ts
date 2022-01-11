@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLInputFieldConfigMap, GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
+import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { PaymentMethodLegacyType } from '../enum';
@@ -73,7 +74,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   }
 
   if (pm.creditCardInfo) {
-    return {
+    const paymentMethod = {
       service: PAYMENT_METHOD_SERVICE.STRIPE,
       type: PAYMENT_METHOD_TYPE.CREDITCARD,
       name: pm.name,
@@ -81,6 +82,11 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       token: pm.creditCardInfo.token,
       data: pick(pm.creditCardInfo, ['brand', 'country', 'expMonth', 'expYear', 'fullName', 'funding', 'zip']),
     };
+    if (pm.creditCardInfo.expYear && pm.creditCardInfo.expMonth) {
+      const { expYear, expMonth } = pm.creditCardInfo;
+      paymentMethod['expiryDate'] = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM');
+    }
+    return paymentMethod;
   } else if (pm.paypalInfo) {
     if (pm.paypalInfo.subscriptionId) {
       return {
