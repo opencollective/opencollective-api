@@ -37,6 +37,7 @@ const CREATE_ORDER_MUTATION = gqlV2/* GraphQL */ `
         platformTipAmount {
           valueInCents
         }
+        platformTipEligible
         fromAccount {
           id
           legacyId
@@ -137,7 +138,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       sandbox.stub(payments, 'executeOrder').callsFake(stubExecuteOrderFn);
 
       // Add Stripe to host
-      host = await fakeHost();
+      host = await fakeHost({ plan: 'start-plan-2021' });
       toCollective = await fakeCollective({ HostCollectiveId: host.id });
       await models.ConnectedAccount.create({ service: 'stripe', token: 'abc', CollectiveId: host.id });
 
@@ -237,6 +238,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const order = result.data.createOrder.order;
         expect(order.amount.valueInCents).to.eq(5000);
         expect(order.platformTipAmount.valueInCents).to.eq(2500);
+        expect(order.platformTipEligible).to.eq(true);
       });
 
       it('can add taxes', async () => {

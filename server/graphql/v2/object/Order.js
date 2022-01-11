@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-iso-date';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
@@ -46,7 +46,9 @@ export const Order = new GraphQLObjectType({
         resolve(order) {
           let value = order.totalAmount;
           // We remove Platform Tip from totalAmount
-          if (order.data?.isFeesOnTop && order.data?.platformFee) {
+          if (order.platformTipAmount) {
+            value = value - order.platformTipAmount;
+          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
             value = value - order.data.platformFee;
           }
           return { value, currency: order.currency };
@@ -149,7 +151,9 @@ export const Order = new GraphQLObjectType({
         deprecationReason: '2021-06-07: Please use platformTipAmount',
         description: 'Platform contribution attached to the Order.',
         resolve(order) {
-          if (order.data?.isFeesOnTop && order.data?.platformFee) {
+          if (order.platformTipAmount > 0) {
+            return { value: order.platformTipAmount, currency: order.currency };
+          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
             return { value: order.data.platformFee, currency: order.currency };
           } else {
             return null;
@@ -160,12 +164,17 @@ export const Order = new GraphQLObjectType({
         type: Amount,
         description: 'Platform Tip attached to the Order.',
         resolve(order) {
-          if (order.data?.isFeesOnTop && order.data?.platformFee) {
+          if (order.platformTipAmount > 0) {
+            return { value: order.platformTipAmount, currency: order.currency };
+          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
             return { value: order.data.platformFee, currency: order.currency };
           } else {
             return null;
           }
         },
+      },
+      platformTipEligible: {
+        type: GraphQLBoolean,
       },
       tags: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLString)),

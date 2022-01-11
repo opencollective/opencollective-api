@@ -422,12 +422,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       throw new Error('Orders cannot be created for a collective by that same collective.');
     }
 
-    if (order.platformFee) {
-      if (collective.platformFeePercent && !remoteUser?.isRoot()) {
-        throw new Error('Only a root can set a platformFee on a collective with non-zero platformFee');
-      }
-    }
-
     const host = await collective.getHostCollective();
     if (order.hostFeePercent) {
       if (!remoteUser?.isAdmin(host.id)) {
@@ -586,6 +580,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
     }
 
+    const platformTipEligible = await libPayments.isPlatformTipEligible({ ...order, collective }, host);
+
     const orderData = {
       CreatedByUserId: remoteUser.id,
       FromCollectiveId: fromCollective.id,
@@ -601,6 +597,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       privateMessage: order.privateMessage,
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
       tags: order.tags,
+      platformTipAmount: order.platformTipAmount,
+      platformTipEligible,
       data: {
         ...orderPublicData,
         reqIp,
@@ -609,7 +607,9 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         tax: taxInfo,
         customData: order.customData,
         savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
-        isFeesOnTop: order.isFeesOnTop,
+        // Backward compatible
+        isFeesOnTop: order.platformTipAmount > 0,
+        platformFee: order.platformTipAmount,
         guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
         isEmbed: Boolean(order.context?.isEmbed),
         isGuest,
@@ -626,13 +626,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       orderData.data.hostFeePercent = order.hostFeePercent;
     } else if (tier && tier.data && tier.data.hostFeePercent !== undefined) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
-    }
-    if (order.platformFee) {
-      orderData.data.platformFee = order.platformFee;
-    } else if (order.platformFeePercent) {
-      orderData.data.platformFeePercent = order.platformFeePercent;
-    } else if (tier && tier.data && tier.data.platformFeePercent !== undefined) {
-      orderData.data.platformFeePercent = tier.data.platformFeePercent;
     }
 
     // Handle status for "free" orders

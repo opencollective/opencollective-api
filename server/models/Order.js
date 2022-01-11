@@ -103,6 +103,21 @@ function defineModel() {
         },
       },
 
+      platformTipAmount: {
+        type: DataTypes.INTEGER, // Total amount of the order in cents
+        allowNull: true,
+        defaultValue: null,
+        validate: {
+          min: 0,
+        },
+      },
+
+      platformTipEligible: {
+        type: DataTypes.BOOLEAN,
+        allowNull: true,
+        defaultValue: null,
+      },
+
       taxAmount: {
         type: DataTypes.INTEGER,
         validate: {
@@ -197,6 +212,7 @@ function defineModel() {
             quantity: this.quantity,
             interval: this.interval,
             totalAmount: this.totalAmount,
+            platformTipAmount: this.platformTipAmount,
             description: this.description,
             privateMessage: this.privateMessage,
             publicMessage: this.publicMessage,
@@ -214,13 +230,13 @@ function defineModel() {
             totalAmount:
               this.data?.isFeesOnTop && this.data?.platformFee
                 ? this.totalAmount - this.data.platformFee
-                : this.totalAmount,
+                : this.totalAmount - this.platformTipAmount,
             // introducing 3 new values to clarify
             netAmount:
               this.data?.isFeesOnTop && this.data?.platformFee
                 ? this.totalAmount - this.data.platformFee
-                : this.totalAmount,
-            platformTipAmount: this.data?.isFeesOnTop && this.data?.platformFee ? this.data?.platformFee : null,
+                : this.totalAmount - this.platformTipAmount,
+            platformTipAmount: this.platformTipAmount,
             chargeAmount: this.totalAmount,
             currency: this.currency,
             description: this.description,
