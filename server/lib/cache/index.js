@@ -149,9 +149,12 @@ export function memoize(func, { key, maxAge = 0, serialize, unserialize }) {
   return memoizedFunction;
 }
 
-export function purgeGQLCacheForCollective(slug) {
+export async function purgeGQLCacheForCollective(slug) {
   for (const operationName of purgeCacheForCollectiveOperationNames) {
-    cache.del(`${operationName}_${slug}`);
+    const keys = await cache.keys(`${operationName}*${slug}`);
+    if (keys?.length) {
+      cache.del(keys);
+    }
   }
 }
 
