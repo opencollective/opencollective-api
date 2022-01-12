@@ -26,8 +26,8 @@ const fetchExpiringCreditCards = async () => {
       // Expiry Date is set to be the last second of the valid month.
       // This query will return all the creditcards that will expire by the end of the current month.
       expiryDate: {
-        [Op.gt]: moment.utc().startOf('month'),
-        [Op.lt]: moment.utc().endOf('month'),
+        [Op.gte]: moment.utc().startOf('month'),
+        [Op.lte]: moment.utc().endOf('month'),
       },
     },
     include: [
