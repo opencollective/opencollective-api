@@ -2,6 +2,7 @@
 import '../server/env';
 
 import { mergeAccounts, simulateMergeAccounts } from '../server/lib/merge-accounts';
+import { parseToBoolean } from '../server/lib/utils';
 import models from '../server/models';
 
 import { confirm } from './common/helpers';
@@ -38,7 +39,10 @@ async function main() {
   await printMergeSummary(fromCollective, intoCollective);
   console.log('---------------------------------------------------------------');
 
-  const isConfirmed = await confirm('This action is irreversible. Are you sure you want to continue? (Yes/No)');
+  let isConfirmed = parseToBoolean(process.env.CONFIRM);
+  if (!isConfirmed) {
+    isConfirmed = await confirm('This action is irreversible. Are you sure you want to continue? (Yes/No)');
+  }
   if (isConfirmed) {
     console.log(
       `\nMerging ${fromCollective.slug} (#${fromCollective.id}) into ${intoCollective.slug} (#${intoCollective.id})...`,
