@@ -27,7 +27,7 @@ export const getMovableItemsCounts = async (
   account: Record<keyof CollectiveFieldsConfig, number>;
   user: Record<keyof UserFieldsConfig, number>;
 }> => {
-  if (fromCollective.type === CollectiveTypes.USER) {
+  if (fromCollective.type === CollectiveTypes.USER && !fromCollective.isIncognito) {
     const user = await fromCollective.getUser({ paranoid: false });
     if (!user) {
       throw new Error('Cannot find user for this account');
@@ -331,7 +331,7 @@ export const mergeAccounts = async (
 
   // When moving users, we'll also update the user entries
   let fromUser, toUser;
-  if (from.type === CollectiveTypes.USER) {
+  if (from.type === CollectiveTypes.USER && !from.isIncognito) {
     fromUser = await models.User.findOne({ where: { CollectiveId: from.id } });
     toUser = await models.User.findOne({ where: { CollectiveId: into.id } });
     if (!fromUser || !toUser) {
