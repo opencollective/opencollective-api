@@ -84,7 +84,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     };
     if (pm.creditCardInfo.expYear && pm.creditCardInfo.expMonth) {
       const { expYear, expMonth } = pm.creditCardInfo;
-      paymentMethod['expiryDate'] = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM');
+      paymentMethod['expiryDate'] = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM').endOf('month');
     }
     return paymentMethod;
   } else if (pm.paypalInfo) {
