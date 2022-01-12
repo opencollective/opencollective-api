@@ -60,8 +60,7 @@ const orderMutations = {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
-      const getOrderTotalAmount = ({ platformTipAmount, platformContributionAmount, taxes, quantity }) => {
-        platformTipAmount = platformTipAmount || platformContributionAmount;
+      const getOrderTotalAmount = ({ platformTipAmount, taxes, quantity }) => {
         let totalAmount = getValueInCentsFromAmountInput(order.amount) * quantity;
         totalAmount += platformTipAmount ? getValueInCentsFromAmountInput(platformTipAmount) : 0;
         totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
@@ -70,7 +69,7 @@ const orderMutations = {
 
       const { order } = args;
       const tax = order.taxes?.[0];
-      const platformTip = order.platformTipAmount || order.platformContributionAmount;
+      const platformTip = order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
       const loadAccount = account => fetchAccountWithReference(account, loadersParams);

@@ -146,20 +146,6 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
-      platformContributionAmount: {
-        type: Amount,
-        deprecationReason: '2021-06-07: Please use platformTipAmount',
-        description: 'Platform contribution attached to the Order.',
-        resolve(order) {
-          if (order.platformTipAmount > 0) {
-            return { value: order.platformTipAmount, currency: order.currency };
-          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
-            return { value: order.data.platformFee, currency: order.currency };
-          } else {
-            return null;
-          }
-        },
-      },
       platformTipAmount: {
         type: Amount,
         description: 'Platform Tip attached to the Order.',

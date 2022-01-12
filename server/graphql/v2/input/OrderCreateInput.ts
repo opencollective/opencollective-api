@@ -82,11 +82,6 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       description: 'The payment method used for this order',
       type: PaymentMethodInput,
     },
-    platformContributionAmount: {
-      type: AmountInput,
-      description: 'Platform contribution attached to this order',
-      deprecationReason: '2021-12-17: Use platformTipAmount',
-    },
     platformTipAmount: {
       type: AmountInput,
       description: 'Platform tip attached to this order',
