@@ -97,6 +97,14 @@ const cache = {
       logger.warn(`Error while writing to cache: ${err.message}`);
     }
   },
+  keys: async pattern => {
+    try {
+      debugCache(`keys ${pattern}`);
+      return getDefaultProvider().keys?.(pattern);
+    } catch (err) {
+      logger.warn(`Error while listing keys from cache: ${err.message}`);
+    }
+  },
 };
 
 export async function fetchCollectiveId(collectiveSlug) {

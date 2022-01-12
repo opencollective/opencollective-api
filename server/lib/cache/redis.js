@@ -40,6 +40,7 @@ const makeRedisProvider = ({ serverUrl }) => {
         }
       }
     },
+    keys: async pattern => client.keys(pattern),
   };
 };
 
