@@ -160,8 +160,7 @@ describe('server/models/Update', () => {
       });
 
       it('returns an empty array when the audience in NO_ONE', async () => {
-        const emptyCollective = await fakeCollective();
-        const update = await fakeUpdate({ CollectiveId: emptyCollective.id, notificationAudience: 'NO_ONE' });
+        const update = await fakeUpdate({ CollectiveId: collective.id, notificationAudience: 'NO_ONE' });
         const usersToNotify = await update.getUsersToNotify();
         expect(usersToNotify.length).to.eq(0);
       });
@@ -217,8 +216,7 @@ describe('server/models/Update', () => {
       });
 
       it('returns 0 when the audience is NO_ONE', async () => {
-        const emptyCollective = await fakeCollective();
-        const update = await fakeUpdate({ CollectiveId: emptyCollective.id, notificationAudience: 'NO_ONE' });
+        const update = await fakeUpdate({ CollectiveId: collective.id, notificationAudience: 'NO_ONE' });
         const count = await update.countUsersToNotify();
         expect(count).to.eq(0);
       });
