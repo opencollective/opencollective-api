@@ -2,16 +2,15 @@
 import '../../server/env';
 
 import config from 'config';
+import moment from 'moment';
 
 import logger from '../../server/lib/logger';
 import * as libPayments from '../../server/lib/payments';
-import models from '../../server/models';
+import models, { Op } from '../../server/models';
 
 // Run on the 7th and 21st of the month
 const today = new Date();
 const date = today.getDate();
-const month = today.getMonth() + 1;
-const year = today.getFullYear();
 
 if (config.env === 'production' && date !== 7 && date !== 21 && !process.env.OFFCYCLE) {
   console.log('OC_ENV is production and today is not the 7th or 21st of month, script aborted!');
@@ -20,13 +19,15 @@ if (config.env === 'production' && date !== 7 && date !== 21 && !process.env.OFF
 
 // link payment method id in Orders to payment method id in the payment method we're updating
 
-const fetchExpiringCreditCards = async (month, year) => {
+const fetchExpiringCreditCards = async () => {
   const expiringCards = await models.PaymentMethod.findAll({
     where: {
       type: 'creditcard',
-      data: {
-        expMonth: month,
-        expYear: year,
+      // Expiry Date is set to be the last second of the valid month.
+      // This query will return all the creditcards that will expire by the end of the current month.
+      expiryDate: {
+        [Op.gte]: moment.utc().startOf('month'),
+        [Op.lte]: moment.utc().endOf('month'),
       },
     },
     include: [
@@ -41,8 +42,9 @@ const fetchExpiringCreditCards = async (month, year) => {
 };
 
 const run = async () => {
-  const cards = await fetchExpiringCreditCards(month, year);
+  const cards = await fetchExpiringCreditCards();
   const reminder = date === 21 ? true : false;
+  logger.debug(`Found ${cards.length} cards about to expire...`);
 
   for (const card of cards) {
     try {
