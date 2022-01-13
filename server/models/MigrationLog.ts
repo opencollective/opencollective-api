@@ -77,7 +77,7 @@ MigrationLog.init(
       autoIncrement: true,
     },
     type: {
-      type: DataTypes.ENUM('MIGRATION', 'MANUAL', 'MERGE_ACCOUNTS'),
+      type: DataTypes.ENUM(...Object.values(MigrationLogType)),
       allowNull: false,
     },
     description: {

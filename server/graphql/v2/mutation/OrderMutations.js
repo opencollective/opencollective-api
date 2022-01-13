@@ -4,7 +4,7 @@ import { difference, flatten, isEmpty, isNull, isUndefined, keyBy, keys, mapValu
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import {
   updateOrderSubscription,
@@ -419,12 +419,15 @@ const orderMutations = {
       const orders = allOrders.filter(order => order.FromCollectiveId !== fromAccount.id);
 
       // -- Some sanity checks to prevent issues --
-      const supportedPaymentMethodServices = [PAYMENT_METHOD_SERVICE.PAYPAL, PAYMENT_METHOD_SERVICE.STRIPE];
       const paymentMethodIds = uniq(orders.map(order => order.PaymentMethodId).filter(Boolean));
       const ordersIds = orders.map(order => order.id);
       for (const order of orders) {
-        // Payment method can't be ACCOUNT_BALANCE - we don't want to transfer these
-        if (order.paymentMethod && !supportedPaymentMethodServices.includes(order.paymentMethod.service)) {
+        // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
+        if (
+          order.paymentMethod &&
+          order.paymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+          order.paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+        ) {
           throw new ValidationFailed(
             `Order #${order.id} has an unsupported payment method (${order.paymentMethod.service}/${order.paymentMethod.type})`,
           );
