@@ -5,6 +5,7 @@ export enum MigrationLogType {
   MIGRATION = 'MIGRATION',
   MANUAL = 'MANUAL',
   MERGE_ACCOUNTS = 'MERGE_ACCOUNTS',
+  MOVE_ORDERS = 'MOVE_ORDERS',
 }
 
 interface MigrationLogAttributes {
@@ -76,7 +77,7 @@ MigrationLog.init(
       autoIncrement: true,
     },
     type: {
-      type: DataTypes.ENUM('MIGRATION', 'MANUAL', 'MERGE_ACCOUNTS'),
+      type: DataTypes.ENUM(...Object.values(MigrationLogType)),
       allowNull: false,
     },
     description: {

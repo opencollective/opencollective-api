@@ -901,6 +901,72 @@ function defineModel() {
     return Promise.resolve();
   };
 
+  /**
+   * Returns the incognito profile for this collective (or null if none exists).
+   * Be careful: the link between an account and the incognito profile is a private information.
+   */
+  Collective.prototype.getIncognitoProfile = async function ({ transaction } = {}) {
+    if (this.type !== types.USER) {
+      return null;
+    } else {
+      const incognitoMember = await models.Member.findOne({
+        where: { MemberCollectiveId: this.id, role: roles.ADMIN },
+        include: [{ association: 'collective', required: true, where: { type: types.USER, isIncognito: true } }],
+        transaction,
+      });
+
+      return incognitoMember?.collective || null;
+    }
+  };
+
+  /**
+   * Returns the incognito profile for this collective, creating it if necessary
+   */
+  Collective.prototype.getOrCreateIncognitoProfile = async function ({ transaction } = {}) {
+    if (this.type !== types.USER) {
+      throw new Error(`Incognito profiles can only be created for users (not ${this.type})`);
+    }
+
+    // Always run in a transaction (we manually start one below if not provided)
+    const getOrCreateIncognitoProfileInTransaction = async transaction => {
+      const existingProfile = await this.getIncognitoProfile({ transaction });
+      if (existingProfile) {
+        return existingProfile;
+      }
+
+      const user = await this.getUser({ transaction }); // Ideally we should store the user that created the profile (can be a root admin), but User.getIncognitoProfile relies on this
+      const account = await models.Collective.create(
+        {
+          name: 'Incognito',
+          currency: this.currency,
+          type: types.USER,
+          isIncognito: true,
+          settings: null,
+          CreatedByUserId: user.id,
+        },
+        { transaction },
+      );
+
+      await models.Member.create(
+        {
+          MemberCollectiveId: user.CollectiveId,
+          CollectiveId: account.id,
+          role: roles.ADMIN,
+          CreatedByUserId: user.id,
+        },
+        { transaction },
+      );
+
+      return account;
+    };
+
+    if (transaction) {
+      return getOrCreateIncognitoProfileInTransaction(transaction);
+    } else {
+      return sequelize.transaction(getOrCreateIncognitoProfileInTransaction);
+    }
+  };
+
   // Save image it if it returns 200
   Collective.prototype.checkAndUpdateImage = async function (image, force = false) {
     if (force || !['e2e', 'ci', 'test'].includes(process.env.OC_ENV)) {

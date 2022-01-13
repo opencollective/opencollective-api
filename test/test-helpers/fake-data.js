@@ -413,12 +413,16 @@ export const fakeTier = async (tierData = {}) => {
 /**
  * Creates a fake order. All params are optionals.
  */
-export const fakeOrder = async (orderData = {}, { withSubscription = false, withTransactions = false } = {}) => {
+export const fakeOrder = async (
+  orderData = {},
+  { withSubscription = false, withTransactions = false, withBackerMember = false } = {},
+) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
-  const CollectiveId = orderData.CollectiveId || (await fakeCollective()).id;
-  const collective = await models.Collective.findByPk(CollectiveId);
+  const collective = orderData.CollectiveId
+    ? await models.Collective.findByPk(orderData.CollectiveId)
+    : await fakeCollective();
 
   const order = await models.Order.create({
     quantity: 1,
@@ -427,7 +431,7 @@ export const fakeOrder = async (orderData = {}, { withSubscription = false, with
     ...orderData,
     CreatedByUserId,
     FromCollectiveId,
-    CollectiveId,
+    CollectiveId: collective.id,
   });
 
   if (order.PaymentMethodId) {
@@ -464,6 +468,15 @@ export const fakeOrder = async (orderData = {}, { withSubscription = false, with
         amount: -order.amount,
       }),
     ]);
+  }
+
+  if (withBackerMember) {
+    await fakeMember({
+      MemberCollectiveId: order.FromCollectiveId,
+      CollectiveId: order.CollectiveId,
+      CreatedByUserId: order.CreatedByUserId,
+      role: 'BACKER',
+    });
   }
 
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);

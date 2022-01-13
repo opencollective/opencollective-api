@@ -16,7 +16,7 @@ type OrderAssociation = 'fromCollective' | 'collective';
 const getJoinCondition = (
   account,
   association: OrderAssociation,
-  includeHostedAccounts: boolean,
+  includeHostedAccounts = false,
 ): Record<string, unknown> => {
   if (!includeHostedAccounts) {
     return { [`$${association}.id$`]: account.id };
@@ -46,6 +46,11 @@ const OrdersCollectionQuery = {
     includeHostedAccounts: {
       type: GraphQLBoolean,
       description: 'If account is a host, also include hosted accounts orders',
+    },
+    includeIncognito: {
+      type: GraphQLBoolean,
+      description: 'Whether to include incognito orders. Must be admin or root',
+      defaultValue: false,
     },
     filter: {
       type: AccountOrdersFilter,
@@ -98,18 +103,29 @@ const OrdersCollectionQuery = {
       const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
       const account = await fetchAccountWithReference(args.account, fetchAccountParams);
 
-      if (args.filter === 'OUTGOING') {
-        where[Op.and].push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
-      } else if (args.filter === 'INCOMING') {
-        where[Op.and].push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
-      } else {
-        where[Op.and].push({
-          [Op.or]: [
-            getJoinCondition(account, 'fromCollective', args.includeHostedAccounts),
-            getJoinCondition(account, 'collective', args.includeHostedAccounts),
-          ],
-        });
+      // Needs to be root or admin of the profile to see incognito orders
+      if (args.includeIncognito && !req.remoteUser?.isAdminOfCollective(account) && !req.remoteUser?.isRoot()) {
+        throw new Error('Only admins and root can fetch incognito orders');
       }
+
+      const incognitoProfile = args.includeIncognito && (await account.getIncognitoProfile());
+      const accountConditions = [];
+
+      // Filter on fromCollective
+      if (!args.filter || args.filter === 'OUTGOING') {
+        accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
+        if (incognitoProfile) {
+          accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
+        }
+      }
+
+      // Filter on collective
+      if (!args.filter || args.filter === 'INCOMING') {
+        accountConditions.push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
+      }
+
+      // Bind account conditions to the query
+      where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
     }
 
     // Add search filter

@@ -1,24 +1,28 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { difference, isEmpty, isNull, isUndefined, keys } from 'lodash';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { difference, flatten, isEmpty, isNull, isUndefined, keyBy, keys, mapValues, pick, uniq, uniqBy } from 'lodash';
 
+import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { purgeAllCachesForAccount } from '../../../lib/cache';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
   updateSubscriptionDetails,
 } from '../../../lib/subscriptions';
-import models from '../../../models';
+import models, { Op, sequelize } from '../../../models';
+import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { getDecodedId } from '../identifiers';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
-import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
+import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
@@ -368,6 +372,170 @@ const orderMutations = {
       } else {
         throw new BadRequest(`Unknown action ${args.action}`);
       }
+    },
+  },
+  moveOrders: {
+    type: new GraphQLNonNull(new GraphQLList(Order)),
+    description: 'A mutation for root users to move orders from one account to another',
+    args: {
+      orders: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(OrderReferenceInput))),
+        description: 'The orders to move',
+      },
+      fromAccount: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'The account to move the orders to',
+      },
+      makeIncognito: {
+        type: GraphQLBoolean,
+        description: 'If true, the orders will be moved to the incognito account of "fromAccount"',
+      },
+    },
+    async resolve(_, args, req) {
+      if (!req.remoteUser?.isRoot()) {
+        throw new Unauthorized('Only root admins can move orders at the moment');
+      } else if (!args.orders.length) {
+        return [];
+      }
+
+      // -- Load everything --
+      let fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
+      if (args.makeIncognito) {
+        fromAccount = await fromAccount.getOrCreateIncognitoProfile();
+        if (!fromAccount) {
+          throw new ValidationFailed('Could not create incognito profile for this account');
+        }
+      }
+
+      const allOrders = await fetchOrdersWithReferences(args.orders, {
+        include: [
+          { association: 'paymentMethod' },
+          { association: 'fromCollective', attributes: ['id', 'slug'] },
+          { association: 'collective', attributes: ['id', 'slug'] },
+        ],
+      });
+
+      // Filter out orders that do not need to be updated
+      const orders = allOrders.filter(order => order.FromCollectiveId !== fromAccount.id);
+
+      // -- Some sanity checks to prevent issues --
+      const paymentMethodIds = uniq(orders.map(order => order.PaymentMethodId).filter(Boolean));
+      const ordersIds = orders.map(order => order.id);
+      for (const order of orders) {
+        // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
+        if (
+          order.paymentMethod &&
+          order.paymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+          order.paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+        ) {
+          throw new ValidationFailed(
+            `Order #${order.id} has an unsupported payment method (${order.paymentMethod.service}/${order.paymentMethod.type})`,
+          );
+        }
+
+        // When moving the payment method for an order, we must make sure it's not used by other orders we're not moving
+        const zombieOrders = await models.Order.findAll({
+          where: { PaymentMethodId: paymentMethodIds, id: { [Op.notIn]: ordersIds } },
+        });
+
+        if (zombieOrders.length) {
+          const zombiePaymentMethodsIds = uniq(zombieOrders.map(o => `#${o.PaymentMethodId}`)).join(', ');
+          const zombieOrdersIds = zombieOrders.map(o => `#${o.id}`).join(', ');
+          throw new ValidationFailed(
+            `Can't move selected orders because the payment methods (${zombiePaymentMethodsIds}) are still used by other orders (${zombieOrdersIds})`,
+          );
+        }
+      }
+
+      // -- Move orders --
+      const result = await sequelize.transaction(async dbTransaction => {
+        // Update transactions
+        // ... CREDIT
+        const [, updatedCredits] = await models.Transaction.update(
+          { FromCollectiveId: fromAccount.id },
+          {
+            transaction: dbTransaction,
+            returning: ['id'],
+            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, FromCollectiveId: order.FromCollectiveId })) },
+          },
+        );
+
+        // ... DEBIT
+        const [, updatedDebits] = await models.Transaction.update(
+          { CollectiveId: fromAccount.id },
+          {
+            transaction: dbTransaction,
+            returning: ['id'],
+            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, CollectiveId: order.FromCollectiveId })) },
+          },
+        );
+
+        // Update members
+        const [, updatedMembers] = await models.Member.update(
+          { MemberCollectiveId: fromAccount.id },
+          {
+            transaction: dbTransaction,
+            returning: ['id'],
+            where: {
+              [Op.or]: orders.map(order => ({
+                MemberCollectiveId: order.FromCollectiveId,
+                CollectiveId: order.CollectiveId,
+                TierId: order.TierId,
+                role: roles.BACKER,
+              })),
+            },
+          },
+        );
+
+        // Payment methods
+        const [, updatedPaymentMethods] = await models.PaymentMethod.update(
+          { CollectiveId: fromAccount.id },
+          {
+            transaction: dbTransaction,
+            returning: ['id'],
+            where: { id: paymentMethodIds },
+          },
+        );
+
+        // Update orders
+        const [, updatedOrders] = await models.Order.update(
+          { FromCollectiveId: fromAccount.id },
+          {
+            transaction: dbTransaction,
+            returning: true,
+            where: { id: ordersIds },
+          },
+        );
+
+        // Log the update
+        await models.MigrationLog.create(
+          {
+            type: MigrationLogType.MOVE_ORDERS,
+            description: `Move ${orders.length} orders (@${fromAccount.slug} #${fromAccount.id})`,
+            CreatedByUserId: req.remoteUser.id,
+            data: {
+              orders: updatedOrders.map(o => o.id),
+              fromAccount: fromAccount.id,
+              paymentMethods: updatedPaymentMethods.map(pm => pm.id),
+              members: updatedMembers.map(m => m.id),
+              transactions: [...updatedCredits.map(t => t.id), ...updatedDebits.map(t => t.id)],
+              previousOrdersValues: mapValues(keyBy(orders, 'id'), order =>
+                pick(order, ['FromCollectiveId', 'CollectiveId']),
+              ),
+            },
+          },
+          { transaction: dbTransaction },
+        );
+
+        return updatedOrders;
+      });
+
+      // Purge cache(s)
+      const collectivesToPurge = flatten(allOrders.map(order => [order.fromCollective, order.collective]));
+      const uniqueCollectivesToPurge = uniqBy(collectivesToPurge, 'id');
+      uniqueCollectivesToPurge.forEach(purgeAllCachesForAccount);
+
+      return result;
     },
   },
 };
