@@ -449,21 +449,21 @@ const orderMutations = {
         // Update transactions
         // ... CREDIT
         const [, updatedCredits] = await models.Transaction.update(
-          { CollectiveId: fromAccount.id },
+          { FromCollectiveId: fromAccount.id },
           {
             transaction: dbTransaction,
             returning: ['id'],
-            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, CollectiveId: order.CollectiveId })) },
+            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, FromCollectiveId: order.FromCollectiveId })) },
           },
         );
 
         // ... DEBIT
         const [, updatedDebits] = await models.Transaction.update(
-          { FromCollectiveId: fromAccount.id },
+          { CollectiveId: fromAccount.id },
           {
             transaction: dbTransaction,
             returning: ['id'],
-            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, FromCollectiveId: order.CollectiveId })) },
+            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, CollectiveId: order.FromCollectiveId })) },
           },
         );
 
