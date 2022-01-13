@@ -154,8 +154,9 @@ export const UserType = new GraphQLObjectType({
       },
       username: {
         type: GraphQLString,
-        resolve(user) {
-          return user.username;
+        deprecationReason: '2022-01-13: Not used anymore. Will be ignored',
+        resolve() {
+          return null;
         },
       },
       name: {

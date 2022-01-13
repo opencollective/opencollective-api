@@ -129,10 +129,6 @@ function defineModel() {
           });
         },
 
-        username() {
-          return this.userCollective.then(collective => collective.slug);
-        },
-
         name() {
           return this.userCollective.then(collective => collective.name);
         },

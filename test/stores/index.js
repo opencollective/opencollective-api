@@ -46,7 +46,7 @@ function slugify(value) {
  * @param {String} name is the name of the new user. The email created
  *  for the user will be `{name}@oc.com`.
  * @param {Object} data is whatever other data that needs to be passed
- *  to the user's creation. The fields "name", "email", "username" and
+ *  to the user's creation. The fields "name", "email" and
  *  "description" can't be overrided.
  * @return {Object} with references for `user` and `userCollective`.
  * @deprecated Prefer the `fake-data` lib: use `fakeUser()`
@@ -60,7 +60,6 @@ export async function newUser(name, data = {}) {
     email,
     slug,
     name,
-    username: name,
     description: `A user called ${name}`,
   });
   return { user, userCollective: user.collective, [slug]: user };

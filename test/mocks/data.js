@@ -1,7 +1,6 @@
 export default {
   host1: {
     name: 'WWCode',
-    username: 'wwcode',
     hostFeePercent: 10,
     email: 'finance+wwcode@opencollective.com',
     description: 'engineer',
@@ -14,7 +13,6 @@ export default {
   },
   user1: {
     name: 'Phil Mod',
-    username: 'philmod',
     email: 'user1@opencollective.com',
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
@@ -24,7 +22,6 @@ export default {
 
   user2: {
     name: 'Anish Bas',
-    username: 'abas',
     image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c_400x400.jpeg',
     description: 'small guy',
     email: 'user2@opencollective.com',
@@ -35,26 +32,22 @@ export default {
 
   user3: {
     name: 'Xavier Damman',
-    username: 'xdamman',
     email: 'user3@opencollective.com',
     address: 'Rue du paradis\n1000 Brussels\nBelgium',
   },
 
   user4: {
     name: 'Bo Ki',
-    username: 'boki',
     email: 'user4@opencollective.com',
   },
 
   user5: {
     name: 'Bo Ki',
-    username: 'boki',
     email: 'user5@opencollective.org',
   },
 
   user6: {
     name: 'internal user',
-    username: 'interno',
     email: 'internal_user@opencollective.com',
   },
 
@@ -583,7 +576,6 @@ export default {
     user: {
       id: 1,
       name: 'Phil Mod',
-      username: 'philmod',
       email: 'user1@opencollective.com',
       image: null,
       twitterHandle: 'philmod',
