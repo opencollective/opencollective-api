@@ -383,8 +383,13 @@ const orderMutations = {
         description: 'The orders to move',
       },
       fromAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'The account to move the orders to',
+        type: AccountReferenceInput,
+        description: 'The account to move the orders to. Set to null to keep existing',
+      },
+      tier: {
+        type: TierReferenceInput,
+        description:
+          'The tier to move the orders to. Set to null to keep existing. Pass { id: "custom" } to reference the custom tier (/donate)',
       },
       makeIncognito: {
         type: GraphQLBoolean,
@@ -396,18 +401,29 @@ const orderMutations = {
         throw new Unauthorized('Only root admins can move orders at the moment');
       } else if (!args.orders.length) {
         return [];
+      } else if (!args.fromAccount && !args.tier) {
+        throw new ValidationFailed('You must specify a "fromAccount" or a "tier" for the update');
       }
 
       // -- Load everything --
-      let fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
-      if (args.makeIncognito) {
-        fromAccount = await fromAccount.getOrCreateIncognitoProfile();
-        if (!fromAccount) {
-          throw new ValidationFailed('Could not create incognito profile for this account');
+      let fromAccount, tier;
+      if (args.fromAccount) {
+        fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
+        if (args.makeIncognito) {
+          fromAccount = await fromAccount.getOrCreateIncognitoProfile();
+          if (!fromAccount) {
+            throw new ValidationFailed('Could not create incognito profile for this account');
+          }
         }
+      } else if (args.makeIncognito) {
+        throw new ValidationFailed('Not supported: Cannot make orders incognito if no account is specified');
       }
 
-      const allOrders = await fetchOrdersWithReferences(args.orders, {
+      if (args.tier) {
+        tier = await fetchTierWithReference(args.tier, { throwIfMissing: true, allowCustomTier: true });
+      }
+
+      const orders = await fetchOrdersWithReferences(args.orders, {
         include: [
           { association: 'paymentMethod' },
           { association: 'fromCollective', attributes: ['id', 'slug'] },
@@ -415,112 +431,145 @@ const orderMutations = {
         ],
       });
 
-      // Filter out orders that do not need to be updated
-      const orders = allOrders.filter(order => order.FromCollectiveId !== fromAccount.id);
-
       // -- Some sanity checks to prevent issues --
       const paymentMethodIds = uniq(orders.map(order => order.PaymentMethodId).filter(Boolean));
       const ordersIds = orders.map(order => order.id);
       for (const order of orders) {
-        // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
-        if (
-          order.paymentMethod &&
-          order.paymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
-          order.paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE
-        ) {
-          throw new ValidationFailed(
-            `Order #${order.id} has an unsupported payment method (${order.paymentMethod.service}/${order.paymentMethod.type})`,
-          );
+        const isUpdatingPaymentMethod = Boolean(fromAccount);
+
+        if (isUpdatingPaymentMethod) {
+          // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
+          if (
+            order.paymentMethod &&
+            order.paymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+            order.paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE
+          ) {
+            throw new ValidationFailed(
+              `Order #${order.id} has an unsupported payment method (${order.paymentMethod.service}/${order.paymentMethod.type})`,
+            );
+          }
+
+          // When moving the payment method for an order, we must make sure it's not used by other orders we're not moving
+          const zombieOrders = await models.Order.findAll({
+            where: { PaymentMethodId: paymentMethodIds, id: { [Op.notIn]: ordersIds } },
+          });
+
+          if (zombieOrders.length) {
+            const zombiePaymentMethodsIds = uniq(zombieOrders.map(o => `#${o.PaymentMethodId}`)).join(', ');
+            const zombieOrdersIds = zombieOrders.map(o => `#${o.id}`).join(', ');
+            throw new ValidationFailed(
+              `Can't move selected orders because the payment methods (${zombiePaymentMethodsIds}) are still used by other orders (${zombieOrdersIds})`,
+            );
+          }
         }
 
-        // When moving the payment method for an order, we must make sure it's not used by other orders we're not moving
-        const zombieOrders = await models.Order.findAll({
-          where: { PaymentMethodId: paymentMethodIds, id: { [Op.notIn]: ordersIds } },
-        });
-
-        if (zombieOrders.length) {
-          const zombiePaymentMethodsIds = uniq(zombieOrders.map(o => `#${o.PaymentMethodId}`)).join(', ');
-          const zombieOrdersIds = zombieOrders.map(o => `#${o.id}`).join(', ');
-          throw new ValidationFailed(
-            `Can't move selected orders because the payment methods (${zombiePaymentMethodsIds}) are still used by other orders (${zombieOrdersIds})`,
-          );
+        // Can't move to another collective tier
+        if (tier && tier !== 'custom' && orders.some(o => o.CollectiveId !== tier.CollectiveId)) {
+          throw new ValidationFailed(`Can't move orders to a different collective tier`);
         }
       }
 
       // -- Move orders --
       const result = await sequelize.transaction(async dbTransaction => {
-        // Update transactions
-        // ... CREDIT
-        const [, updatedCredits] = await models.Transaction.update(
-          { FromCollectiveId: fromAccount.id },
-          {
-            transaction: dbTransaction,
-            returning: ['id'],
-            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, FromCollectiveId: order.FromCollectiveId })) },
-          },
-        );
+        let updatedPaymentMethods = [],
+          updatedCredits = [],
+          updatedDebits = [];
 
-        // ... DEBIT
-        const [, updatedDebits] = await models.Transaction.update(
-          { CollectiveId: fromAccount.id },
-          {
-            transaction: dbTransaction,
-            returning: ['id'],
-            where: { [Op.or]: orders.map(order => ({ OrderId: order.id, CollectiveId: order.FromCollectiveId })) },
-          },
-        );
+        if (fromAccount) {
+          // Payment methods
+          [, updatedPaymentMethods] = await models.PaymentMethod.update(
+            { CollectiveId: fromAccount.id },
+            {
+              transaction: dbTransaction,
+              returning: ['id'],
+              where: { id: paymentMethodIds },
+            },
+          );
+
+          // Update transactions
+          [, updatedCredits] = await models.Transaction.update(
+            { FromCollectiveId: fromAccount.id },
+            {
+              transaction: dbTransaction,
+              returning: ['id'],
+              where: {
+                [Op.or]: orders.map(order => ({ OrderId: order.id, FromCollectiveId: order.FromCollectiveId })),
+              },
+            },
+          );
+
+          [, updatedDebits] = await models.Transaction.update(
+            { CollectiveId: fromAccount.id },
+            {
+              transaction: dbTransaction,
+              returning: ['id'],
+              where: {
+                [Op.or]: orders.map(order => ({ OrderId: order.id, CollectiveId: order.FromCollectiveId })),
+              },
+            },
+          );
+        }
 
         // Update members
-        const [, updatedMembers] = await models.Member.update(
-          { MemberCollectiveId: fromAccount.id },
-          {
-            transaction: dbTransaction,
-            returning: ['id'],
-            where: {
-              [Op.or]: orders.map(order => ({
-                MemberCollectiveId: order.FromCollectiveId,
-                CollectiveId: order.CollectiveId,
-                TierId: order.TierId,
-                role: roles.BACKER,
-              })),
-            },
+        const membersPayload = {};
+        if (fromAccount) {
+          membersPayload['MemberCollectiveId'] = fromAccount.id;
+        }
+        if (tier) {
+          membersPayload['TierId'] = tier === 'custom' ? null : tier.id;
+        }
+        const [, updatedMembers] = await models.Member.update(membersPayload, {
+          transaction: dbTransaction,
+          returning: ['id'],
+          where: {
+            [Op.or]: orders.map(order => ({
+              MemberCollectiveId: order.FromCollectiveId,
+              CollectiveId: order.CollectiveId,
+              TierId: order.TierId,
+              role: roles.BACKER,
+            })),
           },
-        );
-
-        // Payment methods
-        const [, updatedPaymentMethods] = await models.PaymentMethod.update(
-          { CollectiveId: fromAccount.id },
-          {
-            transaction: dbTransaction,
-            returning: ['id'],
-            where: { id: paymentMethodIds },
-          },
-        );
+        });
 
         // Update orders
-        const [, updatedOrders] = await models.Order.update(
-          { FromCollectiveId: fromAccount.id },
-          {
-            transaction: dbTransaction,
-            returning: true,
-            where: { id: ordersIds },
-          },
-        );
+        const ordersPayload = {};
+        if (fromAccount) {
+          ordersPayload['FromCollectiveId'] = fromAccount.id;
+        }
+        if (tier) {
+          ordersPayload['TierId'] = tier === 'custom' ? null : tier.id;
+        }
+
+        const [, updatedOrders] = await models.Order.update(ordersPayload, {
+          transaction: dbTransaction,
+          returning: true,
+          where: { id: ordersIds },
+        });
 
         // Log the update
+        const descriptionDetails = [];
+        if (fromAccount) {
+          descriptionDetails.push(`@${fromAccount.slug}`);
+        }
+        if (tier) {
+          descriptionDetails.push(tier === 'custom' ? 'custom tier' : `tier #${tier.id}`);
+        }
         await models.MigrationLog.create(
           {
             type: MigrationLogType.MOVE_ORDERS,
-            description: `Move ${orders.length} orders (@${fromAccount.slug} #${fromAccount.id})`,
+            description: `Move ${orders.length} orders${
+              descriptionDetails ? ` (${descriptionDetails.join(', ')})` : ''
+            }`,
             CreatedByUserId: req.remoteUser.id,
             data: {
               orders: updatedOrders.map(o => o.id),
-              fromAccount: fromAccount.id,
+              fromAccount: fromAccount?.id,
+              tier: tier?.id,
               paymentMethods: updatedPaymentMethods.map(pm => pm.id),
               members: updatedMembers.map(m => m.id),
               transactions: [...updatedCredits.map(t => t.id), ...updatedDebits.map(t => t.id)],
               previousOrdersValues: mapValues(keyBy(orders, 'id'), order =>
-                pick(order, ['FromCollectiveId', 'CollectiveId']),
+                pick(order, ['FromCollectiveId', 'CollectiveId', 'TierId']),
               ),
             },
           },
@@ -531,7 +580,7 @@ const orderMutations = {
       });
 
       // Purge cache(s)
-      const collectivesToPurge = flatten(allOrders.map(order => [order.fromCollective, order.collective]));
+      const collectivesToPurge = flatten(orders.map(order => [order.fromCollective, order.collective]));
       const uniqueCollectivesToPurge = uniqBy(collectivesToPurge, 'id');
       uniqueCollectivesToPurge.forEach(purgeAllCachesForAccount);
 

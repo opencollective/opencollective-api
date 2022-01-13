@@ -91,8 +91,13 @@ const updateOrderMutation = gqlV2/* GraphQL */ `
 `;
 
 const moveOrdersMutation = gqlV2/* GraphQL */ `
-  mutation MoveOrders($orders: [OrderReferenceInput!]!, $fromAccount: AccountReferenceInput!, $makeIncognito: Boolean) {
-    moveOrders(orders: $orders, fromAccount: $fromAccount, makeIncognito: $makeIncognito) {
+  mutation MoveOrders(
+    $orders: [OrderReferenceInput!]!
+    $fromAccount: AccountReferenceInput
+    $makeIncognito: Boolean
+    $tier: TierReferenceInput
+  ) {
+    moveOrders(orders: $orders, fromAccount: $fromAccount, makeIncognito: $makeIncognito, tier: $tier) {
       id
       legacyId
       description
@@ -114,6 +119,10 @@ const moveOrdersMutation = gqlV2/* GraphQL */ `
         legacyId
         slug
         name
+      }
+      tier {
+        id
+        legacyId
       }
       transactions {
         id
@@ -489,11 +498,12 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
   });
 
   describe('moveOrders', () => {
-    const callMoveOrders = async (orders, fromAccount, loggedInUser, makeIncognito = false) => {
+    const callMoveOrders = async (orders, loggedInUser, { fromAccount = null, makeIncognito = false, tier = null }) => {
       return graphqlQueryV2(
         moveOrdersMutation,
         {
-          fromAccount: { legacyId: fromAccount.id },
+          fromAccount: fromAccount ? { legacyId: fromAccount.id } : null,
+          tier: !tier ? null : tier === 'custom' ? { isCustom: true } : { legacyId: tier.id },
           orders: orders.map(order => ({ id: idEncode(order.id, 'order') })),
           makeIncognito,
         },
@@ -518,9 +528,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       await order.collective.host.addUserWithRole(hostAdminUser, 'ADMIN');
 
       const allResults = await Promise.all([
-        callMoveOrders([order], order.fromCollective, null),
-        callMoveOrders([order], order.fromCollective, collectiveAdminUser),
-        callMoveOrders([order], order.fromCollective, hostAdminUser),
+        callMoveOrders([order], null, { fromAccount: order.fromCollective }),
+        callMoveOrders([order], collectiveAdminUser, { fromAccount: order.fromCollective }),
+        callMoveOrders([order], hostAdminUser, { fromAccount: order.fromCollective }),
       ]);
 
       allResults.forEach(result => {
@@ -538,7 +548,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
 
         // Move order
-        const result = await callMoveOrders([order1], newProfile, rootUser);
+        const result = await callMoveOrders([order1], rootUser, { fromAccount: newProfile });
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
           `Can't move selected orders because the payment methods (#${paymentMethod.id}) are still used by other orders (#${order2.id})`,
@@ -552,7 +562,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
 
         // Move order
-        const result = await callMoveOrders([order], newProfile, rootUser);
+        const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
           `Order #${order.id} has an unsupported payment method (opencollective/collective)`,
@@ -575,7 +585,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       // Move order
-      const result = await callMoveOrders([order], newProfile, rootUser);
+      const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
       const resultOrder = result.data.moveOrders[0];
 
       // Check migration logs
@@ -588,6 +598,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(migrationLog.data['previousOrdersValues'][order.id]).to.deep.eq({
         CollectiveId: order.CollectiveId,
         FromCollectiveId: order.FromCollectiveId,
+        TierId: null,
       });
 
       // Check order
@@ -633,7 +644,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       // Move order
-      const result = await callMoveOrders([order], order.fromCollective, rootUser, true);
+      const result = await callMoveOrders([order], rootUser, {
+        fromAccount: order.fromCollective,
+        makeIncognito: true,
+      });
       const resultOrder = result.data.moveOrders[0];
 
       // Incognito profile should have been created automatically
@@ -649,6 +663,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(migrationLog.data['previousOrdersValues'][order.id]).to.deep.eq({
         CollectiveId: order.CollectiveId,
         FromCollectiveId: order.FromCollectiveId,
+        TierId: null,
       });
 
       // Check order
@@ -678,6 +693,113 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(migrationLog.data['members']).to.deep.eq([backerMember.id]);
       expect(backerMember.MemberCollectiveId).to.eq(incognitoProfile.id);
       expect(backerMember.CollectiveId).to.eq(order.CollectiveId);
+    });
+
+    it('moves the contribution to the custom tier', async () => {
+      // Init data
+      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
+      const backerMember = await models.Member.findOne({
+        where: {
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: 'BACKER',
+        },
+      });
+
+      // Move order
+      const result = await callMoveOrders([order], rootUser, { tier: 'custom' });
+      const resultOrder = result.data.moveOrders[0];
+
+      // Check migration logs
+      const migrationLog = await models.MigrationLog.findOne({
+        where: { type: 'MOVE_ORDERS', CreatedByUserId: rootUser.id },
+      });
+
+      expect(migrationLog).to.exist;
+      expect(migrationLog.data['previousOrdersValues'][order.id]).to.deep.eq({
+        CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        TierId: order.TierId,
+      });
+
+      // Check order
+      expect(migrationLog.data['orders']).to.deep.eq([order.id]);
+      expect(resultOrder.toAccount.legacyId).to.eq(order.CollectiveId); // Should stay the same
+      expect(resultOrder.tier).to.be.null;
+
+      // Check transactions
+      expect(migrationLog.data['transactions']).to.be.empty;
+
+      // Check member
+      await backerMember.reload();
+      expect(migrationLog.data['members']).to.deep.eq([backerMember.id]);
+      expect(backerMember.TierId).to.be.null;
+      expect(backerMember.CollectiveId).to.eq(order.CollectiveId); // Should stay the same
+    });
+
+    it('moves both the fromAccount and the contribution to a different tier', async () => {
+      // Init data
+      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
+      const newTier = await fakeTier({ CollectiveId: order.CollectiveId });
+      const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
+      const backerMember = await models.Member.findOne({
+        where: {
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: 'BACKER',
+        },
+      });
+
+      // Move order
+      const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile, tier: newTier });
+      const resultOrder = result.data.moveOrders[0];
+
+      // Check migration logs
+      const migrationLog = await models.MigrationLog.findOne({
+        where: { type: 'MOVE_ORDERS', CreatedByUserId: rootUser.id },
+      });
+
+      expect(migrationLog).to.exist;
+      expect(migrationLog.data['fromAccount']).to.eq(newProfile.id);
+      expect(migrationLog.data['previousOrdersValues'][order.id]).to.deep.eq({
+        CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        TierId: order.TierId,
+      });
+
+      // Check order
+      expect(migrationLog.data['orders']).to.deep.eq([order.id]);
+      expect(resultOrder.fromAccount.legacyId).to.eq(newProfile.id);
+      expect(resultOrder.toAccount.legacyId).to.eq(order.CollectiveId); // Should stay the same
+      expect(resultOrder.tier.legacyId).to.eq(newTier.id);
+
+      // Check transactions
+      const allOrderTransactions = await models.Transaction.findAll({ where: { OrderId: order.id } });
+      expect(migrationLog.data['transactions']).to.deep.eq(allOrderTransactions.map(t => t.id));
+
+      const creditTransaction = resultOrder.transactions.find(t => t.type === 'CREDIT');
+      expect(creditTransaction.oppositeAccount.legacyId).to.eq(newProfile.id);
+      expect(creditTransaction.account.legacyId).to.eq(order.CollectiveId);
+
+      const debitTransaction = resultOrder.transactions.find(t => t.type === 'DEBIT');
+      expect(debitTransaction.oppositeAccount.legacyId).to.eq(order.CollectiveId);
+      expect(debitTransaction.account.legacyId).to.eq(newProfile.id);
+
+      // Check payment methods
+      await paymentMethod.reload();
+      expect(migrationLog.data['paymentMethods']).to.deep.eq([paymentMethod.id]);
+      expect(paymentMethod.CollectiveId).to.eq(newProfile.id);
+
+      // Check member
+      await backerMember.reload();
+      expect(migrationLog.data['members']).to.deep.eq([backerMember.id]);
+      expect(backerMember.MemberCollectiveId).to.eq(newProfile.id);
+      expect(backerMember.TierId).to.eq(newTier.id);
+      expect(backerMember.CollectiveId).to.eq(order.CollectiveId); // Should stay the same
     });
   });
 
