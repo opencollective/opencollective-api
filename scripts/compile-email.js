@@ -390,7 +390,7 @@ data['report.platform'] = {
   },
 };
 data['user.monthlyreport'] = {
-  recipient: { firstName: 'Xavier' },
+  recipient: { name: 'Xavier' },
   month: 'march',
   year: '2017',
   manageSubscriptionsUrl: 'https://opencollective.com/recurring-contributions',

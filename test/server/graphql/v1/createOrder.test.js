@@ -142,8 +142,6 @@ describe('server/graphql/v1/createOrder', () => {
     thisOrder.collective.id = collective.id;
 
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
       newsletterOptIn: true,
@@ -176,8 +174,6 @@ describe('server/graphql/v1/createOrder', () => {
     thisOrder.interval = 'month';
 
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
       newsletterOptIn: true,
@@ -199,11 +195,7 @@ describe('server/graphql/v1/createOrder', () => {
   });
 
   it('creates a pending order if the collective is active and the payment method type is manual', async () => {
-    const hostAdmin = await models.User.createUserWithCollective({
-      firstName: 'Mike',
-      lastName: 'Doe',
-      email: store.randEmail(),
-    });
+    const hostAdmin = await models.User.createUserWithCollective({ email: store.randEmail() });
     const host = await models.Collective.create({
       slug: 'host-collective',
       name: 'Open Collective 501c3',
@@ -257,8 +249,6 @@ describe('server/graphql/v1/createOrder', () => {
     thisOrder.quantity = 2;
     thisOrder.totalAmount = 2000;
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
     });
@@ -317,8 +307,7 @@ describe('server/graphql/v1/createOrder', () => {
     // And given an order
     order.collective = { id: fearlesscitiesbrussels.id };
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
+      name: 'John Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
       newsletterOptIn: true,
@@ -474,8 +463,6 @@ describe('server/graphql/v1/createOrder', () => {
       },
     };
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: '',
-      lastName: '',
       email: store.randEmail('rejectedcard@protonmail.ch'),
     });
     const res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, remoteUser);

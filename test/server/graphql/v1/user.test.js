@@ -66,8 +66,6 @@ describe('server/graphql/v1/user', () => {
         query LoggedInUser {
           LoggedInUser {
             id
-            firstName
-            lastName
             memberOf {
               collective {
                 slug
@@ -211,7 +209,6 @@ describe('server/graphql/v1/user', () => {
                 description
                 createdByUser {
                   id
-                  firstName
                 }
                 paymentMethod {
                   name
@@ -254,7 +251,6 @@ describe('server/graphql/v1/user', () => {
                 description
                 createdByUser {
                   id
-                  firstName
                 }
                 paymentMethod {
                   name

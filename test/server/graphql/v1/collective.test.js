@@ -116,7 +116,6 @@ describe('server/graphql/v1/collective', () => {
           type
           createdByUser {
             id
-            firstName
             email
             __typename
           }

@@ -106,8 +106,6 @@ export const UserInputType = new GraphQLInputObjectType({
   fields: () => ({
     id: { type: GraphQLInt },
     email: { type: EmailType },
-    firstName: { type: GraphQLString, deprecationReason: '2021-09-24: Use "name"' },
-    lastName: { type: GraphQLString, deprecationReason: '2021-09-24: Use "name"' },
     legalName: { type: GraphQLString },
     name: { type: GraphQLString },
     company: { type: GraphQLString },
@@ -181,8 +179,6 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     ParentCollectiveId: { type: GraphQLInt },
     // not very logical to have this here. Might need some refactoring. Used to add/edit members and to create a new user on a new order
     email: { type: GraphQLString },
-    firstName: { type: GraphQLString, deprecationReason: '2021-09-24: Use "name"' },
-    lastName: { type: GraphQLString, deprecationReason: '2021-09-24: Use "name"' },
     isIncognito: { type: GraphQLBoolean },
     isActive: { type: GraphQLBoolean },
     contributionPolicy: { type: GraphQLString },
@@ -207,8 +203,6 @@ export const CollectiveAttributesInputType = new GraphQLInputObjectType({
     type: { type: GraphQLString },
     name: { type: GraphQLString },
     company: { type: GraphQLString },
-    firstName: { type: GraphQLString, deprecationReason: '2021-09-24: Use "name"' }, // for Collective type USER
-    lastName: { type: GraphQLString, deprecationReason: '2021-09-24: Use "name"' }, // for Collective type USER
     email: { type: GraphQLString }, // for Collective type USER
     description: { type: GraphQLString },
     longDescription: { type: GraphQLString },

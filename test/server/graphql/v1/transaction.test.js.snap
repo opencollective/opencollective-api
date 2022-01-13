@@ -10,7 +10,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 7,
           },
           "host": Object {
@@ -37,7 +36,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 7,
           },
           "host": Object {
@@ -64,7 +62,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 6,
           },
           "host": Object {
@@ -91,7 +88,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 6,
           },
           "host": Object {
@@ -118,7 +114,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 5,
           },
           "host": Object {
@@ -145,7 +140,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 5,
           },
           "host": Object {
@@ -172,7 +166,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 4,
           },
           "host": Object {
@@ -199,7 +192,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 4,
           },
           "host": Object {
@@ -226,7 +218,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 3,
           },
           "host": Object {
@@ -253,7 +244,6 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 3,
           },
           "host": Object {
@@ -475,9 +465,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 7,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 9,
@@ -521,9 +509,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 6,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 8,
@@ -567,9 +553,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 5,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 7,
@@ -613,9 +597,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 4,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 6,
@@ -659,9 +641,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 3,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 5,
@@ -705,9 +685,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 7,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 9,
@@ -751,9 +729,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 6,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 8,
@@ -797,9 +773,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 5,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 7,
@@ -843,9 +817,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 4,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 6,
@@ -889,9 +861,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 3,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 5,

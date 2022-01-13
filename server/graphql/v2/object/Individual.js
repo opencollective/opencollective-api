@@ -16,20 +16,6 @@ export const Individual = new GraphQLObjectType({
   fields: () => {
     return {
       ...AccountFields,
-      firstName: {
-        type: GraphQLString,
-        deprecationReason: '2020-10-12: Use the name field',
-        resolve() {
-          return null;
-        },
-      },
-      lastName: {
-        type: GraphQLString,
-        deprecationReason: '2020-10-12: Use the name field',
-        resolve() {
-          return null;
-        },
-      },
       email: {
         type: GraphQLString,
         async resolve(userCollective, args, req) {

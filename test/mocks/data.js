@@ -1,7 +1,5 @@
 export default {
   host1: {
-    firstName: 'Women Who Code',
-    lastName: '501c3',
     name: 'WWCode',
     username: 'wwcode',
     hostFeePercent: 10,
@@ -15,8 +13,6 @@ export default {
     settings: { apply: true },
   },
   user1: {
-    firstName: 'Phil',
-    lastName: 'Mod',
     name: 'Phil Mod',
     username: 'philmod',
     email: 'user1@opencollective.com',
@@ -27,8 +23,7 @@ export default {
   },
 
   user2: {
-    firstName: 'Anish',
-    lastName: 'Bas',
+    name: 'Anish Bas',
     username: 'abas',
     image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c_400x400.jpeg',
     description: 'small guy',
@@ -39,30 +34,26 @@ export default {
   },
 
   user3: {
-    firstName: 'Xavier',
-    lastName: 'Damman',
+    name: 'Xavier Damman',
     username: 'xdamman',
     email: 'user3@opencollective.com',
     address: 'Rue du paradis\n1000 Brussels\nBelgium',
   },
 
   user4: {
-    firstName: 'Bo',
-    lastName: 'Ki',
+    name: 'Bo Ki',
     username: 'boki',
     email: 'user4@opencollective.com',
   },
 
   user5: {
-    firstName: 'Bo',
-    lastName: 'Ki',
+    name: 'Bo Ki',
     username: 'boki',
     email: 'user5@opencollective.org',
   },
 
   user6: {
-    firstName: 'internal',
-    lastName: 'user',
+    name: 'internal user',
     username: 'interno',
     email: 'internal_user@opencollective.com',
   },
@@ -193,8 +184,7 @@ export default {
         UserId: 1,
         data: {
           user: {
-            firstName: 'John',
-            lastName: 'Doe',
+            name: 'John Doe',
             email: 'john@doe.com',
             websiteUrl: 'opencollective.com',
           },
@@ -592,8 +582,7 @@ export default {
 
     user: {
       id: 1,
-      firstName: 'Phil',
-      lastName: 'Mod',
+      name: 'Phil Mod',
       username: 'philmod',
       email: 'user1@opencollective.com',
       image: null,

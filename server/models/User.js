@@ -21,9 +21,6 @@ function defineModel() {
   const User = sequelize.define(
     'User',
     {
-      firstName: DataTypes.STRING,
-      lastName: DataTypes.STRING,
-
       email: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -168,8 +165,6 @@ function defineModel() {
         info() {
           return {
             id: this.id,
-            firstName: this.firstName,
-            lastName: this.lastName,
             email: this.email,
             emailWaitingForValidation: this.emailWaitingForValidation,
             createdAt: this.createdAt,
@@ -182,8 +177,6 @@ function defineModel() {
           return {
             id: this.id,
             CollectiveId: this.CollectiveId,
-            firstName: this.firstName,
-            lastName: this.lastName,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
           };
@@ -192,8 +185,6 @@ function defineModel() {
         minimal() {
           return {
             id: this.id,
-            firstName: this.firstName,
-            lastName: this.lastName,
             email: this.email,
           };
         },
@@ -202,8 +193,6 @@ function defineModel() {
         public() {
           return {
             id: this.id,
-            firstName: this.firstName,
-            lastName: this.lastName,
           };
         },
       },
@@ -434,17 +423,12 @@ function defineModel() {
 
     const sequelizeParams = transaction ? { transaction } : undefined;
     debug('createUserWithCollective', userData);
-    // TODO: 'firstName', 'lastName' are deprecated in the User table
-    const cleanUserData = pick(userData, ['email', 'firstName', 'lastName', 'newsletterOptIn']);
+    const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
     const user = await User.create(cleanUserData, sequelizeParams);
-    let name = userData.firstName;
-    if (name && userData.lastName) {
-      name += ` ${userData.lastName}`;
-    }
 
     // If user doesn't provide a name, set it to "incognito". If we cannot
-    // slugify it (for example firstName="------") then fallback on "user".
-    let collectiveName = userData.name || name;
+    // slugify it (for example name="------") then fallback on "user".
+    let collectiveName = userData.name;
     if (!collectiveName || collectiveName.trim().length === 0) {
       collectiveName = 'incognito';
     } else if (slugify(collectiveName).length === 0) {
