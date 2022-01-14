@@ -101,6 +101,9 @@ export const UpdateAudienceTypeEnum = new GraphQLEnumType({
     FINANCIAL_CONTRIBUTORS: {
       description: 'Will be sent to financial contributors',
     },
+    NO_ONE: {
+      description: 'Will be sent to no one',
+    },
   },
 });
 
