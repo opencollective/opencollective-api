@@ -369,7 +369,7 @@ function defineModel() {
    */
   Update.prototype.countUsersToNotify = async function (notificationAudience) {
     this.collective = this.collective || (await this.getCollective());
-    const audience = notificationAudience || this.audience || 'ALL';
+    const audience = notificationAudience || this.notificationAudience || this.audience || 'ALL';
 
     if (audience === 'NO_ONE') {
       return 0;
