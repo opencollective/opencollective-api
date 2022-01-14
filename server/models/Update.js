@@ -329,7 +329,7 @@ function defineModel() {
   };
 
   Update.prototype.getTargetMembersRoles = function (notificationAudience) {
-    const audience = notificationAudience || this.audience || 'ALL';
+    const audience = notificationAudience || this.notificationAudience || 'ALL';
     if (audience === 'COLLECTIVE_ADMINS') {
       return ['__NONE__'];
     } else if (this.isPrivate) {
@@ -343,7 +343,7 @@ function defineModel() {
    * Get the member users to notify for this update.
    */
   Update.prototype.getUsersToNotify = async function () {
-    const audience = this.notificationAudience || this.audience || 'ALL';
+    const audience = this.notificationAudience || 'ALL';
 
     if (audience === 'NO_ONE') {
       return [];
@@ -369,7 +369,7 @@ function defineModel() {
    */
   Update.prototype.countUsersToNotify = async function (notificationAudience) {
     this.collective = this.collective || (await this.getCollective());
-    const audience = notificationAudience || this.notificationAudience || this.audience || 'ALL';
+    const audience = notificationAudience || this.notificationAudience || 'ALL';
 
     if (audience === 'NO_ONE') {
       return 0;
