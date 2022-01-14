@@ -538,7 +538,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         order.totalAmount = Math.round(order.quantity * tier.amount * (1 + taxPercent / 100));
       }
 
-      const netAmountForCollective = order.totalAmount - order.taxAmount - (order.platformFee || 0);
+      const tipAmount = order.platformTipAmount || 0;
+      const netAmountForCollective = order.totalAmount - order.taxAmount - (order.platformFee || 0) - tipAmount;
       const expectedAmountForCollective = order.quantity * tier.amount;
       const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
       if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
