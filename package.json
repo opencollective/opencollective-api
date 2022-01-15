@@ -73,7 +73,7 @@
     "express-session": "1.17.2",
     "express-ws": "5.0.2",
     "fs-extra": "10.0.0",
-    "get-urls": "10.0.1",
+    "get-urls": "11.0.0",
     "graphql": "15.8.0",
     "graphql-iso-date": "3.6.1",
     "graphql-type-json": "0.3.2",
