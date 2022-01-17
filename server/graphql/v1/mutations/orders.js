@@ -967,6 +967,10 @@ export async function addFundsToCollective(order, remoteUser) {
     fromCollective = await models.Collective.createOrganization(order.fromCollective, user, remoteUser);
   }
 
+  if (order.tier && order.tier.CollectiveId !== order.collective.id) {
+    throw new Error(`Tier #${order.tier.id} is not part of collective #${order.collective.id}`);
+  }
+
   const orderData = {
     CreatedByUserId: remoteUser.id || user.id,
     FromCollectiveId: fromCollective.id,
@@ -975,6 +979,7 @@ export async function addFundsToCollective(order, remoteUser) {
     currency: collective.currency,
     description: order.description,
     status: status.NEW,
+    TierId: order.tier?.id || null,
     data: {},
   };
 
