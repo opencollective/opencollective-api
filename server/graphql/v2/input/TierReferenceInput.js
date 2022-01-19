@@ -27,7 +27,10 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  *
  * @param {string|number} input - id of the tier
  */
-export const fetchTierWithReference = async (input, { loaders, throwIfMissing, allowCustomTier = false } = {}) => {
+export const fetchTierWithReference = async (
+  input,
+  { loaders = null, throwIfMissing, allowCustomTier = false } = {},
+) => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : models.Tier.findByPk(id));
   let tier;
   if (input.id) {

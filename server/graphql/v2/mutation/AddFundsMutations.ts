@@ -5,6 +5,7 @@ import { ValidationFailed } from '../../errors';
 import { addFundsToCollective as addFundsToCollectiveLegacy } from '../../v1/mutations/orders';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 
 export const addFundsMutation = {
@@ -13,6 +14,7 @@ export const addFundsMutation = {
   args: {
     fromAccount: { type: new GraphQLNonNull(AccountReferenceInput) },
     account: { type: new GraphQLNonNull(AccountReferenceInput) },
+    tier: { type: TierReferenceInput },
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
@@ -25,6 +27,7 @@ export const addFundsMutation = {
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
+    const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
 
     const allowedTypes = ['ORGANIZATION', 'COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
     if (!allowedTypes.includes(account.type)) {
@@ -42,6 +45,7 @@ export const addFundsMutation = {
         fromCollective: fromAccount,
         description: args.description,
         hostFeePercent: args.hostFeePercent,
+        tier,
       },
       req.remoteUser,
     );
