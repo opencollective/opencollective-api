@@ -51,7 +51,7 @@ export function uuid(req, res, next, uuid) {
  * userid
  */
 export function userid(req, res, next, userIdOrName) {
-  getByKeyValue(User, isNaN(userIdOrName) ? 'username' : 'id', userIdOrName)
+  getByKeyValue(User, 'id', userIdOrName)
     .then(user => (req.user = user))
     .asCallback(next);
 }
