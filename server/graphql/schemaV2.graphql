@@ -6345,6 +6345,11 @@ input TierReferenceInput {
   The DB id assigned to the Tier
   """
   legacyId: Int
+
+  """
+  Pass this flag to reference the custom tier (/donate)
+  """
+  isCustom: Boolean
 }
 
 """
@@ -6956,9 +6961,14 @@ type Mutation {
     orders: [OrderReferenceInput!]!
 
     """
-    The account to move the orders to
+    The account to move the orders to. Set to null to keep existing
     """
-    fromAccount: AccountReferenceInput!
+    fromAccount: AccountReferenceInput
+
+    """
+    The tier to move the orders to. Set to null to keep existing. Pass { id: "custom" } to reference the custom tier (/donate)
+    """
+    tier: TierReferenceInput
 
     """
     If true, the orders will be moved to the incognito account of "fromAccount"

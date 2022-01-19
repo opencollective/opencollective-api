@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';
@@ -15,6 +15,10 @@ export const TierReferenceInput = new GraphQLInputObjectType({
       type: GraphQLInt,
       description: 'The DB id assigned to the Tier',
     },
+    isCustom: {
+      type: GraphQLBoolean,
+      description: 'Pass this flag to reference the custom tier (/donate)',
+    },
   }),
 });
 
@@ -23,7 +27,7 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  *
  * @param {string|number} input - id of the tier
  */
-export const fetchTierWithReference = async (input, { loaders, throwIfMissing } = {}) => {
+export const fetchTierWithReference = async (input, { loaders, throwIfMissing, allowCustomTier = false } = {}) => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : models.Tier.findByPk(id));
   let tier;
   if (input.id) {
@@ -31,6 +35,8 @@ export const fetchTierWithReference = async (input, { loaders, throwIfMissing } 
     tier = await loadTier(id);
   } else if (input.legacyId) {
     tier = await loadTier(input.legacyId);
+  } else if (allowCustomTier && input.isCustom) {
+    return 'custom';
   } else {
     throw new Error('Please provide an id');
   }

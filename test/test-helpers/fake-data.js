@@ -413,7 +413,7 @@ export const fakeTier = async (tierData = {}) => {
  */
 export const fakeOrder = async (
   orderData = {},
-  { withSubscription = false, withTransactions = false, withBackerMember = false } = {},
+  { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
   const user = await models.User.findByPk(CreatedByUserId);
@@ -421,12 +421,14 @@ export const fakeOrder = async (
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
+  const tier = orderData.TierId ? await models.Tier.findByPk(orderData.TierId) : withTier ? await fakeTier() : null;
 
   const order = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
     totalAmount: randAmount(100, 99999999),
     ...orderData,
+    TierId: tier?.id || null,
     CreatedByUserId,
     FromCollectiveId,
     CollectiveId: collective.id,
@@ -474,12 +476,14 @@ export const fakeOrder = async (
       CollectiveId: order.CollectiveId,
       CreatedByUserId: order.CreatedByUserId,
       role: 'BACKER',
+      TierId: tier?.id || null,
     });
   }
 
   order.fromCollective = await models.Collective.findByPk(order.FromCollectiveId);
   order.collective = collective;
   order.createdByUser = user;
+  order.tier = tier;
   return order;
 };
 
@@ -595,6 +599,7 @@ export const fakeMember = async (data = {}) => {
     ? await models.Collective.findByPk(data.MemberCollectiveId)
     : await fakeCollective();
   const member = await models.Member.create({
+    ...data,
     CollectiveId: collective.id,
     MemberCollectiveId: memberCollective.id,
     role: data.role || roles.ADMIN,
