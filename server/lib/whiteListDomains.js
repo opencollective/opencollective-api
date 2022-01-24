@@ -25,6 +25,7 @@ const whiteListDomains = [
   'xoxy.net',
   'uymail.com',
   'mailhaven.com',
+  'brainonfire.net',
 ];
 
 export default whiteListDomains;
