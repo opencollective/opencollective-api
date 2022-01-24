@@ -44,7 +44,7 @@
     "apollo-server-express": "3.1.2",
     "argparse": "2.0.1",
     "aws-sdk": "2.1057.0",
-    "axios": "0.24.0",
+    "axios": "0.25.0",
     "babel-plugin-add-module-exports": "1.0.4",
     "babel-plugin-lodash": "3.3.4",
     "bayes": "1.0.0",
