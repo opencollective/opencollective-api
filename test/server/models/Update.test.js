@@ -86,8 +86,11 @@ describe('server/models/Update', () => {
 
   describe('Update audience', () => {
     let collective,
+      parentCollective,
       collectiveAdmins,
       parentCollectiveAdmins,
+      parentCollectiveBackers,
+      parentCollectiveFollowers,
       individualBackersUsers,
       backerOrganizations,
       collectiveFollowers,
@@ -104,7 +107,7 @@ describe('server/models/Update', () => {
 
     before(async () => {
       await utils.resetTestDB();
-      const parentCollective = await fakeCollective();
+      parentCollective = await fakeCollective();
       collective = await fakeCollective({ ParentCollectiveId: parentCollective.id });
       collective.parentCollective = parentCollective;
 
@@ -135,8 +138,8 @@ describe('server/models/Update', () => {
       expectedPublicTotal = expectedPrivateTotal + collectiveFollowers.length;
 
       // Pollute the DB with some random data to make sure it doesn't interfere
-      await addRandomMemberUsers(parentCollective, 7, 'BACKER'); // backers of the parent should not be included
-      await addRandomMemberUsers(parentCollective, 5, 'FOLLOWER');
+      parentCollectiveBackers = await addRandomMemberUsers(parentCollective, 7, 'BACKER');
+      parentCollectiveFollowers = await addRandomMemberUsers(parentCollective, 5, 'FOLLOWER');
       await Promise.all(times(15, fakeMember)); // random members on different collectives
       // Add some admins as BACKER (to test grouping)
       await collective.addUserWithRole(collectiveAdmins[0], 'BACKER');
@@ -256,6 +259,27 @@ describe('server/models/Update', () => {
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
         expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
         expect(stats.USER).to.eq(individualBackersUsers.length);
+      });
+
+      it('When parent collective public update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
+        const stats = await update.getAudienceMembersStats();
+        expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
+        expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
+        expect(stats.USER).to.eq(
+          individualBackersUsers.length +
+            parentCollectiveBackers.length +
+            collectiveFollowers.length +
+            parentCollectiveFollowers.length,
+        );
+      });
+
+      it('When parent collective private update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: true });
+        const stats = await update.getAudienceMembersStats();
+        expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
+        expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
+        expect(stats.USER).to.eq(individualBackersUsers.length + parentCollectiveBackers.length);
       });
     });
   });
