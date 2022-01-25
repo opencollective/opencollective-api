@@ -1,6 +1,8 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLJSON } from 'graphql-type-json';
 import { get, has } from 'lodash';
+import moment from 'moment';
 
 import queries from '../../../lib/queries';
 import { Currency } from '../enum/Currency';
@@ -88,10 +90,21 @@ export const AccountStats = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate total amount received after this date',
           },
+          periodInMonths: {
+            type: GraphQLInt,
+            description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
+          },
         },
         resolve(collective, args) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
-          return collective.getTotalAmountReceivedAmount({ kind, startDate: args.dateFrom, endDate: args.dateTo });
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+
+          return collective.getTotalAmountReceivedAmount({ kind, startDate: dateFrom, endDate: dateTo });
         },
       },
       totalPaidExpenses: {
@@ -147,6 +160,20 @@ export const AccountStats = new GraphQLObjectType({
               currency: collective.currency,
             };
           }
+        },
+      },
+      totalNetAmountReceived: {
+        description: 'Total net amount received',
+        type: new GraphQLNonNull(Amount),
+        async resolve(collective) {
+          const value = await collective.getTotalNetAmountReceived();
+          return { value, currency: collective.currency };
+        },
+      },
+      activeRecurringContributions: {
+        type: GraphQLJSON,
+        resolve(collective, args, req) {
+          return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
         },
       },
     };
