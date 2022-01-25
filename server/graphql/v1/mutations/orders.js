@@ -12,6 +12,7 @@ import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
@@ -225,15 +226,16 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
 async function checkCaptcha(order, remoteUser, reqIp) {
   const requestedProvider = order.guestInfo?.captcha?.provider;
   const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
+  const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
 
-  if (!isCaptchaEnabled) {
+  // We're just enforcing Captcha if it's enabled and if the order is using Credit Card
+  if (!isCaptchaEnabled || !isCreditCardOrder) {
     return;
   }
 
   if (!order.guestInfo?.captcha?.token) {
     throw new BadRequest('You need to inform a valid captcha token');
   }
-
   let response;
   if (requestedProvider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
     response = await hcaptcha.verify(
