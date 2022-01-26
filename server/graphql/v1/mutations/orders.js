@@ -320,7 +320,7 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
     }
 
     return {
-      id: LibTaxes.TaxType.VAT,
+      id: LibTaxes.TaxType.GST,
       taxerCountry: host.countryISO,
       taxedCountry: order.countryISO,
       percentage: LibTaxes.GST_RATE_PERCENT,
