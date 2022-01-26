@@ -1,5 +1,5 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { TransactionSettlementStatus } from '../enum/TransactionSettlementStatus';
 import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';

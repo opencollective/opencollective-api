@@ -1,5 +1,5 @@
 import { GraphQLNonNull } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { Unauthorized } from '../../errors';
 import { Individual } from '../object/Individual';

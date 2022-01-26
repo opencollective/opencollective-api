@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { isEmpty, partition } from 'lodash';
 
 import { expenseStatus } from '../../../../constants';

@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import models, { Op } from '../../../../models';
 import { OrderCollection } from '../../collection/OrderCollection';
