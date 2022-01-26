@@ -316,7 +316,7 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'PROCESSING' });
       expect(await canUnapprove(hostAdminReq, expense)).to.be.false;
       await expense.update({ status: 'ERROR' });
-      expect(await canUnapprove(hostAdminReq, expense)).to.be.false;
+      expect(await canUnapprove(hostAdminReq, expense)).to.be.true;
       await expense.update({ status: 'PAID' });
       expect(await canUnapprove(hostAdminReq, expense)).to.be.false;
       await expense.update({ status: 'REJECTED' });
