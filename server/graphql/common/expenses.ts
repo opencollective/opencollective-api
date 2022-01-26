@@ -293,7 +293,7 @@ export const canMarkAsSpam = async (req: express.Request, expense: typeof models
  * Returns true if expense can be unapproved by user
  */
 export const canUnapprove = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
-  if (expense.status !== expenseStatus.APPROVED) {
+  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     return false;
