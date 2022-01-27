@@ -158,7 +158,6 @@ interface CollectiveInterface {
   List of all notifications for this collective
   """
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -1474,7 +1473,6 @@ type Collective implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -1705,7 +1703,6 @@ type Event implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -1936,7 +1933,6 @@ type Fund implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -2167,7 +2163,6 @@ type Organization implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -2399,7 +2394,6 @@ type Project implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -2813,7 +2807,6 @@ type User implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
@@ -3046,7 +3039,6 @@ type Vendor implements CollectiveInterface {
   ): CollectiveSearchResults
   followers(limit: Int, offset: Int): [CollectiveInterface]
   notifications(limit: Int, offset: Int, channel: String, type: String, active: Boolean): [NotificationType]
-  maxQuantity: Int @deprecated(reason: "Not supported anymore")
   tiers(id: Int, slug: String, slugs: [String]): [Tier]
   orders(status: OrderStatus): [OrderType]
   ordersFromCollective(subscriptionsOnly: Boolean): [OrderType]
