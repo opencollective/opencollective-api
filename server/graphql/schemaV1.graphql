@@ -44,11 +44,6 @@ interface CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -444,12 +439,6 @@ type Tier {
   A long, html-formatted description.
   """
   longDescription: String
-
-  """
-  Returns true if the tier has a long description
-  """
-  hasLongDescription: Boolean
-    @deprecated(reason: "2020-12-24: This field is being deprecated in favor of useStandalonePage")
 
   """
   Returns true if the tier has its standalone page activated
@@ -1357,11 +1346,6 @@ type Collective implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -1593,11 +1577,6 @@ type Event implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -1829,11 +1808,6 @@ type Fund implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -2065,11 +2039,6 @@ type Organization implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -2302,11 +2271,6 @@ type Project implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -2721,11 +2685,6 @@ type User implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
@@ -2959,11 +2918,6 @@ type Vendor implements CollectiveInterface {
   company: String
   description: String
   longDescription: String
-
-  """
-  Returns true if the collective has a long description
-  """
-  hasLongDescription: Boolean
   expensePolicy: String
   tags: [String]
 
