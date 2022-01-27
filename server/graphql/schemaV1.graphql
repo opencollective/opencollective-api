@@ -3403,11 +3403,6 @@ type Query {
     """
     limit: Int = 20
     offset: Int = 0
-
-    """
-    This flag is now ignored in favor of regular search
-    """
-    useAlgolia: Boolean = false @deprecated(reason: "2020-12-14: Algolia is intended to be removed in a near future")
   ): CollectiveSearchResults
   allTransactionsFromPaymentMethod(
     uuid: String!

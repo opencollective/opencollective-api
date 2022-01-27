@@ -1002,12 +1002,6 @@ const queries = {
         type: GraphQLInt,
         defaultValue: 0,
       },
-      useAlgolia: {
-        type: GraphQLBoolean,
-        deprecationReason: '2020-12-14: Algolia is intended to be removed in a near future',
-        defaultValue: false,
-        description: `This flag is now ignored in favor of regular search`,
-      },
     },
     async resolve(_, args, req) {
       const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts } = args;
