@@ -4,7 +4,7 @@ import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
+import { NotFound, Unauthorized } from '../errors';
 
 import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';

@@ -1,10 +1,7 @@
 import Promise from 'bluebird';
-import { expect } from 'chai';
-import gql from 'fake-tag';
-import { describe, it } from 'mocha';
+import { describe } from 'mocha';
 import { createSandbox } from 'sinon';
 
-import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
 import * as utils from '../../../utils';
@@ -13,11 +10,10 @@ describe('server/graphql/v1/orders', () => {
   const backers = [],
     collectives = [],
     orders = [];
-  let host, hostAdmin, sandbox, emailSendMessageSpy;
+  let host, hostAdmin, sandbox;
   before('reset test db', () => utils.resetTestDB());
   before('spies', () => {
     sandbox = createSandbox();
-    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
   });
   after('cleaning', () => {
     afterEach(() => sandbox.restore());
