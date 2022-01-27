@@ -96,7 +96,7 @@ const virtualCardMutations = {
     type: new GraphQLNonNull(VirtualCard),
     args: {
       name: {
-        type: GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLString),
         description: 'Virtual card name',
       },
       monthlyLimit: {
