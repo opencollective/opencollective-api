@@ -1232,7 +1232,6 @@ type CollectiveStatsType {
   totalNetAmountReceived: Int
   yearlyBudget: Int
   yearlyBudgetManaged: Int
-  topFundingSources: JSON @deprecated(reason: "2021-01-29: Not used anymore")
   activeRecurringContributions: JSON
 }
 

@@ -541,22 +541,6 @@ export const CollectiveStatsType = new GraphQLObjectType({
           }
         },
       },
-      topFundingSources: {
-        type: GraphQLJSON,
-        deprecationReason: '2021-01-29: Not used anymore',
-        resolve(collective) {
-          return Promise.all([
-            queries.getTopDonorsForCollective(collective.id),
-            queries.getTotalDonationsByCollectiveType(collective.id),
-          ]).then(results => {
-            const res = {
-              byCollective: results[0],
-              byCollectiveType: results[1],
-            };
-            return res;
-          });
-        },
-      },
       activeRecurringContributions: {
         type: GraphQLJSON,
         resolve(collective, args, req) {
