@@ -82,14 +82,6 @@ const queries = {
     },
   },
 
-  AuthenticatedUser: {
-    type: CollectiveInterfaceType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    resolve(_, args, req) {
-      return models.Collective.findByPk(req.remoteUser.CollectiveId);
-    },
-  },
-
   allInvoices: {
     type: new GraphQLList(InvoiceType),
     args: {

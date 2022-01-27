@@ -3149,7 +3149,6 @@ type Query {
   ): CollectiveInterface
   Tier(id: Int!): Tier
   LoggedInUser: UserDetails
-  AuthenticatedUser: CollectiveInterface @deprecated(reason: "2021-01-29: Not used anymore")
   allInvoices(fromCollectiveSlug: String!): [InvoiceType]
   TransactionInvoice(
     """
