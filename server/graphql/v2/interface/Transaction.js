@@ -8,7 +8,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';

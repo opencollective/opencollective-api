@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';

@@ -7,7 +7,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
 import moment from 'moment';
 

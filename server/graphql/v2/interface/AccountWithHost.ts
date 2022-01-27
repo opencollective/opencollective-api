@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models from '../../../models';

@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';

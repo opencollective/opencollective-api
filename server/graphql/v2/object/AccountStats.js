@@ -1,5 +1,5 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { get, has } from 'lodash';
 
 import queries from '../../../lib/queries';

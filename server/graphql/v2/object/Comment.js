@@ -1,5 +1,5 @@
 import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 
 import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';

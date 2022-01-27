@@ -1,5 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { MemberRole } from '../enum/MemberRole';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';

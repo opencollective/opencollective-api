@@ -1,5 +1,5 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSONObject } from 'graphql-type-json';
 
 import { Currency } from '../enum/Currency';
