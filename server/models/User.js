@@ -409,7 +409,7 @@ function defineModel() {
   };
 
   User.findByEmail = (email, transaction) => {
-    return User.findOne({ where: { email } }, { transaction });
+    return User.findOne({ where: { email: email.toLowerCase() } }, { transaction });
   };
 
   User.createUserWithCollective = async (userData, transaction) => {
