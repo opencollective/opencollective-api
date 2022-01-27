@@ -317,65 +317,6 @@ const queries = {
   },
 
   /*
-   * Given a collective slug, returns all orders
-   */
-  allOrders: {
-    type: new GraphQLList(OrderType),
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      CollectiveId: { type: GraphQLInt },
-      collectiveSlug: { type: GraphQLString },
-      includeHostedCollectives: { type: GraphQLBoolean },
-      status: {
-        type: GraphQLString,
-        description: 'Filter by status (PAID, PENDING, ERROR, ACTIVE, CANCELLED)',
-      },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    async resolve(_, args) {
-      const query = { where: {} };
-      const CollectiveId = args.CollectiveId || (await fetchCollectiveId(args.collectiveSlug));
-      if (args.status) {
-        query.where.status = args.status;
-      }
-      if (args.category) {
-        query.where.category = { [Op.iLike]: args.category };
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [
-        ['createdAt', 'DESC'],
-        ['id', 'DESC'],
-      ];
-
-      let collectiveIds;
-      // if is host, we get all the orders across all the hosted collectives
-      if (args.includeHostedCollectives) {
-        const members = await models.Member.findAll({
-          attributes: ['CollectiveId'],
-          where: {
-            MemberCollectiveId: CollectiveId,
-            role: 'HOST',
-          },
-        });
-        const membersCollectiveIds = members.map(member => member.CollectiveId);
-        collectiveIds = [CollectiveId, ...membersCollectiveIds];
-      } else {
-        collectiveIds = [CollectiveId];
-      }
-
-      query.where.CollectiveId = { [Op.in]: collectiveIds };
-
-      return models.Order.findAll(query);
-    },
-  },
-
-  /*
    * Given a Transaction id, returns a transaction details
    */
   Transaction: {

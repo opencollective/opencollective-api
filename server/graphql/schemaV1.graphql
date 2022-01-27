@@ -3184,18 +3184,6 @@ type Query {
   Application(id: Int): Application
   allUpdates(CollectiveId: Int!, includeHostedCollectives: Boolean, limit: Int, offset: Int): [UpdateType]
     @deprecated(reason: "2022-01-26: This endpoint is deprecated and will be removed soon")
-  allOrders(
-    CollectiveId: Int
-    collectiveSlug: String
-    includeHostedCollectives: Boolean
-
-    """
-    Filter by status (PAID, PENDING, ERROR, ACTIVE, CANCELLED)
-    """
-    status: String
-    limit: Int
-    offset: Int
-  ): [OrderType] @deprecated(reason: "2021-01-29: Not used anymore")
   Transaction(id: Int, uuid: String): Transaction
   allCollectives(
     """
