@@ -30,7 +30,6 @@ import {
   MemberInvitationType,
   MemberType,
   OrderDirectionType,
-  OrderType,
   PaymentMethodType,
   TierType,
   UpdateType,
@@ -1023,20 +1022,6 @@ const queries = {
       }
       const transactions = await models.Transaction.findAll(query);
       return transactions;
-    },
-  },
-
-  Order: {
-    type: OrderType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve: async (_, args) => {
-      const order = await models.Order.findByPk(args.id);
-      return order;
     },
   },
 };

@@ -3352,7 +3352,6 @@ type Query {
     dateFrom: String
     dateTo: String
   ): [Transaction] @deprecated(reason: "2021-01-29: Not used anymore")
-  Order(id: Int!): OrderType @deprecated(reason: "2021-01-29: Not used anymore")
 }
 
 """
