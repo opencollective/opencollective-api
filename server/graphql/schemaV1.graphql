@@ -3614,9 +3614,6 @@ type Mutation {
   createOrder(order: OrderInputType!): OrderType
     @deprecated(reason: "2020-10-13: This endpoint has been moved to GQLV2")
   confirmOrder(order: ConfirmOrderInputType!): OrderType
-  createComment(comment: CommentInputType!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
-  editComment(comment: CommentAttributesInputType!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
-  deleteComment(id: Int!): CommentType @deprecated(reason: "2021-01-29: Not used anymore")
   refundTransaction(id: Int!): Transaction
   createApplication(application: ApplicationInput!): Application
   deleteApplication(id: Int!): Application
@@ -4180,51 +4177,6 @@ Input type for ConfirmOrderType
 """
 input ConfirmOrderInputType {
   id: Int
-}
-
-"""
-This represents a Comment
-"""
-type CommentType {
-  id: Int
-  createdAt: DateString
-  updatedAt: DateString
-  html: String
-  createdByUser: UserDetails
-  fromCollective: CollectiveInterface
-  collective: CollectiveInterface
-  expense: ExpenseType
-  update: UpdateType
-}
-
-"""
-Input type for CommentType
-"""
-input CommentInputType {
-  id: Int
-  html: String
-
-  """
-  Not supported yet. Defaults to user collective ID.
-  """
-  FromCollectiveId: Int
-  CollectiveId: Int
-    @deprecated(
-      reason: "2019-11-28: This field is not used by the query. Collective ID is automatically guessed from linked entity (expense, update or conversation)"
-    )
-  ExpenseId: Int @deprecated(reason: "2020-03-18: Comments on expenses must use API V2")
-  UpdateId: Int @deprecated(reason: "2020-03-18: Comments on updates are not yet supported")
-  ConversationId: Int @deprecated(reason: "2020-03-18: Comments on conversations must use API V2")
-}
-
-"""
-Input type for CommentType
-"""
-input CommentAttributesInputType {
-  id: Int
-  html: String
-  UpdateId: Int
-    @deprecated(reason: "Deprecated since 2020-03-18: This field has never been active and will be removed soon.")
 }
 
 """

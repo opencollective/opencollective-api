@@ -22,7 +22,6 @@ import {
   sendMessageToCollective,
   unarchiveCollective,
 } from './mutations/collectives';
-import * as commentMutations from './mutations/comments';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
 import {
@@ -39,8 +38,6 @@ import { ApplicationInputType, ApplicationType } from './Application';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CollectiveInputType,
-  CommentAttributesInputType,
-  CommentInputType,
   ConfirmOrderInputType,
   ConnectedAccountInputType,
   MemberInputType,
@@ -52,7 +49,6 @@ import {
 } from './inputTypes';
 import { TransactionInterfaceType } from './TransactionInterface';
 import {
-  CommentType,
   ConnectedAccountType,
   MemberType,
   NotificationType,
@@ -328,42 +324,6 @@ const mutations = {
     resolve(_, args, req) {
       return confirmOrder(args.order, req.remoteUser);
     },
-  },
-  createComment: {
-    type: CommentType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      comment: {
-        type: new GraphQLNonNull(CommentInputType),
-      },
-    },
-    resolve: (_, args, req) => {
-      if (args['UpdateId']) {
-        throw new Error('Use QPI V2 to post comments on updates');
-      }
-
-      return commentMutations.createComment(_, args, req);
-    },
-  },
-  editComment: {
-    type: CommentType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      comment: {
-        type: new GraphQLNonNull(CommentAttributesInputType),
-      },
-    },
-    resolve: commentMutations.editComment,
-  },
-  deleteComment: {
-    type: CommentType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve: commentMutations.deleteComment,
   },
   refundTransaction: {
     type: TransactionInterfaceType,
