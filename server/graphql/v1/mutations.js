@@ -268,6 +268,7 @@ const mutations = {
   editPublicMessage: {
     type: new GraphQLList(MemberType),
     description: 'A mutation to edit the public message of all matching members.',
+    deprecationReason: '2021-01-27: Please use editPublicMessage from GQLV2',
     args: {
       FromCollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
@@ -301,6 +302,7 @@ const mutations = {
   },
   refundTransaction: {
     type: TransactionInterfaceType,
+    deprecationReason: '2022-01-27: Please use refundTransaction from GQLV2',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
