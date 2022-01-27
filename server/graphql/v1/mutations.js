@@ -344,24 +344,6 @@ const mutations = {
       return paymentMethodsMutation.updatePaymentMethod(args, req.remoteUser);
     },
   },
-  createCreditCard: {
-    type: PaymentMethodType,
-    description: 'Add a new credit card to the given collective',
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      name: { type: new GraphQLNonNull(GraphQLString) },
-      token: { type: new GraphQLNonNull(GraphQLString) },
-      data: { type: new GraphQLNonNull(StripeCreditCardDataInputType) },
-      monthlyLimitPerMember: { type: GraphQLInt },
-    },
-    resolve: async (_, args, req) => {
-      return paymentMethodsMutation.createPaymentMethod(
-        { ...args, service: 'stripe', type: 'creditcard' },
-        req.remoteUser,
-      );
-    },
-  },
   replaceCreditCard: {
     type: PaymentMethodType,
     description: 'Replace a payment method',

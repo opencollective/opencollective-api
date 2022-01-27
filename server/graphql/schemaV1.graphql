@@ -3569,17 +3569,6 @@ type Mutation {
   updatePaymentMethod(id: Int!, name: String, monthlyLimitPerMember: Int): PaymentMethodType
 
   """
-  Add a new credit card to the given collective
-  """
-  createCreditCard(
-    CollectiveId: Int!
-    name: String!
-    token: String!
-    data: StripeCreditCardDataInputType!
-    monthlyLimitPerMember: Int
-  ): PaymentMethodType @deprecated(reason: "2021-01-29: Not used anymore")
-
-  """
   Replace a payment method
   """
   replaceCreditCard(
