@@ -24,13 +24,7 @@ import {
 } from './mutations/collectives';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
-import {
-  confirmOrder,
-  createOrder,
-  markOrderAsPaid,
-  markPendingOrderAsExpired,
-  refundTransaction,
-} from './mutations/orders';
+import { confirmOrder, createOrder, refundTransaction } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
 import { confirmUserEmail, updateUserEmail } from './mutations/users';
@@ -223,26 +217,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return editConnectedAccount(req.remoteUser, args.connectedAccount);
-    },
-  },
-  markOrderAsPaid: {
-    type: OrderType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return markOrderAsPaid(req.remoteUser, args.id);
-    },
-  },
-  markPendingOrderAsExpired: {
-    type: OrderType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args, req) {
-      return markPendingOrderAsExpired(req.remoteUser, args.id);
     },
   },
   editTier: {

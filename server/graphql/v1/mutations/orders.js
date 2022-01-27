@@ -836,48 +836,6 @@ export async function refundTransaction(_, args, req) {
   return result;
 }
 
-export async function markOrderAsPaid(remoteUser, id) {
-  if (!remoteUser) {
-    throw new Unauthorized();
-  }
-
-  // fetch the order
-  const order = await models.Order.findByPk(id);
-  if (!order) {
-    throw new NotFound('Order not found');
-  }
-  if (order.status !== 'PENDING') {
-    throw new ValidationFailed("The order's status must be PENDING");
-  }
-
-  const collective = await models.Collective.findByPk(order.CollectiveId);
-  if (collective.isHostAccount) {
-    if (!remoteUser.isAdmin(collective.id)) {
-      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
-    }
-  } else {
-    const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
-    if (!remoteUser.isAdmin(HostCollectiveId)) {
-      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
-    }
-  }
-
-  order.paymentMethod = {
-    service: 'opencollective',
-    type: 'manual',
-    paid: true,
-  };
-  /**
-   * Takes care of:
-   * - creating the transactions
-   * - add backer as a BACKER in the Members table
-   * - send confirmation email
-   * - update order.status and order.processedAt
-   */
-  await libPayments.executeOrder(remoteUser, order);
-  return order;
-}
-
 export async function markPendingOrderAsExpired(remoteUser, id) {
   if (!remoteUser) {
     throw new Unauthorized();
