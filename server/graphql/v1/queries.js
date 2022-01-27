@@ -273,6 +273,7 @@ const queries = {
    */
   allUpdates: {
     type: new GraphQLList(UpdateType),
+    deprecationReason: '2022-01-26: This endpoint is deprecated and will be removed soon',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       includeHostedCollectives: { type: GraphQLBoolean },

@@ -9633,7 +9633,7 @@ enum ExpenseProcessAction {
   REJECT
 
   """
-  To mark the expense as rejected
+  To mark the expense as unpaid (marks the transaction as refunded)
   """
   MARK_AS_UNPAID
 
