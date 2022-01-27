@@ -3685,21 +3685,6 @@ type Mutation {
     """
     id: Int!
   ): NotificationType
-
-  """
-  Endpoint to accept or reject an invitation to become a member
-  """
-  replyToMemberInvitation(
-    """
-    The ID of the invitation to accept or decline
-    """
-    invitationId: Int!
-
-    """
-    Whether this invitation should be accepted or declined
-    """
-    accept: Boolean!
-  ): Boolean @deprecated(reason: "2021-07-07: This endpoint has been moved to GQLV2")
   backyourstackDispatchOrder(id: Int!): BackYourStackDispatchState
 
   """
