@@ -432,11 +432,6 @@ const mutations = {
         type: new GraphQLList(GraphQLString),
         description: 'Limit this payment method to make donations to collectives having those tags',
       },
-      limitedToCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        description: 'Limit this payment method to make donations to those collectives',
-        deprecationReason: '2020-08-11: This field does not exist anymore',
-      },
       limitedToHostCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
         description: 'Limit this payment method to make donations to the collectives hosted by those hosts',

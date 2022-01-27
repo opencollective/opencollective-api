@@ -1965,13 +1965,6 @@ export const PaymentMethodType = new GraphQLObjectType({
           return paymentMethod.limitedToTags;
         },
       },
-      limitedToCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        deprecationReason: '2020-08-11: This field does not exist anymore',
-        resolve() {
-          return null;
-        },
-      },
       limitedToHostCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
         resolve(paymentMethod) {
