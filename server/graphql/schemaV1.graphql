@@ -4041,7 +4041,6 @@ input UserInputType {
   twitterHandle: String
   githubHandle: String
   website: String
-  paypalEmail: String @deprecated(reason: "2020-01-21: Replaced by PayoutMethods")
   newsletterOptIn: Boolean
   location: LocationInputType
 }
