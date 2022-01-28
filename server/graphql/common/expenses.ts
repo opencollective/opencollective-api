@@ -8,7 +8,6 @@ import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -1403,7 +1402,6 @@ export async function markExpenseAsUnpaid(
         RefundTransactionId: null,
         kind: TransactionKind.EXPENSE,
         isRefund: false,
-        type: TransactionTypes.CREDIT,
       },
       include: [{ model: models.Expense }],
     });
