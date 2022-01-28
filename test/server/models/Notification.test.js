@@ -118,8 +118,6 @@ describe('server/models/Notification', () => {
         FromCollectiveId: user.collective.id,
       });
 
-      await expense.createActivity('collective.expense.paid');
-
       await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
         tag: 'webpack would love to be hosted by host',
       });
@@ -128,11 +126,11 @@ describe('server/models/Notification', () => {
     });
 
     it('notifies the author of the expense and the admin of host when expense is paid', async () => {
-      // host admin pays the expense
-      await expense.setPaid(hostAdmin.id);
+      await expense.createActivity('collective.expense.paid');
       await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2, {
         tag: '$100.00 from webpack for pizza AND Expense paid on webpack',
       });
+
       expect(emailSendMessageSpy.callCount).to.equal(2);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
       expect(emailSendMessageSpy.secondCall.args[0]).to.equal(hostAdmin.email);
@@ -147,11 +145,11 @@ describe('server/models/Notification', () => {
         channel: 'email',
       });
 
-      // host admin pays the expense
-      await expense.setPaid(hostAdmin.id);
+      await expense.createActivity('collective.expense.paid');
       await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0, {
         tag: '$100.00 from webpack for pizza',
       });
+
       expect(emailSendMessageSpy.callCount).to.equal(1);
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
     });
