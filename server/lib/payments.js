@@ -278,8 +278,14 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
  */
 export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data, user) {
   /* If the transaction passed isn't the one from the collective
-   * perspective, the opposite transaction is retrieved. */
-  if (transaction.type === DEBIT) {
+   * perspective, the opposite transaction is retrieved.
+   *
+   * However when the transaction is between the same collective (say an
+   * an expense from a collective to itself), then there will be no CREDIT
+   * transaction, and therefore we skip.
+   *
+   * */
+  if (transaction.type === DEBIT && transaction.FromCollectiveId !== transaction.CollectiveId) {
     transaction = await transaction.getRelatedTransaction({ type: CREDIT });
   }
 
@@ -425,10 +431,12 @@ export async function associateTransactionRefundId(transaction, refund, data) {
     await debit.save(); // User Ledger
   }
 
-  credit.RefundTransactionId = refundDebit.id;
-  await credit.save(); // Collective Ledger
-  refundDebit.RefundTransactionId = credit.id;
-  await refundDebit.save(); // Collective Ledger
+  if (refundDebit && credit) {
+    credit.RefundTransactionId = refundDebit.id;
+    await credit.save(); // Collective Ledger
+    refundDebit.RefundTransactionId = credit.id;
+    await refundDebit.save(); // Collective Ledger
+  }
 
   if (refundCredit && debit) {
     refundCredit.RefundTransactionId = debit.id;

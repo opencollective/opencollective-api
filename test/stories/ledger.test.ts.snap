@@ -193,3 +193,37 @@ exports[`test/stories/ledger Level 4: Refund added funds️ Refund added funds w
 | ADDED_FUNDS | DEBIT  | -10000 | 0          | ESLint | ESLint | OSC  |            | true     |
 | ADDED_FUNDS | CREDIT | 10000  | 0          | ESLint | ESLint | OSC  |            | false    |"
 `;
+
+exports[`test/stories/ledger Level 5: Refund Expenses️ Refund expense with different collectives 1`] = `
+"
+| kind                | type   | amount | paymentFee | To       | From     | Host   | Settlement | isRefund |
+| ------------------- | ------ | ------ | ---------- | -------- | -------- | ------ | ---------- | -------- |
+| EXPENSE             | CREDIT | 1000   | 0          | ESLint   | JHipster | OSC    |            | true     |
+| EXPENSE             | DEBIT  | -1000  | 0          | JHipster | ESLint   | OSC    |            | true     |
+| EXPENSE             | CREDIT | 1000   | 0          | JHipster | ESLint   | OSC    |            | false    |
+| EXPENSE             | DEBIT  | -1000  | 0          | ESLint   | JHipster | OSC    |            | false    |
+| CONTRIBUTION        | CREDIT | 10000  | 0          | ESLint   | Ben      | OSC    |            | false    |
+| CONTRIBUTION        | DEBIT  | -10000 | 0          | Ben      | ESLint   | NULL   |            | false    |
+| HOST_FEE_SHARE_DEBT | CREDIT | 75     | 0          | OSC      | OC Inc   | OSC    | OWED       | false    |
+| HOST_FEE_SHARE_DEBT | DEBIT  | -75    | 0          | OC Inc   | OSC      | OC Inc | OWED       | false    |
+| HOST_FEE_SHARE      | CREDIT | 75     | 0          | OC Inc   | OSC      | OC Inc |            | false    |
+| HOST_FEE_SHARE      | DEBIT  | -75    | 0          | OSC      | OC Inc   | OSC    |            | false    |
+| HOST_FEE            | CREDIT | 500    | 0          | OSC      | ESLint   | OSC    |            | false    |
+| HOST_FEE            | DEBIT  | -500   | 0          | ESLint   | OSC      | OSC    |            | false    |"
+`;
+
+exports[`test/stories/ledger Level 5: Refund Expenses️ Refund expense with same collective 1`] = `
+"
+| kind                | type   | amount | paymentFee | To     | From   | Host   | Settlement | isRefund |
+| ------------------- | ------ | ------ | ---------- | ------ | ------ | ------ | ---------- | -------- |
+| EXPENSE             | CREDIT | 1000   | 0          | ESLint | ESLint | OSC    |            | true     |
+| EXPENSE             | DEBIT  | -1000  | 0          | ESLint | ESLint | OSC    |            | false    |
+| CONTRIBUTION        | CREDIT | 10000  | 0          | ESLint | Ben    | OSC    |            | false    |
+| CONTRIBUTION        | DEBIT  | -10000 | 0          | Ben    | ESLint | NULL   |            | false    |
+| HOST_FEE_SHARE_DEBT | CREDIT | 75     | 0          | OSC    | OC Inc | OSC    | OWED       | false    |
+| HOST_FEE_SHARE_DEBT | DEBIT  | -75    | 0          | OC Inc | OSC    | OC Inc | OWED       | false    |
+| HOST_FEE_SHARE      | CREDIT | 75     | 0          | OC Inc | OSC    | OC Inc |            | false    |
+| HOST_FEE_SHARE      | DEBIT  | -75    | 0          | OSC    | OC Inc | OSC    |            | false    |
+| HOST_FEE            | CREDIT | 500    | 0          | OSC    | ESLint | OSC    |            | false    |
+| HOST_FEE            | DEBIT  | -500   | 0          | ESLint | OSC    | OSC    |            | false    |"
+`;
