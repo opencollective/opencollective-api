@@ -30,7 +30,6 @@ import {
   MemberInvitationType,
   MemberType,
   OrderDirectionType,
-  OrderType,
   PaymentMethodType,
   TierType,
   UpdateType,
@@ -79,14 +78,6 @@ const queries = {
     type: UserType,
     resolve(_, args, req) {
       return req.remoteUser;
-    },
-  },
-
-  AuthenticatedUser: {
-    type: CollectiveInterfaceType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    resolve(_, args, req) {
-      return models.Collective.findByPk(req.remoteUser.CollectiveId);
     },
   },
 
@@ -313,65 +304,6 @@ const queries = {
       }
       query.where.CollectiveId = { [Op.in]: collectiveIds };
       return models.Update.findAll(query);
-    },
-  },
-
-  /*
-   * Given a collective slug, returns all orders
-   */
-  allOrders: {
-    type: new GraphQLList(OrderType),
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      CollectiveId: { type: GraphQLInt },
-      collectiveSlug: { type: GraphQLString },
-      includeHostedCollectives: { type: GraphQLBoolean },
-      status: {
-        type: GraphQLString,
-        description: 'Filter by status (PAID, PENDING, ERROR, ACTIVE, CANCELLED)',
-      },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    async resolve(_, args) {
-      const query = { where: {} };
-      const CollectiveId = args.CollectiveId || (await fetchCollectiveId(args.collectiveSlug));
-      if (args.status) {
-        query.where.status = args.status;
-      }
-      if (args.category) {
-        query.where.category = { [Op.iLike]: args.category };
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [
-        ['createdAt', 'DESC'],
-        ['id', 'DESC'],
-      ];
-
-      let collectiveIds;
-      // if is host, we get all the orders across all the hosted collectives
-      if (args.includeHostedCollectives) {
-        const members = await models.Member.findAll({
-          attributes: ['CollectiveId'],
-          where: {
-            MemberCollectiveId: CollectiveId,
-            role: 'HOST',
-          },
-        });
-        const membersCollectiveIds = members.map(member => member.CollectiveId);
-        collectiveIds = [CollectiveId, ...membersCollectiveIds];
-      } else {
-        collectiveIds = [CollectiveId];
-      }
-
-      query.where.CollectiveId = { [Op.in]: collectiveIds };
-
-      return models.Order.findAll(query);
     },
   },
 
@@ -1002,12 +934,6 @@ const queries = {
         type: GraphQLInt,
         defaultValue: 0,
       },
-      useAlgolia: {
-        type: GraphQLBoolean,
-        deprecationReason: '2020-12-14: Algolia is intended to be removed in a near future',
-        defaultValue: false,
-        description: `This flag is now ignored in favor of regular search`,
-      },
     },
     async resolve(_, args, req) {
       const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts } = args;
@@ -1096,20 +1022,6 @@ const queries = {
       }
       const transactions = await models.Transaction.findAll(query);
       return transactions;
-    },
-  },
-
-  Order: {
-    type: OrderType,
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve: async (_, args) => {
-      const order = await models.Order.findByPk(args.id);
-      return order;
     },
   },
 };

@@ -541,22 +541,6 @@ export const CollectiveStatsType = new GraphQLObjectType({
           }
         },
       },
-      topFundingSources: {
-        type: GraphQLJSON,
-        deprecationReason: '2021-01-29: Not used anymore',
-        resolve(collective) {
-          return Promise.all([
-            queries.getTopDonorsForCollective(collective.id),
-            queries.getTotalDonationsByCollectiveType(collective.id),
-          ]).then(results => {
-            const res = {
-              byCollective: results[0],
-              byCollectiveType: results[1],
-            };
-            return res;
-          });
-        },
-      },
       activeRecurringContributions: {
         type: GraphQLJSON,
         resolve(collective, args, req) {
@@ -610,10 +594,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       company: { type: GraphQLString },
       description: { type: GraphQLString },
       longDescription: { type: GraphQLString },
-      hasLongDescription: {
-        type: GraphQLBoolean,
-        description: 'Returns true if the collective has a long description',
-      },
       expensePolicy: { type: GraphQLString },
       tags: { type: new GraphQLList(GraphQLString) },
       location: {
@@ -757,7 +737,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           active: { type: GraphQLBoolean },
         },
       },
-      maxQuantity: { type: GraphQLInt, deprecationReason: 'Not supported anymore' },
       tiers: {
         type: new GraphQLList(TierType),
         args: {
@@ -987,13 +966,6 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return collective.longDescription;
-      },
-    },
-    hasLongDescription: {
-      type: GraphQLBoolean,
-      description: 'Returns true if the collective has a long description',
-      resolve(collective) {
-        return Boolean(collective.longDescription);
       },
     },
     expensePolicy: {
@@ -1490,13 +1462,6 @@ const CollectiveFields = () => {
           offset: args.offset,
           order: [['createdAt', 'ASC']],
         });
-      },
-    },
-    maxQuantity: {
-      type: GraphQLInt,
-      deprecationReason: 'Not supported anymore',
-      resolve() {
-        return null;
       },
     },
     tiers: {

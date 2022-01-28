@@ -1341,14 +1341,6 @@ export const TierType = new GraphQLObjectType({
         type: GraphQLString,
         description: 'A long, html-formatted description.',
       },
-      hasLongDescription: {
-        type: GraphQLBoolean,
-        description: 'Returns true if the tier has a long description',
-        deprecationReason: '2020-12-24: This field is being deprecated in favor of useStandalonePage',
-        resolve(tier) {
-          return Boolean(tier.longDescription);
-        },
-      },
       useStandalonePage: {
         type: GraphQLBoolean,
         description: 'Returns true if the tier has its standalone page activated',
@@ -1963,13 +1955,6 @@ export const PaymentMethodType = new GraphQLObjectType({
         type: GraphQLJSON,
         resolve(paymentMethod) {
           return paymentMethod.limitedToTags;
-        },
-      },
-      limitedToCollectiveIds: {
-        type: new GraphQLList(GraphQLInt),
-        deprecationReason: '2020-08-11: This field does not exist anymore',
-        resolve() {
-          return null;
         },
       },
       limitedToHostCollectiveIds: {

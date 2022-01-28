@@ -74,7 +74,6 @@ describe('server/models/User', () => {
       User.findOne({}).then(user => {
         expect(user.info).to.have.property('email');
         expect(user.public).to.not.have.property('email');
-        expect(user.public).to.not.have.property('paypalEmail');
         done();
       });
     });

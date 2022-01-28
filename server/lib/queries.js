@@ -192,40 +192,6 @@ const getTotalAnnualBudget = async () => {
 };
 
 /**
- * Returns the total amount of donations made by collective type (USER/ORGANIZATION/COLLECTIVE) (in cents in the currency of the CollectiveId)
- * @param {*} CollectiveId
- */
-const getTotalDonationsByCollectiveType = CollectiveId => {
-  return sequelize.query(
-    `
-    SELECT MAX(c.type) as type, SUM("netAmountInCollectiveCurrency") as "totalDonations" FROM "Transactions" t LEFT JOIN "Collectives" c ON t."FromCollectiveId" = c.id WHERE c.type='USER' AND t."CollectiveId"=:CollectiveId and t.type='CREDIT' GROUP BY c.type ORDER BY "totalDonations" DESC
-  `,
-    {
-      replacements: { CollectiveId },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-};
-
-/**
- * Returns an array with the top (default 3) donors for a given CollectiveId (where the money comes from)
- * @param {*} CollectiveId
- * @param {*} options
- */
-const getTopDonorsForCollective = (CollectiveId, options = {}) => {
-  options.limit = options.limit || 3;
-  return sequelize.query(
-    `
-    SELECT MAX(c.slug) as slug, MAX(c.image) as image, MAX(c.name) as name, SUM("netAmountInCollectiveCurrency") as "totalDonations" FROM "Transactions" t LEFT JOIN "Collectives" c ON t."FromCollectiveId" = c.id WHERE t."CollectiveId"=:CollectiveId and t.type='CREDIT' GROUP BY c.id ORDER BY "totalDonations" DESC LIMIT :limit
-  `,
-    {
-      replacements: { CollectiveId, limit: options.limit },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
-};
-
-/**
  * Returns the top backers (Collectives) in a given time range in given tags
  * E.g. top backers in open source collectives last June
  */
@@ -1197,11 +1163,9 @@ const queries = {
   getTaxFormsRequiredForAccounts,
   getTaxFormsRequiredForExpenses,
   getTopBackers,
-  getTopDonorsForCollective,
   getTopSponsors,
   getTotalAnnualBudget,
   getTotalAnnualBudgetForHost,
-  getTotalDonationsByCollectiveType,
   getTotalNumberOfActiveCollectives,
   getTotalNumberOfDonors,
   getUniqueCollectiveTags,
