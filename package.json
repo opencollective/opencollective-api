@@ -53,7 +53,7 @@
     "burner-email-providers": "1.0.67",
     "cloudflare": "2.9.1",
     "cloudflare-ip": "0.0.7",
-    "commander": "^8.3.0",
+    "commander": "^9.0.0",
     "config": "3.3.7",
     "connect-redis": "6.0.0",
     "cookie": "0.4.1",
