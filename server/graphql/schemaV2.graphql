@@ -1687,6 +1687,23 @@ type ExpensePermissions {
   Whether the current user can unschedule this expense payment
   """
   canUnschedulePayment: Boolean!
+  edit: ExtendedPermission
+  editTags: ExtendedPermission
+  delete: ExtendedPermission
+  seeInvoiceInfo: ExtendedPermission
+  pay: ExtendedPermission
+  approve: ExtendedPermission
+  unapprove: ExtendedPermission
+  reject: ExtendedPermission
+  markAsSpam: ExtendedPermission
+  markAsUnpaid: ExtendedPermission
+  comment: ExtendedPermission
+  unschedulePayment: ExtendedPermission
+}
+
+type ExtendedPermission {
+  allowed: Boolean!
+  reason: String
 }
 
 """

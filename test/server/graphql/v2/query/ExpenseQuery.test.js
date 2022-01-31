@@ -37,6 +37,12 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
             type
             data
           }
+          permissions {
+            approve {
+              allowed
+              reason
+            }
+          }
         }
       }
     `;
@@ -119,6 +125,29 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultAsCollectiveAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
       expect(resultAsOwner.data.expense.payee.legalName).to.equal('A Legal Name');
       expect(resultAsHostAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
+    });
+
+    it('can fetch extended permission informations', async () => {
+      // Query
+      const queryParams = { id: expense.id };
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+
+      expect(resultUnauthenticated.data.expense.permissions.approve).to.deep.equal({
+        allowed: false,
+        reason: 'UNSUPPORTED_USER_FEATURE',
+      });
+
+      expect(resultAsRandomUser.data.expense.permissions.approve).to.deep.equal({
+        allowed: false,
+        reason: 'MINIMAL_CONDITION_NOT_MET',
+      });
+
+      expect(resultAsCollectiveAdmin.data.expense.permissions.approve).to.deep.equal({
+        allowed: true,
+        reason: null,
+      });
     });
   });
 

@@ -4,6 +4,22 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import * as ExpenseLib from '../../common/expenses';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
+const ExtendedPermission = new GraphQLObjectType({
+  name: 'ExtendedPermission',
+  fields: () => ({
+    allowed: { type: new GraphQLNonNull(GraphQLBoolean) },
+    reason: { type: GraphQLString },
+  }),
+});
+
+const getPermissionFromEvaluator =
+  (fn: ExpenseLib.ExpensePermissionEvaluator) =>
+  (expense, _, req: express.Request): Promise<{ allowed: boolean; reason?: string }> => {
+    return fn(req, expense, { throw: true })
+      .then(allowed => ({ allowed }))
+      .catch(error => ({ allowed: false, reason: error?.extensions?.code }));
+  };
+
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
   description: 'Fields for the user permissions on an expense',
@@ -96,6 +112,55 @@ const ExpensePermissions = new GraphQLObjectType({
       async resolve(expense, _, req: express.Request): Promise<boolean> {
         return ExpenseLib.canUnschedulePayment(req, expense);
       },
+    },
+    // Extended permissions
+    edit: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canEditExpense),
+    },
+    editTags: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canEditExpenseTags),
+    },
+    delete: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canDeleteExpense),
+    },
+    seeInvoiceInfo: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canSeeExpenseInvoiceInfo),
+    },
+    pay: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canPayExpense),
+    },
+    approve: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canApprove),
+    },
+    unapprove: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canUnapprove),
+    },
+    reject: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canReject),
+    },
+    markAsSpam: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canMarkAsSpam),
+    },
+    markAsUnpaid: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canMarkAsUnpaid),
+    },
+    comment: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canComment),
+    },
+    unschedulePayment: {
+      type: ExtendedPermission,
+      resolve: getPermissionFromEvaluator(ExpenseLib.canUnschedulePayment),
     },
   }),
 });
