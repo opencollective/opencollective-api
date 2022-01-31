@@ -129,7 +129,7 @@ export const checkBatchStatus = async (batch: typeof models.Expense[]): Promise<
   const [firstExpense] = batch;
   const host = await firstExpense.collective.getHostCollective();
   if (!host) {
-    throw new Error(`Could not find the host embursing the expense.`);
+    throw new Error(`Could not find the host reimbursing the expense.`);
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
