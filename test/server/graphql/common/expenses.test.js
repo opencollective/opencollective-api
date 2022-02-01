@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
 import { expenseStatus } from '../../../../server/constants';
+import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import {
   canApprove,
   canComment,
@@ -20,7 +21,7 @@ import {
 } from '../../../../server/graphql/common/expenses';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
-import { makeRequest } from '../../../utils';
+import { getApolloErrorCode, makeRequest } from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
   let expense,
@@ -275,6 +276,21 @@ describe('server/graphql/common/expenses', () => {
       expect(await canApprove(limitedHostAdminReq, expense)).to.be.false;
       expect(await canApprove(collectiveAccountantReq, expense)).to.be.false;
       expect(await canApprove(hostAccountantReq, expense)).to.be.false;
+    });
+
+    it('throws informative error if options.throw is set', async () => {
+      await expense.update({ status: 'PENDING' });
+      expect(await getApolloErrorCode(canApprove(publicReq, expense, { throw: true }))).to.be.equal(
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+      expect(await getApolloErrorCode(canApprove(expenseOwnerReq, expense, { throw: true }))).to.be.equal(
+        EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+      );
+
+      await expense.update({ status: 'APPROVED' });
+      expect(await getApolloErrorCode(canApprove(publicReq, expense, { throw: true }))).to.be.equal(
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
     });
   });
 

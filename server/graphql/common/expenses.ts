@@ -7,6 +7,7 @@ import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
+import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
@@ -92,7 +93,11 @@ const isHostAdmin = async (req: express.Request, expense: typeof models.Expense)
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
-type PermissionCondition = (req: express.Request, expense: typeof models.Expense) => Promise<boolean>;
+export type ExpensePermissionEvaluator = (
+  req: express.Request,
+  expense: typeof models.Expense,
+  options?: { throw?: boolean },
+) => Promise<boolean>;
 
 /**
  * Returns true if the expense meets at least one condition.
@@ -101,9 +106,13 @@ type PermissionCondition = (req: express.Request, expense: typeof models.Expense
 const remoteUserMeetsOneCondition = async (
   req: express.Request,
   expense: typeof models.Expense,
-  conditions: PermissionCondition[],
+  conditions: ExpensePermissionEvaluator[],
+  options: { throw?: boolean } = { throw: false },
 ): Promise<boolean> => {
   if (!req.remoteUser) {
+    if (options?.throw) {
+      throw new Unauthorized('User is required', EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET);
+    }
     return false;
   }
 
@@ -113,43 +122,46 @@ const remoteUserMeetsOneCondition = async (
     }
   }
 
+  if (options?.throw) {
+    throw new Unauthorized(
+      'User does not meet minimal condition',
+      EXPENSE_PERMISSION_ERROR_CODES.MINIMAL_CONDITION_NOT_MET,
+    );
+  }
   return false;
 };
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
-export const canSeeExpenseAttachments = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<boolean> => {
+export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
-export const canSeeExpensePayoutMethod = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<boolean> => {
+export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can see expense's payout method */
-export const canSeeExpenseInvoiceInfo = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<boolean> => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
+  req,
+  expense,
+  options = { throw: false },
+) => {
+  return remoteUserMeetsOneCondition(
+    req,
+    expense,
+    [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin],
+    options,
+  );
 };
 
 /** Checks if the user can see expense's payout method */
-export const canSeeExpensePayeeLocation = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<boolean> => {
+export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
 /** Checks if the user can verify or resend a draft */
-export const canVerifyDraftExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
@@ -164,10 +176,7 @@ export const getExpenseItems = async (expenseId: number, req: express.Request): 
  * Only admin of expense.collective or of expense.collective.host can approve/reject expenses
  * @deprecated: Please use more specific helpers like `canEdit`, `canDelete`, etc.
  */
-export const canUpdateExpenseStatus = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<boolean> => {
+export const canUpdateExpenseStatus: ExpensePermissionEvaluator = async (req, expense) => {
   const { remoteUser } = req;
   if (!remoteUser) {
     return false;
@@ -187,7 +196,7 @@ export const canUpdateExpenseStatus = async (
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
-export const canEditExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   const nonEditableStatuses = [
     expenseStatus.PAID,
     expenseStatus.PROCESSING,
@@ -203,22 +212,31 @@ export const canEditExpense = async (req: express.Request, expense: typeof model
   ) {
     return true;
   } else if (nonEditableStatuses.includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden('Can not edit expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot edit expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
 };
 
-export const canEditExpenseTags = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canEditExpenseTags: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot edit expense tags', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else if (expense.status === expenseStatus.PAID) {
     // Only collective/host admins can edit tags after the expense is paid
-    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin], options);
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
 };
 
@@ -226,117 +244,183 @@ export const canEditExpenseTags = async (req: express.Request, expense: typeof m
  * Only the author or an admin of the collective or collective.host can delete an expense,
  * and only when its status is REJECTED.
  */
-export const canDeleteExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canDeleteExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (![expenseStatus.REJECTED, expenseStatus.DRAFT, expenseStatus.SPAM].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not delete expense in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot delete expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if expense can be paid by user
  */
-export const canPayExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canPayExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return isHostAdmin(req, expense);
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canApprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (![expenseStatus.PENDING, expenseStatus.REJECTED].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not approve expense in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot approve expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canReject: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not reject expense in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot reject expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if expense can be rejected by user
  */
-export const canMarkAsSpam = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (![expenseStatus.REJECTED].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not mark expense as spam in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot mark expenses as spam', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if expense can be unapproved by user
  */
-export const canUnapprove = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not unapprove expense in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot unapprove expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if expense can be marked as unpaid by user
  */
-export const canMarkAsUnpaid = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (expense.status !== expenseStatus.PAID) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not mark expense as unpaid in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
     return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'User cannot mark expenses as unpaid',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
+    }
     return false;
   } else {
-    return isHostAdmin(req, expense);
+    return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
   }
 };
 
 /**
  * Returns true if user can comment and see others comments for this expense
  */
-export const canComment = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+export const canComment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isOwner]);
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isOwner], options);
   }
 };
 
-export const canViewRequiredLegalDocuments = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<boolean> => {
+export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin, isCollectiveAccountant, isOwner]);
 };
 
-export const canUnschedulePayment = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
-  if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT && (await isHostAdmin(req, expense))) {
-    return true;
+export const canUnschedulePayment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
+  if (expense.status !== expenseStatus.SCHEDULED_FOR_PAYMENT) {
+    if (options?.throw) {
+      throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+    }
+    return false;
   }
-  return false;
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
 };
 
 // ---- Expense actions ----

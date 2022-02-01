@@ -451,3 +451,5 @@ export const snapshotLedger = async columns => {
 
   snapshotTransactions(transactions, { columns: columns });
 };
+
+export const getApolloErrorCode = call => call.catch(e => e?.extensions?.code);

@@ -4,6 +4,8 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import * as ExpenseLib from '../../common/expenses';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
+import { parsePermissionFromEvaluator, Permission } from './Permission';
+
 const ExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
   description: 'Fields for the user permissions on an expense',
@@ -96,6 +98,55 @@ const ExpensePermissions = new GraphQLObjectType({
       async resolve(expense, _, req: express.Request): Promise<boolean> {
         return ExpenseLib.canUnschedulePayment(req, expense);
       },
+    },
+    // Extended permissions
+    edit: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpense),
+    },
+    editTags: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpenseTags),
+    },
+    delete: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canDeleteExpense),
+    },
+    seeInvoiceInfo: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canSeeExpenseInvoiceInfo),
+    },
+    pay: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canPayExpense),
+    },
+    approve: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canApprove),
+    },
+    unapprove: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canUnapprove),
+    },
+    reject: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canReject),
+    },
+    markAsSpam: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsSpam),
+    },
+    markAsUnpaid: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsUnpaid),
+    },
+    comment: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canComment),
+    },
+    unschedulePayment: {
+      type: Permission,
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canUnschedulePayment),
     },
   }),
 });
