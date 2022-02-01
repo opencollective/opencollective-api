@@ -18,11 +18,6 @@ export const addFundsMutation = {
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
-    platformFeePercent: {
-      type: GraphQLFloat,
-      description: 'Can only be set if root',
-      deprecationReason: '2020-09-06: Platform Fees are deprecated',
-    },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
