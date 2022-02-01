@@ -147,6 +147,11 @@ const queries = {
       if (transaction.HostCollectiveId) {
         // If a `HostCollectiveId` is defined, we load it directly
         host = await transaction.getHostCollective();
+      } else if (transaction.isRefund) {
+        const debitTransaction = await transaction.getOppositeTransaction();
+        if (debitTransaction) {
+          host = await debitTransaction.getHostCollective();
+        }
       } else {
         // TODO: Keeping the code below to be safe and not break anything, but the logic is wrong:
         // A collective can change host and we would display the wrong one there. `Transaction.HostCollectiveId`
