@@ -123,6 +123,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
         hostAdminUser,
       );
 
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.refundTransaction.id).to.exist;
     });

@@ -15,7 +15,8 @@ describe('server/graphql/common/transactions', () => {
     hostAccountant,
     contributor,
     randomUser,
-    transaction;
+    transaction,
+    refundTransaction;
 
   let publicReq,
     randomUserReq,
@@ -36,15 +37,24 @@ describe('server/graphql/common/transactions', () => {
     fromCollectiveAccountant = await fakeUser();
     collectiveAccountant = await fakeUser();
     hostAccountant = await fakeUser();
-    const order = await fakeOrder();
     const rootAdmin = await fakeUser();
-    contributor = await fakeUser();
-    collective = await fakeCollective();
+    contributor = await fakeUser({}, { name: 'Contributor' });
+    collective = await fakeCollective({ name: 'Collective' });
+    const order = await fakeOrder({ FromCollectiveId: contributor.CollectiveId, CollectiveId: collective.id });
     transaction = await fakeTransaction({
+      description: 'Contribution',
       CollectiveId: collective.id,
       FromCollectiveId: contributor.CollectiveId,
       amount: 100000,
       OrderId: order.id,
+    });
+    refundTransaction = await fakeTransaction({
+      description: 'Refund of Contribution',
+      FromCollectiveId: collective.id,
+      CollectiveId: contributor.CollectiveId,
+      amount: 100000,
+      OrderId: order.id,
+      isRefund: true,
     });
     timer = useFakeTimers(new Date('2020-07-23 0:0').getTime());
     oldTransaction = await fakeTransaction({
@@ -132,6 +142,18 @@ describe('server/graphql/common/transactions', () => {
       expect(await canDownloadInvoice(transaction, undefined, fromCollectiveAccountantReq)).to.be.true;
       expect(await canDownloadInvoice(transaction, undefined, hostAdminReq)).to.be.true;
       expect(await canDownloadInvoice(transaction, undefined, rootAdminReq)).to.be.false;
+    });
+
+    it('can download invoice for refunds if contributor or host admin of the collective receiving the contribution', async () => {
+      expect(await canDownloadInvoice(refundTransaction, undefined, publicReq)).to.be.false;
+      expect(await canDownloadInvoice(refundTransaction, undefined, randomUserReq)).to.be.false;
+      expect(await canDownloadInvoice(refundTransaction, undefined, collectiveAdminReq)).to.be.false;
+      expect(await canDownloadInvoice(refundTransaction, undefined, contributorReq)).to.be.true;
+      expect(await canDownloadInvoice(refundTransaction, undefined, hostAccountantReq)).to.be.false;
+      expect(await canDownloadInvoice(refundTransaction, undefined, collectiveAccountantReq)).to.be.false;
+      expect(await canDownloadInvoice(refundTransaction, undefined, fromCollectiveAccountantReq)).to.be.true;
+      expect(await canDownloadInvoice(refundTransaction, undefined, hostAdminReq)).to.be.true;
+      expect(await canDownloadInvoice(refundTransaction, undefined, rootAdminReq)).to.be.false;
     });
   });
 });

@@ -815,7 +815,7 @@ export async function refundTransaction(_, args, req) {
     throw new NotFound('Transaction not found');
   }
 
-  // 1a. Verify user permission using canRefun. User must be either
+  // 1a. Verify user permission using canRefund. User must be either
   //   a. Admin of the collective that received the donation
   //   b. Admin of the Host Collective that received the donation
   //   c. Admin of opencollective.com/opencollective
