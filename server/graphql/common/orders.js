@@ -1,6 +1,7 @@
 import { isNil } from 'lodash';
 
 import status from '../../constants/order_status';
+import { purgeCacheForCollective } from '../../lib/cache';
 import logger from '../../lib/logger';
 import * as libPayments from '../../lib/payments';
 import models from '../../models';
