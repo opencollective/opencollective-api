@@ -1,8 +1,8 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { addFunds } from '../../common/orders';
 import { ValidationFailed } from '../../errors';
-import { addFundsToCollective as addFundsToCollectiveLegacy } from '../../v1/mutations/orders';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
@@ -38,7 +38,7 @@ export const addFundsMutation = {
       throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
     }
 
-    return addFundsToCollectiveLegacy(
+    return addFunds(
       {
         totalAmount: getValueInCentsFromAmountInput(args.amount),
         collective: account,
