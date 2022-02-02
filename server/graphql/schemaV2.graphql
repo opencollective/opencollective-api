@@ -3028,6 +3028,7 @@ type CollectiveFeatures {
   PROJECTS: CollectiveFeatureStatus
   USE_EXPENSES: CollectiveFeatureStatus
   RECEIVE_EXPENSES: CollectiveFeatureStatus
+  MULTI_CURRENCY_EXPENSES: CollectiveFeatureStatus
   RECEIVE_HOST_APPLICATIONS: CollectiveFeatureStatus
   COLLECTIVE_GOALS: CollectiveFeatureStatus
   TOP_FINANCIAL_CONTRIBUTORS: CollectiveFeatureStatus
@@ -8141,6 +8142,11 @@ input ExpenseCreateInput {
   longDescription: String
 
   """
+  Currency that should be used for the payout. Defaults to the account currency
+  """
+  currency: Currency
+
+  """
   Tags associated to the expense (ie. Food, Engineering...)
   """
   tags: [String]
@@ -9515,6 +9521,11 @@ input ExpenseUpdateInput {
   Longer text to attach to the expense
   """
   longDescription: String
+
+  """
+  Currency that should be used for the payout. Defaults to the account currency
+  """
+  currency: Currency
 
   """
   Tags associated to the expense (ie. Food, Engineering...)
