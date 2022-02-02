@@ -625,9 +625,9 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
     // Handle specific fees
     // we use data instead of a column for now because it's an edge/experimental case
     // should be moved to a column if it starts to be widely used
-    if (order.hostFeePercent) {
+    if (!isNil(order.hostFeePercent)) {
       orderData.data.hostFeePercent = order.hostFeePercent;
-    } else if (tier && tier.data && tier.data.hostFeePercent !== undefined) {
+    } else if (!isNil(tier?.data?.hostFeePercent)) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
     }
 

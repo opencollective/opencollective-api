@@ -5,6 +5,7 @@
 
 import { expect } from 'chai';
 import express from 'express';
+import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
 
@@ -492,6 +493,7 @@ describe('test/stories/ledger', () => {
   describe('Level 4: Refund added funds️', async () => {
     const refundTransaction = async (collective, host, contributorUser, baseOrderData) => {
       const order = await fakeOrder(baseOrderData);
+      set(order, 'data.hostFeePercent', 0);
       order.paymentMethod = { service: 'opencollective', type: 'host', CollectiveId: host.id };
       await executeOrder(contributorUser, order);
 
