@@ -3,6 +3,7 @@ import moment from 'moment';
 
 import { roles } from '../../constants';
 import orderStatus from '../../constants/order_status';
+import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
 
@@ -121,10 +122,16 @@ export const canRefund = async (
   if (transaction.type !== TransactionTypes.CREDIT || transaction.OrderId === null || transaction.isRefund === true) {
     return false;
   }
+
   const timeLimit = moment().subtract(30, 'd');
   const createdAtMoment = moment(transaction.createdAt);
   const transactionIsOlderThanThirtyDays = createdAtMoment < timeLimit;
-  if (transactionIsOlderThanThirtyDays) {
+  /*
+   * 1) We only allow the transaction to be refunded by Collective admins if it's within 30 days.
+   *
+   * 2) To ensure proper accounting, we only allow added funds to be refunded by Host admins and never by Collective admins.
+   */
+  if (transactionIsOlderThanThirtyDays || transaction.kind === TransactionKind.ADDED_FUNDS) {
     return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin]);
   } else {
     return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);

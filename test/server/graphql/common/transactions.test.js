@@ -2,7 +2,8 @@ import { expect } from 'chai';
 import { useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../server/constants';
-import { canDownloadInvoice, canRefund } from '../../../../server/graphql/common/transactions';
+import { TransactionKind } from '../../../../server/constants/transaction-kind';
+import { canDownloadInvoice, canRefund, canReject } from '../../../../server/graphql/common/transactions';
 import { fakeCollective, fakeOrder, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
 import { makeRequest } from '../../../utils';
 
@@ -28,7 +29,8 @@ describe('server/graphql/common/transactions', () => {
     rootAdminReq,
     contributorReq,
     timer,
-    oldTransaction;
+    oldTransaction,
+    addedFundTransaction;
 
   before(async () => {
     randomUser = await fakeUser();
@@ -55,6 +57,14 @@ describe('server/graphql/common/transactions', () => {
       amount: 100000,
       OrderId: order.id,
       isRefund: true,
+    });
+    addedFundTransaction = await fakeTransaction({
+      description: 'Added Funds',
+      FromCollectiveId: contributor.CollectiveId,
+      CollectiveId: collective.id,
+      amount: 100000,
+      kind: TransactionKind.ADDED_FUNDS,
+      OrderId: order.id,
     });
     timer = useFakeTimers(new Date('2020-07-23 0:0').getTime());
     oldTransaction = await fakeTransaction({
@@ -103,11 +113,17 @@ describe('server/graphql/common/transactions', () => {
       expect(await canRefund(transaction, undefined, rootAdminReq)).to.be.true;
       expect(await canRefund(oldTransaction, undefined, hostAdminReq)).to.be.true;
       expect(await canRefund(oldTransaction, undefined, rootAdminReq)).to.be.true;
+      expect(await canRefund(addedFundTransaction, undefined, rootAdminReq)).to.be.true;
+      expect(await canRefund(addedFundTransaction, undefined, hostAdminReq)).to.be.true;
     });
 
     it('can refund as admin of the receiving collective only if transaction < 30 days old', async () => {
       expect(await canRefund(transaction, undefined, collectiveAdminReq)).to.be.true;
       expect(await canRefund(oldTransaction, undefined, collectiveAdminReq)).to.be.false;
+    });
+
+    it('cannot refund as admin of receiving collective if the transaction is of kind ADDED_FUNDS', async () => {
+      expect(await canRefund(addedFundTransaction, undefined, collectiveAdminReq)).to.be.false;
     });
   });
 
@@ -123,6 +139,8 @@ describe('server/graphql/common/transactions', () => {
       expect(await canRefund(transaction, undefined, rootAdminReq)).to.be.true;
       expect(await canRefund(oldTransaction, undefined, hostAdminReq)).to.be.true;
       expect(await canRefund(oldTransaction, undefined, rootAdminReq)).to.be.true;
+      expect(await canReject(addedFundTransaction, undefined, rootAdminReq)).to.be.true;
+      expect(await canReject(addedFundTransaction, undefined, hostAdminReq)).to.be.true;
     });
 
     it('can reject as admin of the receiving collective only if transaction < 30 days old', async () => {
