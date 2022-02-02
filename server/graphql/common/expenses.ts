@@ -8,6 +8,7 @@ import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
+import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
@@ -300,6 +301,16 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     }
     return false;
   } else {
+    const collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+    if (collective.hasPolicy(POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE) && req.remoteUser.id === expense.UserId) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'User cannot approve their own expenses',
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+      }
+      return false;
+    }
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };

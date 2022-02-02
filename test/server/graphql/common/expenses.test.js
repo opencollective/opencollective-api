@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import { expenseStatus } from '../../../../server/constants';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
+import POLICIES from '../../../../server/constants/policies';
 import {
   canApprove,
   canComment,
@@ -291,6 +292,23 @@ describe('server/graphql/common/expenses', () => {
       expect(await getApolloErrorCode(canApprove(publicReq, expense, { throw: true }))).to.be.equal(
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
       );
+    });
+
+    it('throws if author is trying to approve and EXPENSE_AUTHOR_CANNOT_APPROVE policy is set', async () => {
+      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+      await collective.setPolicies([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+      const newExpense = await fakeExpense({
+        CollectiveId: collective.id,
+        FromCollectiveId: collectiveAdmin.CollectiveId,
+        PayoutMethodId: payoutMethod.id,
+        UserId: collectiveAdmin.id,
+      });
+
+      await expense.update({ status: 'PENDING' });
+      expect(await getApolloErrorCode(canApprove(collectiveAdminReq, newExpense, { throw: true }))).to.be.equal(
+        EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+      );
+      expect(await canApprove(collectiveAdminReq, newExpense)).to.be.false;
     });
   });
 
