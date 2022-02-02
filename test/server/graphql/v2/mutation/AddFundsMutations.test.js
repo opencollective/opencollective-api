@@ -13,7 +13,6 @@ const addFundsMutation = gqlV2/* GraphQL */ `
     $amount: AmountInput!
     $description: String!
     $hostFeePercent: Float!
-    $platformFeePercent: Float
   ) {
     addFunds(
       account: $account
@@ -21,7 +20,6 @@ const addFundsMutation = gqlV2/* GraphQL */ `
       amount: $amount
       description: $description
       hostFeePercent: $hostFeePercent
-      platformFeePercent: $platformFeePercent
     ) {
       id
       toAccount {
@@ -67,7 +65,6 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           amount: { value: 20, currency: 'USD', valueInCents: 2000 },
           description: 'add funds as non-admin',
           hostFeePercent: 6,
-          platformFeePercent: 0,
         },
         randomUser,
       );
@@ -84,7 +81,6 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           amount: { value: 20, currency: 'USD', valueInCents: 2000 },
           description: 'add funds as admin',
           hostFeePercent: 6,
-          platformFeePercent: 0,
         },
         collectiveAdmin,
       );
@@ -103,7 +99,6 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           amount: { value: 20, currency: 'USD', valueInCents: 2000 },
           description: 'add funds as admin',
           hostFeePercent: 6,
-          platformFeePercent: 0,
         },
         hostAdmin,
       );

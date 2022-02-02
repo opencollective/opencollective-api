@@ -1,8 +1,8 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { addFunds } from '../../common/orders';
 import { ValidationFailed } from '../../errors';
-import { addFundsToCollective as addFundsToCollectiveLegacy } from '../../v1/mutations/orders';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
@@ -18,11 +18,6 @@ export const addFundsMutation = {
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
-    platformFeePercent: {
-      type: GraphQLFloat,
-      description: 'Can only be set if root',
-      deprecationReason: '2020-09-06: Platform Fees are deprecated',
-    },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
@@ -38,7 +33,7 @@ export const addFundsMutation = {
       throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
     }
 
-    return addFundsToCollectiveLegacy(
+    return addFunds(
       {
         totalAmount: getValueInCentsFromAmountInput(args.amount),
         collective: account,
