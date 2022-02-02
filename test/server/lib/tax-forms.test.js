@@ -380,7 +380,7 @@ describe('server/lib/tax-forms', () => {
       assert.callCount(sendMessageSpy, 1);
       const [recipient, title, content] = sendMessageSpy.firstCall.args;
       expect(recipient).to.eq(user.email);
-      expect(title).to.eq(`Action required: Submit your tax form for ${user.collective.legalName}`);
+      expect(title).to.eq(`Action required: Submit tax form for ${user.collective.legalName}`);
       expect(content).to.include(documentLink);
     });
 
