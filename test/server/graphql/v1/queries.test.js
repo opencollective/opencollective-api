@@ -218,7 +218,7 @@ describe('server/graphql/v1/queries', () => {
           }
         `;
         const req = utils.makeRequest(null);
-        const result = await graphql(schema, multipleEventsQuery, null, req);
+        const result = await graphql({ schema, source: multipleEventsQuery, rootValue: null, contextValue: req });
         expect(result).to.deep.equal({
           data: {
             allEvents: [],
@@ -237,7 +237,13 @@ describe('server/graphql/v1/queries', () => {
           }
         `;
         const req = utils.makeRequest(null);
-        const result = await graphql(schema, multipleEventsQuery, null, req, { slug: collective3.slug });
+        const result = await graphql({
+          schema,
+          source: multipleEventsQuery,
+          rootValue: null,
+          contextValue: req,
+          variableValues: { slug: collective3.slug },
+        });
         expect(result).to.deep.equal({
           data: {
             allEvents: [],
@@ -263,7 +269,7 @@ describe('server/graphql/v1/queries', () => {
           }
         `;
         const req = utils.makeRequest(null);
-        const result = await graphql(schema, oneEventQuery, null, req);
+        const result = await graphql({ schema, source: oneEventQuery, rootValue: null, contextValue: req });
         expect(result).to.deep.equal({
           data: {
             Collective: {
@@ -292,7 +298,13 @@ describe('server/graphql/v1/queries', () => {
             }
           `;
           const req = utils.makeRequest(null);
-          const result = await graphql(schema, multipleEventsQuery, null, req, { slug: collective1.slug });
+          const result = await graphql({
+            schema,
+            source: multipleEventsQuery,
+            rootValue: null,
+            contextValue: req,
+            variableValues: { slug: collective1.slug },
+          });
           expect(result).to.deep.equal({
             data: {
               allEvents: [
@@ -384,7 +396,13 @@ describe('server/graphql/v1/queries', () => {
             }
           `;
           const req = utils.makeRequest(null);
-          const result = await graphql(schema, query, null, req, { slug: event1.slug });
+          const result = await graphql({
+            schema,
+            source: query,
+            rootValue: null,
+            contextValue: req,
+            variableValues: { slug: event1.slug },
+          });
           result.errors && console.error(result.errors);
           const order = result.data.Collective.orders[0];
           expect(order).to.have.property('createdAt');

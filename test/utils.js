@@ -129,13 +129,13 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
   }
 
   return prepare().then(() =>
-    graphql(
+    graphql({
       schema,
-      query,
-      null, // rootValue
-      makeRequest(remoteUser, query), // context
-      variables,
-    ),
+      source: query,
+      rootValue: null,
+      contextValue: makeRequest(remoteUser, query),
+      variableValues: variables,
+    }),
   );
 };
 
