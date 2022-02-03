@@ -129,23 +129,23 @@ describe('server/graphql/common/transactions', () => {
 
   describe('canReject', () => {
     it('can reject if root or host admin of the collective receiving the contribution', async () => {
-      expect(await canRefund(transaction, undefined, publicReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, randomUserReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, collectiveAccountantReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, hostAccountantReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, contributorReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, fromCollectiveAccountantReq)).to.be.false;
-      expect(await canRefund(transaction, undefined, hostAdminReq)).to.be.true;
-      expect(await canRefund(transaction, undefined, rootAdminReq)).to.be.true;
-      expect(await canRefund(oldTransaction, undefined, hostAdminReq)).to.be.true;
-      expect(await canRefund(oldTransaction, undefined, rootAdminReq)).to.be.true;
+      expect(await canReject(transaction, undefined, publicReq)).to.be.false;
+      expect(await canReject(transaction, undefined, randomUserReq)).to.be.false;
+      expect(await canReject(transaction, undefined, collectiveAccountantReq)).to.be.false;
+      expect(await canReject(transaction, undefined, hostAccountantReq)).to.be.false;
+      expect(await canReject(transaction, undefined, contributorReq)).to.be.false;
+      expect(await canReject(transaction, undefined, fromCollectiveAccountantReq)).to.be.false;
+      expect(await canReject(transaction, undefined, hostAdminReq)).to.be.true;
+      expect(await canReject(transaction, undefined, rootAdminReq)).to.be.true;
+      expect(await canReject(oldTransaction, undefined, hostAdminReq)).to.be.true;
+      expect(await canReject(oldTransaction, undefined, rootAdminReq)).to.be.true;
       expect(await canReject(addedFundTransaction, undefined, rootAdminReq)).to.be.true;
       expect(await canReject(addedFundTransaction, undefined, hostAdminReq)).to.be.true;
     });
 
     it('can reject as admin of the receiving collective only if transaction < 30 days old', async () => {
-      expect(await canRefund(transaction, undefined, collectiveAdminReq)).to.be.true;
-      expect(await canRefund(oldTransaction, undefined, collectiveAdminReq)).to.be.false;
+      expect(await canReject(transaction, undefined, collectiveAdminReq)).to.be.true;
+      expect(await canReject(oldTransaction, undefined, collectiveAdminReq)).to.be.false;
     });
   });
 
