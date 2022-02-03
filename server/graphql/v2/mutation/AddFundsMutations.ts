@@ -1,5 +1,6 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
+import { isNil } from 'lodash';
 
 import { addFunds } from '../../common/orders';
 import { ValidationFailed } from '../../errors';
@@ -17,7 +18,7 @@ export const addFundsMutation = {
     tier: { type: TierReferenceInput },
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
-    hostFeePercent: { type: new GraphQLNonNull(GraphQLFloat) },
+    hostFeePercent: { type: GraphQLFloat },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
@@ -29,8 +30,10 @@ export const addFundsMutation = {
       throw new ValidationFailed(`Adding funds is only possible for the following types: ${allowedTypes.join(',')}`);
     }
 
-    if (args.hostFeePercent < 0 || args.hostFeePercent > 100) {
-      throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
+    if (!isNil(args.hostFeePercent)) {
+      if (args.hostFeePercent < 0 || args.hostFeePercent > 100) {
+        throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
+      }
     }
 
     return addFunds(

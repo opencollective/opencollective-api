@@ -129,6 +129,7 @@ describe('server/graphql/v1/paymentMethods', () => {
           paymentMethod: {
             uuid: pm.uuid,
           },
+          hostFeePercent: 0,
         };
       });
     });
