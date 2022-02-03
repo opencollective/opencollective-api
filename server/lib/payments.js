@@ -27,6 +27,7 @@ import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
+import { getEditRecurringContributionsUrl } from './url-utils';
 import { formatCurrency, parseToBoolean, toIsoDateStr } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
@@ -632,7 +633,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       relatedCollectives,
       monthlyInterval: interval === 'month',
       firstPayment: true,
-      subscriptionsLink: interval && `${config.host.website}/${fromCollective.slug}/recurring-contributions`,
+      subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
@@ -714,7 +715,7 @@ export const sendOrderProcessingEmail = async order => {
     collective: collective.info,
     host: host.info,
     fromCollective: fromCollective.activity,
-    subscriptionsLink: `${config.host.website}/${fromCollective.slug}/recurring-contributions`,
+    subscriptionsLink: getEditRecurringContributionsUrl(fromCollective),
   };
   const instructions = get(host, 'settings.paymentMethods.manual.instructions');
   if (instructions) {
