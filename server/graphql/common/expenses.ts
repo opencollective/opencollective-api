@@ -301,8 +301,8 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     }
     return false;
   } else {
-    const collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
-    if (collective.hasPolicy(POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE) && req.remoteUser.id === expense.UserId) {
+    expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+    if (expense.collective.hasPolicy(POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE) && req.remoteUser.id === expense.UserId) {
       if (options?.throw) {
         throw new Forbidden(
           'User cannot approve their own expenses',
