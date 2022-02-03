@@ -558,25 +558,25 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
     switch (collective.type) {
       case types.COLLECTIVE:
       case types.BOT:
-        return CollectiveType;
+        return 'Collective';
 
       case types.USER:
-        return UserCollectiveType;
+        return 'User';
 
       case types.ORGANIZATION:
-        return OrganizationCollectiveType;
+        return 'Organization';
 
       case types.EVENT:
-        return EventCollectiveType;
+        return 'Event';
 
       case types.PROJECT:
-        return ProjectCollectiveType;
+        return 'Project';
 
       case types.FUND:
-        return FundCollectiveType;
+        return 'Fund';
 
       case types.VENDOR:
-        return VendorCollectiveType;
+        return 'Vendor';
 
       default:
         return null;
