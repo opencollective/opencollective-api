@@ -444,7 +444,13 @@ describe('server/graphql/v1/queries', () => {
             }
           `;
           const req = utils.makeRequest(null);
-          const result = await graphql(schema, allEventsQuery, null, req, { slug: collective1.slug });
+          const result = await graphql({
+            schema,
+            source: allEventsQuery,
+            rootValue: null,
+            contextValue: req,
+            variableValues: { slug: collective1.slug },
+          });
           const expectedResult = {
             data: {
               allEvents: [
