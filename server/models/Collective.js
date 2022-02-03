@@ -19,6 +19,7 @@ import {
   sum,
   sumBy,
   trim,
+  uniq,
   unset,
 } from 'lodash';
 import moment from 'moment';
@@ -35,6 +36,7 @@ import expenseTypes from '../constants/expense_type';
 import FEATURE from '../constants/feature';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import plans from '../constants/plans';
+import POLICIES from '../constants/policies';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
@@ -3182,6 +3184,20 @@ function defineModel() {
     };
 
     return metrics;
+  };
+
+  Collective.prototype.setPolicies = async function (policies) {
+    for (const policy of policies) {
+      if (!Object.keys(POLICIES).includes(policy)) {
+        throw new Error(`Policy ${policy} is not supported`);
+      }
+    }
+
+    return this.update({ data: { ...this.data, policies: uniq(policies) } });
+  };
+
+  Collective.prototype.hasPolicy = function (policy) {
+    return Boolean(this.data?.policies?.includes(policy));
   };
 
   /**

@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
 import plans from '../../../server/constants/plans';
+import POLICIES from '../../../server/constants/policies';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { getFxRate } from '../../../server/lib/currency';
 import emailLib from '../../../server/lib/email';
@@ -1227,6 +1228,30 @@ describe('server/models/Collective', () => {
         settledHostFeeShare: 0,
         totalMoneyManaged: expectedTotalMoneyManaged,
       });
+    });
+  });
+
+  describe('policies', () => {
+    let collective;
+    beforeEach(async () => {
+      collective = await fakeCollective({ isHostAccount: true });
+    });
+
+    it('should set policies', async () => {
+      await collective.setPolicies([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+
+      expect(collective.data.policies).to.deep.equal([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+    });
+
+    it('should fail setting policies if policy does not exists', async () => {
+      return expect(collective.setPolicies(['FAKE_POLICY'])).to.eventually.be.rejected;
+    });
+
+    it('should return true or false when checking if a policy exists with hasPolicy()', async () => {
+      await collective.setPolicies([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+
+      expect(collective.hasPolicy(POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE)).to.be.true;
+      expect(collective.hasPolicy('FAKE_POLICY')).to.be.false;
     });
   });
 });
