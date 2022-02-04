@@ -266,6 +266,7 @@ interface Account {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 }
 
 """
@@ -2300,6 +2301,7 @@ type Host implements Account & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Number of unique financial contributors.
@@ -3107,6 +3109,10 @@ type VirtualCardCollection implements Collection {
   nodes: [VirtualCard]
 }
 
+enum Policy {
+  EXPENSE_AUTHOR_CANNOT_APPROVE
+}
+
 """
 The name of the current plan and its characteristics.
 """
@@ -3783,6 +3789,7 @@ type Bot implements Account {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 }
 
 """
@@ -4040,6 +4047,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Returns the Fiscal Host
@@ -4621,6 +4629,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Returns the Fiscal Host
@@ -4988,6 +4997,7 @@ type Individual implements Account {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
   email: String
   isGuest: Boolean!
   isFollowingConversation(id: String!): Boolean!
@@ -5313,6 +5323,7 @@ type Organization implements Account & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Number of unique financial contributors.
@@ -5692,6 +5703,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Returns the Fiscal Host
@@ -6677,6 +6689,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Returns the Fiscal Host
@@ -7048,6 +7061,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+  policies: [Policy]
 
   """
   Returns the Fiscal Host
@@ -7641,6 +7655,21 @@ type Mutation {
     """
     dryRun: Boolean! = true
   ): MergeAccountsResponse!
+
+  """
+  Adds or removes a policy on a given account
+  """
+  setPolicies(
+    """
+    Account where the policies are being set
+    """
+    account: AccountReferenceInput!
+
+    """
+    The policy to be added
+    """
+    policies: [Policy]
+  ): Account!
 
   """
   Sends an email for guest to confirm their emails and create their Open Collective account
