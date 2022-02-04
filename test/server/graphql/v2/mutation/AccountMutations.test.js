@@ -3,6 +3,7 @@ import gqlV2 from 'fake-tag';
 import speakeasy from 'speakeasy';
 
 import { roles } from '../../../../../server/constants';
+import POLICIES from '../../../../../server/constants/policies';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
@@ -298,6 +299,52 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         expect(child.hostFeePercent).to.eq(9.99);
         expect(child.hostFeesStructure).to.eq('CUSTOM_FEE');
       });
+    });
+  });
+
+  describe('setPolicies', () => {
+    const setPoliciesMutation = gqlV2/* GraphQL */ `
+      mutation setPoliciesMutation($account: AccountReferenceInput!, $policies: [Policy]!) {
+        setPolicies(account: $account, policies: $policies) {
+          id
+          settings
+          policies
+        }
+      }
+    `;
+
+    it('should enable policy', async () => {
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE],
+      };
+      await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+
+      await collective.reload();
+      expect(collective.data.policies).to.deep.equal([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+    });
+
+    it('should disable policy', async () => {
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: [],
+      };
+      await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+
+      await collective.reload();
+      expect(collective.data.policies).to.be.empty;
+    });
+
+    it('should fail if user is not authorized', async () => {
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE],
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, hostAdminUser);
+      expect(result.errors).to.have.lengthOf(1);
+
+      await collective.reload();
+      expect(collective.data.policies).to.be.empty;
     });
   });
 });
