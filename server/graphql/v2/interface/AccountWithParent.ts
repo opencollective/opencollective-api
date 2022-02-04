@@ -2,8 +2,6 @@ import { GraphQLInterfaceType } from 'graphql';
 
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import models from '../../../models';
-import { Event } from '../object/Event';
-import { Project } from '../object/Project';
 
 import { Account } from './Account';
 
@@ -28,9 +26,9 @@ export const AccountWithParent = new GraphQLInterfaceType({
   resolveType: collective => {
     switch (collective.type) {
       case COLLECTIVE_TYPE.PROJECT:
-        return Project;
+        return 'Project';
       case COLLECTIVE_TYPE.EVENT:
-        return Event;
+        return 'Event';
       default:
         return null;
     }
