@@ -10,6 +10,7 @@ import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { hasFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -28,7 +29,15 @@ import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
-import { BadRequest, FeatureNotAllowedForUser, Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
+import {
+  BadRequest,
+  FeatureNotAllowedForUser,
+  FeatureNotSupportedForCollective,
+  Forbidden,
+  NotFound,
+  Unauthorized,
+  ValidationFailed,
+} from '../errors';
 
 const debug = debugLib('expenses');
 
@@ -600,6 +609,7 @@ const checkExpenseItems = (expenseData, items) => {
 
 const EXPENSE_EDITABLE_FIELDS = [
   'amount',
+  'currency',
   'description',
   'longDescription',
   'type',
@@ -659,6 +669,10 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   }
 };
 
+const hasMultiCurrency = (collective, host) => {
+  return hasFeature(collective, FEATURE.MULTI_CURRENCY_EXPENSES) || hasFeature(host, FEATURE.MULTI_CURRENCY_EXPENSES);
+};
+
 type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
@@ -671,6 +685,7 @@ type ExpenseData = {
   incurredAt?: Date;
   amount?: number;
   description?: string;
+  currency?: string;
 };
 
 export async function createExpense(
@@ -718,6 +733,17 @@ export async function createExpense(
     );
   }
 
+  // Let submitter customize the currency
+  const host = await collective.getHostCollective();
+  let currency = collective.currency;
+  if (expenseData.currency && expenseData.currency !== currency) {
+    if (!hasMultiCurrency(collective, host)) {
+      throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
+    } else {
+      currency = expenseData.currency;
+    }
+  }
+
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
   if (!remoteUser.isAdminOfCollective(fromCollective)) {
@@ -753,7 +779,7 @@ export async function createExpense(
     if (accountHolderName && legalName && !isAccountHolderNameAndLegalNameMatch(accountHolderName, legalName)) {
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
-    const host = await collective.getHostCollective();
+
     const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
     if (connectedAccounts?.[0]) {
       paymentProviders.transferwise.validatePayoutMethod(connectedAccounts[0], payoutMethod);
@@ -766,7 +792,7 @@ export async function createExpense(
     const createdExpense = await models.Expense.create(
       {
         ...pick(expenseData, EXPENSE_EDITABLE_FIELDS),
-        currency: collective.currency,
+        currency,
         tags: expenseData.tags,
         status: statuses.PENDING,
         CollectiveId: collective.id,
@@ -942,6 +968,14 @@ export async function editExpense(
     expenseData,
     isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS,
   );
+
+  // Let submitter customize the currency
+  const { collective } = expense;
+  const host = await collective.getHostCollective();
+  const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
+  if (isChangingCurrency && expenseData.currency !== collective.currency && !hasMultiCurrency(collective, host)) {
+    throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
+  }
 
   let payoutMethod = await expense.getPayoutMethod();
 
@@ -1240,6 +1274,32 @@ export const getExpenseFeesInHostCurrency = async ({
   return { fees: resultFees, feesInHostCurrency };
 };
 
+const generateInsufficientBalanceErrorMessage = ({
+  object,
+  balance,
+  currency,
+  expenseAmount,
+  isSameCurrency,
+  fees = 0,
+  feesName = '',
+}) => {
+  let msg = `Collective does not have enough funds to ${object}.`;
+  msg += ` Current balance: ${formatCurrency(balance, currency)}`;
+  msg += `, Expense amount: ${formatCurrency(expenseAmount, currency)}`;
+  if (fees) {
+    msg += `, Estimated ${feesName} fees: ${formatCurrency(fees, currency)}`;
+  }
+
+  if (!isSameCurrency) {
+    msg += `. For expenses submitted in a different currency than the collective, an error margin of 20% is applied. The maximum amount that can be paid is ${formatCurrency(
+      Math.round(balance / 1.2),
+      currency,
+    )}`;
+  }
+
+  return msg;
+};
+
 /**
  * Check if the collective balance is enough to pay the expense. Throws if not.
  */
@@ -1250,14 +1310,23 @@ const checkHasBalanceToPayExpense = async (
   { forceManual = false, manualFees = {} } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-  const balance = await expense.collective.getBalanceWithBlockedFunds();
-  if (expense.amount > balance) {
-    // We assume that the expense currency is the same as the collective currency
+  const balanceInExpenseCurrency = await expense.collective.getBalanceWithBlockedFunds({ currency: expense.currency });
+  const isSameCurrency = expense.currency === expense.collective.currency;
+
+  // Ensure the collective has enough funds to pay the expense, with an error margin of 20% of the expense amount
+  // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
+  const getMinExpectedBalance = amountToPay => (isSameCurrency ? amountToPay : amountToPay * 1.2);
+
+  // Check base balance before fees
+  if (balanceInExpenseCurrency < getMinExpectedBalance(expense.amount)) {
     throw new Unauthorized(
-      `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
-        balance,
-        expense.collective.currency,
-      )}, Expense amount: ${formatCurrency(expense.amount, expense.collective.currency)}`,
+      generateInsufficientBalanceErrorMessage({
+        object: 'pay this expense',
+        balance: balanceInExpenseCurrency,
+        currency: expense.currency,
+        expenseAmount: expense.amount,
+        isSameCurrency,
+      }),
     );
   }
 
@@ -1272,6 +1341,7 @@ const checkHasBalanceToPayExpense = async (
   // Estimate the total amount to pay from the collective, based on who's supposed to pay the fee
   let totalAmountToPay;
   if (expense.feesPayer === 'COLLECTIVE') {
+    // TODO: Fees should be retrieved in expense currency
     totalAmountToPay = expense.amount + fees.paymentProcessorFeeInCollectiveCurrency;
   } else if (expense.feesPayer === 'PAYEE') {
     totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
@@ -1279,24 +1349,28 @@ const checkHasBalanceToPayExpense = async (
       throw new Error(
         'Putting the payment processor fees on the payee is only supported for bank accounts at the moment',
       );
+    } else if (expense.currency !== expense.collective.currency) {
+      throw new Error(
+        'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
+      );
     }
   } else {
     throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
   }
 
-  // Ensure the collective has enough funds to pay the expense
-  if (totalAmountToPay > balance) {
+  // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
+  // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
+  if (balanceInExpenseCurrency < getMinExpectedBalance(totalAmountToPay)) {
     throw new Error(
-      `Collective does not have enough funds to cover for the fees of this payment method. Current balance: ${formatCurrency(
-        balance,
-        expense.collective.currency,
-      )}, Expense amount: ${formatCurrency(
-        expense.amount,
-        expense.collective.currency,
-      )}, Estimated ${payoutMethodType} fees: ${formatCurrency(
-        fees.paymentProcessorFeeInCollectiveCurrency,
-        expense.collective.currency,
-      )}`,
+      generateInsufficientBalanceErrorMessage({
+        object: 'cover for the fees of this payment method',
+        balance: balanceInExpenseCurrency,
+        currency: expense.currency,
+        expenseAmount: expense.amount,
+        isSameCurrency,
+        fees: fees.paymentProcessorFeeInCollectiveCurrency,
+        feesName: payoutMethodType,
+      }),
     );
   }
 

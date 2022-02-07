@@ -13,6 +13,8 @@ enum FEATURE {
   USE_EXPENSES = 'USE_EXPENSES',
   /** Whether this profile can receive expenses */
   RECEIVE_EXPENSES = 'RECEIVE_EXPENSES',
+  /** Whether this account can use multi-currency expenses */
+  MULTI_CURRENCY_EXPENSES = 'MULTI_CURRENCY_EXPENSES',
   /** Whether this profile can receive host applications */
   RECEIVE_HOST_APPLICATIONS = 'RECEIVE_HOST_APPLICATIONS',
   /** Whether this profile can create "goals" (displayed on the collective page) */

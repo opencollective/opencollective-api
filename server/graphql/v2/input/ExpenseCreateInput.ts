@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { Currency } from '../enum';
 import { ExpenseType } from '../enum/ExpenseType';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
@@ -21,6 +22,10 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     longDescription: {
       type: GraphQLString,
       description: 'Longer text to attach to the expense',
+    },
+    currency: {
+      type: Currency,
+      description: 'Currency that should be used for the payout. Defaults to the account currency',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
