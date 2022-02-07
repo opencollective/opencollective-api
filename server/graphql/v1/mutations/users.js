@@ -81,7 +81,9 @@ export const confirmUserEmail = async emailConfirmationToken => {
   const user = await models.User.findOne({ where: { emailConfirmationToken } });
 
   if (!user) {
-    throw new InvalidToken('Invalid email confirmation token', { internalData: { emailConfirmationToken } });
+    throw new InvalidToken('Invalid email confirmation token', 'INVALID_TOKEN', {
+      internalData: { emailConfirmationToken },
+    });
   }
 
   return user.update({
