@@ -12,6 +12,7 @@ import logger from './logger';
 import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
+import { getEditRecurringContributionsUrl } from './url-utils';
 import { sleep, toIsoDateStr } from './utils';
 
 /** Maximum number of attempts before an order gets cancelled. */
@@ -363,7 +364,7 @@ export async function sendFailedEmail(order, lastAttempt) {
     order: order.info,
     collective: order.collective.info,
     fromCollective: order.fromCollective.minimal,
-    subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+    subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
     errorMessage: errorMessage,
   };
 
@@ -398,7 +399,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     relatedCollectives,
     config: { host: config.host },
     interval: order.Subscription?.interval || order.interval,
-    subscriptionsLink: `${config.host.website}/${order.fromCollective.slug}/recurring-contributions`,
+    subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
   };
 
   // hit PDF service and get PDF (unless payment method type is gift card)
