@@ -132,7 +132,7 @@ const Expense = new GraphQLObjectType({
         description: 'The address of the payee',
         async resolve(expense, _, req) {
           const canSeeLocation = await ExpenseLib.canSeeExpensePayeeLocation(req, expense);
-          return !canSeeLocation ? null : expense.payeeLocation;
+          return !canSeeLocation ? null : { id: `location-expense-${expense.id}`, ...expense.payeeLocation };
         },
       },
       createdByAccount: {
