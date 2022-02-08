@@ -512,6 +512,7 @@ function defineModel() {
       getterMethods: {
         location() {
           return {
+            id: `location-collective-${this.id}`, // Used for GraphQL caching
             name: this.locationName,
             address: this.address,
             country: this.countryISO,

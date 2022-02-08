@@ -581,6 +581,10 @@ export const LocationType = new GraphQLObjectType({
   name: 'LocationType',
   description: 'Type for Location',
   fields: () => ({
+    id: {
+      type: GraphQLString,
+      description: 'Unique identifier for this location',
+    },
     name: {
       type: GraphQLString,
       description: 'A short name for the location (eg. Google Headquarters)',
