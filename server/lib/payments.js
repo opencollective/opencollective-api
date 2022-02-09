@@ -198,9 +198,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
 
     // Adjust refunded payment processor fee based on the fees payer
     const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-      refund.paymentProcessorFeeInHostCurrency = 0;
-    } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
+    if (refund.kind === TransactionKind.EXPENSE || feesPayer === ExpenseFeesPayer.PAYEE) {
       if (refundedPaymentProcessorFee) {
         // If the fee gets refunded, we add it as a positive value on the refund transactions
         refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
@@ -211,6 +209,8 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
         refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
         refund.paymentProcessorFeeInHostCurrency = 0;
       }
+    } else if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      refund.paymentProcessorFeeInHostCurrency = 0;
     }
 
     // Re-compute the net amount
