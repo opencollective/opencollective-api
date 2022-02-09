@@ -151,7 +151,9 @@ function defineModel() {
 
   // ---- Static methods ----
 
-  MemberInvitation.invite = async function (collective, memberParams) {
+  MemberInvitation.invite = async function (collective, memberParams, transaction) {
+    const sequelizeParams = transaction ? { transaction } : undefined;
+
     // Check params
     if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
       throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
@@ -160,28 +162,34 @@ function defineModel() {
     }
 
     // Ensure the user is not already a member or invited as such
-    const existingMember = await models.Member.findOne({
-      where: {
-        CollectiveId: collective.id,
-        MemberCollectiveId: memberParams.MemberCollectiveId,
-        role: memberParams.role,
+    const existingMember = await models.Member.findOne(
+      {
+        where: {
+          CollectiveId: collective.id,
+          MemberCollectiveId: memberParams.MemberCollectiveId,
+          role: memberParams.role,
+        },
       },
-    });
+      sequelizeParams,
+    );
 
     if (existingMember) {
       throw new Error(`This user already have the ${memberParams.role} role on this Collective`);
     }
 
     // Update the existing invitation if it exists
-    const existingInvitation = await models.MemberInvitation.findOne({
-      where: {
-        CollectiveId: collective.id,
-        MemberCollectiveId: memberParams.MemberCollectiveId,
+    const existingInvitation = await models.MemberInvitation.findOne(
+      {
+        where: {
+          CollectiveId: collective.id,
+          MemberCollectiveId: memberParams.MemberCollectiveId,
+        },
       },
-    });
+      sequelizeParams,
+    );
 
     if (existingInvitation) {
-      return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']));
+      return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
     }
 
     // Ensure collective has not invited too many people
@@ -193,23 +201,35 @@ function defineModel() {
     }
 
     // Load users
-    const memberUser = await models.User.findOne({
-      where: { CollectiveId: memberParams.MemberCollectiveId },
-      include: [{ model: models.Collective, as: 'collective' }],
-    });
+    const memberUser = await models.User.findOne(
+      {
+        where: { CollectiveId: memberParams.MemberCollectiveId },
+        include: [{ model: models.Collective, as: 'collective' }],
+      },
+      sequelizeParams,
+    );
 
     if (!memberUser) {
       throw new Error('user not found');
     }
 
-    const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
-      include: [{ model: models.Collective, as: 'collective' }],
-    });
+    const createdByUser = await models.User.findByPk(
+      memberParams.CreatedByUserId,
+      {
+        include: [{ model: models.Collective, as: 'collective' }],
+      },
+      sequelizeParams,
+    );
 
-    const invitation = await MemberInvitation.create({
-      ...memberParams,
-      CollectiveId: collective.id,
-    });
+    console.log('MemberInvitation.create', memberParams, collective.id);
+
+    const invitation = await MemberInvitation.create(
+      {
+        ...memberParams,
+        CollectiveId: collective.id,
+      },
+      sequelizeParams,
+    );
 
     await emailLib.send('member.invitation', memberUser.email, {
       role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
