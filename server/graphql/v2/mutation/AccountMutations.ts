@@ -15,6 +15,7 @@ import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
+import { Policy } from '../enum/Policy';
 import { idDecode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AccountUpdateInput } from '../input/AccountUpdateInput';
@@ -411,6 +412,39 @@ const accountMutations = {
         const message = warnings.join('\n');
         return { account: await toAccount.reload(), message: message || null };
       }
+    },
+  },
+  setPolicies: {
+    type: new GraphQLNonNull(Account),
+    description: 'Adds or removes a policy on a given account',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account where the policies are being set',
+      },
+      policies: {
+        type: new GraphQLList(Policy),
+        description: 'The policy to be added',
+      },
+    },
+
+    async resolve(_: void, args, req: express.Request): Promise<void> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const id = args.account.legacyId || idDecode(args.account.id, 'account');
+      const account = await req.loaders.Collective.byId.load(id);
+      if (!account) {
+        throw new NotFound('Account Not Found');
+      }
+
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Unauthorized();
+      }
+
+      await account.setPolicies(args.policies || []);
+      return account;
     },
   },
 };

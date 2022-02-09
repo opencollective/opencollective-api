@@ -28,6 +28,7 @@ import {
 } from '../enum';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
+import { Policy } from '../enum/Policy';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -572,6 +573,15 @@ const accountFieldsDefinition = () => ({
         limit: args.limit,
         offset: args.offset,
       };
+    },
+  },
+  policies: {
+    type: new GraphQLList(Policy),
+    async resolve(account, _, req) {
+      if (req.remoteUser?.isAdminOfCollective(account)) {
+        return account.data?.policies || [];
+      }
+      return null;
     },
   },
 });
