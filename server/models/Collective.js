@@ -66,6 +66,7 @@ import {
   getPendingPlatformTips,
   getPlatformTips,
 } from '../lib/host-metrics';
+import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -310,6 +311,14 @@ function defineModel() {
         type: DataTypes.STRING,
         validate: {
           isUrl: true,
+          isValidImage(url) {
+            // Only validate for new images
+            if (!url || url === this.image) {
+              return;
+            } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
+              throw new Error('The image URL is not valid');
+            }
+          },
         },
         get() {
           const image = this.getDataValue('image');
@@ -324,6 +333,14 @@ function defineModel() {
         type: DataTypes.STRING,
         validate: {
           isUrl: true,
+          isValidImage(url) {
+            // Only validate for new images
+            if (!url || url === this.backgroundImage) {
+              return;
+            } else if (!isValidUploadedImage(url, { allowTrustedThirdPartyImages: true })) {
+              throw new Error('The background image URL is not valid');
+            }
+          },
         },
         get() {
           return this.getDataValue('backgroundImage');
