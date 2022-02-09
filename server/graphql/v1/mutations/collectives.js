@@ -422,7 +422,7 @@ export async function archiveCollective(_, args, req) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
 
-  if (!req.remoteUser.isAdminOfCollective(collective)) {
+  if (!req.remoteUser.isAdminOfCollective(collective) && !req.remoteUser.isRoot()) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
