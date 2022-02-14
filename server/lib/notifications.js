@@ -85,7 +85,7 @@ function shouldSkipActivity(activity) {
 function publishToGitter(activity, notifConfig) {
   const { message } = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
   if (message && config.env === 'production') {
-    return axios.post(notifConfig.webhookUrl, { message });
+    return axios.post(notifConfig.webhookUrl, { message }, { maxRedirects: 0 });
   } else {
     Promise.resolve();
   }
@@ -97,7 +97,7 @@ function publishToWebhook(activity, webhookUrl) {
   } else {
     const sanitizedActivity = sanitizeActivity(activity);
     const enrichedActivity = enrichActivity(sanitizedActivity);
-    return axios.post(webhookUrl, enrichedActivity);
+    return axios.post(webhookUrl, enrichedActivity, { maxRedirects: 0 });
   }
 }
 

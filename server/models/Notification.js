@@ -1,6 +1,7 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaults, isNil } from 'lodash';
+import prependHttp from 'prepend-http';
 
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
@@ -63,11 +64,11 @@ function defineModel() {
           isUrl: true,
         },
         set(url) {
-          if (!url) {
+          const cleanUrl = url?.trim().replace(/^https?:\/\//i, '');
+          if (!cleanUrl) {
             this.setDataValue('webhookUrl', null);
           } else {
-            // Enforce 'https://`
-            this.setDataValue('webhookUrl', `https://${url.replace(/https?:\/\//, '')}`);
+            this.setDataValue('webhookUrl', prependHttp(cleanUrl, { https: true }));
           }
         },
       },
