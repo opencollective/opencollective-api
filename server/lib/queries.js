@@ -333,7 +333,7 @@ export const usersToNotifyForUpdateSQLQuery = `
         --- Include child collective's contributors
         c."ParentCollectiveId" IS NOT NULL
         AND c.id = m."CollectiveId"
-        AND m."role" IN ('BACKER', 'ATTENDEE')
+        AND m."role" IN (:targetRoles)
       )
     )
     GROUP BY mc.id
@@ -395,7 +395,7 @@ export const countMembersToNotifyForUpdateSQLQuery = `
         --- Include child collective's contributors
         collective."ParentCollectiveId" IS NOT NULL
         AND collective.id = m."CollectiveId"
-        AND m."role" IN ('BACKER', 'ATTENDEE')
+        AND m."role" IN (:targetRoles)
       )
     )
     GROUP BY mc.id

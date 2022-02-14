@@ -16,6 +16,10 @@ const addRandomMemberUsers = (collective, count, role) => {
   );
 };
 
+const expectAllEmailsFrom = (usersList, receivedEmails) => {
+  return usersList.forEach(user => expect(receivedEmails).to.include(user.email));
+};
+
 describe('server/models/Update', () => {
   const dateOffset = 24 * 60 * 60 * 1000;
   const today = new Date().setUTCHours(0, 0, 0, 0);
@@ -181,15 +185,11 @@ describe('server/models/Update', () => {
         const usersToNotify = await update.getUsersToNotify();
         const receivedEmails = usersToNotify.map(u => u.email);
 
-        const expectAllEmailsFrom = usersList => {
-          return usersList.forEach(user => expect(receivedEmails).to.include(user.email));
-        };
-
-        expectAllEmailsFrom(parentCollectiveAdmins);
-        expectAllEmailsFrom(collectiveAdmins);
-        expectAllEmailsFrom(individualBackersUsers);
-        expectAllEmailsFrom(collectiveFollowers);
-        expectAllEmailsFrom(getOrganizationAdminUsers());
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(collectiveFollowers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
         expect(usersToNotify.length).to.eq(expectedPublicTotal);
       });
 
@@ -198,15 +198,59 @@ describe('server/models/Update', () => {
         const usersToNotify = await update.getUsersToNotify();
         const receivedEmails = usersToNotify.map(u => u.email);
 
-        const expectAllEmailsFrom = usersList => {
-          return usersList.forEach(user => expect(receivedEmails).to.include(user.email));
-        };
-
-        expectAllEmailsFrom(parentCollectiveAdmins);
-        expectAllEmailsFrom(collectiveAdmins);
-        expectAllEmailsFrom(individualBackersUsers);
-        expectAllEmailsFrom(getOrganizationAdminUsers());
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
         expect(usersToNotify.length).to.eq(expectedPrivateTotal);
+      });
+
+      it('Notifies child collective users when parent collective public update is made', async () => {
+        collective.remove;
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
+        const usersToNotify = await update.getUsersToNotify();
+        const receivedEmails = usersToNotify.map(u => u.email);
+
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(parentCollectiveBackers, receivedEmails);
+        expectAllEmailsFrom(parentCollectiveFollowers, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
+
+        // Number of collective admins who are backers
+        const numberOfCollectiveAdminsAddedToBackers = 2;
+
+        expect(usersToNotify.length).to.eq(
+          parentCollectiveAdmins.length +
+            parentCollectiveBackers.length +
+            parentCollectiveFollowers.length +
+            collectiveFollowers.length +
+            individualBackersUsers.length +
+            countAdminsOfMemberOrganizations() +
+            numberOfCollectiveAdminsAddedToBackers,
+        );
+      });
+
+      it('Notifies child collective users when parent collective private update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: true });
+        const usersToNotify = await update.getUsersToNotify();
+        const receivedEmails = usersToNotify.map(u => u.email);
+
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(parentCollectiveBackers, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
+
+        // Number of collective admins who are backers
+        const numberOfCollectiveAdminsAddedToBackers = 2;
+
+        expect(usersToNotify.length).to.eq(
+          parentCollectiveAdmins.length +
+            parentCollectiveBackers.length +
+            individualBackersUsers.length +
+            countAdminsOfMemberOrganizations() +
+            numberOfCollectiveAdminsAddedToBackers,
+        );
       });
     });
 
