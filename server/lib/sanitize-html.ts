@@ -214,5 +214,8 @@ const isTrustedLinkUrl = (url: string): boolean => {
     /^(.+\.)?wikipedia.com$/,
   ];
 
-  return trustedDomains.some(regex => rootDomain.match(regex)) || isValidUploadedImage(url, false);
+  return (
+    trustedDomains.some(regex => rootDomain.match(regex)) ||
+    isValidUploadedImage(url, { ignoreInNonProductionEnv: false })
+  );
 };
