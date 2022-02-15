@@ -155,10 +155,7 @@ const Expense = new GraphQLObjectType({
           if (expense.HostCollectiveId) {
             return req.loaders.Collective.byId.load(expense.HostCollectiveId);
           } else {
-            const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-            if (collective.HostCollectiveId) {
-              return req.loaders.Collective.byId.load(collective.HostCollectiveId);
-            }
+            return req.loaders.Collective.host.load(expense.CollectiveId);
           }
         },
       },
