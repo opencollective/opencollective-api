@@ -69,6 +69,7 @@ export const loaders = req => {
   // Collective - Host
   context.loaders.Collective.host = new DataLoader(ids =>
     models.Collective.findAll({
+      attributes: ['id'],
       where: { id: { [Op.in]: ids } },
       include: [{ model: models.Collective, as: 'host' }],
     }).then(results => {
