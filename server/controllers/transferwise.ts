@@ -2,10 +2,7 @@ import { Request, Response } from 'express';
 import { pick } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
-import {
-  createTransferWiseTransactionsAndUpdateExpense,
-  getExpenseFeesInHostCurrency,
-} from '../graphql/common/expenses';
+import { createTransferWiseTransactionsAndUpdateExpense, getExpenseFees } from '../graphql/common/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
@@ -16,13 +13,7 @@ const processPaidExpense = (host, remoteUser, fundData) => async expense => {
   await expense.reload();
   if (expense.data?.transfer) {
     const payoutMethod = await expense.getPayoutMethod();
-    const { feesInHostCurrency } = await getExpenseFeesInHostCurrency({
-      host,
-      expense,
-      payoutMethod,
-      fees: {},
-      forceManual: false,
-    });
+    const { feesInHostCurrency } = await getExpenseFees(expense, host, { payoutMethod, forceManual: false });
     return createTransferWiseTransactionsAndUpdateExpense({
       host,
       expense,

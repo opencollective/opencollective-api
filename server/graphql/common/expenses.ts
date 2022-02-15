@@ -1210,19 +1210,22 @@ type FeesArgs = {
 /**
  * Estimates the fees for an expense
  */
-export const getExpenseFeesInHostCurrency = async ({
-  host,
+export const getExpenseFees = async (
   expense,
-  fees,
-  payoutMethod,
-  forceManual,
-}): Promise<{
+  host,
+  { fees = {}, payoutMethod, forceManual },
+): Promise<{
   feesInHostCurrency: {
     paymentProcessorFeeInHostCurrency: number;
     hostFeeInHostCurrency: number;
     platformFeeInHostCurrency: number;
   };
-  fees: FeesArgs;
+  feesInExpenseCurrency: {
+    paymentProcessorFee?: number;
+    hostFee?: number;
+    platformFee?: number;
+  };
+  feesInCollectiveCurrency: FeesArgs;
 }> => {
   const resultFees = { ...fees };
   const feesInHostCurrency = {
@@ -1235,7 +1238,7 @@ export const getExpenseFeesInHostCurrency = async ({
     expense.collective = await models.Collective.findByPk(expense.CollectiveId);
   }
 
-  const fxrate = await getFxRate(expense.collective.currency, host.currency);
+  const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
   if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT && !forceManual) {
@@ -1250,28 +1253,52 @@ export const getExpenseFeesInHostCurrency = async ({
     if (!paymentOption) {
       throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
     }
-    // Notice this is the FX rate between Host and Collective, that's why we use `fxrate`.
-    resultFees.paymentProcessorFeeInCollectiveCurrency = floatAmountToCents(paymentOption.fee.total / fxrate);
+    // Notice this is the FX rate between Host and Collective, that's why we use `collectiveToHostFxRate`.
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+      paymentOption.fee.total / collectiveToHostFxRate,
+    );
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !forceManual) {
-    resultFees.paymentProcessorFeeInCollectiveCurrency = await paymentProviders.paypal.types['adaptive'].fees({
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = await paymentProviders.paypal.types['adaptive'].fees({
       amount: expense.amount,
       currency: expense.collective.currency,
       host,
     });
   }
 
+  // Build fees in host currency
   feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
-    fxrate * (<number>resultFees.paymentProcessorFeeInCollectiveCurrency || 0),
+    collectiveToHostFxRate * (<number>resultFees['paymentProcessorFeeInCollectiveCurrency'] || 0),
   );
-  feesInHostCurrency.hostFeeInHostCurrency = Math.round(fxrate * (<number>fees.hostFeeInCollectiveCurrency || 0));
+  feesInHostCurrency.hostFeeInHostCurrency = Math.round(
+    collectiveToHostFxRate * (<number>fees['hostFeeInCollectiveCurrency'] || 0),
+  );
   feesInHostCurrency.platformFeeInHostCurrency = Math.round(
-    fxrate * (<number>resultFees.platformFeeInCollectiveCurrency || 0),
+    collectiveToHostFxRate * (<number>resultFees['platformFeeInCollectiveCurrency'] || 0),
   );
 
-  if (!resultFees.paymentProcessorFeeInCollectiveCurrency) {
-    resultFees.paymentProcessorFeeInCollectiveCurrency = 0;
+  if (!resultFees['paymentProcessorFeeInCollectiveCurrency']) {
+    resultFees['paymentProcessorFeeInCollectiveCurrency'] = 0;
   }
-  return { fees: resultFees, feesInHostCurrency };
+
+  // Build fees in expense currency
+  let feesInExpenseCurrency = {};
+  if (expense.currency === expense.collective.currency) {
+    feesInExpenseCurrency = {
+      paymentProcessorFee: resultFees['paymentProcessorFeeInCollectiveCurrency'],
+      hostFee: resultFees['hostFeeInCollectiveCurrency'],
+      platformFee: resultFees['platformFeeInCollectiveCurrency'],
+    };
+  } else {
+    const collectiveToExpenseFxRate = await getFxRate(expense.collective.currency, expense.currency);
+    const applyCollectiveToExpenseFxRate = (amount: number) => Math.round((amount || 0) * collectiveToExpenseFxRate);
+    feesInExpenseCurrency = {
+      paymentProcessorFee: applyCollectiveToExpenseFxRate(resultFees['paymentProcessorFeeInCollectiveCurrency']),
+      hostFee: applyCollectiveToExpenseFxRate(resultFees['hostFeeInCollectiveCurrency']),
+      platformFee: applyCollectiveToExpenseFxRate(resultFees['platformFeeInCollectiveCurrency']),
+    };
+  }
+
+  return { feesInCollectiveCurrency: resultFees, feesInHostCurrency, feesInExpenseCurrency };
 };
 
 const generateInsufficientBalanceErrorMessage = ({
@@ -1330,9 +1357,7 @@ const checkHasBalanceToPayExpense = async (
     );
   }
 
-  const { feesInHostCurrency, fees } = await getExpenseFeesInHostCurrency({
-    host,
-    expense,
+  const { feesInHostCurrency, feesInCollectiveCurrency, feesInExpenseCurrency } = await getExpenseFees(expense, host, {
     fees: manualFees,
     payoutMethod,
     forceManual,
@@ -1341,8 +1366,7 @@ const checkHasBalanceToPayExpense = async (
   // Estimate the total amount to pay from the collective, based on who's supposed to pay the fee
   let totalAmountToPay;
   if (expense.feesPayer === 'COLLECTIVE') {
-    // TODO: Fees should be retrieved in expense currency
-    totalAmountToPay = expense.amount + fees.paymentProcessorFeeInCollectiveCurrency;
+    totalAmountToPay = expense.amount + feesInExpenseCurrency.paymentProcessorFee;
   } else if (expense.feesPayer === 'PAYEE') {
     totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
     if (payoutMethodType !== PayoutMethodTypes.BANK_ACCOUNT) {
@@ -1368,13 +1392,13 @@ const checkHasBalanceToPayExpense = async (
         currency: expense.currency,
         expenseAmount: expense.amount,
         isSameCurrency,
-        fees: fees.paymentProcessorFeeInCollectiveCurrency,
+        fees: feesInExpenseCurrency.paymentProcessorFee,
         feesName: payoutMethodType,
       }),
     );
   }
 
-  return { fees, feesInHostCurrency, totalAmountToPay };
+  return { feesInCollectiveCurrency, feesInExpenseCurrency, feesInHostCurrency, totalAmountToPay };
 };
 
 /**

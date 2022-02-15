@@ -117,20 +117,32 @@ async function quoteExpense(
 
   const token = await getToken(connectedAccount);
 
+  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  const hasMultiCurrency = expense.currency !== expense.collective.currency;
   const quoteParams = {
     profileId: connectedAccount.data.id,
-    sourceCurrency: expense.currency,
+    sourceCurrency: expense.collective.currency,
     targetCurrency: <string>payoutMethod.unfilteredData.currency,
     targetAccount,
   };
 
+  // Adapt the fees payer
   if (expense.feesPayer === 'PAYEE') {
     // We assume that expense.currency is always collective.currency
     quoteParams['sourceAmount'] = expense.amount / 100;
+    if (hasMultiCurrency) {
+      throw new Error('Putting the fees on the payee is not yet supported for multi-currency expenses');
+    }
   } else {
     // Guarantees the target amount if in the same currency of expense
     const { rate } = await getTemporaryQuote(connectedAccount, payoutMethod, expense);
     quoteParams['targetAmount'] = (expense.amount / 100) * rate;
+  }
+
+  // Adapt for multi-currency
+  if (hasMultiCurrency) {
+    quoteParams['targetCurrency'] = expense.currency;
+    quoteParams['targetAmount'] = expense.amount / 100;
   }
 
   const quote = await transferwise.createQuote(token, quoteParams);
@@ -297,7 +309,7 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
     throw new Error(`Can not find Host for expense ${expense.id}`);
   }
 
-  if (expense.currency !== host.currency) {
+  if (collective.currency !== host.currency) {
     throw new Error('Can not batch an expense with a currency different from its host currency');
   }
 
