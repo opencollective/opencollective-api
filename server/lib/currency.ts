@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { get, has, keys, zipObject } from 'lodash';
+import { difference, get, has, keys, merge, uniq, zipObject } from 'lodash';
 import fetch from 'node-fetch';
 
 import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
@@ -175,6 +175,43 @@ export async function getFxRate(
   const rates = await fetchFxRates(fromCurrency, [toCurrency], date);
 
   return rates[toCurrency];
+}
+
+/**
+ * Same as getFxRate, but optimized to handle multiple `toCurrency`
+ */
+export async function getFxRates(
+  fromCurrency: string,
+  toCurrencies: string[],
+  date: string | Date = 'latest',
+): Promise<Record<string, number>> {
+  fromCurrency = fromCurrency?.toUpperCase();
+  toCurrencies = uniq(toCurrencies.map(c => c.toUpperCase()));
+  date = getDate(date);
+
+  // Retrieve everything we can from the cache
+  const rates = {};
+  await Promise.all(
+    toCurrencies.map(async currency => {
+      if (currency === fromCurrency) {
+        rates[fromCurrency] = 1;
+      } else {
+        const fromCache = await cache.get(`${date}-${fromCurrency}-${currency}`);
+        if (fromCache) {
+          rates[currency] = fromCache;
+        }
+      }
+    }),
+  );
+
+  // Return directly if we have everything, fetch additional rates form Fixed/DB otherwise
+  if (Object.keys(rates).length === toCurrencies.length) {
+    return rates;
+  } else {
+    const currenciesLeftToFetch = difference(toCurrencies, Object.keys(rates));
+    const missingRates = await fetchFxRates(fromCurrency, currenciesLeftToFetch, date);
+    return merge(rates, missingRates);
+  }
 }
 
 export function convertToCurrency(
