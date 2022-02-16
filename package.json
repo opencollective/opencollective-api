@@ -114,7 +114,7 @@
     "sequelize": "6.13.0",
     "sequelize-cli": "6.4.1",
     "sequelize-temporal": "1.0.8",
-    "showdown": "1.9.1",
+    "showdown": "2.0.0",
     "speakeasy": "2.0.0",
     "stripe": "8.203.0",
     "throng": "5.0.0",
