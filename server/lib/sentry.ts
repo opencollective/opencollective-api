@@ -17,7 +17,7 @@ export const plugSentryToApp = (): void => {
 
 const IGNORED_GQL_ERRORS = [
   {
-    path: ['Collective'],
+    path: ['Collective', 'allMembers'],
     message: /^No collective found with slug/,
   },
   {

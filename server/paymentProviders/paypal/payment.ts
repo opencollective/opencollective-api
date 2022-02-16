@@ -17,7 +17,13 @@ import models from '../../models';
 import { paypalRequestV2 } from './api';
 
 /** Create transaction in our database to reflect a PayPal charge */
-const recordTransaction = async (order, amount, currency, paypalFee, payload): Promise<typeof models.Transaction> => {
+const recordTransaction = async (
+  order,
+  amount,
+  currency,
+  paypalFee,
+  { data = undefined, createdAt = undefined } = {},
+): Promise<typeof models.Transaction> => {
   const host = await order.collective.getHostCollective();
   if (!host) {
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
@@ -37,7 +43,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload): P
   const platformTip = getPlatformTip(order);
   const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
 
-  return models.Transaction.createFromContributionPayload({
+  const transactionData = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
@@ -54,7 +60,7 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload): P
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
-      ...payload,
+      ...data,
       isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
@@ -64,14 +70,20 @@ const recordTransaction = async (order, amount, currency, paypalFee, payload): P
       hostFeeSharePercent,
       tax: order.data?.tax,
     },
-  });
+  };
+
+  if (createdAt) {
+    transactionData['createdAt'] = createdAt;
+  }
+
+  return models.Transaction.createFromContributionPayload(transactionData);
 };
 
 export function recordPaypalSale(order: typeof models.Order, paypalSale): Promise<typeof models.Transaction> {
   const currency = paypalSale.amount.currency;
   const amount = paypalAmountToCents(paypalSale.amount.total);
   const fee = paypalAmountToCents(get(paypalSale, 'transaction_fee.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { paypalSale });
+  return recordTransaction(order, amount, currency, fee, { data: { paypalSale } });
 }
 
 export function recordPaypalTransaction(
@@ -81,14 +93,18 @@ export function recordPaypalTransaction(
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
   const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { paypalTransaction });
+  return recordTransaction(order, amount, currency, fee, { data: { paypalTransaction } });
 }
 
-export const recordPaypalCapture = async (order: typeof models.Order, capture): Promise<typeof models.Transaction> => {
+export const recordPaypalCapture = async (
+  order: typeof models.Order,
+  capture,
+  { data = undefined, createdAt = undefined } = {},
+): Promise<typeof models.Transaction> => {
   const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { capture });
+  return recordTransaction(order, amount, currency, fee, { data: { ...data, capture }, createdAt });
 };
 
 const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.Transaction | undefined> => {
