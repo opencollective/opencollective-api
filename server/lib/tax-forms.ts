@@ -134,6 +134,7 @@ export async function sendHelloWorksUsTaxForm(
       callbackUrl,
       workflowId,
       documentDelivery: true,
+      documentDeliveryType: 'link',
       // delegatedAuthentication: true, // See "authenticated link" below.
       participants,
       metadata: {
