@@ -2,6 +2,9 @@
 
 import '../../server/env';
 
+import { Command } from 'commander';
+import moment from 'moment';
+
 import OrderStatus from '../../server/constants/order_status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import logger from '../../server/lib/logger';
@@ -9,15 +12,9 @@ import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 
-const exitWithUsage = () => {
-  console.error(
-    'Usage: ./scripts/paypal/payment-reconciliator.ts check-invalid-orders|fix-invalid-orders|check-refunds [HOST_SLUGS]',
-  );
-  process.exit(1);
-};
-
-const START_DATE = new Date(process.env.START_DATE || '2020-01-01');
-const END_DATE = new Date(process.env.END_DATE || new Date());
+// TODO: Move these to command-line options
+const START_DATE = new Date(process.env.START_DATE || '2022-02-01');
+const END_DATE = new Date(process.env.END_DATE || moment(START_DATE).add(31, 'day').toDate());
 
 /**
  * A generator to paginate the fetch of orders to avoid loading too much at once
@@ -102,7 +99,8 @@ const markOrderAsError = async order => {
   await order.update({ status: OrderStatus.ERROR });
 };
 
-const findOrdersWithErroneousStatus = async (hostSlugs: string[], fix = false) => {
+const findOrdersWithErroneousStatus = async options => {
+  const hostSlugs = await getHostsSlugsFromOptions(options);
   for (const hostSlug of hostSlugs) {
     console.log(`\nChecking host ${hostSlug} for erroneous order statuses...`);
     const host = await models.Collective.findBySlug(hostSlug);
@@ -113,7 +111,7 @@ const findOrdersWithErroneousStatus = async (hostSlugs: string[], fix = false) =
       const isValid = await checkOrder(host, orderItem.value);
       hasError = hasError || !isValid;
 
-      if (fix && !isValid && !parseToBoolean(process.env.DRY)) {
+      if (options['fix'] && !isValid && !parseToBoolean(process.env.DRY)) {
         await markOrderAsError(orderItem.value);
       }
 
@@ -123,6 +121,65 @@ const findOrdersWithErroneousStatus = async (hostSlugs: string[], fix = false) =
     if (!hasError) {
       logger.info(`No error found for PayPal orders for host ${hostSlug}`);
     }
+  }
+};
+
+const findMissingPaypalTransactions = async options => {
+  const hostSlugs = await getHostsSlugsFromOptions(options);
+  for (const hostSlug of hostSlugs) {
+    console.log(`\nChecking host ${hostSlug} for missing transactions...`);
+    const host = await models.Collective.findBySlug(hostSlug);
+    let currentPage = 1;
+    let totalPages = 1;
+
+    do {
+      // List transactions
+      const urlParams = new URLSearchParams();
+      urlParams.append('fields', 'all');
+      urlParams.append('page_size', '500');
+      urlParams.append('page', `${currentPage}`);
+      urlParams.append('transaction_status', 'S'); // 	The transaction successfully completed without a denial and after any pending statuses.
+      urlParams.append('start_date', START_DATE.toISOString());
+      urlParams.append('end_date', END_DATE.toISOString());
+      const apiUrl = `reporting/transactions?${urlParams.toString()}`;
+      const response = await paypalRequest(apiUrl, null, host, 'GET');
+      totalPages = <number>response['totalPages'];
+
+      // Make sure all transactions exist in the ledger
+      for (const paypalTransaction of <Record<string, unknown>[]>response['transaction_details']) {
+        const transactionInfo = paypalTransaction['transaction_info'];
+        const paypalTransactionId = <string>transactionInfo['transaction_id'];
+        const ledgerTransaction = await models.Transaction.findOne({
+          where: {
+            HostCollectiveId: host.id, // Pre-filter to make the query faster
+            data: {
+              [Op.or]: [{ capture: { id: paypalTransactionId } }, { paypalSale: { id: paypalTransactionId } }],
+            },
+          },
+        });
+
+        if (!ledgerTransaction) {
+          console.warn(`Missing PayPal transaction ${paypalTransactionId} in ledger`);
+          if (options['fix']) {
+            // Trigger the actual charge
+
+            const captureDetails = await paypalRequestV2(`payments/captures/${paypalTransactionId}`, host, 'GET');
+            if (captureDetails.status !== 'COMPLETED') {
+              continue; // Make sure the capture is not pending
+            }
+
+            // Record the charge in our ledger
+            // TODO
+            // const order = await models.Order.findOne({});
+            // return recordPaypalCapture(order, captureDetails, {
+            //   createdAt: new Date(transactionInfo['transaction_initiation_date']),
+            //   data: { createdFromPaymentReconciliatorAt: new Date() },
+            // });
+          }
+        }
+      }
+      return;
+    } while (currentPage++ < totalPages);
   }
 };
 
@@ -143,7 +200,8 @@ const getRefundedTransactionsFromPaypal = async (host, startDate, endDate) => {
   return response['transaction_details'];
 };
 
-const findRefundedContributions = async (hostSlugs: string[]) => {
+const findRefundedContributions = async options => {
+  const hostSlugs = await getHostsSlugsFromOptions(options);
   for (const hostSlug of hostSlugs) {
     console.log(`\nChecking host ${hostSlug} for refunded contributions not marked as such in our ledger...`);
     let hasError = false;
@@ -162,9 +220,9 @@ const findRefundedContributions = async (hostSlugs: string[]) => {
   }
 };
 
-const getHostsSlugs = async (): Promise<string[]> => {
-  if (process.argv[3]) {
-    return process.argv[3].split(',');
+const getHostsSlugsFromOptions = async (options: Record<string, unknown>): Promise<string[]> => {
+  if (options['hosts']?.['length']) {
+    return <string[]>options['hosts'];
   } else {
     const hosts = await models.Collective.findAll({
       where: { isHostAccount: true },
@@ -184,22 +242,25 @@ const getHostsSlugs = async (): Promise<string[]> => {
 };
 
 const main = async () => {
-  const command = process.argv[2];
-  if (!command) {
-    return exitWithUsage();
-  }
+  const program = new Command();
+  program.showSuggestionAfterError();
 
-  const hostSlugs = await getHostsSlugs();
-  switch (command) {
-    case 'check-invalid-orders':
-      return findOrdersWithErroneousStatus(hostSlugs, false);
-    case 'fix-invalid-orders':
-      return findOrdersWithErroneousStatus(hostSlugs, true);
-    case 'check-refunds':
-      return findRefundedContributions(hostSlugs);
-    default:
-      throw new Error(`Unknown command: ${command}`);
-  }
+  const commaSeparatedArgs = list => list.split(',');
+
+  // General options
+  program.option(
+    '--hosts <slugs>',
+    'List of host slugs. Defaults to all hosts with a PayPal account',
+    commaSeparatedArgs,
+  );
+
+  // Filters
+  program.command('refunds').action(findRefundedContributions);
+  program.command('invalid-orders').option('--fix').action(findOrdersWithErroneousStatus);
+  program.command('transactions').option('--fix').action(findMissingPaypalTransactions);
+
+  // Parse arguments
+  await program.parseAsync();
 };
 
 main()
