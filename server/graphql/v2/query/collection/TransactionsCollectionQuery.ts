@@ -206,7 +206,7 @@ const TransactionsCollectionQuery = {
       if (args.includeGiftCardTransactions) {
         where.push({
           [Op.or]: [
-            { UsingGiftCardFromCollectiveId: accountsIds, type: 'DEBIT' },
+            { UsingGiftCardFromCollectiveId: accounts.map(account => account.id), type: 'DEBIT' },
             // prettier, please keep line break for readability please
             { CollectiveId: accountCondition },
           ],
