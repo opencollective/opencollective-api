@@ -1,10 +1,12 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { Includeable } from 'sequelize';
 
 import models, { Op } from '../../../../models';
 import { OrderCollection } from '../../collection/OrderCollection';
 import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
+import { ContributionFrequency } from '../../enum/ContributionFrequency';
 import { OrderStatus } from '../../enum/OrderStatus';
 import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
@@ -56,6 +58,10 @@ const OrdersCollectionQuery = {
       type: AccountOrdersFilter,
       description: 'Account orders filter (INCOMING or OUTGOING)',
     },
+    frequency: {
+      type: ContributionFrequency,
+      description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
+    },
     status: {
       type: OrderStatus,
       description: 'Use this field to filter orders on their statuses',
@@ -88,14 +94,14 @@ const OrdersCollectionQuery = {
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     const where = { [Op.and]: [] };
-    const include = [
+    const include: Includeable[] = [
       { association: 'fromCollective', required: true, attributes: [] },
       { association: 'collective', required: true, attributes: [] },
     ];
 
     // Check arguments
-    if (args.limit > 100) {
-      throw new Error('Cannot fetch more than 100 orders at the same time, please adjust the limit');
+    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
     }
 
     // Load accounts
@@ -169,6 +175,16 @@ const OrdersCollectionQuery = {
     }
     if (args.status) {
       where['status'] = args.status;
+    }
+
+    if (args.frequency) {
+      if (args.frequency === 'ONETIME') {
+        where['SubscriptionId'] = { [Op.is]: null };
+      } else if (args.frequency === 'MONTHLY') {
+        include.push({ model: models.Subscription, required: true, where: { interval: 'month' } });
+      } else if (args.frequency === 'YEARLY') {
+        include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
+      }
     }
 
     const order = [[args.orderBy.field, args.orderBy.direction]];
