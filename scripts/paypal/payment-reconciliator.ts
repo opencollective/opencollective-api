@@ -11,10 +11,13 @@ import logger from '../../server/lib/logger';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
+import { findTransactionByPaypalId, recordPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
+import { fetchPaypalTransactionsForSubscription } from '../../server/paymentProviders/paypal/subscription';
 
 // TODO: Move these to command-line options
 const START_DATE = new Date(process.env.START_DATE || '2022-02-01');
 const END_DATE = new Date(process.env.END_DATE || moment(START_DATE).add(31, 'day').toDate());
+const SCRIPT_RUN_DATE = new Date();
 
 /**
  * A generator to paginate the fetch of orders to avoid loading too much at once
@@ -121,6 +124,112 @@ const findOrdersWithErroneousStatus = async options => {
     if (!hasError) {
       logger.info(`No error found for PayPal orders for host ${hostSlug}`);
     }
+  }
+};
+
+const findOrphanSubscriptions = async options => {
+  const hostSlugs = await getHostsSlugsFromOptions(options);
+  const allHosts = await models.Collective.findAll({ where: { slug: hostSlugs } });
+  const orphanContributions = await sequelize.query(
+    `
+    SELECT
+      pm."token" AS "paypalSubscriptionId",
+      pm."CollectiveId" AS "fromCollectiveId",
+      array_agg(DISTINCT transaction_candidates."HostCollectiveId") AS "possibleHostIds",
+      array_agg(DISTINCT transaction_candidates."OrderId") AS "possibleOrderIds"
+    FROM
+      "PaymentMethods" pm
+    INNER JOIN "Collectives" c ON
+      pm."CollectiveId" = c.id
+    INNER JOIN "PaymentMethods" other_pms ON
+      other_pms."CollectiveId" = c.id
+      AND other_pms.service != 'paypal'
+    INNER JOIN "Transactions" transaction_candidates ON
+      transaction_candidates."kind" = 'CONTRIBUTION'
+      AND transaction_candidates."type" = 'CREDIT'
+      AND transaction_candidates."PaymentMethodId" = pm.id
+      AND transaction_candidates."HostCollectiveId" IN (:hostCollectiveIds)
+    LEFT OUTER JOIN "Orders" o ON
+      o."PaymentMethodId" = pm.id
+    WHERE
+      pm.service = 'paypal'
+      AND pm."type" = 'subscription'
+      AND o.id IS NULL
+    GROUP BY
+      pm.id
+  `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+      replacements: { hostCollectiveIds: allHosts.map(h => h.id) },
+    },
+  );
+
+  // Use this instead for testing purposes
+  // const orphanContributions = [
+  //   {
+  //     fromCollectiveId: 10884,
+  //     paypalSubscriptionId: 'I-95JYW9SEARW6',
+  //     possibleHostIds: [9805],
+  //     possibleOrderIds: [6406],
+  //   },
+  // ];
+
+  for (const { possibleOrderIds, paypalSubscriptionId, possibleHostIds } of orphanContributions) {
+    console.log(`\nChecking subscription ${paypalSubscriptionId} for missing transactions...`);
+    if (possibleHostIds.length !== 1) {
+      console.warn(`Could not resolve host for subscription ${paypalSubscriptionId}`);
+      continue;
+    } else if (possibleOrderIds.length !== 1) {
+      console.warn(`Could not resolve order for subscription ${paypalSubscriptionId}`);
+      continue;
+    }
+
+    const host = await models.Collective.findByPk(possibleHostIds[0]);
+    const order = await models.Order.findByPk(possibleOrderIds[0]);
+
+    // List and reconciliate all transactions
+    let currentPage = 1;
+    let totalPages = 1;
+    console.log(`Synchronizing transactions for order #${order.id}/${paypalSubscriptionId}`);
+    do {
+      const response = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
+      totalPages = <number>response['totalPages'];
+      if (totalPages > 1) {
+        throw new Error('Pagination not supported yet');
+      }
+
+      // Make sure all transactions exist in the ledger
+      for (const paypalTransaction of <Record<string, unknown>[]>response['transactions']) {
+        const paypalTransactionId = <string>paypalTransaction['id'];
+        const ledgerTransaction = await findTransactionByPaypalId(paypalTransactionId, {
+          HostCollectiveId: host.id,
+          OrderId: order.id,
+        });
+
+        if (!ledgerTransaction) {
+          console.warn(`Missing PayPal transaction ${paypalTransactionId} in ledger`);
+          if (options['fix']) {
+            if (paypalTransaction['status'] !== 'COMPLETED') {
+              continue; // Make sure the capture is not pending
+            }
+
+            // Record the charge in our ledger
+            await recordPaypalTransaction(order, paypalTransaction, {
+              createdAt: new Date(<string>paypalTransaction['time']),
+              data: { createdFromPaymentReconciliatorAt: SCRIPT_RUN_DATE },
+            });
+          }
+        }
+      }
+
+      // Cancel this invalid subscription
+      if (options['fix']) {
+        console.log('Cancelling PayPal subscription...');
+        const reason = `Some PayPal subscriptions were previously not cancelled properly. Please contact support@opencollective.com for any question.`;
+        await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/cancel`, { reason }, host);
+      }
+    } while (currentPage++ < totalPages);
   }
 };
 
@@ -258,6 +367,7 @@ const main = async () => {
   program.command('refunds').action(findRefundedContributions);
   program.command('invalid-orders').option('--fix').action(findOrdersWithErroneousStatus);
   program.command('transactions').option('--fix').action(findMissingPaypalTransactions);
+  program.command('orphan-subscriptions').option('--fix').action(findOrphanSubscriptions);
 
   // Parse arguments
   await program.parseAsync();

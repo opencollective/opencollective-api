@@ -1,5 +1,6 @@
 import config from 'config';
 import { pick } from 'lodash';
+import moment from 'moment';
 
 import INTERVALS from '../../constants/intervals';
 import ORDER_STATUS from '../../constants/order_status';
@@ -276,8 +277,16 @@ const createSubscription = async (order: typeof models.Order, paypalSubscription
   });
 };
 
-const fetchPaypalSubscription = async (hostCollective, subscriptionId) => {
+export const fetchPaypalSubscription = async (hostCollective, subscriptionId) => {
   return paypalRequest(`billing/subscriptions/${subscriptionId}`, null, hostCollective, 'GET');
+};
+
+export const fetchPaypalTransactionsForSubscription = async (host, subscriptionId) => {
+  const urlParams = new URLSearchParams();
+  urlParams.append('start_time', moment('2020-01-01').toISOString());
+  urlParams.append('end_time', moment().toISOString());
+  const apiUrl = `billing/subscriptions/${subscriptionId}/transactions?${urlParams.toString()}`;
+  return paypalRequest(apiUrl, null, host, 'GET');
 };
 
 /**
