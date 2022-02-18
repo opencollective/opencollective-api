@@ -4,7 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
-import { purgeCacheForCollective } from '../../../lib/cache';
+import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models from '../../../models';
@@ -129,6 +129,31 @@ const HostApplicationMutations = {
         default:
           throw new ValidationFailed(`Action ${args.action} is not supported yet`);
       }
+    },
+  },
+  removeHost: {
+    type: new GraphQLNonNull(Account),
+    description: '[Root only] Removes the host for an account',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'The account to unhost',
+      },
+    },
+    resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
+      if (!req.remoteUser?.isRoot()) {
+        throw new Unauthorized('You need to be a root user to unhost an account');
+      }
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      const host = await req.loaders.Collective.host.load(account.id);
+      if (!host) {
+        throw new ValidationFailed('This account has no host');
+      }
+
+      await account.changeHost(null);
+      await Promise.all([purgeAllCachesForAccount(account), purgeAllCachesForAccount(host)]);
+      return account.reload();
     },
   },
 };
