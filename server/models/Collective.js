@@ -2189,7 +2189,7 @@ function defineModel() {
           }),
         );
 
-        if (!options?.skipCollectiveApplyActivity) {
+        if (!options?.skipCollectiveApplyActivity && !shouldAutomaticallyApprove) {
           promises.push(
             models.Activity.create({
               CollectiveId: this.id,
