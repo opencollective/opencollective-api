@@ -49,6 +49,9 @@ async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
   const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
   if (isOutdated) {
     const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
+    if (!newToken) {
+      throw new Error('There was an error refreshing the Transferwise token');
+    }
     const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
     await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
     return token;
