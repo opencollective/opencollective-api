@@ -146,7 +146,10 @@ async function createCollective(_, args, req) {
             MemberCollectiveId: memberAccount.id,
             CreatedByUserId: req.remoteUser.id,
           };
-          await models.MemberInvitation.invite(collective, memberParams, transaction);
+          await models.MemberInvitation.invite(collective, memberParams, {
+            transaction,
+            skipDefaultAdmin: args.skipDefaultAdmin,
+          });
         }
       }
 

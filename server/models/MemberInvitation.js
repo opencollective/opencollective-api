@@ -151,7 +151,7 @@ function defineModel() {
 
   // ---- Static methods ----
 
-  MemberInvitation.invite = async function (collective, memberParams, transaction) {
+  MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
     // Check params
@@ -221,8 +221,6 @@ function defineModel() {
       sequelizeParams,
     );
 
-    console.log('MemberInvitation.create', memberParams, collective.id);
-
     const invitation = await MemberInvitation.create(
       {
         ...memberParams,
@@ -235,8 +233,9 @@ function defineModel() {
       role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
       invitation: pick(invitation, 'id'),
       collective: pick(collective, ['slug', 'name']),
-      memberCollective: pick(memberUser, ['collective.slug', 'collective.name']),
+      memberCollective: pick(memberUser.collective, ['slug', 'name']),
       invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
+      skipDefaultAdmin: skipDefaultAdmin || false,
     });
 
     return invitation;
