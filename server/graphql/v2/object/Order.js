@@ -43,6 +43,7 @@ export const Order = new GraphQLObjectType({
       },
       amount: {
         type: new GraphQLNonNull(Amount),
+        description: 'Base order amount (without platform tip)',
         resolve(order) {
           let value = order.totalAmount;
           // We remove Platform Tip from totalAmount
@@ -52,6 +53,13 @@ export const Order = new GraphQLObjectType({
             value = value - order.data.platformFee;
           }
           return { value, currency: order.currency };
+        },
+      },
+      totalAmount: {
+        type: new GraphQLNonNull(Amount),
+        description: 'Total order amount, including all taxes and platform tip',
+        resolve(order) {
+          return { value: order.totalAmount, currency: order.currency };
         },
       },
       quantity: {
