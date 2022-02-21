@@ -1,5 +1,7 @@
 import { GraphQLNonNull } from 'graphql';
+import slugify from 'limax';
 import { pick } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import roles from '../../../constants/roles';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
@@ -18,7 +20,7 @@ async function createEvent(_, args, req) {
     throw new Unauthorized('You need to be logged in to create an Event');
   }
 
-  const parent = await fetchAccountWithReference(args.parent);
+  const parent = await fetchAccountWithReference(args.account);
   if (!parent) {
     throw new NotFound('Parent not found');
   }
@@ -28,10 +30,12 @@ async function createEvent(_, args, req) {
 
   const eventData = {
     type: 'EVENT',
-    slug: args.event.slug.toLowerCase(),
+    slug: `${slugify(args.event.slug || args.event.name)}-${uuid().substr(0, 8)}`,
     ...pick(args.event, ['name', 'description']),
     ...pick(parent.info, ['currency', 'HostCollectiveId', 'isActive', 'platformFeePercent', 'hostFeePercent']),
     approvedAt: parent.isActive ? new Date() : null,
+    startsAt: args.event.startsAt,
+    endsAt: args.event.endsAt,
     ParentCollectiveId: parent.id,
     CreatedByUserId: remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
@@ -55,9 +59,9 @@ const createEventMutation = {
       description: 'Information about the Event to create (name, slug, description, tags, settings)',
       type: new GraphQLNonNull(EventCreateInput),
     },
-    parent: {
+    account: {
       description: 'Reference to the parent Account creating the Event.',
-      type: AccountReferenceInput,
+      type: new GraphQLNonNull(AccountReferenceInput),
     },
   },
   resolve: (_, args, req) => {
