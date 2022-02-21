@@ -127,8 +127,8 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
     return;
   }
 
-  const currency = stripeAuthorization.currency.toUpperCase();
-  const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.amount));
+  const currency = stripeAuthorization.pending_request.currency.toUpperCase();
+  const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
   const balance = await collective.getBalanceWithBlockedFundsAmount({ currency });
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
