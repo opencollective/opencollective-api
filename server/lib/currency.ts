@@ -106,41 +106,52 @@ export async function fetchFxRates(
 ): Promise<Record<string, number>> {
   date = getDate(date);
 
-  const params = {
-    access_key: config.fixer.accessKey, // eslint-disable-line camelcase
-    base: fromCurrency,
-    symbols: toCurrencies.join(','),
-  };
+  const useFixerApi = Boolean(get(config, 'fixer.accessKey'));
+  const isLiveEnv = ['staging', 'production'].includes(config.env);
 
-  const searchParams = Object.keys(params)
-    .map(key => `${key}=${params[key]}`)
-    .join('&');
+  // Try to fetch the FX rates from fixer.io
+  if (!useFixerApi) {
+    logger.info('Fixer API is not configured, lib/currency will always return 1.1');
+  } else {
+    const params = {
+      access_key: config.fixer.accessKey, // eslint-disable-line camelcase
+      base: fromCurrency,
+      symbols: toCurrencies.join(','),
+    };
 
-  try {
-    const res = await fetch(`https://data.fixer.io/${date}?${searchParams}`);
-    const json = await res.json();
-    if (json.error) {
-      throw new Error(json.error.info);
+    const searchParams = Object.keys(params)
+      .map(key => `${key}=${params[key]}`)
+      .join('&');
+
+    try {
+      const res = await fetch(`https://data.fixer.io/${date}?${searchParams}`);
+      const json = await res.json();
+      if (json.error) {
+        throw new Error(json.error.info);
+      }
+      const rates = {};
+      keys(json.rates).forEach(to => {
+        rates[to] = parseFloat(json.rates[to]);
+        const cacheTtl = date === 'latest' ? 60 * 60 /* 60 minutes */ : null; /* no expiration */
+        cache.set(`${date}-${fromCurrency}-${to}`, rates[to], cacheTtl);
+      });
+
+      return rates;
+    } catch (error) {
+      if (!isLiveEnv) {
+        logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
+      } else {
+        logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}. Using DB fallback`);
+      }
     }
-    const rates = {};
-    keys(json.rates).forEach(to => {
-      rates[to] = parseFloat(json.rates[to]);
-      const cacheTtl = date === 'latest' ? 60 * 60 /* 60 minutes */ : null; /* no expiration */
-      cache.set(`${date}-${fromCurrency}-${to}`, rates[to], cacheTtl);
-    });
+  }
 
-    return rates;
-  } catch (error) {
-    if (!config.env || !['staging', 'production'].includes(config.env)) {
-      logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
-      return zipObject(
-        toCurrencies,
-        toCurrencies.map(() => 1.1),
-      );
-    } else {
-      logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}`);
-      return getRatesFromDb(fromCurrency, toCurrencies, date);
-    }
+  // In case of error or if Fixer API is not configured, fallback to DB/mock values
+  if (!isLiveEnv) {
+    const ratesValues = toCurrencies.map(() => 1.1);
+    return zipObject(toCurrencies, ratesValues);
+  } else {
+    return getRatesFromDb(fromCurrency, toCurrencies, date);
   }
 }
 
