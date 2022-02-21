@@ -361,8 +361,9 @@ export const nockFixerRates = ratesConfig => {
     .persist()
     .get(/.*/)
     .query(({ base, symbols }) => {
-      if (ratesConfig[base][symbols]) {
-        logger.debug(`Fixer: Returning mock value for ${base} -> ${symbols}: ${ratesConfig[base][symbols]}`);
+      const splitSymbols = symbols.split(',');
+      if (splitSymbols.every(symbol => Boolean(ratesConfig[base][symbol]))) {
+        logger.debug(`Fixer: Returning mock value for ${base} -> ${symbols}`);
         return true;
       } else {
         return false;
@@ -375,7 +376,10 @@ export const nockFixerRates = ratesConfig => {
         {
           base,
           date: '2021-06-01',
-          rates: { [symbols]: ratesConfig[base][symbols] },
+          rates: symbols.split(',').reduce((rates, symbol) => {
+            rates[symbol] = ratesConfig[base][symbol];
+            return rates;
+          }, {}),
         },
       ];
     });

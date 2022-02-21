@@ -12,6 +12,7 @@ import models, { Op, sequelize } from '../../models';
 import collectiveLoaders from './collective';
 import commentsLoader from './comments';
 import conversationLoaders from './conversation';
+import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
@@ -23,6 +24,10 @@ import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardL
 export const loaders = req => {
   const cache = {};
   const context = createContext(sequelize);
+
+  // Custom helpers
+  context.loaders.CurrencyExchangeRate.convert = generateConvertToCurrencyLoader(req, cache);
+  context.loaders.CurrencyExchangeRate.fxRate = generateFxRateLoader(req, cache);
 
   // Comment
   context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);

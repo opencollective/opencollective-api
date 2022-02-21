@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLFloat, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
@@ -9,6 +9,7 @@ import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-pe
 import * as ExpenseLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
 import { Currency } from '../enum';
+import { ExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
 import ExpenseStatus from '../enum/ExpenseStatus';
 import { ExpenseType } from '../enum/ExpenseType';
 import { FeesPayer } from '../enum/FeesPayer';
@@ -19,6 +20,7 @@ import { Account } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
 import { Activity } from './Activity';
+import { Amount } from './Amount';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
@@ -36,6 +38,12 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'payoutMethod',
   'payeeLocation',
 ];
+
+const loadHostForExpense = async (expense, req) => {
+  return expense.HostCollectiveId
+    ? req.loaders.Collective.byId.load(expense.HostCollectiveId)
+    : req.loaders.Collective.host.load(expense.CollectiveId);
+};
 
 const Expense = new GraphQLObjectType({
   name: 'Expense',
@@ -64,6 +72,67 @@ const Expense = new GraphQLObjectType({
       amount: {
         type: new GraphQLNonNull(GraphQLInt),
         description: "Total amount of the expense (sum of the item's amounts).",
+        deprecationReason: '2022-02-09: Please use amountV2',
+      },
+      amountV2: {
+        type: Amount,
+        description: 'Total amount of the expense',
+        args: {
+          currencySource: {
+            type: ExpenseCurrencySource,
+            description: 'Source of the currency to express the amount. Defaults to the expense currency',
+            defaultValue: ExpenseCurrencySource.EXPENSE,
+          },
+        },
+        async resolve(expense, args, req) {
+          let currency = expense.currency;
+
+          // Pick the right currency based on args
+          if (args.currencySource === 'ACCOUNT') {
+            expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+            currency = expense.collective.currency;
+          } else if (args.currencySource === 'HOST') {
+            const host = await loadHostForExpense(expense, req);
+            currency = host.currency;
+          }
+
+          // Return null if the currency can't be looked up (e.g. asking for the host currency when the collective has no fiscal host)
+          if (!currency) {
+            return null;
+          }
+
+          // Convert to the right currency
+          if (currency === expense.currency) {
+            return { value: expense.amount, currency: expense.currency }; // No need to convert
+          } else if (expense.status === expenseStatus.PAID) {
+            // TODO fetch from PAID transaction
+            return { value: 0, currency };
+          } else {
+            return {
+              currency,
+              value: await req.loaders.CurrencyExchangeRate.convert.load({
+                amount: expense.amount,
+                fromCurrency: expense.currency,
+                toCurrency: currency,
+              }),
+            };
+          }
+        },
+      },
+      accountCurrencyFxRate: {
+        type: new GraphQLNonNull(GraphQLFloat),
+        description: 'The exchange rate between the expense currency and the account currency',
+        async resolve(expense, args, req) {
+          expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+          if (expense.collective.currency === expense.currency) {
+            return 1;
+          } else {
+            return req.loaders.CurrencyExchangeRate.fxRate.load({
+              fromCurrency: expense.currency,
+              toCurrency: expense.collective.currency,
+            });
+          }
+        },
       },
       createdAt: {
         type: new GraphQLNonNull(GraphQLDateTime),
