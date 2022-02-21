@@ -162,31 +162,27 @@ function defineModel() {
     }
 
     // Ensure the user is not already a member or invited as such
-    const existingMember = await models.Member.findOne(
-      {
-        where: {
-          CollectiveId: collective.id,
-          MemberCollectiveId: memberParams.MemberCollectiveId,
-          role: memberParams.role,
-        },
+    const existingMember = await models.Member.findOne({
+      where: {
+        CollectiveId: collective.id,
+        MemberCollectiveId: memberParams.MemberCollectiveId,
+        role: memberParams.role,
       },
-      sequelizeParams,
-    );
+      ...sequelizeParams,
+    });
 
     if (existingMember) {
       throw new Error(`This user already have the ${memberParams.role} role on this Collective`);
     }
 
     // Update the existing invitation if it exists
-    const existingInvitation = await models.MemberInvitation.findOne(
-      {
-        where: {
-          CollectiveId: collective.id,
-          MemberCollectiveId: memberParams.MemberCollectiveId,
-        },
+    const existingInvitation = await models.MemberInvitation.findOne({
+      where: {
+        CollectiveId: collective.id,
+        MemberCollectiveId: memberParams.MemberCollectiveId,
       },
-      sequelizeParams,
-    );
+      ...sequelizeParams,
+    });
 
     if (existingInvitation) {
       return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
@@ -194,32 +190,27 @@ function defineModel() {
 
     // Ensure collective has not invited too many people
     const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
-    const nbMembers = await models.Member.count({ where: memberCountWhere });
-    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere });
+    const nbMembers = await models.Member.count({ where: memberCountWhere, ...sequelizeParams });
+    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
     if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
       throw new Error('You exceeded the maximum number of members for this account');
     }
 
     // Load users
-    const memberUser = await models.User.findOne(
-      {
-        where: { CollectiveId: memberParams.MemberCollectiveId },
-        include: [{ model: models.Collective, as: 'collective' }],
-      },
-      sequelizeParams,
-    );
+    const memberUser = await models.User.findOne({
+      where: { CollectiveId: memberParams.MemberCollectiveId },
+      include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
+    });
 
     if (!memberUser) {
       throw new Error('user not found');
     }
 
-    const createdByUser = await models.User.findByPk(
-      memberParams.CreatedByUserId,
-      {
-        include: [{ model: models.Collective, as: 'collective' }],
-      },
-      sequelizeParams,
-    );
+    const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
+      include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
+    });
 
     const invitation = await MemberInvitation.create(
       {

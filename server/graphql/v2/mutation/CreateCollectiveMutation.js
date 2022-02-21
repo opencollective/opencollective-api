@@ -8,10 +8,11 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
-import { Forbidden, Unauthorized, ValidationFailed } from '../../errors';
+import { Forbidden, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
 import { IndividualCreateInput } from '../input/IndividualCreateInput';
@@ -32,6 +33,12 @@ async function createCollective(_, args, req) {
 
   if (args.host) {
     host = await fetchAccountWithReference(args.host, { loaders });
+  }
+
+  const rateLimitKey = remoteUser ? `collective_create_${remoteUser.id}` : `collective_create_ip_${req.ip}`;
+  const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
+  if (!(await rateLimit.registerCall())) {
+    throw new RateLimitExceeded();
   }
 
   return sequelize
@@ -62,10 +69,7 @@ async function createCollective(_, args, req) {
       if (isCollectiveSlugReserved(collectiveData.slug)) {
         throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
       }
-      const collectiveWithSlug = await models.Collective.findOne(
-        { where: { slug: collectiveData.slug } },
-        { transaction },
-      );
+      const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug }, transaction });
 
       if (collectiveWithSlug) {
         throw new Error(
@@ -123,6 +127,9 @@ async function createCollective(_, args, req) {
       }
 
       if (args.inviteMembers && args.inviteMembers.length) {
+        if (args.inviteMembers.length > 30) {
+          throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
+        }
         for (const inviteMember of args.inviteMembers) {
           if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(inviteMember.role)) {
             throw new Forbidden('You can only invite accountants, admins, or members.');
@@ -131,10 +138,10 @@ async function createCollective(_, args, req) {
           if (inviteMember.memberAccount) {
             memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
           } else if (inviteMember.memberInfo) {
-            let user = await models.User.findOne(
-              { where: { email: inviteMember.memberInfo.email.toLowerCase() } },
-              { transaction },
-            );
+            let user = await models.User.findOne({
+              where: { email: inviteMember.memberInfo.email.toLowerCase() },
+              transaction,
+            });
             if (!user) {
               const userData = pick(inviteMember.memberInfo, ['name', 'email']);
               user = await models.User.createUserWithCollective(userData, transaction);
