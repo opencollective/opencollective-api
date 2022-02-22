@@ -321,8 +321,10 @@ export async function generateDescription(transaction, { req = null, full = fals
       baseString = `Registration`;
     }
   } else if (transaction.kind === ADDED_FUNDS) {
-    if (order.description && !order.description.includes('Financial contribution to')) {
+    if (order?.description && !order?.description.includes('Financial contribution to')) {
       extraString = ` - ${order.description}`;
+    } else if (transaction.description && !transaction.description.includes('Financial contribution to')) {
+      extraString = ` - ${transaction.description}`;
     }
   } else if (transaction.kind === EXPENSE) {
     if (transaction.ExpenseId) {
