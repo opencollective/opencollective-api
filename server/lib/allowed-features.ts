@@ -120,6 +120,8 @@ export const hasOptedInForFeature = (collective: typeof models.Collective, featu
 export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   if (!collective) {
     return false;
+  } else if (get(collective, 'data.features.ALL') === false) {
+    return false;
   }
 
   if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
