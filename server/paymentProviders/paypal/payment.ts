@@ -1,4 +1,4 @@
-import { get, truncate } from 'lodash';
+import { get, isUndefined, pickBy, truncate } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
@@ -12,7 +12,7 @@ import {
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
-import models from '../../models';
+import models, { Op } from '../../models';
 
 import { paypalRequestV2 } from './api';
 
@@ -24,6 +24,7 @@ const recordTransaction = async (
   paypalFee,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<typeof models.Transaction> => {
+  order.collective = order.collective || (await order.getCollective());
   const host = await order.collective.getHostCollective();
   if (!host) {
     throw new Error(`Cannot create transaction: collective id ${order.collective.id} doesn't have a host`);
@@ -89,11 +90,12 @@ export function recordPaypalSale(order: typeof models.Order, paypalSale): Promis
 export function recordPaypalTransaction(
   order: typeof models.Order,
   paypalTransaction,
+  { data = undefined, createdAt = undefined } = {},
 ): Promise<typeof models.Transaction> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
   const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { data: { paypalTransaction } });
+  return recordTransaction(order, amount, currency, fee, { data: { ...data, paypalTransaction }, createdAt });
 }
 
 export const recordPaypalCapture = async (
@@ -106,6 +108,28 @@ export const recordPaypalCapture = async (
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
   return recordTransaction(order, amount, currency, fee, { data: { ...data, capture }, createdAt });
 };
+
+/**
+ * Returns the PayPal transaction associated to this ID, if any.
+ * `HostCollectiveId`/`OrderId` are optional but make the query way more performant.
+ */
+export async function findTransactionByPaypalId(
+  paypalTransactionId: string,
+  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined } = {},
+) {
+  return models.Transaction.findOne({
+    where: {
+      ...pickBy({ type, HostCollectiveId, OrderId }, value => !isUndefined(value)),
+      data: {
+        [Op.or]: [
+          { capture: { id: paypalTransactionId } },
+          { paypalSale: { id: paypalTransactionId } },
+          { paypalTransaction: { id: paypalTransactionId } },
+        ],
+      },
+    },
+  });
+}
 
 const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.Transaction | undefined> => {
   const hostCollective = await order.collective.getHostCollective();

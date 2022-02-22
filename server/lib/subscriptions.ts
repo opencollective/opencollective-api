@@ -27,13 +27,16 @@ export const updatePaymentMethodForSubscription = async (
   const newOrderData = { PaymentMethodId: newPaymentMethod.id, status: newStatus };
 
   // Subscription changes
-  let newSubscriptionData;
+  const newSubscriptionData = { isActive: true, deactivatedAt: null };
   const wasManagedExternally = getIsSubscriptionManagedExternally(prevPaymentMethod);
   const isManagedExternally = getIsSubscriptionManagedExternally(newPaymentMethod);
   if (wasManagedExternally !== isManagedExternally) {
-    newSubscriptionData = { isManagedExternally, paypalSubscriptionId: null };
+    newSubscriptionData['isManagedExternally'] = isManagedExternally;
+    newSubscriptionData['paypalSubscriptionId'] = null;
   }
 
+  // Need to cancel previous subscription
+  await order.Subscription.deactivate();
   const { order: updatedOrder } = await updateOrderSubscription(order, null, newOrderData, newSubscriptionData, {});
   return updatedOrder;
 };

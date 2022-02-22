@@ -16,7 +16,7 @@ import models from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
-import { recordPaypalCapture, recordPaypalSale } from './payment';
+import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
 
 const debug = Debug('paypal:webhook');
@@ -97,13 +97,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
   const { order } = await loadSubscriptionForWebhookEvent(req, subscriptionId);
 
   // Make sure the sale hasn't already been recorded
-  const existingTransaction = await models.Transaction.findOne({
-    where: {
-      OrderId: order.id, // Not necessary, but makes the query faster
-      data: { paypalSale: { id: sale.id } },
-    },
-  });
-
+  const existingTransaction = await findTransactionByPaypalId(sale.id, { OrderId: order.id });
   if (existingTransaction) {
     logger.debug(`PayPal: Transaction for sale ${sale.id} already recorded, ignoring`);
     return;
