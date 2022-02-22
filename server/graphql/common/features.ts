@@ -39,12 +39,12 @@ const checkReceiveFinancialContributions = async collective => {
 
 const checkVirtualCardFeatureStatus = async account => {
   if (account.isHostAccount) {
-    if (get(account.settings, 'features.privacyVcc')) {
+    if (get(account.settings, 'features.virtualCards')) {
       return checkIsActive(models.VirtualCard.count({ where: { HostCollectiveId: account.id } }));
     }
   } else if (account.HostCollectiveId) {
     const host = account.host || (await account.getHostCollective());
-    if (host && get(host.settings, 'features.privacyVcc')) {
+    if (host && get(host.settings, 'features.virtualCards')) {
       return checkIsActive(models.VirtualCard.count({ where: { CollectiveId: account.id } }));
     }
   }
