@@ -1132,8 +1132,15 @@ async function createTransactions(
   );
 }
 
-async function payExpenseWithPayPal(remoteUser, expense, host, paymentMethod, toPaypalEmail, fees = {}) {
-  debug('payExpenseWithPayPal', expense.id);
+async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMethod, toPaypalEmail, fees = {}) {
+  debug('payExpenseWithPayPalAdaptive', expense.id);
+
+  if (expense.currency !== expense.collective.currency) {
+    throw new Error(
+      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts.',
+    );
+  }
+
   try {
     const paymentResponse = await paymentProviders.paypal.types['adaptive'].pay(
       expense.collective,
@@ -1499,7 +1506,14 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         } else if (forceManual) {
           await createTransactions(host, expense, feesInHostCurrency);
         } else if (paypalPaymentMethod) {
-          return payExpenseWithPayPal(remoteUser, expense, host, paypalPaymentMethod, paypalEmail, feesInHostCurrency);
+          return payExpenseWithPayPalAdaptive(
+            remoteUser,
+            expense,
+            host,
+            paypalPaymentMethod,
+            paypalEmail,
+            feesInHostCurrency,
+          );
         } else {
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
