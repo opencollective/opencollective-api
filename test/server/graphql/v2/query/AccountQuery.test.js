@@ -168,6 +168,22 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(members[0].account.legacyId).to.eq(collectiveBackers[0].collective.id);
       expect(members[0].account.email).to.eq(email);
     });
+
+    it('inherith Admins and Accountants from ParentCollective if Event or Project', async () => {
+      const event = await fakeCollective({ ParentCollectiveId: collective.id, type: 'EVENT' });
+      const project = await fakeCollective({ ParentCollectiveId: collective.id, type: 'PROJECT' });
+
+      let resultPublic = await graphqlQueryV2(membersQuery, { slug: event.slug });
+      const eventMembers = resultPublic.data.account.members.nodes;
+      resultPublic = await graphqlQueryV2(membersQuery, { slug: project.slug });
+      const projectMembers = resultPublic.data.account.members.nodes;
+
+      expect(eventMembers.filter(m => m.role === 'ADMIN').length).to.eq(1);
+      expect(projectMembers.filter(m => m.role === 'ADMIN').length).to.eq(1);
+      expect(eventMembers.filter(m => m.role === 'ADMIN')).to.deep.equal(
+        projectMembers.filter(m => m.role === 'ADMIN'),
+      );
+    });
   });
 
   describe('childrenAccounts', () => {

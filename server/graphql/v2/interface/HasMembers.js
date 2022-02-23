@@ -1,5 +1,8 @@
 import { GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
+import { intersection } from 'lodash';
 
+import { types as CollectiveTypes } from '../../../constants/collectives';
+import MemberRoles from '../../../constants/roles';
 import models, { Op } from '../../../models';
 import { BadRequest } from '../../errors';
 import { MemberCollection } from '../collection/MemberCollection';
@@ -32,7 +35,7 @@ export const HasMembersFields = {
         return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
       }
 
-      const where = { CollectiveId: collective.id };
+      let where = { CollectiveId: collective.id };
       const collectiveInclude = [];
 
       if (args.role && args.role.length > 0) {
@@ -42,6 +45,20 @@ export const HasMembersFields = {
       if (args.accountType && args.accountType.length > 0) {
         collectiveConditions.type = {
           [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+        };
+      }
+
+      // Inherit Accountants and Admin from parent collective for Events and Projects
+      if ([CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
+        const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
+        where = {
+          [Op.or]: [
+            where,
+            {
+              CollectiveId: collective.ParentCollectiveId,
+              role: { [Op.in]: args.role ? intersection(args.role, inheritedRoles) : inheritedRoles },
+            },
+          ],
         };
       }
 
