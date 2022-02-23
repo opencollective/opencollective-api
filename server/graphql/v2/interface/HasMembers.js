@@ -48,9 +48,9 @@ export const HasMembersFields = {
         };
       }
 
-      // Inherith Accountants and Admin from parent collective for Events and Projects
+      // Inherit Accountants and Admin from parent collective for Events and Projects
       if ([CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
-        const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN];
+        const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
         where = {
           [Op.or]: [
             where,
