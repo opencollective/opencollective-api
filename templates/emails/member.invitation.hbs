@@ -9,9 +9,13 @@ Subject: Invitation to join {{{collective.name}}} on Open Collective
 {{/if}}
 
 <p>
-  <a href="{{config.host.website}}/{{invitedByUser.collective.slug}}">{{invitedByUser.collective.name}}</a> just invited you to the role of {{role}} of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on Open Collective.
+  {{#if skipDefaultAdmin}}
+    You were just invited you to the role of {{role}} of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on Open Collective.
+  {{else}}
+    <a href="{{config.host.website}}/{{invitedByUser.collective.slug}}">{{invitedByUser.collective.name}}</a> just invited you to the role of {{role}} of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on Open Collective.
+  {{/if}}
 </p>
-<br />
+
 <p>
 Click on the button below to accept or decline:
 </p>

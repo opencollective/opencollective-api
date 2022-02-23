@@ -1,5 +1,5 @@
 import config from 'config';
-import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
@@ -8,12 +8,15 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
-import { Unauthorized, ValidationFailed } from '../../errors';
+import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
+import { Forbidden, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
 import { IndividualCreateInput } from '../input/IndividualCreateInput';
+import { InviteMemberInput } from '../input/InviteMemberInput';
 import { Collective } from '../object/Collective';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -32,6 +35,12 @@ async function createCollective(_, args, req) {
     host = await fetchAccountWithReference(args.host, { loaders });
   }
 
+  const rateLimitKey = remoteUser ? `collective_create_${remoteUser.id}` : `collective_create_ip_${req.ip}`;
+  const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
+  if (!(await rateLimit.registerCall())) {
+    throw new RateLimitExceeded();
+  }
+
   return sequelize
     .transaction(async transaction => {
       if (!user && args.user && host?.id === defaultHostCollective('foundation').CollectiveId) {
@@ -47,7 +56,7 @@ async function createCollective(_, args, req) {
 
       const collectiveData = {
         slug: args.collective.slug.toLowerCase(),
-        ...pick(args.collective, ['name', 'description', 'tags']),
+        ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle']),
         isActive: false,
         CreatedByUserId: user.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
@@ -60,10 +69,7 @@ async function createCollective(_, args, req) {
       if (isCollectiveSlugReserved(collectiveData.slug)) {
         throw new Error(`The slug '${collectiveData.slug}' is not allowed.`);
       }
-      const collectiveWithSlug = await models.Collective.findOne(
-        { where: { slug: collectiveData.slug } },
-        { transaction },
-      );
+      const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug }, transaction });
 
       if (collectiveWithSlug) {
         throw new Error(
@@ -112,12 +118,61 @@ async function createCollective(_, args, req) {
           throw new ValidationFailed('Host account is not activated as Host.');
         }
       }
+
       const collective = await models.Collective.create(collectiveData, { transaction });
+
       // Add authenticated user as an admin
-      await collective.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, {}, transaction);
+      if (!args.skipDefaultAdmin) {
+        await collective.addUserWithRole(user, roles.ADMIN, { CreatedByUserId: user.id }, {}, transaction);
+      }
+
+      if (args.inviteMembers && args.inviteMembers.length) {
+        if (args.inviteMembers.length > 30) {
+          throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
+        }
+        for (const inviteMember of args.inviteMembers) {
+          if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(inviteMember.role)) {
+            throw new Forbidden('You can only invite accountants, admins, or members.');
+          }
+          let memberAccount;
+          if (inviteMember.memberAccount) {
+            memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
+          } else if (inviteMember.memberInfo) {
+            let user = await models.User.findOne({
+              where: { email: inviteMember.memberInfo.email.toLowerCase() },
+              transaction,
+            });
+            if (!user) {
+              const userData = pick(inviteMember.memberInfo, ['name', 'email']);
+              user = await models.User.createUserWithCollective(userData, transaction);
+            }
+            memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction });
+          }
+          const memberParams = {
+            ...pick(inviteMember, ['role', 'description', 'since']),
+            MemberCollectiveId: memberAccount.id,
+            CreatedByUserId: req.remoteUser.id,
+          };
+          await models.MemberInvitation.invite(collective, memberParams, {
+            transaction,
+            skipDefaultAdmin: args.skipDefaultAdmin,
+          });
+        }
+      }
+
       return collective;
     })
     .then(async collective => {
+      // We're out of the main SQL transaction now
+
+      // Automated approval if the creator is Github Sponsors
+      if (req.remoteUser) {
+        const remoteUserCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+        if (remoteUserCollective.slug === 'github-sponsors') {
+          shouldAutomaticallyApprove = true;
+        }
+      }
+
       // Add the host if any
       if (host) {
         await collective.addHost(host, user, {
@@ -132,22 +187,24 @@ async function createCollective(_, args, req) {
       // - tell them that their collective was successfully created
       // - tell them which fiscal host they picked, if any
       // - tell them the status of their host application
-      const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
-      models.Activity.create({
-        type: activities.COLLECTIVE_CREATED,
-        UserId: user.id,
-        CollectiveId: get(host, 'id'),
-        data: {
-          collective: collective.info,
-          host: get(host, 'info'),
-          hostPending: collective.approvedAt ? false : true,
-          accountType: collective.type === 'FUND' ? 'fund' : 'collective',
-          user: {
-            email: user.email,
-            collective: remoteUserCollective.info,
+      if (!args.skipDefaultAdmin) {
+        const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
+        models.Activity.create({
+          type: activities.COLLECTIVE_CREATED,
+          UserId: user.id,
+          CollectiveId: get(host, 'id'),
+          data: {
+            collective: collective.info,
+            host: get(host, 'info'),
+            hostPending: collective.approvedAt ? false : true,
+            accountType: collective.type === 'FUND' ? 'fund' : 'collective',
+            user: {
+              email: user.email,
+              collective: remoteUserCollective.info,
+            },
           },
-        },
-      });
+        });
+      }
 
       return collective;
     });
@@ -184,6 +241,15 @@ const createCollectiveMutation = {
     testPayload: {
       type: GraphQLJSON,
       description: 'Additional data for the collective creation. This argument has no effect in production',
+    },
+    skipDefaultAdmin: {
+      description: 'Create a Collective without a default admin (authenticated user or user)',
+      type: GraphQLBoolean,
+      defaultValue: false,
+    },
+    inviteMembers: {
+      type: new GraphQLList(InviteMemberInput),
+      description: 'List of members to invite on Collective creation.',
     },
   },
   resolve: (_, args, req) => {

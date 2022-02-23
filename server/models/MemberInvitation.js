@@ -151,7 +151,9 @@ function defineModel() {
 
   // ---- Static methods ----
 
-  MemberInvitation.invite = async function (collective, memberParams) {
+  MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
+    const sequelizeParams = transaction ? { transaction } : undefined;
+
     // Check params
     if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
       throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
@@ -166,6 +168,7 @@ function defineModel() {
         MemberCollectiveId: memberParams.MemberCollectiveId,
         role: memberParams.role,
       },
+      ...sequelizeParams,
     });
 
     if (existingMember) {
@@ -178,16 +181,17 @@ function defineModel() {
         CollectiveId: collective.id,
         MemberCollectiveId: memberParams.MemberCollectiveId,
       },
+      ...sequelizeParams,
     });
 
     if (existingInvitation) {
-      return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']));
+      return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
     }
 
     // Ensure collective has not invited too many people
     const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
-    const nbMembers = await models.Member.count({ where: memberCountWhere });
-    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere });
+    const nbMembers = await models.Member.count({ where: memberCountWhere, ...sequelizeParams });
+    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
     if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
       throw new Error('You exceeded the maximum number of members for this account');
     }
@@ -196,6 +200,7 @@ function defineModel() {
     const memberUser = await models.User.findOne({
       where: { CollectiveId: memberParams.MemberCollectiveId },
       include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
     });
 
     if (!memberUser) {
@@ -204,19 +209,24 @@ function defineModel() {
 
     const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
       include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
     });
 
-    const invitation = await MemberInvitation.create({
-      ...memberParams,
-      CollectiveId: collective.id,
-    });
+    const invitation = await MemberInvitation.create(
+      {
+        ...memberParams,
+        CollectiveId: collective.id,
+      },
+      sequelizeParams,
+    );
 
     await emailLib.send('member.invitation', memberUser.email, {
       role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
       invitation: pick(invitation, 'id'),
       collective: pick(collective, ['slug', 'name']),
-      memberCollective: pick(memberUser, ['collective.slug', 'collective.name']),
+      memberCollective: pick(memberUser.collective, ['slug', 'name']),
       invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
+      skipDefaultAdmin: skipDefaultAdmin || false,
     });
 
     return invitation;
