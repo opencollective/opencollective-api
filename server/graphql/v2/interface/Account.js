@@ -24,7 +24,6 @@ import {
   ImageFormat,
   MemberRole,
   OrderStatus,
-  TransactionType,
 } from '../enum';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
@@ -40,6 +39,10 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+import {
+  TransactionsCollectionArgs,
+  TransactionsCollectionResolver,
+} from '../query/collection/TransactionsCollectionQuery';
 import EmailAddress from '../scalar/EmailAddress';
 
 import { CollectionArgs } from './Collection';
@@ -213,21 +216,7 @@ const accountFieldsDefinition = () => ({
   transactions: {
     type: new GraphQLNonNull(TransactionCollection),
     args: {
-      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      type: {
-        type: TransactionType,
-        description: 'Type of transaction (DEBIT/CREDIT)',
-      },
-      orderBy: {
-        type: ChronologicalOrderInput,
-      },
-      includeIncognitoTransactions: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        defaultValue: false,
-        description:
-          'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
-      },
+      ...TransactionsCollectionArgs,
     },
   },
   orders: {
@@ -595,43 +584,10 @@ export const Account = new GraphQLInterfaceType({
 const accountTransactions = {
   type: new GraphQLNonNull(TransactionCollection),
   args: {
-    type: { type: TransactionType },
-    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-    orderBy: {
-      type: ChronologicalOrderInput,
-      defaultValue: ChronologicalOrderInput.defaultValue,
-    },
-    includeIncognitoTransactions: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      defaultValue: false,
-      description:
-        'If the account is a user and this field is true, contributions from the incognito profile will be included too (admins only)',
-    },
+    ...TransactionsCollectionArgs,
   },
   async resolve(collective, args, req) {
-    const where = { CollectiveId: collective.id };
-
-    // When users are admins, also fetch their incognito contributions
-    if (args.includeIncognitoTransactions && req.remoteUser?.isAdminOfCollective(collective)) {
-      const incognitoProfile = await req.remoteUser.getIncognitoProfile();
-      if (incognitoProfile) {
-        where.CollectiveId = { [Op.or]: [collective.id, incognitoProfile.id] };
-      }
-    }
-
-    if (args.type) {
-      where.type = args.type;
-    }
-
-    const result = await models.Transaction.findAndCountAll({
-      where,
-      limit: args.limit,
-      offset: args.offset,
-      order: [[args.orderBy.field, args.orderBy.direction]],
-    });
-
-    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+    return TransactionsCollectionResolver({ account: { id: collective.id }, ...args }, req);
   },
 };
 
