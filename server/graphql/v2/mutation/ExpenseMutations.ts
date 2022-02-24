@@ -321,16 +321,17 @@ const expenseMutations = {
       const remoteUser = req.remoteUser;
       const expenseData = args.expense;
 
-      const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10, true);
-      if (!(await rateLimit.registerCall())) {
-        throw new RateLimitExceeded();
-      }
-
       if (!remoteUser) {
         throw new Unauthorized('You need to be logged in to create an expense');
       } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
         throw new FeatureNotAllowedForUser();
       }
+
+      const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10, true);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
       if (size(expenseData.attachedFiles) > 15) {
         throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
       }
