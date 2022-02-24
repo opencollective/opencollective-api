@@ -293,7 +293,7 @@ export const usersToNotifyForUpdateSQLQuery = `
   WITH collective AS (
     SELECT c.*
     FROM "Collectives" c
-    WHERE id = :collectiveId
+    WHERE id = :collectiveId OR "ParentCollectiveId" = :collectiveId
   ), hosted_collectives AS (
     SELECT hc.*
     FROM "Collectives" hc
@@ -310,7 +310,6 @@ export const usersToNotifyForUpdateSQLQuery = `
   ), member_collectives AS (
     SELECT mc.*
     FROM "Members" m
-    FULL OUTER JOIN "Collectives" c ON (c.id = :collectiveId OR c."ParentCollectiveId" = :collectiveId)
     INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
     CROSS JOIN collective
     WHERE m."deletedAt" IS NULL
@@ -331,8 +330,8 @@ export const usersToNotifyForUpdateSQLQuery = `
         AND m."role" IN ('ADMIN', 'MEMBER')
       ) OR (
         --- Include child collective's contributors
-        c."ParentCollectiveId" IS NOT NULL
-        AND c.id = m."CollectiveId"
+        collective."ParentCollectiveId" = :collectiveId
+        AND collective.id = m."CollectiveId"
         AND m."role" IN (:targetRoles)
       )
     )
@@ -393,7 +392,7 @@ export const countMembersToNotifyForUpdateSQLQuery = `
         AND m."role" IN ('ADMIN', 'MEMBER')
       ) OR (
         --- Include child collective's contributors
-        collective."ParentCollectiveId" IS NOT NULL
+        collective."ParentCollectiveId" = :collectiveId
         AND collective.id = m."CollectiveId"
         AND m."role" IN (:targetRoles)
       )

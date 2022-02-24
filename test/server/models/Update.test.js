@@ -148,6 +148,7 @@ describe('server/models/Update', () => {
       // Add some admins as BACKER (to test grouping)
       await collective.addUserWithRole(collectiveAdmins[0], 'BACKER');
       await collective.addUserWithRole(parentCollectiveAdmins[0], 'BACKER');
+
       // Add some deleted members
       await Promise.all(
         [parentCollective, collective, ...backerOrganizations].map(async account => {
@@ -199,14 +200,13 @@ describe('server/models/Update', () => {
         const receivedEmails = usersToNotify.map(u => u.email);
 
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
-        expectAllEmailsFrom(collectiveAdmins, receivedEmails, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
         expect(usersToNotify.length).to.eq(expectedPrivateTotal);
       });
 
       it('Notifies child collective users when parent collective public update is made', async () => {
-        collective.remove;
         const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
         const usersToNotify = await update.getUsersToNotify();
         const receivedEmails = usersToNotify.map(u => u.email);
@@ -214,20 +214,18 @@ describe('server/models/Update', () => {
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
         expectAllEmailsFrom(parentCollectiveBackers, receivedEmails);
         expectAllEmailsFrom(parentCollectiveFollowers, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
-
-        // Number of collective admins who are backers
-        const numberOfCollectiveAdminsAddedToBackers = 2;
 
         expect(usersToNotify.length).to.eq(
           parentCollectiveAdmins.length +
             parentCollectiveBackers.length +
             parentCollectiveFollowers.length +
+            collectiveAdmins.length +
             collectiveFollowers.length +
             individualBackersUsers.length +
-            countAdminsOfMemberOrganizations() +
-            numberOfCollectiveAdminsAddedToBackers,
+            countAdminsOfMemberOrganizations(),
         );
       });
 
@@ -238,18 +236,16 @@ describe('server/models/Update', () => {
 
         expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
         expectAllEmailsFrom(parentCollectiveBackers, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
         expectAllEmailsFrom(individualBackersUsers, receivedEmails);
         expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
-
-        // Number of collective admins who are backers
-        const numberOfCollectiveAdminsAddedToBackers = 2;
 
         expect(usersToNotify.length).to.eq(
           parentCollectiveAdmins.length +
             parentCollectiveBackers.length +
+            collectiveAdmins.length +
             individualBackersUsers.length +
-            countAdminsOfMemberOrganizations() +
-            numberOfCollectiveAdminsAddedToBackers,
+            countAdminsOfMemberOrganizations(),
         );
       });
     });
