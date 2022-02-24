@@ -185,7 +185,12 @@ export const refundPaypalCapture = async (
     const refundDetails = await paypalRequestV2(`payments/refunds/${result.id}`, host, 'GET');
     const rawRefundedPaypalFee = <string>get(refundDetails, 'seller_payable_breakdown.paypal_fee.value', '0.00');
     const refundedPaypalFee = floatAmountToCents(parseFloat(rawRefundedPaypalFee));
-    return createRefundTransaction(transaction, refundedPaypalFee, { paypalResponse: result }, user);
+    return createRefundTransaction(
+      transaction,
+      refundedPaypalFee,
+      { refundReason: reason, paypalResponse: result },
+      user,
+    );
   } catch (error) {
     const newData = delete transaction.data.isRefundedFromOurSystem;
     await transaction.update({ data: newData });

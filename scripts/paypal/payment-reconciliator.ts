@@ -3,6 +3,7 @@
 import '../../server/env';
 
 import { Command } from 'commander';
+import { get } from 'lodash';
 import moment from 'moment';
 
 import OrderStatus from '../../server/constants/order_status';
@@ -11,7 +12,11 @@ import logger from '../../server/lib/logger';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
-import { findTransactionByPaypalId, recordPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
+import {
+  findTransactionByPaypalId,
+  recordPaypalTransaction,
+  refundPaypalCapture,
+} from '../../server/paymentProviders/paypal/payment';
 import { fetchPaypalTransactionsForSubscription } from '../../server/paymentProviders/paypal/subscription';
 
 // TODO: Move these to command-line options
@@ -128,6 +133,7 @@ const findOrdersWithErroneousStatus = async options => {
 };
 
 const findOrphanSubscriptions = async options => {
+  const reason = `Some PayPal subscriptions were previously not cancelled properly. Please contact support@opencollective.com for any question.`;
   const hostSlugs = await getHostsSlugsFromOptions(options);
   const allHosts = await models.Collective.findAll({ where: { slug: hostSlugs } });
   const orphanContributions = await sequelize.query(
@@ -208,17 +214,26 @@ const findOrphanSubscriptions = async options => {
         });
 
         if (!ledgerTransaction) {
-          console.warn(`Missing PayPal transaction ${paypalTransactionId} in ledger`);
+          const amount = get(paypalTransaction, 'amount_with_breakdown.gross_amount');
+          const amountStr = amount ? `${amount['currency_code']} ${amount['value']}` : '~';
+          console.warn(`Missing PayPal transaction ${paypalTransactionId} in ledger (${amountStr})`);
           if (options['fix']) {
             if (paypalTransaction['status'] !== 'COMPLETED') {
               continue; // Make sure the capture is not pending
             }
 
             // Record the charge in our ledger
-            await recordPaypalTransaction(order, paypalTransaction, {
+            const transaction = await recordPaypalTransaction(order, paypalTransaction, {
               createdAt: new Date(<string>paypalTransaction['time']),
               data: { createdFromPaymentReconciliatorAt: SCRIPT_RUN_DATE },
             });
+
+            // Refund the transaction
+            try {
+              await refundPaypalCapture(transaction, paypalTransactionId, null, reason);
+            } catch (e) {
+              logger.warn(`Could not refund PayPal transaction ${paypalTransactionId}`, e);
+            }
           }
         }
       }
@@ -226,8 +241,12 @@ const findOrphanSubscriptions = async options => {
       // Cancel this invalid subscription
       if (options['fix']) {
         console.log('Cancelling PayPal subscription...');
-        const reason = `Some PayPal subscriptions were previously not cancelled properly. Please contact support@opencollective.com for any question.`;
-        await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/cancel`, { reason }, host);
+
+        try {
+          await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/cancel`, { reason }, host);
+        } catch (e) {
+          logger.warn(`Could not cancel PayPal subscription ${paypalSubscriptionId}`, e);
+        }
       }
     } while (currentPage++ < totalPages);
   }

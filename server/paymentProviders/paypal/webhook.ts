@@ -12,7 +12,7 @@ import { floatAmountToCents } from '../../lib/math';
 import { createRefundTransaction } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
-import models from '../../models';
+import models, { Op } from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
@@ -192,9 +192,15 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
     where: {
       type: TransactionTypes.CREDIT,
       kind: TransactionKind.CONTRIBUTION,
-      data: { capture: { id: captureDetails.id } },
       isRefund: false,
       RefundTransactionId: null,
+      data: {
+        [Op.or]: [
+          { capture: { id: captureDetails.id } },
+          { paypalSale: { id: captureDetails.id } },
+          { paypalTransaction: { id: captureDetails.id } },
+        ],
+      },
     },
     include: [
       {
