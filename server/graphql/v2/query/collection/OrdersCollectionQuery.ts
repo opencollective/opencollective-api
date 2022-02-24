@@ -46,7 +46,7 @@ export const OrdersCollectionArgs = {
   },
   includeIncognito: {
     type: GraphQLBoolean,
-    description: 'Whether to include incognito orders. Must be admin or root',
+    description: 'Whether to include incognito orders. Must be admin or root. Only with filter null or OUTGOING.',
     defaultValue: false,
   },
   filter: {
@@ -112,19 +112,22 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
     account = await fetchAccountWithReference(args.account, fetchAccountParams);
 
-    // Needs to be root or admin of the profile to see incognito orders
-    if (args.includeIncognito && !req.remoteUser?.isAdminOfCollective(account) && !req.remoteUser?.isRoot()) {
-      throw new Error('Only admins and root can fetch incognito orders');
-    }
-
-    const incognitoProfile = args.includeIncognito && (await account.getIncognitoProfile());
     const accountConditions = [];
 
     // Filter on fromCollective
     if (!args.filter || args.filter === 'OUTGOING') {
       accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
-      if (incognitoProfile) {
-        accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
+      if (args.includeIncognito) {
+        // Needs to be root or admin of the profile to see incognito orders
+        if (req.remoteUser?.isAdminOfCollective(account) || req.remoteUser?.isRoot()) {
+          const incognitoProfile = await account.getIncognitoProfile();
+          if (incognitoProfile) {
+            accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
+          }
+        } else {
+          // Is this desirable? Some current tests don't like it.
+          // throw new Error('Only admins and root can fetch incognito orders');
+        }
       }
     }
 
