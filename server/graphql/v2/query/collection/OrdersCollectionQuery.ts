@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable } from 'sequelize';
 
 import models, { Op } from '../../../../models';
+import { NotFound } from '../../../errors';
 import { OrderCollection } from '../../collection/OrderCollection';
 import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { ContributionFrequency } from '../../enum/ContributionFrequency';
@@ -37,165 +38,194 @@ const getJoinCondition = (
   }
 };
 
+export const OrdersCollectionArgs = {
+  ...CollectionArgs,
+  includeHostedAccounts: {
+    type: GraphQLBoolean,
+    description: 'If account is a host, also include hosted accounts orders',
+  },
+  includeIncognito: {
+    type: GraphQLBoolean,
+    description: 'Whether to include incognito orders. Must be admin or root',
+    defaultValue: false,
+  },
+  filter: {
+    type: AccountOrdersFilter,
+    description: 'Account orders filter (INCOMING or OUTGOING)',
+  },
+  frequency: {
+    type: ContributionFrequency,
+    description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
+  },
+  status: {
+    type: OrderStatus,
+    description: 'Use this field to filter orders on their statuses',
+  },
+  orderBy: {
+    type: new GraphQLNonNull(ChronologicalOrderInput),
+    description: 'The order of results',
+    defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  },
+  minAmount: {
+    type: GraphQLInt,
+    description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
+  },
+  maxAmount: {
+    type: GraphQLInt,
+    description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
+  },
+  dateFrom: {
+    type: GraphQLDateTime,
+    description: 'Only return orders that were created after this date',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    description: 'Only return orders that were created after this date',
+  },
+  searchTerm: {
+    type: GraphQLString,
+    description: 'The term to search',
+  },
+  tierSlug: { type: GraphQLString },
+  onlySubscriptions: {
+    type: GraphQLBoolean,
+    description: `Only returns orders that have a subscription (monthly/yearly). Don't use together with frequency.`,
+  },
+};
+
+export const OrdersCollectionResolver = async (args, req: express.Request) => {
+  const where = { [Op.and]: [] };
+  const include: Includeable[] = [
+    { association: 'fromCollective', required: true, attributes: [] },
+    { association: 'collective', required: true, attributes: [] },
+  ];
+
+  // Check arguments
+  if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+    throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
+  }
+
+  let account;
+
+  // Load accounts
+  if (args.account) {
+    const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
+    account = await fetchAccountWithReference(args.account, fetchAccountParams);
+
+    // Needs to be root or admin of the profile to see incognito orders
+    if (args.includeIncognito && !req.remoteUser?.isAdminOfCollective(account) && !req.remoteUser?.isRoot()) {
+      throw new Error('Only admins and root can fetch incognito orders');
+    }
+
+    const incognitoProfile = args.includeIncognito && (await account.getIncognitoProfile());
+    const accountConditions = [];
+
+    // Filter on fromCollective
+    if (!args.filter || args.filter === 'OUTGOING') {
+      accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
+      if (incognitoProfile) {
+        accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
+      }
+    }
+
+    // Filter on collective
+    if (!args.filter || args.filter === 'INCOMING') {
+      accountConditions.push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
+    }
+
+    // Bind account conditions to the query
+    where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
+  }
+
+  // Add search filter
+  if (args.searchTerm) {
+    const searchConditions = [];
+    const searchedId = args.searchTerm.match(/^#?(\d+)$/)?.[1];
+
+    // If search term starts with a `#`, only search by ID
+    if (args.searchTerm[0] !== '#' || !searchedId) {
+      const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
+      const ilikeQuery = `%${sanitizedTerm}%`;
+      searchConditions.push(
+        { description: { [Op.iLike]: ilikeQuery } },
+        { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
+        { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
+        { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
+        { '$collective.name$': { [Op.iLike]: ilikeQuery } },
+      );
+    }
+
+    if (searchedId) {
+      searchConditions.push({ id: parseInt(searchedId) });
+    }
+
+    where[Op.and].push({ [Op.or]: searchConditions });
+  }
+
+  // Add filters
+  if (args.minAmount) {
+    where['totalAmount'] = { [Op.gte]: args.minAmount };
+  }
+  if (args.maxAmount) {
+    where['totalAmount'] = { ...where['totalAmount'], [Op.lte]: args.maxAmount };
+  }
+  if (args.dateFrom) {
+    where['createdAt'] = { [Op.gte]: args.dateFrom };
+  }
+  if (args.dateTo) {
+    where['createdAt'] = where['createdAt'] || {};
+    where['createdAt'][Op.lte] = args.dateTo;
+  }
+  if (args.status) {
+    where['status'] = args.status;
+  }
+
+  if (args.frequency) {
+    if (args.frequency === 'ONETIME') {
+      where['SubscriptionId'] = { [Op.is]: null };
+    } else if (args.frequency === 'MONTHLY') {
+      include.push({ model: models.Subscription, required: true, where: { interval: 'month' } });
+    } else if (args.frequency === 'YEARLY') {
+      include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
+    }
+  } else if (args.onlySubscriptions) {
+    include.push({ model: models.Subscription, required: true });
+  }
+
+  if (args.tierSlug) {
+    if (!account) {
+      throw new NotFound('tierSlug can only be used when an account is specified');
+    }
+    const tierSlug = args.tierSlug.toLowerCase();
+    const tier = await models.Tier.findOne({ where: { CollectiveId: account.id, slug: tierSlug } });
+    if (!tier) {
+      throw new NotFound('tierSlug Not Found');
+    }
+    where['TierId'] = tier.id;
+  }
+
+  const order = [[args.orderBy.field, args.orderBy.direction]];
+  const { offset, limit } = args;
+  const result = await models.Order.findAndCountAll({ include, where, order, offset, limit });
+  return {
+    nodes: result.rows,
+    totalCount: result.count,
+    limit: args.limit,
+    offset: args.offset,
+  };
+};
+
 const OrdersCollectionQuery = {
   type: new GraphQLNonNull(OrderCollection),
   args: {
-    ...CollectionArgs,
     account: {
       type: AccountReferenceInput,
       description: 'Return only orders made from/to account',
     },
-    includeHostedAccounts: {
-      type: GraphQLBoolean,
-      description: 'If account is a host, also include hosted accounts orders',
-    },
-    includeIncognito: {
-      type: GraphQLBoolean,
-      description: 'Whether to include incognito orders. Must be admin or root',
-      defaultValue: false,
-    },
-    filter: {
-      type: AccountOrdersFilter,
-      description: 'Account orders filter (INCOMING or OUTGOING)',
-    },
-    frequency: {
-      type: ContributionFrequency,
-      description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
-    },
-    status: {
-      type: OrderStatus,
-      description: 'Use this field to filter orders on their statuses',
-    },
-    orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
-      description: 'The order of results',
-      defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-    },
-    minAmount: {
-      type: GraphQLInt,
-      description: 'Only return orders where the amount is greater than or equal to this value (in cents)',
-    },
-    maxAmount: {
-      type: GraphQLInt,
-      description: 'Only return orders where the amount is lower than or equal to this value (in cents)',
-    },
-    dateFrom: {
-      type: GraphQLDateTime,
-      description: 'Only return orders that were created after this date',
-    },
-    dateTo: {
-      type: GraphQLDateTime,
-      description: 'Only return orders that were created after this date',
-    },
-    searchTerm: {
-      type: GraphQLString,
-      description: 'The term to search',
-    },
+    ...OrdersCollectionArgs,
   },
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
-    const where = { [Op.and]: [] };
-    const include: Includeable[] = [
-      { association: 'fromCollective', required: true, attributes: [] },
-      { association: 'collective', required: true, attributes: [] },
-    ];
-
-    // Check arguments
-    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-      throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
-    }
-
-    // Load accounts
-    if (args.account) {
-      const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-      const account = await fetchAccountWithReference(args.account, fetchAccountParams);
-
-      // Needs to be root or admin of the profile to see incognito orders
-      if (args.includeIncognito && !req.remoteUser?.isAdminOfCollective(account) && !req.remoteUser?.isRoot()) {
-        throw new Error('Only admins and root can fetch incognito orders');
-      }
-
-      const incognitoProfile = args.includeIncognito && (await account.getIncognitoProfile());
-      const accountConditions = [];
-
-      // Filter on fromCollective
-      if (!args.filter || args.filter === 'OUTGOING') {
-        accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
-        if (incognitoProfile) {
-          accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));
-        }
-      }
-
-      // Filter on collective
-      if (!args.filter || args.filter === 'INCOMING') {
-        accountConditions.push(getJoinCondition(account, 'collective', args.includeHostedAccounts));
-      }
-
-      // Bind account conditions to the query
-      where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
-    }
-
-    // Add search filter
-    if (args.searchTerm) {
-      const searchConditions = [];
-      const searchedId = args.searchTerm.match(/^#?(\d+)$/)?.[1];
-
-      // If search term starts with a `#`, only search by ID
-      if (args.searchTerm[0] !== '#' || !searchedId) {
-        const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-        const ilikeQuery = `%${sanitizedTerm}%`;
-        searchConditions.push(
-          { description: { [Op.iLike]: ilikeQuery } },
-          { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-          { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-          { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
-          { '$collective.name$': { [Op.iLike]: ilikeQuery } },
-        );
-      }
-
-      if (searchedId) {
-        searchConditions.push({ id: parseInt(searchedId) });
-      }
-
-      where[Op.and].push({ [Op.or]: searchConditions });
-    }
-
-    // Add filters
-    if (args.minAmount) {
-      where['totalAmount'] = { [Op.gte]: args.minAmount };
-    }
-    if (args.maxAmount) {
-      where['totalAmount'] = { ...where['totalAmount'], [Op.lte]: args.maxAmount };
-    }
-    if (args.dateFrom) {
-      where['createdAt'] = { [Op.gte]: args.dateFrom };
-    }
-    if (args.dateTo) {
-      where['createdAt'] = where['createdAt'] || {};
-      where['createdAt'][Op.lte] = args.dateTo;
-    }
-    if (args.status) {
-      where['status'] = args.status;
-    }
-
-    if (args.frequency) {
-      if (args.frequency === 'ONETIME') {
-        where['SubscriptionId'] = { [Op.is]: null };
-      } else if (args.frequency === 'MONTHLY') {
-        include.push({ model: models.Subscription, required: true, where: { interval: 'month' } });
-      } else if (args.frequency === 'YEARLY') {
-        include.push({ model: models.Subscription, required: true, where: { interval: 'year' } });
-      }
-    }
-
-    const order = [[args.orderBy.field, args.orderBy.direction]];
-    const { offset, limit } = args;
-    const result = await models.Order.findAndCountAll({ include, where, order, offset, limit });
-    return {
-      nodes: result.rows,
-      totalCount: result.count,
-      limit: args.limit,
-      offset: args.offset,
-    };
+    return OrdersCollectionResolver(args, req);
   },
 };
 

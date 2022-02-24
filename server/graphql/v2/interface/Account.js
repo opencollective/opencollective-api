@@ -8,7 +8,7 @@ import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { BadRequest, NotFound, Unauthorized } from '../../errors';
+import { BadRequest, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
@@ -17,14 +17,7 @@ import { OrderCollection } from '../collection/OrderCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { UpdateCollection } from '../collection/UpdateCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
-import {
-  AccountOrdersFilter,
-  AccountType,
-  AccountTypeToModelMapping,
-  ImageFormat,
-  MemberRole,
-  OrderStatus,
-} from '../enum';
+import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from '../enum';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { Policy } from '../enum/Policy';
@@ -39,6 +32,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
   TransactionsCollectionResolver,
@@ -222,22 +216,7 @@ const accountFieldsDefinition = () => ({
   orders: {
     type: new GraphQLNonNull(OrderCollection),
     args: {
-      limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-      offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      filter: { type: AccountOrdersFilter },
-      status: { type: new GraphQLList(OrderStatus) },
-      tierSlug: { type: GraphQLString },
-      onlySubscriptions: {
-        type: GraphQLBoolean,
-        description: 'Only returns orders that have an subscription (monthly/yearly)',
-      },
-      includeIncognito: {
-        type: GraphQLBoolean,
-        description: 'Whether outgoing incognito contributions should be included. Only works when user is an admin.',
-      },
-      orderBy: {
-        type: ChronologicalOrderInput,
-      },
+      ...OrdersCollectionArgs,
     },
   },
   settings: {
@@ -594,81 +573,10 @@ const accountTransactions = {
 const accountOrders = {
   type: new GraphQLNonNull(OrderCollection),
   args: {
-    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-    filter: { type: AccountOrdersFilter },
-    status: { type: new GraphQLList(OrderStatus) },
-    tierSlug: { type: GraphQLString },
-    onlySubscriptions: {
-      type: GraphQLBoolean,
-      description: 'Only returns orders that have an subscription (monthly/yearly)',
-    },
-    includeIncognito: {
-      type: GraphQLBoolean,
-      description: 'Whether outgoing incognito contributions should be included. Only works when user is an admin.',
-    },
-    orderBy: {
-      type: ChronologicalOrderInput,
-      defaultValue: ChronologicalOrderInput.defaultValue,
-    },
+    ...OrdersCollectionArgs,
   },
   async resolve(collective, args, req) {
-    const outgoingFromCollectiveIds = [collective.id];
-    let where, include;
-
-    // Filter for incognito contributions
-    const includesOutgoing = args.filter !== 'INCOMING';
-    const isUser = collective.type === 'USER';
-    if (args.includeIncognito && includesOutgoing && isUser && req.remoteUser?.CollectiveId === collective.id) {
-      const incognitoProfile = await req.remoteUser.getIncognitoProfile();
-      if (incognitoProfile) {
-        outgoingFromCollectiveIds.push(incognitoProfile.id);
-      }
-    }
-
-    // Filter direction (INCOMING/OUTGOING)
-    if (args.filter === 'OUTGOING') {
-      where = { FromCollectiveId: outgoingFromCollectiveIds };
-    } else if (args.filter === 'INCOMING') {
-      where = { CollectiveId: collective.id };
-    } else {
-      where = { [Op.or]: { CollectiveId: collective.id, FromCollectiveId: outgoingFromCollectiveIds } };
-    }
-
-    if (args.status && args.status.length > 0) {
-      where.status = { [Op.in]: args.status };
-    }
-
-    if (args.tierSlug) {
-      const tierSlug = args.tierSlug.toLowerCase();
-      const tier = await models.Tier.findOne({ where: { CollectiveId: collective.id, slug: tierSlug } });
-      if (!tier) {
-        throw new NotFound('TierSlug Not Found');
-      }
-      where.TierId = tier.id;
-    }
-
-    // Pagination
-    if (args.limit <= 0 || args.limit > 1000) {
-      args.limit = 100;
-    }
-    if (args.offset <= 0) {
-      args.offset = 0;
-    }
-
-    if (args.onlySubscriptions) {
-      include = [{ model: models.Subscription, required: true }];
-    }
-
-    const result = await models.Order.findAndCountAll({
-      where,
-      include,
-      limit: args.limit,
-      offset: args.offset,
-      order: [[args.orderBy.field, args.orderBy.direction]],
-    });
-
-    return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
+    return OrdersCollectionResolver({ account: { id: collective.id }, ...args }, req);
   },
 };
 
