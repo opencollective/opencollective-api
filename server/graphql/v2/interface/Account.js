@@ -566,7 +566,7 @@ const accountTransactions = {
     ...TransactionsCollectionArgs,
   },
   async resolve(collective, args, req) {
-    return TransactionsCollectionResolver({ account: { id: collective.id }, ...args }, req);
+    return TransactionsCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
   },
 };
 
@@ -576,7 +576,7 @@ const accountOrders = {
     ...OrdersCollectionArgs,
   },
   async resolve(collective, args, req) {
-    return OrdersCollectionResolver({ account: { id: collective.id }, ...args }, req);
+    return OrdersCollectionResolver({ account: { legacyId: collective.id }, ...args }, req);
   },
 };
 

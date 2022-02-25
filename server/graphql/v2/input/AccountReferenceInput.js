@@ -111,6 +111,9 @@ export const fetchAccountWithReference = async (
  *    - include: to include associated models
  */
 export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = false, attributes, include } = {}) => {
+  // Compatibility with simple reference inputs not wrapped in an array
+  inputs = Array.isArray(inputs) ? inputs : [inputs];
+
   if (inputs.length > 200) {
     throw new Error('You can only fetch up to 200 accounts at once');
   } else if (inputs.length === 0) {
