@@ -39,7 +39,8 @@ const getJoinCondition = (
 };
 
 export const OrdersCollectionArgs = {
-  ...CollectionArgs,
+  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  offset: CollectionArgs.offset,
   includeHostedAccounts: {
     type: GraphQLBoolean,
     description: 'If account is a host, also include hosted accounts orders',
@@ -100,7 +101,13 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     { association: 'collective', required: true, attributes: [] },
   ];
 
-  // Check arguments
+  // Check Pagination arguments
+  if (args.limit <= 0) {
+    args.limit = 100;
+  }
+  if (args.offset <= 0) {
+    args.offset = 0;
+  }
   if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
     throw new Error('Cannot fetch more than 1,000 orders at the same time, please adjust the limit');
   }

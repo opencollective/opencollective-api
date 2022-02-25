@@ -16,7 +16,8 @@ import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
 export const TransactionsCollectionArgs = {
-  ...CollectionArgs,
+  limit: { ...CollectionArgs.limit, defaultValue: 100 },
+  offset: CollectionArgs.offset,
   type: {
     type: TransactionType,
     description: 'The transaction type (DEBIT or CREDIT)',
@@ -112,7 +113,13 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
   const where = [];
   const include = [];
 
-  // Check arguments
+  // Check Pagination arguments
+  if (args.limit <= 0) {
+    args.limit = 100;
+  }
+  if (args.offset <= 0) {
+    args.offset = 0;
+  }
   if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
     throw new Error('Cannot fetch more than 10,000 transactions at the same time, please adjust the limit');
   }
