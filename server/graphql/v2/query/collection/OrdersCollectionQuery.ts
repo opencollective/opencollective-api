@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable } from 'sequelize';
 
@@ -59,7 +59,7 @@ export const OrdersCollectionArgs = {
     description: 'Use this field to filter orders on their frequency (ONETIME, MONTHLY or YEARLY)',
   },
   status: {
-    type: OrderStatus,
+    type: new GraphQLList(OrderStatus),
     description: 'Use this field to filter orders on their statuses',
   },
   orderBy: {
@@ -189,8 +189,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['createdAt'] = where['createdAt'] || {};
     where['createdAt'][Op.lte] = args.dateTo;
   }
-  if (args.status) {
-    where['status'] = args.status;
+  if (args.status && args.status.length > 0) {
+    where['status'] = { [Op.in]: args.status };
   }
 
   if (args.frequency) {
