@@ -41,7 +41,7 @@
     "@opencollective/taxes": "3.1.0",
     "@paypal/payouts-sdk": "^1.1.0",
     "@sentry/node": "6.18.0",
-    "apollo-server-express": "3.6.2",
+    "apollo-server-express": "3.6.3",
     "argparse": "2.0.1",
     "aws-sdk": "2.1080.0",
     "axios": "0.26.0",
