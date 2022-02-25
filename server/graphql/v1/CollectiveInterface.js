@@ -587,6 +587,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       id: { type: GraphQLInt },
       createdByUser: { type: UserType },
       parentCollective: { type: CollectiveInterfaceType },
+      children: { type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)) },
       type: { type: GraphQLString },
       isActive: { type: GraphQLBoolean },
       name: { type: GraphQLString },
@@ -917,6 +918,12 @@ const CollectiveFields = () => {
       type: CollectiveInterfaceType,
       resolve(collective) {
         return models.Collective.findByPk(collective.ParentCollectiveId);
+      },
+    },
+    children: {
+      type: new GraphQLNonNull(new GraphQLList(CollectiveInterfaceType)),
+      resolve(collective) {
+        return collective.getChildren();
       },
     },
     type: {
