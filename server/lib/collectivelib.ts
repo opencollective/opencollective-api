@@ -1,7 +1,7 @@
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import { get, pick } from 'lodash';
-import { isURL } from 'validator';
+import isURL from 'validator/lib/isURL';
 
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
