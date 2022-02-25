@@ -29,7 +29,7 @@ interface PaypalPlanCreateWithProductAttributes extends PaypalPlanCommonCreateAt
   product?: PaypalProductCreateAttributes;
 }
 
-type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes & PaypalPlanCreateWithProductAttributes;
+type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes | PaypalPlanCreateWithProductAttributes;
 
 class PaypalPlan extends Model<PaypalPlanAttributes, PaypalPlanCreateAttributes> implements PaypalPlanAttributes {
   id: string;
