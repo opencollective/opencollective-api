@@ -87,7 +87,10 @@ export const OrdersCollectionArgs = {
     type: GraphQLString,
     description: 'The term to search',
   },
-  tierSlug: { type: GraphQLString },
+  tierSlug: {
+    type: GraphQLString,
+    deprecationReason: '2022-02-25: Should be replaced by a tier reference. Not existing yet.',
+  },
   onlySubscriptions: {
     type: GraphQLBoolean,
     description: `Only returns orders that have a subscription (monthly/yearly). Don't use together with frequency.`,
