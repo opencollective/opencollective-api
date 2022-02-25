@@ -107,7 +107,8 @@ const markOrderAsError = async order => {
   await order.update({ status: OrderStatus.ERROR });
 };
 
-const findOrdersWithErroneousStatus = async options => {
+const findOrdersWithErroneousStatus = async (_, commander) => {
+  const options = commander.optsWithGlobals();
   const hostSlugs = await getHostsSlugsFromOptions(options);
   for (const hostSlug of hostSlugs) {
     console.log(`\nChecking host ${hostSlug} for erroneous order statuses...`);
@@ -132,7 +133,8 @@ const findOrdersWithErroneousStatus = async options => {
   }
 };
 
-const findOrphanSubscriptions = async options => {
+const findOrphanSubscriptions = async (_, commander) => {
+  const options = commander.optsWithGlobals();
   const reason = `Some PayPal subscriptions were previously not cancelled properly. Please contact support@opencollective.com for any question.`;
   const hostSlugs = await getHostsSlugsFromOptions(options);
   const allHosts = await models.Collective.findAll({ where: { slug: hostSlugs } });
@@ -252,7 +254,8 @@ const findOrphanSubscriptions = async options => {
   }
 };
 
-const findMissingPaypalTransactions = async options => {
+const findMissingPaypalTransactions = async (_, commander) => {
+  const options = commander.optsWithGlobals();
   const hostSlugs = await getHostsSlugsFromOptions(options);
   for (const hostSlug of hostSlugs) {
     console.log(`\nChecking host ${hostSlug} for missing transactions...`);
@@ -328,7 +331,8 @@ const getRefundedTransactionsFromPaypal = async (host, startDate, endDate) => {
   return response['transaction_details'];
 };
 
-const findRefundedContributions = async options => {
+const findRefundedContributions = async (_, commander) => {
+  const options = commander.optsWithGlobals();
   const hostSlugs = await getHostsSlugsFromOptions(options);
   for (const hostSlug of hostSlugs) {
     console.log(`\nChecking host ${hostSlug} for refunded contributions not marked as such in our ledger...`);
