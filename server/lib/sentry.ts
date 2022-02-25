@@ -17,22 +17,23 @@ export const plugSentryToApp = (): void => {
 
 const IGNORED_GQL_ERRORS = [
   {
-    path: ['Collective', 'allMembers'],
-    message: /^No collective found with slug/,
+    path: [['Collective'], ['allMembers'], ['collectiveMembers']],
+    message: /^No collective found/,
   },
   {
-    path: ['allMembers'],
+    path: [['allMembers']],
     message: /^Invalid collectiveSlug \(not found\)$/,
   },
   {
-    path: ['createOrder'],
+    path: [['createOrder']],
     message: /^Your card was declined.$/,
   },
 ];
 
-const isIgnoredGQLError = err => {
+const isIgnoredGQLError = (err): boolean => {
   return IGNORED_GQL_ERRORS.some(ignoredError => {
-    return (!ignoredError.path || isEqual(ignoredError.path, err.path)) && err.message?.match(ignoredError.message);
+    const isMatchingPath = !ignoredError.path || ignoredError.path.some(path => isEqual(err.path, path));
+    return Boolean(isMatchingPath && err.message?.match(ignoredError.message));
   });
 };
 
