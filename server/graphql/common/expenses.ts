@@ -670,7 +670,11 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
 };
 
 const hasMultiCurrency = (collective, host) => {
-  return hasFeature(collective, FEATURE.MULTI_CURRENCY_EXPENSES) || hasFeature(host, FEATURE.MULTI_CURRENCY_EXPENSES);
+  if (collective.currency !== host?.currency) {
+    return false; // Only support multi-currency when collective/host have the same currency
+  } else {
+    return hasFeature(collective, FEATURE.MULTI_CURRENCY_EXPENSES) || hasFeature(host, FEATURE.MULTI_CURRENCY_EXPENSES);
+  }
 };
 
 type ExpenseData = {
