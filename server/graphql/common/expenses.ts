@@ -1353,7 +1353,7 @@ const checkHasBalanceToPayExpense = async (
 
   // Ensure the collective has enough funds to pay the expense, with an error margin of 20% of the expense amount
   // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  const getMinExpectedBalance = amountToPay => (isSameCurrency ? amountToPay : amountToPay * 1.2);
+  const getMinExpectedBalance = amountToPay => (isSameCurrency ? amountToPay : Math.round(amountToPay * 1.2));
 
   // Check base balance before fees
   if (balanceInExpenseCurrency < getMinExpectedBalance(expense.amount)) {

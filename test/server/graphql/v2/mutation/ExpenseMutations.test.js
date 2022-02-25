@@ -22,6 +22,7 @@ import {
   fakeConnectedAccount,
   fakeExpense,
   fakeExpenseItem,
+  fakeHost,
   fakeOrganization,
   fakePaymentMethod,
   fakePayoutMethod,
@@ -41,6 +42,20 @@ import {
 
 const SECRET_KEY = config.dbEncryption.secretKey;
 const CIPHER = config.dbEncryption.cipher;
+
+const SNAPSHOT_COLUMNS = [
+  'type',
+  'amount',
+  'netAmountInCollectiveCurrency',
+  'paymentProcessorFeeInHostCurrency',
+  'currency',
+  'hostCurrency',
+  'hostCurrencyFxRate',
+  'CollectiveId',
+  'FromCollectiveId',
+  'HostCollectiveId',
+  'isRefund',
+];
 
 export const addFunds = async (user, hostCollective, collective, amount) => {
   const currency = collective.currency || 'USD';
@@ -620,11 +635,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     before(async () => {
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeCollective({ name: 'OSC', admin: hostAdmin.collective, plan: 'network-host-plan' });
+      host = await fakeCollective({
+        name: 'OSC',
+        admin: hostAdmin.collective,
+        plan: 'network-host-plan',
+        currency: 'USD',
+      });
       collective = await fakeCollective({
         name: 'Babel',
         HostCollectiveId: host.id,
         admin: collectiveAdmin.collective,
+        currency: 'USD',
       });
       await hostAdmin.populateRoles();
       hostPaypalPm = await fakePaymentMethod({
@@ -1359,6 +1380,148 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await testWithPayoutMethodType('ACCOUNT_BALANCE');
         await testWithPayoutMethodType('PAYPAL');
         await testWithPayoutMethodType('OTHER');
+      });
+
+      describe('Multi-currency expense', () => {
+        it('Pays the expense manually', async () => {
+          const paymentProcessorFee = 100; // Expressed in collective currency
+          const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+          const expense = await fakeExpense({
+            amount: 1000,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+            currency: 'EUR', // collective & hosts are defined in USD in `before`
+          });
+
+          // Updates the collective balance and pay the expense
+          const initialBalance = await collective.getBalanceWithBlockedFunds();
+          const expenseAmountInCollectiveCurrency = Math.round(expense.amount * 1.1);
+          const expensePlusFeesInCollectiveCurrency = expenseAmountInCollectiveCurrency + paymentProcessorFee;
+          const creditedAmount = Math.round(expensePlusFeesInCollectiveCurrency * 1.2); // Balance needs to be 120% of the expense to pay it, that's the current security against fluctuations
+          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: creditedAmount });
+          expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + creditedAmount);
+          emailSendMessageSpy.resetHistory();
+          const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams: { paymentProcessorFee } };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.processExpense.status).to.eq('PAID');
+          expect(await collective.getBalanceWithBlockedFunds()).to.equal(
+            initialBalance + creditedAmount - expenseAmountInCollectiveCurrency - paymentProcessorFee,
+          );
+
+          // Check transactions
+          const expenseTransactions = await models.Transaction.findAll({
+            where: { ExpenseId: expense.id },
+            order: [['id', 'DESC']],
+          });
+
+          await preloadAssociationsForTransactions(expenseTransactions, SNAPSHOT_COLUMNS);
+          snapshotTransactions(expenseTransactions, { columns: SNAPSHOT_COLUMNS });
+
+          const debitTransaction = expenseTransactions.find(({ type }) => type === 'DEBIT');
+          expect(debitTransaction.amount).to.equal(-expenseAmountInCollectiveCurrency);
+          expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFee);
+          expect(debitTransaction.currency).to.equal(collective.currency);
+          expect(debitTransaction.hostCurrency).to.equal(host.currency); // same as collective.currency
+          expect(debitTransaction.hostCurrencyFxRate).to.equal(1); // host & collective have the same currency
+          expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(
+            -expenseAmountInCollectiveCurrency - paymentProcessorFee,
+          );
+
+          const creditTransaction = expenseTransactions.find(({ type }) => type === 'CREDIT');
+          expect(creditTransaction.amount).to.equal(expenseAmountInCollectiveCurrency + paymentProcessorFee);
+          expect(creditTransaction.currency).to.equal(collective.currency);
+          expect(creditTransaction.hostCurrency).to.equal(host.currency);
+          expect(creditTransaction.hostCurrencyFxRate).to.equal(1);
+          expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expenseAmountInCollectiveCurrency);
+          expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFee);
+
+          // Check sent emails
+          await waitForCondition(() => emailSendMessageSpy.callCount === 2);
+          expect(emailSendMessageSpy.callCount).to.equal(2);
+          // Email to payee
+          expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
+          expect(emailSendMessageSpy.args[0][1]).to.contain('10,00 €'); // title
+          expect(emailSendMessageSpy.args[0][2]).to.contain(`has been paid`); // content
+          expect(emailSendMessageSpy.args[0][2]).to.contain('10,00 €');
+          // Email to collective
+          expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
+          expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid for ${collective.name}`);
+        });
+
+        it('Records a manual payment with an active account', async () => {
+          const paymentProcessorFee = 100; // Expressed in collective currency
+          const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+          const payeeHost = await fakeHost({ currency: 'NZD' });
+          const payee = await fakeCollective({ HostCollectiveId: payeeHost.id });
+          const expense = await fakeExpense({
+            amount: 1000,
+            FromCollectiveId: payee.id,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+            currency: 'EUR', // collective & hosts are defined in USD in `before`
+          });
+
+          // Updates the collective balance and pay the expense
+          const initialBalance = await collective.getBalanceWithBlockedFunds();
+          const expenseAmountInCollectiveCurrency = Math.round(expense.amount * 1.1);
+          const expensePlusFeesInCollectiveCurrency = expenseAmountInCollectiveCurrency + paymentProcessorFee;
+          const creditedAmount = Math.round(expensePlusFeesInCollectiveCurrency * 1.2); // Balance needs to be 120% of the expense to pay it, that's the current security against fluctuations
+          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: creditedAmount });
+          expect(await collective.getBalanceWithBlockedFunds()).to.equal(initialBalance + creditedAmount);
+          emailSendMessageSpy.resetHistory();
+          const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams: { paymentProcessorFee } };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          result.errors && console.error(result.errors);
+          expect(result.errors).to.not.exist;
+          expect(result.data.processExpense.status).to.eq('PAID');
+          expect(await collective.getBalanceWithBlockedFunds()).to.equal(
+            initialBalance + creditedAmount - expenseAmountInCollectiveCurrency - paymentProcessorFee,
+          );
+
+          // Check transactions
+          const expenseTransactions = await models.Transaction.findAll({
+            where: { ExpenseId: expense.id },
+            order: [['id', 'DESC']],
+          });
+
+          await preloadAssociationsForTransactions(expenseTransactions, SNAPSHOT_COLUMNS);
+          snapshotTransactions(expenseTransactions, { columns: SNAPSHOT_COLUMNS });
+
+          const debitTransaction = expenseTransactions.find(({ type }) => type === 'DEBIT');
+          expect(debitTransaction.currency).to.equal(collective.currency);
+          expect(debitTransaction.hostCurrency).to.equal(host.currency); // same as collective.currency
+          expect(debitTransaction.amount).to.equal(-expenseAmountInCollectiveCurrency);
+          expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFee);
+          expect(debitTransaction.hostCurrencyFxRate).to.equal(1); // host & collective have the same currency
+          expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(
+            -expenseAmountInCollectiveCurrency - paymentProcessorFee,
+          );
+
+          const creditTransaction = expenseTransactions.find(({ type }) => type === 'CREDIT');
+          const paymentProcessorFeeInPayeeCurrency = Math.round(100 * 1.1);
+          expect(creditTransaction.currency).to.equal(collective.currency);
+          expect(creditTransaction.hostCurrency).to.equal(payee.host.currency);
+          expect(creditTransaction.hostCurrencyFxRate).to.equal(1.1);
+          expect(creditTransaction.amount).to.equal(expenseAmountInCollectiveCurrency + paymentProcessorFee);
+          expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expenseAmountInCollectiveCurrency);
+          expect(creditTransaction.paymentProcessorFeeInHostCurrency).to.equal(-paymentProcessorFeeInPayeeCurrency);
+
+          // Check sent emails
+          await waitForCondition(() => emailSendMessageSpy.callCount === 2);
+          expect(emailSendMessageSpy.callCount).to.equal(2);
+          // Email to payee
+          expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
+          expect(emailSendMessageSpy.args[0][1]).to.contain('10,00 €'); // title
+          expect(emailSendMessageSpy.args[0][2]).to.contain(`has been paid`); // content
+          expect(emailSendMessageSpy.args[0][2]).to.contain('10,00 €');
+          // Email to collective
+          expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
+          expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid for ${collective.name}`);
+        });
       });
     });
 

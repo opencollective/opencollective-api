@@ -84,6 +84,9 @@ export async function createFromPaidExpense(
   let hostCurrencyFxRate = 1;
   const payoutMethod = await expense.getPayoutMethod();
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
+  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  const isMultiCurrency = expense.collective.currency !== expense.currency;
+  let fxRateExpenseToCollective = 1;
 
   // If PayPal
   if (paymentResponses) {
@@ -127,6 +130,7 @@ export async function createFromPaidExpense(
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
+    // TODO get expense to collective fx rate
   }
   // PayPal Payouts
   else if (payoutMethodType === PayoutMethodTypes.PAYPAL && transactionData?.payout_batch_id) {
@@ -138,6 +142,7 @@ export async function createFromPaidExpense(
     paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
     hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
     platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
+    // TODO get expense to collective fx rate
   } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     if (host.settings?.transferwise?.ignorePaymentProcessorFees) {
       paymentProcessorFeeInHostCurrency = 0;
@@ -149,9 +154,15 @@ export async function createFromPaidExpense(
     paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);
     hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
     platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
+    // TODO get expense to collective fx rate
   } else {
     // If manual (add funds or manual reimbursement of an expense)
-    hostCurrencyFxRate = await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt);
+    hostCurrencyFxRate = await getFxRate(
+      expense.collective.currency,
+      host.currency,
+      expense.incurredAt || expense.createdAt,
+    );
+    fxRateExpenseToCollective = !isMultiCurrency ? 1 : await getFxRate(expense.currency, expense.collective.currency);
     paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);
     hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
     platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
@@ -159,10 +170,11 @@ export async function createFromPaidExpense(
 
   // We assume that all expenses are in Collective currency
   // (otherwise, ledger breaks with a triple currency conversion)
+  const amountInCollectiveCurrency = Math.round(expense.amount * fxRateExpenseToCollective);
   const transaction = {
     netAmountInCollectiveCurrency:
       -1 *
-      (expense.amount +
+      (amountInCollectiveCurrency +
         paymentProcessorFeeInCollectiveCurrency +
         hostFeeInCollectiveCurrency +
         platformFeeInCollectiveCurrency),
@@ -173,8 +185,8 @@ export async function createFromPaidExpense(
     ExpenseId: expense.id,
     type: DEBIT,
     kind: EXPENSE,
-    amount: -expense.amount,
-    currency: expense.currency,
+    amount: -amountInCollectiveCurrency,
+    currency: expense.collective.currency,
     description: expense.description,
     CreatedByUserId: UserId,
     CollectiveId: expense.CollectiveId,
@@ -185,7 +197,7 @@ export async function createFromPaidExpense(
   };
 
   transaction.hostCurrencyFxRate = hostCurrencyFxRate;
-  transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * expense.amount); // amountInHostCurrency is an INTEGER (in cents)
+  transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * amountInCollectiveCurrency); // amountInHostCurrency is an INTEGER (in cents)
 
   // If the payee is assuming the fees, we adapt the amounts
   if (expense.feesPayer === 'PAYEE') {
