@@ -11,6 +11,7 @@ import { ContributionFrequency } from '../../enum/ContributionFrequency';
 import { OrderStatus } from '../../enum/OrderStatus';
 import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { fetchTierWithReference, TierReferenceInput } from '../../input/TierReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 type OrderAssociation = 'fromCollective' | 'collective';
@@ -89,11 +90,15 @@ export const OrdersCollectionArgs = {
   },
   tierSlug: {
     type: GraphQLString,
-    deprecationReason: '2022-02-25: Should be replaced by a tier reference. Not existing yet.',
+    deprecationReason: '2022-02-25: Should be replaced by a tier reference.',
   },
   onlySubscriptions: {
     type: GraphQLBoolean,
     description: `Only returns orders that have a subscription (monthly/yearly). Don't use together with frequency.`,
+  },
+  tier: {
+    type: TierReferenceInput,
+    description: 'Only return orders allocated in this Tier.',
   },
 };
 
@@ -214,6 +219,12 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     if (!tier) {
       throw new NotFound('tierSlug Not Found');
     }
+    where['TierId'] = tier.id;
+  }
+
+  if (args.tier) {
+    // if account is missing fetchTierWithReference will throw an exception
+    const tier = await fetchTierWithReference(args.tier, { account, loaders: req.loaders, throwIfMissing: true });
     where['TierId'] = tier.id;
   }
 

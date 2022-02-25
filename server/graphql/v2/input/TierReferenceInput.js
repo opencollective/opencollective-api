@@ -19,6 +19,10 @@ export const TierReferenceInput = new GraphQLInputObjectType({
       type: GraphQLBoolean,
       description: 'Pass this flag to reference the custom tier (/donate)',
     },
+    slug: {
+      type: GraphQLString,
+      description: `The slug identifying the Tier.`,
+    },
   }),
 });
 
@@ -29,7 +33,7 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchTierWithReference = async (
   input,
-  { loaders = null, throwIfMissing, allowCustomTier = false } = {},
+  { loaders = null, throwIfMissing, allowCustomTier = false, account } = {},
 ) => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : models.Tier.findByPk(id));
   let tier;
@@ -38,6 +42,11 @@ export const fetchTierWithReference = async (
     tier = await loadTier(id);
   } else if (input.legacyId) {
     tier = await loadTier(input.legacyId);
+  } else if (input.slug) {
+    if (!account) {
+      throw new NotFound('Tier can only be fetched with slug reference when an account is specified');
+    }
+    tier = await models.Tier.findOne({ CollectiveId: account.id, slug: input.slug });
   } else if (allowCustomTier && input.isCustom) {
     return 'custom';
   } else {
