@@ -1,5 +1,5 @@
 import { GraphQLError, GraphQLScalarType, Kind } from 'graphql';
-import { isEmail } from 'validator';
+import isEmail from 'validator/lib/isEmail';
 
 const validateAndFormat = (value: unknown) => {
   if (typeof value !== 'string') {

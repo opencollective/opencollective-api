@@ -1,6 +1,6 @@
 import { get, pick } from 'lodash';
 import { DataTypes, Model, Transaction } from 'sequelize';
-import { isEmail } from 'validator';
+import isEmail from 'validator/lib/isEmail';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
@@ -110,7 +110,7 @@ export class PayoutMethod extends Model {
     let existingPm = null;
     if (payoutMethodData['type'] === PayoutMethodTypes.PAYPAL) {
       const email = get(payoutMethodData, 'data.email');
-      if (email && isEmail(email)) {
+      if (email && typeof email === 'string' && isEmail(email)) {
         existingPm = await PayoutMethod.scope('paypal').findOne({
           where: {
             CollectiveId: collective.id,
