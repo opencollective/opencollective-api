@@ -17,7 +17,10 @@ import {
   recordPaypalTransaction,
   refundPaypalCapture,
 } from '../../server/paymentProviders/paypal/payment';
-import { fetchPaypalTransactionsForSubscription } from '../../server/paymentProviders/paypal/subscription';
+import {
+  fetchPaypalSubscription,
+  fetchPaypalTransactionsForSubscription,
+} from '../../server/paymentProviders/paypal/subscription';
 
 // TODO: Move these to command-line options
 const START_DATE = new Date(process.env.START_DATE || '2022-02-01');
@@ -161,9 +164,16 @@ const showSubscriptionDetails = async paypalSubscriptionId => {
   }
 
   do {
-    const response = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
-    totalPages = <number>response['totalPages'];
-    logger.info({ response });
+    const responseSubscription = await fetchPaypalSubscription(host, paypalSubscriptionId);
+    const responseTransactions = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
+    totalPages = <number>responseTransactions['totalPages'];
+    const formatJSON = obj => JSON.stringify(obj, null, 2);
+    logger.info(
+      formatJSON({
+        subscription: responseSubscription,
+        transactions: responseTransactions['transactions'],
+      }),
+    );
     if (totalPages > 1) {
       throw new Error('Pagination not supported yet');
     }
