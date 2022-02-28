@@ -45,9 +45,11 @@ export const VirtualCard = new GraphQLObjectType({
     },
     name: {
       type: GraphQLString,
-      resolve(virtualCard, _, req) {
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (
           req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(collective.ParentCollectiveId) ||
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.name;
@@ -56,10 +58,11 @@ export const VirtualCard = new GraphQLObjectType({
     },
     last4: {
       type: GraphQLString,
-
-      resolve(virtualCard, _, req) {
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (
           req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(collective.ParentCollectiveId) ||
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.last4;
@@ -68,9 +71,11 @@ export const VirtualCard = new GraphQLObjectType({
     },
     data: {
       type: GraphQLJSONObject,
-      resolve(virtualCard, _, req) {
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (
           req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(collective.ParentCollectiveId) ||
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.data;
@@ -79,9 +84,11 @@ export const VirtualCard = new GraphQLObjectType({
     },
     privateData: {
       type: GraphQLJSONObject,
-      resolve(virtualCard, _, req) {
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (
           req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(collective.ParentCollectiveId) ||
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.get('privateData');
@@ -91,9 +98,11 @@ export const VirtualCard = new GraphQLObjectType({
     provider: { type: GraphQLString },
     spendingLimitAmount: {
       type: GraphQLInt,
-      resolve(virtualCard, _, req) {
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (
           req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(collective.ParentCollectiveId) ||
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.spendingLimitAmount;
@@ -102,9 +111,11 @@ export const VirtualCard = new GraphQLObjectType({
     },
     spendingLimitInterval: {
       type: GraphQLString,
-      resolve(virtualCard, _, req) {
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (
           req.remoteUser?.isAdmin(virtualCard.CollectiveId) ||
+          req.remoteUser?.isAdmin(collective.ParentCollectiveId) ||
           req.remoteUser?.isAdmin(virtualCard.HostCollectiveId)
         ) {
           return virtualCard.spendingLimitInterval;
