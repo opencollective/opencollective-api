@@ -293,7 +293,7 @@ export const usersToNotifyForUpdateSQLQuery = `
   WITH collective AS (
     SELECT c.*
     FROM "Collectives" c
-    WHERE id = :collectiveId
+    WHERE id = :collectiveId OR "ParentCollectiveId" = :collectiveId
   ), hosted_collectives AS (
     SELECT hc.*
     FROM "Collectives" hc
@@ -328,6 +328,11 @@ export const usersToNotifyForUpdateSQLQuery = `
         collective."ParentCollectiveId" IS NOT NULL
         AND m."CollectiveId" = collective."ParentCollectiveId"
         AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        --- Include child collective's contributors
+        collective."ParentCollectiveId" = :collectiveId
+        AND collective.id = m."CollectiveId"
+        AND m."role" IN (:targetRoles)
       )
     )
     GROUP BY mc.id
@@ -375,16 +380,21 @@ export const countMembersToNotifyForUpdateSQLQuery = `
     SELECT mc.id, mc."type", array_agg(m."role")::text[] && ARRAY['ADMIN', 'MEMBER'] AS is_core_contributor
     FROM "Members" m
     INNER JOIN "Collectives" mc ON m."MemberCollectiveId" = mc.id
-    FULL OUTER JOIN "Collectives" collective ON collective.id = :collectiveId
+    FULL OUTER JOIN "Collectives" collective ON (collective.id = :collectiveId OR collective."ParentCollectiveId" = :collectiveId)
     WHERE m."deletedAt" IS NULL
     AND mc."deletedAt" IS NULL
     AND ((
         m."CollectiveId" = collective.id AND m."role" IN (:targetRoles)
       ) OR (
-        -- Inlcude parent collective's core contributors
+        -- Include parent collective's core contributors
         collective."ParentCollectiveId" IS NOT NULL
         AND m."CollectiveId" = collective."ParentCollectiveId"
         AND m."role" IN ('ADMIN', 'MEMBER')
+      ) OR (
+        --- Include child collective's contributors
+        collective."ParentCollectiveId" = :collectiveId
+        AND collective.id = m."CollectiveId"
+        AND m."role" IN (:targetRoles)
       )
     )
     GROUP BY mc.id

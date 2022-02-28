@@ -16,6 +16,10 @@ const addRandomMemberUsers = (collective, count, role) => {
   );
 };
 
+const expectAllEmailsFrom = (usersList, receivedEmails) => {
+  return usersList.forEach(user => expect(receivedEmails).to.include(user.email));
+};
+
 describe('server/models/Update', () => {
   const dateOffset = 24 * 60 * 60 * 1000;
   const today = new Date().setUTCHours(0, 0, 0, 0);
@@ -86,8 +90,11 @@ describe('server/models/Update', () => {
 
   describe('Update audience', () => {
     let collective,
+      parentCollective,
       collectiveAdmins,
       parentCollectiveAdmins,
+      parentCollectiveBackers,
+      parentCollectiveFollowers,
       individualBackersUsers,
       backerOrganizations,
       collectiveFollowers,
@@ -104,7 +111,7 @@ describe('server/models/Update', () => {
 
     before(async () => {
       await utils.resetTestDB();
-      const parentCollective = await fakeCollective();
+      parentCollective = await fakeCollective();
       collective = await fakeCollective({ ParentCollectiveId: parentCollective.id });
       collective.parentCollective = parentCollective;
 
@@ -135,12 +142,13 @@ describe('server/models/Update', () => {
       expectedPublicTotal = expectedPrivateTotal + collectiveFollowers.length;
 
       // Pollute the DB with some random data to make sure it doesn't interfere
-      await addRandomMemberUsers(parentCollective, 7, 'BACKER'); // backers of the parent should not be included
-      await addRandomMemberUsers(parentCollective, 5, 'FOLLOWER');
+      parentCollectiveBackers = await addRandomMemberUsers(parentCollective, 7, 'BACKER');
+      parentCollectiveFollowers = await addRandomMemberUsers(parentCollective, 5, 'FOLLOWER');
       await Promise.all(times(15, fakeMember)); // random members on different collectives
       // Add some admins as BACKER (to test grouping)
       await collective.addUserWithRole(collectiveAdmins[0], 'BACKER');
       await collective.addUserWithRole(parentCollectiveAdmins[0], 'BACKER');
+
       // Add some deleted members
       await Promise.all(
         [parentCollective, collective, ...backerOrganizations].map(async account => {
@@ -178,15 +186,11 @@ describe('server/models/Update', () => {
         const usersToNotify = await update.getUsersToNotify();
         const receivedEmails = usersToNotify.map(u => u.email);
 
-        const expectAllEmailsFrom = usersList => {
-          return usersList.forEach(user => expect(receivedEmails).to.include(user.email));
-        };
-
-        expectAllEmailsFrom(parentCollectiveAdmins);
-        expectAllEmailsFrom(collectiveAdmins);
-        expectAllEmailsFrom(individualBackersUsers);
-        expectAllEmailsFrom(collectiveFollowers);
-        expectAllEmailsFrom(getOrganizationAdminUsers());
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(collectiveFollowers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
         expect(usersToNotify.length).to.eq(expectedPublicTotal);
       });
 
@@ -195,15 +199,54 @@ describe('server/models/Update', () => {
         const usersToNotify = await update.getUsersToNotify();
         const receivedEmails = usersToNotify.map(u => u.email);
 
-        const expectAllEmailsFrom = usersList => {
-          return usersList.forEach(user => expect(receivedEmails).to.include(user.email));
-        };
-
-        expectAllEmailsFrom(parentCollectiveAdmins);
-        expectAllEmailsFrom(collectiveAdmins);
-        expectAllEmailsFrom(individualBackersUsers);
-        expectAllEmailsFrom(getOrganizationAdminUsers());
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
         expect(usersToNotify.length).to.eq(expectedPrivateTotal);
+      });
+
+      it('Notifies child collective users when parent collective public update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
+        const usersToNotify = await update.getUsersToNotify();
+        const receivedEmails = usersToNotify.map(u => u.email);
+
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(parentCollectiveBackers, receivedEmails);
+        expectAllEmailsFrom(parentCollectiveFollowers, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
+
+        expect(usersToNotify.length).to.eq(
+          parentCollectiveAdmins.length +
+            parentCollectiveBackers.length +
+            parentCollectiveFollowers.length +
+            collectiveAdmins.length +
+            collectiveFollowers.length +
+            individualBackersUsers.length +
+            countAdminsOfMemberOrganizations(),
+        );
+      });
+
+      it('Notifies child collective users when parent collective private update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: true });
+        const usersToNotify = await update.getUsersToNotify();
+        const receivedEmails = usersToNotify.map(u => u.email);
+
+        expectAllEmailsFrom(parentCollectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(parentCollectiveBackers, receivedEmails);
+        expectAllEmailsFrom(collectiveAdmins, receivedEmails);
+        expectAllEmailsFrom(individualBackersUsers, receivedEmails);
+        expectAllEmailsFrom(getOrganizationAdminUsers(), receivedEmails);
+
+        expect(usersToNotify.length).to.eq(
+          parentCollectiveAdmins.length +
+            parentCollectiveBackers.length +
+            collectiveAdmins.length +
+            individualBackersUsers.length +
+            countAdminsOfMemberOrganizations(),
+        );
       });
     });
 
@@ -256,6 +299,27 @@ describe('server/models/Update', () => {
         expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
         expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
         expect(stats.USER).to.eq(individualBackersUsers.length);
+      });
+
+      it('When parent collective public update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: false });
+        const stats = await update.getAudienceMembersStats();
+        expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
+        expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
+        expect(stats.USER).to.eq(
+          individualBackersUsers.length +
+            parentCollectiveBackers.length +
+            collectiveFollowers.length +
+            parentCollectiveFollowers.length,
+        );
+      });
+
+      it('When parent collective private update is made', async () => {
+        const update = await fakeUpdate({ CollectiveId: parentCollective.id, isPrivate: true });
+        const stats = await update.getAudienceMembersStats();
+        expect(stats.ORGANIZATION).to.eq(backerOrganizations.length);
+        expect(stats.CORE_CONTRIBUTOR).to.eq(parentCollectiveAdmins.length + collectiveAdmins.length);
+        expect(stats.USER).to.eq(individualBackersUsers.length + parentCollectiveBackers.length);
       });
     });
   });
