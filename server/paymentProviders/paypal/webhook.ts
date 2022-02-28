@@ -115,6 +115,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
     nextChargeDate: moment().add(1, order.interval),
     isActive: true,
+    activatedAt: order.Subscription.activatedAt || new Date(),
   });
 
   // 4. Send thankyou email
