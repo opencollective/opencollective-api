@@ -133,6 +133,43 @@ const findOrdersWithErroneousStatus = async (_, commander) => {
   }
 };
 
+const showSubscriptionDetails = async paypalSubscriptionId => {
+  let currentPage = 1;
+  let totalPages = 1;
+
+  // Try to find the subscription somewhere
+  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId } });
+  if (!subscription) {
+    [subscription] = await sequelize.query(
+      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
+      { replacements: { paypalSubscriptionId }, type: sequelize.QueryTypes.SELECT },
+    );
+  }
+
+  if (!subscription) {
+    logger.error(`Could not find subscription ${paypalSubscriptionId}`);
+    return;
+  }
+
+  // Load host from subscription
+  const order = await models.Order.findOne({ where: { SubscriptionId: subscription.id } });
+  const collective = await order?.getCollective();
+  const host = await collective?.getHostCollective();
+  if (!host) {
+    logger.error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
+    return;
+  }
+
+  do {
+    const response = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
+    totalPages = <number>response['totalPages'];
+    logger.info({ response });
+    if (totalPages > 1) {
+      throw new Error('Pagination not supported yet');
+    }
+  } while (currentPage++ < totalPages);
+};
+
 const findOrphanSubscriptions = async (_, commander) => {
   const options = commander.optsWithGlobals();
   const reason = `Some PayPal subscriptions were previously not cancelled properly. Please contact support@opencollective.com for any question.`;
@@ -391,6 +428,7 @@ const main = async () => {
   program.command('invalid-orders').option('--fix').action(findOrdersWithErroneousStatus);
   program.command('transactions').option('--fix').action(findMissingPaypalTransactions);
   program.command('orphan-subscriptions').option('--fix').action(findOrphanSubscriptions);
+  program.command('subscription-details <subscriptionId>').action(showSubscriptionDetails);
 
   // Parse arguments
   await program.parseAsync();
