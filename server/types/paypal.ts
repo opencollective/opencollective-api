@@ -62,6 +62,11 @@ export type PayoutItemDetails = {
     sender_item_id: string;
   };
   time_processed: string;
+  currency_conversion?: {
+    to_amount: { value: number; currency: string };
+    from_amount: { value: number; currency: string };
+    exchange_rate: string;
+  };
   errors?: {
     name: string;
     debug_id: string;

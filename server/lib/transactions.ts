@@ -1,15 +1,14 @@
-import { round, set, toNumber, truncate } from 'lodash';
+import { set, truncate } from 'lodash';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
-import { getFxRate } from '../lib/currency';
-import errors from '../lib/errors';
 import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
 import models, { Op, sequelize } from '../models';
-import { PayoutMethodTypes } from '../models/PayoutMethod';
+
+import { getFxRate } from './currency';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { ADDED_FUNDS, CONTRIBUTION, EXPENSE } = TransactionKind;
@@ -57,138 +56,131 @@ export function getTransactions(collectiveids, startDate = new Date('2015-01-01'
     order: [['createdAt', 'DESC']],
   };
   if (options.limit) {
-    query.limit = options.limit;
+    query['limit'] = options.limit;
   }
   if (options.include) {
-    query.include = options.include;
+    query['include'] = options.include;
   }
   return models.Transaction.findAll(query);
 }
 
-export async function createFromPaidExpense(
-  host,
-  paymentMethod,
+type FEES_IN_HOST_CURRENCY = {
+  paymentProcessorFeeInHostCurrency?: number;
+  hostFeeInHostCurrency?: number;
+  platformFeeInHostCurrency?: number;
+};
+
+const DEFAULT_FEES = {
+  paymentProcessorFeeInHostCurrency: 0,
+  hostFeeInHostCurrency: 0,
+  platformFeeInHostCurrency: 0,
+};
+
+/**
+ * From a payout provider response, compute all amounts and FX rates in their proper currency
+ */
+const computeExpenseAmounts = async (
   expense,
-  paymentResponses,
-  UserId,
-  paymentProcessorFeeInHostCurrency = 0,
-  hostFeeInHostCurrency = 0,
-  platformFeeInHostCurrency = 0,
-  transactionData,
-) {
-  const hostCurrency = host.currency;
-  let createPaymentResponse, executePaymentResponse;
-  let paymentProcessorFeeInCollectiveCurrency = 0,
-    hostFeeInCollectiveCurrency = 0,
-    platformFeeInCollectiveCurrency = 0;
-  let hostCurrencyFxRate = 1;
-  const payoutMethod = await expense.getPayoutMethod();
-  const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
-  const isMultiCurrency = expense.collective.currency !== expense.currency;
-  let fxRateExpenseToCollective = 1;
+  hostCurrency: string,
+  expenseToHostFxRate: number,
+  fees: FEES_IN_HOST_CURRENCY,
+) => {
+  const fxRates = { expenseToHost: expenseToHostFxRate, collectiveToHost: undefined, expenseToCollective: undefined };
 
-  // If PayPal
-  if (paymentResponses) {
-    createPaymentResponse = paymentResponses.createPaymentResponse;
-    executePaymentResponse = paymentResponses.executePaymentResponse;
-
-    switch (executePaymentResponse.paymentExecStatus) {
-      case 'COMPLETED':
-        break;
-
-      case 'CREATED':
-        /*
-         * When we don't provide a preapprovalKey (paymentMethod.token) to payServices['paypal'](),
-         * it creates a payKey that we can use to redirect the user to PayPal.com to manually approve that payment
-         * TODO We should handle that case on the frontend
-         */
-        throw new errors.BadRequest(
-          `Please approve this payment manually on ${createPaymentResponse.paymentApprovalUrl}`,
-        );
-
-      case 'ERROR':
-        // Backward compatible error message parsing
-        // eslint-disable-next-line no-case-declarations
-        const errorMessage =
-          executePaymentResponse.payErrorList?.payError?.[0].error?.message ||
-          executePaymentResponse.payErrorList?.[0].error?.message;
-        throw new errors.ServerError(
-          `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
-        );
-
-      default:
-        throw new errors.ServerError(
-          `Error while paying the expense with PayPal. Please contact support@opencollective.com or pay it manually through PayPal.`,
-        );
-    }
-
-    // Warning senderFees can be null
-    const senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
-    paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
-
-    const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
-    hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
-    paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
-    // TODO get expense to collective fx rate
-  }
-  // PayPal Payouts
-  else if (payoutMethodType === PayoutMethodTypes.PAYPAL && transactionData?.payout_batch_id) {
-    hostCurrencyFxRate = transactionData.currency_conversion?.exchange_rate
-      ? 1 / toNumber(transactionData.currency_conversion?.exchange_rate)
-      : await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt);
-
-    paymentProcessorFeeInCollectiveCurrency = round(toNumber(transactionData.payout_item_fee?.value) * 100);
-    paymentProcessorFeeInHostCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency);
-    hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
-    platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
-    // TODO get expense to collective fx rate
-  } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-    if (host.settings?.transferwise?.ignorePaymentProcessorFees) {
-      paymentProcessorFeeInHostCurrency = 0;
-    } else if (transactionData?.paymentOption?.fee?.total) {
-      paymentProcessorFeeInHostCurrency = Math.round(transactionData.paymentOption.fee.total * 100);
-    }
-    // Notice this is the FX rate between Host and Collective, the user is not involved here and that's why TransferWise quote rate is irrelevant here.
-    hostCurrencyFxRate = await getFxRate(expense.currency, host.currency);
-    paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);
-    hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
-    platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
-    // TODO get expense to collective fx rate
+  // Adapt all FX rates based on what we received from the provider
+  if (expense.collective.currency === hostCurrency) {
+    // Either the host has the same currency as its collective and we can record everything directly
+    // We only support multi-currency expenses for this case
+    fxRates.collectiveToHost = 1;
+    fxRates.expenseToCollective = expenseToHostFxRate;
+  } else if (expense.currency === expense.collective.currency) {
+    // Or the expense has the same currency as its collective and we need to convert it to the host currency
+    fxRates.collectiveToHost = expenseToHostFxRate;
+    fxRates.expenseToCollective = 1;
   } else {
-    // If manual (add funds or manual reimbursement of an expense)
-    hostCurrencyFxRate = await getFxRate(
-      expense.collective.currency,
-      host.currency,
-      expense.incurredAt || expense.createdAt,
+    // Or we're in a tricky situation where we have neither the currency of the host or the currency of the collective
+    throw new Error(
+      'Multi-currency expenses are not supported for collectives that have a different currency than their hosts',
     );
-    fxRateExpenseToCollective = !isMultiCurrency ? 1 : await getFxRate(expense.currency, expense.collective.currency);
-    paymentProcessorFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * paymentProcessorFeeInHostCurrency);
-    hostFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * hostFeeInHostCurrency);
-    platformFeeInCollectiveCurrency = Math.round((1 / hostCurrencyFxRate) * platformFeeInHostCurrency);
   }
 
-  // We assume that all expenses are in Collective currency
-  // (otherwise, ledger breaks with a triple currency conversion)
-  const amountInCollectiveCurrency = Math.round(expense.amount * fxRateExpenseToCollective);
+  // Compute the amounts in the proper currency
+  return {
+    fxRates,
+    amount: {
+      inHostCurrency: Math.round(expense.amount * fxRates.expenseToHost),
+      inCollectiveCurrency: Math.round(expense.amount * fxRates.expenseToCollective),
+      inExpenseCurrency: expense.amount,
+    },
+    paymentProcessorFee: {
+      inHostCurrency: fees.paymentProcessorFeeInHostCurrency,
+      inCollectiveCurrency: Math.round(fees.paymentProcessorFeeInHostCurrency / fxRates.collectiveToHost),
+      inExpenseCurrency: Math.round(fees.paymentProcessorFeeInHostCurrency / fxRates.expenseToHost),
+    },
+    hostFee: {
+      inHostCurrency: fees.hostFeeInHostCurrency,
+      inCollectiveCurrency: Math.round(fees.hostFeeInHostCurrency / fxRates.collectiveToHost),
+      inExpenseCurrency: Math.round(fees.hostFeeInHostCurrency / fxRates.expenseToHost),
+    },
+    platformFee: {
+      inHostCurrency: fees.platformFeeInHostCurrency,
+      inCollectiveCurrency: Math.round(fees.platformFeeInHostCurrency / fxRates.collectiveToHost),
+      inExpenseCurrency: Math.round(fees.platformFeeInHostCurrency / fxRates.expenseToHost),
+    },
+  };
+};
+
+/**
+ * A function to create transactions for a given expense that is agnostic of the payout method
+ *
+ * TODO: This function should accept an `amount` to automatically represent what was really paid from the payment provider,
+ * in case it differs from expense.amount (e.g. when fees are put on the payee)
+ */
+export async function createTransactionsFromPaidExpense(
+  host,
+  expense,
+  fees: FEES_IN_HOST_CURRENCY = DEFAULT_FEES,
+  /** Set this to a different value if the expense was paid in a currency that differs form the host's */
+  expenseToHostFxRateConfig: number | 'auto',
+  /** Will be store in transaction.data */
+  transactionData: Record<string, unknown> = null,
+  /** @deprecated Only used for paypal adaptive, to link the payment method */
+  paymentMethod = null,
+) {
+  fees = { ...DEFAULT_FEES, ...fees };
+  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+
+  // Get the right FX rate for the expense
+  let expenseToHostFxRate;
+  if (expenseToHostFxRateConfig === 'auto') {
+    expenseToHostFxRate = await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt);
+  } else {
+    expenseToHostFxRate = expenseToHostFxRateConfig;
+  }
+
+  // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
+  const { paymentProcessorFeeInHostCurrency, hostFeeInHostCurrency, platformFeeInHostCurrency } = fees;
+  const processedAmounts = await computeExpenseAmounts(expense, host.currency, expenseToHostFxRate, fees);
   const transaction = {
     netAmountInCollectiveCurrency:
       -1 *
-      (amountInCollectiveCurrency +
-        paymentProcessorFeeInCollectiveCurrency +
-        hostFeeInCollectiveCurrency +
-        platformFeeInCollectiveCurrency),
-    hostCurrency,
+      (processedAmounts.amount.inCollectiveCurrency +
+        processedAmounts.paymentProcessorFee.inCollectiveCurrency +
+        processedAmounts.hostFee.inCollectiveCurrency +
+        processedAmounts.platformFee.inCollectiveCurrency),
+    amountInHostCurrency: -processedAmounts.amount.inHostCurrency,
+    hostCurrency: host.currency,
+    hostCurrencyFxRate: processedAmounts.fxRates.collectiveToHost,
     paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
     hostFeeInHostCurrency: toNegative(hostFeeInHostCurrency),
     platformFeeInHostCurrency: toNegative(platformFeeInHostCurrency),
     ExpenseId: expense.id,
     type: DEBIT,
     kind: EXPENSE,
-    amount: -amountInCollectiveCurrency,
-    currency: expense.collective.currency,
+    amount: -processedAmounts.amount.inCollectiveCurrency,
+    currency: expense.collective.currency, // We always record the transaction in the collective currency
     description: expense.description,
-    CreatedByUserId: UserId,
+    CreatedByUserId: expense.UserId, // TODO: Should be the person who triggered the payment
     CollectiveId: expense.CollectiveId,
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
@@ -196,13 +188,10 @@ export async function createFromPaidExpense(
     data: transactionData,
   };
 
-  transaction.hostCurrencyFxRate = hostCurrencyFxRate;
-  transaction.amountInHostCurrency = -Math.round(hostCurrencyFxRate * amountInCollectiveCurrency); // amountInHostCurrency is an INTEGER (in cents)
-
   // If the payee is assuming the fees, we adapt the amounts
   if (expense.feesPayer === 'PAYEE') {
-    transaction.amount += paymentProcessorFeeInCollectiveCurrency;
-    transaction.netAmountInCollectiveCurrency += paymentProcessorFeeInCollectiveCurrency;
+    transaction.amount += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
+    transaction.netAmountInCollectiveCurrency += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
     transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
   }
 
@@ -296,7 +285,7 @@ export async function generateDescription(transaction, { req = null, full = fals
   if (transaction.isRefund && transaction.RefundTransactionId) {
     const refundedTransaction = await (req
       ? req.loaders.Transaction.byId.load(transaction.RefundTransactionId)
-      : models.Transaction.findByPk(order.RefundTransactionId));
+      : models.Transaction.findByPk(transaction.RefundTransactionId));
     if (refundedTransaction) {
       const refundedTransactionDescription = await generateDescription(refundedTransaction, { req, full });
       return `Refund of "${refundedTransactionDescription}"`;

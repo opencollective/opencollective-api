@@ -12,11 +12,12 @@ import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { hasFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
+import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
-import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
+import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import {
   handleTwoFactorAuthenticationPayoutLimit,
   resetRollingPayoutLimitOnFailure,
@@ -1112,30 +1113,6 @@ async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): P
   return expense;
 }
 
-async function createTransactions(
-  host,
-  expense,
-  fees: {
-    paymentProcessorFeeInHostCurrency?: number;
-    hostFeeInHostCurrency?: number;
-    platformFeeInHostCurrency?: number;
-  } = {},
-  data = {},
-) {
-  debug('marking expense as paid and creating transactions in the ledger', expense.id);
-  return await createTransactionFromPaidExpense(
-    host,
-    null,
-    expense,
-    null,
-    expense.UserId,
-    fees['paymentProcessorFeeInHostCurrency'],
-    fees['hostFeeInHostCurrency'],
-    fees['platformFeeInHostCurrency'],
-    data,
-  );
-}
-
 async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMethod, toPaypalEmail, fees = {}) {
   debug('payExpenseWithPayPalAdaptive', expense.id);
 
@@ -1152,16 +1129,50 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       toPaypalEmail,
       paymentMethod.token,
     );
-    await createTransactionFromPaidExpense(
-      host,
-      paymentMethod,
-      expense,
-      paymentResponse,
-      expense.UserId,
-      fees['paymentProcessorFeeInHostCurrency'],
-      fees['hostFeeInHostCurrency'],
-      fees['platformFeeInHostCurrency'],
+
+    const { createPaymentResponse, executePaymentResponse } = paymentResponse;
+
+    switch (executePaymentResponse.paymentExecStatus) {
+      case 'COMPLETED':
+        break;
+
+      case 'CREATED':
+        /*
+         * When we don't provide a preapprovalKey (paymentMethod.token) to payServices['paypal'](),
+         * it creates a payKey that we can use to redirect the user to PayPal.com to manually approve that payment
+         * TODO We should handle that case on the frontend
+         */
+        throw new errors.BadRequest(
+          `Please approve this payment manually on ${createPaymentResponse.paymentApprovalUrl}`,
+        );
+
+      case 'ERROR':
+        // Backward compatible error message parsing
+        // eslint-disable-next-line no-case-declarations
+        const errorMessage =
+          executePaymentResponse.payErrorList?.payError?.[0].error?.message ||
+          executePaymentResponse.payErrorList?.[0].error?.message;
+        throw new errors.ServerError(
+          `Error while paying the expense with PayPal: "${errorMessage}". Please contact support@opencollective.com or pay it manually through PayPal.`,
+        );
+
+      default:
+        throw new errors.ServerError(
+          `Error while paying the expense with PayPal. Please contact support@opencollective.com or pay it manually through PayPal.`,
+        );
+    }
+
+    // Warning senderFees can be null
+    const senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
+    const paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
+    const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
+    const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
+    fees['paymentProcessorFeeInHostCurrency'] = Math.round(
+      hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency,
     );
+
+    // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
+    await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse, paymentMethod);
     const updatedExpense = await markExpenseAsPaid(expense, remoteUser);
     await paymentMethod.updateBalance();
     return updatedExpense;
@@ -1180,7 +1191,16 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
 }
 
 export async function createTransferWiseTransactionsAndUpdateExpense({ host, expense, data, fees, remoteUser }) {
-  await createTransactions(host, expense, fees, data);
+  if (host.settings?.transferwise?.ignorePaymentProcessorFees) {
+    // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
+    // See https://github.com/opencollective/opencollective/issues/5113
+    fees.paymentProcessorFeeInHostCurrency = 0;
+  } else if (data?.paymentOption?.fee?.total) {
+    fees.paymentProcessorFeeInHostCurrency.fees = Math.round(data.paymentOption.fee.total * 100);
+  }
+
+  const fxRate = 1; // TODO
+  await createTransactionsFromPaidExpense(host, expense, fees, fxRate, data);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
   await expense.setProcessing(remoteUser.id);
   return expense;
@@ -1506,9 +1526,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         // then we simply mark the expense as paid
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
-          await createTransactions(host, expense, feesInHostCurrency);
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
         } else if (forceManual) {
-          await createTransactions(host, expense, feesInHostCurrency);
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPalAdaptive(
             remoteUser,
@@ -1523,7 +1543,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
         if (forceManual) {
-          await createTransactions(host, expense, feesInHostCurrency);
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
         } else {
           const [connectedAccount] = await host.getConnectedAccounts({
             where: { service: 'transferwise', deletedAt: null },
@@ -1554,10 +1574,10 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
             'The payee needs to be on the same Host than the payer to be paid on its Open Collective balance.',
           );
         }
-        await createTransactions(host, expense, feesInHostCurrency);
+        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
         // note: we need to check for manual and other for legacy reasons
-        await createTransactions(host, expense, feesInHostCurrency);
+        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {
       if (useTwoFactorAuthentication) {

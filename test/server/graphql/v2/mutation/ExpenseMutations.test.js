@@ -1386,8 +1386,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         it('Pays the expense manually', async () => {
           const paymentProcessorFee = 100; // Expressed in collective currency
           const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+          const payee = await fakeCollective({ name: 'Payee', HostCollectiveId: null });
           const expense = await fakeExpense({
             amount: 1000,
+            FromCollectiveId: payee.id,
             CollectiveId: collective.id,
             status: 'APPROVED',
             PayoutMethodId: payoutMethod.id,
@@ -1454,8 +1456,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         it('Records a manual payment with an active account', async () => {
           const paymentProcessorFee = 100; // Expressed in collective currency
           const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
-          const payeeHost = await fakeHost({ currency: 'NZD' });
-          const payee = await fakeCollective({ HostCollectiveId: payeeHost.id });
+          const payeeHost = await fakeHost({ currency: 'NZD', name: 'PayeeHost' });
+          const payee = await fakeCollective({ name: 'Payee', HostCollectiveId: payeeHost.id });
           const expense = await fakeExpense({
             amount: 1000,
             FromCollectiveId: payee.id,

@@ -188,7 +188,7 @@ describe('paymentMethods/paypal/payouts.js', () => {
 
       expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
       expect(expense).to.have.property('status', 'PAID');
-      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -150);
+      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -150); // 1.20 / 0.8
       expect(transaction).to.have.property('amountInHostCurrency', -12500);
       expect(transaction).to.have.property('hostCurrency', 'USD');
       expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10120);
