@@ -35,6 +35,7 @@ export const PaymentMethod = new GraphQLObjectType({
           const publicProviders = [
             [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.GIFTCARD],
             [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.PREPAID],
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.COLLECTIVE],
           ];
 
           if (
