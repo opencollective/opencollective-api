@@ -31,14 +31,16 @@ export const PaymentMethod = new GraphQLObjectType({
       },
       name: {
         type: GraphQLString,
-        resolve(paymentMethod, _, req) {
+        async resolve(paymentMethod, _, req) {
           const publicProviders = [
             [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.GIFTCARD],
             [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.PREPAID],
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.COLLECTIVE],
           ];
 
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
           if (
-            (paymentMethod.CollectiveId && req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) ||
+            (paymentMethod.CollectiveId && req.remoteUser?.isAdminOfCollective(collective)) ||
             publicProviders.some(([service, type]) => paymentMethod.service === service && paymentMethod.type === type)
           ) {
             return paymentMethod.name;
@@ -78,19 +80,18 @@ export const PaymentMethod = new GraphQLObjectType({
       sourcePaymentMethod: {
         type: PaymentMethod,
         description: 'For gift cards, this field will return to the source payment method',
-        resolve(paymentMethod, _, req) {
-          if (paymentMethod.SourcePaymentMethodId && req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (paymentMethod.SourcePaymentMethodId && req.remoteUser?.isAdminOfCollective(collective)) {
             return req.loaders.PaymentMethod.byId.load(paymentMethod.SourcePaymentMethodId);
           }
         },
       },
       data: {
         type: GraphQLJSON,
-        resolve(paymentMethod, _, req) {
-          if (
-            !req.remoteUser?.isAdmin(paymentMethod.CollectiveId) &&
-            paymentMethod.type !== PAYMENT_METHOD_TYPE.CRYPTO
-          ) {
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective) && paymentMethod.type !== PAYMENT_METHOD_TYPE.CRYPTO) {
             return null;
           }
 
@@ -128,8 +129,9 @@ export const PaymentMethod = new GraphQLObjectType({
       },
       expiryDate: {
         type: GraphQLDateTime,
-        resolve(paymentMethod, _, req) {
-          if (!req.remoteUser?.isAdmin(paymentMethod.CollectiveId)) {
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective)) {
             return null;
           } else {
             return paymentMethod.expiryDate;
