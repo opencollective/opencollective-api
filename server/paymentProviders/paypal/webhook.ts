@@ -111,9 +111,11 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
   }
 
+  const nextChargeDate = moment().add(1, order.interval);
   await order.Subscription.update({
     chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
-    nextChargeDate: moment().add(1, order.interval),
+    nextChargeDate: nextChargeDate,
+    nextPeriodStart: nextChargeDate,
     isActive: true,
     activatedAt: order.Subscription.activatedAt || new Date(),
   });

@@ -1,4 +1,5 @@
 import { isEmpty, keys, pick } from 'lodash';
+import moment from 'moment';
 
 import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
@@ -9,6 +10,20 @@ import { findPaymentMethodProvider } from './payments';
 const getIsSubscriptionManagedExternally = pm => {
   const provider = findPaymentMethodProvider(pm);
   return Boolean(provider?.features?.isRecurringManagedExternally);
+};
+
+const getNextChargeDateForUpdateFromExternalToInternal = baseNextChargeDate => {
+  const previousNextChargeDate = moment(baseNextChargeDate);
+  if (previousNextChargeDate.isBefore(moment())) {
+    // If the contribution was pending, charge today
+    return moment();
+  } else if (previousNextChargeDate.date() > 15) {
+    // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
+    return moment().add(2, 'months').startOf('month');
+  } else {
+    // Otherwise, next charge date will be the beginning of the next month
+    return moment().add(1, 'months').startOf('month');
+  }
 };
 
 export const updatePaymentMethodForSubscription = async (
@@ -30,9 +45,16 @@ export const updatePaymentMethodForSubscription = async (
   const newSubscriptionData = { isActive: true, deactivatedAt: null };
   const wasManagedExternally = getIsSubscriptionManagedExternally(prevPaymentMethod);
   const isManagedExternally = getIsSubscriptionManagedExternally(newPaymentMethod);
-  if (wasManagedExternally !== isManagedExternally) {
-    newSubscriptionData['isManagedExternally'] = isManagedExternally;
+  if (wasManagedExternally && !isManagedExternally) {
+    // Reset flags for managing the subscription externally
+    newSubscriptionData['isManagedExternally'] = false;
     newSubscriptionData['paypalSubscriptionId'] = null;
+
+    // Update the next charge dates
+    const previousNextChargeDate = order.Subscription.nextChargeDate;
+    const nextChargeDate = getNextChargeDateForUpdateFromExternalToInternal(previousNextChargeDate);
+    newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
+    newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
   }
 
   // Need to cancel previous subscription
