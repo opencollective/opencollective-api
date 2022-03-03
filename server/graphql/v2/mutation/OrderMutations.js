@@ -4,7 +4,7 @@ import { difference, flatten, isEmpty, isNull, isUndefined, keyBy, keys, mapValu
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import {
   updateOrderSubscription,
@@ -439,11 +439,7 @@ const orderMutations = {
 
         if (isUpdatingPaymentMethod) {
           // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
-          if (
-            order.paymentMethod &&
-            order.paymentMethod.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
-            order.paymentMethod.type === PAYMENT_METHOD_TYPE.COLLECTIVE
-          ) {
+          if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
             throw new ValidationFailed(
               `Order #${order.id} has an unsupported payment method (${order.paymentMethod.service}/${order.paymentMethod.type})`,
             );
