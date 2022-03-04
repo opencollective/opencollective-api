@@ -87,7 +87,9 @@ export class PlanLimit extends ApolloError {
 export class TransferwiseError extends ApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
-      message || 'An unknown error happened with TransferWise. Please contact support@opencollective.com.',
+      message
+        ? `Wise: ${message}`
+        : 'An unknown error happened with TransferWise. Please contact support@opencollective.com.',
       code || 'transferwise.error.default',
       additionalProperties,
     );
