@@ -184,9 +184,10 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   const { totalAmount, fromAccountInfo, guestInfo } = order;
   const accountUpdatePayload = {};
   const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
+  const isContributingFromSameHost = fromAccount.HostCollectiveId === order.collective.HostCollectiveId;
 
   // Only enforce profile checks for guests and USD contributions at the moment
-  if (isGuest && currency === 'USD') {
+  if (isGuest && currency === 'USD' && !isContributingFromSameHost) {
     // Contributions that are more than $5000 must have an address attached
     if (totalAmount > 5000e2) {
       if (!location.structured && (!location.address || !location.country)) {
