@@ -1199,8 +1199,8 @@ export async function createTransferWiseTransactionsAndUpdateExpense({ host, exp
     fees.paymentProcessorFeeInHostCurrency.fees = Math.round(data.paymentOption.fee.total * 100);
   }
 
-  const fxRate = 1; // TODO
-  await createTransactionsFromPaidExpense(host, expense, fees, fxRate, data);
+  const expenseToHostFxRate = (expense.currency !== host.currency && data.quote.rate) || 1;
+  await createTransactionsFromPaidExpense(host, expense, fees, expenseToHostFxRate, data);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
   await expense.setProcessing(remoteUser.id);
   return expense;
