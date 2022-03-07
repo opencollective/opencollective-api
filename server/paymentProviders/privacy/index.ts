@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 import { isEmpty, omit } from 'lodash';
 
+import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
 import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
@@ -15,6 +16,11 @@ const processTransaction = async (
   privacyEvent: any,
 ): Promise<typeof models.Expense | undefined> => {
   const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
+
+  if (!virtualCard) {
+    logger.error(`Privacy: could not find virtual card ${privacyTransaction.card.token}`, privacyEvent);
+    return;
+  }
 
   if (privacyEvent) {
     const host = virtualCard.host;

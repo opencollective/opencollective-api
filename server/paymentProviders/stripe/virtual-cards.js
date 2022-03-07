@@ -110,6 +110,10 @@ export const deleteCard = async virtualCard => {
 
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
+  if (!virtualCard) {
+    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
+    return;
+  }
 
   const host = virtualCard.host;
 
@@ -190,6 +194,10 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
 
 export const processDeclinedAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
+  if (!virtualCard) {
+    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
+    return;
+  }
 
   const host = virtualCard.host;
 
@@ -204,6 +212,10 @@ export const processDeclinedAuthorization = async (stripeAuthorization, stripeEv
 
 export const processTransaction = async (stripeTransaction, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
+  if (!virtualCard) {
+    logger.error(`Stripe: could not find virtual card ${stripeTransaction.card.id}`, stripeEvent);
+    return;
+  }
 
   if (stripeEvent) {
     await checkStripeEvent(virtualCard.host, stripeEvent);
