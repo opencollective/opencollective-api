@@ -82,23 +82,13 @@ describe('server/routes/webhooks.stripe', () => {
       request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_source_chargeable).expect(400).end(done);
     });
 
-    it('returns an error if the event is `source.chargeable`', done => {
+    it('should return HTTP 200 if event is not supported', done => {
       const stripeMock = _.cloneDeep(originalStripeMock);
       stripeMock.event_source_chargeable.type = 'application_fee.created';
 
       sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
 
-      request(expressApp)
-        .post('/webhooks/stripe')
-        .send(stripeMock.webhook_payment_succeeded)
-        .expect(400, {
-          error: {
-            code: 400,
-            type: 'bad_request',
-            message: 'Wrong event type received : application_fee.created',
-          },
-        })
-        .end(done);
+      request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_payment_succeeded).expect(200).end(done);
     });
   });
 });
