@@ -100,7 +100,7 @@ export const checkBatchItemStatus = async (
           const paymentProcessorFeeInExpenseCurrency = floatAmountToCents(toNumber(item.payout_item_fee.value));
           fees['paymentProcessorFeeInHostCurrency'] = Math.round(paymentProcessorFeeInExpenseCurrency * fxRate);
           if (item.payout_item_fee.currency !== expense.currency) {
-            // payout_item_fee is always supposed to be in currency_conversion.to_amount.currency. This is a sanitiy check just in case
+            // payout_item_fee is always supposed to be in currency_conversion.to_amount.currency. This is a sanity check just in case
             logger.error(`Payout item fee currency does not match expense #${expense.id} currency`);
           }
         }

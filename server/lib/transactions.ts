@@ -142,7 +142,7 @@ export async function createTransactionsFromPaidExpense(
   fees: FEES_IN_HOST_CURRENCY = DEFAULT_FEES,
   /** Set this to a different value if the expense was paid in a currency that differs form the host's */
   expenseToHostFxRateConfig: number | 'auto',
-  /** Will be store in transaction.data */
+  /** Will be stored in transaction.data */
   transactionData: Record<string, unknown> = null,
   /** @deprecated Only used for paypal adaptive, to link the payment method */
   paymentMethod = null,
