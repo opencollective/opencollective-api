@@ -258,7 +258,8 @@ export default {
          * since they discontinued the support. */
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
       } else {
-        throw new errors.BadRequest(`Wrong event type received : ${event.type}`);
+        logger.warn(`Stripe: Webhooks: Received an unsuported event type: ${event.type}`);
+        return;
       }
     });
   },

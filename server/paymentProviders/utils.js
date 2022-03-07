@@ -9,7 +9,7 @@ import { toNegative } from '../lib/math';
 import models, { Op } from '../models';
 
 export const getVirtualCardForTransaction = async cardId => {
-  const virtualCard = await models.VirtualCard.findOne({
+  return models.VirtualCard.findOne({
     where: {
       id: cardId,
     },
@@ -19,12 +19,6 @@ export const getVirtualCardForTransaction = async cardId => {
       { association: 'user' },
     ],
   });
-
-  if (!virtualCard) {
-    throw new Error(`Could not find VirtualCard : ${cardId}`);
-  }
-
-  return virtualCard;
 };
 
 export const persistTransaction = async (virtualCard, transaction) => {
