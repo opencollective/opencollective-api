@@ -217,7 +217,10 @@ const ExpensesCollectionQuery = {
       where['createdAt'] = where['createdAt'] || {};
       where['createdAt'][Op.lte] = args.dateTo;
     }
-    if (args.payoutMethodType) {
+
+    if (args.payoutMethodType === 'CREDIT_CARD') {
+      where[Op.and].push({ VirtualCardId: { [Op.not]: null } });
+    } else if (args.payoutMethodType) {
       include.push({
         association: 'PayoutMethod',
         attributes: [],
