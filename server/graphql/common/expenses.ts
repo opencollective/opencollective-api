@@ -1196,7 +1196,7 @@ export async function createTransferWiseTransactionsAndUpdateExpense({ host, exp
     // See https://github.com/opencollective/opencollective/issues/5113
     fees.paymentProcessorFeeInHostCurrency = 0;
   } else if (data?.paymentOption?.fee?.total) {
-    fees.paymentProcessorFeeInHostCurrency.fees = Math.round(data.paymentOption.fee.total * 100);
+    fees.paymentProcessorFeeInHostCurrency = Math.round(data.paymentOption.fee.total * 100);
   }
 
   // Get FX rate
