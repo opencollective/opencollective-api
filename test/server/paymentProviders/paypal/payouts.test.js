@@ -8,7 +8,13 @@ import status from '../../../../server/constants/expense_status';
 import * as paypalLib from '../../../../server/lib/paypal';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import * as paypalPayouts from '../../../../server/paymentProviders/paypal/payouts';
-import { fakeCollective, fakeConnectedAccount, fakeExpense, fakePayoutMethod } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeExpense,
+  fakeHost,
+  fakePayoutMethod,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('paymentMethods/paypal/payouts.js', () => {
@@ -21,14 +27,14 @@ describe('paymentMethods/paypal/payouts.js', () => {
   describe('payExpensesBatch', () => {
     let expense, host, collective, payoutMethod;
     beforeEach(async () => {
-      host = await fakeCollective({ isHostAccount: true });
+      host = await fakeHost({ currency: 'USD' });
       await fakeConnectedAccount({
         CollectiveId: host.id,
         service: 'paypal',
         clientId: 'fake',
         token: 'fake',
       });
-      collective = await fakeCollective({ HostCollectiveId: host.id });
+      collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
       payoutMethod = await fakePayoutMethod({
         type: PayoutMethodTypes.PAYPAL,
         data: {
@@ -144,6 +150,54 @@ describe('paymentMethods/paypal/payouts.js', () => {
     });
 
     it('work with cross-currency collectives', async () => {
+      const collectiveInEur = await fakeCollective({ currency: 'EUR', HostCollectiveId: host.id });
+      const expense = await fakeExpense({
+        status: status.PROCESSING,
+        amount: 10000,
+        CollectiveId: collectiveInEur.id,
+        currency: 'EUR',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+        description: 'May Invoice',
+        data: { payout_batch_id: 'fake-batch-id-eur' },
+      });
+      expense.collective = collectiveInEur;
+
+      paypalLib.getBatchInfo.resolves({
+        items: [
+          {
+            transaction_status: 'SUCCESS',
+            payout_item: { sender_item_id: expense.id.toString() },
+            payout_batch_id: 'fake-batch-id-eur',
+            payout_item_fee: {
+              currency: 'EUR',
+              value: '1.20',
+            },
+            currency_conversion: {
+              to_amount: { value: '100.00', currency: 'EUR' },
+              from_amount: { value: '125.00', currency: 'USD' },
+              exchange_rate: '0.80',
+            },
+          },
+        ],
+      });
+
+      await paypalPayouts.checkBatchStatus([expense]);
+      const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+
+      expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
+      expect(expense).to.have.property('status', 'PAID');
+      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -150); // 1.20 / 0.8
+      expect(transaction).to.have.property('amountInHostCurrency', -12500);
+      expect(transaction).to.have.property('hostCurrency', 'USD');
+      expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10120);
+      expect(transaction).to.have.property('currency', collectiveInEur.currency); // EUR
+      expect(transaction).to.have.property('amount', -10000); // EUR
+    });
+
+    it("work with cross-currency expense (but collective's still using host currency)", async () => {
+      // Here expense=EUR, collective=USD, host=USD
       const expense = await fakeExpense({
         status: status.PROCESSING,
         amount: 10000,
@@ -168,24 +222,32 @@ describe('paymentMethods/paypal/payouts.js', () => {
               value: '1.20',
             },
             currency_conversion: {
-              to_amount: { value: '99.312', currency: 'EUR' },
-              from_amount: { value: '124.14', currency: 'USD' },
+              to_amount: { value: '100.00', currency: 'EUR' },
+              from_amount: { value: '125.00', currency: 'USD' },
               exchange_rate: '0.80',
             },
           },
         ],
       });
 
+      const paymentProcessorFeeInExpenseCurrency = 120; // As defined in the mock
+      const paymentProcessorFeeInHostCurrency = paymentProcessorFeeInExpenseCurrency / 0.8;
+      const expenseAmountInHostCurrency = expense.amount / 0.8;
+
       await paypalPayouts.checkBatchStatus([expense]);
       const [transaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
 
       expect(paypalLib.getBatchInfo.getCall(0)).to.have.property('lastArg', 'fake-batch-id-eur');
       expect(expense).to.have.property('status', 'PAID');
-      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -150);
+      expect(transaction).to.have.property('paymentProcessorFeeInHostCurrency', -paymentProcessorFeeInHostCurrency);
       expect(transaction).to.have.property('amountInHostCurrency', -12500);
       expect(transaction).to.have.property('hostCurrency', 'USD');
-      expect(transaction).to.have.property('netAmountInCollectiveCurrency', -10120);
-      expect(transaction).to.have.property('currency', 'EUR');
+      expect(transaction).to.have.property('currency', collective.currency); // USD
+      expect(transaction).to.have.property('amount', -12500); // USD
+      expect(transaction).to.have.property(
+        'netAmountInCollectiveCurrency',
+        -expenseAmountInHostCurrency - paymentProcessorFeeInHostCurrency,
+      );
     });
 
     const failedStatuses = ['FAILED', 'BLOCKED', 'REFUNDED', 'RETURNED', 'REVERSED'];

@@ -2,13 +2,14 @@
 
 import { createHash } from 'crypto';
 
-import { isNil, round } from 'lodash';
+import { isNil, round, toNumber } from 'lodash';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
 import logger from '../../lib/logger';
+import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
-import { createFromPaidExpense as createTransactionFromPaidExpense } from '../../lib/transactions';
+import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models from '../../models';
 import { PayoutItemDetails } from '../../types/paypal';
 
@@ -27,7 +28,7 @@ export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promi
 
   const host = await firstExpense.collective.getHostCollective();
   if (!host) {
-    throw new Error(`Could not find the host embursing the expense.`);
+    throw new Error(`Could not find the host reimbursing the expense.`);
   }
 
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
@@ -93,7 +94,18 @@ export const checkBatchItemStatus = async (
   switch (item.transaction_status) {
     case 'SUCCESS':
       if (expense.status !== status.PAID) {
-        await createTransactionFromPaidExpense(host, null, expense, null, expense.UserId, 0, 0, 0, item);
+        const fees = {};
+        const fxRate = 1 / (toNumber(item.currency_conversion?.exchange_rate) || 1);
+        if (item.payout_item_fee) {
+          const paymentProcessorFeeInExpenseCurrency = floatAmountToCents(toNumber(item.payout_item_fee.value));
+          fees['paymentProcessorFeeInHostCurrency'] = Math.round(paymentProcessorFeeInExpenseCurrency * fxRate);
+          if (item.payout_item_fee.currency !== expense.currency) {
+            // payout_item_fee is always supposed to be in currency_conversion.to_amount.currency. This is a sanity check just in case
+            logger.error(`Payout item fee currency does not match expense #${expense.id} currency`);
+          }
+        }
+
+        await createTransactionsFromPaidExpense(host, expense, fees, fxRate, item);
         await expense.setPaid(expense.lastEditedById);
         const user = await models.User.findByPk(expense.lastEditedById);
         await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
