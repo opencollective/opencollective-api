@@ -219,7 +219,7 @@ const ExpensesCollectionQuery = {
     }
 
     if (args.payoutMethodType === 'CREDIT_CARD') {
-      where[Op.and].push(sequelize.literal(`("VirtualCardId" IS NOT NULL)`));
+      where[Op.and].push({ VirtualCardId: { [Op.not]: null } });
     } else if (args.payoutMethodType) {
       include.push({
         association: 'PayoutMethod',
