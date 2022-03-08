@@ -1199,8 +1199,13 @@ export async function createTransferWiseTransactionsAndUpdateExpense({ host, exp
     fees.paymentProcessorFeeInHostCurrency.fees = Math.round(data.paymentOption.fee.total * 100);
   }
 
-  const expenseToHostFxRate = (expense.currency !== host.currency && data.quote.rate) || 1;
-  await createTransactionsFromPaidExpense(host, expense, fees, expenseToHostFxRate, data);
+  // Get FX rate
+  const rateFromTransferwise = expense.currency === host.currency ? 1 : data.transfer?.rate || data.quote?.rate;
+  if (!rateFromTransferwise) {
+    logger.warn(`Could not retrieve the FX rate from Wise for expense #${expense.id}. Falling back to 'auto' mode.`);
+  }
+
+  await createTransactionsFromPaidExpense(host, expense, fees, rateFromTransferwise || 'auto', data);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
   await expense.setProcessing(remoteUser.id);
   return expense;
