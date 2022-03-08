@@ -629,6 +629,7 @@ export const loaders = req => {
           },
           CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
           type: TransactionTypes.CREDIT,
+          RefundTransactionId: null,
         },
         group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],
       }).then(results => {
