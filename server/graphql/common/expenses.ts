@@ -39,6 +39,7 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../errors';
+import { CurrencyFxRateSourceTypeEnum } from '../v2/enum/CurrencyFxRateSourceType';
 
 const debug = debugLib('expenses');
 
@@ -1680,3 +1681,53 @@ export async function quoteExpense(expense_, { req }) {
     return quote;
   }
 }
+
+export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, req) => {
+  // Small helper to quickly generate an Amount object with fxRate
+  const buildAmount = (fxRatePercentage, fxRateSource, isApproximate, date = expense.createdAt) => ({
+    value: Math.round(expense.amount * fxRatePercentage),
+    currency: toCurrency,
+    fxRate: {
+      percentage: fxRatePercentage,
+      source: fxRateSource,
+      fromCurrency: expense.currency,
+      toCurrency: toCurrency,
+      date: date || expense.createdAt,
+      isApproximate,
+    },
+  });
+
+  // Simple case: no conversion needed
+  if (toCurrency === expense.currency) {
+    return { value: expense.amount, currency: expense.currency, fxRate: null };
+  }
+
+  // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)
+  const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+    const wiseInfo = expense.data?.transfer || expense.data?.quote;
+    if (wiseInfo?.rate && wiseInfo.sourceCurrency === expense.currency && wiseInfo.toCurrency === toCurrency) {
+      const date = wiseInfo['created'] || wiseInfo['createdTime']; // "created" for transfers, "createdTime" for quotes
+      return buildAmount(wiseInfo.rate, CurrencyFxRateSourceTypeEnum.WISE, true, date);
+    }
+  } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+    const currencyConversion = expense.data?.['currency_conversion'];
+    if (
+      currencyConversion &&
+      currencyConversion['from_amount']['currency'] === expense.currency &&
+      currencyConversion['to_amount']['currency'] === toCurrency
+    ) {
+      const rate = parseFloat(currencyConversion['exchange_rate']);
+      const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
+      return buildAmount(rate, CurrencyFxRateSourceTypeEnum.PAYPAL, true, date);
+    }
+  }
+
+  if (expense.status === 'PAID') {
+    // TODO: If the expense was paid, we should be able to fetch the FX rate from the transaction
+  }
+
+  // Fallback on internal system
+  const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({ fromCurrency: expense.currency, toCurrency });
+  return buildAmount(fxRate, CurrencyFxRateSourceTypeEnum.OPENCOLLECTIVE, true);
+};

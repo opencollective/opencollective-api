@@ -101,27 +101,13 @@ const Expense = new GraphQLObjectType({
             return null;
           }
 
-          // Convert to the right currency
-          if (currency === expense.currency) {
-            return { value: expense.amount, currency: expense.currency }; // No need to convert
-          } else if (expense.status === expenseStatus.PAID) {
-            // TODO fetch from PAID transaction
-            return { value: 0, currency };
-          } else {
-            return {
-              currency,
-              value: await req.loaders.CurrencyExchangeRate.convert.load({
-                amount: expense.amount,
-                fromCurrency: expense.currency,
-                toCurrency: currency,
-              }),
-            };
-          }
+          return ExpenseLib.getExpenseAmountInDifferentCurrency(expense, currency, req);
         },
       },
       accountCurrencyFxRate: {
         type: new GraphQLNonNull(GraphQLFloat),
         description: 'The exchange rate between the expense currency and the account currency',
+        deprecationReason: '2022-02-09: Please use amountV2',
         async resolve(expense, args, req) {
           expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
           if (expense.collective.currency === expense.currency) {
