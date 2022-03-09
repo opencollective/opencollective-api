@@ -30,7 +30,9 @@ const checkExpense = async expenseId => {
 
   const host = await expense.collective.getHostCollective();
   const payoutMethod = await expense.getPayoutMethod();
-  const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod);
+  const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
+    useExistingWiseData: true,
+  });
 
   const args = {
     host,

@@ -1249,7 +1249,7 @@ type FeesArgs = {
 export const getExpenseFees = async (
   expense,
   host,
-  { fees = {}, payoutMethod, forceManual },
+  { fees = {}, payoutMethod, forceManual, useExistingWiseData = false },
 ): Promise<{
   feesInHostCurrency: {
     paymentProcessorFeeInHostCurrency: number;
@@ -1284,11 +1284,12 @@ export const getExpenseFees = async (
     if (!connectedAccount) {
       throw new Error('Host is not connected to Transferwise');
     }
-    const quote =
-      expense.data.quote ||
-      (await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense));
-    const paymentOption =
-      expense.data.paymentOption || quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+    const quote = useExistingWiseData
+      ? expense.data.quote
+      : await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
+    const paymentOption = useExistingWiseData
+      ? expense.data.paymentOption
+      : quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
     if (!paymentOption) {
       throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
     }
@@ -1373,7 +1374,7 @@ export const checkHasBalanceToPayExpense = async (
   host,
   expense,
   payoutMethod,
-  { forceManual = false, manualFees = {} } = {},
+  { forceManual = false, manualFees = {}, useExistingWiseData = false } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
   const balanceInExpenseCurrency = await expense.collective.getBalanceWithBlockedFunds({ currency: expense.currency });
@@ -1400,6 +1401,7 @@ export const checkHasBalanceToPayExpense = async (
     fees: manualFees,
     payoutMethod,
     forceManual,
+    useExistingWiseData,
   });
 
   // Estimate the total amount to pay from the collective, based on who's supposed to pay the fee
