@@ -1284,8 +1284,11 @@ export const getExpenseFees = async (
     if (!connectedAccount) {
       throw new Error('Host is not connected to Transferwise');
     }
-    const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
-    const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+    const quote =
+      expense.data.quote ||
+      (await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense));
+    const paymentOption =
+      expense.data.paymentOption || quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
     if (!paymentOption) {
       throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
     }
@@ -1366,7 +1369,7 @@ const generateInsufficientBalanceErrorMessage = ({
 /**
  * Check if the collective balance is enough to pay the expense. Throws if not.
  */
-const checkHasBalanceToPayExpense = async (
+export const checkHasBalanceToPayExpense = async (
   host,
   expense,
   payoutMethod,
