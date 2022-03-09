@@ -528,6 +528,10 @@ export const scheduleExpenseForPayment = async (
   }
 
   const host = await expense.collective.getHostCollective();
+  if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
+    throw new Unauthorized('Multi-currency expenses are not enabled for this collective');
+  }
+
   const payoutMethod = await expense.getPayoutMethod();
   await checkHasBalanceToPayExpense(host, expense, payoutMethod);
 
@@ -1482,6 +1486,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       throw new Unauthorized("You don't have permission to pay this expense");
     }
     const host = await expense.collective.getHostCollective();
+    if (expense.currency !== expense.collective.currency && !hasMultiCurrency(expense.collective, host)) {
+      throw new Unauthorized('Multi-currency expenses are not enabled for this collective');
+    }
 
     if (expense.legacyPayoutMethod === 'donation') {
       throw new Error('"In kind" donations are not supported anymore');
