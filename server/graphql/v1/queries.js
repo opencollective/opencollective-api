@@ -7,6 +7,7 @@ import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
+import logger from '../../lib/logger';
 import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
 import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
@@ -943,6 +944,7 @@ const queries = {
     async resolve(_, args, req) {
       const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts } = args;
       const cleanTerm = term ? term.trim() : '';
+      logger.info(`Search Query: ${cleanTerm}`);
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
         const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
