@@ -8,9 +8,9 @@ const CurrencyFxRate = new GraphQLObjectType({
   name: 'CurrencyFxRate',
   description: 'Fields for a currency fx rate',
   fields: () => ({
-    percentage: {
+    value: {
       type: new GraphQLNonNull(GraphQLFloat),
-      description: 'Amount of this item',
+      description: 'Exchange rate value as a percentage',
     },
     source: {
       type: new GraphQLNonNull(CurrencyFxRateSourceType),

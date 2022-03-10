@@ -1688,7 +1688,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
     value: Math.round(expense.amount * fxRatePercentage),
     currency: toCurrency,
     fxRate: {
-      percentage: fxRatePercentage,
+      value: fxRatePercentage,
       source: fxRateSource,
       fromCurrency: expense.currency,
       toCurrency: toCurrency,
