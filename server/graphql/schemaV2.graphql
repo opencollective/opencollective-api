@@ -3885,7 +3885,7 @@ type CurrencyExchangeRate {
   """
   Where does the FX rate comes from
   """
-  source: CurrencyFxRateSourceType!
+  source: CurrencyExchangeRateSourceType!
   fromCurrency: Currency!
   toCurrency: Currency!
 
@@ -3903,7 +3903,7 @@ type CurrencyExchangeRate {
 """
 Where does the FX rate come from
 """
-enum CurrencyFxRateSourceType {
+enum CurrencyExchangeRateSourceType {
   """
   Open Collective internal system, relying on caching and 3rd party APIs
   """

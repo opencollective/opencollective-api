@@ -2,7 +2,7 @@ import { GraphQLBoolean, GraphQLFloat, GraphQLNonNull, GraphQLObjectType } from 
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { Currency } from '../enum';
-import { CurrencyFxRateSourceType } from '../enum/CurrencyFxRateSourceType';
+import { CurrencyExchangeRateSourceType } from '../enum/CurrencyExchangeRateSourceType';
 
 const CurrencyExchangeRate = new GraphQLObjectType({
   name: 'CurrencyExchangeRate',
@@ -13,7 +13,7 @@ const CurrencyExchangeRate = new GraphQLObjectType({
       description: 'Exchange rate value as a percentage',
     },
     source: {
-      type: new GraphQLNonNull(CurrencyFxRateSourceType),
+      type: new GraphQLNonNull(CurrencyExchangeRateSourceType),
       description: 'Where does the FX rate comes from',
     },
     fromCurrency: {

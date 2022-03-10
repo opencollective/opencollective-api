@@ -39,7 +39,7 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../errors';
-import { CurrencyFxRateSourceTypeEnum } from '../v2/enum/CurrencyFxRateSourceType';
+import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
 
 const debug = debugLib('expenses');
 
@@ -1703,12 +1703,13 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   }
 
   // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)
+  const { WISE, PAYPAL, OPENCOLLECTIVE } = CurrencyExchangeRateSourceTypeEnum;
   const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
   if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
     const wiseInfo = expense.data?.transfer || expense.data?.quote;
     if (wiseInfo?.rate && wiseInfo.sourceCurrency === expense.currency && wiseInfo.toCurrency === toCurrency) {
       const date = wiseInfo['created'] || wiseInfo['createdTime']; // "created" for transfers, "createdTime" for quotes
-      return buildAmount(wiseInfo.rate, CurrencyFxRateSourceTypeEnum.WISE, true, date);
+      return buildAmount(wiseInfo.rate, WISE, true, date);
     }
   } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
     const currencyConversion = expense.data?.['currency_conversion'];
@@ -1719,7 +1720,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
     ) {
       const rate = parseFloat(currencyConversion['exchange_rate']);
       const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
-      return buildAmount(rate, CurrencyFxRateSourceTypeEnum.PAYPAL, true, date);
+      return buildAmount(rate, PAYPAL, true, date);
     }
   }
 
@@ -1729,5 +1730,5 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
 
   // Fallback on internal system
   const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({ fromCurrency: expense.currency, toCurrency });
-  return buildAmount(fxRate, CurrencyFxRateSourceTypeEnum.OPENCOLLECTIVE, true);
+  return buildAmount(fxRate, OPENCOLLECTIVE, true);
 };
