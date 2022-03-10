@@ -1687,7 +1687,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   const buildAmount = (fxRatePercentage, fxRateSource, isApproximate, date = expense.createdAt) => ({
     value: Math.round(expense.amount * fxRatePercentage),
     currency: toCurrency,
-    fxRate: {
+    exchangeRate: {
       value: fxRatePercentage,
       source: fxRateSource,
       fromCurrency: expense.currency,
@@ -1699,7 +1699,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
 
   // Simple case: no conversion needed
   if (toCurrency === expense.currency) {
-    return { value: expense.amount, currency: expense.currency, fxRate: null };
+    return { value: expense.amount, currency: expense.currency, exchangeRate: null };
   }
 
   // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)

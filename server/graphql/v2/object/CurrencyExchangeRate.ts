@@ -4,8 +4,8 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { Currency } from '../enum';
 import { CurrencyFxRateSourceType } from '../enum/CurrencyFxRateSourceType';
 
-const CurrencyFxRate = new GraphQLObjectType({
-  name: 'CurrencyFxRate',
+const CurrencyExchangeRate = new GraphQLObjectType({
+  name: 'CurrencyExchangeRate',
   description: 'Fields for a currency fx rate',
   fields: () => ({
     value: {
@@ -33,4 +33,4 @@ const CurrencyFxRate = new GraphQLObjectType({
   }),
 });
 
-export default CurrencyFxRate;
+export default CurrencyExchangeRate;

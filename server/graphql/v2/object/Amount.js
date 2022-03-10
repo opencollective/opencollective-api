@@ -3,7 +3,7 @@ import { isNil } from 'lodash';
 
 import { Currency } from '../enum/Currency';
 
-import CurrencyFxRate from './CurrencyFxRate';
+import CurrencyExchangeRate from './CurrencyExchangeRate';
 
 export const Amount = new GraphQLObjectType({
   name: 'Amount',
@@ -35,8 +35,8 @@ export const Amount = new GraphQLObjectType({
         }
       },
     },
-    fxRate: {
-      type: CurrencyFxRate,
+    exchangeRate: {
+      type: CurrencyExchangeRate,
       description:
         'If the amount was generated from a currency conversion, this field contains details about the conversion',
     },

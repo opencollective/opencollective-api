@@ -3870,13 +3870,13 @@ type Amount {
   """
   If the amount was generated from a currency conversion, this field contains details about the conversion
   """
-  fxRate: CurrencyFxRate
+  exchangeRate: CurrencyExchangeRate
 }
 
 """
 Fields for a currency fx rate
 """
-type CurrencyFxRate {
+type CurrencyExchangeRate {
   """
   Amount of this item
   """
