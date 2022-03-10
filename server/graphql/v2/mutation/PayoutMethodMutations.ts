@@ -46,6 +46,7 @@ const payoutMethodMutations = {
           where: {
             data: { isManualBankTransfer: true },
             CollectiveId: collective.id,
+            isSaved: true,
           },
         });
         if (existingBankAccount) {
