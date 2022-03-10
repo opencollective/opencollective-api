@@ -803,14 +803,14 @@ function defineModel() {
     return nextGoal;
   };
 
-  Collective.prototype.getParentCollective = function () {
+  Collective.prototype.getParentCollective = function (options) {
     if (!this.ParentCollectiveId) {
       return Promise.resolve(null);
     }
     if (this.parentCollective) {
       return Promise.resolve(this.parentCollective);
     }
-    return models.Collective.findByPk(this.ParentCollectiveId);
+    return models.Collective.findByPk(this.ParentCollectiveId, options);
   };
 
   Collective.prototype.getICS = function () {
@@ -1223,19 +1223,20 @@ function defineModel() {
 
   // This is quite ugly, and only needed for events.
   // I'd argue that we should store the event slug as `${parentCollectiveSlug}/events/${eventSlug}`
-  Collective.prototype.getUrlPath = function () {
-    if (this.type === types.EVENT) {
-      return models.Collective.findByPk(this.ParentCollectiveId, {
-        attributes: ['id', 'slug'],
-      }).then(parent => {
-        if (!parent) {
-          logger.error(`Event (${this.id}) with an invalid parent (${this.ParentCollectiveId}).`);
-          return `/collective/events/${this.slug}`;
-        }
-        return `/${parent.slug}/events/${this.slug}`;
-      });
+  Collective.prototype.getUrlPath = async function () {
+    if (this.type === types.EVENT || this.type === types.PROJECT) {
+      const parent = await this.getParentCollective({ attributes: ['id', 'slug'] });
+      const pathType = {
+        [types.EVENT]: 'events',
+        [types.PROJECT]: 'projects',
+      };
+      if (!parent) {
+        logger.error(`${this.type} (${this.id}) with an invalid parent (${this.ParentCollectiveId}).`);
+        return `/collective/${pathType[this.type]}/${this.slug}`;
+      }
+      return `/${parent.slug}/${pathType[this.type]}/${this.slug}`;
     } else {
-      return Promise.resolve(`/${this.slug}`);
+      return `/${this.slug}`;
     }
   };
 
