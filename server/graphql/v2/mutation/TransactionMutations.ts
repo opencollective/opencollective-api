@@ -45,6 +45,11 @@ const transactionMutations = {
         throw new Error('Platform tip is already set for this transaction group');
       }
 
+      const platformTipInCents = getValueInCentsFromAmountInput(args.amount);
+      if (!platformTipInCents) {
+        throw new ValidationFailed('Platform tip amount must be greater than 0');
+      }
+
       // We fake a transactionData object to pass to createPlatformTipTransactions
       // It's not ideal but it's how it is
       const transactionData = {
@@ -55,7 +60,7 @@ const transactionMutations = {
           ...transaction.dataValues.data,
           isFeesOnTop: true,
           hasPlatformTip: true,
-          platformTip: getValueInCentsFromAmountInput(args.amount),
+          platformTip: platformTipInCents,
         },
       };
 
