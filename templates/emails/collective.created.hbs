@@ -4,7 +4,7 @@ Subject: Welcome to Open Collective!
 
 <h1>Hey {{collective.name}} 👋</h1>
 
-<p>I’m Pía, the CEO and co-founder of Open Collective. I’d love to help you get your {{accountType}} up and running. Feel free to reply to this email. I'm here to help!</p>
+<p>We’d love to help you get your {{accountType}} up and running.</p>
 
 {{#if host}}
 
@@ -14,27 +14,23 @@ Subject: Welcome to Open Collective!
   Your Host will hold money on behalf of your {{accountType}}.
   Once approved, your {{accountType}} will be able to receive money.
   {{else}}
-  Your {{accountType}} is hosted by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>.
-  Your Host will hold money on behalf of your {{accountType}}.
-  Once approved, your {{accountType}} will be able to receive money.
+  Your {{accountType}} is hosted by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>, which will hold money on its behalf.
   {{/if}}
 </p>
 
 {{else}}
 
 <p>
-  Your {{accountType}} doesn't have a Fiscal Host yet. A Host is an entity that holds money on behalf of {{accountType}}s. They take care of things like accounting, invoicing, and tax reporting.
-  If you are looking for one to join, you can <a href="https://opencollective.com/hosts">browse existing Hosts</a>.
-  Or, if you already have an entity who can hold funds on behalf of your {{accountType}}, it can <a href"https://docs.opencollective.com/help/fiscal-hosts/become-a-fiscal-host">become a Fiscal Host</a>.
+  In order to receive money, you need to specify where funds will be held. You can either sign up with a <a href="https://opencollective.com/fiscal-hosting">Fiscal Host</a>, which will take care of things like accounting, banking, and tax reportin for you, or you can be an <a href="https://docs.opencollective.com/help/independent-collectives">Independent Collective</a> and hold money in your own bank account.
 </p>
 
 {{/if}}
 
-<p>While you are waiting to get set up with a Fiscal Host, you can <a href="https://opencollective.com/{{collective.slug}}/admin">head to your settings</a> to customize your page and add team members. You can also submit expenses and post updates.</p>
+<p>There are lots of options and features to explore for your {{accountType}}, so<a href="https://opencollective.com/{{collective.slug}}/admin">head to your settings</a> to customize your page and add team members.</p>
 
 <p>Check our <a href="https://docs.opencollective.com/help/collectives/quick-start-guide">quick-start guide</a> to learn more.</p>
 
-<p>Let us know if you need any help! We are here to help your {{accountType}} succeed.</p>
+<p>Let us know if you need any help!</p>
 
 <p>
   <center>
@@ -42,10 +38,10 @@ Subject: Welcome to Open Collective!
   </center>
 </p>
 
-<p>Feel free to schedule a call with me (<a href="http://calendly.com/piamancini/call">schedule a call with me</a>), reply to this email, or <a href="https://slack.opencollective.com">join us on our Slack</a>.</p>
+<p>Feel free to reply to this email or <a href="https://slack.opencollective.com">join us on our Slack</a>.</p>
 
 <p>Best,</p>
 
-<p>Pía, and the Open Collective Team</p>
+<p>The Open Collective Team</p>
 
 {{> footer}}
