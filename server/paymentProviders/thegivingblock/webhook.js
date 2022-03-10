@@ -40,6 +40,9 @@ export async function webhook(req) {
       data: { ...order.data, payload },
     });
 
+    // Create BACKER
+    await order.getOrCreateMembers();
+
     // process as paid
     const transaction = await confirmOrder(order);
 
