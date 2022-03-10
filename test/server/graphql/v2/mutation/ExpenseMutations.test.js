@@ -646,6 +646,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         HostCollectiveId: host.id,
         admin: collectiveAdmin.collective,
         currency: 'USD',
+        settings: { features: { multiCurrencyExpenses: true } },
       });
       await hostAdmin.populateRoles();
       hostPaypalPm = await fakePaymentMethod({
