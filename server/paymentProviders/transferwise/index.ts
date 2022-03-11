@@ -112,6 +112,7 @@ async function quoteExpense(
   const isExistingQuoteValid =
     expense.data?.quote &&
     expense.data.quote.paymentOption &&
+    !expense.data.transfer && // We can not reuse quotes if a Transfer was already created
     moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote.expirationTime);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
