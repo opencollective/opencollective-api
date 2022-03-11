@@ -160,8 +160,8 @@ const plans = {
     manualPayments: true,
     hostDashboard: true,
     platformTips: true,
-    hostFees: false,
-    hostFeeSharePercent: 0,
+    hostFees: true,
+    hostFeeSharePercent: 15,
     level: 10,
   },
   'grow-plan-2021': {
