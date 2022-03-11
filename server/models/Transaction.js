@@ -812,6 +812,15 @@ function defineModel() {
       return;
     }
 
+    // Skip if missing or misconfigured
+    const hostFeeShareCollective = await models.Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId);
+    const hostFeeShareHostCollective = await models.Collective.findByPk(
+      HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId,
+    );
+    if (!hostFeeShareCollective || !hostFeeShareHostCollective) {
+      return;
+    }
+
     // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
     const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
     const currency = hostFeeTransaction.hostCurrency;
