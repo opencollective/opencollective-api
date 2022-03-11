@@ -90,10 +90,10 @@ const Expense = new GraphQLObjectType({
           // Pick the right currency based on args
           if (args.currencySource === 'ACCOUNT') {
             expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-            currency = expense.collective.currency;
+            currency = expense.collective?.currency;
           } else if (args.currencySource === 'HOST') {
             const host = await loadHostForExpense(expense, req);
-            currency = host.currency;
+            currency = host?.currency;
           }
 
           // Return null if the currency can't be looked up (e.g. asking for the host currency when the collective has no fiscal host)

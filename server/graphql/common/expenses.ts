@@ -1716,25 +1716,29 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
 
   // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)
   const { WISE, PAYPAL, OPENCOLLECTIVE } = CurrencyExchangeRateSourceTypeEnum;
-  const payoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
-  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-    const wiseInfo = expense.data?.transfer || expense.data?.quote;
-    if (wiseInfo?.rate && wiseInfo.sourceCurrency === expense.currency && wiseInfo.toCurrency === toCurrency) {
-      const date = wiseInfo['created'] || wiseInfo['createdTime']; // "created" for transfers, "createdTime" for quotes
-      return buildAmount(wiseInfo.rate, WISE, true, date);
-    }
-  } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
-    const currencyConversion = expense.data?.['currency_conversion'];
-    if (
-      currencyConversion &&
-      currencyConversion['from_amount']['currency'] === expense.currency &&
-      currencyConversion['to_amount']['currency'] === toCurrency
-    ) {
-      const rate = parseFloat(currencyConversion['exchange_rate']);
-      const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
-      return buildAmount(rate, PAYPAL, true, date);
+  const payoutMethod = expense.PayoutMethodId && (await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId));
+  if (payoutMethod) {
+    if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      const wiseInfo = expense.data?.transfer || expense.data?.quote;
+      if (wiseInfo?.rate && wiseInfo.sourceCurrency === expense.currency && wiseInfo.toCurrency === toCurrency) {
+        const date = wiseInfo['created'] || wiseInfo['createdTime']; // "created" for transfers, "createdTime" for quotes
+        return buildAmount(wiseInfo.rate, WISE, true, date);
+      }
+    } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+      const currencyConversion = expense.data?.['currency_conversion'];
+      if (
+        currencyConversion &&
+        currencyConversion['from_amount']['currency'] === expense.currency &&
+        currencyConversion['to_amount']['currency'] === toCurrency
+      ) {
+        const rate = parseFloat(currencyConversion['exchange_rate']);
+        const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
+        return buildAmount(rate, PAYPAL, true, date);
+      }
     }
   }
+
+  // TODO: Can we retrieve something for virtual cards?
 
   if (expense.status === 'PAID') {
     // TODO: If the expense was paid, we should be able to fetch the FX rate from the transaction
