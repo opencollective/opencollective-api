@@ -278,7 +278,7 @@ const virtualCardMutations = {
         UserId: req.remoteUser.id,
         data: {
           host: host.activity,
-          collective: collective.activity,
+          collective: { ...collective.activity, path: await collective.getUrlPath() },
           userCollective: userCollective.activity,
           user: req.remoteUser.minimal,
           notes: args.notes,
