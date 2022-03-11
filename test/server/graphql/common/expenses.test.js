@@ -18,6 +18,7 @@ import {
   canSeeExpensePayoutMethod,
   canUnapprove,
   canUnschedulePayment,
+  getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
 } from '../../../../server/graphql/common/expenses';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
@@ -456,6 +457,139 @@ describe('server/graphql/common/expenses', () => {
       expect(isAccountHolderNameAndLegalNameMatch('Sudharaka Palamakumbura', 'Sudharaka Palamakumbura')).to.be.true;
       expect(isAccountHolderNameAndLegalNameMatch('JHipster Inc.', 'JHipster Inc. 501(c)(3)')).to.be.true;
       expect(isAccountHolderNameAndLegalNameMatch('JHipster Inc. 501(c)(3)', 'JHipster Inc.')).to.be.true;
+    });
+  });
+
+  describe('getExpenseAmountInDifferentCurrency', () => {
+    describe('Wise', async () => {
+      it('returns the amount in expense currency', async () => {
+        const payoutMethod = await fakePayoutMethod({ service: 'TRANSFERWISE', type: 'BANK_ACCOUNT' });
+        const expense = await fakeExpense({ PayoutMethodId: payoutMethod.id, amount: 1000, currency: 'EUR' });
+        const amount = await getExpenseAmountInDifferentCurrency(expense, 'EUR', publicReq);
+        expect(amount).to.deep.eq({
+          value: 1000,
+          currency: 'EUR',
+          exchangeRate: null,
+        });
+      });
+
+      describe('converts the amount to collective currency', () => {
+        let expense;
+
+        before(async () => {
+          const payoutMethod = await fakePayoutMethod({ service: 'TRANSFERWISE', type: 'BANK_ACCOUNT' });
+          const collective = await fakeCollective({ currency: 'USD' });
+          expense = await fakeExpense({
+            PayoutMethodId: payoutMethod.id,
+            CollectiveId: collective.id,
+            amount: 1000,
+            currency: 'EUR',
+          });
+        });
+
+        it('when there is no data (uses the mocked 1.1)', async () => {
+          const amount = await getExpenseAmountInDifferentCurrency(expense, 'USD', publicReq);
+          expect(amount).to.deep.eq({
+            value: 1100,
+            currency: 'USD',
+            exchangeRate: {
+              date: amount.exchangeRate.date, // We don't really care about the date
+              fromCurrency: 'EUR',
+              isApproximate: true,
+              source: 'OPENCOLLECTIVE',
+              toCurrency: 'USD',
+              value: 1.1,
+            },
+          });
+        });
+
+        it('when there is data', async () => {
+          await expense.update({
+            data: {
+              transfer: {
+                sourceCurrency: 'USD', // Host currency
+                targetCurrency: 'EUR', // Expense/Payout method currency
+                rate: 1.4,
+              },
+            },
+          });
+
+          const amount = await getExpenseAmountInDifferentCurrency(expense, 'USD', publicReq);
+          expect(amount).to.deep.eq({
+            value: 714, // 1 * (1 / 1.4)
+            currency: 'USD',
+            exchangeRate: {
+              date: amount.exchangeRate.date, // We don't really care about the date
+              fromCurrency: 'EUR',
+              isApproximate: true,
+              source: 'WISE',
+              toCurrency: 'USD',
+              value: 1 / 1.4,
+            },
+          });
+        });
+      });
+    });
+
+    describe('PayPal', async () => {
+      let expense;
+
+      before(async () => {
+        const payoutMethod = await fakePayoutMethod({ service: 'PAYPAL', type: 'PAYPAL' });
+        const collective = await fakeCollective({ currency: 'USD' });
+        expense = await fakeExpense({
+          PayoutMethodId: payoutMethod.id,
+          CollectiveId: collective.id,
+          amount: 1000,
+          currency: 'EUR',
+        });
+      });
+
+      describe('converts the amount to collective currency', () => {
+        it('when there is no data (uses the mocked 1.1)', async () => {
+          const amount = await getExpenseAmountInDifferentCurrency(expense, 'USD', publicReq);
+          expect(amount).to.deep.eq({
+            value: 1100,
+            currency: 'USD',
+            exchangeRate: {
+              date: amount.exchangeRate.date, // We don't really care about the date
+              fromCurrency: 'EUR',
+              isApproximate: true,
+              source: 'OPENCOLLECTIVE',
+              toCurrency: 'USD',
+              value: 1.1,
+            },
+          });
+        });
+
+        it('when there is data', async () => {
+          await expense.update({
+            data: {
+              /* eslint-disable camelcase */
+              currency_conversion: {
+                from_amount: { currency: 'EUR', value: 1000 },
+                to_amount: { currency: 'USD', value: 1600 },
+                exchange_rate: 1.6,
+              },
+              /* eslint-enable camelcase */
+            },
+          });
+
+          const amount = await getExpenseAmountInDifferentCurrency(expense, 'USD', publicReq);
+          expect(amount).to.deep.eq({
+            value: 1600,
+            currency: 'USD',
+            exchangeRate: {
+              date: amount.exchangeRate.date, // We don't really care about the date
+              fromCurrency: 'EUR',
+              isApproximate: true,
+              source: 'PAYPAL',
+              toCurrency: 'USD',
+              value: 1.6,
+            },
+          });
+        });
+      });
     });
   });
 });

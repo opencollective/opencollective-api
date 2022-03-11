@@ -29,7 +29,12 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
-import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
+import {
+  Quote as WiseQuote,
+  QuoteV2 as WiseQuoteV2,
+  RecipientAccount as BankAccountPayoutMethodData,
+  Transfer as WiseTransfer,
+} from '../../types/transferwise';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -1195,6 +1200,47 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
   }
 }
 
+const matchFxRateWithCurrency = (
+  expectedSourceCurrency: string,
+  expectedTargetCurrency: string,
+  rateSourceCurrency: string,
+  rateTargetCurrency: string,
+  rate: number | null | undefined,
+) => {
+  if (!rate) {
+    return null;
+  } else if (expectedSourceCurrency === rateSourceCurrency && expectedTargetCurrency === rateTargetCurrency) {
+    return rate;
+  } else if (expectedSourceCurrency === rateTargetCurrency && expectedTargetCurrency === rateSourceCurrency) {
+    return 1 / rate;
+  }
+};
+
+const getWiseFxRateInfoFromExpenseData = (expense, expectedSourceCurrency: string, expectedTargetCurrency: string) => {
+  if (expectedSourceCurrency === expectedTargetCurrency) {
+    return { value: 1 };
+  }
+
+  const wiseInfo: WiseTransfer | WiseQuote | WiseQuoteV2 = expense.data?.transfer || expense.data?.quote;
+  if (wiseInfo?.rate) {
+    const wiseSourceCurrency = wiseInfo['sourceCurrency'] || wiseInfo['source'];
+    const wiseTargetCurrency = wiseInfo['targetCurrency'] || wiseInfo['target'];
+    const fxRate = matchFxRateWithCurrency(
+      expectedSourceCurrency,
+      expectedTargetCurrency,
+      wiseSourceCurrency,
+      wiseTargetCurrency,
+      wiseInfo.rate,
+    );
+    if (fxRate) {
+      return {
+        value: fxRate,
+        date: wiseInfo['created'] || wiseInfo['createdTime'], // "created" for transfers, "createdTime" for quotes
+      };
+    }
+  }
+};
+
 export async function createTransferWiseTransactionsAndUpdateExpense({ host, expense, data, fees, remoteUser }) {
   if (host.settings?.transferwise?.ignorePaymentProcessorFees) {
     // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
@@ -1205,12 +1251,12 @@ export async function createTransferWiseTransactionsAndUpdateExpense({ host, exp
   }
 
   // Get FX rate
-  const rateFromTransferwise = expense.currency === host.currency ? 1 : data.transfer?.rate || data.quote?.rate;
-  if (!rateFromTransferwise) {
+  const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, host.currency);
+  if (!wiseFxRateInfo) {
     logger.warn(`Could not retrieve the FX rate from Wise for expense #${expense.id}. Falling back to 'auto' mode.`);
   }
 
-  await createTransactionsFromPaidExpense(host, expense, fees, rateFromTransferwise || 'auto', data);
+  await createTransactionsFromPaidExpense(host, expense, fees, wiseFxRateInfo?.value || 'auto', data);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
   await expense.setProcessing(remoteUser.id);
   return expense;
@@ -1717,23 +1763,28 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   // Retrieve existing FX rate based from payment provider payload (for already paid or quoted stuff)
   const { WISE, PAYPAL, OPENCOLLECTIVE } = CurrencyExchangeRateSourceTypeEnum;
   const payoutMethod = expense.PayoutMethodId && (await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId));
+
   if (payoutMethod) {
     if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-      const wiseInfo = expense.data?.transfer || expense.data?.quote;
-      if (wiseInfo?.rate && wiseInfo.sourceCurrency === expense.currency && wiseInfo.toCurrency === toCurrency) {
-        const date = wiseInfo['created'] || wiseInfo['createdTime']; // "created" for transfers, "createdTime" for quotes
-        return buildAmount(wiseInfo.rate, WISE, true, date);
+      const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, toCurrency);
+      if (wiseFxRateInfo) {
+        return buildAmount(wiseFxRateInfo.value, WISE, true, wiseFxRateInfo.date);
       }
     } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
       const currencyConversion = expense.data?.['currency_conversion'];
-      if (
-        currencyConversion &&
-        currencyConversion['from_amount']['currency'] === expense.currency &&
-        currencyConversion['to_amount']['currency'] === toCurrency
-      ) {
-        const rate = parseFloat(currencyConversion['exchange_rate']);
-        const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
-        return buildAmount(rate, PAYPAL, true, date);
+      if (currencyConversion) {
+        const fxRate = matchFxRateWithCurrency(
+          expense.currency,
+          toCurrency,
+          currencyConversion['from_amount']['currency'],
+          currencyConversion['to_amount']['currency'],
+          parseFloat(currencyConversion['exchange_rate']),
+        );
+
+        if (fxRate) {
+          const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
+          return buildAmount(fxRate, PAYPAL, true, date);
+        }
       }
     }
   }
