@@ -1331,15 +1331,15 @@ const CollectiveFields = () => {
         if (roles && roles.length > 0) {
           where.role = { [Op.in]: roles };
         }
-        const collectiveConditions = { deletedAt: null, isIncognito: false };
+        const collectiveConditions = {};
         if (args.type) {
           collectiveConditions.type = args.type;
         }
         if (args.onlyActiveCollectives) {
           collectiveConditions.isActive = true;
         }
-        if (args.includeIncognito && (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot())) {
-          collectiveConditions.isIncognito = true;
+        if (!args.includeIncognito || !(req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot())) {
+          collectiveConditions.isIncognito = false; // only admins can see incognito profiles
         }
         return models.Member.findAll({
           where,
