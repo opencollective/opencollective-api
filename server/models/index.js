@@ -224,6 +224,10 @@ export function setupModels() {
     foreignKey: 'FromCollectiveId',
     as: 'fromCollective',
   });
+  m.Expense.belongsTo(m.Collective, {
+    foreignKey: 'HostCollectiveId',
+    as: 'host',
+  });
   m.Expense.belongsTo(m.VirtualCard, {
     foreignKey: 'VirtualCardId',
     as: 'virtualCard',
