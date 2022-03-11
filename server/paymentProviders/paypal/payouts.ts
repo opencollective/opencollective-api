@@ -6,6 +6,7 @@ import { isNil, round, toNumber } from 'lodash';
 
 import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
+import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
@@ -95,7 +96,24 @@ export const checkBatchItemStatus = async (
     case 'SUCCESS':
       if (expense.status !== status.PAID) {
         const fees = {};
-        const fxRate = 1 / (toNumber(item.currency_conversion?.exchange_rate) || 1);
+        let fxRate = 1 / (toNumber(item.currency_conversion?.exchange_rate) || 1);
+
+        // When dealing with multi-currency expenses, if the host has a positive balance in the
+        // requested expense currency, PayPal will use that and there will be no currency conversion.
+        // But because we record the transactions in the host/collective currency, we need still need to
+        // get an FX rate from somewhere. We therefore use our internal system to estimate one.
+        const payoutItemCurrency = item['payout_item']?.['amount']?.['currency'];
+        const isMultiCurrency = payoutItemCurrency && payoutItemCurrency !== expense.currency;
+        if (isMultiCurrency && !item.currency_conversion?.exchange_rate) {
+          try {
+            fxRate = await getFxRate(expense.currency, host.currency);
+          } catch (e) {
+            // We don't want to fail recording the transaction if we can't get an FX rate, but we'll probably
+            // want to go back and update it later.
+            logger.error(`Could not fetch FX rate when recording expense #${expense.id} payment`);
+          }
+        }
+
         if (item.payout_item_fee) {
           const paymentProcessorFeeInExpenseCurrency = floatAmountToCents(toNumber(item.payout_item_fee.value));
           fees['paymentProcessorFeeInHostCurrency'] = Math.round(paymentProcessorFeeInExpenseCurrency * fxRate);
