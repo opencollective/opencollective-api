@@ -29,11 +29,30 @@ const checkOrder = async orderId => {
   const captureId = get(paypalOrderDetails, 'purchase_units.0.payments.captures.0.id');
   if (captureId) {
     console.log('==== Last capture details ====');
-    const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, hostCollective, 'GET');
-    console.log(captureDetails);
+    await checkPaypalCapture(hostCollective, captureId);
   } else {
     console.log('==== No capture found ====');
   }
+};
+
+const checkPaypalCapture = async (host, captureId) => {
+  const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, host, 'GET');
+  console.log(captureDetails);
+};
+
+const checkExpense = async expenseId => {
+  const expense = await models.Expense.findByPk(expenseId, {
+    include: [{ association: 'collective' }, { association: 'host' }],
+  });
+
+  const paypalTransactionId = expense?.data?.['transaction_id'];
+  if (!paypalTransactionId) {
+    throw new Error('No PayPal transaction ID found for this expense');
+  } else if (!expense.host) {
+    throw new Error('No host found for this expense');
+  }
+
+  return checkPaypalCapture(expense.host, paypalTransactionId);
 };
 
 const printAllHostsWithPaypalAccounts = async () => {
@@ -59,6 +78,16 @@ const main = async (): Promise<void> => {
   switch (command) {
     case 'order':
       return checkOrder(process.argv[3]);
+    case 'expense':
+      return checkExpense(process.argv[3]);
+    case 'payout': {
+      const host = await models.Collective.findBySlug(process.argv[3]);
+      if (!host) {
+        throw new Error(`Could not find host with slug ${process.argv[3]}`);
+      } else {
+        return checkPaypalCapture(host, process.argv[4]);
+      }
+    }
     case 'list-hosts':
       return printAllHostsWithPaypalAccounts();
     default:
