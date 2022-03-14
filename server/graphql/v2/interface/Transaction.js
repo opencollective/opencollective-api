@@ -527,7 +527,7 @@ export const TransactionFields = () => {
           const wiseId = transaction.data?.transfer?.id;
           // TODO: PayPal Adaptive is missing
           // https://github.com/opencollective/opencollective/issues/4891
-          const paypalPayoutId = transaction.data?.payout_item_id;
+          const paypalPayoutId = transaction.data?.transaction_id;
           const privacyId = transaction.data?.token;
 
           return wiseId || paypalPayoutId || privacyId;
