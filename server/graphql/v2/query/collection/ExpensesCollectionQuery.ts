@@ -134,8 +134,8 @@ const ExpensesCollectionQuery = {
     const include = [];
 
     // Check arguments
-    if (args.limit > 100) {
-      throw new Error('Cannot fetch more than 100 expenses at the same time, please adjust the limit');
+    if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+      throw new Error('Cannot fetch more than 1,000 expenses at the same time, please adjust the limit');
     }
 
     // Load accounts
