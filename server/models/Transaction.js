@@ -579,6 +579,19 @@ function defineModel() {
         ...transaction.data,
         oppositeTransactionHostCurrencyFxRate: 1 / oppositeTransactionHostCurrencyFxRate,
       };
+
+      // Handle Host Fee when paying an Expense between Hosts
+      if (oppositeTransaction.kind === 'EXPENSE' && !oppositeTransaction.isRefund) {
+        const collective = await models.Collective.findByPk(transaction.CollectiveId);
+        const collectiveHost = await collective.getHostCollective();
+        if (collectiveHost.id !== fromCollectiveHost.id) {
+          const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
+          oppositeTransaction.hostFeeInHostCurrency = calcFee(oppositeTransaction.amountInHostCurrency, hostFeePercent);
+          if (oppositeTransaction.hostFeeInHostCurrency) {
+            await models.Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
+          }
+        }
+      }
     }
 
     debug('createDoubleEntry', transaction, 'opposite', oppositeTransaction);
