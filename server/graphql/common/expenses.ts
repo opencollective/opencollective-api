@@ -513,6 +513,12 @@ export const markExpenseAsSpam = async (
   const submittedByUser = await updatedExpense.getSubmitterUser();
   await submittedByUser.limitFeature(FEATURE.USE_EXPENSES);
 
+  // Cancel recurring expense
+  const recurringExpense = await expense.getRecurringExpense();
+  if (recurringExpense) {
+    await recurringExpense.destroy();
+  }
+
   // We create the activity as a good practice but there is no email sent right now
   const activity = await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_SPAM, req.remoteUser);
 
