@@ -23,6 +23,7 @@ import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
 import PaypalProduct from './PaypalProduct';
+import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import Session from './Session';
 import Subscription from './Subscription';
@@ -65,6 +66,7 @@ export function setupModels() {
   m['PayoutMethod'] = PayoutMethod;
   m['PaypalPlan'] = PaypalPlan;
   m['PaypalProduct'] = PaypalProduct;
+  m['RecurringExpense'] = RecurringExpense;
   m['RequiredLegalDocument'] = RequiredLegalDocument;
   m['Session'] = Session;
   m['Subscription'] = Subscription;
@@ -232,6 +234,10 @@ export function setupModels() {
     foreignKey: 'VirtualCardId',
     as: 'virtualCard',
   });
+  m.Expense.belongsTo(m.RecurringExpense, {
+    foreignKey: 'RecurringExpenseId',
+    as: 'recurringExpense',
+  });
   m.Expense.hasMany(m.ExpenseAttachedFile, { as: 'attachedFiles' });
   m.Expense.hasMany(m.ExpenseItem, { as: 'items' });
   m.Expense.hasMany(m.Transaction);
@@ -243,6 +249,17 @@ export function setupModels() {
 
   // Expense attached files
   m.ExpenseAttachedFile.belongsTo(m.Expense);
+
+  // Recurring Expenses
+  m.RecurringExpense.hasMany(m.Expense, { as: 'expenses' });
+  m.RecurringExpense.belongsTo(m.Collective, {
+    foreignKey: 'CollectiveId',
+    as: 'collective',
+  });
+  m.RecurringExpense.belongsTo(m.Collective, {
+    foreignKey: 'FromCollectiveId',
+    as: 'fromCollective',
+  });
 
   // Comment
   m.Comment.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
