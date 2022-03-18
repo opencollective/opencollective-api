@@ -125,7 +125,8 @@ export const searchCollectivesInDB = async (
         AND (${TS_VECTOR} @@ plainto_tsquery('english', :vectorizedTerm)
         OR ${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm)
         OR name ILIKE '%' || :term || '%'
-        OR slug ILIKE '%' || :term || '%')`;
+        OR slug ILIKE '%' || :term || '%'
+        OR :term = any(tags))`;
     }
   } else {
     term = '';
