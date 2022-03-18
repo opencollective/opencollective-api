@@ -20,7 +20,7 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100
 "
 | type   | kind    | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
 | ------ | ------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
-| DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -10000               | -575       | -10000                        |
+| DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -9425                | -575       | -10000                        |
 | CREDIT | EXPENSE | false    | Facebook | Webpack  | 10000  | 10000                | -575       | 9425                          |
 | DEBIT  | EXPENSE | true     | Facebook | Webpack  | -10000 | -10000               | 575        | -9425                         |
 | CREDIT | EXPENSE | true     | Webpack  | Facebook | 9425   | 9425                 | 575        | 10000                         |"
@@ -30,7 +30,7 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100
 "
 | type   | kind    | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
 | ------ | ------- | -------- | -------- | -------- | ------ | -------------------- | ---------- | ----------------------------- |
-| DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -10000               | -575       | -10000                        |
+| DEBIT  | EXPENSE | false    | Webpack  | Facebook | -9425  | -9425                | -575       | -10000                        |
 | CREDIT | EXPENSE | false    | Facebook | Webpack  | 10000  | 10000                | -575       | 9425                          |
 | DEBIT  | EXPENSE | true     | Facebook | Webpack  | -9425  | -9425                | 0          | -9425                         |
 | CREDIT | EXPENSE | true     | Webpack  | Facebook | 9425   | 9425                 | 0          | 9425                          |"
