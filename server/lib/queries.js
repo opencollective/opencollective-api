@@ -1023,6 +1023,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     LEFT JOIN "LegalDocuments" ld
       ON ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
+      AND ld."requestStatus" = 'RECEIVED'
       AND (
         ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
         OR (from_collective."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = from_collective."HostCollectiveId") -- Or the host's legal document
@@ -1039,6 +1040,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
+    AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
@@ -1079,6 +1081,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     LEFT JOIN "LegalDocuments" ld
       ON ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
+      AND ld."requestStatus" = 'RECEIVED'
       AND (
         ld."CollectiveId" = account.id -- Either use the account's legal document
         OR (account."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = account."HostCollectiveId") -- Or the host's legal document
@@ -1092,6 +1095,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
+    AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
