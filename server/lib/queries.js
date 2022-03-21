@@ -2,7 +2,11 @@ import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
-import { TAX_FORM_IGNORED_EXPENSE_TYPES, US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
+import {
+  TAX_FORM_IGNORED_EXPENSE_STATUSES,
+  TAX_FORM_IGNORED_EXPENSE_TYPES,
+  US_TAX_FORM_VALIDITY_IN_YEARS,
+} from '../constants/tax-form';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
@@ -1029,7 +1033,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND analyzed_expenses."deletedAt" IS NULL
     AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
-    AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
+    AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
@@ -1041,6 +1045,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
         expenseIds,
         validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
+        ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
       },
     },
   );
@@ -1077,8 +1082,8 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
     AND account.id != d."HostCollectiveId"
-    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")
-    AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
+    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC) 
+    AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
     GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
@@ -1091,6 +1096,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
         year: year,
         validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
+        ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
       },
     },
   );
