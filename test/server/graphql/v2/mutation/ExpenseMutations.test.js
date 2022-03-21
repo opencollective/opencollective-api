@@ -1373,14 +1373,13 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams };
           const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
           expect(result.errors).to.exist;
-          expect(result.errors[0].message).to.eq(
-            'Putting the payment processor fees on the payee is only supported for bank accounts at the moment',
+          expect(result.errors[0].message).to.match(
+            /^Putting the payment processor fees on the payee is only supported for/,
           );
         };
 
         await testWithPayoutMethodType('ACCOUNT_BALANCE');
         await testWithPayoutMethodType('PAYPAL');
-        await testWithPayoutMethodType('OTHER');
       });
 
       describe('Multi-currency expense', () => {
