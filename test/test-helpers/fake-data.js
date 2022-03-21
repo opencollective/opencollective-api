@@ -721,3 +721,14 @@ export const fakeApplication = async (data = {}) => {
     CollectiveId,
   });
 };
+
+export const fakeRecurringExpense = async (data = {}) => {
+  const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  const FromCollectiveId = data.FromCollectiveId || (await fakeCollective()).id;
+  return models.RecurringExpense.create({
+    ...data,
+    CollectiveId,
+    FromCollectiveId,
+    interval: data.interval || 'month',
+  });
+};
