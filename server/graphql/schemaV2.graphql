@@ -3878,9 +3878,9 @@ Fields for a currency fx rate
 """
 type CurrencyExchangeRate {
   """
-  Amount of this item
+  Exchange rate value as a percentage
   """
-  percentage: Float!
+  value: Float!
 
   """
   Where does the FX rate comes from
@@ -7113,17 +7113,27 @@ type Query {
     offset: Int! = 0
 
     """
-    Only accounts that match these tags
+    Search accounts related to this term based on name, description, tags, slug, and location
+    """
+    searchTerm: String
+
+    """
+    Only accounts that match these tags (ignored if used together with searchTerm)
     """
     tag: [String]
 
     """
-    Only accounts that match these account types
+    Only return accounts that match these account types (COLLECTIVE, FUND, EVENT, PROJECT, ORGANIZATION or INDIVIDUAL)
     """
     type: [AccountType]
 
     """
-    Only return active collectives
+    Only return Fiscal Hosts accounts if true
+    """
+    isHost: Boolean
+
+    """
+    Only return "active" accounts with Financial Contributions enabled if true.
     """
     isActive: Boolean
 
@@ -7136,6 +7146,11 @@ type Query {
     Only accounts that support one of these payment services will be returned
     """
     supportedPaymentMethodService: [PaymentMethodService]
+
+    """
+    Whether to skip recent suspicious accounts (48h)
+    """
+    skipRecentAccounts: Boolean = false
 
     """
     The order of results

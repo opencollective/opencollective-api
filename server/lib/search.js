@@ -86,11 +86,15 @@ export const searchCollectivesInDB = async (
   term,
   offset = 0,
   limit = 100,
-  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled } = {},
+  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled, countries } = {},
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
   let isUsingTsVector = false;
+  let countryCodes = null;
+  if (countries) {
+    countryCodes = `${countries.join(',')}`;
+  }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
@@ -118,6 +122,10 @@ export const searchCollectivesInDB = async (
     } else {
       dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS TRUE `;
     }
+  }
+
+  if (countryCodes) {
+    dynamicConditions += `AND "countryISO" IN (:countryCodes) `;
   }
 
   // Cleanup term
@@ -173,6 +181,7 @@ export const searchCollectivesInDB = async (
         term: term,
         slugifiedTerm: slugify(term),
         vectorizedTerm: searchTermToTsVector(term),
+        countryCodes,
         offset,
         limit,
         hostCollectiveIds,
