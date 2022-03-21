@@ -1021,9 +1021,12 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       ON all_expenses_collectives.id = all_expenses."CollectiveId"
       AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
     LEFT JOIN "LegalDocuments" ld
-      ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
-      AND ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
+      ON ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
+      AND (
+        ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
+        OR (from_collective."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = from_collective."HostCollectiveId") -- Or the host's legal document
+      )
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE analyzed_expenses.id IN (:expenseIds)
@@ -1074,9 +1077,12 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
     LEFT JOIN "LegalDocuments" ld
-      ON ld."CollectiveId" = account.id
-      AND ld.year + :validityInYears >= :year
+      ON ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
+      AND (
+        ld."CollectiveId" = account.id -- Either use the account's legal document
+        OR (account."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = account."HostCollectiveId") -- Or the host's legal document
+      )
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
