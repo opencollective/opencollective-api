@@ -1461,9 +1461,9 @@ export const checkHasBalanceToPayExpense = async (
     totalAmountToPay = expense.amount + feesInExpenseCurrency.paymentProcessorFee;
   } else if (expense.feesPayer === 'PAYEE') {
     totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
-    if (payoutMethodType !== PayoutMethodTypes.BANK_ACCOUNT) {
+    if (![PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.OTHER].includes(payoutMethodType)) {
       throw new Error(
-        'Putting the payment processor fees on the payee is only supported for bank accounts at the moment',
+        'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
       );
     } else if (expense.currency !== expense.collective.currency) {
       throw new Error(
