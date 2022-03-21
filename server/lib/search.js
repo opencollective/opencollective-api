@@ -86,7 +86,7 @@ export const searchCollectivesInDB = async (
   term,
   offset = 0,
   limit = 100,
-  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts } = {},
+  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled } = {},
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
@@ -96,12 +96,12 @@ export const searchCollectivesInDB = async (
     dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
   }
 
-  if (isHost !== undefined) {
-    dynamicConditions += 'AND "isHostAccount" = :isHost ';
+  if (isHost) {
+    dynamicConditions += `AND "isHostAccount" IS TRUE AND "type" = 'ORGANIZATION' `;
   }
 
   if (types?.length) {
-    dynamicConditions += `AND type IN (:types) `;
+    dynamicConditions += `AND "type" IN (:types) `;
   }
 
   if (onlyActive) {
@@ -110,6 +110,14 @@ export const searchCollectivesInDB = async (
 
   if (skipRecentAccounts) {
     dynamicConditions += `AND (COALESCE(("data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR "createdAt" < (NOW() - interval '2 day')) `;
+  }
+
+  if (typeof hasCustomContributionsEnabled === 'boolean') {
+    if (hasCustomContributionsEnabled) {
+      dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
+    } else {
+      dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS TRUE `;
+    }
   }
 
   // Cleanup term
