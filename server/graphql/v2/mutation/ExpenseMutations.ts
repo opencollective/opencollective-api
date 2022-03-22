@@ -220,6 +220,12 @@ const expenseMutations = {
         );
       }
 
+      // Cancel recurring expense
+      const recurringExpense = await expense.getRecurringExpense();
+      if (recurringExpense) {
+        await recurringExpense.destroy();
+      }
+
       return expense.destroy();
     },
   },
