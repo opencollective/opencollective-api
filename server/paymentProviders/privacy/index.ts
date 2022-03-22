@@ -44,7 +44,7 @@ const processTransaction = async (
 
 const assignCardToCollective = async (
   cardNumber: string,
-  expireDate: string,
+  expiryDate: string,
   cvv: string,
   name: string,
   collectiveId: number,
@@ -64,7 +64,7 @@ const assignCardToCollective = async (
     id: card.token,
     name,
     last4: card.last_four,
-    privateData: { cardNumber, expireDate, cvv },
+    privateData: { cardNumber, expiryDate, cvv },
     data: omit(card, ['pan', 'cvv', 'exp_year', 'exp_month']),
     CollectiveId: collectiveId,
     HostCollectiveId: host.id,
