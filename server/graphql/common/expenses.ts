@@ -1235,7 +1235,7 @@ const getWiseFxRateInfoFromExpenseData = (expense, expectedSourceCurrency: strin
     if (fxRate) {
       return {
         value: fxRate,
-        date: wiseInfo['created'] || wiseInfo['createdTime'], // "created" for transfers, "createdTime" for quotes
+        date: new Date(wiseInfo['created'] || wiseInfo['createdTime']), // "created" for transfers, "createdTime" for quotes
       };
     }
   }
