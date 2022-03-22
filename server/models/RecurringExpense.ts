@@ -1,8 +1,10 @@
+import config from 'config';
 import { pick } from 'lodash';
 import moment from 'moment';
 import { DataTypes, Model } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
+import { activities } from '../constants';
 import expenseStatus from '../constants/expense_status';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
@@ -67,6 +69,10 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
         { model: models.ExpenseItem, as: 'items' },
       ],
     });
+    if (!expense) {
+      throw new Error(`Could not find previous expense for RecurringExpense #${this.id}`);
+    }
+
     const draftKey = process.env.OC_ENV === 'e2e' || process.env.OC_ENV === 'ci' ? 'draft-key' : uuid();
     const expenseFields = [
       'description',
@@ -103,14 +109,16 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
     const draftedExpense = await models.Expense.create(draft);
     await this.update({ lastDraftedAt: incurredAt });
 
-    // const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
-    // draftedExpense
-    //   .createActivity(
-    //     activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
-    //     { id: expense.UserId },
-    //     { ...draftedExpense.data, inviteUrl },
-    //   )
-    //   .catch(e => console.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
+    const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
+    await draftedExpense
+      .createActivity(
+        activities.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
+        { id: expense.UserId },
+        { ...draftedExpense.data, inviteUrl, description: draftedExpense.description },
+      )
+      .catch(e =>
+        console.error('An error happened when creating the COLLECTIVE_EXPENSE_RECURRING_DRAFTED activity', e),
+      );
 
     return draftedExpense;
   }

@@ -25,6 +25,7 @@ export default {
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT: 'collective.expense.scheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR: 'collective.expense.error',
   COLLECTIVE_EXPENSE_INVITE_DRAFTED: 'collective.expense.invite.drafted',
+  COLLECTIVE_EXPENSE_RECURRING_DRAFTED: 'collective.expense.recurring.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT: 'collective.expense.missing.receipt',
   COLLECTIVE_FROZEN: 'collective.frozen',
   COLLECTIVE_UNFROZEN: 'collective.unfrozen',

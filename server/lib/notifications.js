@@ -615,6 +615,10 @@ async function notifyByEmail(activity) {
       }
       break;
 
+    case activityType.COLLECTIVE_EXPENSE_RECURRING_DRAFTED:
+      await notifyAdminsOfCollective(activity.data.payee.id, activity, { sendEvenIfNotProduction: true });
+      break;
+
     case activityType.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
       notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
       break;

@@ -1,16 +1,26 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import { createSandbox } from 'sinon';
 
+import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
 import { fakeExpense, fakeRecurringExpense } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('server/models/RecurringExpense', () => {
+  let sandbox, emailSendMessageSpy;
   let expense, recurringExpense, newExpense;
 
   before(async () => {
     await utils.resetTestDB();
-    expense = await fakeExpense({ status: 'PAID' });
+
+    sandbox = createSandbox();
+    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+    expense = await fakeExpense({ status: 'PAID', description: 'Paycheck 2000' });
+  });
+
+  after(() => {
+    sandbox.restore?.();
   });
 
   it('creates RecurringExpense from Expense and interval', async () => {
@@ -35,6 +45,15 @@ describe('server/models/RecurringExpense', () => {
     expect(newExpense).to.have.nested.property('data.draftKey');
     expect(newExpense).to.have.nested.property('data.items');
     expect(newExpense.data.items[0].amount).to.eq(expense.items[0].amount);
+  });
+
+  it('should mail the user notifying about a new draft', async () => {
+    await utils.waitForCondition(() => emailSendMessageSpy.firstCall);
+
+    const [, subject, body] = emailSendMessageSpy.firstCall.args;
+    expect(subject).to.include('Your recurring expense');
+    expect(subject).to.include('was drafted');
+    expect(body).to.include(`/expenses/${newExpense.id}?key&#x3D;${newExpense.data.draftKey}"`);
   });
 
   it('returns the last recurring Expense', async () => {
