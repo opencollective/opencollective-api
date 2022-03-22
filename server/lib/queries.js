@@ -2,7 +2,11 @@ import Promise from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 
-import { TAX_FORM_IGNORED_EXPENSE_TYPES, US_TAX_FORM_VALIDITY_IN_YEARS } from '../constants/tax-form';
+import {
+  TAX_FORM_IGNORED_EXPENSE_STATUSES,
+  TAX_FORM_IGNORED_EXPENSE_TYPES,
+  US_TAX_FORM_VALIDITY_IN_YEARS,
+} from '../constants/tax-form';
 import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
@@ -1017,9 +1021,13 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
       ON all_expenses_collectives.id = all_expenses."CollectiveId"
       AND all_expenses_collectives."HostCollectiveId" = d."HostCollectiveId"
     LEFT JOIN "LegalDocuments" ld
-      ON ld."CollectiveId" = analyzed_expenses."FromCollectiveId"
-      AND ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
+      ON ld.year + :validityInYears >= date_part('year', analyzed_expenses."incurredAt")
       AND ld."documentType" = 'US_TAX_FORM'
+      AND ld."requestStatus" = 'RECEIVED'
+      AND (
+        ld."CollectiveId" = from_collective.id -- Either use the payee's legal document
+        OR (from_collective."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = from_collective."HostCollectiveId") -- Or the host's legal document
+      )
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE analyzed_expenses.id IN (:expenseIds)
@@ -1029,9 +1037,10 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
     AND analyzed_expenses."deletedAt" IS NULL
     AND (from_collective."HostCollectiveId" IS NULL OR from_collective."HostCollectiveId" != c."HostCollectiveId")
     AND all_expenses.type NOT IN (:ignoredExpenseTypes)
-    AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
+    AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND date_trunc('year', all_expenses."incurredAt") = date_trunc('year', analyzed_expenses."incurredAt")
+    AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY analyzed_expenses.id, analyzed_expenses."FromCollectiveId", d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
@@ -1041,6 +1050,7 @@ const getTaxFormsRequiredForExpenses = async expenseIds => {
         expenseIds,
         validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
+        ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
       },
     },
   );
@@ -1069,18 +1079,23 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
       ON d."HostCollectiveId" = c."HostCollectiveId"
       AND d."documentType" = 'US_TAX_FORM'
     LEFT JOIN "LegalDocuments" ld
-      ON ld."CollectiveId" = account.id
-      AND ld.year + :validityInYears >= :year
+      ON ld.year + :validityInYears >= :year
       AND ld."documentType" = 'US_TAX_FORM'
+      AND ld."requestStatus" = 'RECEIVED'
+      AND (
+        ld."CollectiveId" = account.id -- Either use the account's legal document
+        OR (account."HostCollectiveId" IS NOT NULL AND ld."CollectiveId" = account."HostCollectiveId") -- Or the host's legal document
+      )
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
     AND account.id != d."HostCollectiveId"
-    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId")
-    AND all_expenses.status NOT IN ('ERROR', 'REJECTED', 'DRAFT', 'UNVERIFIED')
+    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC) 
+    AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
+    AND ld.id IS NULL -- Ignore documents that have already been received
     GROUP BY account.id, d."documentType", COALESCE(pm."type", 'OTHER')
   `,
     {
@@ -1091,6 +1106,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
         year: year,
         validityInYears: US_TAX_FORM_VALIDITY_IN_YEARS,
         ignoredExpenseTypes: TAX_FORM_IGNORED_EXPENSE_TYPES,
+        ignoredExpenseStatuses: TAX_FORM_IGNORED_EXPENSE_STATUSES,
       },
     },
   );

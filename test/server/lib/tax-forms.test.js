@@ -9,6 +9,7 @@ import emailLib from '../../../server/lib/email';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../../server/lib/tax-forms';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
+import { randEmail } from '../../stores';
 import {
   fakeCollective,
   fakeExpense,
@@ -59,6 +60,7 @@ describe('server/lib/tax-forms', () => {
     accountAlreadyNotified,
     accountWithTaxFormFromLastYear,
     accountWithTaxFormFrom4YearsAgo,
+    accountWithTaxFormSubmittedByHost,
     accountWithPaypalBelowThreshold,
     accountWithPaypalOverThreshold;
 
@@ -114,6 +116,7 @@ describe('server/lib/tax-forms', () => {
     organizationWithTaxForm = await fakeCollective({ type: 'ORGANIZATION' });
     accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithTaxFormFromLastYear = await fakeCollective({ type: 'ORGANIZATION' });
+    accountWithTaxFormSubmittedByHost = await fakeCollective();
     accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithPaypalBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithPaypalOverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
@@ -138,6 +141,13 @@ describe('server/lib/tax-forms', () => {
       CollectiveId: accountWithTaxFormFromLastYear.id,
       requestStatus: 'RECEIVED',
       year: year - 1,
+    });
+
+    // Create legal document for accountWithTaxFormSubmittedByHost (no tax form should be required in this case)
+    await fakeLegalDocument({
+      CollectiveId: accountWithTaxFormSubmittedByHost.HostCollectiveId,
+      requestStatus: 'RECEIVED',
+      year: year,
     });
 
     // Create legal document for accountWithTaxFormFrom4YearsAgo
@@ -206,6 +216,17 @@ describe('server/lib/tax-forms', () => {
         incurredAt: moment(),
         PayoutMethodId: otherPayoutMethod.id,
         type: RECEIPT,
+      }),
+    );
+    // An expense from this year over the threshold BUT its fiscal host already submitted a tax form
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: users[2].id,
+        FromCollectiveId: accountWithTaxFormSubmittedByHost.id,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
+        type: INVOICE,
       }),
     );
     // An expense from this year over the threshold
@@ -352,9 +373,26 @@ describe('server/lib/tax-forms', () => {
       replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
 
       const newUser = await fakeUser({ email: `${randStr()}@opencollective.com` });
-      await sendHelloWorksUsTaxForm(client, newUser.collective, year, callbackUrl, workflowId, newUser);
+      await sendHelloWorksUsTaxForm(client, newUser.collective, year, callbackUrl, workflowId);
 
       const doc = await models.LegalDocument.findOne({ where: { CollectiveId: newUser.collective.id } });
+      expect(doc).to.exist;
+      expect(doc.requestStatus).to.eq(REQUESTED);
+    });
+
+    it('sends the document request to the host if payee has one', async () => {
+      const documentLink = 'https://hello-works.com/fake-tax-form';
+      const createInstanceResponse = { id: 'fake-instance-id', steps: [{ step: 'fake-step-id', url: documentLink }] };
+      replace(client.workflowInstances, 'createInstance', fake.resolves(createInstanceResponse));
+      replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
+
+      const adminUser = await fakeUser({ email: randEmail('test@opencollective.com') }); // Need to use an internal email
+      const host = await fakeHost({ admin: adminUser });
+      const payeeCollective = await fakeCollective({ HostCollectiveId: host.id, admin: adminUser });
+      await sendHelloWorksUsTaxForm(client, payeeCollective, year, callbackUrl, workflowId);
+
+      const doc = await models.LegalDocument.findOne({ where: { CollectiveId: payeeCollective.HostCollectiveId } });
+      expect(doc).to.exist;
       expect(doc.requestStatus).to.eq(REQUESTED);
     });
 

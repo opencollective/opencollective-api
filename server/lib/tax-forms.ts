@@ -113,8 +113,10 @@ export async function sendHelloWorksUsTaxForm(
   callbackUrl: string,
   workflowId: string,
 ): Promise<typeof models.LegalDocument> {
-  const adminUsers = await getAdminsForAccount(account);
-  const mainUser = await getMainAdminToContact(account, adminUsers);
+  const host = await account.getHostCollective();
+  const accountToSubmitRequestTo = host || account; // If the account has a fiscal host, it's its responsibility to fill the request
+  const adminUsers = await getAdminsForAccount(accountToSubmitRequestTo);
+  const mainUser = await getMainAdminToContact(accountToSubmitRequestTo, adminUsers);
   if (!mainUser) {
     logger.error(`No contact found for account #${account.id} (@${account.slug}). Skipping tax form.`);
     return;
@@ -125,7 +127,7 @@ export async function sendHelloWorksUsTaxForm(
     participant_swVuvW: {
       type: 'email',
       value: mainUser.email,
-      fullName: generateParticipantName(account, mainUser),
+      fullName: generateParticipantName(accountToSubmitRequestTo, mainUser),
     },
   };
 
@@ -138,8 +140,8 @@ export async function sendHelloWorksUsTaxForm(
       // delegatedAuthentication: true, // See "authenticated link" below.
       participants,
       metadata: {
-        accountType: account.type,
-        accountId: account.id,
+        accountType: accountToSubmitRequestTo.type,
+        accountId: accountToSubmitRequestTo.id,
         adminEmails: adminUsers.map(u => u.email).join(', '),
         userId: mainUser.id,
         email: mainUser.email,
@@ -148,7 +150,7 @@ export async function sendHelloWorksUsTaxForm(
     });
 
     // Save the full instance in the database (for debugging purposes)
-    const document = await saveDocumentStatus(account, year, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED, {
+    const document = await saveDocumentStatus(accountToSubmitRequestTo, year, LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED, {
       helloWorks: { instance },
     });
 
@@ -171,12 +173,16 @@ export async function sendHelloWorksUsTaxForm(
 
     // Send the actual email
     const recipientName = mainUser.collective.name || mainUser.collective.legalName;
-    const accountName = account.legalName || account.name || account.slug;
+    const accountName =
+      accountToSubmitRequestTo.legalName || accountToSubmitRequestTo.name || accountToSubmitRequestTo.slug;
     const emailData = { documentLink, recipientName, accountName };
     return emailLib.send('tax-form-request', mainUser.email, emailData);
   } catch (error) {
-    logger.error(`Failed to initialize tax form for account #${account.id} (${mainUser.email})`, error);
-    return saveDocumentStatus(account, year, LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, {
+    logger.error(
+      `Failed to initialize tax form for account #${accountToSubmitRequestTo.id} (${mainUser.email})`,
+      error,
+    );
+    return saveDocumentStatus(accountToSubmitRequestTo, year, LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, {
       error: {
         message: error.message,
         stack: error.stack,
