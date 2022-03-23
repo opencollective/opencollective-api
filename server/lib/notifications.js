@@ -468,6 +468,7 @@ async function notifyByEmail(activity) {
       if (get(activity, 'data.host.id')) {
         notifyAdminsOfCollective(activity.data.host.id, activity, {
           template: 'collective.expense.paid.for.host',
+          from: NO_REPLY_EMAIL,
           collective: activity.data.host,
         });
       }

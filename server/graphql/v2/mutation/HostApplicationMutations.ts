@@ -218,7 +218,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
   const adminUsers = await collective.getAdminUsers();
   await emailLib.send(
     'host.application.contact',
-    NO_REPLY_EMAIL,
+    [],
     {
       host: host.info,
       collective: collective.info,
@@ -226,6 +226,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
     },
     {
       bcc: adminUsers.map(u => u.email),
+      from: NO_REPLY_EMAIL,
     },
   );
 };
