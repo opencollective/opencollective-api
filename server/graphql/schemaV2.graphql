@@ -7618,6 +7618,7 @@ type Query {
     """
     throwIfMissing: Boolean = true
   ): Project
+  tagFrequency: TagCollection!
   tier(
     """
     Identifiers to retrieve the tier
@@ -8838,6 +8839,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   The Account parenting this account
   """
   parent: Account
+}
+
+"""
+A collection of "Tags"
+"""
+type TagCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [TagStat]
 }
 
 input TierReferenceInput {

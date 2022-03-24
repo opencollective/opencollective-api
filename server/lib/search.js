@@ -89,7 +89,7 @@ export const searchCollectivesInDB = async (
   term,
   offset = 0,
   limit = 100,
-  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled, countries } = {},
+  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled, countries, tags } = {},
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
@@ -129,6 +129,12 @@ export const searchCollectivesInDB = async (
 
   if (countryCodes) {
     dynamicConditions += `AND "countryISO" IN (:countryCodes) `;
+  }
+
+  if (tags?.length) {
+    tags.forEach(tag => {
+      dynamicConditions += `AND '${tag}' = ANY("tags") `;
+    });
   }
 
   // Cleanup term

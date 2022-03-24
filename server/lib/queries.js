@@ -1091,7 +1091,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
     ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
     AND account.id != d."HostCollectiveId"
-    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC) 
+    AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
     AND all_expenses."deletedAt" IS NULL
     AND EXTRACT('year' FROM all_expenses."incurredAt") = :year
@@ -1153,6 +1153,28 @@ const getTransactionsTimeSeries = async (
   );
 };
 
+/**
+ * Returns tags along with their frequency of use.
+ */
+const getTagFrequencies = async args => {
+  return sequelize.query(
+    `SELECT UNNEST(tags) AS tag, COUNT(id)
+      FROM "Collectives"
+      WHERE "deletedAt" IS NULL
+      GROUP BY UNNEST(tags)
+      ORDER BY count DESC
+      LIMIT :limit
+      OFFSET :offset`,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        limit: args.limit || 10,
+        offset: args.offset || 0,
+      },
+    },
+  );
+};
+
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1186,6 +1208,7 @@ const queries = {
   getMembersOfCollectiveWithRole,
   getMembersWithBalance,
   getMembersWithTotalDonations,
+  getTagFrequencies,
   getTaxFormsRequiredForAccounts,
   getTaxFormsRequiredForExpenses,
   getTopBackers,

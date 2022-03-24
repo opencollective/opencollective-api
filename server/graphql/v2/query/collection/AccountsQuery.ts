@@ -66,6 +66,7 @@ const AccountsQuery = {
         skipRecentAccounts: args.skipRecentAccounts,
         hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
         countries: args.countries,
+        tags: args.tags,
       };
 
       const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
