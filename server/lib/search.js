@@ -7,8 +7,9 @@ import slugify from 'limax';
 import { get } from 'lodash';
 
 import { RateLimitExceeded } from '../graphql/errors';
-import models, { sequelize } from '../models';
+import models, { Op, sequelize } from '../models';
 
+import { floatAmountToCents } from './math';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 
 // Returned when there's no result for a search
@@ -68,6 +69,20 @@ const searchTermToTsVector = term => {
 };
 
 /**
+ * Trim leading/trailing spaces and remove multiple spaces from the string
+ */
+const trimSearchTerm = term => {
+  return term?.trim().replace(/\s+/g, ' ');
+};
+
+/**
+ * Removes special ILIKE characters like `%
+ */
+const sanitizeSearchTermForILike = term => {
+  return term.replace(/(_|%|\\)/g, '\\$1');
+};
+
+/**
  * TSVector to search for collectives names/description/slug
  * Updating the value here requires generating a new migration to update the index.
  * See `migrations/20201119100223-update-collectives-search-index.js`
@@ -122,7 +137,7 @@ export const searchCollectivesInDB = async (
 
   // Cleanup term
   if (term && term.length > 0) {
-    term = term.replace(/(_|%|\\)/g, ' ').trim();
+    term = sanitizeSearchTermForILike(trimSearchTerm(term));
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
       term = term.replace(/^@+/, '');
@@ -182,4 +197,82 @@ export const searchCollectivesInDB = async (
   );
 
   return [result, get(result[0], 'dataValues.__total__', 0)];
+};
+
+/**
+ * Parse and clean a user search query
+ */
+export const parseSearchTerm = fullSearchTerm => {
+  const searchTerm = trimSearchTerm(fullSearchTerm);
+  if (!searchTerm) {
+    return { type: 'text', term: '' };
+  }
+
+  if (searchTerm.match(/^@.[^\s]+$/)) {
+    // Searching for slugs (e.g. `@babel`). Won't match if there are whitespace chars (eg. `@babel expense from last month`)
+    return { type: 'slug', term: searchTerm.replace(/^@/, '') };
+  } else if (searchTerm.match(/^#\d+$/)) {
+    // Searching for integer IDs (e.g. `#123`)
+    return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
+  } else if (searchTerm.match(/^\d+\.?\d*$/)) {
+    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+  } else {
+    return { type: 'text', term: searchTerm };
+  }
+};
+
+/**
+ *
+ * @param {string} searchTerm
+ * @param {object} fieldsDefinition
+ * @param {object} options
+ *  - {string} stringArrayTransformFn: A function to transform values for array strings, usually uppercase/lowercase
+ * @returns
+ */
+export const buildSearchConditions = (
+  searchTerm,
+  { slugFields = [], idFields = [], textFields = [], amountFields = [], stringArrayFields = [] },
+  { stringArrayTransformFn = null } = {},
+) => {
+  const parsedTerm = parseSearchTerm(searchTerm);
+
+  // Empty search => no condition
+  if (!parsedTerm.term) {
+    return [];
+  }
+
+  // Exclusive conditions: if an ID or a slug is searched, on don't search other attributes
+  // We don't use ILIKE for them, they must match exactly
+  if (parsedTerm.type === 'slug' && slugFields?.length) {
+    return slugFields.map(field => ({ [field]: parsedTerm.term }));
+  } else if (parsedTerm.type === 'id' && idFields?.length) {
+    return idFields.map(field => ({ [field]: parsedTerm.term }));
+  }
+
+  // Inclusive conditions, search all fields except
+  const conditions = [];
+
+  // Conditions for text fields
+  const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+  const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+  const allTextFields = [...(slugFields || []), ...(textFields || [])];
+  allTextFields.forEach(field => conditions.push({ [field]: { [Op.iLike]: iLikeQuery } }));
+
+  // Conditions for string array (usually tags lists)
+  if (stringArrayFields?.length) {
+    const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
+    stringArrayFields.forEach(field => conditions.push({ [field]: { [Op.overlap]: [preparedTerm] } }));
+  }
+
+  // Conditions for numbers (ID, amount)
+  if (parsedTerm.type === 'number') {
+    if (!parsedTerm.isFloat && idFields?.length) {
+      conditions.push(...idFields.map(field => ({ [field]: parsedTerm.term })));
+    }
+    if (amountFields?.length) {
+      conditions.push(...amountFields.map(field => ({ [field]: floatAmountToCents(parsedTerm.term) })));
+    }
+  }
+
+  return conditions;
 };
