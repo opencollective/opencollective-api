@@ -293,7 +293,7 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
       template = 'thankyou.wwcode';
     } else if (['foundation', 'opensource'].includes(hostSlug)) {
       template = `thankyou.${hostSlug}`;
-    } else if (includes(['chsf', 'kendraio', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
+    } else if (includes(['chsf', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
       template = `thankyou.${slug}`;
     } else if (includes(['laprimaire', 'lesbarbares', 'nuitdebout', 'enmarchebe', 'monnaie-libre'], slug)) {
       if (slug === 'laprimaire') {

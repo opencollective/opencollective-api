@@ -82,7 +82,6 @@ export const templateNames = [
   'thankyou',
   'thankyou.sustainoss',
   'thankyou.wwcode',
-  'thankyou.kendraio',
   'thankyou.brusselstogether',
   'thankyou.fr',
   'thankyou.laprimaire',
