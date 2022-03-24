@@ -156,6 +156,9 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     idFields: ['id'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+    amountFields: ['totalAmount'],
+    stringArrayFields: ['tags'],
+    stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
   });
 
   if (searchTermConditions.length) {
