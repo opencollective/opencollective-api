@@ -40,6 +40,7 @@ import {
   getDatabaseIdFromExpenseReference,
 } from '../input/ExpenseReferenceInput';
 import { ExpenseUpdateInput } from '../input/ExpenseUpdateInput';
+import { RecurringExpenseInput } from '../input/RecurringExpenseInput';
 import { Expense } from '../object/Expense';
 
 const expenseMutations = {
@@ -55,6 +56,10 @@ const expenseMutations = {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account where the expense will be created',
       },
+      recurring: {
+        type: RecurringExpenseInput,
+        description: 'Recurring Expense information',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       const payoutMethod = args.expense.payoutMethod;
@@ -68,7 +73,7 @@ const expenseMutations = {
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
-      return createExpense(req.remoteUser, {
+      const expense = await createExpense(req.remoteUser, {
         ...pick(args.expense, [
           'description',
           'longDescription',
@@ -86,6 +91,12 @@ const expenseMutations = {
         collective: await fetchAccountWithReference(args.account, req),
         fromCollective: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
       });
+
+      if (args.recurring) {
+        await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endAt);
+      }
+
+      return expense;
     },
   },
   editExpense: {
