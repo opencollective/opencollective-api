@@ -119,46 +119,6 @@ describe('server/lib/email', () => {
       );
       expect(nm.sendMail.lastCall.args[0].html).to.contain('4218859');
     });
-
-    it('sends the thankyou.brusselstogether email template', async () => {
-      const paymentData = {
-        totalAmount: 5000,
-        currency: 'EUR',
-      };
-
-      const data = {
-        order: paymentData,
-        transaction: { uuid: '17811b3e-0ac4-4101-81d4-86e9e0aefd7b' },
-        config: { host: config.host },
-        interval: 'month',
-        user: emailData.user,
-        fromCollective: {
-          id: 2,
-          name: 'Test User',
-          slug: 'test-user-slug',
-        },
-        collective: {
-          name: '#BrusselsTogether',
-          slug: 'brusselstogether',
-          image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
-        },
-      };
-      const from = 'BrusselsTogether <info@brusselstogether.opencollective.com>';
-      await emailLib.send('thankyou', data.user.email, data, { from });
-      let amountStr = 50;
-      amountStr = amountStr.toLocaleString('fr-FR', {
-        style: 'currency',
-        currency: 'EUR',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-
-      expect(nm.sendMail.lastCall.args[0].from).to.equal(from);
-      expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
-      expect(nm.sendMail.lastCall.args[0].subject).to.contain(
-        `Thank you for your ${amountStr}/month contribution to #BrusselsTogether`,
-      );
-    });
   });
 
   describe('Unsubscribe', () => {
