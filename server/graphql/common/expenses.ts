@@ -717,8 +717,18 @@ export async function createExpense(
     throw new Unauthorized('Missing expense.collective.id');
   }
 
-  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(expenseData.collective.id)]);
-  if (expenseData.collective.settings?.['disablePublicExpenseSubmission'] && !isMember) {
+  const collective = await models.Collective.findByPk(expenseData.collective.id);
+  if (!collective) {
+    throw new ValidationFailed('Collective not found');
+  }
+
+  const isMember = Boolean(remoteUser.rolesByCollectiveId[String(collective.id)]);
+  if (
+    expenseData.collective.settings?.['disablePublicExpenseSubmission'] &&
+    !isMember &&
+    !remoteUser.isAdminOfCollectiveOrHost(collective) &&
+    !remoteUser.isRoot()
+  ) {
     throw new Error('You must be a member of the collective to create new expense');
   }
 
@@ -728,11 +738,6 @@ export async function createExpense(
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
-  }
-
-  const collective = await models.Collective.findByPk(expenseData.collective.id);
-  if (!collective) {
-    throw new ValidationFailed('Collective not found');
   }
 
   const isAllowedType = [
