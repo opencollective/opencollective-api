@@ -586,7 +586,10 @@ function defineModel() {
         const collectiveHost = await collective.getHostCollective();
         if (collectiveHost.id !== fromCollectiveHost.id) {
           const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
-          oppositeTransaction.hostFeeInHostCurrency = calcFee(oppositeTransaction.amountInHostCurrency, hostFeePercent);
+          oppositeTransaction.hostFeeInHostCurrency = calcFee(
+            oppositeTransaction.amountInHostCurrency + oppositeTransaction.paymentProcessorFeeInHostCurrency,
+            hostFeePercent,
+          );
           if (oppositeTransaction.hostFeeInHostCurrency) {
             await models.Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
           }
