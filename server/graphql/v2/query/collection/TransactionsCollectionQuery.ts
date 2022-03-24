@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, uniq } from 'lodash';
 
+import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { TransactionCollection } from '../../collection/TransactionCollection';
 import { TransactionKind } from '../../enum/TransactionKind';
@@ -224,28 +225,18 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
   // Backup the conditions as they're now to fetch the list of all available kinds
   const whereKinds = cloneDeep(where);
 
-  if (args.searchTerm) {
-    const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-    const ilikeQuery = `%${sanitizedTerm}%`;
-    const or = [];
-    or.push(
-      { description: { [Op.iLike]: ilikeQuery } },
-      { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-      { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-      { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
-      { '$collective.name$': { [Op.iLike]: ilikeQuery } },
-    );
+  // Handle search query
+  const searchTermConditions = buildSearchConditions(args.searchTerm, {
+    idFields: ['id'],
+    slugFields: ['$fromCollective.slug$', '$collective.slug$'],
+    textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+  });
 
-    include.push({ association: 'fromCollective', attributes: [] }, { association: 'collective', attributes: [] });
-
-    if (!isNaN(args.searchTerm)) {
-      or.push({ id: args.searchTerm });
-    }
-
-    where.push({
-      [Op.or]: or,
-    });
+  if (searchTermConditions.length) {
+    where.push({ [Op.or]: searchTermConditions });
+    include.push({ association: 'fromCollective', attributes: [] }, { association: 'collective', attributes: [] }); // Must include associations to search their fields
   }
+
   if (args.type) {
     where.push({ type: args.type });
   }
