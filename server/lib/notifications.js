@@ -363,7 +363,7 @@ async function notifyByEmail(activity) {
       break;
 
     case activityType.COLLECTIVE_EXPENSE_CREATED:
-      notifyAdminsOfCollective(activity.CollectiveId, activity);
+      notifyAdminsOfCollective(activity.CollectiveId, activity, { from: NO_REPLY_EMAIL });
       break;
 
     case activityType.COLLECTIVE_CONTACT:
@@ -618,7 +618,7 @@ async function notifyByEmail(activity) {
     case activityType.VIRTUAL_CARD_REQUESTED:
       notifyAdminsOfCollective(activity.data.host.id, activity, {
         template: 'virtualcard.requested',
-        replyTo: activity.data.user.email,
+        from: NO_REPLY_EMAIL,
         sendEvenIfNotProduction: true,
       });
       break;
