@@ -7,6 +7,7 @@ import { expenseStatus } from '../../../../constants';
 import EXPENSE_TYPE from '../../../../constants/expense_type';
 import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
+import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { ExpenseCollection } from '../../collection/ExpenseCollection';
@@ -172,29 +173,22 @@ const ExpensesCollectionQuery = {
     }
 
     // Add search filter
-    if (args.searchTerm) {
-      const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-      const ilikeQuery = `%${sanitizedTerm}%`;
-      where[Op.or] = [
-        { description: { [Op.iLike]: ilikeQuery } },
-        { tags: { [Op.overlap]: [args.searchTerm.toLowerCase()] } },
-        { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-        { '$User.collective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$User.collective.name$': { [Op.iLike]: ilikeQuery } },
-        // { '$items.description$': { [Op.iLike]: ilikeQuery } },
-      ];
+    // Not searching in items yet because one-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
+    const searchTermConditions = buildSearchConditions(args.searchTerm, {
+      idFields: ['id'],
+      slugFields: ['$fromCollective.slug$', '$User.collective.slug$'],
+      textFields: ['$fromCollective.name$', '$User.collective.name$', 'description'],
+      amountFields: ['amount'],
+      stringArrayFields: ['tags'],
+      stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+    });
 
+    if (searchTermConditions.length) {
+      where[Op.or] = searchTermConditions;
       include.push(
         { association: 'fromCollective', attributes: [] },
         { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
-        // One-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
-        // { association: 'items', duplicating: false, attributes: [], separate: true },
       );
-
-      if (!isNaN(args.searchTerm)) {
-        where[Op.or].push({ id: args.searchTerm });
-      }
     }
 
     // Add filters

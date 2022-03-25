@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Includeable } from 'sequelize';
 
+import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
 import { NotFound } from '../../../errors';
 import { OrderCollection } from '../../collection/OrderCollection';
@@ -151,28 +152,17 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   }
 
   // Add search filter
-  if (args.searchTerm) {
-    const searchConditions = [];
-    const searchedId = args.searchTerm.match(/^#?(\d+)$/)?.[1];
+  const searchTermConditions = buildSearchConditions(args.searchTerm, {
+    idFields: ['id'],
+    slugFields: ['$fromCollective.slug$', '$collective.slug$'],
+    textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+    amountFields: ['totalAmount'],
+    stringArrayFields: ['tags'],
+    stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
+  });
 
-    // If search term starts with a `#`, only search by ID
-    if (args.searchTerm[0] !== '#' || !searchedId) {
-      const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-      const ilikeQuery = `%${sanitizedTerm}%`;
-      searchConditions.push(
-        { description: { [Op.iLike]: ilikeQuery } },
-        { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-        { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
-        { '$collective.name$': { [Op.iLike]: ilikeQuery } },
-      );
-    }
-
-    if (searchedId) {
-      searchConditions.push({ id: parseInt(searchedId) });
-    }
-
-    where[Op.and].push({ [Op.or]: searchConditions });
+  if (searchTermConditions.length) {
+    where[Op.and].push({ [Op.or]: searchTermConditions });
   }
 
   // Add filters
