@@ -1,9 +1,18 @@
 import cryptoRandomString from 'crypto-random-string';
 import express from 'express';
-import { GraphQLBoolean, GraphQLFloat, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLFloat,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
+import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import plans from '../../../constants/plans';
 import cache, { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -149,6 +158,50 @@ const accountMutations = {
 
         return account;
       });
+    },
+  },
+  editAccountFreezeStatus: {
+    type: new GraphQLNonNull(Account),
+    description: 'An endpoint for hosts to edit the freeze status of their hosted accounts',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to freeze',
+      },
+      action: {
+        type: new GraphQLNonNull(
+          new GraphQLEnumType({ name: 'AccountFreezeAction', values: { FREEZE: {}, UNFREEZE: {} } }),
+        ),
+      },
+      message: {
+        type: GraphQLString,
+        description: 'Message to send by email to the admins of the account',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<void> {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      account.host = await account.getHostCollective();
+      if (!account.host) {
+        throw new ValidationFailed('Cannot find the host of this account');
+      } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
+        throw new Unauthorized();
+      } else if (![COLLECTIVE_TYPE.COLLECTIVE, COLLECTIVE_TYPE.FUND].includes(account.type)) {
+        throw new ValidationFailed(
+          'Only collective and funds can be frozen. To freeze children accounts (projects, events) you need to freeze the parent account.',
+        );
+      }
+
+      if (args.action === 'FREEZE') {
+        await account.freeze(args.message);
+      } else if (args.action === 'UNFREEZE') {
+        await account.unfreeze(args.message);
+      }
+
+      return account.reload();
     },
   },
   addTwoFactorAuthTokenToIndividual: {

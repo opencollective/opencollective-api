@@ -6,6 +6,7 @@ import deepmerge from 'deepmerge';
 import * as ics from 'ics';
 import slugify from 'limax';
 import {
+  cloneDeep,
   defaults,
   difference,
   differenceBy,
@@ -16,6 +17,7 @@ import {
   omit,
   pick,
   round,
+  set,
   sum,
   sumBy,
   trim,
@@ -1104,6 +1106,57 @@ function defineModel() {
     });
 
     return this;
+  };
+
+  Collective.prototype.freeze = async function (message) {
+    if (this.data?.features?.ALL === false) {
+      throw new Error('This account is already frozen');
+    }
+
+    const host = this.host || (await this.getHostCollective());
+    await sequelize.transaction(async transaction => {
+      const children = await this.getChildren({ transaction });
+      await Promise.all(
+        [this, ...children].map(account =>
+          account.update({ data: set(cloneDeep(this.data || {}), 'features.ALL', false) }, { transaction }),
+        ),
+      );
+
+      // Create the notification
+      await models.Activity.create(
+        {
+          type: activities.COLLECTIVE_FROZEN,
+          CollectiveId: this.id,
+          data: { collective: this.info, host: host.info, message },
+        },
+        { transaction },
+      );
+    });
+  };
+
+  Collective.prototype.unfreeze = async function (message) {
+    if (this.data?.features?.ALL !== false) {
+      throw new Error('This account is already unfrozen');
+    }
+
+    const host = this.host || (await this.getHostCollective());
+    await sequelize.transaction(async transaction => {
+      const children = await this.getChildren({ transaction });
+      await Promise.all(
+        [this, ...children].map(account =>
+          account.update({ data: omit(cloneDeep(this.data || {}), 'features.ALL') }, { transaction }),
+        ),
+      );
+
+      await models.Activity.create(
+        {
+          type: activities.COLLECTIVE_UNFROZEN,
+          CollectiveId: this.id,
+          data: { collective: this.info, host: host.info, message },
+        },
+        { transaction },
+      );
+    });
   };
 
   Collective.prototype.hasBudget = function () {
