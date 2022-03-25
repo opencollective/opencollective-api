@@ -178,6 +178,7 @@ const ExpensesCollectionQuery = {
       idFields: ['id'],
       slugFields: ['$fromCollective.slug$', '$User.collective.slug$'],
       textFields: ['$fromCollective.name$', '$User.collective.name$', 'description'],
+      amountFields: ['amount'],
       stringArrayFields: ['tags'],
       stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
     });
