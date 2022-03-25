@@ -21,6 +21,7 @@ import {
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
 } from '../../../../server/graphql/common/expenses';
+import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
 import { getApolloErrorCode, makeRequest } from '../../../utils';
@@ -521,7 +522,7 @@ describe('server/graphql/common/expenses', () => {
             exchangeRate: {
               date: amount.exchangeRate.date, // We don't really care about the date
               fromCurrency: 'EUR',
-              isApproximate: true,
+              isApproximate: false,
               source: 'WISE',
               toCurrency: 'USD',
               value: 1 / 1.4,
@@ -582,8 +583,60 @@ describe('server/graphql/common/expenses', () => {
             exchangeRate: {
               date: amount.exchangeRate.date, // We don't really care about the date
               fromCurrency: 'EUR',
-              isApproximate: true,
+              isApproximate: false,
               source: 'PAYPAL',
+              toCurrency: 'USD',
+              value: 1.6,
+            },
+          });
+        });
+      });
+    });
+
+    describe('Manual', async () => {
+      let expense;
+
+      before(async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const collective = await fakeCollective({ currency: 'USD' });
+        expense = await fakeExpense({
+          PayoutMethodId: payoutMethod.id,
+          CollectiveId: collective.id,
+          amount: 1000,
+          currency: 'EUR',
+        });
+      });
+
+      describe('converts the amount to collective currency', () => {
+        it('when there is no data (uses the mocked 1.1)', async () => {
+          const amount = await getExpenseAmountInDifferentCurrency(expense, 'USD', publicReq);
+          expect(amount).to.deep.eq({
+            value: 1100,
+            currency: 'USD',
+            exchangeRate: {
+              date: amount.exchangeRate.date, // We don't really care about the date
+              fromCurrency: 'EUR',
+              isApproximate: true,
+              source: 'OPENCOLLECTIVE',
+              toCurrency: 'USD',
+              value: 1.1,
+            },
+          });
+        });
+
+        it('when there is a transaction to retrieve the rate', async () => {
+          await createTransactionsFromPaidExpense(expense.collective.host, expense, undefined, 1.6);
+          await expense.update({ status: 'PAID' });
+
+          const amount = await getExpenseAmountInDifferentCurrency(expense, 'USD', publicReq);
+          expect(amount).to.deep.eq({
+            value: 1600,
+            currency: 'USD',
+            exchangeRate: {
+              date: amount.exchangeRate.date, // We don't really care about the date
+              fromCurrency: 'EUR',
+              isApproximate: false,
+              source: 'OPENCOLLECTIVE',
               toCurrency: 'USD',
               value: 1.6,
             },
