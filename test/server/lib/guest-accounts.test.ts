@@ -95,7 +95,7 @@ describe('server/lib/guest-accounts.ts', () => {
       await user.reload({ include: [{ association: 'collective' }] });
       expect(user.confirmedAt).to.not.be.null;
       expect(user.collective.name).to.eq('Incognito');
-      expect(user.collective.slug).to.include('guest-'); // slug doesn't get updated
+      expect(user.collective.slug).to.include('user-');
     });
 
     it('verifies the account and updates the profile for users that already filled their profiles', async () => {
@@ -107,7 +107,7 @@ describe('server/lib/guest-accounts.ts', () => {
       await user.reload({ include: [{ association: 'collective' }] });
       expect(user.confirmedAt).to.not.be.null;
       expect(user.collective.name).to.eq('Zappa');
-      expect(user.collective.slug).to.include('guest'); // slug doesn't get updated
+      expect(user.collective.slug).to.include('zappa');
     });
   });
 });
