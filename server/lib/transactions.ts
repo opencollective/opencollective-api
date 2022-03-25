@@ -183,7 +183,7 @@ export async function createTransactionsFromPaidExpense(
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
-    data: transactionData,
+    data: set(transactionData || {}, 'expenseToHostFxRate', expenseToHostFxRate),
   };
 
   // If the payee is assuming the fees, we adapt the amounts

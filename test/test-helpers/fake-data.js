@@ -301,6 +301,9 @@ export const fakeExpense = async (expenseData = {}) => {
   }
 
   expense.User = await models.User.findByPk(expense.UserId);
+  expense.collective = await models.Collective.findByPk(expense.CollectiveId, {
+    include: [{ association: 'host' }],
+  });
   return expense;
 };
 

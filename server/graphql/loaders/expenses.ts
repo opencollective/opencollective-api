@@ -1,9 +1,11 @@
 import DataLoader from 'dataloader';
 import express from 'express';
+import { groupBy } from 'lodash';
 
 import ACTIVITY from '../../constants/activities';
+import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
-import models, { Op } from '../../models';
+import models, { Op, sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
@@ -97,3 +99,27 @@ export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
     return expenseIds.map(id => (expenseIdsPendingTaxForm.has(id) ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
   });
 };
+
+/**
+ * Should only be used with paid expenses
+ */
+export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<number, number> =>
+  new DataLoader(async (expenseIds: number[]) => {
+    const transactions = await models.Transaction.findAll({
+      attributes: ['ExpenseId', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
+      where: {
+        ExpenseId: expenseIds,
+        kind: TransactionKind.EXPENSE,
+        type: 'CREDIT',
+        isRefund: false,
+        RefundTransactionId: null,
+        data: { expenseToHostFxRate: { [Op.ne]: null } },
+      },
+    });
+
+    const groupedTransactions = groupBy(transactions, 'ExpenseId');
+    return expenseIds.map(expenseId => {
+      const value = parseFloat(groupedTransactions[expenseId]?.[0].dataValues.expenseToHostFxRate);
+      return isNaN(value) ? null : value;
+    });
+  });

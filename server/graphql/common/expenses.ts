@@ -1241,6 +1241,7 @@ const getWiseFxRateInfoFromExpenseData = (expense, expectedSourceCurrency: strin
       return {
         value: fxRate,
         date: new Date(wiseInfo['created'] || wiseInfo['createdTime']), // "created" for transfers, "createdTime" for quotes
+        isFinal: Boolean(expense.data?.transfer),
       };
     }
   }
@@ -1747,7 +1748,12 @@ export async function quoteExpense(expense_, { req }) {
 
 export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, req) => {
   // Small helper to quickly generate an Amount object with fxRate
-  const buildAmount = (fxRatePercentage, fxRateSource, isApproximate, date = expense.createdAt) => ({
+  const buildAmount = (
+    fxRatePercentage: number,
+    fxRateSource: CurrencyExchangeRateSourceTypeEnum,
+    isApproximate: boolean,
+    date = expense.createdAt,
+  ) => ({
     value: Math.round(expense.amount * fxRatePercentage),
     currency: toCurrency,
     exchangeRate: {
@@ -1773,7 +1779,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
     if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
       const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, toCurrency);
       if (wiseFxRateInfo) {
-        return buildAmount(wiseFxRateInfo.value, WISE, true, wiseFxRateInfo.date);
+        return buildAmount(wiseFxRateInfo.value, WISE, !wiseFxRateInfo.isFinal, wiseFxRateInfo.date);
       }
     } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
       const currencyConversion = expense.data?.['currency_conversion'];
@@ -1788,7 +1794,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
 
         if (fxRate) {
           const date = expense.data['time_processed'] ? new Date(expense.data['time_processed']) : null;
-          return buildAmount(fxRate, PAYPAL, true, date);
+          return buildAmount(fxRate, PAYPAL, false, date);
         }
       }
     }
@@ -1797,7 +1803,10 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   // TODO: Can we retrieve something for virtual cards?
 
   if (expense.status === 'PAID') {
-    // TODO: If the expense was paid, we should be able to fetch the FX rate from the transaction
+    const rate = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
+    if (rate !== null) {
+      return buildAmount(rate, OPENCOLLECTIVE, false, expense.createdAt);
+    }
   }
 
   // Fallback on internal system
