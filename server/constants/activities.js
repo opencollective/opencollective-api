@@ -26,6 +26,8 @@ export default {
   COLLECTIVE_EXPENSE_ERROR: 'collective.expense.error',
   COLLECTIVE_EXPENSE_INVITE_DRAFTED: 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT: 'collective.expense.missing.receipt',
+  COLLECTIVE_FROZEN: 'collective.frozen',
+  COLLECTIVE_UNFROZEN: 'collective.unfrozen',
   COLLECTIVE_MEMBER_CREATED: 'collective.member.created',
   COLLECTIVE_TRANSACTION_CREATED: 'collective.transaction.created',
   COLLECTIVE_UPDATE_CREATED: 'collective.update.created',

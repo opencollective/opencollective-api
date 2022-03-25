@@ -370,6 +370,11 @@ async function notifyByEmail(activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, { replyTo: activity.data.user.email });
       break;
 
+    case activityType.COLLECTIVE_FROZEN:
+    case activityType.COLLECTIVE_UNFROZEN:
+      notifyAdminsOfCollective(activity.data.collective.id, activity);
+      break;
+
     case activityType.COLLECTIVE_CONVERSATION_CREATED:
       activity.data.collective = await models.Collective.findByPk(activity.data.conversation.CollectiveId);
       activity.data.fromCollective = await models.Collective.findByPk(activity.data.conversation.FromCollectiveId);

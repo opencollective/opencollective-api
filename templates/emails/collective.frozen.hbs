@@ -1,0 +1,25 @@
+Subject: Important: {{{collective.name}}} has been frozen by {{{host.name}}}
+
+{{> header}}
+
+<p style="font-size: 17px; padding: 1em;">
+  Hi {{collective.name}},
+  <br /><br />
+  Your fiscal host, <a href="{{config.host.website}}/{{host.slug}}">{{{host.name}}}</a>, has frozen your Collective.
+  In other words, they have temporarily limited what you (and your connected Projects & Events) can and cannot do on the platform.
+  <br/><br/>
+  Your collective, <a href="{{config.host.website}}/{{collective.slug}}">{{{collective.name}}}</a>, will not be able to accept funds, pay out expenses, post updates, create new Events or Projects, add new Team members under this collective.
+  However, the Collective will still continue to receive recurring donations that were started before this freeze.
+  <br/><br/>
+  If you have additional questions about this freeze, please contact your fiscal host.
+  {{#if message}}
+    <br /><br />
+    <a href="{{config.host.website}}/{{host.slug}}">{{{host.name}}}</a> included the following message:
+  {{/if}}
+</p>
+
+{{#if message}}
+  <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 0 24px;border-left: 3px solid #e4e4e4;white-space: pre-line;font-style: italic;">{{message}}</blockquote>
+{{/if}}
+
+{{> footer}}

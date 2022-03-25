@@ -137,6 +137,10 @@ const accountFieldsDefinition = () => ({
     type: GraphQLBoolean,
     description: 'Returns whether this account is archived',
   },
+  isFrozen: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is frozen',
+  },
   isActive: {
     type: GraphQLBoolean,
     description: 'Returns whether the account accepts financial contributions.',
@@ -635,6 +639,13 @@ export const AccountFields = {
     description: 'Returns whether this account is archived',
     resolve(collective) {
       return Boolean(collective.deactivatedAt);
+    },
+  },
+  isFrozen: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    description: 'Whether this account is frozen',
+    resolve(collective) {
+      return get(collective, 'data.features.ALL') === false;
     },
   },
   isHost: {
