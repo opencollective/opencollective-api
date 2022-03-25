@@ -293,14 +293,8 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
       template = 'thankyou.wwcode';
     } else if (['foundation', 'opensource'].includes(hostSlug)) {
       template = `thankyou.${hostSlug}`;
-    } else if (includes(['chsf', 'kendraio', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
-      template = `thankyou.${slug}`;
-    } else if (includes(['laprimaire', 'lesbarbares', 'nuitdebout', 'enmarchebe', 'monnaie-libre'], slug)) {
-      if (slug === 'laprimaire') {
-        template = 'thankyou.laprimaire';
-      } else {
-        template = 'thankyou.fr';
-      }
+    } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre'], slug)) {
+      template = 'thankyou.fr';
 
       // xdamman: hack
       switch (data.interval) {
