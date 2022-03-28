@@ -89,7 +89,16 @@ export const searchCollectivesInDB = async (
   term,
   offset = 0,
   limit = 100,
-  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled, countries, tags } = {},
+  {
+    types,
+    hostCollectiveIds,
+    isHost,
+    onlyActive,
+    skipRecentAccounts,
+    hasCustomContributionsEnabled,
+    countries,
+    tags,
+  } = {},
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
