@@ -7618,7 +7618,7 @@ type Query {
     """
     throwIfMissing: Boolean = true
   ): Project
-  tagFrequency: TagCollection!
+  tagStats: TagCollection!
   tier(
     """
     Identifiers to retrieve the tier

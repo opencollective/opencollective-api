@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 import rawQueries from '../../../../lib/queries';
 import { TagStatsCollection } from '../../collection/TagStatsCollection';
 
-const TagFrequencyQuery = {
+const TagStatsCollectionQuery = {
   type: new GraphQLNonNull(TagStatsCollection),
   async resolve(_, args) {
     const tagFrequencies = await rawQueries.getTagFrequencies({
@@ -15,4 +15,4 @@ const TagFrequencyQuery = {
   },
 };
 
-export default TagFrequencyQuery;
+export default TagStatsCollectionQuery;
