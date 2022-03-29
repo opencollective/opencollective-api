@@ -191,6 +191,15 @@ export const getFeatureStatusResolver =
           ? FEATURE_STATUS.ACTIVE // TODO: This flag is misused, there's a confusion between ACTIVE and AVAILABLE
           : FEATURE_STATUS.DISABLED;
       }
+      case FEATURE.PAYPAL_PAYOUTS: {
+        const hasConnectedAccount = await models.ConnectedAccount.count({
+          where: { service: 'paypal', CollectiveId: collective.id },
+          limit: 1,
+        });
+        return hasFeature(collective, FEATURE.PAYPAL_PAYOUTS) && hasConnectedAccount
+          ? FEATURE_STATUS.ACTIVE
+          : FEATURE_STATUS.DISABLED;
+      }
       default:
         return FEATURE_STATUS.ACTIVE;
     }
