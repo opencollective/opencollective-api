@@ -2033,6 +2033,11 @@ type RecurringExpense {
   lastDraftedAt: DateTime
 
   """
+  The time this expense will cease to be recurring
+  """
+  endAt: DateTime
+
+  """
   The last expense created by this recurring expense record paid for
   """
   lastExpenseCreated: Expense
@@ -2042,11 +2047,11 @@ type RecurringExpense {
 All supported intervals for recurring expenses
 """
 enum RecurringExpenseInterval {
-  DAY
-  WEEK
-  MONTH
-  QUARTER
-  YEAR
+  day
+  week
+  month
+  quarter
+  year
 }
 
 """
@@ -11349,12 +11354,12 @@ input RecurringExpenseInput {
   """
   The interval in which this recurring expense is created
   """
-  frquency: String!
+  interval: RecurringExpenseInterval!
 
   """
   The date when this recurring expense should cease
   """
-  endDate: DateString
+  endAt: DateString
 }
 
 input ExpenseUpdateInput {
