@@ -2,6 +2,19 @@
 
 module.exports = {
   up: async queryInterface => {
+    // Create IMMUTABLE function for array to string conversion
+    await queryInterface.createFunction(
+      'array_to_string_immutable',
+      [
+        { type: 'text[]', name: 'textArray' },
+        { type: 'text', name: 'text' },
+      ],
+      'text',
+      'plpgsql',
+      'RETURN array_to_string(textArray, text);',
+      ['IMMUTABLE', 'STRICT', 'PARALLEL', 'SAFE'],
+    );
+
     // Drop the existing search index
     await queryInterface.sequelize.query(`DROP INDEX IF EXISTS "collective_search_index"`);
 
@@ -16,7 +29,7 @@ module.exports = {
           to_tsvector('english', name)
           || to_tsvector('simple', slug)
           || to_tsvector('english', COALESCE(description, ''))
-          || COALESCE(to_tsvector(array_to_string(COALESCE(tags::varchar[], ARRAY[]::varchar[]), ' ')), '')
+          || COALESCE(to_tsvector('simple', array_to_string_immutable(COALESCE(tags::varchar[], ARRAY[]::varchar[]), ' ')), '')
         ))
       WHERE "deletedAt" IS NULL
       AND "deactivatedAt" IS NULL
@@ -40,11 +53,17 @@ module.exports = {
         "Collectives"
       USING
         gin((
-          to_tsvector('simple', name)
+          to_tsvector('english', name)
           || to_tsvector('simple', slug)
-          || to_tsvector('simple', COALESCE(description, ''))
-          || COALESCE(to_tsvector(array_to_string(COALESCE(tags::varchar[], ARRAY[]::varchar[]), ' ')), '')
+          || to_tsvector('english', COALESCE(description, ''))
+          || COALESCE(array_to_tsvector(tags), '')
         ))
     `);
+
+    // Drop IMMUTABLE function for array to string conversion
+    await queryInterface.dropFunction('array_to_string_immutable', [
+      { type: 'text[]', name: 'textArray' },
+      { type: 'text', name: 'text' },
+    ]);
   },
 };
