@@ -15,6 +15,7 @@ import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
+import { hasFeature } from '../../../lib/allowed-features';
 import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
@@ -29,6 +30,7 @@ import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
+  FeatureNotSupportedForCollective,
   Forbidden,
   NotFound,
   Unauthorized,
@@ -351,8 +353,16 @@ const hasPaymentMethod = order => {
 export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, reqMask) {
   debug('Beginning creation of order', order);
 
+  // Pre-load collective
+  let collective;
+  if (order.collective.id) {
+    collective = await loaders.Collective.byId.load(order.collective.id);
+  }
+
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
+    throw new FeatureNotAllowedForUser();
+  } else if (collective && !hasFeature(collective, FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS)) {
+    throw new FeatureNotSupportedForCollective('This account cannot receive financial contributions at this time');
   } else if (!remoteUser) {
     await checkGuestContribution(order, loaders);
   }
@@ -394,10 +404,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
     }
 
     // Check the existence of the recipient Collective
-    let collective;
-    if (order.collective.id) {
-      collective = await loaders.Collective.byId.load(order.collective.id);
+    if (collective) {
+      // Nothing to do, collective is already loaded above
     } else if (order.collective.website) {
+      // This case is for legacy orders that don't have a collective id, it should be removed with the deprecation of `createOrder` V1
       collective = (
         await models.Collective.findOrCreate({
           where: { website: order.collective.website },
@@ -405,6 +415,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         })
       )[0];
     } else if (order.collective.githubHandle) {
+      // This case is for legacy orders that don't have a collective id, it should be removed with the deprecation of `createOrder` V1
       collective = await models.Collective.findOne({ where: { githubHandle: order.collective.githubHandle } });
       if (!collective) {
         const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
