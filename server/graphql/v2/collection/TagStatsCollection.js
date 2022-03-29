@@ -4,7 +4,7 @@ import { Collection, CollectionFields } from '../interface/Collection';
 import { TagStats } from '../object/TagStats';
 
 export const TagStatsCollection = new GraphQLObjectType({
-  name: 'TagCollection',
+  name: 'TagStatsCollection',
   interfaces: [Collection],
   description: 'A collection of "Tags"',
   fields: () => {
