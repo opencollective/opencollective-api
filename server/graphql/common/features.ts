@@ -196,9 +196,7 @@ export const getFeatureStatusResolver =
           where: { service: 'paypal', CollectiveId: collective.id },
           limit: 1,
         });
-        return hasFeature(collective, FEATURE.PAYPAL_PAYOUTS) && hasConnectedAccount
-          ? FEATURE_STATUS.ACTIVE
-          : FEATURE_STATUS.DISABLED;
+        return hasConnectedAccount ? FEATURE_STATUS.ACTIVE : FEATURE_STATUS.DISABLED;
       }
       default:
         return FEATURE_STATUS.ACTIVE;
