@@ -10,7 +10,7 @@ const RecurringExpenseInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(RecurringExpenseInterval),
       description: 'The interval in which this recurring expense is created',
     },
-    endAt: {
+    endsAt: {
       type: DateString,
       description: 'The date when this recurring expense should cease',
     },

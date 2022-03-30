@@ -93,7 +93,7 @@ const expenseMutations = {
       });
 
       if (args.recurring) {
-        await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endAt);
+        await models.RecurringExpense.createFromExpense(expense, args.recurring.interval, args.recurring.endsAt);
       }
 
       return expense;

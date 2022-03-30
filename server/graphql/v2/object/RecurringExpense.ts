@@ -40,7 +40,7 @@ const RecurringExpense = new GraphQLObjectType({
       type: GraphQLDateTime,
       description: 'The last time this recurring expense was paid for',
     },
-    endAt: {
+    endsAt: {
       type: GraphQLDateTime,
       description: 'The time this expense will cease to be recurring',
     },

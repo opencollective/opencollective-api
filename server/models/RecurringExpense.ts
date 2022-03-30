@@ -25,7 +25,7 @@ interface RecurringExpenseAttributes {
   CollectiveId: number;
   FromCollectiveId: number;
   lastDraftedAt: Date;
-  endAt: Date;
+  endsAt: Date;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date;
@@ -33,7 +33,7 @@ interface RecurringExpenseAttributes {
 
 type RecurringExpenseCreateAttributes =
   | Required<Pick<RecurringExpenseAttributes, 'interval' | 'CollectiveId' | 'FromCollectiveId'>>
-  | Pick<RecurringExpenseAttributes, 'endAt' | 'lastDraftedAt'>;
+  | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
 export class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
   public id: string;
@@ -41,7 +41,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
   public CollectiveId: number;
   public FromCollectiveId: number;
   public lastDraftedAt: Date;
-  public endAt: Date;
+  public endsAt: Date;
   public createdAt: Date;
   public updatedAt: Date;
   public deletedAt: Date;
@@ -126,10 +126,10 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
   static async createFromExpense(
     expense: typeof models.Expense,
     interval: RecurringExpenseIntervals,
-    endAt?: string | Date,
+    endsAt?: string | Date,
   ) {
-    if (typeof endAt === 'string') {
-      endAt = moment(endAt).toDate();
+    if (typeof endsAt === 'string') {
+      endsAt = moment(endsAt).toDate();
     }
 
     const recurringExpense = await this.create({
@@ -137,7 +137,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       FromCollectiveId: expense.FromCollectiveId,
       lastDraftedAt: new Date(),
       interval,
-      endAt,
+      endsAt,
     });
     await expense.update({ RecurringExpenseId: recurringExpense.id });
     return recurringExpense;
@@ -152,7 +152,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       where: {
         [Op.or]: dateWhere,
         lastDraftedAt: { [Op.ne]: null },
-        endAt: { [Op.or]: [{ [Op.gt]: moment().startOf('day').toDate() }, { [Op.eq]: null }] },
+        endsAt: { [Op.or]: [{ [Op.gt]: moment().startOf('day').toDate() }, { [Op.eq]: null }] },
       },
     });
   }
@@ -205,7 +205,7 @@ RecurringExpense.init(
     lastDraftedAt: {
       type: DataTypes.DATE,
     },
-    endAt: {
+    endsAt: {
       type: DataTypes.DATE,
     },
   },

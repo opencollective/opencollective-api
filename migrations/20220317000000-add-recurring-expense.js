@@ -42,7 +42,7 @@ module.exports = {
       lastDraftedAt: {
         type: Sequelize.DATE,
       },
-      endAt: {
+      endsAt: {
         type: Sequelize.DATE,
       },
     });
