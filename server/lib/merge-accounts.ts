@@ -170,6 +170,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   virtualCards: { model: models.VirtualCard, field: 'CollectiveId' },
   virtualCardsHosted: { model: models.VirtualCard, field: 'HostCollectiveId' },
   recurringExpenses: { model: models.RecurringExpense, field: 'CollectiveId' },
+  recurringExpensesCreated: { model: models.RecurringExpense, field: 'FromCollectiveId' },
 };
 
 // Defines the collective field names used in the DB. Useful to prevent typos in the config below
