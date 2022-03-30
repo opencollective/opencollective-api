@@ -549,6 +549,10 @@ export const scheduleExpenseForPayment = async (
   if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
     await paymentProviders.transferwise.scheduleExpenseForPayment(expense);
   }
+  // If PayPal, check if host is connected to PayPal
+  else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+    await host.getAccountForPaymentProvider('paypal');
+  }
 
   const updatedExpense = await expense.update({
     status: expenseStatus.SCHEDULED_FOR_PAYMENT,
