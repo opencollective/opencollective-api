@@ -17,11 +17,11 @@ const RecurringExpense = new GraphQLObjectType({
       description: 'Unique identifier for this recurring expense',
     },
     interval: {
-      type: RecurringExpenseInterval,
+      type: new GraphQLNonNull(RecurringExpenseInterval),
       description: 'The interval in which this recurring expense is created',
     },
     account: {
-      type: Account,
+      type: new GraphQLNonNull(Account),
       resolve(recurringExpense, _, req) {
         if (recurringExpense.CollectiveId) {
           return req.loaders.Collective.byId.load(recurringExpense.CollectiveId);
@@ -29,7 +29,7 @@ const RecurringExpense = new GraphQLObjectType({
       },
     },
     fromAccount: {
-      type: Account,
+      type: new GraphQLNonNull(Account),
       resolve(recurringExpense, _, req) {
         if (recurringExpense.FromCollectiveId) {
           return req.loaders.Collective.byId.load(recurringExpense.FromCollectiveId);
@@ -37,7 +37,7 @@ const RecurringExpense = new GraphQLObjectType({
       },
     },
     lastDraftedAt: {
-      type: GraphQLDateTime,
+      type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The last time this recurring expense was paid for',
     },
     endsAt: {
