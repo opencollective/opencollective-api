@@ -646,6 +646,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       path: { type: GraphQLString },
       isHost: { type: GraphQLBoolean },
       isIncognito: { type: GraphQLBoolean },
+      isFrozen: { type: new GraphQLNonNull(GraphQLBoolean), description: 'Whether this account is frozen' },
       isGuest: { type: GraphQLBoolean },
       canApply: { type: GraphQLBoolean },
       canContact: { type: GraphQLBoolean },
@@ -1176,6 +1177,13 @@ const CollectiveFields = () => {
       type: GraphQLBoolean,
       resolve(collective) {
         return Boolean(collective.data?.isGuest);
+      },
+    },
+    isFrozen: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether this account is frozen',
+      resolve(collective) {
+        return get(collective, 'data.features.ALL') === false;
       },
     },
     isArchived: {
