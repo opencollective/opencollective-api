@@ -37,7 +37,7 @@ module.exports = {
       },
       interval: {
         allowNull: false,
-        type: Sequelize.STRING,
+        type: Sequelize.ENUM('day', 'week', 'month', 'quarter', 'year'),
       },
       lastDraftedAt: {
         type: Sequelize.DATE,

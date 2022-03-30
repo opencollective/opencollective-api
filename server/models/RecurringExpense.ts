@@ -194,13 +194,7 @@ RecurringExpense.init(
     },
     interval: {
       allowNull: false,
-      type: DataTypes.STRING,
-      validate: {
-        isIn: {
-          args: [Object.values(RecurringExpenseIntervals)],
-          msg: `Must be one of: ${Object.values(RecurringExpenseIntervals)}`,
-        },
-      },
+      type: DataTypes.ENUM(...Object.values(RecurringExpenseIntervals)),
     },
     lastDraftedAt: {
       type: DataTypes.DATE,
