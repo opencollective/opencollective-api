@@ -110,6 +110,12 @@ WITH banned_collectives AS (
   USING       deleted_users
   WHERE       n."UserId" = deleted_users.id
   RETURNING   n.id
+), deleted_recurring_expenses AS (
+  -- Delete Recurring Expenses 
+  DELETE FROM "RecurringExpenses" re
+  USING       deleted_profiles
+  WHERE       (re."FromCollectiveId" = deleted_profiles.id OR re."CollectiveId" = deleted_profiles.id)
+  RETURNING   re.id
 ) SELECT 
   (SELECT COUNT(*) FROM deleted_profiles) AS nb_deleted_profiles,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
@@ -126,6 +132,7 @@ WITH banned_collectives AS (
   (SELECT COUNT(*) FROM deleted_orders) AS nb_deleted_orders,
   (SELECT COUNT(*) FROM deleted_notifications) AS nb_deleted_notifications,
   (SELECT COUNT(*) FROM deleted_users) AS nb_deleted_users,
+  (SELECT COUNT(*) FROM deleted_recurring_expenses) AS nb_deleted_recurring_expenses,
   (SELECT ARRAY_AGG(deleted_profiles.id) FROM deleted_profiles) AS deleted_profiles_ids
   
 -- TODO:
