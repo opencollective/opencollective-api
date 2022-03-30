@@ -75,7 +75,7 @@
     "fs-extra": "10.0.1",
     "get-urls": "10.0.1",
     "graphql": "16.3.0",
-    "graphql-scalars": "1.16.0",
+    "graphql-scalars": "1.17.0",
     "graphql-type-json": "0.3.2",
     "handlebars": "4.7.7",
     "hashids": "2.2.10",
