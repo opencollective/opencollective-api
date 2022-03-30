@@ -24,14 +24,14 @@ module.exports = {
       CollectiveId: {
         type: Sequelize.INTEGER,
         references: { key: 'id', model: 'Collectives' },
-        onDelete: 'SET NULL',
+        onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
         allowNull: false,
       },
       FromCollectiveId: {
         type: Sequelize.INTEGER,
         references: { key: 'id', model: 'Collectives' },
-        onDelete: 'SET NULL',
+        onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
         allowNull: false,
       },

@@ -181,14 +181,14 @@ RecurringExpense.init(
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Collectives' },
-      onDelete: 'SET NULL',
+      onDelete: 'CASCADE',
       onUpdate: 'CASCADE',
       allowNull: false,
     },
     FromCollectiveId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Collectives' },
-      onDelete: 'SET NULL',
+      onDelete: 'CASCADE',
       onUpdate: 'CASCADE',
       allowNull: false,
     },
