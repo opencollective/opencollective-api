@@ -145,7 +145,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
 
   static async getRecurringExpensesDue() {
     const dateWhere = Object.values(RecurringExpenseIntervals).map(interval => ({
-      lastDraftedAt: { [Op.lt]: moment().subtract(1, interval).endOf(interval).toDate() },
+      lastDraftedAt: { [Op.lt]: moment().subtract(1, interval).endOf('day').toDate() },
       interval,
     }));
     return this.findAll({
