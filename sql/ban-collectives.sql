@@ -112,8 +112,8 @@ WITH banned_collectives AS (
   RETURNING   n.id
 ), deleted_recurring_expenses AS (
   -- Delete Recurring Expenses 
-  DELETE FROM "RecurringExpenses" re
-  USING       deleted_profiles
+  UPDATE ONLY "RecurringExpenses" re SET "deletedAt" = NOW()
+  FROM        deleted_profiles
   WHERE       (re."FromCollectiveId" = deleted_profiles.id OR re."CollectiveId" = deleted_profiles.id)
   RETURNING   re.id
 ) SELECT 
