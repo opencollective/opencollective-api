@@ -58,8 +58,8 @@ const AccountsQuery = {
   async resolve(_: void, args): Promise<CollectionReturnType> {
     const { offset, limit } = args;
 
-    if (args.searchTerm) {
-      const cleanTerm = args.searchTerm.trim();
+    if (args.searchTerm || args.isHost || args.type || args.countries) {
+      const cleanTerm = args.searchTerm?.trim();
 
       const extraParameters = {
         orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },

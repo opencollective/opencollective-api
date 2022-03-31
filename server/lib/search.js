@@ -167,8 +167,6 @@ export const searchCollectivesInDB = async (
     term = '';
   }
 
-  // Build the query
-
   const sortSubqueries = {
     ACTIVITY: `
       SELECT COALESCE(SUM(ABS("netAmountInCollectiveCurrency")), 0)
@@ -186,6 +184,7 @@ export const searchCollectivesInDB = async (
     CREATED_AT: `"createdAt"`,
   };
 
+  // Build the query
   const result = await sequelize.query(
     `
     SELECT
