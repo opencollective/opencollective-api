@@ -59,7 +59,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
         description,
         type: 'DEBIT',
         currency,
-        ExpenseId: expense.id,
+        ExpenseId: processingExpense.id,
         amount: toNegative(amount),
         netAmountInCollectiveCurrency: toNegative(amount),
         hostCurrency: host.currency,
