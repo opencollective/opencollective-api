@@ -36,6 +36,7 @@ export const templateNames = [
   'collective.expense.paid.for.host',
   'collective.expense.invite.drafted',
   'collective.expense.missing.receipt',
+  'collective.expense.recurring.drafted',
   'collective.expense.rejected',
   'collective.member.created',
   'collective.monthlyreport',

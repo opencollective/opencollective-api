@@ -70,6 +70,7 @@ describe('sql/ban-collectives', () => {
     expect(result).to.deep.eqInAnyOrder({
       deleted_profiles_ids: [collective.id, event.id],
       nb_deleted_profiles: 2,
+      nb_deleted_recurring_expenses: 0,
       deleted_users: 0,
       nb_deleted_tiers: 0,
       nb_deleted_members: 2,
@@ -106,6 +107,7 @@ describe('sql/ban-collectives', () => {
 
     expect(result).to.deep.eqInAnyOrder({
       nb_deleted_profiles: 1,
+      nb_deleted_recurring_expenses: 0,
       deleted_users: 1,
       nb_deleted_tiers: 0,
       nb_deleted_members: 2,
@@ -147,6 +149,7 @@ describe('sql/ban-collectives', () => {
 
     expect(result).to.deep.eqInAnyOrder({
       nb_deleted_profiles: 3,
+      nb_deleted_recurring_expenses: 0,
       deleted_users: 2,
       nb_deleted_tiers: 0,
       nb_deleted_members: 0,

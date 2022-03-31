@@ -27,6 +27,7 @@ import ExpensePermissions from './ExpensePermissions';
 import ExpenseQuote from './ExpenseQuote';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
+import RecurringExpense from './RecurringExpense';
 import { VirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
@@ -354,6 +355,12 @@ const Expense = new GraphQLObjectType({
             };
             return { sourceAmount, estimatedDeliveryAt, paymentProcessorFeeAmount };
           }
+        },
+      },
+      recurringExpense: {
+        type: RecurringExpense,
+        async resolve(expense) {
+          return expense.getRecurringExpense();
         },
       },
     };
