@@ -21,6 +21,21 @@ export const getVirtualCardForTransaction = async cardId => {
   });
 };
 
+const notifyCollectiveMissingReceipt = async (expense, virtualCard) => {
+  expense.collective = expense.collective || (await expense.getCollective());
+  expense.fromCollective = expense.fromCollective || (await expense.getFromCollective());
+
+  if (expense.collective.settings?.ignoreExpenseMissingReceiptAlerts === true) {
+    return;
+  }
+
+  expense.createActivity(
+    activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+    { id: virtualCard.UserId },
+    { ...expense.data, user: virtualCard.user },
+  );
+};
+
 export const persistTransaction = async (virtualCard, transaction) => {
   // Make sure amount is an absolute value
   const amount = Math.abs(transaction.amount);
@@ -43,14 +58,15 @@ export const persistTransaction = async (virtualCard, transaction) => {
   if (transaction.fromAuthorizationId) {
     const processingExpense = await models.Expense.findOne({
       where: {
+        status: ExpenseStatus.PROCESSING,
         VirtualCardId: virtualCard.id,
         data: { authorizationId: transaction.fromAuthorizationId },
       },
     });
 
-    if (processingExpense && processingExpense.status === ExpenseStatus.PROCESSING) {
+    if (processingExpense) {
+      await processingExpense.update({ amount, data: { ...expenseData, missingDetails: true } });
       await processingExpense.setPaid();
-      await processingExpense.update({ data: expenseData });
 
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
@@ -71,12 +87,15 @@ export const persistTransaction = async (virtualCard, transaction) => {
         kind: TransactionKind.EXPENSE,
       });
 
+      await notifyCollectiveMissingReceipt(processingExpense, virtualCard);
+
       return processingExpense;
     }
   }
 
   const existingExpense = await models.Expense.findOne({
     where: {
+      status: ExpenseStatus.PAID,
       VirtualCardId: virtualCard.id,
       // TODO : only let transactionId in a few months (today : 11/2021) or make a migration to update data on existing expenses and transactions
       data: { [Op.or]: [{ transactionId }, { id: transactionId }, { token: transactionId }] },
@@ -172,15 +191,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       kind: TransactionKind.EXPENSE,
     });
 
-    expense.fromCollective = vendor;
-    expense.collective = collective;
-    if (collective.settings?.ignoreExpenseMissingReceiptAlerts !== true) {
-      expense.createActivity(
-        activities.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-        { id: UserId },
-        { ...expense.data, user: virtualCard.user },
-      );
-    }
+    await notifyCollectiveMissingReceipt(expense, virtualCard);
 
     return expense;
   } catch (e) {
