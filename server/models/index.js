@@ -180,6 +180,7 @@ export function setupModels() {
   m.Activity.belongsTo(m.Collective);
   m.Activity.belongsTo(m.User);
   m.Activity.belongsTo(m.Transaction);
+  m.Activity.belongsTo(m.Expense);
 
   // Notification.
   m.Notification.belongsTo(m.User);
@@ -241,6 +242,7 @@ export function setupModels() {
   m.Expense.hasMany(m.ExpenseAttachedFile, { as: 'attachedFiles' });
   m.Expense.hasMany(m.ExpenseItem, { as: 'items' });
   m.Expense.hasMany(m.Transaction);
+  m.Expense.hasMany(m.Activity, { as: 'activities' });
   m.Transaction.belongsTo(m.Expense);
   m.Transaction.belongsTo(m.Order);
 
