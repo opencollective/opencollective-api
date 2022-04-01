@@ -21,9 +21,10 @@ export const getVirtualCardForTransaction = async cardId => {
   });
 };
 
-const notifyCollectiveMissingReceipt = async (expense, virtualCard) => {
+export const notifyCollectiveMissingReceipt = async (expense, virtualCard) => {
   expense.collective = expense.collective || (await expense.getCollective());
   expense.fromCollective = expense.fromCollective || (await expense.getFromCollective());
+  virtualCard = virtualCard || expense.virtualCard || (await expense.getVirtualCard());
 
   if (expense.collective.settings?.ignoreExpenseMissingReceiptAlerts === true) {
     return;
