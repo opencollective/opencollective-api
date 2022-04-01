@@ -513,6 +513,17 @@ function defineModel() {
     );
   };
 
+  Expense.findPendingCardCharges = async function ({ where = {}, include = [] } = {}) {
+    return Expense.findAll({
+      where: {
+        ...where,
+        type: expenseType.CHARGE,
+        '$items.url$': { [Op.eq]: null },
+      },
+      include: [...include, { model: models.ExpenseItem, as: 'items', required: true }],
+    });
+  };
+
   Temporal(Expense, sequelize);
 
   return Expense;
