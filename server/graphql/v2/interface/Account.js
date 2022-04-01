@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { assign, get, invert, isEmpty } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
+import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -341,38 +342,18 @@ const accountFieldsDefinition = () => ({
 
       // Add search filter
       let include;
-      if (searchTerm) {
-        const searchConditions = [];
-        include = [{ association: 'fromCollective', required: true, attributes: [] }];
-        const searchedId = searchTerm.match(/^#?(\d+)$/)?.[1];
+      const searchTermConditions = buildSearchConditions(searchTerm, {
+        idFields: ['id'],
+        slugFields: ['$fromCollective.slug$'],
+        textFields: ['$fromCollective.name$', 'title', 'html'],
+      });
 
-        // If search term starts with a `#`, only search by ID
-        if (searchTerm[0] !== '#' || !searchedId) {
-          const sanitizedTerm = searchTerm.replace(/(_|%|\\)/g, '\\$1');
-          const ilikeQuery = `%${sanitizedTerm}%`;
-          searchConditions.push(
-            { '$fromCollective.slug$': { [Op.iLike]: ilikeQuery } },
-            { '$fromCollective.name$': { [Op.iLike]: ilikeQuery } },
-            { $title$: { [Op.iLike]: ilikeQuery } },
-            { $html$: { [Op.iLike]: ilikeQuery } },
-          );
-        }
-
-        if (searchedId) {
-          searchConditions.push({ id: parseInt(searchedId) });
-        }
-
-        where[Op.and].push({ [Op.or]: searchConditions });
+      if (searchTermConditions.length) {
+        include.push({ association: 'fromCollective', required: true, attributes: [] });
+        where[Op.and].push({ [Op.or]: searchTermConditions });
       }
 
-      const query = {
-        where,
-        include,
-        order: [orderByFilter],
-        limit,
-        offset,
-      };
-
+      const query = { where, include, order: [orderByFilter], limit, offset };
       const result = await models.Update.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     },

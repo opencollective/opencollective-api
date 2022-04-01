@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString 
 import { cloneDeep, invert, isNil } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
+import { buildSearchConditions } from '../../../lib/search';
 import models, { Op, sequelize } from '../../../models';
 import { ValidationFailed } from '../../errors';
 import { MemberOfCollection } from '../collection/MemberCollection';
@@ -100,22 +101,16 @@ export const IsMemberOfFields = {
         }
       }
 
-      if (args.searchTerm) {
-        const sanitizedTerm = args.searchTerm.replace(/(_|%|\\)/g, '\\$1');
-        const ilikeQuery = `%${sanitizedTerm}%`;
+      const searchTermConditions = buildSearchConditions(args.searchTerm, {
+        idFields: ['id', '$collective.id$'],
+        slugFields: ['$collective.slug$'],
+        textFields: ['$collective.name$', '$collective.description$', 'description', 'role'],
+        stringArrayFields: ['tags'],
+        stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+      });
 
-        where[Op.or] = [
-          { description: { [Op.iLike]: ilikeQuery } },
-          { role: { [Op.iLike]: ilikeQuery } },
-          { '$collective.slug$': { [Op.iLike]: ilikeQuery } },
-          { '$collective.name$': { [Op.iLike]: ilikeQuery } },
-          { '$collective.description$': { [Op.iLike]: ilikeQuery } },
-          { '$collective.tags$': { [Op.overlap]: sequelize.cast([args.searchTerm.toLowerCase()], 'varchar[]') } },
-        ];
-
-        if (!isNaN(args.searchTerm)) {
-          where[Op.or].push({ '$collective.id$': args.searchTerm });
-        }
+      if (searchTermConditions.length) {
+        where[Op.or] = searchTermConditions;
       }
 
       const order = [];
