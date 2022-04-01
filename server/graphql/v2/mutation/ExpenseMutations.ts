@@ -67,9 +67,6 @@ const expenseMutations = {
         payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
       }
 
-      // Support deprecated `attachments` field
-      const items = args.expense.items || args.expense.attachments || [];
-
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
       // here and cleaned.
@@ -84,9 +81,9 @@ const expenseMutations = {
           'invoiceInfo',
           'payeeLocation',
           'currency',
+          'items',
+          'tax',
         ]),
-        items,
-        amount: items.reduce((total, item) => total + item.amount, 0),
         payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
         fromCollective: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
@@ -127,7 +124,6 @@ const expenseMutations = {
         payeeLocation: expense.payeeLocation,
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
-        amount: items?.reduce((total, att) => total + att.amount, 0),
         payoutMethod: expense.payoutMethod && {
           id: expense.payoutMethod.id && idDecode(expense.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
           data: expense.payoutMethod.data,
@@ -142,6 +138,7 @@ const expenseMutations = {
           incurredAt: item.incurredAt,
           description: item.description,
         })),
+        tax: expense.tax,
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,

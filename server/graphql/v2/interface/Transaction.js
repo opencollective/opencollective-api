@@ -9,7 +9,6 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { pick } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
 import roles from '../../../constants/roles';
@@ -332,10 +331,16 @@ export const TransactionFields = () => {
       type: TaxInfo,
       description: 'If taxAmount is set, this field will contain more info about the tax',
       resolve(transaction) {
-        if (!transaction.data?.tax) {
+        const tax = transaction.data?.tax;
+        if (!tax) {
           return null;
         } else {
-          return pick(transaction.data.tax, ['id', 'percentage']);
+          return {
+            id: tax.id,
+            type: tax.id,
+            percentage: Math.round(tax.percentage), // Does not support float
+            rate: tax.percentage,
+          };
         }
       },
     },

@@ -28,6 +28,7 @@ import ExpenseQuote from './ExpenseQuote';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
+import { TaxInfo } from './TaxInfo';
 import { VirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
@@ -103,6 +104,24 @@ const Expense = new GraphQLObjectType({
           }
 
           return ExpenseLib.getExpenseAmountInDifferentCurrency(expense, currency, req);
+        },
+      },
+      taxes: {
+        type: new GraphQLNonNull(new GraphQLList(TaxInfo)),
+        description: 'Taxes applied to this expense',
+        async resolve(expense, _, req) {
+          if (!expense.data?.taxes) {
+            return [];
+          } else {
+            const canSeePayoutDetails = await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
+            return expense.data.taxes.map(({ type, rate, idNumber }) => ({
+              id: type,
+              percentage: rate,
+              type,
+              rate,
+              idNumber: canSeePayoutDetails ? idNumber : null,
+            }));
+          }
         },
       },
       accountCurrencyFxRate: {

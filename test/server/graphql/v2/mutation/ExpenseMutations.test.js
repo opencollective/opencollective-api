@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { defaultsDeep, omit, pick } from 'lodash';
+import { defaultsDeep, omit, pick, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -392,6 +392,29 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(returnedItems.find(a => a.id === items[1].id)).to.exist;
       expect(returnedItems.find(a => a.id === items[2].id)).to.not.exist;
       expect(returnedItems.find(a => a.id === items[1].id).amount).to.equal(7000);
+    });
+
+    it('adding VAT updates the amount', async () => {
+      const expense = await fakeExpense({ amount: 10000, items: [] });
+      await Promise.all([
+        fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }),
+        fakeExpenseItem({ ExpenseId: expense.id, amount: 3000 }),
+        fakeExpenseItem({ ExpenseId: expense.id, amount: 5000 }),
+      ]);
+
+      const updatedExpenseData = {
+        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        tax: [{ type: 'VAT', rate: 5.5 }],
+      };
+
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const returnedItems = result.data.editExpense.items;
+      const sumItems = sumBy(returnedItems, 'amount');
+
+      expect(sumItems).to.equal(10000);
+      expect(result.data.editExpense.amount).to.equal(10550); // items sum + 5.5% tax
     });
 
     it('can edit only one field without impacting the others', async () => {
