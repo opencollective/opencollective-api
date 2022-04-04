@@ -31,7 +31,7 @@ describe('server/lib/subscriptions', () => {
         });
 
         describe('with an order that has a pending payment', () => {
-          it('to today', async () => {
+          it('to what it was before, keep the past due date', async () => {
             const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
             clock = sinon.useFakeTimers(today.toDate()); // Manually setting today's date
             const paypalPm = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
@@ -49,8 +49,9 @@ describe('server/lib/subscriptions', () => {
             });
 
             const updatedOrder = await updatePaymentMethodForSubscription(user, order, newPaymentMethod);
-            expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
-            expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-01-01T00:00:00.000Z');
+            const expectedNextChargeDate = subscription.nextChargeDate.toISOString();
+            expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal(expectedNextChargeDate);
+            expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal(expectedNextChargeDate);
           });
         });
 
