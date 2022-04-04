@@ -1,6 +1,7 @@
 import { isEmpty, keys, pick } from 'lodash';
 import moment from 'moment';
 
+import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
 import models, { sequelize } from '../models';
@@ -12,11 +13,17 @@ const getIsSubscriptionManagedExternally = pm => {
   return Boolean(provider?.features?.isRecurringManagedExternally);
 };
 
-const getNextChargeDateForUpdateFromExternalToInternal = baseNextChargeDate => {
+/**
+ * When the contribution gets updated, we need to update the next charge date as well
+ */
+const getNextChargeDateForUpdateContribution = (baseNextChargeDate, newInterval) => {
   const previousNextChargeDate = moment(baseNextChargeDate);
   if (previousNextChargeDate.isBefore(moment())) {
-    // If the contribution was pending, charge today
-    return moment();
+    // If the contribution was pending, keep it in the past
+    return previousNextChargeDate;
+  } else if (newInterval === 'year') {
+    // Yearly => beginning of next year
+    return moment().add(1, 'years').startOf('year');
   } else if (previousNextChargeDate.date() > 15) {
     // Set the next charge date to 2 months time if the subscription was made after 15th of the month.
     return moment().add(2, 'months').startOf('month');
@@ -52,7 +59,8 @@ export const updatePaymentMethodForSubscription = async (
 
     // Update the next charge dates
     const previousNextChargeDate = order.Subscription.nextChargeDate;
-    const nextChargeDate = getNextChargeDateForUpdateFromExternalToInternal(previousNextChargeDate);
+    const interval = order.Subscription.interval;
+    const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, interval);
     newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
     newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
   }
@@ -152,22 +160,16 @@ export const updateSubscriptionDetails = async (
   }
 
   // Update next charge date
-  if (newOrderData['interval']) {
-    const previousInterval = order.interval;
+  if (
+    newOrderData['interval'] &&
+    newOrderData['interval'] !== order.interval &&
+    newOrderData['interval'] !== INTERVALS.FLEXIBLE
+  ) {
     const newInterval = newOrderData['interval'];
-    const previousNextChargeDate = moment(order.Subscription.nextChargeDate);
-    let nextChargeDate;
-
-    if (previousInterval === 'month' && newInterval === 'year') {
-      nextChargeDate = moment().add(1, 'years').startOf('year');
-    } else if (previousInterval === 'year' && newInterval === 'month') {
-      nextChargeDate = getNextChargeDateForUpdateFromExternalToInternal(previousNextChargeDate);
-    }
-
-    if (nextChargeDate) {
-      newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
-      newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
-    }
+    const previousNextChargeDate = order.Subscription.nextChargeDate;
+    const nextChargeDate = getNextChargeDateForUpdateContribution(previousNextChargeDate, newInterval);
+    newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
+    newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
   }
 
   // Update order's Tier
