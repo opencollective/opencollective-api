@@ -105,7 +105,7 @@ export const IsMemberOfFields = {
         idFields: ['id', '$collective.id$'],
         slugFields: ['$collective.slug$'],
         textFields: ['$collective.name$', '$collective.description$', 'description', 'role'],
-        stringArrayFields: ['tags'],
+        stringArrayFields: ['$collective.tags$'],
         stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
       });
 
