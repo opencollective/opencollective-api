@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { createSandbox } from 'sinon';
+import moment from 'moment';
+import { createSandbox, useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -817,6 +818,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       paymentMethod,
       paymentMethod2,
       fixedTier,
+      fixedMonthlyTier,
+      fixedYearlyTier,
       flexibleTier,
       host,
       hostAdminUser;
@@ -876,6 +879,18 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CollectiveId: collective.id,
         amount: 7300,
         amountType: 'FIXED',
+      });
+      fixedMonthlyTier = await fakeTier({
+        CollectiveId: collective.id,
+        amount: 7700,
+        amountType: 'FIXED',
+        interval: 'month',
+      });
+      fixedYearlyTier = await fakeTier({
+        CollectiveId: collective.id,
+        amount: 8800,
+        amountType: 'FIXED',
+        interval: 'year',
       });
       flexibleTier = await fakeTier({
         CollectiveId: collective.id,
@@ -1056,6 +1071,139 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.updateOrder.amount.value).to.eq(73);
         expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
+      });
+
+      describe('update interval', async () => {
+        let clock;
+
+        afterEach(() => {
+          if (clock) {
+            clock.restore();
+            clock = null;
+          }
+        });
+        it('from monthly to yearly', async () => {
+          const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
+          clock = useFakeTimers(today.toDate()); // Manually setting today's date
+          const subscription = { nextChargeDate: moment(today) };
+          const monthlyOrder = await fakeOrder(
+            {
+              interval: 'month',
+              subscription,
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: 'ACTIVE',
+            },
+            { withSubscription: true },
+          );
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(monthlyOrder.id, 'order') },
+              amount: {
+                value: 8800 / 100,
+              },
+              tier: { legacyId: fixedYearlyTier.id },
+            },
+            user,
+          );
+
+          expect(result.errors).to.not.exist;
+          expect(result.data.updateOrder.amount.value).to.eq(88);
+          expect(result.data.updateOrder.tier.name).to.eq(fixedYearlyTier.name);
+
+          const updatedOrder = await models.Order.findOne({
+            where: { id: monthlyOrder.id },
+            include: [{ model: models.Subscription, required: true }],
+          });
+
+          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2023-01-01T00:00:00.000Z');
+        });
+
+        it('from yearly to monthly (before the 15th of the month)', async () => {
+          const today = moment(new Date(2022, 0, 1)); // 1st of January 2022
+          clock = useFakeTimers(today.toDate()); // Manually setting today's date
+          const subscription = { nextChargeDate: moment(today) };
+          const yearlyOrder = await fakeOrder(
+            {
+              interval: 'year',
+              subscription,
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: 'ACTIVE',
+            },
+            { withSubscription: true },
+          );
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(yearlyOrder.id, 'order') },
+              amount: {
+                value: 7700 / 100,
+              },
+              tier: { legacyId: fixedMonthlyTier.id },
+            },
+            user,
+          );
+
+          expect(result.errors).to.not.exist;
+          expect(result.data.updateOrder.amount.value).to.eq(77);
+          expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+
+          const updatedOrder = await models.Order.findOne({
+            where: { id: yearlyOrder.id },
+            include: [{ model: models.Subscription, required: true }],
+          });
+
+          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-02-01T00:00:00.000Z');
+        });
+
+        it('from yearly to monthly (after the 15th of the month)', async () => {
+          const today = moment(new Date(2022, 0, 18)); // 18th of January 2022
+          clock = useFakeTimers(today.toDate()); // Manually setting today's date
+          const subscription = { nextChargeDate: moment(today) };
+          const yearlyOrder = await fakeOrder(
+            {
+              interval: 'year',
+              subscription,
+              CreatedByUserId: user.id,
+              FromCollectiveId: user.CollectiveId,
+              CollectiveId: collective.id,
+              status: 'ACTIVE',
+            },
+            { withSubscription: true },
+          );
+
+          const result = await graphqlQueryV2(
+            updateOrderMutation,
+            {
+              order: { id: idEncode(yearlyOrder.id, 'order') },
+              amount: {
+                value: 7700 / 100,
+              },
+              tier: { legacyId: fixedMonthlyTier.id },
+            },
+            user,
+          );
+
+          expect(result.errors).to.not.exist;
+          expect(result.data.updateOrder.amount.value).to.eq(77);
+          expect(result.data.updateOrder.tier.name).to.eq(fixedMonthlyTier.name);
+
+          const updatedOrder = await models.Order.findOne({
+            where: { id: yearlyOrder.id },
+            include: [{ model: models.Subscription, required: true }],
+          });
+
+          expect(updatedOrder.Subscription.nextChargeDate.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+          expect(updatedOrder.Subscription.nextPeriodStart.toISOString()).to.equal('2022-03-01T00:00:00.000Z');
+        });
       });
     });
 

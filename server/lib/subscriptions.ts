@@ -151,6 +151,25 @@ export const updateSubscriptionDetails = async (
     newSubscriptionData['interval'] = tier.interval;
   }
 
+  // Update next charge date
+  if (newOrderData['interval']) {
+    const previousInterval = order.interval;
+    const newInterval = newOrderData['interval'];
+    const previousNextChargeDate = moment(order.Subscription.nextChargeDate);
+    let nextChargeDate;
+
+    if (previousInterval === 'month' && newInterval === 'year') {
+      nextChargeDate = moment().add(1, 'years').startOf('year');
+    } else if (previousInterval === 'year' && newInterval === 'month') {
+      nextChargeDate = getNextChargeDateForUpdateFromExternalToInternal(previousNextChargeDate);
+    }
+
+    if (nextChargeDate) {
+      newSubscriptionData['nextChargeDate'] = nextChargeDate.toDate();
+      newSubscriptionData['nextPeriodStart'] = nextChargeDate.toDate();
+    }
+  }
+
   // Update order's Tier
   const newTierId = tier?.id || null;
   if (newTierId !== order.TierId) {
