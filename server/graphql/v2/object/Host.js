@@ -19,8 +19,9 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import queries from '../../../lib/queries';
+import { buildSearchConditions } from '../../../lib/search';
 import { days } from '../../../lib/utils';
-import models, { Op, sequelize } from '../../../models';
+import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
@@ -316,21 +317,17 @@ export const Host = new GraphQLObjectType({
 
           const applyTypes = [CollectiveType.COLLECTIVE, CollectiveType.FUND];
           const where = { HostCollectiveId: host.id, approvedAt: null, type: { [Op.in]: applyTypes } };
-          const sanitizedSearch = args.searchTerm?.replace(/(_|%|\\)/g, '\\$1');
 
-          if (sanitizedSearch) {
-            const ilikeQuery = `%${sanitizedSearch}%`;
-            where[Op.or] = [
-              { description: { [Op.iLike]: ilikeQuery } },
-              { longDescription: { [Op.iLike]: ilikeQuery } },
-              { slug: { [Op.iLike]: ilikeQuery } },
-              { name: { [Op.iLike]: ilikeQuery } },
-              { tags: { [Op.overlap]: sequelize.cast([args.searchTerm.toLowerCase()], 'varchar[]') } },
-            ];
+          const searchTermConditions = buildSearchConditions(args.searchTerm, {
+            idFields: ['id'],
+            slugFields: ['slug'],
+            textFields: ['name', 'description', 'longDescription'],
+            stringArrayFields: ['tags'],
+            stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+          });
 
-            if (/^#?\d+$/.test(args.searchTerm)) {
-              where[Op.or].push({ id: args.searchTerm.replace('#', '') });
-            }
+          if (searchTermConditions.length) {
+            where[Op.or] = searchTermConditions;
           }
 
           const result = await models.Collective.findAndCountAll({
