@@ -91,7 +91,7 @@ export const TS_VECTOR = `
   to_tsvector('english', name)
   || to_tsvector('simple', slug)
   || to_tsvector('english', COALESCE(description, ''))
-  || COALESCE(array_to_tsvector(tags), '')
+  || COALESCE(to_tsvector(array_to_string(COALESCE(tags::varchar[], ARRAY[]::varchar[]), ' ')), '')
 `;
 
 /**
@@ -156,8 +156,7 @@ export const searchCollectivesInDB = async (
         AND (${TS_VECTOR} @@ plainto_tsquery('english', :vectorizedTerm)
         OR ${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm)
         OR name ILIKE '%' || :term || '%'
-        OR slug ILIKE '%' || :term || '%'
-        OR :term = any(tags))`;
+        OR slug ILIKE '%' || :term || '%')`;
     }
   } else {
     term = '';
