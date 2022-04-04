@@ -214,10 +214,12 @@ describe('server/lib/search', () => {
       ]);
 
       // Uppercase
-      const options = { stringArrayTransformFn: value => value.toUpperCase() };
-      expect(testBuildSearchConditionsWithCustomConfig('   hello   WorlD   ', fieldsConfig, options)).to.deep.eq([
-        { tags: { OVERLAP: ['HELLO WORLD'] } },
-      ]);
+      expect(
+        testBuildSearchConditionsWithCustomConfig('   hello   WorlD   ', {
+          ...fieldsConfig,
+          stringArrayTransformFn: value => value.toUpperCase(),
+        }),
+      ).to.deep.eq([{ tags: { OVERLAP: ['HELLO WORLD'] } }]);
     });
   });
 });

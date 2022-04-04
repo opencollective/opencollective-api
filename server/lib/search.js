@@ -239,8 +239,15 @@ export const parseSearchTerm = fullSearchTerm => {
  */
 export const buildSearchConditions = (
   searchTerm,
-  { slugFields = [], idFields = [], textFields = [], amountFields = [], stringArrayFields = [] },
-  { stringArrayTransformFn = null } = {},
+  {
+    slugFields = [],
+    idFields = [],
+    textFields = [],
+    amountFields = [],
+    stringArrayFields = [],
+    stringArrayTransformFn = null,
+    castStringArraysToVarchar = false,
+  },
 ) => {
   const parsedTerm = parseSearchTerm(searchTerm);
 
@@ -269,7 +276,13 @@ export const buildSearchConditions = (
   // Conditions for string array (usually tags lists)
   if (stringArrayFields?.length) {
     const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
-    stringArrayFields.forEach(field => conditions.push({ [field]: { [Op.overlap]: [preparedTerm] } }));
+    if (castStringArraysToVarchar) {
+      stringArrayFields.forEach(field =>
+        conditions.push({ [field]: { [Op.overlap]: sequelize.cast([preparedTerm], 'varchar[]') } }),
+      );
+    } else {
+      stringArrayFields.forEach(field => conditions.push({ [field]: { [Op.overlap]: [preparedTerm] } }));
+    }
   }
 
   // Conditions for numbers (ID, amount)
