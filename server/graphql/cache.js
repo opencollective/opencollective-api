@@ -40,6 +40,7 @@ function getCacheKeyForBudgetOrTransactionsSections(req, queryHash) {
     req.body.variables.kind &&
     !isEqual(req.body.variables.kind.sort(), [
       TransactionKind.ADDED_FUNDS,
+      TransactionKind.BALANCE_TRANSFER,
       TransactionKind.CONTRIBUTION,
       TransactionKind.EXPENSE,
       TransactionKind.PLATFORM_TIP,
