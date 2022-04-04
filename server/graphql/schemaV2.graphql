@@ -63,6 +63,11 @@ interface Account {
   isArchived: Boolean
 
   """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -1953,6 +1958,8 @@ enum ActivityType {
   COLLECTIVE_EXPENSE_INVITE_DRAFTED
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED
   COLLECTIVE_EXPENSE_MISSING_RECEIPT
+  COLLECTIVE_FROZEN
+  COLLECTIVE_UNFROZEN
   COLLECTIVE_MEMBER_CREATED
   COLLECTIVE_TRANSACTION_CREATED
   COLLECTIVE_UPDATE_CREATED
@@ -2023,14 +2030,14 @@ type RecurringExpense {
   """
   The interval in which this recurring expense is created
   """
-  interval: RecurringExpenseInterval
-  account: Account
-  fromAccount: Account
+  interval: RecurringExpenseInterval!
+  account: Account!
+  fromAccount: Account!
 
   """
   The last time this recurring expense was paid for
   """
-  lastDraftedAt: DateTime
+  lastDraftedAt: DateTime!
 
   """
   The time this expense will cease to be recurring
@@ -2328,6 +2335,11 @@ type Host implements Account & AccountWithContributions {
   Returns whether this account is archived
   """
   isArchived: Boolean
+
+  """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
 
   """
   Returns whether the account accepts financial contributions.
@@ -4015,6 +4027,11 @@ type Bot implements Account {
   isArchived: Boolean
 
   """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -4420,6 +4437,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Returns whether this account is archived
   """
   isArchived: Boolean
+
+  """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -5153,6 +5175,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   isArchived: Boolean
 
   """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -5668,6 +5695,11 @@ type Individual implements Account {
   isArchived: Boolean
 
   """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
+
+  """
   Returns whether the account accepts financial contributions.
   """
   isActive: Boolean
@@ -6137,6 +6169,11 @@ type Organization implements Account & AccountWithContributions {
   Returns whether this account is archived
   """
   isArchived: Boolean
+
+  """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
 
   """
   Returns whether the account accepts financial contributions.
@@ -6664,6 +6701,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   Returns whether this account is archived
   """
   isArchived: Boolean
+
+  """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -7827,6 +7869,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   isArchived: Boolean
 
   """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
+
+  """
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
@@ -8346,6 +8393,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Returns whether this account is archived
   """
   isArchived: Boolean
+
+  """
+  Whether this account is frozen
+  """
+  isFrozen: Boolean!
 
   """
   Returns whether it's active: can accept financial contributions and pay expenses.
@@ -9098,7 +9150,7 @@ type Mutation {
   ): Expense!
 
   """
-  To verify an unverified expense.
+  To re-send the invitation to complete a draft expense
   """
   resendDraftExpenseInvite(
     """
@@ -9241,6 +9293,22 @@ type Mutation {
     If using a custom fee, set this to true
     """
     isCustomFee: Boolean!
+  ): Account!
+
+  """
+  An endpoint for hosts to edit the freeze status of their hosted accounts
+  """
+  editAccountFreezeStatus(
+    """
+    Account to freeze
+    """
+    account: AccountReferenceInput!
+    action: AccountFreezeAction!
+
+    """
+    Message to send by email to the admins of the account
+    """
+    message: String
   ): Account!
 
   """
@@ -11359,7 +11427,7 @@ input RecurringExpenseInput {
   """
   The date when this recurring expense should cease
   """
-  endsAt: DateString
+  endsAt: DateTime
 }
 
 input ExpenseUpdateInput {
@@ -11704,6 +11772,11 @@ enum ProcessHostApplicationAction {
 Values that can be edited in Account's settings
 """
 scalar AccountSettingsKey
+
+enum AccountFreezeAction {
+  FREEZE
+  UNFREEZE
+}
 
 """
 Response for the addTwoFactorAuthTokenToIndividual mutation

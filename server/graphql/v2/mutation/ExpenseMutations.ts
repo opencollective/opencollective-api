@@ -414,7 +414,7 @@ const expenseMutations = {
   },
   resendDraftExpenseInvite: {
     type: new GraphQLNonNull(Expense),
-    description: 'To verify an unverified expense.',
+    description: 'To re-send the invitation to complete a draft expense',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
