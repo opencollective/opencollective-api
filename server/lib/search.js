@@ -83,18 +83,6 @@ const sanitizeSearchTermForILike = term => {
 };
 
 /**
- * TSVector to search for collectives names/description/slug
- * Updating the value here requires generating a new migration to update the index.
- * See `migrations/20201119100223-update-collectives-search-index.js`
- */
-export const TS_VECTOR = `
-  to_tsvector('english', name)
-  || to_tsvector('simple', slug)
-  || to_tsvector('english', COALESCE(description, ''))
-  || COALESCE(to_tsvector(array_to_string(COALESCE(tags::varchar[], ARRAY[]::varchar[]), ' ')), '')
-`;
-
-/**
  * Search collectives directly in the DB, using a full-text query.
  */
 export const searchCollectivesInDB = async (
@@ -153,10 +141,8 @@ export const searchCollectivesInDB = async (
     } else {
       isUsingTsVector = true;
       dynamicConditions += `
-        AND (${TS_VECTOR} @@ plainto_tsquery('english', :vectorizedTerm)
-        OR ${TS_VECTOR} @@ plainto_tsquery('simple', :vectorizedTerm)
-        OR name ILIKE '%' || :term || '%'
-        OR slug ILIKE '%' || :term || '%')`;
+        AND ("searchTsVector" @@ plainto_tsquery('english', :vectorizedTerm)
+        OR "searchTsVector" @@ plainto_tsquery('simple', :vectorizedTerm))`;
     }
   } else {
     term = '';
@@ -172,7 +158,7 @@ export const searchCollectivesInDB = async (
         CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
           1
         ELSE
-          ${isUsingTsVector ? `ts_rank(${TS_VECTOR}, plainto_tsquery('english', :vectorizedTerm))` : '0'}
+          ${isUsingTsVector ? `ts_rank("searchTsVector", plainto_tsquery('english', :vectorizedTerm))` : '0'}
         END
       ) AS __rank__
     FROM "Collectives" c

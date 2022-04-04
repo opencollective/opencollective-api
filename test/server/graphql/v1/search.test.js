@@ -10,6 +10,7 @@ describe('server/graphql/v1/search', () => {
 
   before(async () => {
     await utils.resetTestDB();
+    await utils.runSearchTsVectorMigration();
     commonKeyword = randStr();
     collectives = await Promise.all([
       fakeCollective({ name: randStr(), description: `A common keyword: ${commonKeyword}` }),
