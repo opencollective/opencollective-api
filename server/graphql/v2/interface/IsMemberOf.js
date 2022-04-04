@@ -107,6 +107,7 @@ export const IsMemberOfFields = {
         textFields: ['$collective.name$', '$collective.description$', 'description', 'role'],
         stringArrayFields: ['$collective.tags$'],
         stringArrayTransformFn: str => str.toLowerCase(), // collective tags are stored lowercase
+        castStringArraysToVarchar: true,
       });
 
       if (searchTermConditions.length) {
