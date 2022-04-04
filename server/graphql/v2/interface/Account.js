@@ -341,7 +341,7 @@ const accountFieldsDefinition = () => ({
       const orderByFilter = [orderBy.field, orderBy.direction];
 
       // Add search filter
-      let include;
+      const include = [];
       const searchTermConditions = buildSearchConditions(searchTerm, {
         idFields: ['id'],
         slugFields: ['$fromCollective.slug$'],
