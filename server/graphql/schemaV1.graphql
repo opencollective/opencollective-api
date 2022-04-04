@@ -3381,11 +3381,6 @@ type Query {
     countries: [CountryISO]
 
     """
-    Limit the search to collectives belonging to these tags
-    """
-    tags: [String]
-
-    """
     Limit the amount of results. Defaults to 20
     """
     limit: Int = 20

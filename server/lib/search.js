@@ -104,8 +104,13 @@ export const searchCollectivesInDB = async (
   let dynamicConditions = '';
   let isUsingTsVector = false;
   let countryCodes = null;
+  let searchedTags = '';
   if (countries) {
     countryCodes = `${countries.join(',')}`;
+  }
+
+  if (tags?.length) {
+    searchedTags = `{${tags.map(tag => `"${tag}"`).join(',')}}`;
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
@@ -141,9 +146,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    tags.forEach(tag => {
-      dynamicConditions += `AND '${tag}' = ANY("tags") `;
-    });
+    dynamicConditions += `AND "tags" @> (:searchedTags) `;
   }
 
   // Cleanup term
@@ -196,6 +199,7 @@ export const searchCollectivesInDB = async (
         term: term,
         slugifiedTerm: slugify(term),
         vectorizedTerm: searchTermToTsVector(term),
+        searchedTags,
         countryCodes,
         offset,
         limit,

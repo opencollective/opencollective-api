@@ -936,10 +936,6 @@ const queries = {
         type: new GraphQLList(CountryISO),
         description: 'Limit the search to collectives belonging to these countries',
       },
-      tags: {
-        type: new GraphQLList(GraphQLString),
-        description: 'Limit the search to collectives belonging to these tags',
-      },
       limit: {
         type: GraphQLInt,
         description: 'Limit the amount of results. Defaults to 20',
@@ -951,7 +947,7 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts, countries, tags } = args;
+      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts, countries } = args;
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
       const listToStr = list => (list ? list.join('_') : '');
@@ -979,7 +975,6 @@ const queries = {
           isHost,
           skipRecentAccounts,
           countries,
-          tags,
         });
         return generateResults(collectives, total);
       }
