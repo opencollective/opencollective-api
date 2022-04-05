@@ -18,6 +18,35 @@ Get the app from [Postgres.app](http://postgresapp.com/). Install it.
 
 Then to enable the CLI tools, follow the steps from: https://postgresapp.com/documentation/cli-tools.html
 
+#### With Anaconda
+
+Manage a sandbox for the Open Collective API by creating a Conda environment
+with the necessary packages:
+
+```bash
+# Create a Conda environment
+conda create -n opencollective-api python=3 postgresql postgis --channel conda-forge
+```
+
+This will install up-to-date versions of Python, PostgreSQL, and PostGIS. Note,
+these packages need to be found on the `conda-forge` channel which has enough
+substantial goodies that you can configure Conda to check there by default:
+
+```bash
+conda config --add channels conda-forge
+```
+
+You will need to initialize a database to do any kind of development or testing,
+e.g. for end-to-end tests:
+
+```bash
+# Initialize db
+initdb -D opencollective_e2e
+
+# Start the database
+pg_ctl -D opencollective_e2e -l logfile start
+```
+
 ### On Linux
 
 #### Fedora / RedHat

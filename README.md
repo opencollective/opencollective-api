@@ -16,15 +16,15 @@ If you see a step below that could be improved (or is outdated), please update t
 
 - We recommend using [nvm](https://github.com/creationix/nvm): `nvm install && nvm use`.
 
-2. Make sure you have a PostgreSQL database available
+2. Make sure you have a PostgreSQL database available.
 
-- Check the version: 11.0, 10.3, 9.6.8, 9.5.12, 9.4.17, 9.3.22 or newer
+- Check the version (in production we're currently running 13.3)
 - Check that the [PostGIS](https://postgis.net/install/) extension is available
 - More info in our [PostgreSQL Database](docs/postgres.md) documentation
 
-3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 2 available and configured as the active version.
+3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 3 available and configured as the active version.
 
-- You can use [pyenv](https://github.com/pyenv/pyenv) to manage Python versions.
+- You can use [conda](https://www.anaconda.com/) or [pyenv](https://github.com/pyenv/pyenv) to manage Python versions.
 
 ### Install
 
@@ -47,7 +47,7 @@ npm run dev
 
 #### Troubleshooting
 
-- If you're running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `npm rebuild`
+- If you're still running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `npm rebuild`
 - If you have issues with PostgreSQL, check our [dedicated documentation](docs/postgres.md)
 
 ## Deployment
