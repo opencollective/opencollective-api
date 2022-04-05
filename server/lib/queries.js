@@ -13,7 +13,7 @@ import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
-import { computeDatesAsISOStrings } from './utils';
+import { computeDatesAsISOStrings, sanitizeSearchTermForILike, searchTermToTsVector, trimSearchTerm } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;
@@ -1157,10 +1157,29 @@ const getTransactionsTimeSeries = async (
  * Returns tags along with their frequency of use.
  */
 const getTagFrequencies = async args => {
+  let searchTermFragment = '';
+  let term = args.searchTerm;
+  // Cleanup term
+  if (term && term.length > 0) {
+    term = sanitizeSearchTermForILike(trimSearchTerm(term));
+    if (term[0] === '@') {
+      // When the search starts with a `@`, we search by slug only
+      term = term.replace(/^@+/, '');
+      searchTermFragment = `AND slug ILIKE '%' || :term || '%' `;
+    } else {
+      searchTermFragment = `
+        AND ("searchTsVector" @@ plainto_tsquery('english', :vectorizedTerm)
+        OR "searchTsVector" @@ plainto_tsquery('simple', :vectorizedTerm))`;
+    }
+  } else {
+    term = '';
+  }
+
   return sequelize.query(
     `SELECT UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
+      ${searchTermFragment}
       GROUP BY UNNEST(tags)
       ORDER BY count DESC
       LIMIT :limit
@@ -1168,6 +1187,8 @@ const getTagFrequencies = async args => {
     {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
+        term,
+        vectorizedTerm: searchTermToTsVector(term),
         limit: args.limit || 10,
         offset: args.offset || 0,
       },

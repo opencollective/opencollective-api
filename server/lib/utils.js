@@ -563,3 +563,26 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
 
   return { startDate, endDate };
 };
+
+/**
+ * Turn a search string into a TS vector using 'OR' operator.
+ *
+ * Ex: "open potatoes" => "open|potatoes"
+ */
+export const searchTermToTsVector = term => {
+  return term.replace(/\s+/g, '|');
+};
+
+/**
+ * Trim leading/trailing spaces and remove multiple spaces from the string
+ */
+export const trimSearchTerm = term => {
+  return term?.trim().replace(/\s+/g, ' ');
+};
+
+/**
+ * Removes special ILIKE characters like `%
+ */
+export const sanitizeSearchTermForILike = term => {
+  return term.replace(/(_|%|\\)/g, '\\$1');
+};

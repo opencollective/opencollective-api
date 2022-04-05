@@ -11,6 +11,7 @@ import models, { Op, sequelize } from '../models';
 
 import { floatAmountToCents } from './math';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
+import { sanitizeSearchTermForILike, searchTermToTsVector, trimSearchTerm } from './utils';
 
 // Returned when there's no result for a search
 const EMPTY_SEARCH_RESULT = [[], 0];
@@ -57,29 +58,6 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
   );
 
   return [collectives, get(collectives[0], 'dataValues.__total__', 0)];
-};
-
-/**
- * Turn a search string into a TS vector using 'OR' operator.
- *
- * Ex: "open potatoes" => "open|potatoes"
- */
-const searchTermToTsVector = term => {
-  return term.replace(/\s+/g, '|');
-};
-
-/**
- * Trim leading/trailing spaces and remove multiple spaces from the string
- */
-const trimSearchTerm = term => {
-  return term?.trim().replace(/\s+/g, ' ');
-};
-
-/**
- * Removes special ILIKE characters like `%
- */
-const sanitizeSearchTermForILike = term => {
-  return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
 /**
