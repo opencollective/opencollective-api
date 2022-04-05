@@ -50,6 +50,54 @@ export const resetTestDB = async () => {
   // await sequelize.truncate({ force: true, cascade: true });
 };
 
+/**
+ * Our migrations use `sequelize.sync` rather than re-running the transactions, but we don't want to
+ * add the searchTsVector column on the model.
+ */
+export const runSearchTsVectorMigration = async () => {
+  try {
+    await sequelize.queryInterface.createFunction(
+      'array_to_string_immutable',
+      [
+        { type: 'text[]', name: 'textArray' },
+        { type: 'text', name: 'text' },
+      ],
+      'text',
+      'plpgsql',
+      'RETURN array_to_string(textArray, text);',
+      ['IMMUTABLE', 'STRICT', 'PARALLEL', 'SAFE'],
+    );
+  } catch {
+    // Ignore
+  }
+
+  await sequelize.query(`
+    ALTER TABLE "Collectives"
+    ADD COLUMN IF NOT EXISTS "searchTsVector" tsvector
+    GENERATED ALWAYS AS (
+      SETWEIGHT(to_tsvector('simple', "slug"), 'A')
+      || SETWEIGHT(to_tsvector('simple', "name"), 'B')
+      || SETWEIGHT(to_tsvector('english', "name"), 'B')
+      || SETWEIGHT(to_tsvector('english', COALESCE("description", '')), 'C')
+      || SETWEIGHT(to_tsvector('english', COALESCE("longDescription", '')), 'C')
+      || SETWEIGHT(to_tsvector('simple', array_to_string_immutable(COALESCE(tags, ARRAY[]::varchar[]), ' ')), 'C')
+    ) STORED
+  `);
+
+  await sequelize.query(`
+    CREATE INDEX CONCURRENTLY IF NOT EXISTS collective_search_index
+    ON "Collectives"
+    USING GIN("searchTsVector")
+    WHERE "deletedAt" IS NULL
+    AND "deactivatedAt" IS NULL
+    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
+    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    AND name != 'incognito'
+    AND name != 'anonymous'
+    AND "isIncognito" = FALSE
+  `);
+};
+
 export async function loadDB(dbname) {
   await dbRestore.main({ force: true, file: dbname });
 }

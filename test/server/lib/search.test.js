@@ -11,10 +11,13 @@ import {
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import { resetTestDB, runSearchTsVectorMigration } from '../../utils';
 
 describe('server/lib/search', () => {
-  before(resetTestDB);
+  before(async () => {
+    await resetTestDB();
+    await runSearchTsVectorMigration();
+  });
 
   describe('Search in DB', () => {
     it('By slug', async () => {
