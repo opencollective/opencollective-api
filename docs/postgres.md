@@ -24,8 +24,14 @@ Manage a sandbox for the Open Collective API by creating a Conda environment
 with the necessary packages:
 
 ```bash
-# Create a Conda environment
-conda create -n opencollective-api python=3 postgresql postgis --channel conda-forge
+# Create a Conda environment with Python 3
+conda create -n opencollective-api python=3
+
+# Activate the environment
+conda activate opencollective-api
+
+# Install PostgreSQL and PostGIS
+conda install postgresql postgis --channel conda-forge
 ```
 
 This will install up-to-date versions of Python, PostgreSQL, and PostGIS. Note,
