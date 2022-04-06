@@ -315,7 +315,7 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
-      return privacy.pauseCard(virtualCard);
+      return virtualCard.pause();
     },
   },
   resumeVirtualCard: {
@@ -341,7 +341,7 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
-      return privacy.resumeCard(virtualCard);
+      return virtualCard.resume();
     },
   },
   deleteVirtualCard: {
@@ -366,12 +366,7 @@ const virtualCardMutations = {
       if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
-
-      const providerService = virtualCard.provider === providers.STRIPE ? stripe : privacy;
-
-      await providerService.deleteCard(virtualCard);
-      await virtualCard.destroy();
-
+      await virtualCard.delete();
       return true;
     },
   },

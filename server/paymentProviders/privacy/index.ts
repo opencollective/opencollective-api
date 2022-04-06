@@ -4,7 +4,7 @@ import { isEmpty, omit } from 'lodash';
 import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
 import models from '../../models';
-import VirtualCardModel from '../../models/VirtualCard';
+import VirtualCardModel, { VirtualCardProviders } from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
 import { getVirtualCardForTransaction, persistTransaction } from '../utils';
@@ -60,7 +60,7 @@ const assignCardToCollective = async (
     throw new Error('Could not find a Privacy Card matching the submitted card');
   }
 
-  const cardData = {
+  return await models.VirtualCard.create({
     id: card.token,
     name,
     last4: card.last_four,
@@ -69,12 +69,10 @@ const assignCardToCollective = async (
     CollectiveId: collectiveId,
     HostCollectiveId: host.id,
     UserId: userId,
-    provider: 'PRIVACY',
+    provider: VirtualCardProviders.PRIVACY,
     spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
     spendingLimitInterval: card['spend_limit_duration'],
-  };
-
-  return await models.VirtualCard.create(cardData);
+  });
 };
 
 const setCardState = async (virtualCard: VirtualCardModel, state: 'OPEN' | 'PAUSED'): Promise<VirtualCardModel> => {
