@@ -69,6 +69,10 @@ export const persistTransaction = async (virtualCard, transaction) => {
       await processingExpense.update({ amount, data: { ...expenseData, missingDetails: true } });
       await processingExpense.setPaid();
 
+      // For Virtual Card charges, there is only one Expense Item
+      const expenseItem = await models.ExpenseItem.findOne({ ExpenseId: processingExpense.id });
+      await expenseItem.update({ amount });
+
       await models.Transaction.createDoubleEntry({
         CollectiveId: collective.id,
         FromCollectiveId: vendor.id,
