@@ -1,0 +1,37 @@
+Subject: ⚠ {{collective.name}}'s {{virtualCard.last4}} card was suspended
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{collective.name}}'s {{virtualCard.name}} ({{virtualCard.last4}}) card is now suspended.
+  </h1>
+</center>
+
+{{#if expenses}}
+<p>
+  {{virtualCard.name}} ({{virtualCard.last4}}) card was suspended due to missing receipts on the following charge(s):
+</p>
+
+<table style="width: 100%; margin-bottom: 30px;">
+  {{#each expenses}}
+  <tr>
+    <td>#{{id}}</td>
+    <td>{{description}}</td>
+    <td align="right"><a href="{{url}}">Submit Receipt</a></td>
+  </tr>
+  {{/each}}
+</table>
+{{/if}}
+
+
+<div class="info">
+  {{#if expenses}}
+  Please, submit the missing receipts and contact your fiscal host to restore your card.
+  {{else}}
+  Please, contact your fiscal host to restore your card.
+  {{/if}}
+</div>
+
+{{> footer}}

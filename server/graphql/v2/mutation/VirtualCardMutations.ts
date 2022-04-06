@@ -306,7 +306,19 @@ const virtualCardMutations = {
         throw new Unauthorized('You need to be logged in to assign a Virtual Card');
       }
 
-      const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
+      const virtualCard = await models.VirtualCard.findOne({
+        where: { id: args.virtualCard.id },
+        include: [
+          {
+            model: models.Collective,
+            as: 'collective',
+          },
+          {
+            model: models.Collective,
+            as: 'host',
+          },
+        ],
+      });
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
       }
@@ -315,7 +327,19 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
-      return virtualCard.pause();
+      const card = await virtualCard.pause();
+      const data = {
+        virtualCard,
+        host: virtualCard.host.info,
+        collective: virtualCard.collective.info,
+      };
+      await models.Activity.create({
+        type: activities.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
+        CollectiveId: virtualCard.collective.id,
+        data,
+      });
+
+      return card;
     },
   },
   resumeVirtualCard: {

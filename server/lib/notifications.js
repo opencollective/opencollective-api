@@ -623,6 +623,15 @@ async function notifyByEmail(activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
       break;
 
+    case activityType.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
+      break;
+
+    case activityType.COLLECTIVE_VIRTUAL_CARD_SUSPENDED:
+      notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
+      notifyAdminsOfCollective(activity.data.host.id, activity, { sendEvenIfNotProduction: true });
+      break;
+
     case activityType.VIRTUAL_CARD_REQUESTED:
       notifyAdminsOfCollective(activity.data.host.id, activity, {
         template: 'virtualcard.requested',

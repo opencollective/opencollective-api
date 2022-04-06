@@ -27,6 +27,8 @@ export default {
   COLLECTIVE_EXPENSE_INVITE_DRAFTED: 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED: 'collective.expense.recurring.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT: 'collective.expense.missing.receipt',
+  COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS: 'collective.virtualcard.missing.receipts',
+  COLLECTIVE_VIRTUAL_CARD_SUSPENDED: 'collective.virtualcard.suspended',
   COLLECTIVE_FROZEN: 'collective.frozen',
   COLLECTIVE_UNFROZEN: 'collective.unfrozen',
   COLLECTIVE_MEMBER_CREATED: 'collective.member.created',
