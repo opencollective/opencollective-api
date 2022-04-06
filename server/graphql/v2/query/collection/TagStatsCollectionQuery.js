@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import rawQueries from '../../../../lib/queries';
@@ -11,6 +11,8 @@ const TagStatsCollectionQuery = {
       type: GraphQLString,
       description: 'Return tags from collectives which includes this search term',
     },
+    limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 10 },
+    offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
   },
   async resolve(_, args) {
     const tagFrequencies = await rawQueries.getTagFrequencies({

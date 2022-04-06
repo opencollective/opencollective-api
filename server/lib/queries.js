@@ -1189,8 +1189,8 @@ const getTagFrequencies = async args => {
       replacements: {
         term,
         vectorizedTerm: searchTermToTsVector(term),
-        limit: args.limit || 10,
-        offset: args.offset || 0,
+        limit: args.limit,
+        offset: args.offset,
       },
     },
   );
