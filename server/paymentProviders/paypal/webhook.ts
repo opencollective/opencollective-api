@@ -131,7 +131,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
 
 async function handleCaptureCompleted(req: Request): Promise<void> {
   // TODO: This can be optimized by using the `host` from path
-  // 1. Retrieve the order for this event
+  // Retrieve the order for this event
   const capture = req.body.resource;
   const order = await models.Order.findOne({
     where: {
@@ -155,19 +155,32 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
     return;
   }
 
-  // 2. Validate webhook event
+  // Validate webhook event
   const host = await order.collective.getHostCollective();
   const paypalAccount = await getPaypalAccount(host);
   await validateWebhookEvent(paypalAccount, req);
 
-  // 3. Record the transaction
+  // Make sure the transaction is not already recorded
+  const existingTransaction = await models.Transaction.findOne({
+    where: {
+      OrderId: order.id,
+      data: { capture: { id: capture.id } },
+    },
+  });
+
+  if (existingTransaction) {
+    logger.debug(`Transaction for PayPal capture ${capture.id} already exists`);
+    return;
+  }
+
+  // Record the transaction
   const transaction = await recordPaypalCapture(order, capture);
   await order.update({ processedAt: new Date(), status: OrderStatus.PAID });
 
-  // 4. Send thankyou email
+  // Send thankyou email
   await sendThankYouEmail(order, transaction);
 
-  // 5. Register user as a member, since the transaction is not created in `processOrder`
+  // Register user as a member, since the transaction is not created in `processOrder`
   await order.getOrCreateMembers();
 }
 

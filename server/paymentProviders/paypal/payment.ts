@@ -160,8 +160,21 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.T
     return;
   }
 
-  // Record the charge in our ledger
-  return recordPaypalCapture(order, captureDetails);
+  // Prevent double-records in the (quite unlikely) case where the webhook event would be processed before the API replies
+  const existingTransaction = await models.Transaction.findOne({
+    where: {
+      OrderId: order.id,
+      type: 'CREDIT',
+      kind: 'CONTRIBUTION',
+      data: { capture: { id: capture.id } },
+    },
+  });
+
+  if (existingTransaction) {
+    return existingTransaction;
+  } else {
+    return recordPaypalCapture(order, captureDetails);
+  }
 };
 
 export const refundPaypalCapture = async (
