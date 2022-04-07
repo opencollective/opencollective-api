@@ -1,4 +1,5 @@
 import { Request } from 'express';
+import { toString } from 'lodash';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
@@ -9,10 +10,10 @@ import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
 import { TransferStateChangeEvent } from '../../types/transferwise';
 
-async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
+export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const transaction = await models.Transaction.findOne({
     where: {
-      data: { transfer: { id: event.data.resource.id } },
+      data: { transfer: { id: toString(event.data.resource.id) } },
       updatedAt: {
         [Op.gte]: moment().subtract(10, 'days').toDate(),
       },
