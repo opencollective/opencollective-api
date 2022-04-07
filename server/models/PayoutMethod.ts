@@ -137,6 +137,10 @@ export class PayoutMethod extends Model {
     }
   }
 
+  static typeSupportsFeesPayer = (payoutMethodType: PayoutMethodTypes): boolean => {
+    return [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.OTHER].includes(payoutMethodType);
+  };
+
   /** Filters out all the fields that cannot be edited by user */
   private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
     return pick(data, PayoutMethod.editableFields);

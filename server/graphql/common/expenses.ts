@@ -6,6 +6,7 @@ import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
+import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
@@ -1008,6 +1009,7 @@ export async function editExpense(
   }
 
   let payoutMethod = await expense.getPayoutMethod();
+  let feesPayer = expense.feesPayer;
 
   // Validate bank account payout method
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
@@ -1026,6 +1028,11 @@ export async function editExpense(
       expenseData.payoutMethod?.id !== expense.PayoutMethodId
     ) {
       payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
+
+      // Reset fees payer when changing the payout method and the new one doesn't support it
+      if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
+        feesPayer = ExpenseFeesPayer.COLLECTIVE;
+      }
     }
 
     // Update items
@@ -1477,7 +1484,7 @@ export const checkHasBalanceToPayExpense = async (
     totalAmountToPay = expense.amount + feesInExpenseCurrency.paymentProcessorFee;
   } else if (expense.feesPayer === 'PAYEE') {
     totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
-    if (![PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.OTHER].includes(payoutMethodType)) {
+    if (!models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType)) {
       throw new Error(
         'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
       );
