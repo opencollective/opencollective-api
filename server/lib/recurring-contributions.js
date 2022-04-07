@@ -353,11 +353,7 @@ export async function sendArchivedCollectiveEmail(order) {
 
 /** Send `payment.failed` email */
 export async function sendFailedEmail(order, lastAttempt) {
-  let errorMessage = get(order, 'data.error.message');
-
-  if (errorMessage && errorMessage.includes('Something went wrong with the payment')) {
-    errorMessage = 'Something went wrong with the payment.';
-  }
+  const errorMessage = get(order, 'data.error.message');
 
   const data = {
     lastAttempt,

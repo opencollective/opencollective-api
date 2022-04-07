@@ -369,6 +369,10 @@ export default {
         // If you are a customer trying to make a purchase, please contact the owner of this site.
         // Your transaction has not been processed.
         'This account cannot currently make live charges.': 'Payment Processing error (Host error).',
+        // This is a new unhandled error. We think customers should delete the card and add it again.
+        // eslint-disable-next-line camelcase
+        card_error_authentication_required:
+          'There is an issue with your card, please contact support@opencollective.com.',
       };
       const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
       if (errorKey) {
