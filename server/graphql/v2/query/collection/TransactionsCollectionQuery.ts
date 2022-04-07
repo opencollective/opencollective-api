@@ -230,7 +230,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     idFields: ['id'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
-    amountFields: ['amount', 'netAmountInHostCurrency'],
+    amountFields: ['amount'],
   });
 
   if (searchTermConditions.length) {
