@@ -38,7 +38,7 @@
     "@hyperwatch/hyperwatch": "3.8.2",
     "@octokit/auth-oauth-app": "4.3.0",
     "@octokit/rest": "18.12.0",
-    "@opencollective/taxes": "3.1.0",
+    "@opencollective/taxes": "3.4.0",
     "@paypal/payouts-sdk": "^1.1.0",
     "@sentry/node": "6.19.6",
     "apollo-server-express": "3.6.6",
