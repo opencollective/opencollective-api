@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import { searchCollectivesInDB } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { AccountCollection } from '../../collection/AccountCollection';
-import { AccountType, AccountTypeToModelMapping } from '../../enum';
+import { AccountType, AccountTypeToModelMapping, CountryISO } from '../../enum';
 import { PaymentMethodService } from '../../enum/PaymentMethodService';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
@@ -46,6 +46,10 @@ const AccountsQuery = {
       description: 'Whether to skip recent suspicious accounts (48h)',
       defaultValue: false,
     },
+    country: {
+      type: new GraphQLList(CountryISO),
+      description: 'Limit the search to collectives belonging to these countries',
+    },
     orderBy: {
       type: new GraphQLNonNull(ChronologicalOrderInput),
       description: 'The order of results',
@@ -65,7 +69,7 @@ const AccountsQuery = {
         onlyActive: args.isActive ? true : null,
         skipRecentAccounts: args.skipRecentAccounts,
         hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
-        countries: args.countries,
+        countries: args.country,
         tags: args.tag,
       };
 
