@@ -18,7 +18,7 @@ const AccountsQuery = {
     },
     tag: {
       type: new GraphQLList(GraphQLString),
-      description: 'Only accounts that match these tags (ignored if used together with searchTerm)',
+      description: 'Only accounts that match these tags',
     },
     type: {
       type: new GraphQLList(AccountType),
@@ -66,6 +66,7 @@ const AccountsQuery = {
         skipRecentAccounts: args.skipRecentAccounts,
         hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
         countries: args.countries,
+        tags: args.tag,
       };
 
       const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

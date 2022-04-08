@@ -64,21 +64,21 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
  *
  * Ex: "open potatoes" => "open|potatoes"
  */
-const searchTermToTsVector = term => {
+export const searchTermToTsVector = term => {
   return term.replace(/\s+/g, '|');
 };
 
 /**
  * Trim leading/trailing spaces and remove multiple spaces from the string
  */
-const trimSearchTerm = term => {
+export const trimSearchTerm = term => {
   return term?.trim().replace(/\s+/g, ' ');
 };
 
 /**
  * Removes special ILIKE characters like `%
  */
-const sanitizeSearchTermForILike = term => {
+export const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
@@ -89,14 +89,28 @@ export const searchCollectivesInDB = async (
   term,
   offset = 0,
   limit = 100,
-  { types, hostCollectiveIds, isHost, onlyActive, skipRecentAccounts, hasCustomContributionsEnabled, countries } = {},
+  {
+    types,
+    hostCollectiveIds,
+    isHost,
+    onlyActive,
+    skipRecentAccounts,
+    hasCustomContributionsEnabled,
+    countries,
+    tags,
+  } = {},
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
   let isUsingTsVector = false;
   let countryCodes = null;
+  let searchedTags = '';
   if (countries) {
     countryCodes = `${countries.join(',')}`;
+  }
+
+  if (tags?.length) {
+    searchedTags = `{${tags.map(tag => `"${tag}"`).join(',')}}`;
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
@@ -129,6 +143,10 @@ export const searchCollectivesInDB = async (
 
   if (countryCodes) {
     dynamicConditions += `AND "countryISO" IN (:countryCodes) `;
+  }
+
+  if (tags?.length) {
+    dynamicConditions += `AND "tags" @> (:searchedTags) `;
   }
 
   // Cleanup term
@@ -181,6 +199,7 @@ export const searchCollectivesInDB = async (
         term: term,
         slugifiedTerm: slugify(term),
         vectorizedTerm: searchTermToTsVector(term),
+        searchedTags,
         countryCodes,
         offset,
         limit,

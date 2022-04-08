@@ -7205,7 +7205,7 @@ type Query {
     searchTerm: String
 
     """
-    Only accounts that match these tags (ignored if used together with searchTerm)
+    Only accounts that match these tags
     """
     tag: [String]
 
@@ -7618,6 +7618,14 @@ type Query {
     """
     throwIfMissing: Boolean = true
   ): Project
+  tagStats(
+    """
+    Return tags from collectives which includes this search term
+    """
+    searchTerm: String
+    limit: Int! = 10
+    offset: Int! = 0
+  ): TagStatsCollection!
   tier(
     """
     Identifiers to retrieve the tier
@@ -8838,6 +8846,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   The Account parenting this account
   """
   parent: Account
+}
+
+"""
+A collection of "Tags"
+"""
+type TagStatsCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [TagStat]
 }
 
 input TierReferenceInput {
