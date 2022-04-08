@@ -11,9 +11,10 @@ import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
+import { sanitizeSearchTermForILike, searchTermToTsVector, trimSearchTerm } from './search';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
-import { computeDatesAsISOStrings, sanitizeSearchTermForILike, searchTermToTsVector, trimSearchTerm } from './utils';
+import { computeDatesAsISOStrings } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;
