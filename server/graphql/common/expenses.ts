@@ -1,8 +1,9 @@
+import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
 import { flatten, get, isEqual, isNil, omitBy, pick, size, sumBy } from 'lodash';
 
-import { activities, expenseStatus, roles } from '../../constants';
+import { activities, expenseStatus, expenseTypes, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
@@ -710,20 +711,27 @@ type ExpenseData = {
   fromCollective?: Record<string, unknown>;
   tags?: string[];
   incurredAt?: Date;
+  type?: string;
   description?: string;
   currency?: string;
   tax?: TaxDefinition[];
 };
 
-const checkTaxes = taxes => {
+const checkTaxes = (account, host, expenseType: string, taxes): void => {
   if (!taxes?.length) {
     return;
   } else if (taxes.length > 1) {
     throw new ValidationFailed('Only one tax is allowed per expense');
+  } else if (expenseType !== expenseTypes.INVOICE) {
+    throw new ValidationFailed('Only invoices can have taxes');
   } else {
     return taxes.forEach(({ type, rate }) => {
       if (rate < 0 || rate > 100) {
         throw new ValidationFailed(`Tax rate for ${type} must be between 0 and 100`);
+      } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account)) {
+        throw new ValidationFailed(`This account does not have VAT enabled`);
+      } else if (type === LibTaxes.TaxType.GST && !LibTaxes.accountHasGST(host)) {
+        throw new ValidationFailed(`This host does not have GST enabled`);
       }
     });
   }
@@ -743,7 +751,9 @@ export async function createExpense(
     throw new Unauthorized('Missing expense.collective.id');
   }
 
-  const collective = await models.Collective.findByPk(expenseData.collective.id);
+  const collective = await models.Collective.findByPk(expenseData.collective.id, {
+    include: [{ association: 'host', required: false }],
+  });
   if (!collective) {
     throw new ValidationFailed('Collective not found');
   }
@@ -761,7 +771,7 @@ export async function createExpense(
   const itemsData = expenseData.items;
   const taxes = expenseData.tax || [];
 
-  checkTaxes(taxes);
+  checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData, itemsData, taxes);
 
   if (size(expenseData.attachedFiles) > 15) {
@@ -782,10 +792,9 @@ export async function createExpense(
   }
 
   // Let submitter customize the currency
-  const host = await collective.getHostCollective();
   let currency = collective.currency;
   if (expenseData.currency && expenseData.currency !== currency) {
-    if (!hasMultiCurrency(collective, host)) {
+    if (!hasMultiCurrency(collective, collective.host)) {
       throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
     } else {
       currency = expenseData.currency;
@@ -828,7 +837,8 @@ export async function createExpense(
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
 
-    const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
+    const connectedAccounts =
+      collective.host && (await collective.host.getConnectedAccounts({ where: { service: 'transferwise' } }));
     if (connectedAccounts?.[0]) {
       paymentProviders.transferwise.validatePayoutMethod(connectedAccounts[0], payoutMethod);
       recipient = await paymentProviders.transferwise.createRecipient(connectedAccounts[0], payoutMethod);
@@ -954,7 +964,7 @@ export async function editExpense(
 
   const expense = await models.Expense.findByPk(expenseData.id, {
     include: [
-      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'collective', include: [{ association: 'host', required: false }] },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
       { model: models.PayoutMethod },
@@ -963,6 +973,8 @@ export async function editExpense(
   });
   const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense.items, expenseData);
   const taxes = expenseData.tax || expense.data?.taxes || [];
+  const expenseType = expenseData.type || expense.type;
+  checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
   if (!expense) {
     throw new NotFound('Expense not found');
