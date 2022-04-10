@@ -90,6 +90,7 @@ export const searchCollectivesInDB = async (
   offset = 0,
   limit = 100,
   {
+    orderBy,
     types,
     hostCollectiveIds,
     isHost,
@@ -167,18 +168,30 @@ export const searchCollectivesInDB = async (
   }
 
   // Build the query
+
+  const sortSubqueries = {
+    ACTIVITY: `
+      SELECT COALESCE(SUM(ABS("netAmountInCollectiveCurrency")), 0)
+      FROM "Transactions" t
+      WHERE t."CollectiveId" = c.id
+      AND t."deletedAt" IS NULL`,
+
+    RANK: `
+      CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
+        1
+      ELSE
+        ${isUsingTsVector ? `ts_rank("searchTsVector", plainto_tsquery('english', :vectorizedTerm))` : '0'}
+      END`,
+
+    CREATED_AT: `"createdAt"`,
+  };
+
   const result = await sequelize.query(
     `
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (
-        CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
-          1
-        ELSE
-          ${isUsingTsVector ? `ts_rank("searchTsVector", plainto_tsquery('english', :vectorizedTerm))` : '0'}
-        END
-      ) AS __rank__
+      (${sortSubqueries[orderBy?.field] || `"createdAt"`}) as __sort__
     FROM "Collectives" c
     WHERE "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
@@ -187,7 +200,7 @@ export const searchCollectivesInDB = async (
     AND name != 'incognito'
     AND name != 'anonymous'
     AND "isIncognito" = FALSE ${dynamicConditions}
-    ORDER BY __rank__ DESC
+    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
     `,

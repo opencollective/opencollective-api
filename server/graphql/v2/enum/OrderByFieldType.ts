@@ -13,5 +13,7 @@ export const OrderByFieldType = new GraphQLEnumType({
     CREATED_AT: {},
     MEMBER_COUNT: {},
     TOTAL_CONTRIBUTED: {},
+    ACTIVITY: {},
+    RANK: {},
   },
 });

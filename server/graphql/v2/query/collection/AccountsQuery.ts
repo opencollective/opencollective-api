@@ -5,7 +5,7 @@ import models, { Op, sequelize } from '../../../../models';
 import { AccountCollection } from '../../collection/AccountCollection';
 import { AccountType, AccountTypeToModelMapping, CountryISO } from '../../enum';
 import { PaymentMethodService } from '../../enum/PaymentMethodService';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { OrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const AccountsQuery = {
@@ -51,9 +51,8 @@ const AccountsQuery = {
       description: 'Limit the search to collectives belonging to these countries',
     },
     orderBy: {
-      type: new GraphQLNonNull(ChronologicalOrderInput),
+      type: OrderByInput,
       description: 'The order of results',
-      defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
     },
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
@@ -63,6 +62,7 @@ const AccountsQuery = {
       const cleanTerm = args.searchTerm.trim();
 
       const extraParameters = {
+        orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
         types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
         hostCollectiveIds: null, // not supported
         isHost: args.isHost ? true : null,
