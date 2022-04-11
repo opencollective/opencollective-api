@@ -260,6 +260,26 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
   return models.VirtualCard.create(cardData);
 };
 
+export const processCardUpdate = async (stripeCard, stripeEvent) => {
+  if (stripeEvent) {
+    await checkStripeEvent(virtualCard.host, stripeEvent);
+  }
+
+  const virtualCard = await models.VirtualCard.findByPk(stripeCard.id);
+  if (!virtualCard) {
+    logger.error(`Stripe: could not find virtual card ${stripeCard.id}`, stripeEvent);
+    return;
+  }
+
+  await virtualCard.update({
+    data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),
+    spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
+    spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
+  });
+
+  return virtualCard;
+};
+
 const checkStripeEvent = async (host, stripeEvent) => {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);

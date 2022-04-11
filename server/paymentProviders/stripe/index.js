@@ -14,7 +14,7 @@ import models from '../../models';
 
 import alipay from './alipay';
 import creditcard from './creditcard';
-import { processAuthorization, processDeclinedAuthorization, processTransaction } from './virtual-cards';
+import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
@@ -229,15 +229,19 @@ export default {
     };
 
     if (requestBody.type === 'issuing_authorization.request') {
-      return processAuthorization(requestBody.data.object, stripeEvent);
+      return virtualcard.processAuthorization(requestBody.data.object, stripeEvent);
     }
 
     if (requestBody.type === 'issuing_authorization.created' && !requestBody.data.object.approved) {
-      return processDeclinedAuthorization(requestBody.data.object, stripeEvent);
+      return virtualcard.processDeclinedAuthorization(requestBody.data.object, stripeEvent);
     }
 
     if (requestBody.type === 'issuing_transaction.created') {
-      return processTransaction(requestBody.data.object, stripeEvent);
+      return virtualcard.processTransaction(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'issuing_card.updated') {
+      return virtualcard.processCardUpdate(requestBody.data.object, stripeEvent);
     }
 
     /**
