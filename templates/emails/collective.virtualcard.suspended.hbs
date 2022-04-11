@@ -11,7 +11,9 @@ Subject: ⚠ {{collective.name}}'s {{virtualCard.last4}} card was suspended
 
 {{#if expenses}}
 <p>
-  {{virtualCard.name}} ({{virtualCard.last4}}) card was suspended due to missing receipts on the following charge(s):
+  {{virtualCard.name}} ({{virtualCard.last4}}) card has been suspended due to missing receipts, receipts must be uploaded with 30 days for all transactions.
+  <br/>
+  The following charges are missing receipts:
 </p>
 
 <table style="width: 100%; margin-bottom: 30px;">
@@ -28,7 +30,7 @@ Subject: ⚠ {{collective.name}}'s {{virtualCard.last4}} card was suspended
 
 <div class="info">
   {{#if expenses}}
-  Please, submit the missing receipts and contact your fiscal host to restore your card.
+  Upload the missing receipts to reactivate your card.
   {{else}}
   For more information or to restore the card, please contact your fiscal host.
   {{/if}}

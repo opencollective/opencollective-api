@@ -118,6 +118,14 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
 
     await this.destroy();
   }
+
+  isActive() {
+    return this.data?.status === 'active' || this.data?.state === 'OPEN';
+  }
+
+  isPaused() {
+    return this.data?.status === 'inactive' || this.data?.state === 'PAUSED';
+  }
 }
 
 VirtualCard.init(
