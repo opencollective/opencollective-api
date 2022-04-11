@@ -1161,16 +1161,16 @@ const getTagFrequencies = async args => {
   let searchTermFragment = '';
   let term = args.searchTerm;
   // Cleanup term
+  term = sanitizeSearchTermForILike(trimSearchTerm(term));
   if (term && term.length > 0) {
-    term = sanitizeSearchTermForILike(trimSearchTerm(term));
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
       term = term.replace(/^@+/, '');
       searchTermFragment = `AND slug ILIKE '%' || :term || '%' `;
     } else {
-      searchTermFragment = `
-        AND ("searchTsVector" @@ plainto_tsquery('english', :vectorizedTerm)
-        OR "searchTsVector" @@ plainto_tsquery('simple', :vectorizedTerm))`;
+      searchTermFragment += `
+        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
+        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
     }
   } else {
     term = '';

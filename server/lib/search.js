@@ -60,12 +60,17 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
 };
 
 /**
- * Turn a search string into a TS vector using 'OR' operator.
+ * Sanitize and then turn a search string into a TS vector using 'OR' operator.
  *
- * Ex: "open potatoes" => "open|potatoes"
+ * Examples: "open potatoes" => "open|potatoes", "crème brulée => "creme|brulee"
+ *
  */
 export const searchTermToTsVector = term => {
-  return term.replace(/\s+/g, '|');
+  const sanitizedTerm = term
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-\/_ ]/g, '');
+  return sanitizedTerm.trim().replace(/\s+/g, '|');
 };
 
 /**
@@ -151,8 +156,8 @@ export const searchCollectivesInDB = async (
   }
 
   // Cleanup term
+  term = sanitizeSearchTermForILike(trimSearchTerm(term));
   if (term && term.length > 0) {
-    term = sanitizeSearchTermForILike(trimSearchTerm(term));
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
       term = term.replace(/^@+/, '');
@@ -160,8 +165,8 @@ export const searchCollectivesInDB = async (
     } else {
       isUsingTsVector = true;
       dynamicConditions += `
-        AND ("searchTsVector" @@ plainto_tsquery('english', :vectorizedTerm)
-        OR "searchTsVector" @@ plainto_tsquery('simple', :vectorizedTerm))`;
+        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
+        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
     }
   } else {
     term = '';
