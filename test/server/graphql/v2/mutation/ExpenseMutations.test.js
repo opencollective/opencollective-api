@@ -404,7 +404,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const updatedExpenseData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
-        tax: [{ type: 'VAT', rate: 5.5 }],
+        tax: [{ type: 'VAT', rate: 0.055 }],
       };
 
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);

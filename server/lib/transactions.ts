@@ -1,4 +1,4 @@
-import { set, truncate } from 'lodash';
+import { round, set, sumBy, truncate } from 'lodash';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
@@ -156,6 +156,16 @@ export async function createTransactionsFromPaidExpense(
       ? await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt)
       : expenseToHostFxRateConfig;
 
+  const expenseDataForTransaction: Record<string, unknown> = { expenseToHostFxRate };
+  if (expense.data?.taxes?.length) {
+    expenseDataForTransaction['tax'] = {
+      ...expense.data.taxes[0],
+      id: expense.data.taxes[0].type,
+      rate: round(expense.data.taxes[0].rate, 4), // We want to support percentages with up to 2 decimals (e.g. 12.13%)
+      percentage: round(expense.data.taxes[0].rate * 100), // @deprecated for legacy compatibility
+    };
+  }
+
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
   const { paymentProcessorFeeInHostCurrency, hostFeeInHostCurrency, platformFeeInHostCurrency } = fees;
   const processedAmounts = await computeExpenseAmounts(expense, host.currency, expenseToHostFxRate, fees);
@@ -183,7 +193,11 @@ export async function createTransactionsFromPaidExpense(
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
-    data: set(transactionData || {}, 'expenseToHostFxRate', expenseToHostFxRate),
+    taxAmount: computeExpenseTaxes(expense, expenseToHostFxRate),
+    data: {
+      ...(transactionData || {}),
+      ...expenseDataForTransaction,
+    },
   };
 
   // If the payee is assuming the fees, we adapt the amounts
@@ -196,6 +210,14 @@ export async function createTransactionsFromPaidExpense(
 
   return models.Transaction.createDoubleEntry(transaction);
 }
+
+const computeExpenseTaxes = (expense, expenseToHostFxRate: number): number | null => {
+  if (!expense.data?.taxes?.length) {
+    return null;
+  } else {
+    return -Math.round(expenseToHostFxRate * sumBy(expense.data.taxes, ({ rate }) => rate * expense.amount)) || 0;
+  }
+};
 
 /**
  * Calculate net amount of a transaction in the currency of the collective

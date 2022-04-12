@@ -11,6 +11,7 @@ export const ExpenseTaxInput = new GraphQLInputObjectType({
     },
     rate: {
       type: new GraphQLNonNull(GraphQLFloat),
+      description: 'Tax rate as a float number between 0 and 1',
     },
     idNumber: {
       type: GraphQLString,

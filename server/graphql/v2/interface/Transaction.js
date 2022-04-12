@@ -9,6 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { round } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
 import roles from '../../../constants/roles';
@@ -338,8 +339,8 @@ export const TransactionFields = () => {
           return {
             id: tax.id,
             type: tax.id,
-            percentage: Math.round(tax.percentage), // Does not support float
-            rate: tax.percentage,
+            percentage: Math.round(tax.percentage ?? tax.rate * 100), // Does not support float
+            rate: tax.rate ?? round(tax.percentage / 100, 2),
           };
         }
       },

@@ -595,7 +595,7 @@ export const unscheduleExpensePayment = async (
 const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: TaxDefinition[]) => {
   return Math.round(
     sumBy(items, item => {
-      const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * (tax.rate / 100));
+      const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
       return <number>item['amount'] + totalTaxes;
     }),
   );
@@ -726,8 +726,8 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
     throw new ValidationFailed('Only invoices can have taxes');
   } else {
     return taxes.forEach(({ type, rate }) => {
-      if (rate < 0 || rate > 100) {
-        throw new ValidationFailed(`Tax rate for ${type} must be between 0 and 100`);
+      if (rate < 0 || rate > 1) {
+        throw new ValidationFailed(`Tax rate for ${type} must be between 0% and 100%`);
       } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account)) {
         throw new ValidationFailed(`This account does not have VAT enabled`);
       } else if (type === LibTaxes.TaxType.GST && !LibTaxes.accountHasGST(host)) {
