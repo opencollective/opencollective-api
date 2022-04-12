@@ -7,7 +7,7 @@ Subject: Expense rejected: {{currency expense.amount currency=expense.currency}}
 <table>
   <tr><th>Submitted by:</th><td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td></tr>
   {{#if expense.privateMessage}}
-    <tr><th valign="top">Note:</th><td>{{expense.privateMessage}}</td></tr>
+    <tr><th valign="top">Note:</th><td>{{{expense.privateMessage}}}</td></tr>
   {{/if}}
 </table>
 

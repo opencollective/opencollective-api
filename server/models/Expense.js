@@ -8,7 +8,7 @@ import expenseType from '../constants/expense_type';
 import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
-import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
@@ -271,7 +271,7 @@ function defineModel() {
             tags: this.tags,
             legacyPayoutMethod: this.legacyPayoutMethod,
             vat: this.vat,
-            privateMessage: this.privateMessage && stripHTML(this.privateMessage),
+            privateMessage: this.privateMessage,
             lastEditedById: this.lastEditedById,
             status: this.status,
             incurredAt: this.incurredAt,
@@ -365,24 +365,6 @@ function defineModel() {
       this.user = await models.User.findByPk(this.UserId);
     }
     return this.user;
-  };
-
-  Expense.prototype.setApproved = function (lastEditedById) {
-    if (this.status === status.PAID) {
-      throw new Error("Can't approve an expense that is PAID");
-    }
-    this.status = status.APPROVED;
-    this.lastEditedById = lastEditedById;
-    return this.save();
-  };
-
-  Expense.prototype.setRejected = function (lastEditedById) {
-    if (this.status === status.PAID) {
-      throw new Error("Can't reject an expense that is PAID");
-    }
-    this.status = status.REJECTED;
-    this.lastEditedById = lastEditedById;
-    return this.save();
   };
 
   Expense.prototype.setPaid = async function (editedById) {
