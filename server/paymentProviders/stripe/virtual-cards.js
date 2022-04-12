@@ -1,5 +1,5 @@
 import config from 'config';
-import { omit } from 'lodash';
+import { omit, pick } from 'lodash';
 import Stripe from 'stripe';
 
 import ExpenseStatus from '../../constants/expense_status';
@@ -98,15 +98,25 @@ export const updateVirtualCardMonthlyLimit = async (virtualCard, monthlyLimit) =
   });
 };
 
-export const deleteCard = async virtualCard => {
-  const host = await models.Collective.findByPk(virtualCard.HostCollectiveId);
+const setCardStatus = async (virtualCard, status = 'canceled' | 'active' | 'inactive') => {
+  const host = await virtualCard.getHost();
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
-  return stripe.issuing.cards.update(virtualCard.id, {
-    status: 'canceled',
+  const response = await stripe.issuing.cards.update(virtualCard.id, {
+    status,
   });
+  const data = { ...virtualCard.data, ...pick(response, ['status']) };
+  await virtualCard.update({ data });
+
+  return data;
 };
+
+export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled');
+
+export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive');
+
+export const resumeCard = async virtualCard => setCardStatus(virtualCard, 'active');
 
 export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);

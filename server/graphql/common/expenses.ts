@@ -1104,6 +1104,15 @@ export async function editExpense(
         { where: { ExpenseId: updatedExpense.id } },
       );
     }
+
+    // Auto Resume Virtual Card
+    if (host?.settings?.virtualcards?.autopause) {
+      const virtualCard = await expense.getVirtualCard();
+      const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
+      if (virtualCard.isPaused() && expensesMissingReceipts.length > 0) {
+        await virtualCard.resume();
+      }
+    }
   } else {
     await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
   }

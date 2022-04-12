@@ -214,7 +214,7 @@ export const fakeUpdate = async (updateData = {}, sequelizeParams = {}) => {
 export const fakeExpenseItem = async (attachmentData = {}) => {
   return models.ExpenseItem.create({
     amount: randAmount(),
-    url: `${randUrl()}.pdf`,
+    url: attachmentData.url || `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
     ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,

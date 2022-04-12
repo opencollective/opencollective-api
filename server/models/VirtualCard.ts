@@ -1,6 +1,13 @@
 import { crypto } from '../lib/encryption';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import privacyVirtualCards from '../paymentProviders/privacy';
+import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
+
+export enum VirtualCardProviders {
+  PRIVACY = 'PRIVACY',
+  STRIPE = 'STRIPE',
+}
 
 interface VirtualCardAttributes {
   id: string;
@@ -11,7 +18,7 @@ interface VirtualCardAttributes {
   last4: string;
   data: Record<string, any>;
   privateData: string | Record<string, any>;
-  provider: string;
+  provider: VirtualCardProviders;
   spendingLimitAmount: number;
   spendingLimitInterval: string;
   currency: string;
@@ -29,7 +36,7 @@ export interface VirtualCardCreateAttributes {
   CollectiveId: number;
   HostCollectiveId: number;
   UserId?: number;
-  provider: string;
+  provider: VirtualCardProviders;
   spendingLimitAmount: number;
   spendingLimitInterval: string;
   currency?: string;
@@ -44,7 +51,7 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   public last4: string;
   public data: Record<string, any>;
   public privateData: string | Record<string, any>;
-  public provider: string;
+  public provider: VirtualCardProviders;
   public spendingLimitAmount: number;
   public spendingLimitInterval: string;
   public currency: string;
@@ -65,6 +72,59 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
     return sequelize.models.Expense.findAll({
       where: { VirtualCardId: this.id, data: { missingDetails: true } },
     });
+  }
+
+  async pause() {
+    switch (this.provider) {
+      case VirtualCardProviders.STRIPE:
+        await stripeVirtualCards.pauseCard(this);
+        break;
+      case VirtualCardProviders.PRIVACY:
+        await privacyVirtualCards.pauseCard(this);
+        break;
+      default:
+        throw new Error(`Can not suspend virtual card provided by ${this.provider}`);
+    }
+
+    return this.reload();
+  }
+
+  async resume() {
+    switch (this.provider) {
+      case VirtualCardProviders.STRIPE:
+        await stripeVirtualCards.resumeCard(this);
+        break;
+      case VirtualCardProviders.PRIVACY:
+        await privacyVirtualCards.resumeCard(this);
+        break;
+      default:
+        throw new Error(`Can not resume virtual card provided by ${this.provider}`);
+    }
+
+    return this.reload();
+  }
+
+  async delete() {
+    switch (this.provider) {
+      case VirtualCardProviders.STRIPE:
+        await stripeVirtualCards.deleteCard(this);
+        break;
+      case VirtualCardProviders.PRIVACY:
+        await privacyVirtualCards.deleteCard(this);
+        break;
+      default:
+        throw new Error(`Can not resume virtual card provided by ${this.provider}`);
+    }
+
+    await this.destroy();
+  }
+
+  isActive() {
+    return this.data?.status === 'active' || this.data?.state === 'OPEN';
+  }
+
+  isPaused() {
+    return this.data?.status === 'inactive' || this.data?.state === 'PAUSED';
   }
 }
 

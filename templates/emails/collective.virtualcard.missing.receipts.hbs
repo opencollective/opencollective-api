@@ -1,0 +1,27 @@
+Subject: {{collective.name}}'s {{virtualCard.last4}} card is missing receipt(s)
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{collective.name}}'s {{virtualCard.name}} ({{virtualCard.last4}}) card is missing receipt(s).
+  </h1>
+</center>
+
+<p>
+  Avoid having your card suspended by providing the receipt for the following charges within {{daysLeft}} days:
+</p>
+
+
+<table style="width: 100%; margin-bottom: 30px;">
+  {{#each expenses}}
+  <tr>
+    <td>#{{id}}</td>
+    <td>{{description}}</td>
+    <td align="right"><a href="{{url}}">Submit Receipt</a></td>
+  </tr>
+  {{/each}}
+</table>
+
+{{> footer}}
