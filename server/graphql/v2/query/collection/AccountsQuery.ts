@@ -57,8 +57,7 @@ const AccountsQuery = {
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
     const { offset, limit } = args;
-
-    if (args.searchTerm || args.isHost || args.type || args.countries) {
+    if (args.searchTerm || args.isHost || args.type || args.countries || args.orderBy || args.tag) {
       const cleanTerm = args.searchTerm?.trim();
 
       const extraParameters = {
