@@ -193,7 +193,7 @@ export async function createTransactionsFromPaidExpense(
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
-    taxAmount: computeExpenseTaxes(expense, expenseToHostFxRate),
+    taxAmount: computeExpenseTaxes(expense),
     data: {
       ...(transactionData || {}),
       ...expenseDataForTransaction,
@@ -211,11 +211,13 @@ export async function createTransactionsFromPaidExpense(
   return models.Transaction.createDoubleEntry(transaction);
 }
 
-const computeExpenseTaxes = (expense, expenseToHostFxRate: number): number | null => {
+const computeExpenseTaxes = (expense): number | null => {
   if (!expense.data?.taxes?.length) {
     return null;
   } else {
-    return -Math.round(expenseToHostFxRate * sumBy(expense.data.taxes, ({ rate }) => rate * expense.amount)) || 0;
+    const ratesSum = sumBy(expense.data.taxes, 'rate');
+    const amountWithoutTaxes = expense.amount / (1 + ratesSum);
+    return -Math.round(expense.amount - amountWithoutTaxes) || 0;
   }
 };
 

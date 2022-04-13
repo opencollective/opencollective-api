@@ -1,12 +1,12 @@
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
-import { flatten, get, isEqual, isNil, omitBy, pick, size, sumBy } from 'lodash';
+import { cloneDeep, flatten, get, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
 
-import { activities, expenseStatus, expenseTypes, roles } from '../../constants';
+import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
-import expenseType from '../../constants/expense_type';
+import EXPENSE_TYPE from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
@@ -225,7 +225,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
 
   // Collective Admin can attach receipts to paid charge expenses
   if (
-    expense.type === expenseType.CHARGE &&
+    expense.type === EXPENSE_TYPE.CHARGE &&
     expense.status === expenseStatus.PAID &&
     req.remoteUser?.hasRole([roles.ADMIN], expense.CollectiveId)
   ) {
@@ -617,7 +617,7 @@ const checkExpenseItems = (expenseData, items, taxes) => {
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
-  if (expenseData.type === expenseType.RECEIPT) {
+  if (expenseData.type === EXPENSE_TYPE.RECEIPT) {
     const hasMissingFiles = items.some(a => !a.url);
     if (hasMissingFiles) {
       throw new ValidationFailed('Some items are missing a file');
@@ -722,7 +722,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
     return;
   } else if (taxes.length > 1) {
     throw new ValidationFailed('Only one tax is allowed per expense');
-  } else if (expenseType !== expenseTypes.INVOICE) {
+  } else if (expenseType !== EXPENSE_TYPE.INVOICE) {
     throw new ValidationFailed('Only invoices can have taxes');
   } else {
     return taxes.forEach(({ type, rate }) => {
@@ -894,7 +894,7 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
-  const isPaidCreditCardCharge = expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID;
+  const isPaidCreditCardCharge = expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID;
 
   if (isPaidCreditCardCharge && !hasAmountChanges) {
     return false;
@@ -971,6 +971,7 @@ export async function editExpense(
       { association: 'items' },
     ],
   });
+
   const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense.items, expenseData);
   const taxes = expenseData.tax || expense.data?.taxes || [];
   const expenseType = expenseData.type || expense.type;
@@ -995,7 +996,7 @@ export async function editExpense(
   }
 
   const isPaidCreditCardCharge =
-    expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID && Boolean(expense.VirtualCardId);
+    expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID && Boolean(expense.VirtualCardId);
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
     throw new ValidationFailed(
@@ -1113,6 +1114,7 @@ export async function editExpense(
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
+      data: !expense.data ? null : cloneDeep(expense.data),
       amount: computeTotalAmountForExpense(expenseData.items || expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
@@ -1122,11 +1124,12 @@ export async function editExpense(
       legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
       tags: cleanExpenseData.tags,
     };
+
     if (isPaidCreditCardCharge) {
-      updatedExpenseProps['data'] = { ...expense.data, missingDetails: false };
+      set(updatedExpenseProps, 'data.missingDetails', false);
     }
     if (!isEqual(expense.data?.taxes, taxes)) {
-      updatedExpenseProps['data'] = { ...expense.data, taxes };
+      set(updatedExpenseProps, 'data.taxes', taxes);
     }
     return expense.update(updatedExpenseProps, { transaction: t });
   });

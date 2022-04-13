@@ -6,9 +6,11 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { get } from 'lodash';
+import { get, round } from 'lodash';
 
 import models from '../../models';
+import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { TaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
 import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
@@ -63,6 +65,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       platformFeeInHostCurrency: { type: GraphQLInt },
       paymentProcessorFeeInHostCurrency: { type: GraphQLInt },
       taxAmount: { type: GraphQLInt },
+      taxInfo: { type: TaxInfo },
       createdByUser: { type: UserType },
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
@@ -186,6 +189,31 @@ const TransactionFields = () => {
     taxAmount: {
       type: GraphQLInt,
       description: 'The amount paid in tax (for example VAT) for this transaction',
+    },
+    taxInfo: {
+      type: TaxInfo,
+      description: 'If taxAmount is set, this field will contain more info about the tax',
+      resolve(transaction, _, req) {
+        const tax = transaction.data?.tax;
+        if (!tax) {
+          return null;
+        } else {
+          return {
+            id: tax.id,
+            type: tax.id,
+            percentage: Math.round(tax.percentage ?? tax.rate * 100), // Does not support float
+            rate: tax.rate ?? round(tax.percentage / 100, 2),
+            idNumber: () => {
+              const collectiveId = transaction.paymentMethodProviderCollectiveId();
+              const canSeeDetails =
+                getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, collectiveId) ||
+                req.remoteUser.isAdmin(transaction.HostCollectiveId);
+
+              return canSeeDetails ? tax.idNumber : null;
+            },
+          };
+        }
+      },
     },
     netAmountInCollectiveCurrency: {
       type: GraphQLInt,

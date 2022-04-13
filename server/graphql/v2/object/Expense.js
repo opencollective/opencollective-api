@@ -109,17 +109,19 @@ const Expense = new GraphQLObjectType({
       taxes: {
         type: new GraphQLNonNull(new GraphQLList(TaxInfo)),
         description: 'Taxes applied to this expense',
-        async resolve(expense, _, req) {
+        resolve(expense, _, req) {
           if (!expense.data?.taxes) {
             return [];
           } else {
-            const canSeePayoutDetails = await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
             return expense.data.taxes.map(({ type, rate, idNumber }) => ({
               id: type,
               percentage: rate,
               type,
               rate,
-              idNumber: canSeePayoutDetails ? idNumber : null,
+              idNumber: async () => {
+                const canSeePayoutDetails = await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense);
+                return canSeePayoutDetails ? idNumber : null;
+              },
             }));
           }
         },
