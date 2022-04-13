@@ -58,50 +58,30 @@ const AccountsQuery = {
   async resolve(_: void, args): Promise<CollectionReturnType> {
     const { offset, limit } = args;
 
-    if (args.searchTerm) {
-      const cleanTerm = args.searchTerm.trim();
-
-      const extraParameters = {
-        orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
-        types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
-        hostCollectiveIds: null, // not supported
-        isHost: args.isHost ? true : null,
-        onlyActive: args.isActive ? true : null,
-        skipRecentAccounts: args.skipRecentAccounts,
-        hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
-        countries: args.country,
-        tags: args.tag,
-      };
-
-      const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
-
-      return { nodes: accounts, totalCount, limit, offset };
-    }
-
-    const where = {};
-
-    // Bind arguments
-    if (args.tag?.length) {
-      where['tags'] = { [Op.contains]: args.tag };
-    }
-
-    if (args.type?.length) {
-      where['type'] = args.type.map(value => AccountTypeToModelMapping[value]);
-    }
-
-    if (typeof args.isActive === 'boolean') {
-      where['isActive'] = args.isActive;
-    }
-
-    if (typeof args.hasCustomContributionsEnabled === 'boolean') {
-      if (args.hasCustomContributionsEnabled) {
-        where['settings'] = { disableCustomContributions: { [Op.not]: true } };
-      } else {
-        where['settings'] = { disableCustomContributions: true };
-      }
-    }
-
     if (args.supportedPaymentMethodService?.length) {
+      const where = {};
+
+      // Bind arguments
+      if (args.tag?.length) {
+        where['tags'] = { [Op.contains]: args.tag };
+      }
+
+      if (args.type?.length) {
+        where['type'] = args.type.map(value => AccountTypeToModelMapping[value]);
+      }
+
+      if (typeof args.isActive === 'boolean') {
+        where['isActive'] = args.isActive;
+      }
+
+      if (typeof args.hasCustomContributionsEnabled === 'boolean') {
+        if (args.hasCustomContributionsEnabled) {
+          where['settings'] = { disableCustomContributions: { [Op.not]: true } };
+        } else {
+          where['settings'] = { disableCustomContributions: true };
+        }
+      }
+
       const hostsWithSupportedPaymentProviders = await models.Collective.findAll({
         mapToModel: false,
         attributes: ['id'],
@@ -120,12 +100,30 @@ const AccountsQuery = {
 
       where['isActive'] = true;
       where['HostCollectiveId'] = hostsWithSupportedPaymentProviders.map(h => h.id);
-    }
 
-    // Fetch & return results
-    const order = [[args.orderBy.field, args.orderBy.direction]];
-    const result = await models.Collective.findAndCountAll({ where, order, offset, limit });
-    return { nodes: result.rows, totalCount: result.count, limit, offset };
+      // Fetch & return results
+      const order = [[args.orderBy.field, args.orderBy.direction]];
+      const result = await models.Collective.findAndCountAll({ where, order, offset, limit });
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
+    } else {
+      const cleanTerm = args.searchTerm?.trim();
+
+      const extraParameters = {
+        orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
+        types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
+        hostCollectiveIds: null, // not supported
+        isHost: args.isHost ? true : null,
+        onlyActive: args.isActive ? true : null,
+        skipRecentAccounts: args.skipRecentAccounts,
+        hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
+        countries: args.country,
+        tags: args.tag,
+      };
+
+      const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);
+
+      return { nodes: accounts, totalCount, limit, offset };
+    }
   },
 };
 
