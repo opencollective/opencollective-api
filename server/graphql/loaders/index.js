@@ -377,7 +377,8 @@ export const loaders = req => {
         SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount"), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-        WHERE "TierId" IN (?)
+        WHERE o."TierId" IN (?)
+        AND o."deletedAt" IS NULL
         AND s."isActive" = TRUE
         AND s."interval" = 'month'
         GROUP BY "TierId";
@@ -398,7 +399,8 @@ export const loaders = req => {
         SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount"), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-        WHERE "TierId" IN (?)
+        WHERE o."TierId" IN (?)
+        AND o."deletedAt" IS NULL
         AND s."isActive" = TRUE
         AND s."interval" = 'year'
         GROUP BY "TierId";
@@ -428,7 +430,8 @@ export const loaders = req => {
           AS "total"
           FROM "Orders" o
           INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-          WHERE "TierId" IN (?)
+          WHERE o."TierId" IN (?)
+          AND o."deletedAt" IS NULL
           AND s."isActive" = TRUE
           AND s."interval" IN ('year', 'month')
           GROUP BY "TierId";
