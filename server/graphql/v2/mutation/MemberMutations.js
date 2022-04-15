@@ -148,19 +148,20 @@ const memberMutations = {
       // Edit member
       const editableAttributes = pick(args, ['role', 'description', 'since']);
 
-      const [, members] = await models.Member.update(editableAttributes, {
-        returning: true,
+      const member = await models.Member.findOne({
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
         },
       });
 
-      if (!members.length) {
+      if (!member) {
         throw new ValidationFailed(`Member ${memberAccount.slug} does not exist in Collective ${account.slug}`);
       }
 
-      return members[0];
+      await member.update(editableAttributes);
+
+      return member;
     },
   },
   removeMember: {
