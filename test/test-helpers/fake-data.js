@@ -508,7 +508,7 @@ export const fakeNotification = async (data = {}) => {
     active: true,
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
     UserId: data.UserId || (await fakeUser()).id,
-    webhookUrl: randUrl('test.opencollective.com/webhooks'),
+    webhookUrl: randUrl('example.com/webhooks'),
     ...data,
   });
 };

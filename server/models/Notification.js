@@ -2,10 +2,12 @@ import Promise from 'bluebird';
 import debugLib from 'debug';
 import { defaults, isNil } from 'lodash';
 import prependHttp from 'prepend-http';
+import { isIP } from 'validator';
 
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import { getRootDomain } from '../lib/url-utils';
 
 const debug = debugLib('models:Notification');
 
@@ -61,10 +63,24 @@ function defineModel() {
       webhookUrl: {
         type: DataTypes.STRING,
         validate: {
-          isUrl: true,
+          isUrl: {
+            msg: 'Webhook URL must be a valid URL',
+          },
+          notAnInternalUrl: url => {
+            const rootDomain = getRootDomain(url);
+            if (rootDomain === 'opencollective.com') {
+              throw new Error('Open Collective URLs cannot be used as webhooks');
+            }
+          },
+          notAnIPAddress: url => {
+            const parsedURL = new URL(url);
+            if (isIP(parsedURL.hostname)) {
+              throw new Error('IP addresses cannot be used as webhooks');
+            }
+          },
         },
         set(url) {
-          const cleanUrl = url?.trim().replace(/^https?:\/\//i, '');
+          const cleanUrl = url?.trim();
           if (!cleanUrl) {
             this.setDataValue('webhookUrl', null);
           } else {
