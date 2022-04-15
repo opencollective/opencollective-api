@@ -875,9 +875,17 @@ const queries = {
       id: { type: GraphQLInt },
       code: { type: GraphQLString },
     },
-    resolve(_, args) {
+    async resolve(_, args, req) {
       if (args.id) {
-        return models.PaymentMethod.findByPk(args.id);
+        const paymentMethod = await models.PaymentMethod.findByPk(args.id, {
+          include: [{ model: models.Collective, required: true }],
+        });
+
+        if (!paymentMethod || !req.remoteUser?.isAdminOfCollective(paymentMethod.Collective)) {
+          return null;
+        } else {
+          return paymentMethod;
+        }
       } else if (args.code) {
         const redeemCodeRegex = /^[a-zA-Z0-9]{8}$/;
         if (!redeemCodeRegex.test(args.code)) {

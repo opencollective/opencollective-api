@@ -793,7 +793,7 @@ export const sendReminderPendingOrderEmail = async order => {
 export const sendExpiringCreditCardUpdateEmail = async data => {
   data = {
     ...data,
-    updateDetailsLink: `${config.host.website}/${data.slug}/paymentmethod/${data.id}/update`,
+    updateDetailsLink: `${config.host.website}/paymentmethod/${data.id}/update`,
   };
 
   return emailLib.send('payment.creditcard.expiring', data.email, data);
