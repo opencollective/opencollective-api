@@ -154,4 +154,47 @@ describe('server/models/Notification', () => {
       expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
     });
   });
+
+  describe('webhookURL', () => {
+    it('must be a valid URL', async () => {
+      await expect(Notification.create({ webhookUrl: 'xxxxxxx' })).to.be.rejectedWith(
+        'Validation error: Webhook URL must be a valid URL',
+      );
+      await expect(Notification.create({ webhookUrl: 'http://' })).to.be.rejectedWith(
+        'Validation error: Webhook URL must be a valid URL',
+      );
+      await expect(Notification.create({ webhookUrl: 'https://' })).to.be.rejectedWith(
+        'Validation error: Webhook URL must be a valid URL',
+      );
+    });
+
+    it('cannot be an internal URL or an IP address', async () => {
+      await expect(Notification.create({ webhookUrl: '0.0.0.0' })).to.be.rejectedWith(
+        'Validation error: IP addresses cannot be used as webhooks',
+      );
+      await expect(Notification.create({ webhookUrl: 'localhost' })).to.be.rejectedWith(
+        'Validation error: Webhook URL must be a valid URL',
+      );
+      await expect(Notification.create({ webhookUrl: 'http://localhost' })).to.be.rejectedWith(
+        'Validation error: Webhook URL must be a valid URL',
+      );
+      await expect(Notification.create({ webhookUrl: 'https://opencollective.com' })).to.be.rejectedWith(
+        'Validation error: Open Collective URLs cannot be used as webhooks',
+      );
+      await expect(Notification.create({ webhookUrl: 'https://0.0.0.0' })).to.be.rejectedWith(
+        'Validation error: IP addresses cannot be used as webhooks',
+      );
+      await expect(Notification.create({ webhookUrl: 'https://12.12.12.12' })).to.be.rejectedWith(
+        'Validation error: IP addresses cannot be used as webhooks',
+      );
+    });
+
+    it('accepts valid URLs, adds the protocol automatically', async () => {
+      const notif1 = await Notification.create({ webhookUrl: 'https://google.com/stuff' });
+      expect(notif1.webhookUrl).to.equal('https://google.com/stuff');
+
+      const notif2 = await Notification.create({ webhookUrl: 'google.com/stuff' });
+      expect(notif2.webhookUrl).to.equal('https://google.com/stuff');
+    });
+  });
 });

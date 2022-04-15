@@ -1,5 +1,7 @@
 import config from 'config';
 
+import { getHostname } from './url-utils';
+
 const TRUSTED_IMAGE_PROVIDERS = [
   'gravatar.com',
   'logo.clearbit.com',
@@ -8,10 +10,6 @@ const TRUSTED_IMAGE_PROVIDERS = [
   'abs.twimg.com',
   'secure.meetupstatic.com',
 ];
-
-const getHostname = url => {
-  return new URL(url).hostname.replace(/^www\./, '');
-};
 
 /**
  * Returns true if image is a valid image uploaded in our S3 bucket.
