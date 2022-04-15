@@ -374,45 +374,42 @@ export async function getYearlyIncome(collective) {
   // TODO: support netAmountInHostCurrency
   const result = await sequelize.query(
     `
-      WITH "activeMonthlySubscriptions" as (
-        SELECT d."SubscriptionId", ROUND(AVG(t."netAmountInCollectiveCurrency")) AS "netAmountInCollectiveCurrency"
-        FROM "Transactions" t
-        LEFT JOIN "Orders" d ON d.id = t."OrderId"
-        LEFT JOIN "Subscriptions" s ON s.id = d."SubscriptionId"
-        WHERE t."CollectiveId"=:CollectiveId
-          AND t."RefundTransactionId" IS NULL
+      SELECT
+        (
+          SELECT COALESCE(SUM(o."totalAmount"), 0) * 12
+          FROM "Orders" o
+          INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+          WHERE o."CollectiveId" = :CollectiveId
+          AND o."deletedAt" IS NULL
+          AND s."deletedAt" IS NULL
           AND s."isActive" IS TRUE
           AND s.interval = 'month'
+        )
+        +
+        ( 
+          SELECT COALESCE(SUM(o."totalAmount"), 0)
+          FROM "Orders" o
+          INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+          WHERE o."CollectiveId" = :CollectiveId
+          AND o."deletedAt" IS NULL
           AND s."deletedAt" IS NULL
-        GROUP BY d."SubscriptionId"
-      )
-      SELECT
-        (SELECT
-          COALESCE(SUM("netAmountInCollectiveCurrency"*12),0) FROM "activeMonthlySubscriptions")
+          AND s."isActive" IS TRUE
+          AND s.interval = 'year'
+        )
         +
-        (SELECT
-          COALESCE(SUM(t."netAmountInCollectiveCurrency"),0) FROM "Transactions" t
+        (
+          SELECT COALESCE(SUM(t."netAmountInCollectiveCurrency"), 0)
+          FROM "Transactions" t
           LEFT JOIN "Orders" d ON t."OrderId" = d.id
           LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
           WHERE t."CollectiveId" = :CollectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND CAST(("t"."data"#>>'{internal}') AS BOOLEAN) IS NOT true
-            AND t.type = 'CREDIT'
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > (current_date - INTERVAL '12 months')
-            AND ((s.interval = 'year' AND s."isActive" IS TRUE AND s."deletedAt" IS NULL) OR s.interval IS NULL))
-        +
-        (SELECT
-          COALESCE(SUM(t."netAmountInCollectiveCurrency"),0) FROM "Transactions" t
-          LEFT JOIN "Orders" d ON t."OrderId" = d.id
-          LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
-          WHERE t."CollectiveId" = :CollectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t.type = 'CREDIT'
-            AND t."deletedAt" IS NULL
-            AND t."createdAt" > (current_date - INTERVAL '12 months')
-            AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
-        "yearlyIncome"
+          AND t."RefundTransactionId" IS NULL
+          AND t.type = 'CREDIT'
+          AND t."deletedAt" IS NULL
+          AND t."createdAt" > (current_date - INTERVAL '12 months')
+          AND (s.id IS NULL OR s."isActive" IS FALSE)
+        )
+        AS "yearlyIncome"
       `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
     {
       replacements: { CollectiveId: collective.id },

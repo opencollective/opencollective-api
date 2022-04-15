@@ -7,6 +7,7 @@ import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
 import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
+import markdownTable from 'markdown-table';
 import nock from 'nock';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -477,6 +478,14 @@ export const preloadAssociationsForTransactions = async (transactions, columns) 
       }
     });
   });
+};
+
+export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
+  const allTransactions = await models.Transaction.findAll();
+  await preloadAssociationsForTransactions(allTransactions, columns);
+  const prettyTransactions = prettifyTransactionsData(allTransactions, columns);
+  const headers = Object.keys(prettyTransactions[0]);
+  console.log(markdownTable([headers, ...prettyTransactions.map(Object.values)]));
 };
 
 /**
