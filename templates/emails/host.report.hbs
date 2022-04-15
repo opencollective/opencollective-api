@@ -243,19 +243,29 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     <tr>
       <td colspan=3 height=10></td>
     </tr>
-    {{#if stats.totalTaxAmountCollected}}
-    <tr>
-      <td>Taxes collected</td>
-      <td></td>
-      <td align="right">
-        {{currency stats.totalTaxAmountCollected currency=host.currency}}</td>
-    </tr>
-    <tr>
-      <td colspan=3 class="muted">{{taxType}} received</td>
-    </tr>
-    <tr>
-      <td colspan=3 height=10></td>
-    </tr>
+    {{#if stats.taxesSummary}}
+      <tr>
+        <td>Taxes</td>
+        <td></td>
+        <td align="right"></td>
+      </tr>
+
+      {{#each stats.taxesSummary}}
+        <tr class="indent1">
+          <td>{{@key}} collected</td>
+          <td></td>
+          <td align="right">{{currency this.collected currency=../host.currency}}</td>
+        </tr>
+        <tr class="indent1">
+          <td>{{@key}} paid</td>
+          <td></td>
+          <td align="right">{{currency this.paid currency=../host.currency}}</td>
+        </tr>
+      {{/each}}
+
+      <tr>
+        <td colspan="3" height="10"></td>
+      </tr>
     {{/if}}
 
     {{#if stats.totalAmountDebts}}

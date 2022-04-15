@@ -6,6 +6,7 @@ import { ExpenseType } from '../enum/ExpenseType';
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { ExpenseItemCreateInput } from './ExpenseItemCreateInput';
+import { ExpenseTaxInput } from './ExpenseTaxInput';
 import { LocationInput } from './LocationInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
 
@@ -41,7 +42,7 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     },
     invoiceInfo: {
       type: GraphQLString,
-      description: 'Tax ID, VAT number...etc This information will be printed on your invoice.',
+      description: 'Custom information to print on the invoice',
     },
     payoutMethod: {
       type: new GraphQLNonNull(PayoutMethodInput),
@@ -62,6 +63,10 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     payeeLocation: {
       type: LocationInput,
       description: 'The address of the payee',
+    },
+    tax: {
+      type: new GraphQLList(ExpenseTaxInput),
+      description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
     },
   }),
 });

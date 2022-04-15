@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { defaultsDeep, omit, pick } from 'lodash';
+import { defaultsDeep, omit, pick, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -75,22 +75,67 @@ export const addFunds = async (user, hostCollective, collective, amount) => {
   });
 };
 
+const mutationExpenseFields = gqlV2/* GraphQL */ `
+  fragment ExpenseFields on Expense {
+    id
+    legacyId
+    invoiceInfo
+    amount
+    invoiceInfo
+    description
+    type
+    amount
+    status
+    privateMessage
+    invoiceInfo
+    taxes {
+      id
+      type
+      rate
+    }
+    payee {
+      legacyId
+      id
+      name
+      slug
+    }
+    payeeLocation {
+      address
+      country
+    }
+    createdByAccount {
+      legacyId
+      name
+      slug
+    }
+    payoutMethod {
+      id
+      data
+      name
+      type
+    }
+    payeeLocation {
+      address
+      country
+    }
+    items {
+      id
+      url
+      amount
+      incurredAt
+      description
+    }
+    tags
+  }
+`;
+
 const createExpenseMutation = gqlV2/* GraphQL */ `
   mutation CreateExpense($expense: ExpenseCreateInput!, $account: AccountReferenceInput!) {
     createExpense(expense: $expense, account: $account) {
-      id
-      legacyId
-      invoiceInfo
-      amount
-      payee {
-        legacyId
-      }
-      payeeLocation {
-        address
-        country
-      }
+      ...ExpenseFields
     }
   }
+  ${mutationExpenseFields}
 `;
 
 const deleteExpenseMutation = gqlV2/* GraphQL */ `
@@ -105,46 +150,10 @@ const deleteExpenseMutation = gqlV2/* GraphQL */ `
 const editExpenseMutation = gqlV2/* GraphQL */ `
   mutation EditExpense($expense: ExpenseUpdateInput!, $draftKey: String) {
     editExpense(expense: $expense, draftKey: $draftKey) {
-      id
-      legacyId
-      invoiceInfo
-      description
-      type
-      amount
-      status
-      privateMessage
-      invoiceInfo
-      payee {
-        legacyId
-        id
-        name
-        slug
-      }
-      createdByAccount {
-        legacyId
-        name
-        slug
-      }
-      payoutMethod {
-        id
-        data
-        name
-        type
-      }
-      payeeLocation {
-        address
-        country
-      }
-      items {
-        id
-        url
-        amount
-        incurredAt
-        description
-      }
-      tags
+      ...ExpenseFields
     }
   }
+  ${mutationExpenseFields}
 `;
 
 const processExpenseMutation = gqlV2/* GraphQL */ `
@@ -295,6 +304,39 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('You must be an admin of the account to submit an expense in its name');
     });
+
+    it('with VAT', async () => {
+      const collective = await fakeCollective({
+        currency: 'EUR',
+        settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+      });
+
+      const user = await fakeUser();
+      const expenseData = {
+        ...getValidExpenseData(),
+        payee: { legacyId: user.CollectiveId },
+        tax: [{ type: 'VAT', rate: 0.2 }],
+        items: [
+          { description: 'First item', amount: 4200 },
+          { description: 'Second item', amount: 5800 },
+        ],
+      };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const resultExpense = result.data.createExpense;
+      const returnedItems = resultExpense.items;
+      const sumItems = sumBy(returnedItems, 'amount');
+      expect(sumItems).to.equal(10000);
+      expect(resultExpense.amount).to.equal(12000); // items sum + 20% tax
+      expect(resultExpense.taxes[0].type).to.equal('VAT');
+      expect(resultExpense.taxes[0].rate).to.equal(0.2);
+    });
   });
 
   describe('editExpense', () => {
@@ -392,6 +434,40 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(returnedItems.find(a => a.id === items[1].id)).to.exist;
       expect(returnedItems.find(a => a.id === items[2].id)).to.not.exist;
       expect(returnedItems.find(a => a.id === items[1].id).amount).to.equal(7000);
+    });
+
+    it('adding VAT updates the amount', async () => {
+      const collective = await fakeCollective({
+        currency: 'EUR',
+        settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+      });
+      const expense = await fakeExpense({
+        type: expenseTypes.INVOICE,
+        amount: 10000,
+        items: [],
+        CollectiveId: collective.id,
+      });
+      await Promise.all([
+        fakeExpenseItem({ ExpenseId: expense.id, amount: 2000 }),
+        fakeExpenseItem({ ExpenseId: expense.id, amount: 3000 }),
+        fakeExpenseItem({ ExpenseId: expense.id, amount: 5000 }),
+      ]);
+
+      const updatedExpenseData = {
+        id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+        tax: [{ type: 'VAT', rate: 0.055 }],
+      };
+
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      const returnedItems = result.data.editExpense.items;
+      const sumItems = sumBy(returnedItems, 'amount');
+
+      expect(sumItems).to.equal(10000);
+      expect(result.data.editExpense.amount).to.equal(10550); // items sum + 5.5% tax
+      expect(result.data.editExpense.taxes[0].type).to.equal('VAT');
+      expect(result.data.editExpense.taxes[0].rate).to.equal(0.055);
     });
 
     it('can edit only one field without impacting the others', async () => {
@@ -1527,6 +1603,58 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           // Email to collective
           expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
           expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid for ${collective.name}`);
+        });
+      });
+
+      describe('Taxes', () => {
+        it('with VAT', async () => {
+          const collective = await fakeCollective({
+            currency: 'EUR',
+            settings: { VAT: { type: 'OWN', idNumber: 'XXXXXX' } },
+            HostCollectiveId: host.id,
+          });
+          const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+          const expense = await fakeExpense({
+            type: expenseTypes.INVOICE,
+            amount: 100e2,
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            currency: 'EUR',
+            PayoutMethodId: payoutMethod.id,
+          });
+
+          // Add VAT to expense
+          const rate = 0.2; // 20%
+          await expense.update({
+            amount: expense.amount * (1 + rate), // 120e2
+            data: { taxes: [{ id: 'VAT', type: 'VAT', rate }] },
+          });
+
+          // Updates the collective balance and pay the expense
+          await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000e2 });
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          result.errors && console.error(result.errors);
+          const resultExpense = result.data.processExpense;
+          expect(resultExpense.status).to.eq('PAID');
+
+          // Check transactions
+          const transactions = await expense.getTransactions();
+          await Promise.all(transactions, t => t.validate());
+          const credit = transactions.find(({ type }) => type === 'CREDIT');
+          const debit = transactions.find(({ type }) => type === 'DEBIT');
+          expect(debit.amount).to.equal(-expense.amount); // Full amount in collective currency
+          expect(debit.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+          expect(debit.amountInHostCurrency).to.equal(-13200); // expense amount converted to USD
+          expect(debit.taxAmount).to.equal(-2000); // In collective currency
+          expect(debit.data.tax.type).to.eq('VAT');
+          expect(debit.data.tax.rate).to.eq(0.2);
+          expect(credit.amount).to.equal(expense.amount);
+          expect(credit.taxAmount).to.equal(-2000);
+          expect(debit.netAmountInCollectiveCurrency).to.equal(-expense.amount);
+          expect(debit.amountInHostCurrency).to.equal(-13200);
+          expect(credit.data.tax.type).to.eq('VAT');
+          expect(credit.data.tax.rate).to.eq(0.2);
         });
       });
     });

@@ -81,7 +81,6 @@ describe('server/graphql/v2/mutation/GuestMutations', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.sendGuestConfirmationEmail).to.be.true;
-      console.log(result);
 
       await waitForCondition(() => emailSendMessageSpy.callCount === 1);
       expect(emailSendMessageSpy.callCount).to.equal(1);

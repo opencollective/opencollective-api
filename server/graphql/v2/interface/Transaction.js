@@ -9,14 +9,14 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { pick } from 'lodash';
+import { round } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { TransactionKind as TransactionKinds } from '../../../constants/transaction-kind';
 import { generateDescription } from '../../../lib/transactions';
 import models from '../../../models';
-import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as TransactionLib from '../../common/transactions';
 import { TransactionKind } from '../enum/TransactionKind';
 import { TransactionType } from '../enum/TransactionType';
@@ -331,11 +331,25 @@ export const TransactionFields = () => {
     taxInfo: {
       type: TaxInfo,
       description: 'If taxAmount is set, this field will contain more info about the tax',
-      resolve(transaction) {
-        if (!transaction.data?.tax) {
+      resolve(transaction, _, req) {
+        const tax = transaction.data?.tax;
+        if (!tax) {
           return null;
         } else {
-          return pick(transaction.data.tax, ['id', 'percentage']);
+          return {
+            id: tax.id,
+            type: tax.id,
+            percentage: Math.round(tax.percentage ?? tax.rate * 100), // Does not support float
+            rate: tax.rate ?? round(tax.percentage / 100, 2),
+            idNumber: () => {
+              const collectiveId = transaction.paymentMethodProviderCollectiveId();
+              const canSeeDetails =
+                getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, collectiveId) ||
+                req.remoteUser.isAdmin(transaction.HostCollectiveId);
+
+              return canSeeDetails ? tax.idNumber : null;
+            },
+          };
         }
       },
     },

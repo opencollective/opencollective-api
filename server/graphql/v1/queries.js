@@ -148,7 +148,7 @@ const queries = {
       if (transaction.HostCollectiveId) {
         // If a `HostCollectiveId` is defined, we load it directly
         host = await transaction.getHostCollective();
-      } else if (transaction.isRefund) {
+      } else if (transaction.isRefund || transaction.kind === 'EXPENSE') {
         const debitTransaction = await transaction.getOppositeTransaction();
         if (debitTransaction) {
           host = await debitTransaction.getHostCollective();
@@ -169,6 +169,7 @@ const queries = {
       // Check permissions
       if (req.remoteUser.isAdminOfCollective(host) || (await canDownloadInvoice(transaction, null, req))) {
         allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, fromCollectiveId);
+        allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, fromCollectiveId);
       } else {
         throw new Forbidden('You are not allowed to download this receipt');
       }

@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { groupBy, keyBy, pick, sumBy } from 'lodash';
+import { groupBy, keyBy, mapValues, pick, sumBy } from 'lodash';
 import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
@@ -46,6 +46,26 @@ const enrichTransactionsWithHostFee = async transactions => {
     }
   });
   return transactions;
+};
+
+/**
+ * From a list of transactions, generates an object like:
+ * {
+ *   [TaxId]: { totalCollected: number, totalPaid: number }
+ * }
+ */
+const getTaxesSummary = allTransactions => {
+  const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
+  if (!transactionsWithTaxes.length) {
+    return null;
+  }
+
+  const groupedTransactions = groupBy(transactionsWithTaxes, 'data.tax.id');
+  const getTaxAmountInHostCurrency = transaction => transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
+  return mapValues(groupedTransactions, transactions => ({
+    collected: Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')),
+    paid: sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'DEBIT'),
+  }));
 };
 
 async function HostReport(year, month, hostId) {
@@ -206,6 +226,7 @@ async function HostReport(year, month, hostId) {
       const processTransaction = async transaction => {
         const t = {
           ...transaction.info,
+          data: pick(transaction.data, ['tax.id']),
           Expense: transaction.Expense
             ? {
                 ...transaction.Expense.info,
@@ -370,7 +391,7 @@ async function HostReport(year, month, hostId) {
         totalAmountOtherCredits +
         paymentProcessorFeesOtherCredits +
         platformFeesOtherCredits;
-      const totalTaxAmountCollected = sumByWhen(transactions, 'taxAmount', t => t.type === 'CREDIT');
+      const taxesSummary = getTaxesSummary(transactions);
       const totalAmountPaidExpenses = sumByWhen(expenses, 'netAmountInHostCurrency');
       const totalNetAmountReceivedForCollectives = totalNetAmountReceived - totalHostFees;
       const totalAmountSpent =
@@ -435,7 +456,7 @@ async function HostReport(year, month, hostId) {
         totalHostFees,
         totalNetAmountReceived,
         totalNetAmountReceivedForCollectives,
-        totalTaxAmountCollected,
+        taxesSummary,
         totalSharedRevenue,
         hostNetRevenue,
         totalOwedPlatformTips,

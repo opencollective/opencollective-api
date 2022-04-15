@@ -1,11 +1,12 @@
+import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
-import { flatten, get, isEqual, isNil, omitBy, pick, size } from 'lodash';
+import { cloneDeep, flatten, get, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
-import expenseType from '../../constants/expense_type';
+import EXPENSE_TYPE from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
@@ -224,7 +225,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
 
   // Collective Admin can attach receipts to paid charge expenses
   if (
-    expense.type === expenseType.CHARGE &&
+    expense.type === EXPENSE_TYPE.CHARGE &&
     expense.status === expenseStatus.PAID &&
     req.remoteUser?.hasRole([roles.ADMIN], expense.CollectiveId)
   ) {
@@ -591,18 +592,17 @@ export const unscheduleExpensePayment = async (
 };
 
 /** Compute the total amount of expense from expense items */
-const getTotalAmountFromItems = items => {
-  if (!items) {
-    return 0;
-  } else {
-    return items.reduce((total, item) => {
-      return total + item.amount;
-    }, 0);
-  }
+const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: TaxDefinition[]) => {
+  return Math.round(
+    sumBy(items, item => {
+      const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
+      return <number>item['amount'] + totalTaxes;
+    }),
+  );
 };
 
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseData, items) => {
+const checkExpenseItems = (expenseData, items, taxes) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
@@ -611,17 +611,13 @@ const checkExpenseItems = (expenseData, items) => {
   }
 
   // Check amounts
-  const sumItems = getTotalAmountFromItems(items);
-  if (sumItems !== expenseData.amount) {
-    throw new ValidationFailed(
-      `The sum of all items must be equal to the total expense's amount. Expense's total is ${expenseData.amount}, but the total of items was ${sumItems}.`,
-    );
-  } else if (!sumItems) {
+  const sumItems = computeTotalAmountForExpense(items, taxes);
+  if (!sumItems) {
     throw new ValidationFailed(`The sum of all items must be above 0`);
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
-  if (expenseData.type === expenseType.RECEIPT) {
+  if (expenseData.type === EXPENSE_TYPE.RECEIPT) {
     const hasMissingFiles = items.some(a => !a.url);
     if (hasMissingFiles) {
       throw new ValidationFailed('Some items are missing a file');
@@ -699,6 +695,12 @@ const hasMultiCurrency = (collective, host) => {
   }
 };
 
+type TaxDefinition = {
+  type: string;
+  rate: number;
+  idNumber: string;
+};
+
 type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
@@ -709,9 +711,30 @@ type ExpenseData = {
   fromCollective?: Record<string, unknown>;
   tags?: string[];
   incurredAt?: Date;
-  amount?: number;
+  type?: string;
   description?: string;
   currency?: string;
+  tax?: TaxDefinition[];
+};
+
+const checkTaxes = (account, host, expenseType: string, taxes): void => {
+  if (!taxes?.length) {
+    return;
+  } else if (taxes.length > 1) {
+    throw new ValidationFailed('Only one tax is allowed per expense');
+  } else if (expenseType !== EXPENSE_TYPE.INVOICE) {
+    throw new ValidationFailed('Only invoices can have taxes');
+  } else {
+    return taxes.forEach(({ type, rate }) => {
+      if (rate < 0 || rate > 1) {
+        throw new ValidationFailed(`Tax rate for ${type} must be between 0% and 100%`);
+      } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account)) {
+        throw new ValidationFailed(`This account does not have VAT enabled`);
+      } else if (type === LibTaxes.TaxType.GST && !LibTaxes.accountHasGST(host)) {
+        throw new ValidationFailed(`This host does not have GST enabled`);
+      }
+    });
+  }
 };
 
 export async function createExpense(
@@ -728,7 +751,9 @@ export async function createExpense(
     throw new Unauthorized('Missing expense.collective.id');
   }
 
-  const collective = await models.Collective.findByPk(expenseData.collective.id);
+  const collective = await models.Collective.findByPk(expenseData.collective.id, {
+    include: [{ association: 'host', required: false }],
+  });
   if (!collective) {
     throw new ValidationFailed('Collective not found');
   }
@@ -744,8 +769,10 @@ export async function createExpense(
   }
 
   const itemsData = expenseData.items;
+  const taxes = expenseData.tax || [];
 
-  checkExpenseItems(expenseData, itemsData);
+  checkTaxes(collective, collective.host, expenseData.type, taxes);
+  checkExpenseItems(expenseData, itemsData, taxes);
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -765,10 +792,9 @@ export async function createExpense(
   }
 
   // Let submitter customize the currency
-  const host = await collective.getHostCollective();
   let currency = collective.currency;
   if (expenseData.currency && expenseData.currency !== currency) {
-    if (!hasMultiCurrency(collective, host)) {
+    if (!hasMultiCurrency(collective, collective.host)) {
       throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
     } else {
       currency = expenseData.currency;
@@ -811,7 +837,8 @@ export async function createExpense(
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
 
-    const connectedAccounts = host && (await host.getConnectedAccounts({ where: { service: 'transferwise' } }));
+    const connectedAccounts =
+      collective.host && (await collective.host.getConnectedAccounts({ where: { service: 'transferwise' } }));
     if (connectedAccounts?.[0]) {
       paymentProviders.transferwise.validatePayoutMethod(connectedAccounts[0], payoutMethod);
       recipient = await paymentProviders.transferwise.createRecipient(connectedAccounts[0], payoutMethod);
@@ -833,8 +860,8 @@ export async function createExpense(
         incurredAt: expenseData.incurredAt || new Date(),
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
-        amount: expenseData.amount || getTotalAmountFromItems(itemsData),
-        data: { recipient },
+        amount: computeTotalAmountForExpense(itemsData, taxes),
+        data: { recipient, taxes },
       },
       { transaction: t },
     );
@@ -867,7 +894,7 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
-  const isPaidCreditCardCharge = expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID;
+  const isPaidCreditCardCharge = expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID;
 
   if (isPaidCreditCardCharge && !hasAmountChanges) {
     return false;
@@ -877,14 +904,13 @@ export const changesRequireStatusUpdate = (
 
 /** Returns infos about the changes made to items */
 export const getItemsChanges = async (
-  expense: typeof models.Expense,
+  existingItems: ExpenseItem[],
   expenseData: ExpenseData,
 ): Promise<
   [boolean, Record<string, unknown>[], [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]
 > => {
   if (expenseData.items) {
-    const baseItems = await models.ExpenseItem.findAll({ where: { ExpenseId: expense.id } });
-    const itemsDiff = models.ExpenseItem.diffDBEntries(baseItems, expenseData.items);
+    const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, expenseData.items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
     return [hasItemChanges, expenseData.items, itemsDiff];
   } else {
@@ -938,13 +964,18 @@ export async function editExpense(
 
   const expense = await models.Expense.findByPk(expenseData.id, {
     include: [
-      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'collective', include: [{ association: 'host', required: false }] },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
       { model: models.PayoutMethod },
+      { association: 'items' },
     ],
   });
-  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense, expenseData);
+
+  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense.items, expenseData);
+  const taxes = expenseData.tax || expense.data?.taxes || [];
+  const expenseType = expenseData.type || expense.type;
+  checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
   if (!expense) {
     throw new NotFound('Expense not found');
@@ -965,7 +996,7 @@ export async function editExpense(
   }
 
   const isPaidCreditCardCharge =
-    expense.type === expenseType.CHARGE && expense.status === expenseStatus.PAID && Boolean(expense.VirtualCardId);
+    expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID && Boolean(expense.VirtualCardId);
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
     throw new ValidationFailed(
@@ -1037,7 +1068,7 @@ export async function editExpense(
 
     // Update items
     if (hasItemChanges) {
-      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData);
+      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData, taxes);
       const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
       await Promise.all(<Promise<void>[]>[
         // Delete
@@ -1083,6 +1114,8 @@ export async function editExpense(
 
     const updatedExpenseProps = {
       ...cleanExpenseData,
+      data: !expense.data ? null : cloneDeep(expense.data),
+      amount: computeTotalAmountForExpense(expenseData.items || expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
       status: shouldUpdateStatus ? 'PENDING' : expense.status,
@@ -1091,8 +1124,12 @@ export async function editExpense(
       legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
       tags: cleanExpenseData.tags,
     };
+
     if (isPaidCreditCardCharge) {
-      updatedExpenseProps['data'] = { ...expense.data, missingDetails: false };
+      set(updatedExpenseProps, 'data.missingDetails', false);
+    }
+    if (!isEqual(expense.data?.taxes, taxes)) {
+      set(updatedExpenseProps, 'data.taxes', taxes);
     }
     return expense.update(updatedExpenseProps, { transaction: t });
   });

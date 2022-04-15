@@ -6,6 +6,7 @@ import { ExpenseType } from '../enum/ExpenseType';
 import { NewAccountOrReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { ExpenseItemInput } from './ExpenseItemInput';
+import { ExpenseTaxInput } from './ExpenseTaxInput';
 import { LocationInput } from './LocationInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
 
@@ -71,6 +72,10 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
     payeeLocation: {
       type: LocationInput,
       description: 'The address of the payee',
+    },
+    tax: {
+      type: new GraphQLList(ExpenseTaxInput),
+      description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
     },
   }),
 });

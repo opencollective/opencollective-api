@@ -247,6 +247,7 @@ function defineModel() {
             netAmountInCollectiveCurrency: this.netAmountInCollectiveCurrency,
             netAmountInHostCurrency: this.netAmountInHostCurrency,
             amountSentToHostInHostCurrency: this.amountSentToHostInHostCurrency,
+            taxAmount: this.taxAmount,
             hostCurrency: this.hostCurrency,
             ExpenseId: this.ExpenseId,
             OrderId: this.OrderId,

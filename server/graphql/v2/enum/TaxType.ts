@@ -1,10 +1,7 @@
 import { GraphQLEnumType } from 'graphql';
 
-/**
- * @deprecated Please use `TaxType` instead
- */
-export const OrderTaxType = new GraphQLEnumType({
-  name: 'OrderTaxType',
+export const TaxType = new GraphQLEnumType({
+  name: 'TaxType',
   description: 'The type of a tax like GST, VAT, etc',
   values: {
     VAT: {
