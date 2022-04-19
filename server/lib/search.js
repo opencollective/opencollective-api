@@ -169,7 +169,7 @@ export const searchCollectivesInDB = async (
 
   const sortSubqueries = {
     ACTIVITY: `
-      SELECT COALESCE(SUM(ABS("netAmountInCollectiveCurrency")), 0)
+      SELECT COUNT(t.id)
       FROM "Transactions" t
       WHERE t."CollectiveId" = c.id
       AND t."deletedAt" IS NULL`,
