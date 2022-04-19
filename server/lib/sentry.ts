@@ -17,16 +17,29 @@ export const plugSentryToApp = (): void => {
 
 const IGNORED_GQL_ERRORS = [
   {
-    path: [['Collective'], ['allMembers'], ['collectiveMembers']],
     message: /^No collective found/,
+    path: [
+      // GQL V1
+      ['Collective'],
+      ['allMembers'],
+      // GQL V2
+      ['account'],
+      ['collective'],
+      ['event'],
+      ['fund'],
+      ['host'],
+      ['individual'],
+      ['organization'],
+      ['project'],
+    ],
   },
   {
-    path: [['allMembers']],
     message: /^Invalid collectiveSlug \(not found\)$/,
+    path: [['allMembers']],
   },
   {
-    path: [['createOrder']],
     message: /^Your card was declined.$/,
+    path: [['createOrder']],
   },
 ];
 
