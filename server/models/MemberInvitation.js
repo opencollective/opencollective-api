@@ -185,6 +185,23 @@ function defineModel() {
     });
 
     if (existingInvitation) {
+      const memberUser = await models.User.findOne({
+        where: { CollectiveId: memberParams.MemberCollectiveId },
+        include: [{ model: models.Collective, as: 'collective' }],
+        ...sequelizeParams,
+      });
+      const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
+        include: [{ model: models.Collective, as: 'collective' }],
+        ...sequelizeParams,
+      });
+      await emailLib.send('member.invitation', memberUser.email, {
+        role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
+        invitation: pick(existingInvitation, 'id'),
+        collective: pick(collective, ['slug', 'name']),
+        memberCollective: pick(memberUser.collective, ['slug', 'name']),
+        invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
+        skipDefaultAdmin: skipDefaultAdmin || false,
+      });
       return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
     }
 
