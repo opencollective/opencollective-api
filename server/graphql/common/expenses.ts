@@ -221,6 +221,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
     expenseStatus.PROCESSING,
     expenseStatus.DRAFT,
     expenseStatus.SCHEDULED_FOR_PAYMENT,
+    expenseStatus.CANCELED,
   ];
 
   // Collective Admin can attach receipts to paid charge expenses
@@ -264,7 +265,9 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (req, expens
  * and only when its status is REJECTED.
  */
 export const canDeleteExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.REJECTED, expenseStatus.DRAFT, expenseStatus.SPAM].includes(expense.status)) {
+  if (
+    ![expenseStatus.REJECTED, expenseStatus.DRAFT, expenseStatus.SPAM, expenseStatus.CANCELED].includes(expense.status)
+  ) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not delete expense in current status',

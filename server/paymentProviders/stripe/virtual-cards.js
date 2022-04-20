@@ -247,6 +247,37 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
   });
 };
 
+export const processUpdatedTransaction = async (stripeAuthorization, stripeEvent) => {
+  const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card);
+  if (!virtualCard) {
+    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
+    return;
+  }
+
+  if (stripeEvent) {
+    await checkStripeEvent(virtualCard.host, stripeEvent);
+  }
+
+  if (stripeAuthorization.status === 'reversed') {
+    const expense = await models.Expense.findOne({
+      where: {
+        VirtualCardId: virtualCard.id,
+        data: { authorizationId: stripeAuthorization.id },
+      },
+    });
+
+    if (!expense) {
+      logger.error(
+        `Stripe: could not find expense attached to reversed authorization ${stripeAuthorization.id}`,
+        stripeEvent,
+      );
+      return;
+    } else if (expense.status !== ExpenseStatus.CANCELED) {
+      await expense.update({ status: ExpenseStatus.CANCELED });
+    }
+  }
+};
+
 const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
   const cardData = {
     id: stripeCard.id,
