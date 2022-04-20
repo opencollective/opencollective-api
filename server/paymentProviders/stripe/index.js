@@ -236,6 +236,10 @@ export default {
       return virtualcard.processDeclinedAuthorization(requestBody.data.object, stripeEvent);
     }
 
+    if (requestBody.type === 'issuing_authorization.updated') {
+      return virtualcard.processUpdatedTransaction(requestBody.data.object, stripeEvent);
+    }
+
     if (requestBody.type === 'issuing_transaction.created') {
       return virtualcard.processTransaction(requestBody.data.object, stripeEvent);
     }
