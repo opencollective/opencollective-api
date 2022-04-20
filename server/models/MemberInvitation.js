@@ -9,6 +9,35 @@ import sequelize, { DataTypes } from '../lib/sequelize';
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
 
+const sendInvitationEmail = async (invitation, memberParams, models, sequelizeParams, collective, skipDefaultAdmin) => {
+  // Load users
+  const memberUser = await models.User.findOne({
+    where: { CollectiveId: memberParams.MemberCollectiveId },
+    include: [{ model: models.Collective, as: 'collective' }],
+    ...sequelizeParams,
+  });
+
+  if (!memberUser) {
+    throw new Error('user not found');
+  }
+
+  // Determine collective creator
+  const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
+    include: [{ model: models.Collective, as: 'collective' }],
+    ...sequelizeParams,
+  });
+
+  // Send member invitation
+  await emailLib.send('member.invitation', memberUser.email, {
+    role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
+    invitation: pick(invitation, 'id'),
+    collective: pick(collective, ['slug', 'name']),
+    memberCollective: pick(memberUser.collective, ['slug', 'name']),
+    invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
+    skipDefaultAdmin: skipDefaultAdmin || false,
+  });
+};
+
 function defineModel() {
   const { models } = sequelize;
 
@@ -185,23 +214,14 @@ function defineModel() {
     });
 
     if (existingInvitation) {
-      const memberUser = await models.User.findOne({
-        where: { CollectiveId: memberParams.MemberCollectiveId },
-        include: [{ model: models.Collective, as: 'collective' }],
-        ...sequelizeParams,
-      });
-      const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
-        include: [{ model: models.Collective, as: 'collective' }],
-        ...sequelizeParams,
-      });
-      await emailLib.send('member.invitation', memberUser.email, {
-        role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
-        invitation: pick(existingInvitation, 'id'),
-        collective: pick(collective, ['slug', 'name']),
-        memberCollective: pick(memberUser.collective, ['slug', 'name']),
-        invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
-        skipDefaultAdmin: skipDefaultAdmin || false,
-      });
+      await sendInvitationEmail(
+        existingInvitation,
+        memberParams,
+        models,
+        sequelizeParams,
+        collective,
+        skipDefaultAdmin,
+      );
       return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
     }
 
@@ -213,22 +233,7 @@ function defineModel() {
       throw new Error('You exceeded the maximum number of members for this account');
     }
 
-    // Load users
-    const memberUser = await models.User.findOne({
-      where: { CollectiveId: memberParams.MemberCollectiveId },
-      include: [{ model: models.Collective, as: 'collective' }],
-      ...sequelizeParams,
-    });
-
-    if (!memberUser) {
-      throw new Error('user not found');
-    }
-
-    const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
-      include: [{ model: models.Collective, as: 'collective' }],
-      ...sequelizeParams,
-    });
-
+    // Create new member invitation
     const invitation = await MemberInvitation.create(
       {
         ...memberParams,
@@ -237,14 +242,7 @@ function defineModel() {
       sequelizeParams,
     );
 
-    await emailLib.send('member.invitation', memberUser.email, {
-      role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
-      invitation: pick(invitation, 'id'),
-      collective: pick(collective, ['slug', 'name']),
-      memberCollective: pick(memberUser.collective, ['slug', 'name']),
-      invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
-      skipDefaultAdmin: skipDefaultAdmin || false,
-    });
+    await sendInvitationEmail(invitation, memberParams, models, sequelizeParams, collective, skipDefaultAdmin);
 
     return invitation;
   };
