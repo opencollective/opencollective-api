@@ -1160,9 +1160,10 @@ const getTransactionsTimeSeries = async (
 const getTagFrequencies = async args => {
   let searchTermFragment = '';
   let term = args.searchTerm;
-  // Cleanup term
-  term = sanitizeSearchTermForILike(trimSearchTerm(term));
+
   if (term && term.length > 0) {
+    // Cleanup term
+    term = sanitizeSearchTermForILike(trimSearchTerm(term));
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
       term = term.replace(/^@+/, '');

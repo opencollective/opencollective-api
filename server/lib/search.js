@@ -155,9 +155,9 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND "tags" @> (:searchedTags) `;
   }
 
-  // Cleanup term
-  term = sanitizeSearchTermForILike(trimSearchTerm(term));
   if (term && term.length > 0) {
+    // Cleanup term
+    term = sanitizeSearchTermForILike(trimSearchTerm(term));
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
       term = term.replace(/^@+/, '');
