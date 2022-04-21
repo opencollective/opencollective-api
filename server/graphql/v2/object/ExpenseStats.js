@@ -11,6 +11,7 @@ export const ExpenseStats = new GraphQLObjectType({
     expenseAmountOverTime: {
       type: TimeSeriesAmount,
       description: 'The total number of expenses over time',
+      deprecationReason: '2022-04-21: Please use hostMetricsTimeSeries.totalSpent',
     },
     dailyAverageAmount: { type: new GraphQLNonNull(Amount), description: 'The daily average paid in expenses' },
     invoicesCount: { type: new GraphQLNonNull(GraphQLInt), description: 'Number of invoices' },

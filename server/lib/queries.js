@@ -1117,6 +1117,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
 
 /**
  * Returns the contribution or expense amounts over time.
+ * @deprecated now using a query in `server/lib/host-metrics.js`
  */
 const getTransactionsTimeSeries = async (
   kind,

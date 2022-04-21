@@ -478,3 +478,45 @@ GROUP BY t1."hostCurrency"`,
 
   return Math.round((total * hostFeeSharePercent) / 100);
 }
+
+/**
+ * Returns transaction amounts over time, grouped by kind.
+ * Ex: [ { date: '2020-01-01', amount: 1000, kind: 'CONTRIBUTION' }, { date: '2020-01-01', amount: 1000, kind: 'ADDED_FUNDS' }, ... ]
+ */
+export const getTransactionsTimeSeries = async (
+  /** The kind(s) to filter on */
+  kind,
+  /** CREDIT or DEBIT */
+  type,
+  hostCollectiveId,
+  timeUnit,
+  collectiveIds = null,
+  startDate = null,
+  endDate = null,
+) => {
+  return sequelize.query(
+    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency", "kind"
+       FROM "Transactions"
+       WHERE "HostCollectiveId" = :hostCollectiveId
+         AND type = :type
+         AND "deletedAt" IS NULL
+         ${kind ? `AND "kind" IN (:kind)` : ``}
+         ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+         ${startDate ? `AND "createdAt" >= :startDate` : ``}
+         ${endDate ? `AND "createdAt" <= :endDate` : ``}
+       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "kind", "hostCurrency"
+       ORDER BY DATE_TRUNC(:timeUnit, "createdAt"), "kind"
+      `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        kind: Array.isArray(kind) ? kind : [kind],
+        type,
+        hostCollectiveId,
+        timeUnit,
+        collectiveIds,
+        ...computeDatesAsISOStrings(startDate, endDate),
+      },
+    },
+  );
+};

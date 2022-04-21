@@ -8,7 +8,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, keyBy, mapValues, pick } from 'lodash';
+import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
@@ -20,7 +20,6 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import queries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
-import { days } from '../../../lib/utils';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -64,8 +63,7 @@ const getFilterDateRange = (startDate, endDate) => {
 };
 
 const getNumberOfDays = (startDate, endDate, host) => {
-  const since = startDate || host.createdAt;
-  return days(since, endDate || undefined);
+  return Math.abs(moment(startDate || host.createdAt).diff(moment(endDate), 'days'));
 };
 
 const getTimeUnit = numberOfDays => {
@@ -165,21 +163,24 @@ export const Host = new GraphQLObjectType({
             description: 'A collection of accounts for which the metrics should be returned.',
           },
           dateFrom: {
-            type: new GraphQLNonNull(GraphQLDateTime),
+            type: GraphQLDateTime,
             description: 'The start date of the time series',
           },
           dateTo: {
-            type: new GraphQLNonNull(GraphQLDateTime),
+            type: GraphQLDateTime,
             description: 'The end date of the time series',
           },
           timeUnit: {
-            type: new GraphQLNonNull(TimeUnit),
+            type: TimeUnit,
             description:
               'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
           },
         },
         async resolve(host, args) {
-          return { host, ...pick(args, ['dateFrom', 'dateTo', 'timeUnit', 'account']) };
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, host) || 1);
+          return { host, account: args.account, timeUnit, dateFrom, dateTo };
         },
       },
       supportedPaymentMethods: {
