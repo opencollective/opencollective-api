@@ -37,13 +37,15 @@ export const Organization = new GraphQLObjectType({
         ...AccountFields.location,
         description: `
           Address. This field is public for hosts, otherwise:
-            - Users can see the addresses of the collectives they're admin of
-            - Hosts can see the address of organizations submitting expenses to their collectives
+            - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.
+            - Hosts can see the address of organizations submitting expenses to their collectives.
         `,
         async resolve(organization, _, req) {
           const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
           if (canSeeLocation) {
             return organization.location;
+          } else {
+            return { country: organization.location?.country };
           }
         },
       },
