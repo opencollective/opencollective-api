@@ -248,7 +248,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
 };
 
 export const processUpdatedTransaction = async (stripeAuthorization, stripeEvent) => {
-  const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card);
+  const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
     return;
