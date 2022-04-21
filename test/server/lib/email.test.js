@@ -115,9 +115,8 @@ describe('server/lib/email', () => {
       });
       expect(nm.sendMail.lastCall.args[0].to).to.equal('emailbcc+user1-at-opencollective.com@opencollective.com');
       expect(nm.sendMail.lastCall.args[0].subject).to.contain(
-        `Thank you for your ${amountStr}/month contribution to WWCode Austin`,
+        `Thank you for your ${amountStr}/month donation to WWCode Austin`,
       );
-      expect(nm.sendMail.lastCall.args[0].html).to.contain('4218859');
     });
   });
 
