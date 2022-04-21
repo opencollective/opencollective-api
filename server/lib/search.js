@@ -60,25 +60,30 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
 };
 
 /**
- * Turn a search string into a TS vector using 'OR' operator.
+ * Sanitize and then turn a search string into a TS vector using 'OR' operator.
  *
- * Ex: "open potatoes" => "open|potatoes"
+ * Examples: "open potatoes" => "open|potatoes", "crème brulée => "creme|brulee"
+ *
  */
-export const searchTermToTsVector = term => {
-  return term.replace(/\s+/g, '|');
+const searchTermToTsVector = term => {
+  const termWithoutDiacritics = term
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9-\/_ ]/g, '');
+  return termWithoutDiacritics.trim().replace(/\s+/g, '|');
 };
 
 /**
  * Trim leading/trailing spaces and remove multiple spaces from the string
  */
-export const trimSearchTerm = term => {
+const trimSearchTerm = term => {
   return term?.trim().replace(/\s+/g, ' ');
 };
 
 /**
  * Removes special ILIKE characters like `%
  */
-export const sanitizeSearchTermForILike = term => {
+const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
@@ -150,8 +155,8 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND "tags" @> (:searchedTags) `;
   }
 
-  // Cleanup term
   if (term && term.length > 0) {
+    // Cleanup term
     term = sanitizeSearchTermForILike(trimSearchTerm(term));
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
@@ -160,8 +165,8 @@ export const searchCollectivesInDB = async (
     } else {
       isUsingTsVector = true;
       dynamicConditions += `
-        AND ("searchTsVector" @@ plainto_tsquery('english', :vectorizedTerm)
-        OR "searchTsVector" @@ plainto_tsquery('simple', :vectorizedTerm))`;
+        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
+        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
     }
   } else {
     term = '';
@@ -313,4 +318,48 @@ export const buildSearchConditions = (
   }
 
   return conditions;
+};
+
+/**
+ * Returns tags along with their frequency of use.
+ */
+export const getTagFrequencies = async args => {
+  let searchTermFragment = '';
+  let term = args.searchTerm;
+
+  if (term && term.length > 0) {
+    // Cleanup term
+    term = sanitizeSearchTermForILike(trimSearchTerm(term));
+    if (term[0] === '@') {
+      // When the search starts with a `@`, we search by slug only
+      term = term.replace(/^@+/, '');
+      searchTermFragment = `AND slug ILIKE '%' || :term || '%' `;
+    } else {
+      searchTermFragment = `
+        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
+        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
+    }
+  } else {
+    term = '';
+  }
+
+  return sequelize.query(
+    `SELECT UNNEST(tags) AS tag, COUNT(id)
+      FROM "Collectives"
+      WHERE "deletedAt" IS NULL
+      ${searchTermFragment}
+      GROUP BY UNNEST(tags)
+      ORDER BY count DESC
+      LIMIT :limit
+      OFFSET :offset`,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        term,
+        vectorizedTerm: searchTermToTsVector(term),
+        limit: args.limit,
+        offset: args.offset,
+      },
+    },
+  );
 };

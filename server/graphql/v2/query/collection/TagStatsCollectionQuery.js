@@ -1,7 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
-import rawQueries from '../../../../lib/queries';
+import { getTagFrequencies } from '../../../../lib/search';
 import { TagStatsCollection } from '../../collection/TagStatsCollection';
 
 const TagStatsCollectionQuery = {
@@ -15,7 +15,7 @@ const TagStatsCollectionQuery = {
     offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
   },
   async resolve(_, args) {
-    const tagFrequencies = await rawQueries.getTagFrequencies({
+    const tagFrequencies = await getTagFrequencies({
       ...pick(args, ['searchTerm', 'limit', 'offset']),
     });
 
