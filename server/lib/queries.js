@@ -11,7 +11,6 @@ import { PayoutMethodTypes } from '../models/PayoutMethod';
 
 import { memoize } from './cache';
 import { convertToCurrency } from './currency';
-import { sanitizeSearchTermForILike, searchTermToTsVector, trimSearchTerm } from './search';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
 import { computeDatesAsISOStrings } from './utils';
@@ -1154,50 +1153,6 @@ const getTransactionsTimeSeries = async (
   );
 };
 
-/**
- * Returns tags along with their frequency of use.
- */
-const getTagFrequencies = async args => {
-  let searchTermFragment = '';
-  let term = args.searchTerm;
-
-  if (term && term.length > 0) {
-    // Cleanup term
-    term = sanitizeSearchTermForILike(trimSearchTerm(term));
-    if (term[0] === '@') {
-      // When the search starts with a `@`, we search by slug only
-      term = term.replace(/^@+/, '');
-      searchTermFragment = `AND slug ILIKE '%' || :term || '%' `;
-    } else {
-      searchTermFragment += `
-        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
-        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
-    }
-  } else {
-    term = '';
-  }
-
-  return sequelize.query(
-    `SELECT UNNEST(tags) AS tag, COUNT(id)
-      FROM "Collectives"
-      WHERE "deletedAt" IS NULL
-      ${searchTermFragment}
-      GROUP BY UNNEST(tags)
-      ORDER BY count DESC
-      LIMIT :limit
-      OFFSET :offset`,
-    {
-      type: sequelize.QueryTypes.SELECT,
-      replacements: {
-        term,
-        vectorizedTerm: searchTermToTsVector(term),
-        limit: args.limit,
-        offset: args.offset,
-      },
-    },
-  );
-};
-
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1231,7 +1186,6 @@ const queries = {
   getMembersOfCollectiveWithRole,
   getMembersWithBalance,
   getMembersWithTotalDonations,
-  getTagFrequencies,
   getTaxFormsRequiredForAccounts,
   getTaxFormsRequiredForExpenses,
   getTopBackers,
