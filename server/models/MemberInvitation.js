@@ -9,35 +9,6 @@ import sequelize, { DataTypes } from '../lib/sequelize';
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
 
-const sendInvitationEmail = async (invitation, memberParams, models, sequelizeParams, collective, skipDefaultAdmin) => {
-  // Load users
-  const memberUser = await models.User.findOne({
-    where: { CollectiveId: memberParams.MemberCollectiveId },
-    include: [{ model: models.Collective, as: 'collective' }],
-    ...sequelizeParams,
-  });
-
-  if (!memberUser) {
-    throw new Error('user not found');
-  }
-
-  // Determine collective creator
-  const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
-    include: [{ model: models.Collective, as: 'collective' }],
-    ...sequelizeParams,
-  });
-
-  // Send member invitation
-  await emailLib.send('member.invitation', memberUser.email, {
-    role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
-    invitation: pick(invitation, 'id'),
-    collective: pick(collective, ['slug', 'name']),
-    memberCollective: pick(memberUser.collective, ['slug', 'name']),
-    invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
-    skipDefaultAdmin: skipDefaultAdmin || false,
-  });
-};
-
 function defineModel() {
   const { models } = sequelize;
 
@@ -180,6 +151,35 @@ function defineModel() {
 
   // ---- Static methods ----
 
+  MemberInvitation.sendEmail = async (memberParams, sequelizeParams, collective, skipDefaultAdmin) => {
+    // Load users
+    const memberUser = await models.User.findOne({
+      where: { CollectiveId: memberParams.MemberCollectiveId },
+      include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
+    });
+
+    if (!memberUser) {
+      throw new Error('user not found');
+    }
+
+    // Determine collective creator
+    const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
+      include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
+    });
+
+    // Send member invitation
+    await emailLib.send('member.invitation', memberUser.email, {
+      role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
+      invitation: pick(this, 'id'),
+      collective: pick(collective, ['slug', 'name']),
+      memberCollective: pick(memberUser.collective, ['slug', 'name']),
+      invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
+      skipDefaultAdmin: skipDefaultAdmin || false,
+    });
+  };
+
   MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
@@ -214,14 +214,7 @@ function defineModel() {
     });
 
     if (existingInvitation) {
-      await sendInvitationEmail(
-        existingInvitation,
-        memberParams,
-        models,
-        sequelizeParams,
-        collective,
-        skipDefaultAdmin,
-      );
+      await this.sendEmail(memberParams, sequelizeParams, collective, skipDefaultAdmin);
       return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
     }
 
@@ -242,7 +235,7 @@ function defineModel() {
       sequelizeParams,
     );
 
-    await sendInvitationEmail(invitation, memberParams, models, sequelizeParams, collective, skipDefaultAdmin);
+    await this.sendEmail(memberParams, sequelizeParams, collective, skipDefaultAdmin);
 
     return invitation;
   };
