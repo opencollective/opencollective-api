@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { pick } from 'lodash';
 
-import { expenseTypes } from '../../../server/constants';
+import { expenseStatus, expenseTypes } from '../../../server/constants';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
 import { fakeCollective, fakeExpense, fakeExpenseItem, fakeUser } from '../../test-helpers/fake-data';
@@ -46,10 +46,10 @@ describe('test/server/models/Expense', () => {
     before(async () => {
       await resetTestDB();
 
-      pendingCharge = await fakeExpense({ type: expenseTypes.CHARGE });
+      pendingCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
       await fakeExpenseItem({ ExpenseId: pendingCharge.id, url: null });
 
-      const completeCharge = await fakeExpense({ type: expenseTypes.CHARGE });
+      const completeCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
       await fakeExpenseItem({ ExpenseId: completeCharge.id });
     });
 
@@ -60,7 +60,7 @@ describe('test/server/models/Expense', () => {
     });
 
     it('should return pending card charges for given attributes', async () => {
-      const newPendingCharge = await fakeExpense({ type: expenseTypes.CHARGE });
+      const newPendingCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
       await fakeExpenseItem({ ExpenseId: newPendingCharge.id, url: null });
 
       const pendingCharges = await Expense.findPendingCardCharges({
