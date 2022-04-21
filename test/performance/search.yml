@@ -1,0 +1,62 @@
+config:
+  target: 'http://localhost:3060'
+  plugins:
+    expect: { outputFormat: 'prettyError' }
+  phases:
+    - duration: 5
+      arrivalRate: 20
+      name: 'Warming up'
+    - duration: 5
+      arrivalRate: 20
+      rampTo: 100
+      name: 'Ramping up'
+    - duration: 5
+      arrivalRate: 100
+      name: 'Sustained load'
+  variables:
+    searchMorePopularQuery: |
+      query Search($term: String) {
+        accounts(searchTerm: $term, orderBy: { field: ACTIVITY, direction: DESC }) {
+          totalCount
+          nodes {
+            id
+            slug
+          }
+        }
+      }
+
+scenarios:
+  - name: 'Search with an empty string'
+    flow:
+      - post:
+          url: /graphql/v2
+          json:
+            query: '{{ searchMorePopularQuery }}'
+          expect:
+            - statusCode: 200
+  - name: 'Search by name'
+    flow:
+      - post:
+          url: /graphql/v2
+          capture:
+            - json: '$.data.accounts.totalCount'
+              as: totalCount
+          json:
+            query: '{{ searchMorePopularQuery }}'
+            variables:
+              term: 'apex'
+          expect:
+            - statusCode: 200
+            - notHasProperty: 'errors'
+            - equals: [2, '{{ totalCount }}']
+  - name: 'Search with a random string'
+    flow:
+      - post:
+          url: /graphql/v2
+          json:
+            query: '{{ searchMorePopularQuery }}'
+            variables:
+              term: '{{ $randomString() }}'
+          expect:
+            - statusCode: 200
+            - notHasProperty: 'errors'

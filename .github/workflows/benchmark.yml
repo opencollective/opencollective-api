@@ -1,0 +1,124 @@
+name: Performance
+
+on:
+  pull_request:
+
+env:
+  TZ: UTC
+  OC_ENV: ci
+  NODE_ENV: test
+  WEBSITE_URL: http://localhost:3000
+  IMAGES_URL: http://localhost:3001
+  API_URL: http://localhost:3060
+  API_KEY: dvl-1510egmf4a23d80342403fb599qd
+  CI: true
+  PGHOST: localhost
+  PGUSER: postgres
+  # GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+  # GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
+  API_FOLDER: /home/runner/work/opencollective-api/opencollective-api
+  FRONTEND_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-frontend
+  IMAGES_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-images
+  TERM: xterm
+
+jobs:
+  artillery:
+    runs-on: ubuntu-latest
+    # container: artilleryio/artillery:latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --entrypoint redis-server
+      postgres:
+        image: postgis/postgis:13-3.1
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        # needed because the postgres container does not provide a healthcheck
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Comment on PR with the results
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            ## Performance report
+
+            *In progress...*
+
+      - name: Update apt
+        run: sudo apt-get update || exit 0
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14.x'
+
+      - name: Restore node_modules
+        uses: actions/cache@v3
+        id: api-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+
+      - name: Install dependencies
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Restore build
+        uses: actions/cache@v3
+        id: api-build
+        with:
+          path: dist
+          key: ${{ runner.os }}-api-build-${{ github.sha }}
+
+      - name: Build
+        if: steps.api-build.outputs.cache-hit != 'true'
+        run: npm run build
+
+      - name: Setup DB
+        run: npm run db:restore && npm run db:migrate
+
+      - name: Make output directory
+        run: mkdir output
+
+      - name: Execute load tests
+        run: ./scripts/artillery/run.sh
+
+      - name: Generate HTML report
+        run: npx artillery report --output output/report.html output/report.json
+
+      - name: Get branch name
+        id: branch-name
+        uses: tj-actions/branch-names@v5.2
+
+      - name: Download main reference report
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: benchmark.yml
+          workflow_conclusion: success
+          branch: main
+          name: output/report.json
+          path: output/reference-report.json
+
+      - name: Generate markdown report
+        run: npm run script scripts/artillery/convert-result-to-markdown.ts -- --in output/report.json --out output/report.md --reference output/reference-report.json --branch ${{ steps.branch-name.outputs.current_branch }}
+
+      - name: Archive test reports
+        uses: actions/upload-artifact@v2
+        with:
+          name: artillery-test-report
+          path: output/report.*
+
+      - name: Comment on PR with the results
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: output/report.md
