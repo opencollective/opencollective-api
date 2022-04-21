@@ -500,6 +500,7 @@ function defineModel() {
       where: {
         ...where,
         type: expenseType.CHARGE,
+        status: 'PAID',
         '$items.url$': { [Op.eq]: null },
       },
       include: [...include, { model: models.ExpenseItem, as: 'items', required: true }],
