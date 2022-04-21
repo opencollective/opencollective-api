@@ -37,7 +37,8 @@ const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
   } else if (
     virtualCard.provider === VirtualCardProviders.STRIPE &&
     host.settings?.virtualcards?.autopause &&
-    maxDaysPending >= 31
+    maxDaysPending >= 31 &&
+    virtualCard.isActive()
   ) {
     logger.info(`Virtual Card ${virtualCard.id} is being suspended due to pending expenses without receipts...`);
     await virtualCard.pause();
