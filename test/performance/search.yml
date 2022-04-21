@@ -1,0 +1,54 @@
+config:
+  target: 'http://localhost:3060'
+  plugins:
+    expect: { outputFormat: 'prettyError' }
+    ensure: {}
+  phases:
+    - duration: 5
+      arrivalRate: 20
+      name: 'Warming up'
+    - duration: 5
+      arrivalRate: 20
+      rampTo: 100
+      name: 'Ramping up'
+    - duration: 5
+      arrivalRate: 100
+      name: 'Sustained load'
+  ensure:
+    thresholds:
+      - engine.http.response_time.p95: 1000
+    conditions:
+      - expression: engine.http.response_time.p99 < 2000
+      - expression: core.vusers.failed == 0
+  variables:
+    searchMorePopularQuery: |
+      query Search($term: String) {
+        accounts(searchTerm: $term, orderBy: { field: ACTIVITY, direction: DESC }) {
+          totalCount
+          nodes {
+            id
+            slug
+          }
+        }
+      }
+
+scenarios:
+  - name: 'Search with an empty string'
+    flow:
+      - post:
+          url: /graphql/v2
+          json:
+            query: '{{ searchMorePopularQuery }}'
+          expect:
+            - statusCode: 200
+  - name: 'Search with a random string'
+    flow:
+      - post:
+          url: /graphql/v2
+          json:
+            query: '{{ searchMorePopularQuery }}'
+            variables:
+              term: '{{ $randomString() }}'
+          expect:
+            - statusCode: 200
+            - notHasProperty: 'errors'

@@ -53,47 +53,48 @@ export default async app => {
   app.use('*', authentication.authorizeClientApp);
 
   // Setup rate limiter
-  if (get(config, 'redis.serverUrl')) {
-    const redisOptions = {};
-    if (get(config, 'redis.serverUrl').includes('rediss://')) {
-      redisOptions.tls = { rejectUnauthorized: false };
-    }
-    const client = redis.createClient(get(config, 'redis.serverUrl'), redisOptions);
-    const rateLimiter = expressLimiter(
-      app,
-      client,
-    )({
-      lookup: function (req, res, opts, next) {
-        if (req.clientApp) {
-          opts.lookup = 'clientApp.id';
-          // 100 requests / minute for registered API Key
-          opts.total = 100;
-          opts.expire = 1000 * 60;
-        } else {
-          opts.lookup = 'ip';
-          // 10 requests / minute / ip for anonymous requests
-          opts.total = 10;
-          opts.expire = 1000 * 60;
-        }
-        return next();
-      },
-      whitelist: function (req) {
-        const apiKey = req.query.api_key || req.body.api_key;
-        // No limit with internal API Key
-        return apiKey === config.keys.opencollective.apiKey;
-      },
-      onRateLimited: function (req, res) {
-        let message;
-        if (req.clientApp) {
-          message = 'Rate limit exceeded. Contact-us to get higher limits.';
-        } else {
-          message = 'Rate limit exceeded. Create an API Key to get higher limits.';
-        }
-        res.status(429).send({ error: { message } });
-      },
-    });
-    app.use('/graphql', rateLimiter);
-  }
+  // TODO: Add a flag to disable rate limiting during performance testing
+  // if (get(config, 'redis.serverUrl')) {
+  //   const redisOptions = {};
+  //   if (get(config, 'redis.serverUrl').includes('rediss://')) {
+  //     redisOptions.tls = { rejectUnauthorized: false };
+  //   }
+  //   const client = redis.createClient(get(config, 'redis.serverUrl'), redisOptions);
+  //   const rateLimiter = expressLimiter(
+  //     app,
+  //     client,
+  //   )({
+  //     lookup: function (req, res, opts, next) {
+  //       if (req.clientApp) {
+  //         opts.lookup = 'clientApp.id';
+  //         // 100 requests / minute for registered API Key
+  //         opts.total = 100;
+  //         opts.expire = 1000 * 60;
+  //       } else {
+  //         opts.lookup = 'ip';
+  //         // 10 requests / minute / ip for anonymous requests
+  //         opts.total = 10;
+  //         opts.expire = 1000 * 60;
+  //       }
+  //       return next();
+  //     },
+  //     whitelist: function (req) {
+  //       const apiKey = req.query.api_key || req.body.api_key;
+  //       // No limit with internal API Key
+  //       return apiKey === config.keys.opencollective.apiKey;
+  //     },
+  //     onRateLimited: function (req, res) {
+  //       let message;
+  //       if (req.clientApp) {
+  //         message = 'Rate limit exceeded. Contact-us to get higher limits.';
+  //       } else {
+  //         message = 'Rate limit exceeded. Create an API Key to get higher limits.';
+  //       }
+  //       res.status(429).send({ error: { message } });
+  //     },
+  //   });
+  //   app.use('/graphql', rateLimiter);
+  // }
 
   /**
    * User reset password or new token flow (no jwt verification) or 2FA
