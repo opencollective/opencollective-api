@@ -3,7 +3,6 @@ import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import * as HostMetricsLib from '../../../lib/host-metrics';
-import { fetchAccountsWithReferences } from '../input/AccountReferenceInput';
 import { getTimeSeriesFields } from '../interface/TimeSeries';
 
 import { TimeSeriesAmount } from './TimeSeriesAmount';
@@ -68,12 +67,7 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
     totalMoneyManaged: {
       type: new GraphQLNonNull(TimeSeriesAmount),
       description: 'History of the total money managed by this host',
-      resolve: async ({ host, account, dateFrom, dateTo, timeUnit }) => {
-        let collectiveIds;
-        if (account) {
-          const collectives = await fetchAccountsWithReferences(account, { attributes: ['id'] });
-          collectiveIds = collectives.map(collective => collective.id);
-        }
+      resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const timeSeriesParams = { startDate: dateFrom, endDate: dateTo, collectiveIds, timeUnit };
         const results = await HostMetricsLib.getTotalMoneyManagedTimeSeries(host, timeSeriesParams);
         return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountNode(results) };
@@ -82,57 +76,21 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
     totalReceived: {
       type: new GraphQLNonNull(TimeSeriesAmountWithKind),
       description: 'History of the total money received by this host',
-      resolve: async ({ host, account, dateFrom, dateTo, timeUnit }) => {
-        let collectiveIds;
-        if (account) {
-          const collectives = await fetchAccountsWithReferences(account, { attributes: ['id'] });
-          collectiveIds = collectives.map(collective => collective.id);
-        }
-
-        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(
-          [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS],
-          TransactionTypes.CREDIT,
-          host.id,
-          timeUnit,
-          collectiveIds,
-          dateFrom,
-          dateTo,
-        );
-
-        return {
-          dateFrom: dateFrom || host.createdAt,
-          dateTo: dateTo || new Date(),
-          timeUnit,
-          nodes: resultsToAmountWithKindNode(amountDataPoints),
-        };
+      resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
+        const kind = [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS];
+        const transactionParams = { type: TransactionTypes.CREDIT, kind, dateFrom, dateTo, collectiveIds };
+        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(host.id, timeUnit, transactionParams);
+        return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithKindNode(amountDataPoints) };
       },
     },
     totalSpent: {
       type: new GraphQLNonNull(TimeSeriesAmountWithKind),
       description: 'History of the total money spent by this host',
-      resolve: async ({ host, account, dateFrom, dateTo, timeUnit }) => {
-        let collectiveIds;
-        if (account) {
-          const collectives = await fetchAccountsWithReferences(account, { attributes: ['id'] });
-          collectiveIds = collectives.map(collective => collective.id);
-        }
-
-        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(
-          TransactionKind.EXPENSE,
-          TransactionTypes.DEBIT,
-          host.id,
-          timeUnit,
-          collectiveIds,
-          dateFrom,
-          dateTo,
-        );
-
-        return {
-          dateFrom: dateFrom || host.createdAt,
-          dateTo: dateTo || new Date(),
-          timeUnit,
-          nodes: resultsToAmountWithKindNode(amountDataPoints),
-        };
+      resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
+        const kind = TransactionKind.EXPENSE;
+        const transactionParams = { type: TransactionTypes.DEBIT, kind, dateFrom, dateTo, collectiveIds };
+        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(host.id, timeUnit, transactionParams);
+        return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithKindNode(amountDataPoints) };
       },
     },
   }),

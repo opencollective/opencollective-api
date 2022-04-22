@@ -169,3 +169,16 @@ export const fetchAccountsWithReferences = async (inputs, { throwIfMissing = fal
 
   return accounts;
 };
+
+/**
+ * A quick helper around `fetchAccountsWithReferences` optimized to fetch accounts IDs
+ * from AccountReferenceInputs
+ */
+export const fetchAccountsIdsWithReference = async accounts => {
+  if (!accounts?.length) {
+    return [];
+  } else {
+    const fetchedAccounts = await fetchAccountsWithReferences(accounts, { attributes: ['id'] });
+    return fetchedAccounts.map(account => account.id);
+  }
+};

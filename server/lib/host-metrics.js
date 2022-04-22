@@ -484,26 +484,20 @@ GROUP BY t1."hostCurrency"`,
  * Ex: [ { date: '2020-01-01', amount: 1000, kind: 'CONTRIBUTION' }, { date: '2020-01-01', amount: 1000, kind: 'ADDED_FUNDS' }, ... ]
  */
 export const getTransactionsTimeSeries = async (
-  /** The kind(s) to filter on */
-  kind,
-  /** CREDIT or DEBIT */
-  type,
   hostCollectiveId,
   timeUnit,
-  collectiveIds = null,
-  startDate = null,
-  endDate = null,
+  { type = null, kind = null, collectiveIds = null, dateFrom = null, dateTo = null } = {},
 ) => {
   return sequelize.query(
     `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency", "kind"
        FROM "Transactions"
        WHERE "HostCollectiveId" = :hostCollectiveId
-         AND type = :type
          AND "deletedAt" IS NULL
-         ${kind ? `AND "kind" IN (:kind)` : ``}
-         ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
-         ${startDate ? `AND "createdAt" >= :startDate` : ``}
-         ${endDate ? `AND "createdAt" <= :endDate` : ``}
+         ${type ? `AND "type" = :type` : ``}
+         ${kind?.length ? `AND "kind" IN (:kind)` : ``}
+         ${collectiveIds?.length ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
+         ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
+         ${dateTo ? `AND "createdAt" <= :endDate` : ``}
        GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "kind", "hostCurrency"
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt"), "kind"
       `,
@@ -515,7 +509,7 @@ export const getTransactionsTimeSeries = async (
         hostCollectiveId,
         timeUnit,
         collectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
+        ...computeDatesAsISOStrings(dateFrom, dateTo),
       },
     },
   );

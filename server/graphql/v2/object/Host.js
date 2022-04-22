@@ -32,6 +32,7 @@ import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { TimeUnit } from '../enum/TimeUnit';
 import {
   AccountReferenceInput,
+  fetchAccountsIdsWithReference,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
 } from '../input/AccountReferenceInput';
@@ -180,7 +181,8 @@ export const Host = new GraphQLObjectType({
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, host) || 1);
-          return { host, account: args.account, timeUnit, dateFrom, dateTo };
+          const collectiveIds = args.account && (await fetchAccountsIdsWithReference(args.account));
+          return { host, collectiveIds, timeUnit, dateFrom, dateTo };
         },
       },
       supportedPaymentMethods: {
