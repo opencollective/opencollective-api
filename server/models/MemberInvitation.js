@@ -149,9 +149,7 @@ function defineModel() {
     return this.destroy();
   };
 
-  // ---- Static methods ----
-
-  MemberInvitation.sendEmail = async (memberParams, sequelizeParams, collective, skipDefaultAdmin) => {
+  MemberInvitation.prototype.sendEmail = async function (memberParams, sequelizeParams, collective, skipDefaultAdmin) {
     // Load users
     const memberUser = await models.User.findOne({
       where: { CollectiveId: memberParams.MemberCollectiveId },
@@ -179,6 +177,8 @@ function defineModel() {
       skipDefaultAdmin: skipDefaultAdmin || false,
     });
   };
+
+  // ---- Static methods ----
 
   MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
     const sequelizeParams = transaction ? { transaction } : undefined;
@@ -214,7 +214,7 @@ function defineModel() {
     });
 
     if (existingInvitation) {
-      await this.sendEmail(memberParams, sequelizeParams, collective, skipDefaultAdmin);
+      await existingInvitation.sendEmail(memberParams, sequelizeParams, collective, skipDefaultAdmin);
       return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
     }
 
@@ -235,7 +235,7 @@ function defineModel() {
       sequelizeParams,
     );
 
-    await this.sendEmail(memberParams, sequelizeParams, collective, skipDefaultAdmin);
+    await invitation.sendEmail(memberParams, sequelizeParams, collective, skipDefaultAdmin);
 
     return invitation;
   };
