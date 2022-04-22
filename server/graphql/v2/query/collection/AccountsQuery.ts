@@ -40,6 +40,7 @@ const AccountsQuery = {
     supportedPaymentMethodService: {
       type: new GraphQLList(PaymentMethodService),
       description: 'Only accounts that support one of these payment services will be returned',
+      deprecationReason: '2022-04-22: Introduced for Hacktoberfest and not used anymore.',
     },
     skipRecentAccounts: {
       type: GraphQLBoolean,
