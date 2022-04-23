@@ -131,7 +131,7 @@
     "@babel/register": "^7.16.0",
     "@types/lodash": "^4.14.171",
     "@types/mocha": "^9.0.0",
-    "@types/node": "^14.14.31",
+    "@types/node": "^16.0.0",
     "@types/validator": "^13.7.1",
     "@typescript-eslint/eslint-plugin": "^5.3.0",
     "@typescript-eslint/parser": "^5.3.0",
@@ -235,7 +235,7 @@
     "type:check": "tsc"
   },
   "engines": {
-    "node": "14.x",
+    "node": "16.x",
     "npm": "6.x"
   },
   "husky": {
