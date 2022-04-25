@@ -444,7 +444,7 @@ export const fakeOrder = async (
   if (withSubscription) {
     const subscription = await fakeSubscription({
       amount: order.totalAmount,
-      interval: 'month',
+      interval: order.interval || 'month',
       currency: order.currency,
       isActive: true,
       quantity: order.quantity,
@@ -461,14 +461,14 @@ export const fakeOrder = async (
         type: 'CREDIT',
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
-        amount: order.amount,
+        amount: order.totalAmount,
       }),
       fakeTransaction({
         OrderId: order.id,
         type: 'DEBIT',
         CollectiveId: order.FromCollectiveId,
         FromCollectiveId: order.CollectiveId,
-        amount: -order.amount,
+        amount: -order.totalAmount,
       }),
     ]);
   }
