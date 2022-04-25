@@ -74,7 +74,7 @@
     "express-ws": "5.0.2",
     "fs-extra": "10.1.0",
     "get-urls": "10.0.1",
-    "graphql": "16.3.0",
+    "graphql": "16.4.0",
     "graphql-scalars": "1.17.0",
     "graphql-type-json": "0.3.2",
     "handlebars": "4.7.7",
