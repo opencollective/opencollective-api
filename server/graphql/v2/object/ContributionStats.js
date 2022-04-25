@@ -11,6 +11,7 @@ export const ContributionStats = new GraphQLObjectType({
     contributionAmountOverTime: {
       type: TimeSeriesAmount,
       description: 'The contribution amounts over time',
+      deprecationReason: '2022-04-21: Please use hostMetricsTimeSeries.totalReceived',
     },
     oneTimeContributionsCount: {
       type: new GraphQLNonNull(GraphQLInt),
