@@ -214,6 +214,7 @@ export const collectiveSlugReservedList = [
   'order',
   'orders',
   'organizations',
+  'paymentmethod',
   'pledge',
   'pledges',
   'pricing',
