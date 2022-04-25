@@ -14,17 +14,54 @@ env:
   CI: true
   PGHOST: localhost
   PGUSER: postgres
-  # GITHUB_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
-  # GITHUB_CLIENT_SECRET: ${{ secrets.GH_CLIENT_SECRET }}
-  API_FOLDER: /home/runner/work/opencollective-api/opencollective-api
-  FRONTEND_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-frontend
-  IMAGES_FOLDER: /home/runner/work/opencollective-api/opencollective-api/opencollective-images
   TERM: xterm
 
 jobs:
-  artillery:
+  setup:
     runs-on: ubuntu-latest
-    # container: artilleryio/artillery:latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: (Re)initialize PR comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          message: |
+            ## Performance report
+
+            *In progress...*
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: List performance tests
+        id: set-matrix
+        run: echo "::set-output name=matrix::$(find test/performance -name '*.js' | jq -R -s -c 'split("\n")[:-1]')"
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14.x'
+      - name: Restore node_modules
+        uses: actions/cache@v3
+        id: api-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+      - name: Install dependencies
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+      - name: Restore build
+        uses: actions/cache@v3
+        id: api-build
+        with:
+          path: dist
+          key: ${{ runner.os }}-api-build-${{ github.sha }}
+      - name: Build
+        if: steps.api-build.outputs.cache-hit != 'true'
+        run: npm run build
+  k6:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        testPath: ${{ fromJson(needs.setup.outputs.matrix) }}
     services:
       redis:
         image: redis
@@ -42,83 +79,84 @@ jobs:
         # needed because the postgres container does not provide a healthcheck
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
-      - name: Comment on PR with the results
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          message: |
-            ## Performance report
-
-            *In progress...*
-
-      - name: Update apt
-        run: sudo apt-get update || exit 0
-
+      # - name: Install k6
+      #   run: |
+      #   sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+      #   echo "deb https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+      #   sudo apt-get update
+      #   sudo apt-get install k6
       - name: Checkout repository
         uses: actions/checkout@v2
-
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version: '14.x'
-
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
-
       - name: Restore build
         uses: actions/cache@v3
         id: api-build
         with:
           path: dist
           key: ${{ runner.os }}-api-build-${{ github.sha }}
-
       - name: Build
         if: steps.api-build.outputs.cache-hit != 'true'
         run: npm run build
-
-      - name: Setup DB
-        run: npm run db:restore && npm run db:migrate
-
+      - run: npm run db:restore && npm run db:migrate
       - name: Make output directory
-        run: mkdir output
+        run: mkdir -p output/benchmarks
+      # - name: Run local k6 test
+      #   run: ./scripts/run-k6.sh ${{ matrix.testPath }}
+      # - name: Run API in background
+      #   run: PG_DATABASE=opencollective_dvl MAILDEV_CLIENT=false npm run start:e2e:server &
+      #   env:
+      #     PORT: 3060
+      # - name: Wait for API to be ready
+      #   run: ./scripts/wait-for-service.sh API 127.0.0.1 3060
+      # - name: Run local k6 test
+      #   uses: k6io/action@v0.1
+      #   with:
+      #     filename: ${{ matrix.testPath }}
+      - name: Download k6
+        run: curl https://github.com/loadimpact/k6/releases/download/v0.26.2/k6-v0.26.2-linux64.tar.gz -L | tar xvz --strip-components 1
+      - name: Start server and run tests
+        run: |
+          PG_DATABASE=opencollective_dvl MAILDEV_CLIENT=false npm run start:e2e:server & npx wait-on tcp:3060
+          ./k6 run ${{ matrix.testPath }}
+      # - name: Generate HTML report
+      #   run: npx artillery report --output output/report.html output/report.json
 
-      - name: Execute load tests
-        run: ./scripts/artillery/run.sh
+      # - name: Get branch name
+      #   id: branch-name
+      #   uses: tj-actions/branch-names@v5.2
 
-      - name: Generate HTML report
-        run: npx artillery report --output output/report.html output/report.json
+      # - name: Download main reference report
+      #   continue-on-error: true
+      #   uses: dawidd6/action-download-artifact@v2
+      #   with:
+      #     workflow: benchmark.yml
+      #     workflow_conclusion: success
+      #     branch: main
+      #     name: output/report.json
+      #     path: output/reference-report.json
 
-      - name: Get branch name
-        id: branch-name
-        uses: tj-actions/branch-names@v5.2
+      # - name: Generate markdown report
+      #   run: npm run script scripts/artillery/convert-result-to-markdown.ts -- --in output/report.json --out output/report.md --reference output/reference-report.json --branch ${{ steps.branch-name.outputs.current_branch }}
 
-      - name: Download main reference report
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v2
-        with:
-          workflow: benchmark.yml
-          workflow_conclusion: success
-          branch: main
-          name: output/report.json
-          path: output/reference-report.json
+      # - name: Archive HTML report
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: artillery-test-report
+      #     path: output/report.*
 
-      - name: Generate markdown report
-        run: npm run script scripts/artillery/convert-result-to-markdown.ts -- --in output/report.json --out output/report.md --reference output/reference-report.json --branch ${{ steps.branch-name.outputs.current_branch }}
-
-      - name: Archive test reports
-        uses: actions/upload-artifact@v2
-        with:
-          name: artillery-test-report
-          path: output/report.*
-
-      - name: Comment on PR with the results
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          path: output/report.md
+      # - name: Comment on PR with the results
+      #   uses: marocchino/sticky-pull-request-comment@v2
+      #   with:
+      #     path: output/report.md
