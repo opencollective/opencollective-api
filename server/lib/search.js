@@ -120,39 +120,39 @@ export const searchCollectivesInDB = async (
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
-    dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
+    dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
   }
 
   if (isHost) {
-    dynamicConditions += `AND "isHostAccount" IS TRUE AND "type" = 'ORGANIZATION' `;
+    dynamicConditions += `AND c."isHostAccount" IS TRUE AND c."type" = 'ORGANIZATION' `;
   }
 
   if (types?.length) {
-    dynamicConditions += `AND "type" IN (:types) `;
+    dynamicConditions += `AND c."type" IN (:types) `;
   }
 
   if (onlyActive) {
-    dynamicConditions += 'AND "isActive" = TRUE ';
+    dynamicConditions += 'AND c."isActive" = TRUE ';
   }
 
   if (skipRecentAccounts) {
-    dynamicConditions += `AND (COALESCE(("data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR "createdAt" < (NOW() - interval '2 day')) `;
+    dynamicConditions += `AND (COALESCE((c."data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR c."createdAt" < (NOW() - interval '2 day')) `;
   }
 
   if (typeof hasCustomContributionsEnabled === 'boolean') {
     if (hasCustomContributionsEnabled) {
-      dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
+      dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
     } else {
-      dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS TRUE `;
+      dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS TRUE `;
     }
   }
 
   if (countryCodes) {
-    dynamicConditions += `AND "countryISO" IN (:countryCodes) `;
+    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" IN (:countryCodes)) `;
   }
 
   if (tags?.length) {
-    dynamicConditions += `AND "tags" @> (:searchedTags) `;
+    dynamicConditions += `AND c."tags" @> (:searchedTags) `;
   }
 
   if (term && term.length > 0) {
@@ -161,12 +161,12 @@ export const searchCollectivesInDB = async (
     if (term[0] === '@') {
       // When the search starts with a `@`, we search by slug only
       term = term.replace(/^@+/, '');
-      dynamicConditions += `AND slug ILIKE '%' || :term || '%' `;
+      dynamicConditions += `AND c."slug" ILIKE '%' || :term || '%' `;
     } else {
       isUsingTsVector = true;
       dynamicConditions += `
-        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
-        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
+        AND (c."searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
+        OR c."searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
     }
   } else {
     term = '';
@@ -180,13 +180,13 @@ export const searchCollectivesInDB = async (
       AND t."deletedAt" IS NULL`,
 
     RANK: `
-      CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
+      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :term) THEN
         1
       ELSE
-        ${isUsingTsVector ? `ts_rank("searchTsVector", plainto_tsquery('english', :vectorizedTerm))` : '0'}
+        ${isUsingTsVector ? `ts_rank(c."searchTsVector", plainto_tsquery('english', :vectorizedTerm))` : '0'}
       END`,
 
-    CREATED_AT: `"createdAt"`,
+    CREATED_AT: `c."createdAt"`,
   };
 
   // Build the query
@@ -197,13 +197,14 @@ export const searchCollectivesInDB = async (
       COUNT(*) OVER() AS __total__,
       (${sortSubqueries[orderBy?.field || 'RANK']}) as __sort__
     FROM "Collectives" c
-    WHERE "deletedAt" IS NULL
-    AND "deactivatedAt" IS NULL
-    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
-    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
-    AND name != 'incognito'
-    AND name != 'anonymous'
-    AND "isIncognito" = FALSE ${dynamicConditions}
+    ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
+    WHERE c."deletedAt" IS NULL
+    AND c."deactivatedAt" IS NULL
+    AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
+    AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    AND c.name != 'incognito'
+    AND c.name != 'anonymous'
+    AND c."isIncognito" = FALSE ${dynamicConditions}
     ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
