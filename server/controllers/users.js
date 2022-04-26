@@ -89,10 +89,13 @@ export const signin = (req, res, next) => {
 export const updateToken = async (req, res) => {
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
-    const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_SESSION);
+    const token = req.remoteUser.jwt(
+      { scope: 'twofactorauth', sesionId: req.jwtPayload?.sessionId },
+      auth.TOKEN_EXPIRATION_SESSION,
+    );
     res.send({ token });
   } else {
-    const token = req.remoteUser.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
+    const token = req.remoteUser.jwt({ sesionId: req.jwtPayload?.sessionId }, auth.TOKEN_EXPIRATION_SESSION);
     res.send({ token });
   }
 };
@@ -104,6 +107,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
+  const sessionId = req.jwtPayload.sessionId;
 
   // Both 2FA and recovery codes rate limited to 10 tries per hour
   const rateLimit = new RateLimit(`user_2FA_endpoint_${userId}`, 10, ONE_HOUR_IN_SECONDS);
@@ -147,6 +151,6 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
   }
 
-  const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
+  const token = user.jwt({ sessionId }, auth.TOKEN_EXPIRATION_SESSION);
   res.send({ token: token });
 };
