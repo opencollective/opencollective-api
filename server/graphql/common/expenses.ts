@@ -1645,7 +1645,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
     if (useTwoFactorAuthentication) {
-      await handleTwoFactorAuthenticationPayoutLimit(req.remoteUser, args.twoFactorAuthenticatorCode, expense);
+      await handleTwoFactorAuthenticationPayoutLimit(
+        req.remoteUser,
+        args.twoFactorAuthenticatorCode,
+        expense,
+        req['jwtPayload']?.sessionId,
+      );
     }
 
     try {
