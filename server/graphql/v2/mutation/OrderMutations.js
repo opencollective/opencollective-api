@@ -119,9 +119,14 @@ const orderMutations = {
         type: new GraphQLNonNull(OrderReferenceInput),
         description: 'Object matching the OrderReferenceInput (id)',
       },
+      reason: {
+        type: GraphQLString,
+        description: 'Reason for cancelling subscription',
+      },
     },
     async resolve(_, args, req) {
       const decodedId = getDecodedId(args.order.id);
+      const reason = args.reason;
 
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in to cancel a recurring contribution');
@@ -164,6 +169,7 @@ const orderMutations = {
           collective: order.collective.minimal,
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
+          reason,
         },
       });
 
