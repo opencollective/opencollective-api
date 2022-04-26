@@ -109,9 +109,10 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = (remoteUser, query) => {
+export const makeRequest = (remoteUser, query, jwtPayload) => {
   return {
     remoteUser,
+    jwtPayload,
     body: { query },
     loaders: loaders({ remoteUser }),
     header: () => null,
@@ -161,7 +162,7 @@ export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =
  * @param {object} remoteUser - The user to add to the context. It is not required.
  * @param {object} schema - Schema to which queries and mutations will be served against. Schema v1 by default.
  */
-export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1) => {
+export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload) => {
   const prepare = () => {
     if (remoteUser) {
       remoteUser.rolesByCollectiveId = null; // force refetching the roles
@@ -182,7 +183,7 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
       schema,
       source: query,
       rootValue: null,
-      contextValue: makeRequest(remoteUser, query),
+      contextValue: makeRequest(remoteUser, query, jwtPayload),
       variableValues: variables,
     }),
   );
@@ -194,8 +195,8 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} remoteUser - The user to add to the context. It is not required.
  */
-export async function graphqlQueryV2(query, variables, remoteUser = null) {
-  return graphqlQuery(query, variables, remoteUser, schemaV2);
+export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPayload = null) {
+  return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload);
 }
 
 /** Helper for interpreting fee description in BDD tests
