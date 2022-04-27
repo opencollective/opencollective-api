@@ -90,12 +90,12 @@ export const updateToken = async (req, res) => {
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
     const token = req.remoteUser.jwt(
-      { scope: 'twofactorauth', sesionId: req.jwtPayload?.sessionId },
+      { scope: 'twofactorauth', sessionId: req.jwtPayload?.sessionId },
       auth.TOKEN_EXPIRATION_SESSION,
     );
     res.send({ token });
   } else {
-    const token = req.remoteUser.jwt({ sesionId: req.jwtPayload?.sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    const token = req.remoteUser.jwt({ sessionId: req.jwtPayload?.sessionId }, auth.TOKEN_EXPIRATION_SESSION);
     res.send({ token });
   }
 };
