@@ -22,7 +22,15 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, 
 
   let matchingCard;
 
-  for (const card of cards) {
+  // Experimental: dedicated matching for Physical Cards
+  for (const card of cards.filter(card => card.type === 'physical')) {
+    if (card['exp_month'] === parseInt(expireDate.slice(0, 2)) && card['exp_year'] === parseInt(expireDate.slice(-4))) {
+      matchingCard = card;
+      break;
+    }
+  }
+
+  for (const card of cards.filter(card => card.type === 'virtual')) {
     const stripeCard = await stripe.issuing.cards.retrieve(card.id, { expand: ['number', 'cvc'] });
 
     if (
