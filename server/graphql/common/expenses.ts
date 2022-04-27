@@ -1649,7 +1649,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         req.remoteUser,
         args.twoFactorAuthenticatorCode,
         expense,
-        req['jwtPayload']?.sessionId,
+        req.jwtPayload?.sessionId,
       );
     }
 
