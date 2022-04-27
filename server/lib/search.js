@@ -195,7 +195,7 @@ export const searchCollectivesInDB = async (
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (${sortSubqueries[orderBy?.field] || `"createdAt"`}) as __sort__
+      (${sortSubqueries[orderBy?.field || 'RANK']}) as __sort__
     FROM "Collectives" c
     WHERE "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
