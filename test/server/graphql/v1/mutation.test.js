@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import * as chai from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
@@ -7,11 +7,13 @@ import roles from '../../../../server/constants/roles';
 import emailLib from '../../../../server/lib/email';
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
-import { fakePaymentMethod } from '../../../test-helpers/fake-data';
+import { fakePaymentMethod, fakeProject } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1, event1, ticket1;
 let sandbox, executeOrderStub, emailSendSpy, emailSendMessageSpy;
+
+const { expect } = chai;
 
 describe('server/graphql/v1/mutation', () => {
   /* SETUP
@@ -94,6 +96,10 @@ describe('server/graphql/v1/mutation', () => {
         ParentCollectiveId: collective1.id,
       }),
     );
+  });
+
+  beforeEach('create a project  under collective1', async () => {
+    await fakeProject({ ParentCollectiveId: collective1.id });
   });
 
   describe('createCollective tests', () => {
@@ -341,6 +347,56 @@ describe('server/graphql/v1/mutation', () => {
         hostedCollectives.map(c => {
           expect(c.hostFeePercent).to.equal(9);
         });
+      });
+    });
+
+    describe('archives a collective', () => {
+      const archiveCollectiveMutation = gql`
+        mutation ArchiveCollective($id: Int!) {
+          archiveCollective(id: $id) {
+            id
+            isArchived
+          }
+        }
+      `;
+      const unarchiveCollectiveMutation = gql`
+        mutation UnarchiveCollective($id: Int!) {
+          unarchiveCollective(id: $id) {
+            id
+            isArchived
+          }
+        }
+      `;
+      it('fails if not authenticated', async () => {
+        const result = await utils.graphqlQuery(archiveCollectiveMutation, {
+          id: collective1.id,
+        });
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('You need to be logged in to archive a collective');
+      });
+
+      it('fails if not authenticated as an Admin', async () => {
+        const result = await utils.graphqlQuery(archiveCollectiveMutation, { id: collective1.id }, user3);
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('You need to be logged in as an Admin.');
+      });
+
+      it('should archive its children projects and events', async () => {
+        await utils.graphqlQuery(archiveCollectiveMutation, { id: collective1.id }, user1);
+
+        const projects = (await collective1.getProjects()).map(p => ({ id: p.id, name: p.name, isActive: p.isActive }));
+        const events = (await collective1.getEvents()).map(p => ({ id: p.id, name: p.name, isActive: p.isActive }));
+
+        expect(projects.length).to.eq(1);
+        expect(events.length).to.eq(1);
+        expect(projects).to.all.have.property('isActive', false);
+        expect(events).to.all.have.property('isActive', false);
+      });
+
+      after(async () => {
+        await utils.graphqlQuery(unarchiveCollectiveMutation, { id: collective1.id }, user3);
       });
     });
   });
@@ -808,7 +864,7 @@ describe('server/graphql/v1/mutation', () => {
                 },
                 createdByUser: {
                   email: 'newuser@email.com',
-                  id: 5,
+                  id: 6,
                 },
               },
             },
@@ -1064,7 +1120,7 @@ describe('server/graphql/v1/mutation', () => {
                 },
                 createdByUser: {
                   email: 'newuser@email.com',
-                  id: 5,
+                  id: 6,
                 },
                 collective: {
                   id: 6,
@@ -1078,7 +1134,7 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].id).to.equal(1);
           expect(executeOrderArgument[1].TierId).to.equal(4);
           expect(executeOrderArgument[1].CollectiveId).to.equal(6);
-          expect(executeOrderArgument[1].CreatedByUserId).to.equal(5);
+          expect(executeOrderArgument[1].CreatedByUserId).to.equal(6);
           expect(executeOrderArgument[1].totalAmount).to.equal(4000);
           expect(executeOrderArgument[1].currency).to.equal('USD');
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');

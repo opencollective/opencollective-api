@@ -418,6 +418,7 @@ export async function archiveCollective(_, args, req) {
   }
 
   const collective = await models.Collective.findByPk(args.id);
+
   if (!collective) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
@@ -462,8 +463,19 @@ export async function archiveCollective(_, args, req) {
     return updatedCollective;
   }
 
-  // TODO: cascade deactivation to EVENTs and PROJECTs?
+  const projects = await collective.getProjects();
+  const events = await collective.getEvents();
 
+  if (projects && projects.length) {
+    for (const project of projects) {
+      await project.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
+    }
+  }
+  if (events && events.length) {
+    for (const event of events) {
+      await event.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
+    }
+  }
   return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
 }
 
