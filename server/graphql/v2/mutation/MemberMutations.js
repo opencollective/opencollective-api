@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import models, { sequelize } from '../../../models';
+import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { MemberRole } from '../enum';
