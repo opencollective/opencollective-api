@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { MemberRole } from '../enum';
@@ -145,22 +145,24 @@ const memberMutations = {
         }
       }
 
-      // Edit member
-      const editableAttributes = pick(args, ['role', 'description', 'since']);
-
-      const [, members] = await models.Member.update(editableAttributes, {
-        returning: true,
+      const member = await models.Member.findOne({
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
+          role: [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER],
         },
       });
 
-      if (!members.length) {
+      if (!member) {
         throw new ValidationFailed(`Member ${memberAccount.slug} does not exist in Collective ${account.slug}`);
       }
 
-      return members[0];
+      // Edit member
+      const editableAttributes = pick(args, ['role', 'description', 'since']);
+
+      await member.update(editableAttributes);
+
+      return member;
     },
   },
   removeMember: {
