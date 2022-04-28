@@ -366,10 +366,6 @@ const queries = {
         description: 'Only return pledged or non-pledged collectives',
         type: GraphQLBoolean,
       },
-      currency: {
-        type: GraphQLString,
-        description: 'Filter hosts by currency',
-      },
       memberOfCollectiveSlug: {
         type: GraphQLString,
         description: 'Fetch all collectives that `memberOfCollectiveSlug` is a member of',
@@ -444,9 +440,6 @@ const queries = {
       }
       if (args.type) {
         query.where.type = args.type;
-      }
-      if (args.currency && args.currency !== 'All') {
-        query.where.currency = args.currency;
       }
       if (args.tags) {
         query.where.tags = { [Op.overlap]: args.tags };

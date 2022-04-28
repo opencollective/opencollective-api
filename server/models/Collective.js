@@ -44,8 +44,8 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
-  getConsolidatedBalance,
   getBalanceWithBlockedFundsAmount,
+  getConsolidatedBalanceAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalMoneyManagedAmount,
@@ -2702,12 +2702,12 @@ function defineModel() {
     return getBalanceAmount(this, options);
   };
 
-  Collective.prototype.getConsolidatedBalance = function (options) {
-    return getConsolidatedBalance(this);
-  };
-
   Collective.prototype.getBalance = function (options) {
     return getBalanceAmount(this, options).then(result => result.value);
+  };
+
+  Collective.prototype.getConsolidatedBalanceAmount = function (options) {
+    return getConsolidatedBalanceAmount(this, options);
   };
 
   Collective.prototype.getYearlyIncome = function () {

@@ -40,21 +40,30 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
   });
 }
 
-export async function getConsolidatedBalance(collective) {
+export async function getConsolidatedBalanceAmount(collective, { currency, version }) {
+  version = version || collective.settings?.budget?.version || 'v1';
+  currency = currency || collective.currency;
+
   const children = await collective.getChildren();
-  const collectiveChildIds = children.map(child => child.dataValues.id);
-  const options = {
-    column: 'netAmountInCollectiveCurrency',
+  const collectiveChildIds = children.map(child => child.id);
+
+  const results = await sumCollectivesTransactions([collective.id, ...collectiveChildIds], {
+    currency,
+    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: false,
-    currency: collective.currency,
-  };
-  const collectiveTransactions = await sumCollectivesTransactions([collective.id, ...collectiveChildIds], options);
-  const consolidatedBalance = Object.values(collectiveTransactions).reduce(
-    (sum, collective) => sum + collective.value,
-    0,
-  );
-  return { value: consolidatedBalance, currency: collective.currency };
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+  });
+
+  let total = 0;
+
+  for (const result of Object.values(results)) {
+    const fxRate = await getFxRate(result.currency, currency);
+    total += Math.round(result.value * fxRate);
+  }
+
+  // Sum and convert to final currency
+  return { value: total, currency };
 }
 
 export async function getBalanceWithBlockedFundsAmount(
@@ -249,17 +258,7 @@ async function sumCollectivesTransactions(
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
-  console.log({
-    column,
-    startDate,
-    endDate,
-    transactionType,
-    excludeRefunds,
-    withBlockedFunds,
-    hostCollectiveId,
-    excludeInternals,
-    kind,
-  });
+
   const where = {};
 
   if (ids) {

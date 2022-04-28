@@ -50,7 +50,7 @@ export const AccountStats = new GraphQLObjectType({
         description: 'The consolidated amount of all the events and projects combined.',
         type: new GraphQLNonNull(Amount),
         resolve(account, args, req) {
-          return account.getConsolidatedBalance({ loaders: req.loaders });
+          return account.getConsolidatedBalanceAmount({ loaders: req.loaders });
         },
       },
       monthlySpending: {
