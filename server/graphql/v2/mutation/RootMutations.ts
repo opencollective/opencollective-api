@@ -1,15 +1,45 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { pick, startCase, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
+import {
+  banAccounts,
+  getAccountsNetwork,
+  getBanSummary,
+  stringifyBanResult,
+  stringifyBanSummary,
+} from '../../../lib/moderation';
 import { Forbidden } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import {
+  AccountReferenceInput,
+  fetchAccountsWithReferences,
+  fetchAccountWithReference,
+} from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
+
+const BanAccountResponse = new GraphQLObjectType({
+  name: 'BanAccountResponse',
+  fields: {
+    isAllowed: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the accounts can be banned',
+    },
+    message: {
+      type: GraphQLString,
+      description: 'A summary of the changes',
+    },
+    accounts: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Account))),
+      description: 'The accounts impacted by the mutation',
+    },
+  },
+});
 
 /**
  * Root mutations
@@ -85,6 +115,49 @@ export default {
         });
         const message = warnings.join('\n');
         return { account: await toAccount.reload(), message: message || null };
+      }
+    },
+  },
+  banAccount: {
+    type: new GraphQLNonNull(BanAccountResponse),
+    description: '[Root only] Ban accounts',
+    args: {
+      account: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(AccountReferenceInput))),
+        description: 'Account(s) to ban',
+      },
+      includeAssociatedAccounts: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'If true, the associated accounts will also be banned',
+      },
+      dryRun: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'If true, the result will be simulated and summarized in the response message',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      if (!req.remoteUser?.isRoot()) {
+        throw new Forbidden('Only root users can perform this action');
+      }
+
+      const baseAccounts = await fetchAccountsWithReferences(args.account);
+      const allAccounts = !args.includeAssociatedAccounts ? baseAccounts : await getAccountsNetwork(baseAccounts);
+      const accounts = uniqBy(allAccounts, 'id');
+      if (accounts.some(a => a['data']?.['isTrustedHost'])) {
+        throw new Forbidden('Cannot ban trusted hosts');
+      }
+
+      const banSummary = await getBanSummary(accounts);
+      const isAllowed = !banSummary.undeletableTransactionsCount;
+      if (args.dryRun) {
+        return { isAllowed, accounts, message: stringifyBanSummary(banSummary) };
+      }
+
+      if (!isAllowed) {
+        throw new Error(stringifyBanSummary(banSummary));
+      } else {
+        const result = await banAccounts(accounts, req.remoteUser.id);
+        return { isAllowed, accounts, message: stringifyBanResult(result) };
       }
     },
   },
