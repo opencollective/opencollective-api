@@ -12,6 +12,13 @@ declare global {
         exp: number;
         sub?: string;
       };
+      clientApp?: {
+        id: number;
+        type?: string;
+        name?: string;
+        description?: string;
+        CollectiveId: number;
+      };
       loaders: Record<string, DataLoader>;
     }
   }
