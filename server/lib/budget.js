@@ -40,6 +40,23 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
   });
 }
 
+export async function getConsolidatedBalance(collective) {
+  const children = await collective.getChildren();
+  const collectiveChildIds = children.map(child => child.dataValues.id);
+  const options = {
+    column: 'netAmountInCollectiveCurrency',
+    excludeRefunds: false,
+    withBlockedFunds: false,
+    currency: collective.currency,
+  };
+  const collectiveTransactions = await sumCollectivesTransactions([collective.id, ...collectiveChildIds], options);
+  const consolidatedBalance = Object.values(collectiveTransactions).reduce(
+    (sum, collective) => sum + collective.value,
+    0,
+  );
+  return { value: consolidatedBalance, currency: collective.currency };
+}
+
 export async function getBalanceWithBlockedFundsAmount(
   collective,
   { startDate, endDate, currency, version, loaders } = {},
@@ -232,7 +249,17 @@ async function sumCollectivesTransactions(
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
-
+  console.log({
+    column,
+    startDate,
+    endDate,
+    transactionType,
+    excludeRefunds,
+    withBlockedFunds,
+    hostCollectiveId,
+    excludeInternals,
+    kind,
+  });
   const where = {};
 
   if (ids) {

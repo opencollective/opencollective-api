@@ -46,6 +46,13 @@ export const AccountStats = new GraphQLObjectType({
           return account.getBalanceAmount({ loaders: req.loaders, startDate: args.dateFrom, endDate: args.dateTo });
         },
       },
+      consolidatedBalance: {
+        description: 'The consolidated amount of all the events and projects combined.',
+        type: new GraphQLNonNull(Amount),
+        resolve(account, args, req) {
+          return account.getConsolidatedBalance({ loaders: req.loaders });
+        },
+      },
       monthlySpending: {
         description: 'Average amount spent per month based on the last 90 days',
         type: new GraphQLNonNull(Amount),
