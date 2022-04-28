@@ -123,6 +123,7 @@ describe('sql/ban-collectives', () => {
       nb_deleted_notifications: 0,
       nb_deleted_users: 1,
       deleted_profiles_ids: [user.collective.id],
+      // TODO add transactions
     });
 
     await expect(user).to.be.softDeleted;

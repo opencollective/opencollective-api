@@ -125,7 +125,7 @@ export const stringifyBanSummary = (banSummary: BanSummary) => {
   }
 
   const listStr = positiveCounts.map(([key, value]) => `- ${startCase(key.replace('Count', ''))}: ${value}`).join('\n');
-  return `The following entities will be deleted (this does not include updates, comments and other non-critical models):\n${listStr}`;
+  return `The following entities will be deleted (this estimation does not include updates, comments and other non-critical models):\n${listStr}`;
 };
 
 type BanResult = Record<string, number>;
@@ -167,7 +167,7 @@ export const banAccounts = (accounts: typeof models.Collective[], userId: number
  */
 export const stringifyBanResult = (result: BanResult): string => {
   return Object.entries(result)
-    .filter(([, value]) => value > 0)
+    .filter(([key, value]) => key.startsWith('nb_') && value > 0)
     .map(([key, value]) => `- ${startCase(key.replace('nb_', ''))}: ${value}`)
     .join('\n');
 };
