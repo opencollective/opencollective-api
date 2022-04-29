@@ -1254,4 +1254,21 @@ describe('server/models/Collective', () => {
       expect(collective.hasPolicy('FAKE_POLICY')).to.be.false;
     });
   });
+
+  describe('location', () => {
+    it('validates latitude/longitude', async () => {
+      // Invalid
+      await expect(fakeCollective({ geoLocationLatLong: 42 })).to.be.rejected;
+      await expect(fakeCollective({ geoLocationLatLong: 'nope' })).to.be.rejected;
+      await expect(fakeCollective({ geoLocationLatLong: {} })).to.be.rejected;
+      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point' } })).to.be.rejected;
+      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: 42 } })).to.be.rejected;
+      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55] } })).to.be.rejected;
+      await expect(fakeCollective({ geoLocationLatLong: { type: 'TOTO', coordinates: [55, -66] } })).to.be.rejected;
+
+      // Valid
+      await expect(fakeCollective({ geoLocationLatLong: null })).to.be.fulfilled;
+      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } })).to.be.fulfilled;
+    });
+  });
 });
