@@ -1901,9 +1901,11 @@ function defineModel() {
    * It's expected that child Collectives like EVENTS are returned
    */
   Collective.prototype.getHostedCollectives = async function (queryParams = {}) {
+    const { where, ...params } = queryParams;
+
     return models.Collective.findAll({
-      ...queryParams,
-      where: { isActive: true, HostCollectiveId: this.id },
+      ...params,
+      where: { ...where, isActive: true, HostCollectiveId: this.id },
       includes: [
         {
           attributes: [],

@@ -28,7 +28,7 @@ import { Unauthorized } from '../../errors';
 import { AccountCollection } from '../collection/AccountCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
-import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
+import { AccountType, AccountTypeToModelMapping, PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { TimeUnit } from '../enum/TimeUnit';
 import {
   AccountReferenceInput,
@@ -115,6 +115,43 @@ export const Host = new GraphQLObjectType({
         type: new GraphQLNonNull(HostPlan),
         resolve(host) {
           return host.getPlan();
+        },
+      },
+
+      hostedAccounts: {
+        type: new GraphQLNonNull(AccountCollection),
+        args: {
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+          accountType: {
+            type: new GraphQLList(AccountType),
+          },
+        },
+        async resolve(account, args) {
+          if (args.limit > 100) {
+            throw new BadRequest('Cannot fetch more than 100 accounts at the same time, please adjust the limit');
+          }
+
+          const where = {};
+
+          if (args.accountType && args.accountType.length > 0) {
+            where.type = {
+              [Op.in]: args.accountType.map(value => AccountTypeToModelMapping[value]),
+            };
+          }
+
+          const result = await account.getHostedCollectives({
+            where,
+            limit: args.limit,
+            offset: args.offset,
+          });
+
+          return {
+            nodes: result.rows,
+            totalCount: result.count,
+            limit: args.limit,
+            offset: args.offset,
+          };
         },
       },
       hostMetrics: {
