@@ -28,6 +28,30 @@ WITH banned_collectives AS (
   FROM        deleted_profiles
   WHERE       u."CollectiveId" = deleted_profiles.id
   RETURNING   u.id
+), transactions_groups_to_delete AS (
+  SELECT DISTINCT "TransactionGroup"
+  FROM "Transactions" t
+  INNER JOIN deleted_profiles
+    ON deleted_profiles.id = t."CollectiveId"
+    OR deleted_profiles.id = t."FromCollectiveId"
+    OR deleted_profiles.id = t."HostCollectiveId"
+  WHERE t."TransactionGroup" IS NOT NULL
+  AND t."deletedAt" IS NULL
+), deleted_transactions AS (
+  -- Delete the transactions
+  UPDATE ONLY "Transactions" t
+  SET         "deletedAt" = NOW(),
+              data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
+  FROM        transactions_groups_to_delete
+  WHERE       t."TransactionGroup" = transactions_groups_to_delete."TransactionGroup"
+  RETURNING   t.id
+), deleted_transaction_settlements AS (
+  -- Delete the transaction settlements
+  UPDATE ONLY "TransactionSettlements" ts
+  SET         "deletedAt" = NOW()
+  FROM        transactions_groups_to_delete
+  WHERE       ts."TransactionGroup" = transactions_groups_to_delete."TransactionGroup"
+  RETURNING   ts."TransactionGroup"
 ), deleted_tiers AS (
   -- Delete tiers
   UPDATE ONLY "Tiers" t SET "deletedAt" = NOW()
@@ -119,6 +143,8 @@ WITH banned_collectives AS (
 ) SELECT 
   (SELECT COUNT(*) FROM deleted_profiles) AS nb_deleted_profiles,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
+  (SELECT COUNT(*) FROM deleted_transactions) AS nb_deleted_transactions,
+  (SELECT COUNT(*) FROM deleted_transaction_settlements) AS nb_deleted_transaction_settlements,
   (SELECT COUNT(*) FROM deleted_tiers) AS nb_deleted_tiers,
   (SELECT COUNT(*) FROM deleted_members) AS nb_deleted_members,
   (SELECT COUNT(*) FROM deleted_updates) AS nb_deleted_updates,
