@@ -66,6 +66,9 @@ export const persistTransaction = async (virtualCard, transaction) => {
     });
 
     if (processingExpense) {
+      // Make sure we update the Expense and ExpenseItem amounts.
+      // Sometimes there's a difference between the authorized amount and the charged amount.
+      await models.ExpenseItem.update({ amount }, { where: { ExpenseId: processingExpense.id } });
       await processingExpense.update({ amount, data: { ...expenseData, missingDetails: true } });
       await processingExpense.setPaid();
 
