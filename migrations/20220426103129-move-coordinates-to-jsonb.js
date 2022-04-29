@@ -5,13 +5,13 @@ module.exports = {
     await queryInterface.sequelize.query(`
       ALTER TABLE "CollectiveHistories"
       ALTER COLUMN "geoLocationLatLong" TYPE JSONB
-      USING JSONB("geoLocationLatLong")
+      USING st_asgeojson("geoLocationLatLong")::jsonb
     `);
 
     await queryInterface.sequelize.query(`
       ALTER TABLE "Collectives"
       ALTER COLUMN "geoLocationLatLong" TYPE JSONB
-      USING JSONB("geoLocationLatLong")
+      USING st_asgeojson("geoLocationLatLong")::jsonb
     `);
   },
 
