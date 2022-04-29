@@ -210,11 +210,6 @@ export function setupModels() {
     foreignKey: 'HostCollectiveId',
     as: 'host',
   });
-  m.Transaction.hasMany(m.Transaction, {
-    sourceKey: 'TransactionGroup',
-    foreignKey: 'TransactionGroup',
-    as: 'relatedTransactions',
-  });
   m.Transaction.belongsTo(m.PaymentMethod);
   m.PaymentMethod.hasMany(m.Transaction);
 

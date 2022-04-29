@@ -3,7 +3,6 @@ import path from 'path';
 
 import { pick, startCase } from 'lodash';
 
-import { PAYMENT_METHOD_SERVICE } from '../constants/paymentMethods';
 import models, { Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
 
@@ -57,51 +56,83 @@ type BanSummary = {
   usersCount: number;
 };
 
-const getUndeletableTransactionsCount = async collectiveIds => {
-  return models.Transaction.count({
-    distinct: true,
-    col: 'id',
-    where: {
-      [Op.or]: [
-        { CollectiveId: collectiveIds },
-        { FromCollectiveId: collectiveIds },
-        { HostCollectiveId: collectiveIds },
-      ],
+const allTransactionGroupsForAccountQuery = `
+  SELECT DISTINCT "TransactionGroup"
+  FROM "Transactions" t
+  WHERE t."deletedAt" IS NULL
+  AND (
+    t."CollectiveId" IN (:collectiveIds)
+    OR t."FromCollectiveId" IN (:collectiveIds)
+    OR t."HostCollectiveId" IN (:collectiveIds)
+  )
+`;
+
+const getAllRelatedTransactionsCount = async collectiveIds => {
+  const result = await sequelize.query(
+    `
+    WITH transaction_groups AS (
+      ${allTransactionGroupsForAccountQuery}
+    ) SELECT COUNT(id) AS "count"
+    FROM "Transactions" t
+    WHERE t."TransactionGroup" IN (SELECT "TransactionGroup" FROM transaction_groups)
+    AND t."deletedAt" IS NULL
+  `,
+    {
+      plain: true,
+      replacements: { collectiveIds },
     },
-    include: [
-      // Filter on payment methods to only include cases where money actually moved in the real world
-      {
-        association: 'PaymentMethod',
-        required: true,
-        where: {
-          [Op.or]: [
-            { SourcePaymentMethodId: { [Op.not]: null } }, // Gift cards transactions can't be deleted. We could be a bit more clever by looking at the source payment method type, but this is good enough for now.
-            { service: { [Op.not]: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE } }, // Ignore only Open Collective transactions - money did not really move
-          ],
-        },
-      },
-      // Include related transactions
-      { association: 'relatedTransactions', required: false },
-    ],
-  });
+  );
+
+  return result.count;
+};
+
+const getUndeletableTransactionsCount = async collectiveIds => {
+  const result = await sequelize.query(
+    `
+    -- Get all transactions groups somehow associated with this collective
+    WITH transaction_groups AS (
+      ${allTransactionGroupsForAccountQuery}
+    ) SELECT COUNT(t.id) AS "count"
+    FROM "Transactions" t
+    LEFT JOIN "PaymentMethods" pm ON pm.id = t."PaymentMethodId"
+    LEFT JOIN "Expenses" e ON e.id = t."ExpenseId"
+    LEFT JOIN "PayoutMethods" payout ON payout.id = e."PayoutMethodId"
+    WHERE t."TransactionGroup" IN (SELECT "TransactionGroup" FROM transaction_groups)
+    AND t."deletedAt" IS NULL
+    AND
+      CASE WHEN t."PaymentMethodId" IS NOT NULL THEN (
+        -- If there is a payment method, filter to only include cases where money actually moved in the real world
+        pm."SourcePaymentMethodId" IS NOT NULL -- Gift cards transactions can't be deleted. We could be a bit more clever by looking at the source payment method service, but this is good enough for now.
+        OR pm.service != 'opencollective'  -- Ignore only Open Collective transactions (added funds, collective to collective, etc.) - money did not really move
+      ) WHEN t."ExpenseId" IS NOT NULL THEN (
+        -- For expenses, we need to check the payout info
+        (e."legacyPayoutMethod" = 'paypal' AND e."PayoutMethodId" IS NULL) -- Legacy paypal transactions with expenses - let's be safe and not delete them
+        OR "PayoutMethodId" IS NULL -- Manual payments
+        OR (
+          payout.type NOT IN ('OTHER', 'ACCOUNT_BALANCE')
+          AND (
+            (e."VirtualCardId" IS NOT NULL) -- Can't delete virtual cards-related transactions
+            OR (payout.type = 'BANK_ACCOUNT' AND t.data -> 'transfer' IS NOT NULL) -- Can't delete wise transactions that were not paid manually
+            OR (payout.type = 'PAYPAL' AND (t.data -> 'links' IS NOT NULL OR t.data -> 'createPaymentResponse' IS NOT NULL)) -- Can't delete paypal transactions that were not paid manually
+          )
+        )
+      ) ELSE FALSE -- No payment/payout info, let's assume it's a manual transaction
+    END
+  `,
+    {
+      plain: true,
+      replacements: { collectiveIds },
+    },
+  );
+
+  return result.count;
 };
 
 export const getBanSummary = async (accounts: typeof models.Collective[]): Promise<BanSummary> => {
   const collectiveIds = accounts.map(a => a.id);
   return {
     undeletableTransactionsCount: await getUndeletableTransactionsCount(collectiveIds),
-    transactionsCount: await models.Transaction.count({
-      distinct: true,
-      col: 'id',
-      where: {
-        [Op.or]: [
-          { CollectiveId: collectiveIds },
-          { FromCollectiveId: collectiveIds },
-          { HostCollectiveId: collectiveIds },
-        ],
-      },
-      include: [{ association: 'relatedTransactions', required: false }],
-    }),
+    transactionsCount: await getAllRelatedTransactionsCount(collectiveIds),
     usersCount: accounts.filter(({ type }) => type === 'USER').length,
     expensesCount: await models.Expense.count({
       where: { [Op.or]: [{ CollectiveId: collectiveIds }, { FromCollectiveId: collectiveIds }] },

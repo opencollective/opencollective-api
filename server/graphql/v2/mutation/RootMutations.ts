@@ -145,6 +145,8 @@ export default {
       const accounts = uniqBy(allAccounts, 'id');
       if (accounts.some(a => a['data']?.['isTrustedHost'])) {
         throw new Forbidden('Cannot ban trusted hosts');
+      } else if (!accounts.length) {
+        return { isAllowed: false, accounts, message: 'No accounts to ban' };
       }
 
       const banSummary = await getBanSummary(accounts);
