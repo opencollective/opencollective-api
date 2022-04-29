@@ -4,15 +4,18 @@ import path from 'path';
 
 import { expect } from 'chai';
 import { readFileSync } from 'fs-extra';
+import { times } from 'lodash';
 
-import { sequelize } from '../../server/models';
-import { fakeCollective, fakeEvent, fakeUpdate, fakeUser } from '../test-helpers/fake-data';
+import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions';
+import models, { sequelize } from '../../server/models';
+import { fakeCollective, fakeEvent, fakeHost, fakeTransaction, fakeUpdate, fakeUser } from '../test-helpers/fake-data';
+import { resetTestDB } from '../utils';
 
 const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
 
 const createCollectiveWithData = async () => {
   const user = await fakeUser();
-  const collective = await fakeCollective({ HostCollectiveId: null });
+  const collective = await fakeCollective();
   const collectiveAdminMember = await collective.addUserWithRole(user, 'ADMIN');
   const event = await fakeEvent({ ParentCollectiveId: collective.id });
   const eventAdminMember = await event.addUserWithRole(user, 'ADMIN');
@@ -25,10 +28,38 @@ const createCollectiveWithData = async () => {
     fakeUpdate({ CreatedByUserId: user.id, FromCollectiveId: user.collective.id }),
   ]);
 
+  const contributionTransaction = await fakeTransaction(
+    {
+      type: 'CREDIT',
+      kind: 'CONTRIBUTION',
+      PaymentMethodId: null,
+      FromCollectiveId: user.collective.id,
+      CollectiveId: collective.id,
+      CreatedByUserId: user.id,
+      data: { platformTip: 100 },
+    },
+    { createDoubleEntry: true },
+  );
+
+  const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(
+    contributionTransaction,
+    collective.host,
+  );
+  const hostedTransaction = await fakeTransaction(
+    {
+      type: 'CREDIT',
+      kind: 'CONTRIBUTION',
+      PaymentMethodId: null,
+      HostCollectiveId: collective.id,
+    },
+    { createDoubleEntry: true },
+  );
+
   return {
     user,
     collective,
     event,
+    transactions: [contributionTransaction, hostedTransaction, platformTipTransaction],
     updates: {
       byUserOnCollective: updates[0],
       bySomeoneElseOnCollective: updates[1],
@@ -54,10 +85,15 @@ const createCollectiveWithData = async () => {
  */
 describe('sql/ban-collectives', () => {
   before(async () => {
+    await resetTestDB();
+    await fakeHost({
+      id: PLATFORM_TIP_TRANSACTION_PROPERTIES.HostCollectiveId,
+      slug: 'opencollective',
+      name: 'Open Collective INC',
+    });
+
     // Create some data to make sure tests are not deleting more than they should
-    createCollectiveWithData();
-    createCollectiveWithData();
-    createCollectiveWithData();
+    await Promise.all(times(3, createCollectiveWithData));
   });
 
   it('deletes all data from the collective when banned', async () => {
@@ -73,7 +109,7 @@ describe('sql/ban-collectives', () => {
       nb_deleted_recurring_expenses: 0,
       deleted_users: 0,
       nb_deleted_tiers: 0,
-      nb_deleted_members: 2,
+      nb_deleted_members: 4, // collective admin + event admin + collective host + event host
       nb_deleted_updates: 2,
       nb_deleted_payment_methods: 2,
       nb_deleted_connected_accounts: 0,
@@ -85,6 +121,8 @@ describe('sql/ban-collectives', () => {
       nb_deleted_orders: 0,
       nb_deleted_notifications: 0,
       nb_deleted_users: 0,
+      nb_deleted_transaction_settlements: 1, // For the platform tip debt
+      nb_deleted_transactions: 8, // First contrib = 6 transactions (2 x contribution + 2 x tip + 2 x tip debt), second contrib "hostedTransaction" = 2 transactions
     });
 
     // User/user-data should not be deleted (we banned the collective)
@@ -123,7 +161,8 @@ describe('sql/ban-collectives', () => {
       nb_deleted_notifications: 0,
       nb_deleted_users: 1,
       deleted_profiles_ids: [user.collective.id],
-      // TODO add transactions
+      nb_deleted_transaction_settlements: 1, // For the platform tip debt
+      nb_deleted_transactions: 6, // this one does not includes the hosted transactions
     });
 
     await expect(user).to.be.softDeleted;
@@ -165,6 +204,8 @@ describe('sql/ban-collectives', () => {
       nb_deleted_orders: 0,
       nb_deleted_notifications: 0,
       nb_deleted_users: 2,
+      nb_deleted_transaction_settlements: 0,
+      nb_deleted_transactions: 0,
       deleted_profiles_ids: [user1.collective.id, user2.collective.id, collective.id],
     });
 
