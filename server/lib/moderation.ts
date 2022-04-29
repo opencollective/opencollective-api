@@ -15,20 +15,22 @@ export const getAccountsNetwork = async (account: typeof models.Collective[]): P
     `
     WITH RECURSIVE profiles AS (
       -- Requested profiles
-      SELECT id, type, slug, name
+      SELECT id, "ParentCollectiveId", type, slug, name
       FROM "Collectives"
       WHERE "slug" IN (:slugs)
       AND "deletedAt" IS NULL
       -- Recursively get all administrators/administrated profiles
       UNION
-      SELECT c.id, c.type, c.slug, c.name
+      SELECT c.id, c."ParentCollectiveId", c.type, c.slug, c.name
       FROM "Collectives" mc
-      INNER JOIN profiles ON profiles.id = mc.id -- Get all profiles previously returned
+      INNER JOIN profiles
+        ON profiles.id = mc.id -- Get all profiles previously returned + their children
+        OR profiles."ParentCollectiveId" = mc.id
       INNER JOIN "Members" m
-          ON m."deletedAt" IS NULL
+        ON m."deletedAt" IS NULL
         AND m.role = 'ADMIN'
         AND (
-            m."MemberCollectiveId" = mc.id -- Administrators of this profile
+          m."MemberCollectiveId" = mc.id -- Administrators of this profile
           OR m."CollectiveId" = mc.id -- Administrated profiles
         )
       INNER JOIN "Collectives" c ON c."deletedAt" IS NULL AND (m."CollectiveId" = c.id OR m."MemberCollectiveId" = c.id)
