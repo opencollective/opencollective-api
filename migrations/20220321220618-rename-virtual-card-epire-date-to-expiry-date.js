@@ -21,7 +21,7 @@ async function renameFieldInVirtualCardsPrivateData(queryInterface, from, to) {
           ...omit(originalPrivateData, [from]),
         };
         privateData[to] = originalPrivateData[from];
-        const encryptedPrivateData = JSON.stringify(crypto.encrypt(privateData));
+        const encryptedPrivateData = crypto.encrypt(JSON.stringify(privateData));
         console.debug(`Renaming '${from}' to '${to}' for VirtualCard with id=${virtualCard.id}`);
         await queryInterface.sequelize.query(
           `
