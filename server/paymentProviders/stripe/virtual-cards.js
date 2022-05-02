@@ -24,7 +24,7 @@ export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, 
 
   // Experimental: dedicated matching for Physical Cards
   for (const card of cards.filter(card => card.type === 'physical')) {
-    if (card['exp_month'] === parseInt(expireDate.slice(0, 2)) && card['exp_year'] === parseInt(expireDate.slice(-4))) {
+    if (card['exp_month'] === parseInt(expiryDate.slice(0, 2)) && card['exp_year'] === parseInt(expiryDate.slice(-4))) {
       matchingCard = card;
       break;
     }
