@@ -29,6 +29,7 @@ import {
   fakeTransaction,
   fakeUser,
   fakeVirtualCard,
+  multiple,
   randStr,
 } from '../../../../test-helpers/fake-data';
 import {
@@ -1806,7 +1807,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
   describe('processExpense > PAY > with 2FA payouts', () => {
     const fee = 1.74;
-    let collective, host, collectiveAdmin, hostAdmin, sandbox, expense1, expense2, expense3, expense4, user;
+    let collective,
+      host,
+      collectiveAdmin,
+      hostAdmin,
+      sandbox,
+      expense1,
+      expense2,
+      expense3,
+      expense4,
+      user,
+      payoutMethod;
     const quote = {
       payOut: 'BANK_TRANSFER',
       paymentOptions: [
@@ -1848,7 +1859,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         token: 'faketoken',
         data: { type: 'business', id: 0 },
       });
-      const payoutMethod = await fakePayoutMethod({
+      payoutMethod = await fakePayoutMethod({
         type: PayoutMethodTypes.BANK_ACCOUNT,
         data: {
           accountHolderName: 'Mopsa Mopsa',
@@ -1970,6 +1981,72 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result4.errors[0].message).to.eq(
         'Two-factor authentication payout limit exceeded: please re-enter your code.',
       );
+    });
+
+    it('authorizes users based on their active session', async () => {
+      const [expense1, expense2] = await multiple(fakeExpense, 2, {
+        payoutMethod: 'transferwise',
+        status: expenseStatus.APPROVED,
+        amount: 10000,
+        CollectiveId: collective.id,
+        UserId: user.id,
+        currency: 'USD',
+        PayoutMethodId: payoutMethod.id,
+        category: 'Engineering',
+        type: 'INVOICE',
+      });
+
+      const secret = speakeasy.generateSecret({ length: 64 });
+      const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
+      await hostAdmin.update({ twoFactorAuthToken: encryptedToken });
+      const twoFactorAuthenticatorCode = speakeasy.totp({
+        algorithm: 'SHA1',
+        encoding: 'base32',
+        secret: secret.base32,
+      });
+
+      // Fails the first time with session 1
+      const result1 = await graphqlQueryV2(
+        processExpenseMutation,
+        {
+          expenseId: expense1.id,
+          action: 'PAY',
+        },
+        hostAdmin,
+        {
+          sessionId: '1',
+        },
+      );
+      expect(result1.errors).to.exist;
+      expect(result1.errors[0].message).to.eq('Two-factor authentication enabled: please enter your code.');
+
+      // It works with session 1
+      const result2 = await graphqlQueryV2(
+        processExpenseMutation,
+        {
+          expenseId: expense1.id,
+          action: 'PAY',
+          paymentParams: { twoFactorAuthenticatorCode },
+        },
+        hostAdmin,
+      );
+      expect(result2.errors).to.not.exist;
+      expect(result2.data.processExpense.status).to.eq('PROCESSING');
+
+      // It fails with session 2
+      const result3 = await graphqlQueryV2(
+        processExpenseMutation,
+        {
+          expenseId: expense2.id,
+          action: 'PAY',
+        },
+        hostAdmin,
+        {
+          sessionId: '2',
+        },
+      );
+      expect(result3.errors).to.exist;
+      expect(result3.errors[0].message).to.eq('Two-factor authentication enabled: please enter your code.');
     });
   });
 
