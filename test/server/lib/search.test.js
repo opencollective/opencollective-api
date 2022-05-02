@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
+import { times } from 'lodash';
 
 import { CollectiveType } from '../../../server/graphql/v1/CollectiveInterface';
 import {
@@ -10,7 +11,7 @@ import {
 } from '../../../server/lib/search';
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
-import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeUser, randStr } from '../../test-helpers/fake-data';
 import { resetTestDB, runSearchTsVectorMigration } from '../../utils';
 
 describe('server/lib/search', () => {
@@ -62,11 +63,71 @@ describe('server/lib/search', () => {
       expect(results.find(c => c.id === collective.id)).to.exist;
     });
 
-    it('Works with punctuation', async () => {
-      const name = "The Watchers' defense Collective";
-      const collective = await fakeCollective({ name });
-      const [results] = await searchCollectivesInDB("Watcher's defense");
-      expect(results.find(res => res.id === collective.id)).to.exist;
+    describe('Works with punctuation', async () => {
+      it('with an apostrophe', async () => {
+        const name = "The Watchers' defense Collective";
+        const collective = await fakeCollective({ name });
+        const [results] = await searchCollectivesInDB("Watcher's defense");
+        expect(results.find(res => res.id === collective.id)).to.exist;
+      });
+
+      it('with a comma', async () => {
+        const name = 'Ethics, Public Policy, and Technological Change Course';
+        const collective = await fakeCollective({ name });
+        const [results] = await searchCollectivesInDB('Ethics, Public Policy, and Technological Change Course');
+        expect(results.length).to.eq(1);
+        expect(results.find(res => res.id === collective.id)).to.exist;
+      });
+    });
+
+    it('supports OR operator', async () => {
+      const accounts = await Promise.all(times(3, () => fakeCollective({ name: randStr() })));
+      const accountNames = accounts.map(c => c.name);
+      const [results] = await searchCollectivesInDB(accountNames.join(' OR '));
+      expect(results.length).to.eq(3);
+      expect(results.map(c => c.name)).to.deep.eqInAnyOrder(accountNames);
+    });
+
+    it('supports quotes for exact search', async () => {
+      const accountWithExactMatch = await fakeCollective({ description: 'The description must match exactly' });
+      await fakeCollective({ description: 'Exactly must the description match' }); // Should not match
+      const [results] = await searchCollectivesInDB('"The description must match exactly"');
+      expect(results.length).to.eq(1);
+      expect(results[0].id).to.eq(accountWithExactMatch.id);
+    });
+
+    describe('ignores diacritics', () => {
+      let accountWithDiacritics;
+
+      before(async () => {
+        accountWithDiacritics = await fakeCollective({ name: 'Árvíztűrő tükörfúrógép' });
+      });
+
+      it('when searching for a phrase with diacritics in the search input', async () => {
+        const [results2] = await searchCollectivesInDB('árvíztűrő tükörfúrógép');
+        expect(results2.length).to.eq(1);
+        expect(results2[0].id).to.eq(accountWithDiacritics.id);
+      });
+
+      // TODO: We want the 3 cases below to be supported, but it probably requires removing the diacritics when building Collectives.searchTsVector
+
+      // it('when searching for a phrase without diacritics in the search input', async () => {
+      //   const [results2] = await searchCollectivesInDB('arvizturo tukorfurogep');
+      //   expect(results2.length).to.eq(1);
+      //   expect(results2[0].id).to.eq(accountWithDiacritics.id);
+      // });
+
+      // it('when searching for a single word without diacritics in the search input', async () => {
+      //   const [results] = await searchCollectivesInDB('arvizturo');
+      //   expect(results.length).to.eq(1);
+      //   expect(results[0].id).to.eq(accountWithDiacritics.id);
+      // });
+
+      // it('when searching for a single word with diacritics in the search input', async () => {
+      //   const [results] = await searchCollectivesInDB('árvíztűrő');
+      //   expect(results.length).to.eq(1);
+      //   expect(results[0].id).to.eq(accountWithDiacritics.id);
+      // });
     });
 
     describe('By email', async () => {
