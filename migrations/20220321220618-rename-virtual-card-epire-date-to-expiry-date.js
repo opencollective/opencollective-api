@@ -26,7 +26,7 @@ async function renameFieldInVirtualCardsPrivateData(queryInterface, from, to) {
         await queryInterface.sequelize.query(
           `
             UPDATE "VirtualCards"
-            SET "privateData" = :privateData
+            SET "privateData" = :encryptedPrivateData
             WHERE "id" = :id;
           `,
           {
