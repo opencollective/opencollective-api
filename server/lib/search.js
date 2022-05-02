@@ -148,7 +148,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (countryCodes) {
-    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" IN (:countryCodes) OR hostCollective."countryISO" IN (:countryCodes)) `;
+    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" `;
   }
 
   if (tags?.length) {
@@ -197,11 +197,7 @@ export const searchCollectivesInDB = async (
       COUNT(*) OVER() AS __total__,
       (${sortSubqueries[orderBy?.field || 'RANK']}) as __sort__
     FROM "Collectives" c
-    ${
-      countryCodes
-        ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id LEFT JOIN "Collectives" hostCollective ON c."HostCollectiveId" = hostCollective.id'
-        : ''
-    }
+    ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
     WHERE c."deletedAt" IS NULL
     AND c."deactivatedAt" IS NULL
     AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
