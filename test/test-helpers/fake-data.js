@@ -298,6 +298,10 @@ export const fakeExpense = async (expenseData = {}) => {
     };
 
     expense.items = await Promise.all(randArray(generateAttachment, 1, 5));
+  } else if (expenseData?.items?.every(item => !item.id)) {
+    expense.items = await Promise.all(
+      expenseData.items.map(item => fakeExpenseItem({ ...item, ExpenseId: expense.id })),
+    );
   }
 
   expense.User = await models.User.findByPk(expense.UserId);
