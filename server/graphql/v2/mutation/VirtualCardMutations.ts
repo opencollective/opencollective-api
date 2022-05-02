@@ -55,12 +55,12 @@ const virtualCardMutations = {
         throw new BadRequest('Could not find the assigned user');
       }
 
-      const { cardNumber, expireDate, cvv } = args.virtualCard.privateData;
+      const { cardNumber, expiryDate, cvv } = args.virtualCard.privateData;
 
-      if (!cardNumber || !expireDate || !cvv) {
-        throw new BadRequest('VirtualCard missing cardNumber, expireDate and/or cvv', undefined, {
+      if (!cardNumber || !expiryDate || !cvv) {
+        throw new BadRequest('VirtualCard missing cardNumber, expiryDate and/or cvv', undefined, {
           cardNumber: !cardNumber && 'Card Number is required',
-          expireDate: !expireDate && 'Expire Date is required',
+          expiryDate: !expiryDate && 'Expiry Date is required',
           cvv: !cvv && 'CVV is required',
         });
       }
@@ -69,7 +69,7 @@ const virtualCardMutations = {
 
       const virtualCard = await providerService.assignCardToCollective(
         cardNumber,
-        expireDate,
+        expiryDate,
         cvv,
         args.virtualCard.name,
         collective.id,
