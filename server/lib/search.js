@@ -60,20 +60,6 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
 };
 
 /**
- * Sanitize and then turn a search string into a TS vector using 'OR' operator.
- *
- * Examples: "open potatoes" => "open|potatoes", "crème brulée => "creme|brulee"
- *
- */
-const searchTermToTsVector = term => {
-  const termWithoutDiacritics = term
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9-\/_ ]/g, '');
-  return termWithoutDiacritics.trim().replace(/\s+/g, '|');
-};
-
-/**
  * Trim leading/trailing spaces and remove multiple spaces from the string
  */
 const trimSearchTerm = term => {
@@ -81,10 +67,53 @@ const trimSearchTerm = term => {
 };
 
 /**
+ * Example: "crème brulée => "creme brulee"
+ */
+const removeDiacritics = str => {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
+/**
+ * Sanitize a search string to be used in a SQL query
+ *
+ * Examples: "   crème     brulée => "creme brulee"
+ *
+ */
+const sanitizeSearchTermForTSQuery = term => {
+  return removeDiacritics(term)
+    .replace(/[^a-zA-Z0-9-\/_ ]/g, '')
+    .trim();
+};
+
+/**
  * Removes special ILIKE characters like `%
  */
 const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
+};
+
+const getSearchTermSQLConditions = term => {
+  let tsQueryFunc, tsQueryArg, sqlConditions;
+  let sanitizedTerm = '';
+  if (term && term.length > 0) {
+    // Cleanup term
+    const trimmedTerm = trimSearchTerm(term);
+    const splitTerm = trimmedTerm.split(' ');
+    if (term[0] === '@' && splitTerm.length === 1) {
+      // When the search starts with a `@`, we search by slug only
+      sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
+      sqlConditions = `AND slug ILIKE '%' || :sanitizedTerm || '%' `;
+    } else {
+      tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
+      tsQueryArg = tsQueryFunc === 'to_tsquery' ? `:sanitizedTerm':*'` : ':sanitizedTerm';
+      sanitizedTerm = tsQueryFunc === 'to_tsquery' ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
+      sqlConditions = `
+        AND ("searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
+        OR "searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
+    }
+  }
+
+  return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm };
 };
 
 /**
@@ -108,7 +137,6 @@ export const searchCollectivesInDB = async (
 ) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
-  let isUsingTsVector = false;
   let countryCodes = null;
   let searchedTags = '';
   if (countries) {
@@ -155,21 +183,9 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND "tags" @> (:searchedTags) `;
   }
 
-  if (term && term.length > 0) {
-    // Cleanup term
-    term = sanitizeSearchTermForILike(trimSearchTerm(term));
-    if (term[0] === '@') {
-      // When the search starts with a `@`, we search by slug only
-      term = term.replace(/^@+/, '');
-      dynamicConditions += `AND slug ILIKE '%' || :term || '%' `;
-    } else {
-      isUsingTsVector = true;
-      dynamicConditions += `
-        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
-        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
-    }
-  } else {
-    term = '';
+  const searchTermConditions = getSearchTermSQLConditions(term);
+  if (searchTermConditions.sqlConditions) {
+    dynamicConditions += searchTermConditions.sqlConditions;
   }
 
   const sortSubqueries = {
@@ -180,10 +196,14 @@ export const searchCollectivesInDB = async (
       AND t."deletedAt" IS NULL`,
 
     RANK: `
-      CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
+      CASE WHEN (slug = :slugifiedTerm OR name ILIKE :sanitizedTerm) THEN
         1
       ELSE
-        ${isUsingTsVector ? `ts_rank("searchTsVector", plainto_tsquery('english', :vectorizedTerm))` : '0'}
+        ${
+          searchTermConditions.tsQueryFunc
+            ? `ts_rank("searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
+            : '0'
+        }
       END`,
 
     CREATED_AT: `"createdAt"`,
@@ -215,7 +235,7 @@ export const searchCollectivesInDB = async (
         types,
         term: term,
         slugifiedTerm: slugify(term),
-        vectorizedTerm: searchTermToTsVector(term),
+        sanitizedTerm: searchTermConditions.sanitizedTerm,
         searchedTags,
         countryCodes,
         offset,
@@ -324,30 +344,12 @@ export const buildSearchConditions = (
  * Returns tags along with their frequency of use.
  */
 export const getTagFrequencies = async args => {
-  let searchTermFragment = '';
-  let term = args.searchTerm;
-
-  if (term && term.length > 0) {
-    // Cleanup term
-    term = sanitizeSearchTermForILike(trimSearchTerm(term));
-    if (term[0] === '@') {
-      // When the search starts with a `@`, we search by slug only
-      term = term.replace(/^@+/, '');
-      searchTermFragment = `AND slug ILIKE '%' || :term || '%' `;
-    } else {
-      searchTermFragment = `
-        AND ("searchTsVector" @@ to_tsquery('english', :vectorizedTerm':*')
-        OR "searchTsVector" @@ to_tsquery('simple', :vectorizedTerm':*'))`;
-    }
-  } else {
-    term = '';
-  }
-
+  const searchConditions = getSearchTermSQLConditions(args.searchTerm);
   return sequelize.query(
     `SELECT UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
-      ${searchTermFragment}
+      ${searchConditions.sqlConditions}
       GROUP BY UNNEST(tags)
       ORDER BY count DESC
       LIMIT :limit
@@ -355,8 +357,7 @@ export const getTagFrequencies = async args => {
     {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
-        term,
-        vectorizedTerm: searchTermToTsVector(term),
+        sanitizedTerm: searchConditions.sanitizedTerm,
         limit: args.limit,
         offset: args.offset,
       },
