@@ -93,23 +93,26 @@ const sanitizeSearchTermForILike = term => {
 };
 
 const getSearchTermSQLConditions = term => {
-  let tsQueryFunc, tsQueryArg, sqlConditions;
+  let tsQueryFunc, tsQueryArg;
+  let sqlConditions = '';
   let sanitizedTerm = '';
-  if (term && term.length > 0) {
+  const trimmedTerm = trimSearchTerm(term);
+  if (trimmedTerm?.length > 0) {
     // Cleanup term
-    const trimmedTerm = trimSearchTerm(term);
     const splitTerm = trimmedTerm.split(' ');
     if (term[0] === '@' && splitTerm.length === 1) {
       // When the search starts with a `@`, we search by slug only
       sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
       sqlConditions = `AND slug ILIKE '%' || :sanitizedTerm || '%' `;
     } else {
-      tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
-      tsQueryArg = tsQueryFunc === 'to_tsquery' ? `:sanitizedTerm':*'` : ':sanitizedTerm';
-      sanitizedTerm = tsQueryFunc === 'to_tsquery' ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
-      sqlConditions = `
+      sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
+      if (sanitizedTerm) {
+        tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
+        tsQueryArg = tsQueryFunc === 'to_tsquery' ? `:sanitizedTerm':*'` : ':sanitizedTerm';
+        sqlConditions = `
         AND ("searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
         OR "searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
+      }
     }
   }
 

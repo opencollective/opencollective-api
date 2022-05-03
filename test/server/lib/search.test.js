@@ -96,6 +96,24 @@ describe('server/lib/search', () => {
       expect(results[0].id).to.eq(accountWithExactMatch.id);
     });
 
+    it('supports empty search', async () => {
+      const [results] = await searchCollectivesInDB('');
+      expect(results.length).to.be.above(1);
+
+      const [results2] = await searchCollectivesInDB('   ');
+      expect(results2.length).to.be.above(1);
+    });
+
+    it('empty quotes', async () => {
+      // act as empty search
+      const [results] = await searchCollectivesInDB('""');
+      expect(results.length).to.be.above(1);
+
+      // we have no account with multiple spaces in their searchable content
+      const [results2] = await searchCollectivesInDB('"  "');
+      expect(results2.length).to.eq(0);
+    });
+
     describe('ignores diacritics', () => {
       let accountWithDiacritics;
 
