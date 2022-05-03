@@ -182,6 +182,14 @@ function defineModel() {
         references: { model: 'Transactions', key: 'id' },
       },
 
+      PaymentMethodId: {
+        type: DataTypes.INTEGER,
+        references: { model: 'PaymentMethods', key: 'id' },
+        allowNull: true,
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+      },
+
       isRefund: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
