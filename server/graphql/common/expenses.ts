@@ -1149,7 +1149,7 @@ export async function editExpense(
     if (host?.settings?.virtualcards?.autopause) {
       const virtualCard = await expense.getVirtualCard();
       const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
-      if (virtualCard.isPaused() && expensesMissingReceipts.length > 0) {
+      if (virtualCard.isPaused() && expensesMissingReceipts.length === 0) {
         await virtualCard.resume();
       }
     }
