@@ -7,6 +7,7 @@ import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { TransactionCollection } from '../../collection/TransactionCollection';
+import { PaymentMethodType } from '../../enum/PaymentMethodType';
 import { TransactionKind } from '../../enum/TransactionKind';
 import { TransactionType } from '../../enum/TransactionType';
 import {
@@ -23,6 +24,10 @@ export const TransactionsCollectionArgs = {
   type: {
     type: TransactionType,
     description: 'The transaction type (DEBIT or CREDIT)',
+  },
+  paymentMethod: {
+    type: new GraphQLList(PaymentMethodType),
+    description: 'The payment methods',
   },
   fromAccount: {
     type: AccountReferenceInput,
@@ -275,6 +280,20 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
   if (args.kind || args.kinds) {
     where.push({ kind: args.kind || args.kinds });
   }
+  if (args.paymentMethod) {
+    include.push({ 
+      model: models.PaymentMethod,
+      required: true, 
+      where: { 
+        type: {
+          [Op.in]: args.paymentMethod
+        }
+      } 
+    });
+  }
+
+  const wherePaymentMethods = cloneDeep(where);
+  const includePaymentMethods = cloneDeep(include);
 
   const order = [
     [args.orderBy.field, args.orderBy.direction],
@@ -291,6 +310,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     include,
   });
 
+
   return {
     nodes: result.rows,
     totalCount: result.count,
@@ -303,6 +323,19 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
         group: ['kind'],
         raw: true,
       }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+    },
+    paymentMethod: () => {
+      console.log('paymentMethod extra')
+      return models.Transaction.findAll({
+        attributes: ['PaymentMethod.type'],
+        where: wherePaymentMethods,
+        include: includePaymentMethods,
+        raw: true,
+      }).then(results => {
+        console.log('results', results)
+        const types = results.map(paymentMethod => paymentMethod.type).filter(type => !!type)
+        return [...new Set(types)]
+      });
     },
   };
 };

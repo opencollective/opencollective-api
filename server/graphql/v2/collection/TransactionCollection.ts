@@ -1,5 +1,6 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { Collection, CollectionFields } from '../interface/Collection';
 import { Transaction } from '../interface/Transaction';
@@ -15,6 +16,9 @@ export const TransactionCollection = new GraphQLObjectType({
     },
     kinds: {
       type: new GraphQLList(TransactionKind),
+    },
+    paymentMethod: {
+      type: new GraphQLList(PaymentMethodType),
     },
   }),
 });
