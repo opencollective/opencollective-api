@@ -180,6 +180,10 @@ export async function createCollectiveFromGithub(_, args, req) {
     throw new ValidationFailed('collective.name required');
   }
 
+  if (config.env === 'production') {
+    throw new Error('This mutation is not allowed in production');
+  }
+
   let collective;
   const user = req.remoteUser;
   const githubHandle = args.collective.githubHandle;
@@ -268,6 +272,9 @@ export async function createCollectiveFromGithub(_, args, req) {
 
   const data = { collective: collective.info };
 
+  // !!!
+  //  Remember to remove this email template when removing this mutation, it's not used elsewhere
+  // !!!
   await emailLib.send('github.signup', user.email, data);
 
   models.Activity.create({
