@@ -414,6 +414,14 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, 
       );
     }
     return false;
+  } else if (expense.type === EXPENSE_TYPE.CHARGE) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not mark this type of expense as unpaid',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
+      );
+    }
+    return false;
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden(
