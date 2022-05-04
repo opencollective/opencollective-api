@@ -12,16 +12,15 @@ Subject: Contribution cancelled to {{{collective.name}}}
 
 <p>Your recurring contribution to {{collective.name}} (cced) for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled.</p>
 
-<p>We are sad to see you go 😞. If you have any feedback, we want to hear about it. Just hit 'reply all'.</p>
+{{#if reason}}
+  <p>You provided the following reason for cancelling:</p>
+  <p>{{reason}}</p>
+{{/if}}
 
 <p>Warmly,</p>
 
 <p>
   – {{collective.name}}
 </p>
-
-<p>You provided the following reason for cancelling</p>
-
-{{reason}}
 
 {{> footer}}
