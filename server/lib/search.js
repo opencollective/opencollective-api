@@ -92,7 +92,7 @@ const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
-const getSearchTermSQLConditions = term => {
+const getSearchTermSQLConditions = (term, collectiveTable) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';
@@ -110,8 +110,8 @@ const getSearchTermSQLConditions = term => {
         tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
         tsQueryArg = tsQueryFunc === 'to_tsquery' ? `:sanitizedTerm':*'` : ':sanitizedTerm';
         sqlConditions = `
-        AND (c."searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
-        OR c."searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
+        AND (${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
+        OR ${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
       }
     }
   }
@@ -186,7 +186,7 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND c."tags" @> (:searchedTags) `;
   }
 
-  const searchTermConditions = getSearchTermSQLConditions(term);
+  const searchTermConditions = getSearchTermSQLConditions(term, 'c');
   if (searchTermConditions.sqlConditions) {
     dynamicConditions += searchTermConditions.sqlConditions;
   }
