@@ -153,6 +153,7 @@ const memberMutations = {
         where: {
           MemberCollectiveId: memberAccount.id,
           CollectiveId: account.id,
+          role: [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER],
         },
       });
 
