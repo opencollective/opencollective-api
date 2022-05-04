@@ -623,6 +623,10 @@ async function notifyByEmail(activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
       break;
 
+    case activityType.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE:
+      notifyAdminsOfCollective(activity.data.fromCollective.id, activity, { sendEvenIfNotProduction: true });
+      break;
+
     case activityType.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS:
       notifyAdminsOfCollective(activity.data.collective.id, activity, { sendEvenIfNotProduction: true });
       break;
