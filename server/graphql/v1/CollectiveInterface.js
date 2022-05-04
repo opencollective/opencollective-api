@@ -878,7 +878,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
 });
 
 const FeaturesFields = () => {
-  return FeaturesList.reduce(
+  const answer = FeaturesList.reduce(
     (obj, feature) =>
       Object.assign(obj, {
         [feature]: {
@@ -888,6 +888,8 @@ const FeaturesFields = () => {
       }),
     {},
   );
+  // console.log({answer})
+  return answer;
 };
 
 const CollectiveFields = () => {
@@ -1928,6 +1930,8 @@ export const CollectiveFeatures = new GraphQLObjectType({
   name: 'CollectiveFeatures',
   description: 'Describes the features enabled and available for this account',
   fields: () => {
+    console.log('\n\n\n FIELDS \n\n\n');
+    console.log(FeaturesFields());
     return {
       id: {
         type: new GraphQLNonNull(GraphQLString),

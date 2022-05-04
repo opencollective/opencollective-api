@@ -165,7 +165,7 @@ const accountMutations = {
       },
       action: {
         type: new GraphQLNonNull(
-          new GraphQLEnumType({ name: 'AccountFreezeAction', values: { FREEZE: {}, UNFREEZE: {} } }),
+          new GraphQLEnumType({ name: 'AccountFreezeAction', values: { FREEZE: {}, UNFREEZE: {}, FREEZEKEEPCONTRIBUTIONS: {} } }),
         ),
       },
       message: {
@@ -177,8 +177,10 @@ const accountMutations = {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
+      // console.log("RESLOVE \n\n\n", args.account.dataValues)
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      // console.log({account})
       account.host = await account.getHostCollective();
       if (!account.host) {
         throw new ValidationFailed('Cannot find the host of this account');
@@ -190,13 +192,14 @@ const accountMutations = {
         );
       }
 
-      if (args.action === 'FREEZE') {
-        await account.freeze(args.message);
-      } else if (args.action === 'UNFREEZE') {
-        await account.unfreeze(args.message);
+      if (args.action === 'UNFREEZE') {
+        await account.unfreeze(args)
+      } else {
+        await account.freeze(args)
       }
-
-      return account.reload();
+      const newAccount = await account.reload()
+      // console.log("NEW ACCOUNT \n\n\n", newAccount)
+      return newAccount;
     },
   },
   addTwoFactorAuthTokenToIndividual: {

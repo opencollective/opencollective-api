@@ -11945,7 +11945,11 @@ scalar AccountSettingsKey
 enum AccountFreezeAction {
   FREEZE
   UNFREEZE
+  FREEZEKEEPCONTRIBUTION
 }
+# input AccountFreezeAction {
+#   freezeAll: Boolean
+# }
 
 """
 Response for the addTwoFactorAuthTokenToIndividual mutation

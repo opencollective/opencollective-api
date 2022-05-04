@@ -87,7 +87,9 @@ const FEATURES_DISABLED_FOR_PAST_EVENTS = new Set([FEATURE.RECEIVE_FINANCIAL_CON
  * Returns true if feature is allowed for this collective type, false otherwise.
  */
 export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature: FEATURE, isHost?: false): boolean => {
+  // // console.log({feature})
   const allowedTypes = FeatureAllowedForTypes[feature];
+  // console.log({allowedTypes})
   const allowedForType = allowedTypes ? allowedTypes.includes(collectiveType) : true;
 
   if (!allowedForType) {
@@ -118,10 +120,14 @@ export const hasOptedInForFeature = (collective: typeof models.Collective, featu
  * If a given feature is allowed for the collective type, check if it is activated for collective.
  */
 export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
+  // console.log("HAS FEATURE", get(collective, 'data.features'))
   if (!collective) {
     return false;
+  } else if (get(collective, `data.features.${feature}`) === "AVAILABLE") {
+    return true;
   } else if (get(collective, 'data.features.ALL') === false) {
-    return false;
+    console.log({feature})
+    return false
   }
 
   if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {

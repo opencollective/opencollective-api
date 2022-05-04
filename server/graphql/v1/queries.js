@@ -49,10 +49,11 @@ const queries = {
         description: 'If false, will return null instead of an error if collective is not found',
       },
     },
-    resolve(_, args) {
+    async resolve(_, args) {
       let collective;
       if (args.slug) {
-        collective = models.Collective.findBySlug(args.slug.toLowerCase(), null, args.throwIfMissing);
+        collective = await models.Collective.findBySlug(args.slug.toLowerCase(), null, args.throwIfMissing);
+        // console.log("GET BY SLUG \n\n\n", collective)
       } else if (args.id) {
         collective = models.Collective.findByPk(args.id);
       } else {

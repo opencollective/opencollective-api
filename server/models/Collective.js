@@ -1121,7 +1121,10 @@ function defineModel() {
     return this;
   };
 
-  Collective.prototype.freeze = async function (message) {
+  Collective.prototype.freeze = async function (args) {
+    console.log('\n\n\n DATA \n\n\n');
+    console.log({ args });
+    console.log('COMPARISON', args.action === 'FREEZE');
     if (this.data?.features?.ALL === false) {
       throw new Error('This account is already frozen');
     }
@@ -1131,23 +1134,31 @@ function defineModel() {
       const children = await this.getChildren({ transaction });
       await Promise.all(
         [this, ...children].map(account =>
-          account.update({ data: set(cloneDeep(this.data || {}), 'features.ALL', false) }, { transaction }),
+          args.action === 'FREEZE'
+            ? account.update({ data: set(cloneDeep(this.data || {}), 'features.ALL', false) }, { transaction })
+            : console.log('ELSE') ||
+              account.update(
+                { data: set(cloneDeep(this.data || {}), 'features.RECEIVE_FINANCIAL_CONTRIBUTIONS', 'AVAILABLE') },
+                { transaction },
+              ),
         ),
       );
+
+      console.log(this);
 
       // Create the notification
       await models.Activity.create(
         {
           type: activities.COLLECTIVE_FROZEN,
           CollectiveId: this.id,
-          data: { collective: this.info, host: host.info, message },
+          data: { collective: this.info, host: host.info, message: args.message },
         },
         { transaction },
       );
     });
   };
 
-  Collective.prototype.unfreeze = async function (message) {
+  Collective.prototype.unfreeze = async function (args) {
     if (this.data?.features?.ALL !== false) {
       throw new Error('This account is already unfrozen');
     }
@@ -1157,7 +1168,10 @@ function defineModel() {
       const children = await this.getChildren({ transaction });
       await Promise.all(
         [this, ...children].map(account =>
-          account.update({ data: omit(cloneDeep(this.data || {}), 'features.ALL') }, { transaction }),
+          account.update(
+            { data: omit(cloneDeep(this.data || {}), 'features.ALL', 'features.RECEIVE_FINANCIAL_CONTRIBUTIONS') },
+            { transaction },
+          ),
         ),
       );
 
@@ -1165,7 +1179,7 @@ function defineModel() {
         {
           type: activities.COLLECTIVE_UNFROZEN,
           CollectiveId: this.id,
-          data: { collective: this.info, host: host.info, message },
+          data: { collective: this.info, host: host.info, message: args.message },
         },
         { transaction },
       );
