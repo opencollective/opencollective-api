@@ -336,7 +336,7 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
  * Returns true if expense can be rejected by user
  */
 export const canReject: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED].includes(expense.status)) {
+  if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED, expenseStatus.INCOMPLETE].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not reject expense in current status',
@@ -380,7 +380,7 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, op
  * Returns true if expense can be unapproved by user
  */
 export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+  if (![expenseStatus.APPROVED, expenseStatus.ERROR, expenseStatus.INCOMPLETE].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -391,6 +391,28 @@ export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, opt
   } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot unapprove expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
+    }
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
+  }
+};
+
+export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
+  if (![expenseStatus.APPROVED, expenseStatus.PENDING, expenseStatus.ERROR].includes(expense.status)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not unapprove expense in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'User cannot mark expense as incomplete',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE,
+      );
     }
     return false;
   } else {
@@ -488,6 +510,21 @@ export const unapproveExpense = async (
 
   const updatedExpense = await expense.update({ status: expenseStatus.PENDING, lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
+  return updatedExpense;
+};
+
+export const markExpenseAsIncomplete = async (
+  req: express.Request,
+  expense: typeof models.Expense,
+): Promise<typeof models.Expense> => {
+  if (expense.status === expenseStatus.INCOMPLETE) {
+    return expense;
+  } else if (!(await canMarkAsIncomplete(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: expenseStatus.INCOMPLETE, lastEditedById: req.remoteUser.id });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   return updatedExpense;
 };
 

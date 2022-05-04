@@ -85,6 +85,13 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canMarkAsUnpaid(req, expense);
       },
     },
+    canMarkAsIncomplete: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can mark this expense as incomplete',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canMarkAsIncomplete(req, expense);
+      },
+    },
     canComment: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the current user can comment and see comments for this expense',

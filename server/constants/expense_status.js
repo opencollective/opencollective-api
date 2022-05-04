@@ -4,6 +4,7 @@
  *
  * pending -> rejected
  * pending -> approved -> paid
+ * pending -> approved -> incomplete -> pending
  *
  * TransferWise:
  * ... -> approved -> processing -> paid
@@ -21,6 +22,7 @@ export default {
   DRAFT: 'DRAFT',
   UNVERIFIED: 'UNVERIFIED',
   PENDING: 'PENDING',
+  INCOMPLETE: 'INCOMPLETE',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
   PROCESSING: 'PROCESSING',
