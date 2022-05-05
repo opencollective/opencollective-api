@@ -1,11 +1,4 @@
-import {
-  GraphQLBoolean,
-  GraphQLEnumType,
-  GraphQLList,
-  GraphQLNonNull,
-  GraphQLObjectType,
-  GraphQLString,
-} from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { difference, flatten, isEmpty, isNull, isUndefined, keyBy, keys, mapValues, pick, uniq, uniqBy } from 'lodash';
 
 import { roles } from '../../../constants';
