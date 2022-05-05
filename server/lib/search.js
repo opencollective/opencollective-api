@@ -179,7 +179,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (countryCodes) {
-    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" `;
+    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" IN (:countryCodes)) `;
   }
 
   if (tags?.length) {

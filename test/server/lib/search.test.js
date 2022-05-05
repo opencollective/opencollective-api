@@ -127,6 +127,31 @@ describe('server/lib/search', () => {
         expect(results2[0].id).to.eq(accountWithDiacritics.id);
       });
 
+      it('when searching with a country filter give correct results', async () => {
+        const collective1Name = 'JHipster Canada';
+        const collective2Name = 'JHipster Sri Lanka';
+        const collective1 = await fakeCollective({ name: collective1Name, countryISO: 'CA' });
+        const collective2 = await fakeCollective({ name: collective2Name, countryISO: 'LK' });
+        const [results1] = await searchCollectivesInDB('JHipster');
+        expect(results1.length).to.eq(2);
+        expect(results1.find(res => res.id === collective1.id)).to.exist;
+        expect(results1.find(res => res.id === collective2.id)).to.exist;
+        const [results2] = await searchCollectivesInDB('JHipster', undefined, undefined, { countries: ['CA'] });
+        expect(results2.length).to.eq(1);
+        expect(results2.find(res => res.id === collective1.id)).to.exist;
+      });
+
+      it('return child collectives whose parents country match the given country filter', async () => {
+        const collectiveName = 'JHipster';
+        const childCollective = 'JHipsterLite Project';
+        const collective = await fakeCollective({ name: collectiveName, countryISO: 'US' });
+        const project = await fakeCollective({ name: childCollective, ParentCollectiveId: collective.id });
+        const [results] = await searchCollectivesInDB('', undefined, undefined, { countries: ['US'] });
+        expect(results.length).to.eq(2);
+        expect(results.find(res => res.id === collective.id)).to.exist;
+        expect(results.find(res => res.id === project.id)).to.exist;
+      });
+
       // TODO: We want the 3 cases below to be supported, but it probably requires removing the diacritics when building Collectives.searchTsVector
 
       // it('when searching for a phrase without diacritics in the search input', async () => {
