@@ -213,7 +213,7 @@ export const searchCollectivesInDB = async (
   };
 
   let sortQueryType = orderBy?.field || 'RANK';
-  if (!searchTermConditions.sanitizedTerm) {
+  if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
     sortQueryType = 'CREATED_AT'; // We can't sort by rank if there's no search term, fallback on createdAt
   }
 
