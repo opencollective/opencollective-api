@@ -939,11 +939,12 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const isPaidCreditCardCharge = expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID;
+  const isMarkedAsIncomplete = expense.status === expenseStatus.INCOMPLETE;
 
   if (isPaidCreditCardCharge && !hasAmountChanges) {
     return false;
   }
-  return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChanges || isMarkedAsIncomplete;
 };
 
 /** Returns infos about the changes made to items */
