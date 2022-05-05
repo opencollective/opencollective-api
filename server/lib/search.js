@@ -212,13 +212,18 @@ export const searchCollectivesInDB = async (
     CREATED_AT: `"createdAt"`,
   };
 
+  let sortQueryType = orderBy?.field || 'RANK';
+  if (!searchTermConditions.sanitizedTerm) {
+    sortQueryType = 'CREATED_AT'; // We can't sort by rank if there's no search term, fallback on createdAt
+  }
+
   // Build the query
   const result = await sequelize.query(
     `
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (${sortSubqueries[orderBy?.field || 'RANK']}) as __sort__
+      (${sortSubqueries[sortQueryType]}) as __sort__
     FROM "Collectives" c
     WHERE "deletedAt" IS NULL
     AND "deactivatedAt" IS NULL
@@ -237,7 +242,7 @@ export const searchCollectivesInDB = async (
       replacements: {
         types,
         term: term,
-        slugifiedTerm: slugify(term),
+        slugifiedTerm: term ? slugify(term) : '',
         sanitizedTerm: searchTermConditions.sanitizedTerm,
         searchedTags,
         countryCodes,
