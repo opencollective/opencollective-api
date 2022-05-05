@@ -110,10 +110,8 @@ export const getFeatureStatusResolver =
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
     } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
-      console.log("UNSPORTED")
       return FEATURE_STATUS.UNSUPPORTED;
     } else if (!hasFeature(collective, feature)) {
-      console.log("DISABLED", feature)
       return FEATURE_STATUS.DISABLED;
     }
 

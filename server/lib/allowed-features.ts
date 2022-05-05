@@ -87,9 +87,7 @@ const FEATURES_DISABLED_FOR_PAST_EVENTS = new Set([FEATURE.RECEIVE_FINANCIAL_CON
  * Returns true if feature is allowed for this collective type, false otherwise.
  */
 export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature: FEATURE, isHost?: false): boolean => {
-  // // console.log({feature})
   const allowedTypes = FeatureAllowedForTypes[feature];
-  // console.log({allowedTypes})
   const allowedForType = allowedTypes ? allowedTypes.includes(collectiveType) : true;
 
   if (!allowedForType) {

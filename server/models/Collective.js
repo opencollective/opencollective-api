@@ -1125,9 +1125,6 @@ function defineModel() {
   };
 
   Collective.prototype.freeze = async function (args) {
-    console.log('\n\n\n DATA \n\n\n');
-    console.log({ args });
-    console.log('COMPARISON', args.action === 'FREEZE');
     if (this.data?.features?.ALL === false) {
       throw new Error('This account is already frozen');
     }

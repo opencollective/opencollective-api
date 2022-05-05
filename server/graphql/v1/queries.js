@@ -53,7 +53,6 @@ const queries = {
       let collective;
       if (args.slug) {
         collective = await models.Collective.findBySlug(args.slug.toLowerCase(), null, args.throwIfMissing);
-        // console.log("GET BY SLUG \n\n\n", collective)
       } else if (args.id) {
         collective = models.Collective.findByPk(args.id);
       } else {
