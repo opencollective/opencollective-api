@@ -31,6 +31,7 @@ import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
 import Update from './Update';
 import User from './User';
+import UserTokens from './UserTokens';
 import VirtualCard from './VirtualCard';
 
 /**
@@ -73,11 +74,17 @@ export function setupModels() {
   m['TransactionSettlement'] = TransactionSettlement;
   m['Update'] = Update;
   m['User'] = User;
+  m['UserTokens'] = UserTokens;
   m['VirtualCard'] = VirtualCard;
 
   /**
    * Relationships
    */
+
+  // Applications
+  m.Application.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+  m.Application.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
+  m.Application.hasMany(m.UserTokens, { foreignKey: 'ApplicationId', as: 'userTokens' });
 
   // Collective
   m.Collective.belongsTo(m.Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
@@ -135,11 +142,16 @@ export function setupModels() {
   m.User.hasMany(m.PaymentMethod, { foreignKey: 'CreatedByUserId' });
   m.User.hasMany(m.Member, { foreignKey: 'CreatedByUserId' });
   m.User.hasMany(m.ConnectedAccount, { foreignKey: 'CreatedByUserId' });
+  m.User.hasMany(m.UserTokens, { foreignKey: 'UserId' });
   m.User.belongsTo(m.Collective, {
     as: 'collective',
     foreignKey: 'CollectiveId',
     constraints: false,
   });
+
+  // User tokens
+  m.UserTokens.belongsTo(m.User, { as: 'user' });
+  m.UserTokens.belongsTo(m.Application, { as: 'application' });
 
   // Members
   m.Member.belongsTo(m.User, {

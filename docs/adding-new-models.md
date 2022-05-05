@@ -86,28 +86,28 @@ MyTable.init(
   {
     // Copy-paste of the columns from the migration
     id: {
-      type: Sequelize.INTEGER,
+      type: DataTypes.INTEGER,
       primaryKey: true,
       autoIncrement: true,
     },
     // For relationships
     MyCollectiveId: {
-      type: Sequelize.INTEGER,
+      type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Collectives' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
     },
     // Standard temporal fields
     createdAt: {
-      type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW,
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
-      type: Sequelize.DATE,
-      defaultValue: Sequelize.NOW,
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
     },
     deletedAt: {
-      type: Sequelize.DATE,
+      type: DataTypes.DATE,
     },
   },
   {

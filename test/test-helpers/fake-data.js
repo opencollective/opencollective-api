@@ -712,7 +712,16 @@ export const fakePaypalPlan = async (data = {}) => {
 };
 
 export const fakeApplication = async (data = {}) => {
-  const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  let CollectiveId;
+  let CreatedByUserId;
+  if (data.user) {
+    CollectiveId = data.user.CollectiveId;
+    CreatedByUserId = data.user.id;
+  } else {
+    CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+    CreatedByUserId = data.CreatedByUserId || (await fakeUser()).id;
+  }
+
   return models.Application.create({
     type: sample(['apiKey', 'oAuth']),
     apiKey: randStr('ApiKey-'),
@@ -723,6 +732,7 @@ export const fakeApplication = async (data = {}) => {
     description: randStr('Description '),
     ...data,
     CollectiveId,
+    CreatedByUserId,
   });
 };
 
