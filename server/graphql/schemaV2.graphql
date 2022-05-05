@@ -6563,7 +6563,7 @@ type Organization implements Account & AccountWithContributions {
   """
   connectedAccounts: [ConnectedAccount]
 
-  "\n          Address. This field is public for hosts, otherwise:\n            - Users can see the addresses of the collectives they're admin of\n            - Hosts can see the address of organizations submitting expenses to their collectives\n        "
+  "\n          Address. This field is public for hosts, otherwise:\n            - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.\n            - Hosts can see the address of organizations submitting expenses to their collectives.\n        "
   location: Location
   categories: [String]!
   stats: AccountStats
@@ -10815,6 +10815,16 @@ type Mutation {
     Object matching the OrderReferenceInput (id)
     """
     order: OrderReferenceInput!
+
+    """
+    Reason for cancelling subscription
+    """
+    reason: String
+
+    """
+    Category for cancelling subscription
+    """
+    reasonCode: String
   ): Order
 
   """

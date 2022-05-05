@@ -1,4 +1,11 @@
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { difference, flatten, isEmpty, isNull, isUndefined, keyBy, keys, mapValues, pick, uniq, uniqBy } from 'lodash';
 
 import { roles } from '../../../constants';
@@ -123,10 +130,14 @@ const orderMutations = {
         type: GraphQLString,
         description: 'Reason for cancelling subscription',
       },
+      reasonCode: {
+        type: GraphQLString,
+        description: 'Category for cancelling subscription',
+      },
     },
     async resolve(_, args, req) {
       const decodedId = getDecodedId(args.order.id);
-      const reason = args.reason;
+      const { reason, reasonCode } = args;
 
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in to cancel a recurring contribution');
@@ -170,6 +181,7 @@ const orderMutations = {
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
           reason,
+          reasonCode,
         },
       });
 
