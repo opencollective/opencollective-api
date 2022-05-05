@@ -137,6 +137,9 @@ function defineModel() {
         autoIncrement: true,
       },
 
+      isFrozen: {
+        type: DataTypes.BOOLEAN,
+      },
       type: {
         type: DataTypes.STRING,
         defaultValue: 'COLLECTIVE',
@@ -1136,15 +1139,15 @@ function defineModel() {
         [this, ...children].map(account =>
           args.action === 'FREEZE'
             ? account.update({ data: set(cloneDeep(this.data || {}), 'features.ALL', false) }, { transaction })
-            : console.log('ELSE') ||
-              account.update(
-                { data: set(cloneDeep(this.data || {}), 'features.RECEIVE_FINANCIAL_CONTRIBUTIONS', 'AVAILABLE') },
+            : account.update(
+                {
+                  data: set(cloneDeep(this.data || {}), 'features.RECEIVE_FINANCIAL_CONTRIBUTIONS', 'AVAILABLE'),
+                  isFrozen: true,
+                },
                 { transaction },
               ),
         ),
       );
-
-      console.log(this);
 
       // Create the notification
       await models.Activity.create(
@@ -1159,9 +1162,9 @@ function defineModel() {
   };
 
   Collective.prototype.unfreeze = async function (args) {
-    if (this.data?.features?.ALL !== false) {
-      throw new Error('This account is already unfrozen');
-    }
+    // if (this.data?.features?.ALL !== false) {
+    //   throw new Error('This account is already unfrozen');
+    // }
 
     const host = this.host || (await this.getHostCollective());
     await sequelize.transaction(async transaction => {

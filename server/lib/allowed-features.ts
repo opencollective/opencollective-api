@@ -120,13 +120,11 @@ export const hasOptedInForFeature = (collective: typeof models.Collective, featu
  * If a given feature is allowed for the collective type, check if it is activated for collective.
  */
 export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
-  // console.log("HAS FEATURE", get(collective, 'data.features'))
   if (!collective) {
     return false;
   } else if (get(collective, `data.features.${feature}`) === "AVAILABLE") {
     return true;
   } else if (get(collective, 'data.features.ALL') === false) {
-    console.log({feature})
     return false
   }
 

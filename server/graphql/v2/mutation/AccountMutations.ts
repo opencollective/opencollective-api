@@ -177,10 +177,8 @@ const accountMutations = {
       if (!req.remoteUser) {
         throw new Unauthorized();
       }
-      // console.log("RESLOVE \n\n\n", args.account.dataValues)
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      // console.log({account})
       account.host = await account.getHostCollective();
       if (!account.host) {
         throw new ValidationFailed('Cannot find the host of this account');
@@ -194,12 +192,13 @@ const accountMutations = {
 
       if (args.action === 'UNFREEZE') {
         await account.unfreeze(args)
+        await account.update({isFrozen: false})
       } else {
         await account.freeze(args)
+        sequelize.update()
+        await account.update({isFrozen: true})
       }
-      const newAccount = await account.reload()
-      // console.log("NEW ACCOUNT \n\n\n", newAccount)
-      return newAccount;
+      return await account.reload();
     },
   },
   addTwoFactorAuthTokenToIndividual: {

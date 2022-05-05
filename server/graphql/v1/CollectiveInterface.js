@@ -1930,7 +1930,7 @@ export const CollectiveFeatures = new GraphQLObjectType({
   name: 'CollectiveFeatures',
   description: 'Describes the features enabled and available for this account',
   fields: () => {
-    console.log('\n\n\n FIELDS \n\n\n');
+    // console.log('\n\n\n FIELDS \n\n\n');
     console.log(FeaturesFields());
     return {
       id: {

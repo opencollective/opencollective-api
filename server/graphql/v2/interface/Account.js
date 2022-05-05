@@ -626,7 +626,7 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is frozen',
     resolve(collective) {
-      return get(collective, 'data.features.ALL') === false;
+      return get(collective, 'data.features.ALL') === false || get(collective, 'isFrozen') === true;
     },
   },
   isHost: {
