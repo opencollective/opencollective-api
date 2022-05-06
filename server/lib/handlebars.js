@@ -224,4 +224,10 @@ handlebars.registerHelper('escapeForSubject', str => {
   return str ? str.replace(/[\r\n]/g, ' ') : '';
 });
 
+handlebars.registerHelper('breaklines', text => {
+  text = handlebars.Utils.escapeExpression(text);
+  text = text.replace(/(\r\n|\n|\r)/gm, '<br>');
+  return new handlebars.SafeString(text);
+});
+
 export default handlebars;
