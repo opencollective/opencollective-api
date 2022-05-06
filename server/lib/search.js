@@ -92,7 +92,7 @@ const sanitizeSearchTermForILike = term => {
   return term.replace(/(_|%|\\)/g, '\\$1');
 };
 
-const getSearchTermSQLConditions = term => {
+const getSearchTermSQLConditions = (term, collectiveTable) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';
@@ -103,15 +103,15 @@ const getSearchTermSQLConditions = term => {
     if (term[0] === '@' && splitTerm.length === 1) {
       // When the search starts with a `@`, we search by slug only
       sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
-      sqlConditions = `AND slug ILIKE '%' || :sanitizedTerm || '%' `;
+      sqlConditions = `AND c."slug" ILIKE '%' || :sanitizedTerm || '%' `;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
       if (sanitizedTerm) {
         tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
         tsQueryArg = tsQueryFunc === 'to_tsquery' ? `:sanitizedTerm':*'` : ':sanitizedTerm';
         sqlConditions = `
-        AND ("searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
-        OR "searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
+        AND (${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
+        OR ${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
       }
     }
   }
@@ -151,42 +151,42 @@ export const searchCollectivesInDB = async (
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
-    dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
+    dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
   }
 
   if (isHost) {
-    dynamicConditions += `AND "isHostAccount" IS TRUE AND "type" = 'ORGANIZATION' `;
+    dynamicConditions += `AND c."isHostAccount" IS TRUE AND c."type" = 'ORGANIZATION' `;
   }
 
   if (types?.length) {
-    dynamicConditions += `AND "type" IN (:types) `;
+    dynamicConditions += `AND c."type" IN (:types) `;
   }
 
   if (onlyActive) {
-    dynamicConditions += 'AND "isActive" = TRUE ';
+    dynamicConditions += 'AND c."isActive" = TRUE ';
   }
 
   if (skipRecentAccounts) {
-    dynamicConditions += `AND (COALESCE(("data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR "createdAt" < (NOW() - interval '2 day')) `;
+    dynamicConditions += `AND (COALESCE((c."data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR c."createdAt" < (NOW() - interval '2 day')) `;
   }
 
   if (typeof hasCustomContributionsEnabled === 'boolean') {
     if (hasCustomContributionsEnabled) {
-      dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
+      dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
     } else {
-      dynamicConditions += `AND ("settings"->>'disableCustomContributions')::boolean IS TRUE `;
+      dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS TRUE `;
     }
   }
 
   if (countryCodes) {
-    dynamicConditions += `AND "countryISO" IN (:countryCodes) `;
+    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" IN (:countryCodes)) `;
   }
 
   if (tags?.length) {
-    dynamicConditions += `AND "tags" @> (:searchedTags) `;
+    dynamicConditions += `AND c."tags" @> (:searchedTags) `;
   }
 
-  const searchTermConditions = getSearchTermSQLConditions(term);
+  const searchTermConditions = getSearchTermSQLConditions(term, 'c');
   if (searchTermConditions.sqlConditions) {
     dynamicConditions += searchTermConditions.sqlConditions;
   }
@@ -199,17 +199,17 @@ export const searchCollectivesInDB = async (
       AND t."deletedAt" IS NULL`,
 
     RANK: `
-      CASE WHEN (slug = :slugifiedTerm OR name ILIKE :sanitizedTerm) THEN
+      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
         1
       ELSE
         ${
           searchTermConditions.tsQueryFunc
-            ? `ts_rank("searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
+            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
             : '0'
         }
       END`,
 
-    CREATED_AT: `"createdAt"`,
+    CREATED_AT: `c."createdAt"`,
   };
 
   let sortQueryType = orderBy?.field || 'RANK';
@@ -225,13 +225,14 @@ export const searchCollectivesInDB = async (
       COUNT(*) OVER() AS __total__,
       (${sortSubqueries[sortQueryType]}) as __sort__
     FROM "Collectives" c
-    WHERE "deletedAt" IS NULL
-    AND "deactivatedAt" IS NULL
-    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
-    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
-    AND name != 'incognito'
-    AND name != 'anonymous'
-    AND "isIncognito" = FALSE ${dynamicConditions}
+    ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
+    WHERE c."deletedAt" IS NULL
+    AND c."deactivatedAt" IS NULL
+    AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
+    AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    AND c.name != 'incognito'
+    AND c.name != 'anonymous'
+    AND c."isIncognito" = FALSE ${dynamicConditions}
     ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
