@@ -6,6 +6,8 @@ import moment from 'moment';
 import * as errors from '../graphql/errors';
 import models, { Op } from '../models';
 
+import { crypto, generateKey } from './encryption';
+
 // Helper
 const daysToSeconds = days => moment.duration({ days }).asSeconds();
 const minutesToSeconds = minutes => moment.duration({ minutes }).asSeconds();
@@ -22,7 +24,8 @@ const KID = 'HS256-2019-09-02';
 
 /** Generate a JWToken with the received parameters */
 export function createJwt(subject, payload, expiresIn) {
-  return jwt.sign(payload || {}, config.keys.opencollective.jwtSecret, {
+  const sessionId = payload?.sessionId || crypto.hash(generateKey(256));
+  return jwt.sign({ ...payload, sessionId }, config.keys.opencollective.jwtSecret, {
     expiresIn,
     subject: String(subject),
     algorithm: ALGORITHM,

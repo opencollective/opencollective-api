@@ -30,11 +30,11 @@ export function verifyTwoFactorAuthenticationRecoveryCode(hashedRecoveryCodes, r
 }
 
 /** Host 2FA rolling limit functions*/
-const getTwoFactorAuthenticationLimitKey = userId => {
-  return `${userId}_2fa_payment_limit`;
+const getTwoFactorAuthenticationLimitKey = (userId, sessionId) => {
+  return `${userId}_2fa_payment_limit_${sessionId}`;
 };
 
-export async function handleTwoFactorAuthenticationPayoutLimit(user, twoFactorAuthenticatorCode, expense) {
+export async function handleTwoFactorAuthenticationPayoutLimit(user, twoFactorAuthenticatorCode, expense, sessionId) {
   if (user.twoFactorAuthToken !== null) {
     const host = await expense.collective.getHostCollective();
     const hostPayoutTwoFactorAuthenticationRollingLimit = get(
@@ -43,7 +43,7 @@ export async function handleTwoFactorAuthenticationPayoutLimit(user, twoFactorAu
       1000000,
     );
     // 1. we check the 'cache' if the key exists: cacheKey=${user.id}_2fa_payment_limit
-    const twoFactorAuthenticationLimitKey = getTwoFactorAuthenticationLimitKey(user.id);
+    const twoFactorAuthenticationLimitKey = getTwoFactorAuthenticationLimitKey(user.id, sessionId);
     const twoFactorAuthenticationLimitAmountForUser = await cache.get(twoFactorAuthenticationLimitKey);
 
     if (twoFactorAuthenticatorCode) {

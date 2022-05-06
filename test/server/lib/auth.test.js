@@ -23,6 +23,20 @@ describe('server/lib/auth', () => {
     expect(decoded.foo).to.equal('bar');
   });
 
+  it('should automatically attribute a session id', () => {
+    const token = auth.createJwt('subject', {}, 5);
+
+    const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret);
+    expect(decoded).to.have.property('sessionId');
+  });
+
+  it('should mantain session id when renewing token', () => {
+    const token = auth.createJwt('subject', { sessionId: 'fake-session-id' }, 5);
+
+    const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret);
+    expect(decoded).to.have.property('sessionId').equal('fake-session-id');
+  });
+
   it('should validate tokens', () => {
     const token = auth.createJwt('sub', {}, 5);
     expect(Boolean(auth.verifyJwt(token))).to.be.true;

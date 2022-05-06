@@ -14,13 +14,20 @@ describe('server/models/VirtualCard', () => {
       let missing = await virtualCard.getExpensesMissingDetails();
       expect(missing).to.have.length(0);
 
-      const expense = await fakeExpense({ VirtualCardId: virtualCard.id, data: { missingDetails: true } });
+      const expense = await fakeExpense({
+        VirtualCardId: virtualCard.id,
+        type: 'CHARGE',
+        status: 'PAID',
+        items: [{ amount: 10000 }],
+      });
+      const chargeItem = expense.items[0];
+      await chargeItem.update({ url: null });
 
       missing = await virtualCard.getExpensesMissingDetails();
       expect(missing).to.have.length(1);
       expect(missing[0]).to.have.property('id', expense.id);
 
-      await expense.update({ data: { missingDetails: false } });
+      await chargeItem.update({ url: 'fake.url' });
 
       missing = await virtualCard.getExpensesMissingDetails();
       expect(missing).to.have.length(0);

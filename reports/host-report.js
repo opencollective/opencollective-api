@@ -120,6 +120,9 @@ async function HostReport(year, month, hostId) {
     const slugs = process.env.SKIP_SLUGS.split(',');
     previewCondition = `AND c.slug NOT IN ('${slugs.join("','")}')`;
   }
+  if (process.env.AFTER_ID) {
+    previewCondition = `AND c.id > ${Number(process.env.AFTER_ID)}`;
+  }
 
   const getHostStats = async (host, collectiveids) => {
     // Since collectives can change host,

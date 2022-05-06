@@ -69,8 +69,8 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   }
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
-    return sequelize.models.Expense.findAll({
-      where: { VirtualCardId: this.id, data: { missingDetails: true } },
+    return sequelize.models.Expense.findPendingCardCharges({
+      where: { VirtualCardId: this.id },
     });
   }
 

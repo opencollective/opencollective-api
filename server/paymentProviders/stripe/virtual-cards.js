@@ -12,7 +12,7 @@ import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } f
 
 const providerName = 'stripe';
 
-export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, collectiveId, host, userId) => {
+export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
   const stripe = getStripeClient(host.slug, connectedAccount.token);
@@ -22,14 +22,22 @@ export const assignCardToCollective = async (cardNumber, expireDate, cvv, name, 
 
   let matchingCard;
 
-  for (const card of cards) {
+  // Experimental: dedicated matching for Physical Cards
+  for (const card of cards.filter(card => card.type === 'physical')) {
+    if (card['exp_month'] === parseInt(expiryDate.slice(0, 2)) && card['exp_year'] === parseInt(expiryDate.slice(-4))) {
+      matchingCard = card;
+      break;
+    }
+  }
+
+  for (const card of cards.filter(card => card.type === 'virtual')) {
     const stripeCard = await stripe.issuing.cards.retrieve(card.id, { expand: ['number', 'cvc'] });
 
     if (
       stripeCard.number === cardNumber &&
       stripeCard.cvc === cvv &&
-      stripeCard['exp_month'] === parseInt(expireDate.slice(0, 2)) &&
-      stripeCard['exp_year'] === parseInt(expireDate.slice(-4))
+      stripeCard['exp_month'] === parseInt(expiryDate.slice(0, 2)) &&
+      stripeCard['exp_year'] === parseInt(expiryDate.slice(-4))
     ) {
       matchingCard = stripeCard;
       break;
@@ -285,7 +293,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
     last4: stripeCard.last4,
     privateData: {
       cardNumber: stripeCard.number,
-      expireDate: `${stripeCard['exp_month']}/${stripeCard['exp_year']}`,
+      expiryDate: `${stripeCard['exp_month']}/${stripeCard['exp_year']}`,
       cvv: stripeCard.cvc,
     },
     data: omit(stripeCard, ['number', 'cvc', 'exp_year', 'exp_month']),

@@ -224,11 +224,11 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
     expenseStatus.CANCELED,
   ];
 
-  // Collective Admin can attach receipts to paid charge expenses
+  // Host and Collective Admin can attach receipts to paid charge expenses
   if (
     expense.type === EXPENSE_TYPE.CHARGE &&
     expense.status === expenseStatus.PAID &&
-    req.remoteUser?.hasRole([roles.ADMIN], expense.CollectiveId)
+    (req.remoteUser?.isAdmin(expense.CollectiveId) || req.remoteUser?.isAdmin(expense.HostCollectiveId))
   ) {
     return true;
   } else if (nonEditableStatuses.includes(expense.status)) {
@@ -411,6 +411,14 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, 
       throw new Forbidden(
         'Can not mark expense as unpaid in current status',
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  } else if (expense.type === EXPENSE_TYPE.CHARGE) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Can not mark this type of expense as unpaid',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_TYPE,
       );
     }
     return false;
@@ -1149,7 +1157,7 @@ export async function editExpense(
     if (host?.settings?.virtualcards?.autopause) {
       const virtualCard = await expense.getVirtualCard();
       const expensesMissingReceipts = await virtualCard.getExpensesMissingDetails();
-      if (virtualCard.isPaused() && expensesMissingReceipts.length > 0) {
+      if (virtualCard.isPaused() && expensesMissingReceipts.length === 0) {
         await virtualCard.resume();
       }
     }
@@ -1645,7 +1653,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
     if (useTwoFactorAuthentication) {
-      await handleTwoFactorAuthenticationPayoutLimit(req.remoteUser, args.twoFactorAuthenticatorCode, expense);
+      await handleTwoFactorAuthenticationPayoutLimit(
+        req.remoteUser,
+        args.twoFactorAuthenticatorCode,
+        expense,
+        req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`) || 'noSessionId',
+      );
     }
 
     try {
