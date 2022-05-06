@@ -304,7 +304,7 @@ export const canPayExpense: ExpensePermissionEvaluator = async (req, expense, op
  * Returns true if expense can be approved by user
  */
 export const canApprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.PENDING, expenseStatus.REJECTED].includes(expense.status)) {
+  if (![expenseStatus.PENDING, expenseStatus.REJECTED, expenseStatus.INCOMPLETE].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not approve expense in current status',
@@ -380,7 +380,7 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, op
  * Returns true if expense can be unapproved by user
  */
 export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR, expenseStatus.INCOMPLETE].includes(expense.status)) {
+  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -939,12 +939,11 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const isPaidCreditCardCharge = expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID;
-  const isMarkedAsIncomplete = expense.status === expenseStatus.INCOMPLETE;
 
   if (isPaidCreditCardCharge && !hasAmountChanges) {
     return false;
   }
-  return hasItemsChanges || hasAmountChanges || hasPayoutChanges || isMarkedAsIncomplete;
+  return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
 };
 
 /** Returns infos about the changes made to items */
