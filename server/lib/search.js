@@ -193,7 +193,7 @@ export const searchCollectivesInDB = async (
 
   const sortSubqueries = {
     ACTIVITY: `
-      SELECT COALESCE(SUM(ABS("netAmountInCollectiveCurrency")), 0)
+      SELECT COALESCE(COUNT(t.id), 0)
       FROM "Transactions" t
       WHERE t."CollectiveId" = c.id
       AND t."deletedAt" IS NULL`,
@@ -212,13 +212,18 @@ export const searchCollectivesInDB = async (
     CREATED_AT: `c."createdAt"`,
   };
 
+  let sortQueryType = orderBy?.field || 'RANK';
+  if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
+    sortQueryType = 'CREATED_AT'; // We can't sort by rank if there's no search term, fallback on createdAt
+  }
+
   // Build the query
   const result = await sequelize.query(
     `
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (${sortSubqueries[orderBy?.field || 'RANK']}) as __sort__
+      (${sortSubqueries[sortQueryType]}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
     WHERE c."deletedAt" IS NULL
@@ -238,7 +243,7 @@ export const searchCollectivesInDB = async (
       replacements: {
         types,
         term: term,
-        slugifiedTerm: slugify(term),
+        slugifiedTerm: term ? slugify(term) : '',
         sanitizedTerm: searchTermConditions.sanitizedTerm,
         searchedTags,
         countryCodes,

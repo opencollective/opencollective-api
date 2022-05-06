@@ -64,6 +64,7 @@ const mutations = {
   },
   createCollectiveFromGithub: {
     type: CollectiveInterfaceType,
+    deprecationReason: '2022-05-03: This mutation is deprecated and can only be used in test environments.',
     args: {
       collective: { type: new GraphQLNonNull(CollectiveInputType) },
     },

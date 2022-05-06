@@ -216,5 +216,9 @@ export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
     defaults: { name: vendorName, type: CollectiveTypes.VENDOR },
   });
 
+  if (vendor && vendor.name !== vendorName) {
+    logger.warn(`Virtual Card: vendor name mismatch for ${vendorProviderId}: '${vendorName}' / '${vendor.name}'`);
+  }
+
   return vendor;
 };
