@@ -277,6 +277,10 @@ const expenseMutations = {
               description: '2FA code for if the host account has 2FA for payouts turned on.',
               defaultValue: 'COLLECTIVE',
             },
+            message: {
+              type: GraphQLString,
+              description: 'Message to be attached to the action activity.',
+            },
           }),
         }),
       },
@@ -293,7 +297,7 @@ const expenseMutations = {
         case 'UNAPPROVE':
           return unapproveExpense(req, expense);
         case 'MARK_AS_INCOMPLETE':
-          return markExpenseAsIncomplete(req, expense);
+          return markExpenseAsIncomplete(req, expense, args.paymentParams?.message);
         case 'REJECT':
           return rejectExpense(req, expense);
         case 'MARK_AS_SPAM':

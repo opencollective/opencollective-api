@@ -516,6 +516,7 @@ export const unapproveExpense = async (
 export const markExpenseAsIncomplete = async (
   req: express.Request,
   expense: typeof models.Expense,
+  message?: string,
 ): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.INCOMPLETE) {
     return expense;
@@ -524,7 +525,7 @@ export const markExpenseAsIncomplete = async (
   }
 
   const updatedExpense = await expense.update({ status: expenseStatus.INCOMPLETE, lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser, { message });
   return updatedExpense;
 };
 

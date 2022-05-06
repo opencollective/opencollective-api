@@ -339,7 +339,7 @@ function defineModel() {
       CollectiveId: this.collective.id,
       ExpenseId: this.id,
       data: {
-        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote']),
+        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote', 'message']),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
