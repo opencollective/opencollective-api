@@ -195,7 +195,6 @@ const accountMutations = {
         await account.update({isFrozen: false})
       } else {
         await account.freeze(args)
-        sequelize.update()
         await account.update({isFrozen: true})
       }
       return await account.reload();

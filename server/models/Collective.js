@@ -1125,9 +1125,9 @@ function defineModel() {
   };
 
   Collective.prototype.freeze = async function (args) {
-    if (this.data?.features?.ALL === false) {
-      throw new Error('This account is already frozen');
-    }
+    // if (this.data?.features?.ALL === false) {
+    //   throw new Error('This account is already frozen');
+    // }
 
     const host = this.host || (await this.getHostCollective());
     await sequelize.transaction(async transaction => {
