@@ -8,6 +8,7 @@ import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import AccountQuery from './AccountQuery';
+import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
 import ConversationQuery from './ConversationQuery';
 import EventQuery from './EventQuery';
@@ -26,6 +27,7 @@ import UpdateQuery from './UpdateQuery';
 const query = {
   account: AccountQuery,
   accounts: AccountsQuery,
+  application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,
   event: EventQuery,

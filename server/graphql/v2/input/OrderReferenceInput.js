@@ -30,7 +30,7 @@ export const fetchOrderWithReference = async input => {
 
   let order;
   if (input.id) {
-    const id = idDecode(input.id, 'order');
+    const id = idDecode(input.id, IDENTIFIER_TYPES.ORDER);
     order = await loadOrderById(id);
   } else if (input.legacyId) {
     order = await loadOrderById(input.legacyId);

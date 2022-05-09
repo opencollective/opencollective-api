@@ -30,6 +30,7 @@ export const IDENTIFIER_TYPES = {
   RECURRING_EXPENSE: 'recurring-expense',
   ORDER: 'order',
   UPDATE: 'update',
+  APPLICATION: 'application',
 };
 
 const getDefaultInstance = type => {

@@ -1,5 +1,6 @@
 import accountMutations from './AccountMutations';
 import { addFundsMutation } from './AddFundsMutations';
+import applicationMutations from './ApplicationMutations';
 import commentMutations from './CommentMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
 import conversationMutations from './ConversationMutations';
@@ -26,28 +27,29 @@ import virtualCardMutations from './VirtualCardMutations';
 const mutation = {
   addFunds: addFundsMutation,
   createCollective: createCollectiveMutation,
+  createEvent: createEventMutation,
   createFund: createFundMutation,
   createOrganization: createOrganizationMutation,
   createProject: createProjectMutation,
-  createEvent: createEventMutation,
+  ...accountMutations,
+  ...applicationMutations,
   ...commentMutations,
   ...connectedAccountMutations,
   ...conversationMutations,
-  ...expenseMutations,
   ...emojiReactionMutations,
-  ...hostApplicationMutations,
-  ...accountMutations,
+  ...expenseMutations,
   ...guestMutations,
-  ...payoutMethodMutations,
+  ...hostApplicationMutations,
+  ...individualMutations,
+  ...memberInvitationMutations,
+  ...memberMutations,
   ...orderMutations,
   ...paymentMethodMutations,
-  ...transactionMutations,
-  ...memberMutations,
-  ...memberInvitationMutations,
-  ...updateMutations,
-  ...individualMutations,
-  ...virtualCardMutations,
+  ...payoutMethodMutations,
   ...rootMutations,
+  ...transactionMutations,
+  ...updateMutations,
+  ...virtualCardMutations,
 };
 
 export default mutation;
