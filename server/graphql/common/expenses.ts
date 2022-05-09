@@ -225,12 +225,8 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
   ];
 
   // Host and Collective Admin can attach receipts to paid charge expenses
-  if (
-    expense.type === EXPENSE_TYPE.CHARGE &&
-    expense.status === expenseStatus.PAID &&
-    (req.remoteUser?.isAdmin(expense.CollectiveId) || req.remoteUser?.isAdmin(expense.HostCollectiveId))
-  ) {
-    return true;
+  if (expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not edit expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
