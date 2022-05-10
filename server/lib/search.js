@@ -119,6 +119,40 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
   return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm };
 };
 
+const getSortSubQuery = (searchTermConditions, orderBy = null) => {
+  const sortSubQueries = {
+    ACTIVITY: `
+      SELECT COALESCE(COUNT(t.id), 0)
+      FROM "Transactions" t
+      WHERE t."CollectiveId" = c.id
+      AND t."deletedAt" IS NULL`,
+
+    RANK: `
+      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
+        1
+      ELSE
+        ${
+          searchTermConditions.tsQueryFunc
+            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
+            : '0'
+        }
+      END`,
+
+    CREATED_AT: `c."createdAt"`,
+  };
+
+  let sortQueryType = orderBy?.field || 'RANK';
+  if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
+    sortQueryType = 'CREATED_AT'; // We can't sort by rank if there's no search term, fallback on createdAt
+  }
+
+  if (!(sortQueryType in sortSubQueries)) {
+    throw new Error(`Sort field ${sortQueryType} is not supported for this query`);
+  } else {
+    return sortSubQueries[sortQueryType];
+  }
+};
+
 /**
  * Search collectives directly in the DB, using a full-text query.
  */
@@ -191,39 +225,13 @@ export const searchCollectivesInDB = async (
     dynamicConditions += searchTermConditions.sqlConditions;
   }
 
-  const sortSubqueries = {
-    ACTIVITY: `
-      SELECT COALESCE(COUNT(t.id), 0)
-      FROM "Transactions" t
-      WHERE t."CollectiveId" = c.id
-      AND t."deletedAt" IS NULL`,
-
-    RANK: `
-      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
-        1
-      ELSE
-        ${
-          searchTermConditions.tsQueryFunc
-            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
-            : '0'
-        }
-      END`,
-
-    CREATED_AT: `c."createdAt"`,
-  };
-
-  let sortQueryType = orderBy?.field || 'RANK';
-  if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
-    sortQueryType = 'CREATED_AT'; // We can't sort by rank if there's no search term, fallback on createdAt
-  }
-
   // Build the query
   const result = await sequelize.query(
     `
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      (${sortSubqueries[sortQueryType]}) as __sort__
+      (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
     WHERE c."deletedAt" IS NULL
