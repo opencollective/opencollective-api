@@ -121,10 +121,7 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
 
 const getSortSubQuery = (searchTermConditions, orderBy = null) => {
   const sortSubQueries = {
-    ACTIVITY: `
-      SELECT COALESCE("transactionsCount", 0)
-      FROM "CollectiveStats" stats
-      WHERE stats."id" = c.id`,
+    ACTIVITY: `COALESCE(transaction_stats."count", 0)`,
 
     RANK: `
       CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
@@ -233,6 +230,7 @@ export const searchCollectivesInDB = async (
       (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
+    LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id
     WHERE c."deletedAt" IS NULL
     AND c."deactivatedAt" IS NULL
     AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
