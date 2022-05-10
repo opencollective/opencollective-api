@@ -97,6 +97,24 @@ export const runSearchTsVectorMigration = async () => {
     AND name != 'anonymous'
     AND "isIncognito" = FALSE
   `);
+
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
+      SELECT
+        c.id,
+        COUNT(DISTINCT t.id) AS "count",
+        SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'CREDIT') AS "totalAmountReceivedInHostCurrency",
+        SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'DEBIT') AS "totalAmountSpentInHostCurrency"
+      FROM "Collectives" c
+      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id AND t."deletedAt" IS NULL AND t."RefundTransactionId" IS NULL
+      WHERE c."deletedAt" IS NULL
+      AND c."deactivatedAt" IS NULL
+      AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
+      AND c.name != 'incognito'
+      AND c.name != 'anonymous'
+      AND c."isIncognito" = FALSE
+      GROUP BY c.id
+  `);
 };
 
 export async function loadDB(dbname) {
