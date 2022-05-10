@@ -304,7 +304,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
   describe('setPolicies', () => {
     const setPoliciesMutation = gqlV2/* GraphQL */ `
-      mutation setPoliciesMutation($account: AccountReferenceInput!, $policies: [Policy]!) {
+      mutation setPoliciesMutation($account: AccountReferenceInput!, $policies: JSON!) {
         setPolicies(account: $account, policies: $policies) {
           id
           settings
@@ -316,18 +316,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     it('should enable policy', async () => {
       const mutationParams = {
         account: { legacyId: collective.id },
-        policies: [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE],
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
       };
       await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
 
       await collective.reload();
-      expect(collective.data.policies).to.deep.equal([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
     });
 
     it('should disable policy', async () => {
       const mutationParams = {
         account: { legacyId: collective.id },
-        policies: [],
+        policies: {},
       };
       await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
 
@@ -338,7 +338,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     it('should fail if user is not authorized', async () => {
       const mutationParams = {
         account: { legacyId: collective.id },
-        policies: [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE],
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
       };
       const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, hostAdminUser);
       expect(result.errors).to.have.lengthOf(1);

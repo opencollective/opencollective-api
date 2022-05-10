@@ -417,7 +417,7 @@ interface Account {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 }
 
 """
@@ -2760,7 +2760,7 @@ type Host implements Account & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Number of unique financial contributors.
@@ -3567,10 +3567,6 @@ type VirtualCardCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [VirtualCard]
-}
-
-enum Policy {
-  EXPENSE_AUTHOR_CANNOT_APPROVE
 }
 
 """
@@ -4498,7 +4494,7 @@ type Bot implements Account {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 }
 
 """
@@ -4911,7 +4907,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Returns the Fiscal Host
@@ -5648,7 +5644,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Returns the Fiscal Host
@@ -6167,7 +6163,7 @@ type Individual implements Account {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
   email: String
   isGuest: Boolean!
   isFollowingConversation(id: String!): Boolean!
@@ -6714,7 +6710,7 @@ type Organization implements Account & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Number of unique financial contributors.
@@ -7249,7 +7245,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Returns the Fiscal Host
@@ -9686,7 +9682,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Returns the Fiscal Host
@@ -10213,7 +10209,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): VirtualCardCollection!
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
-  policies: [Policy]
+  policies: JSON!
 
   """
   Returns the Fiscal Host
@@ -10577,7 +10573,7 @@ type Mutation {
     """
     The policy to be added
     """
-    policies: [Policy]
+    policies: JSON!
   ): Account!
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application

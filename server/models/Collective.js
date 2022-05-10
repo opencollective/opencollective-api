@@ -21,7 +21,6 @@ import {
   sum,
   sumBy,
   trim,
-  uniq,
   unset,
 } from 'lodash';
 import moment from 'moment';
@@ -3311,17 +3310,17 @@ function defineModel() {
   };
 
   Collective.prototype.setPolicies = async function (policies) {
-    for (const policy of policies) {
+    for (const policy of Object.keys(policies)) {
       if (!Object.keys(POLICIES).includes(policy)) {
         throw new Error(`Policy ${policy} is not supported`);
       }
     }
 
-    return this.update({ data: { ...this.data, policies: uniq(policies) } });
+    return this.update({ data: { ...this.data, policies } });
   };
 
   Collective.prototype.hasPolicy = function (policy) {
-    return Boolean(this.data?.policies?.includes(policy));
+    return Boolean(this.data?.policies?.[policy]);
   };
 
   /**

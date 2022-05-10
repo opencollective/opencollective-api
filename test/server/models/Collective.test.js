@@ -1238,17 +1238,17 @@ describe('server/models/Collective', () => {
     });
 
     it('should set policies', async () => {
-      await collective.setPolicies([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
 
-      expect(collective.data.policies).to.deep.equal([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
     });
 
     it('should fail setting policies if policy does not exists', async () => {
-      return expect(collective.setPolicies(['FAKE_POLICY'])).to.eventually.be.rejected;
+      return expect(collective.setPolicies({ FAKE_POLICY: true })).to.eventually.be.rejected;
     });
 
     it('should return true or false when checking if a policy exists with hasPolicy()', async () => {
-      await collective.setPolicies([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
 
       expect(collective.hasPolicy(POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE)).to.be.true;
       expect(collective.hasPolicy('FAKE_POLICY')).to.be.false;
