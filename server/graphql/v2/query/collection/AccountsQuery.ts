@@ -110,7 +110,7 @@ const AccountsQuery = {
         throw new Error(`Only CREATED_AT is supported for orderBy when using supportedPaymentMethodService`);
       }
 
-      const order = [['createdAt', args.orderBy.direction || 'DESC']];
+      const order = [['createdAt', orderBy.direction || 'DESC']];
       const result = await models.Collective.findAndCountAll({ where, order, offset, limit });
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     } else {
