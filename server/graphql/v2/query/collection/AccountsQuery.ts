@@ -40,7 +40,8 @@ const AccountsQuery = {
     supportedPaymentMethodService: {
       type: new GraphQLList(PaymentMethodService),
       description: 'Only accounts that support one of these payment services will be returned',
-      deprecationReason: '2022-04-22: Introduced for Hacktoberfest and not used anymore.',
+      deprecationReason:
+        '2022-04-22: Introduced for Hacktoberfest. Reference: https://github.com/opencollective/opencollective-api/pull/7440#issuecomment-1121504508',
     },
     skipRecentAccounts: {
       type: GraphQLBoolean,
