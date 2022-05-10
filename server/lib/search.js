@@ -122,10 +122,9 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
 const getSortSubQuery = (searchTermConditions, orderBy = null) => {
   const sortSubQueries = {
     ACTIVITY: `
-      SELECT COALESCE(COUNT(t.id), 0)
-      FROM "Transactions" t
-      WHERE t."CollectiveId" = c.id
-      AND t."deletedAt" IS NULL`,
+      SELECT COALESCE("transactionsCount", 0)
+      FROM "CollectiveStats" stats
+      WHERE stats."id" = c.id`,
 
     RANK: `
       CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
