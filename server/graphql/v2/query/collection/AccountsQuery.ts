@@ -54,7 +54,8 @@ const AccountsQuery = {
     },
     orderBy: {
       type: OrderByInput,
-      description: 'The order of results',
+      description:
+        'The order of results. Defaults to [RANK, DESC] (or [CREATED_AT, DESC] if `supportedPaymentMethodService` is provided)',
     },
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
@@ -104,7 +105,12 @@ const AccountsQuery = {
       where['HostCollectiveId'] = hostsWithSupportedPaymentProviders.map(h => h.id);
 
       // Fetch & return results
-      const order = [[args.orderBy.field, args.orderBy.direction]];
+      const orderBy = args.orderBy || { field: 'CREATED_AT', direction: 'DESC' };
+      if (orderBy.field !== 'CREATED_AT') {
+        throw new Error(`Only CREATED_AT is supported for orderBy when using supportedPaymentMethodService`);
+      }
+
+      const order = [['createdAt', args.orderBy.direction || 'DESC']];
       const result = await models.Collective.findAndCountAll({ where, order, offset, limit });
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     } else {
