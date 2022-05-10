@@ -12,11 +12,11 @@ import { sequelize } from '../../server/models';
  * using this table until the refresh is complete.
  */
 export async function run() {
-  logger.info('Refreshing CollectiveStats materialized view...');
+  logger.info('Refreshing CollectiveTransactionStats materialized view...');
   const startTime = process.hrtime();
-  await sequelize.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY "CollectiveStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY "CollectiveTransactionStats"`);
   const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
-  logger.info(`CollectiveStats materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
+  logger.info(`CollectiveTransactionStats materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
 }
 
 if (require.main === module) {
