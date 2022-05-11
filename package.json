@@ -130,6 +130,7 @@
     "@babel/cli": "^7.16.0",
     "@babel/eslint-parser": "^7.16.0",
     "@babel/register": "^7.16.0",
+    "@types/express-oauth-server": "^2.0.4",
     "@types/lodash": "^4.14.171",
     "@types/mocha": "^9.0.0",
     "@types/node": "^14.14.31",

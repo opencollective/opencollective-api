@@ -1,11 +1,19 @@
-const model = {
-  generateAccessToken: function (client, user, scope) {},
+import type OAuthServer from 'express-oauth-server';
 
-  generateRefreshToken: function (client, user, scope) {},
+type OAuthModel = OAuthServer.Options['model'];
 
-  getAccessToken: function (accessToken) {},
+const model: OAuthModel = {
+  generateAccessToken: async function (client, user, scope) {
+    return 'TODO';
+  },
 
-  getRefreshToken: function (refreshToken) {},
+  generateRefreshToken: async function (client, user, scope) {
+    return 'TODO';
+  },
+
+  getAccessToken: async function (accessToken) {},
+
+  getRefreshToken: async function (refreshToken) {},
 
   getAuthorizationCode: function (authorizationCode) {},
 
