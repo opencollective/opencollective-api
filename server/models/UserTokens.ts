@@ -43,6 +43,7 @@ export enum TokenType {
   OAUTH = 'OAUTH',
 }
 
+// TODO: Model name should be singular
 class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes> implements UserTokensAttributes {
   id: number;
   type: 'OAUTH';
@@ -82,6 +83,7 @@ class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes>
     });
   }
 
+  // TODO: We're moving this to server/lib/oauth/model.ts
   private static generateToken(type: TokenType): string {
     if (type === TokenType.OAUTH) {
       const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';

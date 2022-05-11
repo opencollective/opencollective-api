@@ -7,6 +7,7 @@
 // to use in loops and repeated tests.
 
 import { get, padStart, sample } from 'lodash';
+import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
@@ -17,6 +18,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import models from '../../server/models';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { TokenType } from '../../server/models/UserTokens';
 import { randEmail, randUrl } from '../stores';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
@@ -747,6 +749,20 @@ export const fakeApplication = async (data = {}) => {
     ...data,
     CollectiveId,
     CreatedByUserId,
+  });
+};
+
+export const fakeUserToken = async (data = {}) => {
+  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  return models.UserTokens.create({
+    type: TokenType.OAUTH,
+    token: randStr('Token-'),
+    refreshToken: randStr('RefreshToken-'),
+    expiresAt: moment().add(60, 'days').toDate(),
+    refreshTokenExpiresAt: moment().add(300, 'days').toDate(),
+    ...data,
+    UserId: user.id,
+    ApplicationId: data.ApplicationId || (await fakeApplication({ user })).id,
   });
 };
 
