@@ -6,4 +6,16 @@ const oauth = new OAuthServer({
   model: model,
 });
 
+export const authorizeAuthenticateHandler = {
+  handle: function (req) {
+    if (req.remoteUser) {
+      console.log('authorizeAuthenticateHandler with user');
+    } else {
+      console.log('authorizeAuthenticateHandler no user');
+    }
+
+    return req.remoteUser;
+  },
+};
+
 export default oauth;
