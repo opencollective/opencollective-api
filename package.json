@@ -70,6 +70,7 @@
     "express": "4.18.1",
     "express-basic-auth": "1.2.1",
     "express-limiter": "1.6.1",
+    "express-oauth-server": "2.0.0",
     "express-session": "1.17.3",
     "express-ws": "5.0.2",
     "fs-extra": "10.1.0",

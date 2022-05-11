@@ -23,6 +23,7 @@ import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
 import logger from './lib/logger';
+import oauth from './lib/oauth';
 import { SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
@@ -51,6 +52,12 @@ export default async app => {
   app.use('*', authentication.checkClientApp);
 
   app.use('*', authentication.authorizeClientApp);
+
+  // oAuth server
+  app.oauth = oauth;
+  app.post('/oauth/token', app.oauth.token());
+  app.post('/oauth/authorize', app.oauth.authorize());
+  app.post('/oauth/authenticate', app.oauth.authenticate());
 
   // Setup rate limiter
   if (get(config, 'redis.serverUrl')) {
