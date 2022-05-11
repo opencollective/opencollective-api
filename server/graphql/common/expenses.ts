@@ -402,7 +402,7 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expen
   if (![expenseStatus.APPROVED, expenseStatus.PENDING, expenseStatus.ERROR].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
-        'Can not unapprove expense in current status',
+        'Can not mark expense as incomplete in current status',
         EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
       );
     }
