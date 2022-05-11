@@ -10,7 +10,11 @@ import { MigrationLogType } from '../models/MigrationLog';
  * From a given account, returns its entire network of accounts: administrated profiles,
  * other profiles administrated by the same admins, etc...
  */
-export const getAccountsNetwork = async (account: typeof models.Collective[]): Promise<typeof models.Collective[]> => {
+export const getAccountsNetwork = async (accounts: typeof models.Collective[]): Promise<typeof models.Collective[]> => {
+  if (!accounts?.length) {
+    return [];
+  }
+
   return sequelize.query(
     `
     WITH RECURSIVE profiles AS (
@@ -44,7 +48,7 @@ export const getAccountsNetwork = async (account: typeof models.Collective[]): P
       model: models.Collective,
       mapToModel: true,
       replacements: {
-        slugs: account.map(a => a.slug),
+        slugs: accounts.map(a => a.slug),
       },
     },
   );
