@@ -6,7 +6,7 @@ Subject: Your expense to {{{collective.name}}} for {{currency expense.amount cur
 <center>
   <p>Your expense, <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>, submitted to {{{collective.name}}} was flagged as incomplete and requires your attention:</p>
   {{#if message}}
-  <p>{{breaklines message}}</p>
+  <p style="white-space: pre-line;">{{message}}</p>
   {{/if}}
   <p>Please, open <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">the expense page</a> and check the comments section for more information.</p>
 </center>
