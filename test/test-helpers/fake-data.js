@@ -754,16 +754,19 @@ export const fakeApplication = async (data = {}) => {
 
 export const fakeUserToken = async (data = {}) => {
   const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
-  return models.UserToken.create({
+  const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
-    token: randStr('Token-'),
+    accessToken: randStr('Token-'),
     refreshToken: randStr('RefreshToken-'),
-    expiresAt: moment().add(60, 'days').toDate(),
+    accessTokenExpiresAt: moment().add(60, 'days').toDate(),
     refreshTokenExpiresAt: moment().add(300, 'days').toDate(),
     ...data,
     UserId: user.id,
     ApplicationId: data.ApplicationId || (await fakeApplication({ user })).id,
   });
+
+  // UserToken has a default scope that loads associations (which `.create` does not support)
+  return userToken.reload();
 };
 
 export const fakeRecurringExpense = async (data = {}) => {

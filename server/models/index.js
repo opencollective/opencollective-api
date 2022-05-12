@@ -150,8 +150,8 @@ export function setupModels() {
   });
 
   // User tokens
-  m.UserToken.belongsTo(m.User, { as: 'user' });
-  m.UserToken.belongsTo(m.Application, { as: 'application' });
+  m.UserToken.belongsTo(m.User, { foreignKey: 'UserId', as: 'user' });
+  m.UserToken.belongsTo(m.Application, { foreignKey: 'ApplicationId', as: 'application' });
 
   // Members
   m.Member.belongsTo(m.User, {

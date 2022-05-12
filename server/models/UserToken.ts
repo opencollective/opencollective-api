@@ -1,19 +1,14 @@
-import crypto from 'crypto';
-
-import config from 'config';
-import moment from 'moment';
+import type OAuth2Server from 'oauth2-server';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import models from '.';
+
 // Define all attributes for the model
-interface UserTokenAttributes {
+interface UserTokenAttributes extends OAuth2Server.Token {
   id: number;
   type: 'OAUTH';
-  token: string;
-  expiresAt: Date;
-  refreshToken: string;
-  refreshTokenExpiresAt?: Date;
   ApplicationId: number;
   UserId: number;
   data: Record<string, unknown>;
@@ -26,18 +21,14 @@ interface UserTokenAttributes {
 // Define attributes that can be used for model creation
 interface UserTokenCreateAttributes {
   type: 'OAUTH';
-  token: string;
-  expiresAt: Date;
+  accessToken: string;
+  accessTokenExpiresAt: Date;
   refreshToken: string;
   refreshTokenExpiresAt?: Date;
   ApplicationId: number;
   UserId: number;
   data: Record<string, unknown>;
 }
-
-const TOKEN_LENGTH = 64;
-const OAUTH_TOKEN_EXPIRATION_DAYS = 60;
-const OAUTH_REFRESH_TOKEN_EXPIRATION_DAYS = 360;
 
 export enum TokenType {
   OAUTH = 'OAUTH',
@@ -46,8 +37,8 @@ export enum TokenType {
 class UserToken extends Model<UserTokenAttributes, UserTokenCreateAttributes> implements UserTokenAttributes {
   id: number;
   type: 'OAUTH';
-  token: string;
-  expiresAt: Date;
+  accessToken: string;
+  accessTokenExpiresAt: Date;
   refreshToken: string;
   refreshTokenExpiresAt?: Date;
   ApplicationId: number;
@@ -56,40 +47,12 @@ class UserToken extends Model<UserTokenAttributes, UserTokenCreateAttributes> im
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  user: typeof models.User;
+  client: typeof models.Application;
 
   constructor(...args) {
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
-  }
-
-  /**
-   * Generate a user token for an OAuth application
-   */
-  public static generateOAuth(
-    UserId: number,
-    ApplicationId: number,
-    data: Record<string, unknown> = null,
-  ): Promise<UserToken> {
-    return UserToken.create({
-      type: TokenType.OAUTH,
-      UserId,
-      ApplicationId,
-      token: UserToken.generateToken(TokenType.OAUTH),
-      refreshToken: UserToken.generateToken(TokenType.OAUTH),
-      expiresAt: moment().add(OAUTH_TOKEN_EXPIRATION_DAYS, 'days').toDate(),
-      refreshTokenExpiresAt: moment().add(OAUTH_REFRESH_TOKEN_EXPIRATION_DAYS, 'days').toDate(),
-      data,
-    });
-  }
-
-  // TODO: We're moving this to server/lib/oauth/model.ts
-  private static generateToken(type: TokenType): string {
-    if (type === TokenType.OAUTH) {
-      const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';
-      return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-    } else {
-      throw new Error(`Unknown token type: ${type}`);
-    }
   }
 }
 
@@ -104,12 +67,12 @@ UserToken.init(
       type: DataTypes.ENUM('OAUTH'),
       allowNull: false,
     },
-    token: {
+    accessToken: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
     },
-    expiresAt: {
+    accessTokenExpiresAt: {
       type: DataTypes.DATE,
       allowNull: false,
     },
@@ -156,6 +119,12 @@ UserToken.init(
     sequelize,
     tableName: 'UserTokens',
     paranoid: true, // For soft-deletion
+    defaultScope: {
+      include: [
+        { association: 'user', required: true },
+        { association: 'application', required: true },
+      ],
+    },
   },
 );
 

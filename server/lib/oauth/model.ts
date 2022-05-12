@@ -5,14 +5,14 @@ import crypto from 'crypto';
 
 import config from 'config';
 import type OAuthServer from 'express-oauth-server';
+import type OAuth2Server from 'oauth2-server';
 
 import models from '../../models';
-
-type OAuthModel = OAuthServer.Options['model'];
+import UserToken, { TokenType } from '../../models/UserToken';
 
 const TOKEN_LENGTH = 64;
 
-const model: OAuthModel = {
+const model: OAuthServer.Options['model'] = {
   /** Invoked to generate a new access token */
   generateAccessToken: async function (client, user, scope) {
     console.log('model.generateAccessToken', client, user, scope);
@@ -26,17 +26,14 @@ const model: OAuthModel = {
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
   },
 
-  getAccessToken: async function (token) {
-    console.log('model.getAccessToken', token);
-    const userToken = await models.UserToken.findOne({ where: { token: token } });
-    const user = await models.User.findByPk(userToken.UserId);
-    return { ...userToken, user };
+  getAccessToken: async function (accessToken: string): Promise<UserToken> {
+    console.log('model.getAccessToken', accessToken);
+    return UserToken.findOne({ where: { accessToken } });
   },
 
   getRefreshToken: async function (refreshToken) {
     console.log('model.getRefreshToken', refreshToken);
-    // TODO: Add index on `refreshToken`
-    return models.UserToken.findOne({ where: { refreshToken } });
+    return UserToken.findOne({ where: { refreshToken } });
   },
 
   getAuthorizationCode: function (authorizationCode) {
@@ -66,8 +63,17 @@ const model: OAuthModel = {
     console.log('model.getUserFromClient', client);
   },
 
-  saveToken: function (token, client) {
+  saveToken: function (token: OAuth2Server.Token, client: typeof models.Application) {
     console.log('model.saveToken', token, client);
+    return UserToken.create({
+      type: TokenType.OAUTH,
+      accessToken: token.accessToken,
+      accessTokenExpiresAt: token.accessTokenExpiresAt,
+      refreshToken: token.refreshToken,
+      refreshTokenExpiresAt: token.refreshTokenExpiresAt,
+      ApplicationId: client.id,
+      UserId: token.user.id,
+    });
   },
 
   saveAuthorizationCode: function (code, client) {
