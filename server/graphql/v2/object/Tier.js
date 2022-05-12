@@ -2,9 +2,10 @@ import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLStri
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 
+import INTERVALS from '../../../constants/intervals';
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
-import { ContributionFrequency, OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
+import { OrderStatus, TierAmountType, TierFrequency, TierInterval, TierType } from '../enum';
 import { idEncode } from '../identifiers';
 
 import { Amount } from './Amount';
@@ -74,7 +75,18 @@ export const Tier = new GraphQLObjectType({
         deprecationReason: '2020-08-24: Please use "frequency"',
       },
       frequency: {
-        type: ContributionFrequency,
+        type: TierFrequency,
+        async resolve(tier) {
+          if (tier.interval === INTERVALS.MONTH) {
+            return 'MONTHLY';
+          } else if (tier.interval === INTERVALS.YEAR) {
+            return 'YEARLY';
+          } else if (tier.interval === INTERVALS.FLEXIBLE) {
+            return 'FLEXIBLE';
+          } else {
+            return 'ONETIME';
+          }
+        },
       },
       presets: {
         type: new GraphQLList(GraphQLInt),

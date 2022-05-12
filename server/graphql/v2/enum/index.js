@@ -14,6 +14,7 @@ export { PaymentMethodLegacyType } from './PaymentMethodLegacyType';
 export { PayoutMethodType } from './PayoutMethodType';
 export { ProcessHostApplicationAction } from './ProcessHostApplicationAction';
 export { TierAmountType } from './TierAmountType';
+export { TierFrequency } from './TierFrequency';
 export { TierInterval } from './TierInterval';
 export { TierType } from './TierType';
 export { TransactionType } from './TransactionType';
