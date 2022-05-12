@@ -50,11 +50,12 @@ const PaypalPlanQuery = {
       throw new Error('An interval must be provided to fetch PayPal plans');
     }
 
-    const amount = getValueInCentsFromAmountInput(args.amount);
-    const currency = args.amount.currency;
     const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-    const host = await collective.getHostCollective();
     const tier = args.tier && (await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true }));
+    const expectedCurrency = tier?.currency || collective?.currency;
+    const amount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
+    const currency = args.amount.currency;
+    const host = await collective.getHostCollective();
     return getOrCreatePlan(host, collective, interval, amount, currency, tier);
   },
 };

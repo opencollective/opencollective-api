@@ -23,12 +23,26 @@ export const AmountInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getValueInCentsFromAmountInput = input => {
+export const getValueInCentsFromAmountInput = (input, { expectedCurrency, allowNilCurrency = true } = {}) => {
+  if (expectedCurrency) {
+    assertAmountInputCurrency(input, expectedCurrency, { allowNil: allowNilCurrency });
+  }
+
   if (!isNil(input.valueInCents)) {
     return input.valueInCents;
   } else if (!isNil(input.value)) {
     return floatAmountToCents(input.value);
   } else {
     throw new Error('You must either set a `value` or a `valueInCents` when submitting an AmountInput');
+  }
+};
+
+export const assertAmountInputCurrency = (input, expectedCurrency, { allowNil = true, name = null } = {}) => {
+  if (allowNil && !input.currency) {
+    return;
+  } else if (input.currency !== expectedCurrency) {
+    throw new Error(
+      `Expected currency${name ? ` for ${name} ` : ' '}to be ${expectedCurrency} but was ${input.currency}`,
+    );
   }
 };

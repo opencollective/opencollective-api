@@ -38,7 +38,7 @@ export const addFundsMutation = {
 
     return addFunds(
       {
-        totalAmount: getValueInCentsFromAmountInput(args.amount),
+        totalAmount: getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency }),
         collective: account,
         fromCollective: fromAccount,
         description: args.description,

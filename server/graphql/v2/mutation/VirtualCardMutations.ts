@@ -10,7 +10,7 @@ import privacy from '../../../paymentProviders/privacy';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput } from '../input/AmountInput';
+import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { VirtualCardInput } from '../input/VirtualCardInput';
 import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
 import { VirtualCard } from '../object/VirtualCard';
@@ -120,7 +120,9 @@ const virtualCardMutations = {
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       const host = await collective.getHostCollective();
 
-      const monthlyLimitInCents = args.monthlyLimit.valueInCents;
+      const monthlyLimitInCents = getValueInCentsFromAmountInput(args.monthlyLimit, {
+        expectedCurrency: host.currency,
+      });
 
       if (monthlyLimitInCents > MAXIMUM_MONTHLY_LIMIT * 100) {
         throw new BadRequest(`Monthly limit should not exceed ${MAXIMUM_MONTHLY_LIMIT} ${host.currency}`, undefined, {
@@ -221,7 +223,9 @@ const virtualCardMutations = {
         virtualCard.spendingLimitInterval === frequencies.MONTHLY &&
         virtualCard.provider === providers.STRIPE
       ) {
-        const monthlyLimitInCents = args.monthlyLimit.valueInCents;
+        const monthlyLimitInCents = getValueInCentsFromAmountInput(args.monthlyLimit, {
+          expectedCurrency: virtualCard.currency,
+        });
 
         if (monthlyLimitInCents > MAXIMUM_MONTHLY_LIMIT * 100) {
           throw new BadRequest(
