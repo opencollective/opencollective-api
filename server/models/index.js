@@ -84,7 +84,7 @@ export function setupModels() {
   // Applications
   m.Application.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
   m.Application.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-  m.Application.hasMany(m.UserToken, { foreignKey: 'ApplicationId', as: 'UserToken' });
+  m.Application.hasMany(m.UserToken, { foreignKey: 'ApplicationId', as: 'userTokens' });
 
   // Collective
   m.Collective.belongsTo(m.Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
