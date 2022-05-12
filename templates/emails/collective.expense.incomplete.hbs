@@ -1,0 +1,23 @@
+Subject: Your expense to {{{collective.name}}} for {{currency expense.amount currency=expense.currency}} requires attention
+
+
+{{> header}}
+
+<center>
+  <p>Your expense, <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>, submitted to {{{collective.name}}} was flagged as incomplete and requires your attention:</p>
+  {{#if message}}
+  <p>{{breaklines message}}</p>
+  {{/if}}
+  <p>Please, open <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">the expense page</a> and check the comments section for more information.</p>
+</center>
+
+<br />
+<br />
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+    <div>View Expense</div>
+  </a>
+</center>
+
+{{> footer}}

@@ -58,6 +58,7 @@ export const generateExpenseActivitiesLoader = (req: express.Request): DataLoade
             ACTIVITY.COLLECTIVE_EXPENSE_ERROR,
             ACTIVITY.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
+            ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
           ],
         },
       },

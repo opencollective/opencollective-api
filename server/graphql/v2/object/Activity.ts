@@ -5,6 +5,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
 import ACTIVITY from '../../../constants/activities';
+import * as ExpenseLib from '../../common/expenses';
 import { ActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -61,6 +62,12 @@ export const Activity = new GraphQLObjectType({
           const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
           if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
             toPick.push('error');
+          }
+        }
+        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
+          const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+            toPick.push('message');
           }
         }
         return pick(activity.data, toPick);

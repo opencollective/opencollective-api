@@ -28,5 +28,8 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     MARK_AS_SPAM: {
       description: 'To mark the expense as spam',
     },
+    MARK_AS_INCOMPLETE: {
+      description: 'To mark the expense as incomplete and notify the payee it requires more information',
+    },
   },
 });
