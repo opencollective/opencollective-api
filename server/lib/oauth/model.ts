@@ -56,7 +56,7 @@ const model: OauthModel = {
       client: await this.getClient(jwt.client || jwt.clientId, null), // TODO: suppress jwt.client
       user: await models.User.findByPk(jwt.sub),
       expiresAt: new Date(jwt.exp * 1000),
-      redirectUri: 'foo',
+      redirectUri: 'http://localhost:3000',
     };
   },
 
@@ -77,7 +77,7 @@ const model: OauthModel = {
     const client = await models.Application.findOne({ where: { clientId } });
     return {
       ...client.dataValues,
-      id: client.clientId,
+      // id: client.clientId,
       grants: ['authorization_code'],
       redirectUris: [client.callbackUrl],
     };
@@ -92,17 +92,20 @@ const model: OauthModel = {
     console.log('model.getUserFromClient', client);
   },
 
-  async saveToken(token: OAuth2Server.Token, client: typeof models.Application) {
-    console.log('model.saveToken', token, client);
-    return UserToken.create({
+  async saveToken(token: OAuth2Server.Token, client: typeof models.Application, user: typeof models.User) {
+    console.log('model.saveToken', token, client, user);
+    const oauthToken = UserToken.create({
       type: TokenType.OAUTH,
       accessToken: token.accessToken,
       accessTokenExpiresAt: token.accessTokenExpiresAt,
       refreshToken: token.refreshToken,
       refreshTokenExpiresAt: token.refreshTokenExpiresAt,
       ApplicationId: client.id,
-      UserId: token.user.id,
+      UserId: user.id,
     });
+    // oauthToken.user = user;
+    // oauthToken.client = client;
+    return oauthToken;
   },
 
   async saveAuthorizationCode(code, client) {
