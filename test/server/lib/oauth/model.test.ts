@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 import config from 'config';
+import jwt from 'jsonwebtoken';
 import { InvalidTokenError } from 'oauth2-server';
 import { stub } from 'sinon';
 
 import OAuthModel from '../../../../server/lib/oauth/model';
-import { fakeUserToken } from '../../../test-helpers/fake-data';
+import { fakeApplication, fakeUserToken } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 const model = new OAuthModel();
@@ -89,7 +90,25 @@ describe('server/lib/oauth/model', () => {
     // TODO responsibility? ('throws if the token is expired', async () => {});
   });
 
-  describe('getAuthorizationCode', () => {});
+  describe('getAuthorizationCode', () => {
+    it('decodes the JWT', () => {
+      const code = {
+        authorizationCode: 'test',
+        expiresAt: new Date(),
+        redirectUri: 'https://test.com',
+        scope: 'test',
+      };
+
+      const encodedAuthorizationCode = jwt.encode();
+      const decoded = jwt.verify(encodedAuthorizationCode, config.keys.opencollective.jwtSecret);
+      expect(decoded).to.deep.eq({
+        ...code,
+        // TODO: Add additional properties here
+      });
+    });
+
+    it('throws if JWT is invalid', () => {});
+  });
 
   describe('getClient', () => {});
 
@@ -99,13 +118,26 @@ describe('server/lib/oauth/model', () => {
 
   describe('saveToken', () => {});
 
-  describe('saveAuthorizationCode', () => {});
+  describe('saveAuthorizationCode', () => {
+    it('creates the JWT', async () => {
+      const application = await fakeApplication();
+      const code = {
+        authorizationCode: 'test',
+        expiresAt: new Date(),
+        redirectUri: 'https://test.com',
+        scope: 'test',
+      };
 
-  describe('revokeToken', () => {});
+      const encodedAuthorizationCode = await model.saveAuthorizationCode(code, application, application.createdByUser);
+      const decoded = jwt.verify(encodedAuthorizationCode, config.keys.opencollective.jwtSecret);
+      expect(decoded).to.deep.eq({
+        ...code,
+        // TODO: Add additional properties here
+      });
+    });
+  });
 
-  describe('revokeAuthorizationCode', () => {});
+  // describe('validateScope', () => {});
 
-  describe('validateScope', () => {});
-
-  describe('verifyScope', () => {});
+  // describe('verifyScope', () => {});
 });

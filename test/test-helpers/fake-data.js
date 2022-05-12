@@ -738,7 +738,7 @@ export const fakeApplication = async (data = {}) => {
     CollectiveId = data.CollectiveId || user.CollectiveId;
   }
 
-  return models.Application.create({
+  const application = await models.Application.create({
     type: sample(['apiKey', 'oAuth']),
     apiKey: randStr('ApiKey-'),
     clientId: randStrOfLength(20),
@@ -750,6 +750,8 @@ export const fakeApplication = async (data = {}) => {
     CollectiveId,
     CreatedByUserId,
   });
+
+  return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
 };
 
 export const fakeUserToken = async (data = {}) => {

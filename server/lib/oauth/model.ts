@@ -21,31 +21,31 @@ import UserToken, { TokenType } from '../../models/UserToken';
 
 const TOKEN_LENGTH = 64;
 
-export default class OAuthModel
-  implements AuthorizationCodeModel, ClientCredentialsModel, RefreshTokenModel, PasswordModel, ExtensionModel
-{
+type OauthModel = AuthorizationCodeModel | ClientCredentialsModel | RefreshTokenModel | PasswordModel | ExtensionModel;
+
+const model: OauthModel = {
   /** Invoked to generate a new access token */
   async generateAccessToken(client, user, scope) {
     console.log('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-  }
+  },
 
   async generateRefreshToken(client, user, scope) {
     console.log('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_refresh_' : 'test_oauth_refresh_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-  }
+  },
 
   async getAccessToken(accessToken: string): Promise<UserToken> {
     console.log('model.getAccessToken', accessToken);
     return UserToken.findOne({ where: { accessToken } });
-  }
+  },
 
   async getRefreshToken(refreshToken) {
     console.log('model.getRefreshToken', refreshToken);
     return UserToken.findOne({ where: { refreshToken } });
-  }
+  },
 
   async getAuthorizationCode(authorizationCode): Promise<AuthorizationCode> {
     console.log('model.getAuthorizationCode', authorizationCode);
@@ -58,9 +58,9 @@ export default class OAuthModel
       expiresAt: new Date(jwt.exp * 1000),
       redirectUri: 'foo',
     };
-  }
+  },
 
-  generateAuthorizationCode(client, user, scope) {
+  async generateAuthorizationCode(client, user, scope) {
     console.log('model.generateAuthorizationCode', client, user, scope);
     return jwt.sign({ clientId: client.id, scope: 'authorization_code' }, config.keys.opencollective.jwtSecret, {
       expiresIn: auth.TOKEN_EXPIRATION_LOGIN,
@@ -70,7 +70,7 @@ export default class OAuthModel
         kid: auth.KID,
       },
     });
-  }
+  },
 
   async getClient(clientId, clientSecret) {
     console.log('model.getClient', clientId, clientSecret);
@@ -81,7 +81,7 @@ export default class OAuthModel
       grants: ['authorization_code'],
       redirectUris: [client.callbackUrl],
     };
-  }
+  },
 
   // TODO We shouldn't need this as we don't use password
   // getUser(username, password) {
@@ -90,7 +90,7 @@ export default class OAuthModel
 
   async getUserFromClient(client) {
     console.log('model.getUserFromClient', client);
-  }
+  },
 
   async saveToken(token: OAuth2Server.Token, client: typeof models.Application) {
     console.log('model.saveToken', token, client);
@@ -103,21 +103,23 @@ export default class OAuthModel
       ApplicationId: client.id,
       UserId: token.user.id,
     });
-  }
+  },
 
   async saveAuthorizationCode(code, client) {
     console.log('model.saveAuthorizationCode', code, client);
     return code;
-  }
+  },
 
-  async revokeToken(token) {}
+  async revokeToken(token) {},
 
   async revokeAuthorizationCode(code) {
     // Code are used only once and revoked as soon as they're used
     return true;
-  }
+  },
 
   // validateScope(user, client, scope) {}
 
   // verifyScope(accessToken, scope) {}
-}
+};
+
+export default model;
