@@ -39,11 +39,21 @@ const model: OAuthModel = {
     return models.UserTokens.findOne({ where: { refreshToken } });
   },
 
-  getAuthorizationCode: function (authorizationCode) {},
+  getAuthorizationCode: function (authorizationCode) {
+    console.log('model.getAuthorizationCode', authorizationCode);
+    // No persistence for now, that might be a problem
+    return {
+      authorizationCode,
+    };
+  },
 
-  getClient: function (clientId, clientSecret) {
+  // generateAuthorizationCode: function (client, user, scope) {
+  //   console.log('model.generateAuthorizationCode', client, user, scope);
+  // },
+
+  getClient: async function (clientId, clientSecret) {
     console.log('model.getClient', clientId, clientSecret);
-    const client = models.Application.findOne({ where: { clientId } });
+    const client = await models.Application.findOne({ where: { clientId } });
     return { ...client, grants: ['authorization_code'], redirectUris: [client.callbackUrl] };
   },
 
@@ -60,7 +70,10 @@ const model: OAuthModel = {
     console.log('model.saveToken', token, client);
   },
 
-  saveAuthorizationCode: function (code, client) {},
+  saveAuthorizationCode: function (code, client) {
+    console.log('model.saveAuthorizationCode', code, client);
+    return code;
+  },
 
   revokeToken: function (token) {},
 
