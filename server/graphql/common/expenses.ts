@@ -1157,13 +1157,20 @@ export async function editExpense(
       );
     }
 
+    let status = expense.status;
+    if (shouldUpdateStatus) {
+      status = expenseStatus.PENDING;
+    } else if (status === expenseStatus.INCOMPLETE) {
+      status = expenseStatus.APPROVED;
+    }
+
     const updatedExpenseProps = {
       ...cleanExpenseData,
       data: !expense.data ? null : cloneDeep(expense.data),
       amount: computeTotalAmountForExpense(expenseData.items || expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
-      status: shouldUpdateStatus ? 'PENDING' : expense.status,
+      status,
       FromCollectiveId: fromCollective.id,
       PayoutMethodId: PayoutMethodId,
       legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
