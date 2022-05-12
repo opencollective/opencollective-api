@@ -4,8 +4,10 @@
 import crypto from 'crypto';
 
 import config from 'config';
+import jwt from 'jsonwebtoken';
 import type OAuth2Server from 'oauth2-server';
 import type {
+  AuthorizationCode,
   AuthorizationCodeModel,
   ClientCredentialsModel,
   ExtensionModel,
@@ -13,6 +15,7 @@ import type {
   RefreshTokenModel,
 } from 'oauth2-server';
 
+import * as auth from '../../lib/auth';
 import models from '../../models';
 import UserToken, { TokenType } from '../../models/UserToken';
 
@@ -44,22 +47,40 @@ export default class OAuthModel
     return UserToken.findOne({ where: { refreshToken } });
   }
 
-  async getAuthorizationCode(authorizationCode) {
+  async getAuthorizationCode(authorizationCode): Promise<AuthorizationCode> {
     console.log('model.getAuthorizationCode', authorizationCode);
+    const jwt = auth.verifyJwt(authorizationCode);
     // No persistence for now, that might be a problem
     return {
       authorizationCode,
+      client: await this.getClient(jwt.client || jwt.clientId, null), // TODO: suppress jwt.client
+      user: await models.User.findByPk(jwt.sub),
+      expiresAt: new Date(jwt.exp * 1000),
+      redirectUri: 'foo',
     };
   }
 
-  // generateAuthorizationCode(client, user, scope) {
-  //   console.log('model.generateAuthorizationCode', client, user, scope);
-  // },
+  generateAuthorizationCode(client, user, scope) {
+    console.log('model.generateAuthorizationCode', client, user, scope);
+    return jwt.sign({ clientId: client.id, scope: 'authorization_code' }, config.keys.opencollective.jwtSecret, {
+      expiresIn: auth.TOKEN_EXPIRATION_LOGIN,
+      subject: String(user.id),
+      algorithm: auth.ALGORITHM,
+      header: {
+        kid: auth.KID,
+      },
+    });
+  }
 
   async getClient(clientId, clientSecret) {
     console.log('model.getClient', clientId, clientSecret);
     const client = await models.Application.findOne({ where: { clientId } });
-    return { ...client, grants: ['authorization_code'], redirectUris: [client.callbackUrl] };
+    return {
+      ...client.dataValues,
+      id: client.clientId,
+      grants: ['authorization_code'],
+      redirectUris: [client.callbackUrl],
+    };
   }
 
   // TODO We shouldn't need this as we don't use password
@@ -91,7 +112,10 @@ export default class OAuthModel
 
   async revokeToken(token) {}
 
-  async revokeAuthorizationCode(code) {}
+  async revokeAuthorizationCode(code) {
+    // Code are used only once and revoked as soon as they're used
+    return true;
+  }
 
   // validateScope(user, client, scope) {}
 

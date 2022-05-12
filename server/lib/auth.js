@@ -19,8 +19,8 @@ export const TOKEN_EXPIRATION_SESSION = daysToSeconds(90);
 export const TOKEN_EXPIRATION_PDF = minutesToSeconds(5);
 export const TOKEN_EXPIRATION_CSV = minutesToSeconds(5);
 
-const ALGORITHM = 'HS256';
-const KID = 'HS256-2019-09-02';
+export const ALGORITHM = 'HS256';
+export const KID = 'HS256-2019-09-02';
 
 /** Generate a JWToken with the received parameters */
 export function createJwt(subject, payload, expiresIn) {
