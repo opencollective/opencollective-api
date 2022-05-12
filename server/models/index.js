@@ -151,7 +151,7 @@ export function setupModels() {
 
   // User tokens
   m.UserToken.belongsTo(m.User, { foreignKey: 'UserId', as: 'user' });
-  m.UserToken.belongsTo(m.Application, { foreignKey: 'ApplicationId', as: 'application' });
+  m.UserToken.belongsTo(m.Application, { foreignKey: 'ApplicationId', as: 'client' });
 
   // Members
   m.Member.belongsTo(m.User, {

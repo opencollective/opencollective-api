@@ -57,8 +57,8 @@ describe('server/lib/oauth/model', () => {
       expect(token.id).to.eq(userToken.id);
       expect(token.user).to.not.be.null;
       expect(token.user.id).to.eq(userToken.user.id);
-      expect(token.application).to.not.be.null;
-      expect(token.application.id).to.eq(userToken.application.id);
+      expect(token.client).to.not.be.null;
+      expect(token.client.id).to.eq(userToken.client.id);
     });
   });
 

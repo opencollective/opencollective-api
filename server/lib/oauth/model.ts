@@ -4,66 +4,74 @@
 import crypto from 'crypto';
 
 import config from 'config';
-import type OAuthServer from 'express-oauth-server';
 import type OAuth2Server from 'oauth2-server';
+import type {
+  AuthorizationCodeModel,
+  ClientCredentialsModel,
+  ExtensionModel,
+  PasswordModel,
+  RefreshTokenModel,
+} from 'oauth2-server';
 
 import models from '../../models';
 import UserToken, { TokenType } from '../../models/UserToken';
 
 const TOKEN_LENGTH = 64;
 
-const model: OAuthServer.Options['model'] = {
+export default abstract class OAuthModel
+  implements AuthorizationCodeModel, ClientCredentialsModel, RefreshTokenModel, PasswordModel, ExtensionModel
+{
   /** Invoked to generate a new access token */
-  generateAccessToken: async function (client, user, scope) {
+  static async generateAccessToken(client, user, scope) {
     console.log('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-  },
+  }
 
-  generateRefreshToken: async function (client, user, scope) {
+  static async generateRefreshToken(client, user, scope) {
     console.log('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_refresh_' : 'test_oauth_refresh_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-  },
+  }
 
-  getAccessToken: async function (accessToken: string): Promise<UserToken> {
+  static getAccessToken(accessToken: string): Promise<UserToken> {
     console.log('model.getAccessToken', accessToken);
     return UserToken.findOne({ where: { accessToken } });
-  },
+  }
 
-  getRefreshToken: async function (refreshToken) {
+  static getRefreshToken(refreshToken) {
     console.log('model.getRefreshToken', refreshToken);
     return UserToken.findOne({ where: { refreshToken } });
-  },
+  }
 
-  getAuthorizationCode: function (authorizationCode) {
+  static getAuthorizationCode(authorizationCode) {
     console.log('model.getAuthorizationCode', authorizationCode);
     // No persistence for now, that might be a problem
     return {
       authorizationCode,
     };
-  },
+  }
 
-  // generateAuthorizationCode: function (client, user, scope) {
+  // generateAuthorizationCode(client, user, scope) {
   //   console.log('model.generateAuthorizationCode', client, user, scope);
   // },
 
-  getClient: async function (clientId, clientSecret) {
+  static async getClient(clientId, clientSecret) {
     console.log('model.getClient', clientId, clientSecret);
     const client = await models.Application.findOne({ where: { clientId } });
     return { ...client, grants: ['authorization_code'], redirectUris: [client.callbackUrl] };
-  },
+  }
 
   // TODO We shouldn't need this as we don't use password
-  // getUser: function (username, password) {
+  // getUser(username, password) {
   //   console.log('getUser', username, password);
   // },
 
-  getUserFromClient: function (client) {
+  static getUserFromClient(client) {
     console.log('model.getUserFromClient', client);
-  },
+  }
 
-  saveToken: function (token: OAuth2Server.Token, client: typeof models.Application) {
+  static saveToken(token: OAuth2Server.Token, client: typeof models.Application) {
     console.log('model.saveToken', token, client);
     return UserToken.create({
       type: TokenType.OAUTH,
@@ -74,20 +82,18 @@ const model: OAuthServer.Options['model'] = {
       ApplicationId: client.id,
       UserId: token.user.id,
     });
-  },
+  }
 
-  saveAuthorizationCode: function (code, client) {
+  static saveAuthorizationCode(code, client) {
     console.log('model.saveAuthorizationCode', code, client);
     return code;
-  },
+  }
 
-  revokeToken: function (token) {},
+  static revokeToken(token) {}
 
-  revokeAuthorizationCode: function (code) {},
+  static revokeAuthorizationCode(code) {}
 
-  // validateScope: function (user, client, scope) {},
+  // validateScope(user, client, scope) {}
 
-  // verifyScope: function (accessToken, scope) {},
-};
-
-export default model;
+  // verifyScope(accessToken, scope) {}
+}

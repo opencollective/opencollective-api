@@ -122,7 +122,7 @@ UserToken.init(
     defaultScope: {
       include: [
         { association: 'user', required: true },
-        { association: 'application', required: true },
+        { association: 'client', required: true },
       ],
     },
   },
