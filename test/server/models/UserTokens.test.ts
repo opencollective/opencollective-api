@@ -2,11 +2,11 @@ import { expect } from 'chai';
 import config from 'config';
 import { stub, useFakeTimers } from 'sinon';
 
-import UserTokens from '../../../server/models/UserTokens';
+import UserToken from '../../../server/models/UserToken';
 import { fakeApplication, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-describe('server/models/UserTokens', () => {
+describe('server/models/UserToken', () => {
   let configStub, clock;
 
   before(async () => {
@@ -28,7 +28,7 @@ describe('server/models/UserTokens', () => {
     it('generates a user token with a test prefix in test env', async () => {
       const user = await fakeUser();
       const application = await fakeApplication({ user });
-      const userToken = await UserTokens.generateOAuth(user.id, application.id);
+      const userToken = await UserToken.generateOAuth(user.id, application.id);
       expect(userToken.token).to.match(/^test_oauth_[A-Za-z0-9 _.,!"'/$]+/);
       expect(userToken.token.length).to.eq(64);
     });
@@ -37,7 +37,7 @@ describe('server/models/UserTokens', () => {
       configStub = stub(config, 'env').get(() => 'production');
       const user = await fakeUser();
       const application = await fakeApplication({ user });
-      const userToken = await UserTokens.generateOAuth(user.id, application.id);
+      const userToken = await UserToken.generateOAuth(user.id, application.id);
       expect(userToken.token).to.match(/^oauth_[A-Za-z0-9 _.,!"'/$]+/);
       expect(userToken.token.length).to.eq(64);
     });
@@ -47,7 +47,7 @@ describe('server/models/UserTokens', () => {
       const user = await fakeUser();
       const application = await fakeApplication({ user });
       const customData = { userId: '42.42.42.42' };
-      const userToken = await UserTokens.generateOAuth(user.id, application.id, customData);
+      const userToken = await UserToken.generateOAuth(user.id, application.id, customData);
       expect(userToken.token.length).to.eq(64);
       expect(userToken.expiresAt).to.not.be.null;
       expect(userToken.expiresAt.toISOString()).to.eq('2022-03-02T00:00:00.000Z'); // 60 days

@@ -7,7 +7,7 @@ import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attribut
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 // Define all attributes for the model
-interface UserTokensAttributes {
+interface UserTokenAttributes {
   id: number;
   type: 'OAUTH';
   token: string;
@@ -24,7 +24,7 @@ interface UserTokensAttributes {
 }
 
 // Define attributes that can be used for model creation
-interface UserTokensCreateAttributes {
+interface UserTokenCreateAttributes {
   type: 'OAUTH';
   token: string;
   expiresAt: Date;
@@ -43,8 +43,7 @@ export enum TokenType {
   OAUTH = 'OAUTH',
 }
 
-// TODO: Model name should be singular
-class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes> implements UserTokensAttributes {
+class UserToken extends Model<UserTokenAttributes, UserTokenCreateAttributes> implements UserTokenAttributes {
   id: number;
   type: 'OAUTH';
   token: string;
@@ -70,13 +69,13 @@ class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes>
     UserId: number,
     ApplicationId: number,
     data: Record<string, unknown> = null,
-  ): Promise<UserTokens> {
-    return UserTokens.create({
+  ): Promise<UserToken> {
+    return UserToken.create({
       type: TokenType.OAUTH,
       UserId,
       ApplicationId,
-      token: UserTokens.generateToken(TokenType.OAUTH),
-      refreshToken: UserTokens.generateToken(TokenType.OAUTH),
+      token: UserToken.generateToken(TokenType.OAUTH),
+      refreshToken: UserToken.generateToken(TokenType.OAUTH),
       expiresAt: moment().add(OAUTH_TOKEN_EXPIRATION_DAYS, 'days').toDate(),
       refreshTokenExpiresAt: moment().add(OAUTH_REFRESH_TOKEN_EXPIRATION_DAYS, 'days').toDate(),
       data,
@@ -94,7 +93,7 @@ class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes>
   }
 }
 
-UserTokens.init(
+UserToken.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -155,9 +154,9 @@ UserTokens.init(
   },
   {
     sequelize,
-    tableName: 'UserTokenss',
+    tableName: 'UserTokens',
     paranoid: true, // For soft-deletion
   },
 );
 
-export default UserTokens;
+export default UserToken;

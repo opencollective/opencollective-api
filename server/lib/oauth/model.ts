@@ -28,7 +28,7 @@ const model: OAuthModel = {
 
   getAccessToken: async function (token) {
     console.log('model.getAccessToken', token);
-    const userToken = await models.UserTokens.findOne({ where: { token: token } });
+    const userToken = await models.UserToken.findOne({ where: { token: token } });
     const user = await models.User.findByPk(userToken.UserId);
     return { ...userToken, user };
   },
@@ -36,7 +36,7 @@ const model: OAuthModel = {
   getRefreshToken: async function (refreshToken) {
     console.log('model.getRefreshToken', refreshToken);
     // TODO: Add index on `refreshToken`
-    return models.UserTokens.findOne({ where: { refreshToken } });
+    return models.UserToken.findOne({ where: { refreshToken } });
   },
 
   getAuthorizationCode: function (authorizationCode) {

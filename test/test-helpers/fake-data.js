@@ -18,7 +18,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import models from '../../server/models';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import { TokenType } from '../../server/models/UserTokens';
+import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
@@ -754,7 +754,7 @@ export const fakeApplication = async (data = {}) => {
 
 export const fakeUserToken = async (data = {}) => {
   const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
-  return models.UserTokens.create({
+  return models.UserToken.create({
     type: TokenType.OAUTH,
     token: randStr('Token-'),
     refreshToken: randStr('RefreshToken-'),
