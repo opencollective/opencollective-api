@@ -74,7 +74,9 @@ const model: OauthModel = {
 
   async getClient(clientId, clientSecret) {
     console.log('model.getClient', clientId, clientSecret);
-    const client = await models.Application.findOne({ where: { clientId } });
+    const client = Number.isInteger(clientId)
+      ? await models.Application.findByPk(clientId)
+      : await models.Application.findOne({ where: { clientId } });
     return {
       ...client.dataValues,
       // id: client.clientId,
@@ -94,18 +96,24 @@ const model: OauthModel = {
 
   async saveToken(token: OAuth2Server.Token, client: typeof models.Application, user: typeof models.User) {
     console.log('model.saveToken', token, client, user);
-    const oauthToken = UserToken.create({
-      type: TokenType.OAUTH,
-      accessToken: token.accessToken,
-      accessTokenExpiresAt: token.accessTokenExpiresAt,
-      refreshToken: token.refreshToken,
-      refreshTokenExpiresAt: token.refreshTokenExpiresAt,
-      ApplicationId: client.id,
-      UserId: user.id,
-    });
-    // oauthToken.user = user;
-    // oauthToken.client = client;
-    return oauthToken;
+    try {
+      const oauthToken = await UserToken.create({
+        type: TokenType.OAUTH,
+        accessToken: token.accessToken,
+        accessTokenExpiresAt: token.accessTokenExpiresAt,
+        refreshToken: token.refreshToken,
+        refreshTokenExpiresAt: token.refreshTokenExpiresAt,
+        ApplicationId: client.id,
+        UserId: user.id,
+      });
+      oauthToken.user = user;
+      oauthToken.client = client;
+      return oauthToken;
+    } catch (e) {
+      console.log(e);
+      // TODO: what should be thrown so it's properly catched on the library side?
+      throw e;
+    }
   },
 
   async saveAuthorizationCode(code, client) {
