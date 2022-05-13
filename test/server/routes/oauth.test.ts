@@ -27,7 +27,8 @@ describe('server/routes/oauth', () => {
       .set('Content-Type', `application/x-www-form-urlencoded`)
       .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
       .redirects(0)
-      .expect(302);
+      .expect(302)
+      .end((err, res) => err && console.error(res.error));
 
     const redirectUrl = new URL(authorizeResponse.headers.location);
     const code = redirectUrl.searchParams.get('code');
@@ -49,7 +50,8 @@ describe('server/routes/oauth', () => {
       .type(tokenParams.toString())
       .set('Content-Type', `application/x-www-form-urlencoded`)
       .set('Accept', 'application/json')
-      .expect(200);
+      .expect(200)
+      .end((err, res) => err && console.error(res.error));
 
     console.log({ tokenResponse });
   });
