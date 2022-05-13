@@ -1,5 +1,18 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { difference, flatten, isEmpty, isNull, isUndefined, keyBy, keys, mapValues, pick, uniq, uniqBy } from 'lodash';
+import {
+  difference,
+  flatten,
+  get,
+  isEmpty,
+  isNull,
+  isUndefined,
+  keyBy,
+  keys,
+  mapValues,
+  pick,
+  uniq,
+  uniqBy,
+} from 'lodash';
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
@@ -20,7 +33,7 @@ import { getIntervalFromContributionFrequency } from '../enum/ContributionFreque
 import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { getDecodedId } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
 import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
@@ -80,12 +93,21 @@ const orderMutations = {
       const tier = order.tier && (await fetchTierWithReference(order.tier, loadersParams));
       const fromCollective = order.fromAccount && (await loadAccount(order.fromAccount));
       const collective = await loadAccount(order.toAccount);
-
+      const expectedCurrency = (tier && tier.currency) || collective.currency;
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+
+      // Ensure amounts are provided with the right currency
+      ['platformTipAmount', 'amount', 'tax.amount'].forEach(field => {
+        const amount = get(order, field);
+        if (amount) {
+          assertAmountInputCurrency(amount, expectedCurrency, { name: field });
+        }
+      });
 
       const legacyOrderObj = {
         quantity: order.quantity,
         amount: getValueInCentsFromAmountInput(order.amount),
+        currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
         taxType: tax?.type,
@@ -240,7 +262,8 @@ const orderMutations = {
           (await models.Member.findOne({
             where: { MemberCollectiveId: order.FromCollectiveId, CollectiveId: order.CollectiveId, role: 'BACKER' },
           }));
-        let newTotalAmount = getValueInCentsFromAmountInput(args.amount);
+        const expectedCurrency = order.currency;
+        let newTotalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
         // We add the current Platform Tip to the totalAmount
         if (order.data?.isFeesOnTop && order.data.platformFee) {
           newTotalAmount = newTotalAmount + order.data.platformFee;
@@ -323,23 +346,21 @@ const orderMutations = {
         const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasAmounts) {
           const { amount, paymentProcessorFee, platformTip } = args.order;
-          if (amount) {
-            if (amount.currency !== order.currency) {
-              throw new ValidationFailed('Amount currency must match order currency.');
-            }
-            if (platformTip && platformTip.currency !== order.currency) {
-              throw new ValidationFailed('Platform tip currency must match order currency.');
-            }
 
+          // Ensure amounts are provided with the right currency
+          ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
+            if (order[field]) {
+              assertAmountInputCurrency(order[field], order.currency, { name: field });
+            }
+          });
+
+          if (amount) {
             const amountInCents = getValueInCentsFromAmountInput(amount);
             const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
             const totalAmount = amountInCents + platformTipInCents;
             order.set('totalAmount', totalAmount);
           }
           if (paymentProcessorFee) {
-            if (paymentProcessorFee.currency !== order.currency) {
-              throw new ValidationFailed('Payment processor fee currency must match order currency.');
-            }
             if (!order.data) {
               order.set('data', {});
             }
@@ -348,9 +369,6 @@ const orderMutations = {
             order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
           }
           if (platformTip) {
-            if (platformTip.currency !== order.currency) {
-              throw new ValidationFailed('Platform tip currency must match order currency.');
-            }
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             if (!order.data) {
               order.set('data', {});

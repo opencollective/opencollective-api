@@ -45,7 +45,8 @@ const transactionMutations = {
         throw new Error('Platform tip is already set for this transaction group');
       }
 
-      const platformTipInCents = getValueInCentsFromAmountInput(args.amount);
+      const expectedCurrency = transaction.currency;
+      const platformTipInCents = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
       if (!platformTipInCents) {
         throw new ValidationFailed('Platform tip amount must be greater than 0');
       }
