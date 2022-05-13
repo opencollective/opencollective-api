@@ -79,7 +79,6 @@ const model: OauthModel = {
       : await models.Application.findOne({ where: { clientId } });
     return {
       ...client.dataValues,
-      // id: client.clientId,
       grants: ['authorization_code'],
       redirectUris: [client.callbackUrl],
     };
@@ -97,6 +96,13 @@ const model: OauthModel = {
   async saveToken(token: OAuth2Server.Token, client: typeof models.Application, user: typeof models.User) {
     console.log('model.saveToken', token, client, user);
     try {
+      // Delete existing Tokens as we have a 1 token only policy
+      await UserToken.destroy({
+        where: {
+          ApplicationId: client.id,
+          UserId: user.id,
+        },
+      });
       const oauthToken = await UserToken.create({
         type: TokenType.OAUTH,
         accessToken: token.accessToken,
