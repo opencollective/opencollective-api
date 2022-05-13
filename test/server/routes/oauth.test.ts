@@ -2,11 +2,13 @@ import request from 'supertest';
 
 import { fakeApplication, fakeUser } from '../../test-helpers/fake-data';
 import { startTestServer, stopTestServer } from '../../test-helpers/server';
+import { resetTestDB } from '../../utils';
 
 describe('server/routes/oauth', () => {
   let expressApp;
 
   before(async () => {
+    await resetTestDB();
     expressApp = await startTestServer();
   });
 
@@ -17,34 +19,39 @@ describe('server/routes/oauth', () => {
   it('goes through the entire OAuth flow', async () => {
     const application = await fakeApplication();
 
-    console.log(
-      `curl -L -v -H "Authorization: Bearer ${application.createdByUser.jwt()}" -X POST \"http://localhost:3060/oauth/authorize?response_type=code&client_id=${
-        application.clientId
-      }\"`,
-    );
     // Get authorization code
+    // eslint-disable-next-line camelcase
+    const authorizeParams = new URLSearchParams({ response_type: 'code', client_id: application.clientId });
     const authorizeResponse = await request(expressApp)
-      .post(`/oauth/authorize?response_type=code&client_id=${application.clientId}`)
+      .post(`/oauth/authorize?${authorizeParams.toString()}`)
       .set('Content-Type', `application/x-www-form-urlencoded`)
       .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
       .redirects(0)
-      .expect(301);
+      .expect(302);
 
-    console.log({ authorizeResponse });
-    // TODO const redirectUrl = new URL(authorizeResponse.???);
-    // const redirectUrl = new URL('http://localhost:3000/oauth/authorize?code=xxxxxxxxxxxxxxxx');
-    // const code = redirectUrl.searchParams.get('code');
+    const redirectUrl = new URL(authorizeResponse.headers.location);
+    const code = redirectUrl.searchParams.get('code');
 
-    // // Swap authorization code for access token
-    // const tokenResponse = await request(expressApp)
-    //   .post(`/oauth/token?authorization_code=${code}`)
-    //   .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
-    //   .set('Accept', 'application/json')
-    //   .expect(200);
+    // Swap authorization code for access token
+    const tokenParams = new URLSearchParams({
+      /* eslint-disable camelcase */
+      grant_type: 'authorization_code',
+      code,
+      client_id: application.clientId,
+      // TODO client_secret: application.clientSecret,
+      // TODO redirect_uri: application.redirectUri,
+      /* eslint-enable camelcase */
+    });
 
-    // const token = tokenResponse.???
+    const tokenResponse = await request(expressApp)
+      .post(`/oauth/token`)
+      .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
+      .type(tokenParams.toString())
+      .set('Content-Type', `application/x-www-form-urlencoded`)
+      .set('Accept', 'application/json')
+      .expect(200);
 
-    // Swap refresh token for access token
+    console.log({ tokenResponse });
   });
 
   describe('authorize', () => {
@@ -71,5 +78,9 @@ describe('server/routes/oauth', () => {
         .set('Authorization', `Bearer ${randomUser.jwt()}`)
         .expect(403);
     });
+  });
+
+  describe('token', () => {
+    it('must provide a client_id', async () => {});
   });
 });
