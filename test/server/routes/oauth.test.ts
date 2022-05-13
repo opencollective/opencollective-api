@@ -20,8 +20,14 @@ describe('server/routes/oauth', () => {
     const application = await fakeApplication();
 
     // Get authorization code
-    // eslint-disable-next-line camelcase
-    const authorizeParams = new URLSearchParams({ response_type: 'code', client_id: application.clientId });
+    const authorizeParams = new URLSearchParams({
+      /* eslint-disable camelcase */
+      response_type: 'code',
+      client_id: application.clientId,
+      redirect_uri: application.callbackUrl,
+      /* eslint-enable camelcase */
+    });
+
     const authorizeResponse = await request(expressApp)
       .post(`/oauth/authorize?${authorizeParams.toString()}`)
       .set('Content-Type', `application/x-www-form-urlencoded`)
@@ -45,8 +51,8 @@ describe('server/routes/oauth', () => {
         grant_type: 'authorization_code',
         code,
         client_id: application.clientId,
-        // TODO client_secret: application.clientSecret,
-        redirect_uri: authorizeResponse.headers.location.toString(),
+        client_secret: application.clientSecret,
+        redirect_uri: application.callbackUrl,
         /* eslint-enable camelcase */
       })
       .expect(res => {
