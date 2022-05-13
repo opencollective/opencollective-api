@@ -27,33 +27,35 @@ describe('server/routes/oauth', () => {
       .set('Content-Type', `application/x-www-form-urlencoded`)
       .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
       .redirects(0)
-      .expect(302)
-      .end((err, res) => err && console.error(res.error));
+      .expect(res => {
+        if (res.status !== 302) {
+          throw new Error(JSON.stringify(res.body, null, 2));
+        }
+      });
 
-    const redirectUrl = new URL(authorizeResponse.headers.location);
-    const code = redirectUrl.searchParams.get('code');
-
-    // Swap authorization code for access token
-    const tokenParams = new URLSearchParams({
-      /* eslint-disable camelcase */
-      grant_type: 'authorization_code',
-      code,
-      client_id: application.clientId,
-      // TODO client_secret: application.clientSecret,
-      // TODO redirect_uri: application.redirectUri,
-      /* eslint-enable camelcase */
-    });
-
+    const redirectUri = new URL(authorizeResponse.headers.location);
+    const code = redirectUri.searchParams.get('code');
     const tokenResponse = await request(expressApp)
       .post(`/oauth/token`)
       .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
-      .type(tokenParams.toString())
-      .set('Content-Type', `application/x-www-form-urlencoded`)
       .set('Accept', 'application/json')
-      .expect(200)
-      .end((err, res) => err && console.error(res.error));
+      .type(`application/x-www-form-urlencoded`)
+      .send({
+        /* eslint-disable camelcase */
+        grant_type: 'authorization_code',
+        code,
+        client_id: application.clientId,
+        // TODO client_secret: application.clientSecret,
+        redirect_uri: authorizeResponse.headers.location.toString(),
+        /* eslint-enable camelcase */
+      })
+      .expect(res => {
+        if (res.status !== 200) {
+          throw new Error(JSON.stringify(res.body, null, 2));
+        }
+      });
 
-    console.log({ tokenResponse });
+    // console.log({ tokenResponse });
   });
 
   describe('authorize', () => {
