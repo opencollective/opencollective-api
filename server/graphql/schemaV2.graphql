@@ -3334,6 +3334,11 @@ type AccountStats {
     Computes contributions from the last x months. Cannot be used with startDate/endDate
     """
     periodInMonths: Int
+
+    """
+    Set this to true to use cached data
+    """
+    useCache: Boolean! = false
   ): Amount!
 
   """

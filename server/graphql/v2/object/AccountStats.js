@@ -1,7 +1,7 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has } from 'lodash';
+import { get, has, isNil } from 'lodash';
 import moment from 'moment';
 
 import queries from '../../../lib/queries';
@@ -94,14 +94,39 @@ export const AccountStats = new GraphQLObjectType({
             type: GraphQLInt,
             description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
           },
+          useCache: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            description: 'Set this to true to use cached data',
+            defaultValue: false,
+          },
         },
-        resolve(collective, args) {
+        async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
           let { dateFrom, dateTo } = args;
 
           if (args.periodInMonths) {
             dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
             dateTo = null;
+          }
+
+          // Search query joins "CollectiveTransactionStats" on this field, so we can use the cache
+          if (args.useCache && !dateFrom && !dateTo) {
+            const cachedAmount = collective.dataValues['__stats_totalAmountReceivedInHostCurrency__'];
+            if (!isNil(cachedAmount)) {
+              const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective.id));
+              if (!host?.currency || host.currency === collective.currency) {
+                return { value: cachedAmount, currency: collective.currency };
+              }
+
+              return {
+                currency: collective.currency,
+                value: await req.loaders.CurrencyExchangeRate.convert.load({
+                  amount: cachedAmount,
+                  fromCurrency: host.currency,
+                  toCurrency: collective.currency,
+                }),
+              };
+            }
           }
 
           return collective.getTotalAmountReceivedAmount({ kind, startDate: dateFrom, endDate: dateTo });
