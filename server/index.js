@@ -43,6 +43,7 @@ async function start(i) {
   });
 
   server.timeout = 25000; // sets timeout to 25 seconds
+  expressApp.__server__ = server;
 
   return expressApp;
 }
