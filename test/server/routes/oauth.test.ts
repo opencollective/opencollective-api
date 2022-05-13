@@ -1,3 +1,7 @@
+import { expect } from 'chai';
+import config from 'config';
+import jwt from 'jsonwebtoken';
+import { useFakeTimers } from 'sinon';
 import request from 'supertest';
 
 import { fakeApplication, fakeUser } from '../../test-helpers/fake-data';
@@ -5,7 +9,7 @@ import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import { resetTestDB } from '../../utils';
 
 describe('server/routes/oauth', () => {
-  let expressApp;
+  let expressApp, clock;
 
   before(async () => {
     await resetTestDB();
@@ -14,9 +18,14 @@ describe('server/routes/oauth', () => {
 
   after(async () => {
     await stopTestServer();
+    if (clock) {
+      clock.restore();
+    }
   });
 
   it('goes through the entire OAuth flow', async () => {
+    const fakeNow = new Date(2022, 0, 1);
+    clock = useFakeTimers(fakeNow);
     const application = await fakeApplication();
 
     // Get authorization code
@@ -39,12 +48,12 @@ describe('server/routes/oauth', () => {
         }
       });
 
+    // Exchange authorization code for access token
     const redirectUri = new URL(authorizeResponse.headers.location);
     const code = redirectUri.searchParams.get('code');
     const tokenResponse = await request(expressApp)
       .post(`/oauth/token`)
       .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
-      .set('Accept', 'application/json')
       .type(`application/x-www-form-urlencoded`)
       .send({
         /* eslint-disable camelcase */
@@ -61,7 +70,28 @@ describe('server/routes/oauth', () => {
         }
       });
 
-    // console.log({ tokenResponse });
+    // Decode returned OAuth token
+    const oauthToken = tokenResponse.res.text;
+    expect(oauthToken).to.exist;
+
+    const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret);
+    expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
+    expect(decodedToken.access_token.startsWith('test_oauth_')).to.be.true;
+    expect(decodedToken.iat).to.eq(fakeNow.getTime() / 1000); // 1640995200
+    expect(decodedToken.exp).to.eq(1648771200);
+
+    // Test OAuth token with a real query
+    const gqlRequestResult = await request(expressApp)
+      .post('/graphql/v2')
+      .set('Authorization', `Bearer ${oauthToken}`)
+      .accept('application/json')
+      .send({
+        query: '{ loggedInAccount { legacyId } }',
+      });
+
+    const jsonResponse = JSON.parse(gqlRequestResult.res.text);
+    const loggedInAccount = jsonResponse.data.loggedInAccount;
+    expect(loggedInAccount.legacyId).to.eq(application.CreatedByUserId);
   });
 
   describe('authorize', () => {
