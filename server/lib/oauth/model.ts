@@ -50,13 +50,14 @@ const model: OauthModel = {
   async getAuthorizationCode(authorizationCode): Promise<AuthorizationCode> {
     console.log('model.getAuthorizationCode', authorizationCode);
     const jwt = auth.verifyJwt(authorizationCode);
+    const client = await this.getClient(jwt.client || jwt.clientId || jwt.client_id, null);
     // No persistence for now, that might be a problem
     return {
       authorizationCode,
-      client: await this.getClient(jwt.client || jwt.clientId, null), // TODO: suppress jwt.client
+      client,
       user: await models.User.findByPk(jwt.sub),
       expiresAt: new Date(jwt.exp * 1000),
-      redirectUri: 'http://localhost:3000',
+      redirectUri: client.callbackUrl,
     };
   },
 

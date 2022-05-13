@@ -16,20 +16,16 @@ const Response = OAuth2Server.Response;
 
 class CustomTokenHandler extends TokenHandler {
   getTokenType = function (model) {
-    // console.log('CustomTokenHandler getTokenType', model);
-
     return {
       valueOf: () =>
         jwt.sign(
           {
-            client_id: model.client.id,
-            scope: 'oauth_access_token',
+            // eslint-disable-next-line camelcase
             access_token: model.accessToken,
-            refresh_token: model.refreshToken,
           },
           config.keys.opencollective.jwtSecret,
           {
-            expiresIn: auth.TOKEN_EXPIRATION_SESSION, // 90 days, LinkedIn = 60 days
+            expiresIn: auth.TOKEN_EXPIRATION_SESSION, // 90 days
             subject: String(model.user.id),
             algorithm: auth.ALGORITHM,
             header: {
@@ -45,8 +41,8 @@ class CustomOAuth2Server extends OAuth2Server {
   token = function (request, response, options, callback) {
     options = assign(
       {
-        accessTokenLifetime: 60 * 60, // 1 hour.
-        refreshTokenLifetime: 60 * 60 * 24 * 14, // 2 weeks.
+        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 1 hour.
+        refreshTokenLifetime: 60 * 60 * 24 * 365, // 2 weeks.
         allowExtendedTokenAttributes: false,
         requireClientAuthentication: {}, // defaults to true for all grant types
       },
@@ -56,6 +52,8 @@ class CustomOAuth2Server extends OAuth2Server {
     return new CustomTokenHandler(options).handle(request, response).nodeify(callback);
   };
 }
+
+// The following code is a copy of https://github.com/oauthjs/express-oauth-server */
 
 function OAuthServer(options) {
   options = options || {};
@@ -82,6 +80,7 @@ function OAuthServer(options) {
  */
 
 OAuthServer.prototype.authenticate = function (options) {
+  // eslint-disable-next-line @typescript-eslint/no-this-alias
   const that = this; //
 
   return function (req, res, next) {
@@ -110,6 +109,7 @@ OAuthServer.prototype.authenticate = function (options) {
  */
 
 OAuthServer.prototype.authorize = function (options) {
+  // eslint-disable-next-line @typescript-eslint/no-this-alias
   const that = this;
 
   return function (req, res, next) {
@@ -145,6 +145,7 @@ OAuthServer.prototype.authorize = function (options) {
  */
 
 OAuthServer.prototype.token = function (options) {
+  // eslint-disable-next-line @typescript-eslint/no-this-alias
   const that = this;
 
   return function (req, res, next) {
@@ -203,6 +204,7 @@ const handleError = function (e, req, res, response, next) {
       return res.send();
     }
 
+    // eslint-disable-next-line camelcase
     res.send({ error: e.name, error_description: e.message });
   }
 };
