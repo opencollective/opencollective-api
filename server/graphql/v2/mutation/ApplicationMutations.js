@@ -1,16 +1,18 @@
 import config from 'config';
 import { GraphQLNonNull } from 'graphql';
+import { pick } from 'lodash';
 
 import { Forbidden, NotFound, RateLimitExceeded, Unauthorized } from '../../errors';
-import { ApplicationInput } from '../input/ApplicationInput';
+import { ApplicationCreateInput } from '../input/ApplicationCreateInput';
 import { ApplicationReferenceInput, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
+import { ApplicationUpdateInput } from '../input/ApplicationUpdateInput';
 import { Application } from '../object/Application';
 
 export const createApplicationMutation = {
   type: Application,
   args: {
     application: {
-      type: new GraphQLNonNull(ApplicationInput),
+      type: new GraphQLNonNull(ApplicationCreateInput),
     },
   },
   async resolve(_, args, req) {
@@ -29,12 +31,35 @@ export const createApplicationMutation = {
     }
 
     const application = await Application.create({
-      ...args.application,
+      ...pick(args.application, ['name', 'description', 'callbackUrl']),
       CreatedByUserId: req.remoteUser.id,
       CollectiveId: req.remoteUser.CollectiveId,
     });
 
     return application;
+  },
+};
+
+export const updateApplicationMutation = {
+  type: Application,
+  args: {
+    application: {
+      type: new GraphQLNonNull(ApplicationUpdateInput),
+    },
+  },
+  async resolve(_, args, req) {
+    if (!req.remoteUser) {
+      throw new Unauthorized('You need to be authenticated to delete an application.');
+    }
+
+    const application = await fetchApplicationWithReference(args.application);
+    if (!application) {
+      throw new NotFound(`Application not found`);
+    } else if (req.remoteUser.CollectiveId !== application.CollectiveId) {
+      throw new Forbidden('Authenticated user is not the application owner.');
+    }
+
+    return application.update(pick(args.application, ['name', 'description', 'callbackUrl']));
   },
 };
 
@@ -50,13 +75,13 @@ export const deleteApplicationMutation = {
       throw new Unauthorized('You need to be authenticated to delete an application.');
     }
 
-    const app = await fetchApplicationWithReference(args.application);
-    if (!app) {
-      throw new NotFound(`Application with id ${args.id} not found`);
-    } else if (req.remoteUser.CollectiveId !== app.CollectiveId) {
+    const application = await fetchApplicationWithReference(args.application);
+    if (!application) {
+      throw new NotFound(`Application not found`);
+    } else if (req.remoteUser.CollectiveId !== application.CollectiveId) {
       throw new Forbidden('Authenticated user is not the application owner.');
     }
 
-    return app.destroy();
+    return application.destroy();
   },
 };

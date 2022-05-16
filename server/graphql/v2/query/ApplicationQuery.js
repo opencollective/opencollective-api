@@ -1,18 +1,17 @@
-import { GraphQLNonNull } from 'graphql';
+import { pick } from 'lodash';
 
-import { ApplicationReferenceInput, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
+import { ApplicationReferenceFields, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
 import { Application } from '../object/Application';
 
 const ApplicationQuery = {
   type: Application,
   args: {
-    application: {
-      type: new GraphQLNonNull(ApplicationReferenceInput),
-      description: 'Identifiers to retrieve the Order',
-    },
+    ...ApplicationReferenceFields,
   },
   async resolve(_, args) {
-    return fetchApplicationWithReference(args.application);
+    // Read https://github.com/opencollective/opencollective/issues/4656
+    const applicationReference = pick(args, ['id', 'legacyId', 'clientId']);
+    return fetchApplicationWithReference(applicationReference);
   },
 };
 
