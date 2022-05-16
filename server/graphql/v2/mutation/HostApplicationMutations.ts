@@ -7,7 +7,7 @@ import { types as CollectiveType } from '../../../constants/collectives';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
 import { stripHTML } from '../../../lib/sanitize-html';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
@@ -106,11 +106,11 @@ const HostApplicationMutations = {
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
 
       if (!req.remoteUser?.isAdmin(host.id)) {
-        throw new Unauthorized();
+        throw new Unauthorized('You need to be authenticated as a host admin to perform this action');
       } else if (account.HostCollectiveId !== host.id) {
         throw new NotFound(`No application found for ${account.slug} in ${host.slug}`);
       } else if (account.approvedAt) {
-        throw new ValidationFailed('It looks like this collective application has already been approved');
+        throw new ValidationFailed('This collective application has already been approved');
       }
 
       switch (args.action) {
@@ -159,6 +159,22 @@ const HostApplicationMutations = {
 };
 
 const approveApplication = async (host, collective, remoteUser) => {
+  // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
+  await sequelize.transaction(async transaction => {
+    const newAccountData = { isActive: true, approvedAt: new Date(), HostCollectiveId: host.id };
+
+    // Approve all events and projects created by this collective
+    await models.Collective.update(
+      newAccountData,
+      { where: { ParentCollectiveId: collective.id }, hooks: false },
+      { transaction },
+    );
+
+    // Approve the collective
+    await collective.update(newAccountData, { transaction });
+  });
+
+  // Send a notification to collective admins
   await models.Activity.create({
     type: activities.COLLECTIVE_APPROVED,
     UserId: remoteUser.id,
@@ -172,17 +188,7 @@ const approveApplication = async (host, collective, remoteUser) => {
     },
   });
 
-  // Approve all events and projects created by this collective
-  const events = await collective.getEvents();
-  const projects = await collective.getProjects();
-  await Promise.all(
-    [...events, ...projects].map(event => {
-      event.update({ isActive: true, approvedAt: new Date() });
-    }),
-  );
-
-  // Approve the collective and return it
-  await collective.update({ isActive: true, approvedAt: new Date() });
+  // Purge cache and change the status of the application
   purgeCacheForCollective(collective.slug);
   await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.APPROVED);
   return collective;
@@ -193,6 +199,10 @@ const rejectApplication = async (host, collective, remoteUser, reason: string) =
     throw new Error('This application has already been approved');
   }
 
+  // Reset host for collective & its children
+  await collective.changeHost(null, remoteUser);
+
+  // Notify collective admins
   const cleanReason = reason && stripHTML(reason).trim();
   await models.Activity.create({
     type: activities.COLLECTIVE_REJECTED,
@@ -208,7 +218,7 @@ const rejectApplication = async (host, collective, remoteUser, reason: string) =
     },
   });
 
-  await collective.changeHost(null, remoteUser);
+  // Purge cache and change the status of the application
   purgeCacheForCollective(collective.slug);
   await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.REJECTED);
   return collective;
