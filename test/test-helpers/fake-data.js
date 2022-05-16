@@ -15,6 +15,7 @@ import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/cons
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import models from '../../server/models';
+import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { randEmail, randUrl } from '../stores';
 
@@ -76,6 +77,18 @@ export const fakeHost = async hostData => {
     HostCollectiveId: null,
     isHostAccount: true,
     ...hostData,
+  });
+};
+
+/** Create a fake host application */
+export const fakeHostApplication = async data => {
+  const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
+  const HostCollectiveId = data.HostCollectiveId || (await fakeHost()).id;
+  return models.HostApplication.create({
+    status: HostApplicationStatus.PENDING,
+    ...data,
+    CollectiveId,
+    HostCollectiveId,
   });
 };
 
