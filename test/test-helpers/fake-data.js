@@ -718,8 +718,9 @@ export const fakeApplication = async (data = {}) => {
     CollectiveId = data.user.CollectiveId;
     CreatedByUserId = data.user.id;
   } else {
-    CollectiveId = data.CollectiveId || (await fakeCollective()).id;
-    CreatedByUserId = data.CreatedByUserId || (await fakeUser()).id;
+    const user = data.CreatedByUserId ? await models.User.findByPk(data.CreatedByUserId) : await fakeUser();
+    CreatedByUserId = user.id;
+    CollectiveId = data.CollectiveId || user.CollectiveId;
   }
 
   return models.Application.create({
