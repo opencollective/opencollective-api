@@ -2,13 +2,14 @@ import config from 'config';
 import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
+import models from '../../../models';
 import { Forbidden, NotFound, RateLimitExceeded, Unauthorized } from '../../errors';
 import { ApplicationCreateInput } from '../input/ApplicationCreateInput';
 import { ApplicationReferenceInput, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
 import { ApplicationUpdateInput } from '../input/ApplicationUpdateInput';
 import { Application } from '../object/Application';
 
-export const createApplicationMutation = {
+const createApplication = {
   type: Application,
   args: {
     application: {
@@ -20,7 +21,7 @@ export const createApplicationMutation = {
       throw new Unauthorized('You need to be authenticated to create an application.');
     }
 
-    const numberOfAppsForThisUser = await Application.count({
+    const numberOfAppsForThisUser = await models.Application.count({
       where: {
         CollectiveId: req.remoteUser.CollectiveId,
       },
@@ -30,7 +31,7 @@ export const createApplicationMutation = {
       throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
     }
 
-    const application = await Application.create({
+    const application = await models.Application.create({
       ...pick(args.application, ['name', 'description', 'callbackUrl']),
       CreatedByUserId: req.remoteUser.id,
       CollectiveId: req.remoteUser.CollectiveId,
@@ -40,7 +41,7 @@ export const createApplicationMutation = {
   },
 };
 
-export const updateApplicationMutation = {
+const updateApplication = {
   type: Application,
   args: {
     application: {
@@ -49,7 +50,7 @@ export const updateApplicationMutation = {
   },
   async resolve(_, args, req) {
     if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to delete an application.');
+      throw new Unauthorized('You need to be authenticated to update an application.');
     }
 
     const application = await fetchApplicationWithReference(args.application);
@@ -63,7 +64,7 @@ export const updateApplicationMutation = {
   },
 };
 
-export const deleteApplicationMutation = {
+const deleteApplication = {
   type: Application,
   args: {
     application: {
@@ -85,3 +86,11 @@ export const deleteApplicationMutation = {
     return application.destroy();
   },
 };
+
+const applicationMutations = {
+  createApplication,
+  updateApplication,
+  deleteApplication,
+};
+
+export default applicationMutations;
