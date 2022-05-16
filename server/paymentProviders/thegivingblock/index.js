@@ -208,6 +208,17 @@ export const confirmOrder = async order => {
   return models.Transaction.createFromContributionPayload(transactionPayload);
 };
 
+export async function getCryptoToUSDRate(cryptoCurrency) {
+  const account = await models.ConnectedAccount.findOne({
+    where: { service: 'thegivingblock', deletedAt: null },
+  });
+  const headers = {
+    Authorization: `Bearer ${account.data.accessToken}`,
+  };
+
+  return apiRequest(`/crypto-to-usd-rate?currency=${cryptoCurrency}`, { headers }, account);
+}
+
 function hexToBuffer(str) {
   return Buffer.from(str, 'hex');
 }

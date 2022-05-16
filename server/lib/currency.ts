@@ -6,6 +6,7 @@ import fetch from 'node-fetch';
 
 import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
 import models from '../models';
+import { getCryptoToUSDRate } from '../paymentProviders/thegivingblock';
 
 import cache from './cache';
 import logger from './logger';
@@ -268,4 +269,21 @@ export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], curren
       return arrayInBaseCurrency.reduce((accumulator, amount) => accumulator + amount, 0);
     },
   );
+}
+
+/**
+ * Gets exchange rate between given crypto currency and fiat.
+ */
+export async function getCryptoFxRate(cryptoCurrency: string, fiatCurrency: string): Promise<string> {
+  if (!cryptoCurrency || !fiatCurrency) {
+    return null;
+  }
+  try {
+    const { rate: cryptoToUSDRate } = await getCryptoToUSDRate(cryptoCurrency);
+    const USDToCollectiveCurrencyRate = await getFxRate('USD', fiatCurrency);
+    return cryptoToUSDRate * USDToCollectiveCurrencyRate;
+  } catch (error) {
+    logger.error(error);
+    return null;
+  }
 }
