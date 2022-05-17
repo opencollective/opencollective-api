@@ -485,12 +485,12 @@ export async function archiveCollective(_, args, req) {
 
   if (projects && projects.length) {
     for (const project of projects) {
-      await project.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
+      await archiveCollective(_, project, req);
     }
   }
   if (events && events.length) {
     for (const event of events) {
-      await event.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
+      await archiveCollective(_, event, req);
     }
   }
   return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
