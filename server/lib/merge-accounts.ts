@@ -199,6 +199,7 @@ const userFieldsConfig = {
   payoutMethods: { model: models.PayoutMethod, field: 'CreatedByUserId' },
   transactions: { model: models.Transaction, field: 'CreatedByUserId' },
   updates: { model: models.Update, field: 'CreatedByUserId' },
+  userTokens: { model: models.UserToken, field: 'UserId' },
   virtualCards: { model: models.VirtualCard, field: 'UserId' },
 };
 

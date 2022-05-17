@@ -35,6 +35,14 @@ WITH banned_collectives AS (
   FROM        deleted_users u
   WHERE       u."id" = code."UserId"
   RETURNING   code.id
+), deleted_user_tokens AS (
+  -- User tokens
+  UPDATE ONLY "UserTokens" t
+  SET         "deletedAt" = NOW(),
+              data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
+  FROM        deleted_users
+  WHERE       t."UserId" = deleted_users.id
+  RETURNING   t.id
 ), transactions_groups_to_delete AS (
   SELECT DISTINCT "TransactionGroup"
   FROM "Transactions" t
@@ -151,6 +159,7 @@ WITH banned_collectives AS (
   (SELECT COUNT(*) FROM deleted_profiles) AS nb_deleted_profiles,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
   (SELECT COUNT(*) FROM deleted_oauth_authorization_codes) AS nb_deleted_oauth_authorization_codes,
+  (SELECT COUNT(*) FROM deleted_user_tokens) AS nb_deleted_user_tokens,
   (SELECT COUNT(*) FROM deleted_transactions) AS nb_deleted_transactions,
   (SELECT COUNT(*) FROM deleted_transaction_settlements) AS nb_deleted_transaction_settlements,
   (SELECT COUNT(*) FROM deleted_tiers) AS nb_deleted_tiers,
