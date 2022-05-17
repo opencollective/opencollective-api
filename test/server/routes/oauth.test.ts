@@ -33,6 +33,7 @@ describe('server/routes/oauth', () => {
       /* eslint-disable camelcase */
       response_type: 'code',
       client_id: application.clientId,
+      client_secret: application.clientSecret,
       redirect_uri: application.callbackUrl,
       /* eslint-enable camelcase */
     });

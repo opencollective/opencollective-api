@@ -4,113 +4,74 @@
 import crypto from 'crypto';
 
 import config from 'config';
-import jwt from 'jsonwebtoken';
 import type OAuth2Server from 'oauth2-server';
 import type {
   AuthorizationCode,
   AuthorizationCodeModel,
-  ClientCredentialsModel,
-  ExtensionModel,
-  PasswordModel,
+  Client,
+  RefreshToken,
   RefreshTokenModel,
+  Token,
 } from 'oauth2-server';
 
-import * as auth from '../../lib/auth';
 import models from '../../models';
+import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import UserToken, { TokenType } from '../../models/UserToken';
 
 const TOKEN_LENGTH = 64;
 
-type OauthModel = AuthorizationCodeModel | ClientCredentialsModel | RefreshTokenModel | PasswordModel | ExtensionModel;
+interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
 
+// Helpers to convert data from/to our model types to OAuth2Server types.
+
+export const dbApplicationToClient = (application: typeof models.Application): OAuth2Server.Client => ({
+  id: application.clientId,
+  redirectUris: [application.callbackUrl],
+  grants: ['authorization_code'],
+});
+
+export const dbOAuthAuthorizationCodeToAuthorizationCode = (
+  authorization: OAuthAuthorizationCode,
+): AuthorizationCode => ({
+  authorizationCode: authorization.code,
+  expiresAt: authorization.expiresAt,
+  redirectUri: authorization.redirectUri,
+  client: dbApplicationToClient(authorization.application),
+  user: authorization.user,
+});
+
+/**
+ * OAuth model implementation.
+ */
 const model: OauthModel = {
+  // -- Access token --
   /** Invoked to generate a new access token */
-  async generateAccessToken(client, user, scope) {
+  async generateAccessToken(client: Client, user, scope): Promise<string> {
     console.log('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
   },
 
-  async generateRefreshToken(client, user, scope) {
-    console.log('model.generateAccessToken', client, user, scope);
-    const prefix = config.env === 'production' ? 'oauth_refresh_' : 'test_oauth_refresh_';
-    return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-  },
-
-  async getAccessToken(accessToken: string): Promise<UserToken> {
-    console.log('model.getAccessToken', accessToken);
-    return UserToken.findOne({ where: { accessToken } });
-  },
-
-  async getRefreshToken(refreshToken) {
-    console.log('model.getRefreshToken', refreshToken);
-    return UserToken.findOne({ where: { refreshToken } });
-  },
-
-  async getAuthorizationCode(authorizationCode): Promise<AuthorizationCode> {
-    console.log('model.getAuthorizationCode', authorizationCode);
-    const jwt = auth.verifyJwt(authorizationCode);
-    const client = await this.getClient(jwt.client || jwt.clientId || jwt.client_id, null);
-    // No persistence for now, that might be a problem
-    return {
-      authorizationCode,
-      client,
-      user: await models.User.findByPk(jwt.sub),
-      expiresAt: new Date(jwt.exp * 1000),
-      redirectUri: client.callbackUrl,
-    };
-  },
-
-  async generateAuthorizationCode(client, user, scope) {
-    console.log('model.generateAuthorizationCode', client, user, scope);
-    return jwt.sign({ clientId: client.id, scope: 'authorization_code' }, config.keys.opencollective.jwtSecret, {
-      expiresIn: auth.TOKEN_EXPIRATION_LOGIN,
-      subject: String(user.id),
-      algorithm: auth.ALGORITHM,
-      header: {
-        kid: auth.KID,
-      },
-    });
-  },
-
-  async getClient(clientId, clientSecret) {
-    console.log('model.getClient', clientId, clientSecret);
-    const client = Number.isInteger(clientId)
-      ? await models.Application.findByPk(clientId)
-      : await models.Application.findOne({ where: { clientId } });
-    return {
-      ...client.dataValues,
-      grants: ['authorization_code'],
-      redirectUris: [client.callbackUrl],
-    };
-  },
-
-  // TODO We shouldn't need this as we don't use password
-  // getUser(username, password) {
-  //   console.log('getUser', username, password);
-  // },
-
-  async getUserFromClient(client) {
-    console.log('model.getUserFromClient', client);
-  },
-
-  async saveToken(token: OAuth2Server.Token, client: typeof models.Application, user: typeof models.User) {
+  async saveToken(token: OAuth2Server.Token, client: Client, user: typeof models.User): Promise<Token> {
     console.log('model.saveToken', token, client, user);
     try {
+      const application = await models.Application.findOne({ where: { clientId: client.id } });
+
       // Delete existing Tokens as we have a 1 token only policy
       await UserToken.destroy({
         where: {
-          ApplicationId: client.id,
+          ApplicationId: application.id,
           UserId: user.id,
         },
       });
+
       const oauthToken = await UserToken.create({
         type: TokenType.OAUTH,
         accessToken: token.accessToken,
         accessTokenExpiresAt: token.accessTokenExpiresAt,
         refreshToken: token.refreshToken,
         refreshTokenExpiresAt: token.refreshTokenExpiresAt,
-        ApplicationId: client.id,
+        ApplicationId: application.id,
         UserId: user.id,
       });
       oauthToken.user = user;
@@ -123,21 +84,87 @@ const model: OauthModel = {
     }
   },
 
-  async saveAuthorizationCode(code, client) {
+  async revokeToken(token: RefreshToken | Token) {
+    const nbDeleted = await models.OAuthAuthorizationCode.destroy({ where: { code: authorizationCode } });
+    return nbDeleted > 0;
+  },
+
+  // -- Refresh token --
+  async generateRefreshToken(client, user, scope) {
+    // TODO: Remove these console.log before merging
+    console.log('model.generateAccessToken', client, user, scope);
+    const prefix = config.env === 'production' ? 'oauth_refresh_' : 'test_oauth_refresh_';
+    return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
+  },
+
+  async getAccessToken(accessToken: string): Promise<Token> {
+    console.log('model.getAccessToken', accessToken);
+    return UserToken.findOne({ where: { accessToken } });
+  },
+
+  async getRefreshToken(refreshToken) {
+    console.log('model.getRefreshToken', refreshToken);
+    return UserToken.findOne({ where: { refreshToken } });
+  },
+
+  // -- Authorization code --
+  async getAuthorizationCode(authorizationCode: string): Promise<AuthorizationCode> {
+    console.log('model.getAuthorizationCode', authorizationCode);
+
+    const authorization = await models.OAuthAuthorizationCode.findOne({
+      where: { code: authorizationCode },
+      include: [{ association: 'user' }, { association: 'application' }],
+    });
+
+    if (!authorization) {
+      throw new Error('Invalid authorization code'); // TODO
+    }
+
+    return dbOAuthAuthorizationCodeToAuthorizationCode(authorization);
+  },
+
+  async saveAuthorizationCode(
+    code: AuthorizationCode,
+    client: Client,
+    user: typeof models.User,
+  ): Promise<AuthorizationCode> {
     console.log('model.saveAuthorizationCode', code, client);
-    return code;
+    const application = await models.Application.findOne({ where: { clientId: client.id } });
+    const authorization = await models.OAuthAuthorizationCode.create({
+      ApplicationId: application.id,
+      UserId: user.id,
+      code: code.authorizationCode,
+      expiresAt: code.expiresAt,
+      redirectUri: code.redirectUri,
+    });
+
+    authorization.application = application;
+    authorization.user = user;
+    return dbOAuthAuthorizationCodeToAuthorizationCode(authorization);
   },
 
-  async revokeToken(token) {},
-
-  async revokeAuthorizationCode(code) {
-    // Code are used only once and revoked as soon as they're used
-    return true;
+  async revokeAuthorizationCode({ authorizationCode }: AuthorizationCode): Promise<boolean> {
+    const nbDeleted = await models.OAuthAuthorizationCode.destroy({ where: { code: authorizationCode } });
+    return nbDeleted > 0;
   },
 
-  // validateScope(user, client, scope) {}
+  // -- Client --
 
-  // verifyScope(accessToken, scope) {}
+  async getClient(clientId: string, clientSecret: string): Promise<Client> {
+    console.log('model.getClient', clientId, clientSecret);
+    const application = await models.Application.findOne({ where: { clientId } }); // TODO: Should we use clientSecret here?
+    if (!application) {
+      throw new Error('Invalid client'); // TODO
+    }
+
+    return dbApplicationToClient(application);
+  },
+
+  // -- Scope --
+
+  async verifyScope(token: Token, scope: string | string[]): Promise<boolean> {
+    return true; // Scope verification is not implemented yet, but it's required by the library
+  },
 };
 
 export default model;

@@ -771,6 +771,28 @@ export const fakeUserToken = async (data = {}) => {
   return userToken.reload();
 };
 
+export const fakeOAuthAuthorizationCode = async (data = {}) => {
+  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const application =
+    data.application ||
+    (data.ApplicationId ? await models.Application.findByPk(data.ApplicationId) : await fakeApplication({ user }));
+
+  const authorization = await models.OAuthAuthorizationCode.create({
+    code: randStr('Code-'),
+    expiresAt: moment().add(60, 'days').toDate(),
+    redirectUri: randUrl(),
+    ...data,
+    UserId: user.id,
+    ApplicationId: application.id,
+  });
+
+  // Bind associations
+  authorization.user = user;
+  authorization.application = application;
+
+  return authorization;
+};
+
 export const fakeRecurringExpense = async (data = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
   const FromCollectiveId = data.FromCollectiveId || (await fakeCollective()).id;

@@ -18,6 +18,7 @@ import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
 import Notification from './Notification';
+import OAuthAuthorizationCode from './OAuthAuthorizationCode';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -61,6 +62,7 @@ export function setupModels() {
   m['MemberInvitation'] = MemberInvitation;
   m['MigrationLog'] = MigrationLog;
   m['Notification'] = Notification;
+  m['OAuthAuthorizationCode'] = OAuthAuthorizationCode;
   m['Order'] = Order;
   m['PaymentMethod'] = PaymentMethod;
   m['PayoutMethod'] = PayoutMethod;
@@ -196,6 +198,10 @@ export function setupModels() {
   m.Notification.belongsTo(m.User);
 
   m.Notification.belongsTo(m.Collective);
+
+  // OAuthAuthorizationCode
+  m.OAuthAuthorizationCode.belongsTo(m.Application, { foreignKey: 'ApplicationId', as: 'application' });
+  m.OAuthAuthorizationCode.belongsTo(m.User, { foreignKey: 'UserId', as: 'user' });
 
   // Transactions
   m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });
