@@ -726,8 +726,8 @@ export const fakeApplication = async (data = {}) => {
   return models.Application.create({
     type: sample(['apiKey', 'oAuth']),
     apiKey: randStr('ApiKey-'),
-    clientId: randStr('Client-'),
-    clientSecret: randStr('Secret-'),
+    clientId: randStrOfLength(20),
+    clientSecret: randStrOfLength(40),
     callbackUrl: randUrl(),
     name: randStr('Name '),
     description: randStr('Description '),

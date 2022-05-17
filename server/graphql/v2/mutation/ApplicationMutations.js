@@ -32,7 +32,7 @@ const createApplication = {
     }
 
     const application = await models.Application.create({
-      ...pick(args.application, ['name', 'description', 'callbackUrl']),
+      ...pick(args.application, ['type', 'name', 'description', 'callbackUrl']),
       CreatedByUserId: req.remoteUser.id,
       CollectiveId: req.remoteUser.CollectiveId,
     });

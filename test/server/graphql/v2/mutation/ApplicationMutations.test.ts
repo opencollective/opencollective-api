@@ -54,15 +54,6 @@ const VALID_APPLICATION_PARAMS = {
   callbackUrl: 'https://example.com/callback',
 };
 
-const INVALID_CALLBACK_URLS = [
-  '0.0.0.0',
-  'localhost',
-  'http://localhost',
-  'https://opencollective.com',
-  'https://0.0.0.0',
-  'https://12.12.12.12',
-];
-
 describe('server/graphql/v2/mutation/ApplicationMutations', () => {
   before(resetTestDB);
 
@@ -72,21 +63,6 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be authenticated to create an application.');
-    });
-
-    it('callback URL must be valid / non-internal', async () => {
-      const user = await fakeUser();
-      for (const callbackUrl of INVALID_CALLBACK_URLS) {
-        const result = await graphqlQueryV2(
-          CREATE_APPLICATION_MUTATION,
-          { application: { ...VALID_APPLICATION_PARAMS, callbackUrl } },
-          user,
-        );
-
-        expect(result.errors).to.exist;
-        const formattedUrl = callbackUrl.replace(/^https?:\/\//, '');
-        expect(result.errors[0].message).to.include(`Not a valid URL: ${formattedUrl}`);
-      }
     });
 
     it('has a limitation on the number of apps that can be created', async () => {
@@ -115,8 +91,8 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       expect(resultApp.name).to.eq(VALID_APPLICATION_PARAMS.name);
       expect(resultApp.description).to.eq(VALID_APPLICATION_PARAMS.description);
       expect(resultApp.callbackUrl).to.eq(VALID_APPLICATION_PARAMS.callbackUrl);
-      expect(resultApp.clientId).to.have.length(32); // TODO: value length?
-      expect(resultApp.clientSecret).to.have.length(32); // TODO: value length?
+      expect(resultApp.clientId).to.have.length(20);
+      expect(resultApp.clientSecret).to.have.length(40);
 
       // User/application is not provided by GraphQL, so we need to fetch it from the DB
       const appFromDB = await models.Application.findByPk(resultApp.legacyId);
@@ -155,22 +131,6 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Application Not Found');
-    });
-
-    it('callback URL must be valid / non-internal', async () => {
-      const application = await fakeApplication();
-      const user = await application.getCreatedByUser();
-      for (const callbackUrl of INVALID_CALLBACK_URLS) {
-        const result = await graphqlQueryV2(
-          UPDATE_APPLICATION_MUTATION,
-          { application: { legacyId: application.id, callbackUrl } },
-          user,
-        );
-
-        expect(result.errors).to.exist;
-        const formattedUrl = callbackUrl.replace(/^https?:\/\//, '');
-        expect(result.errors[0].message).to.include(`Not a valid URL: ${formattedUrl}`);
-      }
     });
 
     it('updates an OAUTH application', async () => {

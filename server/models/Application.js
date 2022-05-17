@@ -96,8 +96,8 @@ function defineModel() {
     }
     if (props.type === 'oAuth') {
       props = merge(props, {
-        clientId: crypto.randomBytes(20).toString('hex'),
-        clientSecret: crypto.randomBytes(40).toString('hex'),
+        clientId: crypto.randomBytes(10).toString('hex'), // Will be 20 length in ascii
+        clientSecret: crypto.randomBytes(20).toString('hex'), // Will be 40 length in ascii
       });
     }
     return Application.build(props).save();
