@@ -250,6 +250,10 @@ const expenseMutations = {
         type: new GraphQLNonNull(ExpenseProcessAction),
         description: 'The action to trigger',
       },
+      message: {
+        type: GraphQLString,
+        description: 'Message to be attached to the action activity.',
+      },
       paymentParams: {
         description: 'If action is related to a payment, this object used for the payment parameters',
         type: new GraphQLInputObjectType({
@@ -277,10 +281,6 @@ const expenseMutations = {
               description: '2FA code for if the host account has 2FA for payouts turned on.',
               defaultValue: 'COLLECTIVE',
             },
-            message: {
-              type: GraphQLString,
-              description: 'Message to be attached to the action activity.',
-            },
           }),
         }),
       },
@@ -297,7 +297,7 @@ const expenseMutations = {
         case 'UNAPPROVE':
           return unapproveExpense(req, expense);
         case 'MARK_AS_INCOMPLETE':
-          return markExpenseAsIncomplete(req, expense, args.paymentParams?.message);
+          return markExpenseAsIncomplete(req, expense, args.message);
         case 'REJECT':
           return rejectExpense(req, expense);
         case 'MARK_AS_SPAM':

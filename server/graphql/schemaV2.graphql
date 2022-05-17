@@ -10686,6 +10686,11 @@ type Mutation {
     action: ExpenseProcessAction!
 
     """
+    Message to be attached to the action activity.
+    """
+    message: String
+
+    """
     If action is related to a payment, this object used for the payment parameters
     """
     paymentParams: ProcessExpensePaymentParams
