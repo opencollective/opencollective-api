@@ -1638,6 +1638,7 @@ enum ExpenseStatus {
   DRAFT
   UNVERIFIED
   PENDING
+  INCOMPLETE
   APPROVED
   REJECTED
   PROCESSING
@@ -1913,6 +1914,11 @@ type ExpensePermissions {
   canMarkAsUnpaid: Boolean!
 
   """
+  Whether the current user can mark this expense as incomplete
+  """
+  canMarkAsIncomplete: Boolean!
+
+  """
   Whether the current user can comment and see comments for this expense
   """
   canComment: Boolean!
@@ -1994,6 +2000,7 @@ enum ActivityType {
   COLLECTIVE_EXPENSE_PAID
   COLLECTIVE_EXPENSE_MARKED_AS_UNPAID
   COLLECTIVE_EXPENSE_MARKED_AS_SPAM
+  COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE
   COLLECTIVE_EXPENSE_PROCESSING
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT
   COLLECTIVE_EXPENSE_ERROR
@@ -7352,9 +7359,19 @@ type Query {
   ): AccountCollection!
   application(
     """
-    Identifiers to retrieve the Order
+    The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
     """
-    application: ApplicationReferenceInput!
+    id: String
+
+    """
+    The legacy public id identifying the application (ie: 4242)
+    """
+    legacyId: Int
+
+    """
+    The clientId for the application.
+    """
+    clientId: String
   ): Application
   collective(
     """
@@ -9154,23 +9171,6 @@ enum ApplicationType {
   OAUTH
 }
 
-input ApplicationReferenceInput {
-  """
-  The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
-  """
-  id: String
-
-  """
-  The legacy public id identifying the application (ie: 4242)
-  """
-  legacyId: Int
-
-  """
-  The clientId for the application.
-  """
-  clientId: String
-}
-
 input ExpenseReferenceInput {
   """
   The public id identifying the expense (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
@@ -9200,6 +9200,7 @@ enum ExpenseStatusFilter {
   DRAFT
   UNVERIFIED
   PENDING
+  INCOMPLETE
   APPROVED
   REJECTED
   PROCESSING
@@ -10516,6 +10517,9 @@ type Mutation {
     """
     policies: [Policy]
   ): Account!
+  createApplication(application: ApplicationCreateInput!): Application
+  updateApplication(application: ApplicationUpdateInput!): Application
+  deleteApplication(application: ApplicationReferenceInput!): Application
   editComment(comment: CommentUpdateInput!): Comment
   deleteComment(id: String!): Comment
   createComment(comment: CommentCreateInput!): Comment
@@ -11429,6 +11433,56 @@ input AccountUpdateInput {
   currency: Currency
 }
 
+"""
+Input type for Application
+"""
+input ApplicationCreateInput {
+  type: ApplicationType! = OAUTH
+  name: String
+  description: String
+  callbackUrl: URL
+}
+
+"""
+Input type for Application
+"""
+input ApplicationUpdateInput {
+  """
+  The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The legacy public id identifying the application (ie: 4242)
+  """
+  legacyId: Int
+
+  """
+  The clientId for the application.
+  """
+  clientId: String
+  name: String
+  description: String
+  callbackUrl: URL
+}
+
+input ApplicationReferenceInput {
+  """
+  The public id identifying the application (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The legacy public id identifying the application (ie: 4242)
+  """
+  legacyId: Int
+
+  """
+  The clientId for the application.
+  """
+  clientId: String
+}
+
 input CommentUpdateInput {
   id: String!
   html: String
@@ -11887,6 +11941,11 @@ enum ExpenseProcessAction {
   To mark the expense as spam
   """
   MARK_AS_SPAM
+
+  """
+  To mark the expense as incomplete and notify the payee it requires more information
+  """
+  MARK_AS_INCOMPLETE
 }
 
 """
@@ -11917,6 +11976,11 @@ input ProcessExpensePaymentParams {
   2FA code for if the host account has 2FA for payouts turned on.
   """
   feesPayer: FeesPayer = COLLECTIVE
+
+  """
+  Message to be attached to the action activity.
+  """
+  message: String
 }
 
 input ExpenseInviteDraftInput {
