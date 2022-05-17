@@ -1,8 +1,9 @@
-import crypto from 'crypto';
+import { randomBytes } from 'crypto';
 
-import { merge } from 'lodash';
+import { isNil, merge } from 'lodash';
 import { DataTypes } from 'sequelize';
 
+import { crypto } from '../lib/encryption';
 import sequelize from '../lib/sequelize';
 
 function defineModel() {
@@ -44,6 +45,13 @@ function defineModel() {
       },
       clientSecret: {
         type: DataTypes.STRING,
+        get() {
+          const encrypted = this.getDataValue('clientSecret');
+          return isNil(encrypted) ? null : crypto.decrypt(encrypted);
+        },
+        set(value) {
+          this.setDataValue('clientSecret', crypto.encrypt(value));
+        },
       },
       callbackUrl: {
         type: DataTypes.STRING,
@@ -91,13 +99,13 @@ function defineModel() {
   Application.create = props => {
     if (props.type === 'apiKey') {
       props = merge(props, {
-        apiKey: crypto.randomBytes(20).toString('hex'),
+        apiKey: randomBytes(20).toString('hex'),
       });
     }
     if (props.type === 'oAuth') {
       props = merge(props, {
-        clientId: crypto.randomBytes(10).toString('hex'), // Will be 20 length in ascii
-        clientSecret: crypto.randomBytes(20).toString('hex'), // Will be 40 length in ascii
+        clientId: randomBytes(10).toString('hex'), // Will be 20 length in ascii
+        clientSecret: randomBytes(20).toString('hex'), // Will be 40 length in ascii
       });
     }
     return Application.build(props).save();
