@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
+import moment from 'moment';
 import { AuthorizationCode, Client, InvalidTokenError, Token } from 'oauth2-server';
 import { stub } from 'sinon';
 
@@ -8,7 +9,13 @@ import OAuthModel, {
   dbOAuthAuthorizationCodeToAuthorizationCode,
 } from '../../../../server/lib/oauth/model';
 import models from '../../../../server/models';
-import { fakeApplication, fakeOAuthAuthorizationCode, fakeUserToken, randStr } from '../../../test-helpers/fake-data';
+import {
+  fakeApplication,
+  fakeOAuthAuthorizationCode,
+  fakeUser,
+  fakeUserToken,
+  randStr,
+} from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 describe('server/lib/oauth/model', () => {
@@ -109,7 +116,36 @@ describe('server/lib/oauth/model', () => {
     });
   });
 
-  // describe('saveToken', () => {});
+  describe('saveToken', () => {
+    it('saves the token in DB', async () => {
+      const application = await fakeApplication();
+      const user = await fakeUser();
+      const client = dbApplicationToClient(application);
+      const token = <Token>await OAuthModel.saveToken(
+        {
+          accessToken: randStr(),
+          accessTokenExpiresAt: moment().add(1, 'month').toDate(),
+          refreshToken: randStr(),
+          refreshTokenExpiresAt: moment().add(1, 'month').toDate(),
+          client,
+          user,
+        },
+        client,
+        user,
+      );
+
+      expect(token).to.exist;
+
+      const tokenFromDb = await models.UserToken.findOne({ where: { accessToken: token.accessToken } });
+      expect(tokenFromDb).to.exist;
+      expect(tokenFromDb.accessToken).to.eq(token.accessToken);
+      expect(tokenFromDb.accessTokenExpiresAt.toISOString()).to.eq(token.accessTokenExpiresAt.toISOString());
+      expect(tokenFromDb.refreshToken).to.eq(token.refreshToken);
+      expect(tokenFromDb.refreshTokenExpiresAt.toISOString()).to.eq(token.refreshTokenExpiresAt.toISOString());
+      expect(tokenFromDb.ApplicationId).to.eq(application.id);
+      expect(tokenFromDb.UserId).to.eq(user.id);
+    });
+  });
 
   // -- Authorization code --
 
