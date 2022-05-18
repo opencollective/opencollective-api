@@ -9,9 +9,9 @@ import models from '.';
 interface UserTokenCreateAttributes {
   type: 'OAUTH';
   accessToken: string;
-  accessTokenExpiresAt: Date;
-  refreshToken: string;
-  refreshTokenExpiresAt?: Date;
+  accessTokenExpiresAt?: Date | undefined;
+  refreshToken?: string | undefined;
+  refreshTokenExpiresAt?: Date | undefined;
   ApplicationId: number;
   UserId: number;
   data: Record<string, unknown>;
