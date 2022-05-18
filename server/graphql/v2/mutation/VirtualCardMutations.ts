@@ -15,7 +15,7 @@ import { VirtualCardInput } from '../input/VirtualCardInput';
 import { VirtualCardReferenceInput } from '../input/VirtualCardReferenceInput';
 import { VirtualCard } from '../object/VirtualCard';
 
-const MAXIMUM_MONTHLY_LIMIT = 2000;
+const MAXIMUM_MONTHLY_LIMIT = 5000;
 
 const virtualCardMutations = {
   assignNewVirtualCard: {
