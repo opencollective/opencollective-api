@@ -1,6 +1,6 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { exchangeRateQuery } from '../../../lib/currency';
+import { cryptoExchangeRateQuery } from '../../../lib/currency';
 import { Currency } from '../enum';
 import { CryptoCurrency } from '../enum/Currency';
 
@@ -17,7 +17,7 @@ const CryptoExchangeRateQuery = {
     },
   },
   async resolve(_, args) {
-    return exchangeRateQuery(args.cryptoCurrency, args.collectiveCurrency);
+    return cryptoExchangeRateQuery(args.cryptoCurrency, args.collectiveCurrency);
   },
 };
 
