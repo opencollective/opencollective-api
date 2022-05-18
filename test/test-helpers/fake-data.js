@@ -780,7 +780,7 @@ export const fakeOAuthAuthorizationCode = async (data = {}) => {
   const authorization = await models.OAuthAuthorizationCode.create({
     code: randStr('Code-'),
     expiresAt: moment().add(60, 'days').toDate(),
-    redirectUri: randUrl(),
+    redirectUri: application.callbackUrl,
     ...data,
     UserId: user.id,
     ApplicationId: application.id,

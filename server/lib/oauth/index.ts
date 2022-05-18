@@ -2,9 +2,8 @@ import Promise from 'bluebird';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import { assign } from 'lodash';
-import OAuth2Server, { AbstractGrantType } from 'oauth2-server';
+import OAuth2Server, { AbstractGrantType, UnauthorizedRequestError } from 'oauth2-server';
 import InvalidArgumentError from 'oauth2-server/lib/errors/invalid-argument-error';
-import UnauthorizedRequestError from 'oauth2-server/lib/errors/unauthorized-request-error';
 import TokenHandler from 'oauth2-server/lib/handlers/token-handler';
 
 import * as auth from '../../lib/auth';
@@ -138,7 +137,7 @@ OAuthServer.prototype.authorize = function (options) {
         return handleResponse.call(this, req, res, response);
       })
       .catch(function (e) {
-        console.log(e);
+        // TODO console.log(e);
         return handleError.call(this, e, req, res, response, next);
       });
   };
@@ -209,6 +208,7 @@ const handleError = function (e, req, res, response, next) {
     res.status(e.code);
 
     if (e instanceof UnauthorizedRequestError) {
+      res.set(`WWW-Authenticate`, `Bearer realm="service"`);
       return res.send();
     }
 
@@ -223,10 +223,8 @@ const oauth = new OAuthServer({
 
 export const authorizeAuthenticateHandler = {
   handle: function (req) {
-    if (req.remoteUser) {
-      console.log('authorizeAuthenticateHandler with user');
-    } else {
-      console.log('authorizeAuthenticateHandler no user');
+    if (!req.remoteUser) {
+      throw new UnauthorizedRequestError('You must be signed in');
     }
 
     return req.remoteUser;

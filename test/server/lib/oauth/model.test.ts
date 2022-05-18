@@ -1,7 +1,14 @@
 import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
-import { AuthorizationCode, Client, InvalidTokenError, Token } from 'oauth2-server';
+import {
+  AuthorizationCode,
+  Client,
+  InvalidClientError,
+  InvalidGrantError,
+  InvalidTokenError,
+  Token,
+} from 'oauth2-server';
 import { stub } from 'sinon';
 
 import OAuthModel, {
@@ -18,6 +25,10 @@ import {
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
+/**
+ * Partially covers the OAuth model methods. For more comprehensive tests,
+ * see the integration tests in `test/server/routes/oauth.test.ts`.
+ */
 describe('server/lib/oauth/model', () => {
   let configStub;
 
@@ -63,8 +74,6 @@ describe('server/lib/oauth/model', () => {
     it('throws if the token does not exist', async () => {
       await expect(OAuthModel.getAccessToken('not-a-token')).to.be.rejectedWith(InvalidTokenError);
     });
-
-    // TODO responsibility? ('throws if the token is expired', async () => {});
   });
 
   // -- Refresh token --
@@ -98,8 +107,6 @@ describe('server/lib/oauth/model', () => {
     it('throws if the token does not exist', async () => {
       await expect(OAuthModel.getRefreshToken('not-a-token')).to.be.rejectedWith(InvalidTokenError);
     });
-
-    // TODO responsibility? ('throws if the token is expired', async () => {});
   });
 
   describe('getClient', () => {
@@ -112,7 +119,7 @@ describe('server/lib/oauth/model', () => {
     });
 
     it('throws if the client does not exist', async () => {
-      await expect(OAuthModel.getClient('not-a-client', 'not-a-secret')).to.be.rejectedWith(InvalidTokenError);
+      await expect(OAuthModel.getClient('not-a-client', 'not-a-secret')).to.be.rejectedWith(InvalidClientError);
     });
   });
 
@@ -163,7 +170,7 @@ describe('server/lib/oauth/model', () => {
     });
 
     it('throws if the code does not exist', async () => {
-      await expect(OAuthModel.getAuthorizationCode('not-a-valid-code')).to.be.rejectedWith(InvalidTokenError);
+      await expect(OAuthModel.getAuthorizationCode('not-a-valid-code')).to.be.rejectedWith(InvalidGrantError);
     });
   });
 

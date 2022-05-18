@@ -4,11 +4,15 @@
 import crypto from 'crypto';
 
 import config from 'config';
+import debugLib from 'debug';
 import type OAuth2Server from 'oauth2-server';
-import type {
+import {
   AuthorizationCode,
   AuthorizationCodeModel,
   Client,
+  InvalidClientError,
+  InvalidGrantError,
+  InvalidTokenError,
   RefreshToken,
   RefreshTokenModel,
   Token,
@@ -17,6 +21,8 @@ import type {
 import models from '../../models';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import UserToken, { TokenType } from '../../models/UserToken';
+
+const debug = debugLib('oAuth');
 
 const TOKEN_LENGTH = 64;
 
@@ -47,13 +53,13 @@ const model: OauthModel = {
   // -- Access token --
   /** Invoked to generate a new access token */
   async generateAccessToken(client: Client, user, scope): Promise<string> {
-    console.log('model.generateAccessToken', client, user, scope);
+    debug('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
   },
 
   async saveToken(token: OAuth2Server.Token, client: Client, user: typeof models.User): Promise<Token> {
-    console.log('model.saveToken', token, client, user);
+    debug('model.saveToken', token, client, user);
     try {
       const application = await models.Application.findOne({ where: { clientId: client.id } });
 
@@ -78,7 +84,7 @@ const model: OauthModel = {
       oauthToken.client = client;
       return oauthToken;
     } catch (e) {
-      console.log(e);
+      debug(e);
       // TODO: what should be thrown so it's properly catched on the library side?
       throw e;
     }
@@ -91,33 +97,41 @@ const model: OauthModel = {
 
   // -- Refresh token --
   async generateRefreshToken(client, user, scope) {
-    // TODO: Remove these console.log before merging
-    console.log('model.generateAccessToken', client, user, scope);
+    debug('model.generateAccessToken', client, user, scope);
     const prefix = config.env === 'production' ? 'oauth_refresh_' : 'test_oauth_refresh_';
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
   },
 
   async getAccessToken(accessToken: string): Promise<Token> {
-    console.log('model.getAccessToken', accessToken);
-    return UserToken.findOne({ where: { accessToken } });
+    debug('model.getAccessToken', accessToken);
+    const token = await UserToken.findOne({ where: { accessToken } });
+    if (!token) {
+      throw new InvalidTokenError('Invalid token');
+    }
+
+    return token;
   },
 
   async getRefreshToken(refreshToken) {
-    console.log('model.getRefreshToken', refreshToken);
-    return UserToken.findOne({ where: { refreshToken } });
+    debug('model.getRefreshToken', refreshToken);
+    const token = await UserToken.findOne({ where: { refreshToken } });
+    if (!token) {
+      throw new InvalidTokenError('Invalid refresh token');
+    }
+
+    return token;
   },
 
   // -- Authorization code --
   async getAuthorizationCode(authorizationCode: string): Promise<AuthorizationCode> {
-    console.log('model.getAuthorizationCode', authorizationCode);
-
+    debug('model.getAuthorizationCode', authorizationCode);
     const authorization = await models.OAuthAuthorizationCode.findOne({
       where: { code: authorizationCode },
       include: [{ association: 'user' }, { association: 'application' }],
     });
 
     if (!authorization) {
-      throw new Error('Invalid authorization code'); // TODO
+      throw new InvalidGrantError('Invalid authorization code');
     }
 
     return dbOAuthAuthorizationCodeToAuthorizationCode(authorization);
@@ -128,7 +142,7 @@ const model: OauthModel = {
     client: Client,
     user: typeof models.User,
   ): Promise<AuthorizationCode> {
-    console.log('model.saveAuthorizationCode', code, client);
+    debug('model.saveAuthorizationCode', code, client);
     const application = await models.Application.findOne({ where: { clientId: client.id } });
     const authorization = await models.OAuthAuthorizationCode.create({
       ApplicationId: application.id,
@@ -150,11 +164,13 @@ const model: OauthModel = {
 
   // -- Client --
 
-  async getClient(clientId: string, clientSecret: string): Promise<Client> {
-    console.log('model.getClient', clientId, clientSecret);
-    const application = await models.Application.findOne({ where: { clientId } }); // TODO: Should we use clientSecret here?
+  async getClient(clientId: string, clientSecret: string | null): Promise<Client> {
+    debug('model.getClient', clientId, clientSecret);
+    const application = await models.Application.findOne({ where: { clientId } });
     if (!application) {
-      throw new Error('Invalid client'); // TODO
+      throw new InvalidClientError('Invalid client');
+    } else if (clientSecret && application.clientSecret !== clientSecret) {
+      throw new InvalidClientError('Invalid client credentials');
     }
 
     return dbApplicationToClient(application);
