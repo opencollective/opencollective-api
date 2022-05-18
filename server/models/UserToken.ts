@@ -5,19 +5,6 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
 
-// Define all attributes for the model
-interface UserTokenAttributes extends OAuth2Server.Token {
-  id: number;
-  type: 'OAUTH';
-  ApplicationId: number;
-  UserId: number;
-  data: Record<string, unknown>;
-  // Standard temporal fields
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-}
-
 // Define attributes that can be used for model creation
 interface UserTokenCreateAttributes {
   type: 'OAUTH';
@@ -28,6 +15,15 @@ interface UserTokenCreateAttributes {
   ApplicationId: number;
   UserId: number;
   data: Record<string, unknown>;
+}
+
+// Define all attributes for the model
+interface UserTokenAttributes extends UserTokenCreateAttributes, OAuth2Server.Token {
+  id: number;
+  // Standard temporal fields
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
 }
 
 export enum TokenType {

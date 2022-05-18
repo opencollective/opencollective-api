@@ -84,8 +84,8 @@ const model: OauthModel = {
     }
   },
 
-  async revokeToken(token: RefreshToken | Token) {
-    const nbDeleted = await models.OAuthAuthorizationCode.destroy({ where: { code: authorizationCode } });
+  async revokeToken(token: RefreshToken | Token): Promise<boolean> {
+    const nbDeleted = await models.UserToken.destroy({ where: { refreshToken: token.refreshToken } });
     return nbDeleted > 0;
   },
 
