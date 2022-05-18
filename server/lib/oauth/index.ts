@@ -2,7 +2,7 @@ import Promise from 'bluebird';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import { assign } from 'lodash';
-import OAuth2Server from 'oauth2-server';
+import OAuth2Server, { AbstractGrantType } from 'oauth2-server';
 import InvalidArgumentError from 'oauth2-server/lib/errors/invalid-argument-error';
 import UnauthorizedRequestError from 'oauth2-server/lib/errors/unauthorized-request-error';
 import TokenHandler from 'oauth2-server/lib/handlers/token-handler';
@@ -15,6 +15,10 @@ const Request = OAuth2Server.Request;
 const Response = OAuth2Server.Response;
 
 class CustomTokenHandler extends TokenHandler {
+  constructor(...args) {
+    super(...args);
+  }
+
   getTokenType = function (model) {
     return {
       valueOf: () =>
@@ -38,7 +42,8 @@ class CustomTokenHandler extends TokenHandler {
 }
 
 class CustomOAuth2Server extends OAuth2Server {
-  token = function (request, response, options, callback) {
+  // Library accepts a 4th parameter "callback", but it's not used there so we're omitting it
+  token = async function (request, response, options): Promise<OAuth2Server.Token> {
     options = assign(
       {
         accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 1 hour.
@@ -49,7 +54,10 @@ class CustomOAuth2Server extends OAuth2Server {
       this.options,
       options,
     );
-    return new CustomTokenHandler(options).handle(request, response).nodeify(callback);
+
+    const tokenHandler = <AbstractGrantType>(<unknown>new CustomTokenHandler(options));
+    const result = await tokenHandler.handle(request, response);
+    return result;
   };
 }
 
