@@ -121,7 +121,7 @@ describe('server/routes/oauth', () => {
     });
   });
 
-  describe('token', () => {
-    it('must provide a client_id', async () => {});
-  });
+  // describe('token', () => {
+  //   it('must provide a client_id', async () => {});
+  // });
 });

@@ -109,7 +109,7 @@ describe('server/lib/oauth/model', () => {
     });
   });
 
-  describe('saveToken', () => {});
+  // describe('saveToken', () => {});
 
   // -- Authorization code --
 

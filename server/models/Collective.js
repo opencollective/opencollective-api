@@ -1945,7 +1945,7 @@ function defineModel() {
   };
 
   Collective.prototype.updateHostFee = async function (hostFeePercent, remoteUser) {
-    if (typeof hostFeePercent === undefined || !remoteUser || hostFeePercent === this.hostFeePercent) {
+    if (typeof hostFeePercent === 'undefined' || !remoteUser || hostFeePercent === this.hostFeePercent) {
       return;
     }
     if ([types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT].includes(this.type)) {
@@ -1983,7 +1983,7 @@ function defineModel() {
   };
 
   Collective.prototype.updatePlatformFee = async function (platformFeePercent, remoteUser) {
-    if (typeof platformFeePercent === undefined || !remoteUser || platformFeePercent === this.platformFeePercent) {
+    if (typeof platformFeePercent === 'undefined' || !remoteUser || platformFeePercent === this.platformFeePercent) {
       return;
     }
     if ([types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT].includes(this.type)) {
@@ -2026,7 +2026,7 @@ function defineModel() {
    * This is a safe version that can only be used by Users and Organizations that are not hosts
    */
   Collective.prototype.updateCurrency = async function (currency, remoteUser) {
-    if (typeof currency === undefined || !remoteUser || !remoteUser.isAdmin(this.id)) {
+    if (typeof currency === 'undefined' || !remoteUser || !remoteUser.isAdmin(this.id)) {
       return this;
     }
 
