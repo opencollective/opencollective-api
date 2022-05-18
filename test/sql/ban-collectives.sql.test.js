@@ -104,6 +104,7 @@ describe('sql/ban-collectives', () => {
     });
 
     expect(result).to.deep.eqInAnyOrder({
+      nb_deleted_oauth_authorization_codes: 0,
       deleted_profiles_ids: [collective.id, event.id],
       nb_deleted_profiles: 2,
       nb_deleted_recurring_expenses: 0,
@@ -144,6 +145,7 @@ describe('sql/ban-collectives', () => {
     });
 
     expect(result).to.deep.eqInAnyOrder({
+      nb_deleted_oauth_authorization_codes: 0,
       nb_deleted_profiles: 1,
       nb_deleted_recurring_expenses: 0,
       deleted_users: 1,
@@ -188,6 +190,7 @@ describe('sql/ban-collectives', () => {
     });
 
     expect(result).to.deep.eqInAnyOrder({
+      nb_deleted_oauth_authorization_codes: 0,
       nb_deleted_profiles: 3,
       nb_deleted_recurring_expenses: 0,
       deleted_users: 2,

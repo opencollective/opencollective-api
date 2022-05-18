@@ -32,10 +32,10 @@ WITH banned_collectives AS (
   UPDATE ONLY "OAuthAuthorizationCodes" code
   SET         "deletedAt" = NOW(),
               data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
-  FROM        deleted_users
+  FROM        deleted_users u
   WHERE       u."id" = code."UserId"
   RETURNING   code.id
-) transactions_groups_to_delete AS (
+), transactions_groups_to_delete AS (
   SELECT DISTINCT "TransactionGroup"
   FROM "Transactions" t
   INNER JOIN deleted_profiles
@@ -150,7 +150,7 @@ WITH banned_collectives AS (
 ) SELECT 
   (SELECT COUNT(*) FROM deleted_profiles) AS nb_deleted_profiles,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
-  (SELECT COUNT(*) FROM deleted_oauth_authorization_codes) AS deleted_oauth_authorization_codes,
+  (SELECT COUNT(*) FROM deleted_oauth_authorization_codes) AS nb_deleted_oauth_authorization_codes,
   (SELECT COUNT(*) FROM deleted_transactions) AS nb_deleted_transactions,
   (SELECT COUNT(*) FROM deleted_transaction_settlements) AS nb_deleted_transaction_settlements,
   (SELECT COUNT(*) FROM deleted_tiers) AS nb_deleted_tiers,
