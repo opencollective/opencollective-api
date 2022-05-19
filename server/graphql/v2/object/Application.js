@@ -1,7 +1,10 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import models from '../../../models';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
+import Account from '../interface/Account';
+import { OAuthAuthorization } from '../object/OAuthAuthorization';
 
 export const Application = new GraphQLObjectType({
   name: 'Application',
@@ -66,6 +69,32 @@ export const Application = new GraphQLObjectType({
       resolve(application, args, req) {
         if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
           return application.callbackUrl;
+        }
+      },
+    },
+    account: {
+      type: new GraphQLNonNull(Account),
+      resolve(application) {
+        return application.getCollective();
+      },
+    },
+    oauthAuthorization: {
+      type: OAuthAuthorization,
+      async resolve(application, args, req) {
+        if (!req.remoteUser) {
+          return null;
+        }
+        const userToken = await models.UserToken.findOne({
+          where: { ApplicationId: application.id, UserId: req.remoteUser.id },
+        });
+        if (userToken) {
+          return {
+            account: userToken.user.getCollective(),
+            application: userToken.client,
+            expiresAt: userToken.accessTokenExpiresAt,
+            createdAt: userToken.createdAt,
+            updatedAt: userToken.updatedAt,
+          };
         }
       },
     },
