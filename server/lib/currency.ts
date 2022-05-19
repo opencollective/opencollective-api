@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { difference, get, has, keys, merge, uniq, zipObject } from 'lodash';
 import fetch from 'node-fetch';
 
-import { currencyFormats, SUPPORTED_CURRENCIES } from '../constants/currencies';
+import { currencyFormats, SUPPORTED_CRYPTO_CURRENCIES, SUPPORTED_CURRENCIES } from '../constants/currencies';
 import models from '../models';
 import { getCryptoToUSDRate } from '../paymentProviders/thegivingblock';
 
@@ -274,11 +274,26 @@ export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], curren
 /**
  * Gets exchange rate between given crypto currency and fiat.
  */
-export async function cryptoExchangeRateQuery(cryptoCurrency: string, fiatCurrency: string): Promise<string> {
+export async function getExchangeRate(fromCurrency: string, toCurrency: string): Promise<string> {
   try {
-    const { rate: cryptoToUSDRate } = await getCryptoToUSDRate(cryptoCurrency);
-    const USDToCollectiveCurrencyRate = await getFxRate('USD', fiatCurrency);
-    return cryptoToUSDRate * USDToCollectiveCurrencyRate;
+    if (SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency) && !SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency)) {
+      const { rate: cryptoToUSDRate } = await getCryptoToUSDRate(fromCurrency);
+      const USDtoCurrencyRate = await getFxRate('USD', toCurrency);
+      return cryptoToUSDRate * USDtoCurrencyRate;
+    } else if (
+      SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency) &&
+      !SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency)
+    ) {
+      const { rate: cryptoToUSDRate } = await getCryptoToUSDRate(toCurrency);
+      const fromCurrencyUSDRate = await getFxRate(fromCurrency, 'USD');
+      return fromCurrencyUSDRate / cryptoToUSDRate;
+    } else if (SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency) && SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency)) {
+      const cryptoFromCurrencyToUSD = await getCryptoToUSDRate(fromCurrency);
+      const cryptoToCurrencyToUSD = await getCryptoToUSDRate(toCurrency);
+      return cryptoFromCurrencyToUSD / cryptoToCurrencyToUSD;
+    } else {
+      return getFxRate(fromCurrency, toCurrency);
+    }
   } catch (error) {
     logger.error(error);
     return null;
