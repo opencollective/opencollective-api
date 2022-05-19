@@ -75,8 +75,8 @@ export const Application = new GraphQLObjectType({
     },
     account: {
       type: new GraphQLNonNull(Account),
-      resolve(application) {
-        return application.getCollective();
+      resolve(application, args, req) {
+        return req.loaders.Collective.byId.load(application.CollectiveId);
       },
     },
     oauthAuthorization: {
@@ -90,7 +90,7 @@ export const Application = new GraphQLObjectType({
         });
         if (userToken) {
           return {
-            account: userToken.user.getCollective(),
+            account: await req.loaders.Collective.byId.load(userToken.user.CollectiveId),
             application: userToken.client,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,
