@@ -3,8 +3,9 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 import models from '../../../models';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
-import Account from '../interface/Account';
 import { OAuthAuthorization } from '../object/OAuthAuthorization';
+import { Account } from '../interface/Account';
+import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
   name: 'Application',
@@ -64,8 +65,8 @@ export const Application = new GraphQLObjectType({
         }
       },
     },
-    callbackUrl: {
-      type: GraphQLString,
+    redirectUri: {
+      type: URL,
       resolve(application, args, req) {
         if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
           return application.callbackUrl;
