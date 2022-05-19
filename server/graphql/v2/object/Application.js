@@ -3,8 +3,8 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 import models from '../../../models';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
-import { OAuthAuthorization } from '../object/OAuthAuthorization';
 import { Account } from '../interface/Account';
+import { OAuthAuthorization } from '../object/OAuthAuthorization';
 import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
