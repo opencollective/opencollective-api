@@ -477,7 +477,7 @@ export const sendEmailNotifications = (order, transaction) => {
     order.fromCollective?.HostCollectiveId !== order.collective?.id &&
     // Check if transaction is from a collective to itself. This happens when we add funds
     // choosing the source as itself. In this case do not send an email.
-    order.fromCollective.id !== order.collective.id
+    order.fromCollective?.id !== order.collective?.id
   ) {
     sendOrderConfirmedEmail(order, transaction); // async
   } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
