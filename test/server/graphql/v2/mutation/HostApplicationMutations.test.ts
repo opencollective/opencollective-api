@@ -12,7 +12,7 @@ import {
   fakeProject,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
 const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
   mutation ProcessHostApplication(
@@ -208,7 +208,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(application.status).to.eq('REJECTED');
 
         // Test email
-        expect(sendEmailSpy.callCount).to.eq(1);
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
         const [emailTo, subject, body, { bcc }] = sendEmailSpy.getCall(0).args;
         expect(emailTo).to.eq(collectiveAdmin.email);
         expect(subject).to.eq(`Your application to ${host.name}`);
