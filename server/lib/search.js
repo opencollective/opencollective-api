@@ -81,7 +81,7 @@ const removeDiacritics = str => {
  */
 const sanitizeSearchTermForTSQuery = term => {
   return removeDiacritics(term)
-    .replace(/[^a-zA-Z0-9-\/_ ]/g, '')
+    .replace(/[^a-zA-Z0-9-\/_. ]/g, '')
     .trim();
 };
 
