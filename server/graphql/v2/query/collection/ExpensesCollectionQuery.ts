@@ -1,10 +1,10 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isEmpty, partition } from 'lodash';
+import { isEmpty, uniq } from 'lodash';
 
 import { expenseStatus } from '../../../../constants';
-import EXPENSE_TYPE from '../../../../constants/expense_type';
+import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
 import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
@@ -18,47 +18,51 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../../input/Ac
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
-const updateFilterConditionsForReadyToPay = async (where, include): Promise<void> => {
+const updateFilterConditionsForReadyToPay = async (where, include, host): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
 
   // Get all collectives matching the search that have APPROVED expenses
-  const results = await models.Expense.findAll({
+  const expenses = await models.Expense.findAll({
     where,
     include,
-    attributes: ['Expense.id', 'FromCollectiveId', 'CollectiveId'],
+    attributes: ['Expense.id', 'Expense.type', 'FromCollectiveId', 'CollectiveId'],
     group: ['Expense.id', 'Expense.FromCollectiveId', 'Expense.CollectiveId'],
     raw: true,
   });
 
-  const [expensesSubjectToTaxForm, expensesWithoutTaxForm] = partition(results, e => e.type !== EXPENSE_TYPE.RECEIPT);
+  // Check tax forms
+  let expensesIdsPendingTaxForms = new Set();
+  let checkTaxForms = true;
 
-  // Check the balances for these collectives. The following will emit an SQL like:
-  // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
-  if (!isEmpty(results)) {
-    // TODO: move to new balance calculation v2 when possible
-    const balances = await getBalancesWithBlockedFunds(results.map(e => e.CollectiveId));
+  // No need to trigger the full query if the host doesn't have any tax forms requirement
+  if (host) {
+    const legalDocsCount = await host.countRequiredLegalDocuments({ where: { documentType: 'US_TAX_FORM' } });
+    checkTaxForms = legalDocsCount > 0;
+  }
+
+  if (checkTaxForms) {
+    const expensesSubjectToTaxForm = expenses.filter(e => !TAX_FORM_IGNORED_EXPENSE_TYPES.includes(e.type));
+    if (expensesSubjectToTaxForm.length > 0) {
+      const expensesIdsSubjectToTaxForm = expensesSubjectToTaxForm.map(expense => expense.id);
+      expensesIdsPendingTaxForms = await queries.getTaxFormsRequiredForExpenses(expensesIdsSubjectToTaxForm);
+      where[Op.and].push({ id: { [Op.notIn]: Array.from(expensesIdsPendingTaxForms) } });
+    }
+  }
+
+  // Tiny optimization: don't compute the balance for expenses that are pending tax forms
+  const hasPendingTaxForm = expense => !expensesIdsPendingTaxForms.has(expense.id);
+  const expensesWithoutPendingTaxForm = expensesIdsPendingTaxForms.size ? expenses.filter(hasPendingTaxForm) : expenses;
+  if (!isEmpty(expensesWithoutPendingTaxForm)) {
+    // Check the balances for these collectives. The following will emit an SQL like:
+    // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
+    const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
+    const balances = await getBalancesWithBlockedFunds(collectiveIds); // TODO: move to new balance calculation v2 when possible
     where[Op.and].push({
       [Op.or]: Object.values(balances).map(({ CollectiveId, value }) => ({
         CollectiveId,
         amount: { [Op.lte]: value },
       })),
     });
-  }
-
-  // Check tax forms
-  const taxFormConditions = [];
-  if (expensesSubjectToTaxForm.length > 0) {
-    const expensesIdsPendingTaxForms = await queries.getTaxFormsRequiredForExpenses(results.map(e => e.id));
-    taxFormConditions.push({ id: { [Op.notIn]: Array.from(expensesIdsPendingTaxForms) } });
-  }
-
-  if (taxFormConditions.length) {
-    if (expensesWithoutTaxForm.length) {
-      const ignoredIds = expensesWithoutTaxForm.map(e => e.id);
-      where[Op.and].push({ [Op.or]: [{ id: { [Op.in]: ignoredIds } }, { [Op.and]: taxFormConditions }] });
-    } else {
-      where[Op.and].push(...taxFormConditions);
-    }
   }
 };
 
@@ -231,7 +235,7 @@ const ExpensesCollectionQuery = {
       if (args.status !== 'READY_TO_PAY') {
         where['status'] = args.status;
       } else {
-        await updateFilterConditionsForReadyToPay(where, include);
+        await updateFilterConditionsForReadyToPay(where, include, host);
       }
     } else {
       if (req.remoteUser) {
