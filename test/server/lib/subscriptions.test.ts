@@ -23,7 +23,7 @@ describe('server/lib/subscriptions', () => {
       describe('sets the next charge date', () => {
         let clock;
 
-        after(() => {
+        afterEach(() => {
           if (clock) {
             clock.restore();
             clock = null;

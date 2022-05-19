@@ -1,53 +1,40 @@
-import crypto from 'crypto';
-
-import config from 'config';
-import moment from 'moment';
+import type OAuth2Server from 'oauth2-server';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-// Define all attributes for the model
-interface UserTokensAttributes {
-  id: number;
+import models from '.';
+
+// Define attributes that can be used for model creation
+interface UserTokenCreateAttributes {
   type: 'OAUTH';
-  token: string;
-  expiresAt: Date;
-  refreshToken: string;
-  refreshTokenExpiresAt?: Date;
+  accessToken: string;
+  accessTokenExpiresAt?: Date | undefined;
+  refreshToken?: string | undefined;
+  refreshTokenExpiresAt?: Date | undefined;
   ApplicationId: number;
   UserId: number;
   data: Record<string, unknown>;
+}
+
+// Define all attributes for the model
+interface UserTokenAttributes extends UserTokenCreateAttributes, OAuth2Server.Token {
+  id: number;
   // Standard temporal fields
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
 }
 
-// Define attributes that can be used for model creation
-interface UserTokensCreateAttributes {
-  type: 'OAUTH';
-  token: string;
-  expiresAt: Date;
-  refreshToken: string;
-  refreshTokenExpiresAt?: Date;
-  ApplicationId: number;
-  UserId: number;
-  data: Record<string, unknown>;
-}
-
-const TOKEN_LENGTH = 64;
-const OAUTH_TOKEN_EXPIRATION_DAYS = 60;
-const OAUTH_REFRESH_TOKEN_EXPIRATION_DAYS = 360;
-
 export enum TokenType {
   OAUTH = 'OAUTH',
 }
 
-class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes> implements UserTokensAttributes {
+class UserToken extends Model<UserTokenAttributes, UserTokenCreateAttributes> implements UserTokenAttributes {
   id: number;
   type: 'OAUTH';
-  token: string;
-  expiresAt: Date;
+  accessToken: string;
+  accessTokenExpiresAt: Date;
   refreshToken: string;
   refreshTokenExpiresAt?: Date;
   ApplicationId: number;
@@ -56,43 +43,16 @@ class UserTokens extends Model<UserTokensAttributes, UserTokensCreateAttributes>
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date;
+  user: typeof models.User;
+  client: typeof models.Application;
 
   constructor(...args) {
     super(...args);
     restoreSequelizeAttributesOnClass(new.target, this);
   }
-
-  /**
-   * Generate a user token for an OAuth application
-   */
-  public static generateOAuth(
-    UserId: number,
-    ApplicationId: number,
-    data: Record<string, unknown> = null,
-  ): Promise<UserTokens> {
-    return UserTokens.create({
-      type: TokenType.OAUTH,
-      UserId,
-      ApplicationId,
-      token: UserTokens.generateToken(TokenType.OAUTH),
-      refreshToken: UserTokens.generateToken(TokenType.OAUTH),
-      expiresAt: moment().add(OAUTH_TOKEN_EXPIRATION_DAYS, 'days').toDate(),
-      refreshTokenExpiresAt: moment().add(OAUTH_REFRESH_TOKEN_EXPIRATION_DAYS, 'days').toDate(),
-      data,
-    });
-  }
-
-  private static generateToken(type: TokenType): string {
-    if (type === TokenType.OAUTH) {
-      const prefix = config.env === 'production' ? 'oauth_' : 'test_oauth_';
-      return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
-    } else {
-      throw new Error(`Unknown token type: ${type}`);
-    }
-  }
 }
 
-UserTokens.init(
+UserToken.init(
   {
     id: {
       type: DataTypes.INTEGER,
@@ -103,12 +63,12 @@ UserTokens.init(
       type: DataTypes.ENUM('OAUTH'),
       allowNull: false,
     },
-    token: {
+    accessToken: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
     },
-    expiresAt: {
+    accessTokenExpiresAt: {
       type: DataTypes.DATE,
       allowNull: false,
     },
@@ -153,9 +113,15 @@ UserTokens.init(
   },
   {
     sequelize,
-    tableName: 'UserTokenss',
+    tableName: 'UserTokens',
     paranoid: true, // For soft-deletion
+    defaultScope: {
+      include: [
+        { association: 'user', required: true },
+        { association: 'client', required: true },
+      ],
+    },
   },
 );
 
-export default UserTokens;
+export default UserToken;

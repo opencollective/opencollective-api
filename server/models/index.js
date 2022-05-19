@@ -18,6 +18,7 @@ import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
 import Notification from './Notification';
+import OAuthAuthorizationCode from './OAuthAuthorizationCode';
 import Order from './Order';
 import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -31,7 +32,7 @@ import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
 import Update from './Update';
 import User from './User';
-import UserTokens from './UserTokens';
+import UserToken from './UserToken';
 import VirtualCard from './VirtualCard';
 
 /**
@@ -61,6 +62,7 @@ export function setupModels() {
   m['MemberInvitation'] = MemberInvitation;
   m['MigrationLog'] = MigrationLog;
   m['Notification'] = Notification;
+  m['OAuthAuthorizationCode'] = OAuthAuthorizationCode;
   m['Order'] = Order;
   m['PaymentMethod'] = PaymentMethod;
   m['PayoutMethod'] = PayoutMethod;
@@ -74,7 +76,7 @@ export function setupModels() {
   m['TransactionSettlement'] = TransactionSettlement;
   m['Update'] = Update;
   m['User'] = User;
-  m['UserTokens'] = UserTokens;
+  m['UserToken'] = UserToken;
   m['VirtualCard'] = VirtualCard;
 
   /**
@@ -84,7 +86,7 @@ export function setupModels() {
   // Applications
   m.Application.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
   m.Application.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });
-  m.Application.hasMany(m.UserTokens, { foreignKey: 'ApplicationId', as: 'userTokens' });
+  m.Application.hasMany(m.UserToken, { foreignKey: 'ApplicationId', as: 'userTokens' });
 
   // Collective
   m.Collective.belongsTo(m.Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
@@ -142,7 +144,7 @@ export function setupModels() {
   m.User.hasMany(m.PaymentMethod, { foreignKey: 'CreatedByUserId' });
   m.User.hasMany(m.Member, { foreignKey: 'CreatedByUserId' });
   m.User.hasMany(m.ConnectedAccount, { foreignKey: 'CreatedByUserId' });
-  m.User.hasMany(m.UserTokens, { foreignKey: 'UserId' });
+  m.User.hasMany(m.UserToken, { foreignKey: 'UserId' });
   m.User.belongsTo(m.Collective, {
     as: 'collective',
     foreignKey: 'CollectiveId',
@@ -150,8 +152,8 @@ export function setupModels() {
   });
 
   // User tokens
-  m.UserTokens.belongsTo(m.User, { as: 'user' });
-  m.UserTokens.belongsTo(m.Application, { as: 'application' });
+  m.UserToken.belongsTo(m.User, { foreignKey: 'UserId', as: 'user' });
+  m.UserToken.belongsTo(m.Application, { foreignKey: 'ApplicationId', as: 'client' });
 
   // Members
   m.Member.belongsTo(m.User, {
@@ -196,6 +198,10 @@ export function setupModels() {
   m.Notification.belongsTo(m.User);
 
   m.Notification.belongsTo(m.Collective);
+
+  // OAuthAuthorizationCode
+  m.OAuthAuthorizationCode.belongsTo(m.Application, { foreignKey: 'ApplicationId', as: 'application' });
+  m.OAuthAuthorizationCode.belongsTo(m.User, { foreignKey: 'UserId', as: 'user' });
 
   // Transactions
   m.Collective.hasMany(m.Transaction, { foreignKey: 'CollectiveId' });

@@ -45,6 +45,7 @@ const addFakeDataToAccount = async (account): Promise<void> => {
     Faker.fakePayoutMethod({ CollectiveId: account.id }),
     Faker.fakePaypalProduct({ CollectiveId: account.id }),
     // TODO Faker.fakeRequiredLegalDocument({ HostCollectiveId: account.id }),
+    // TODO: Add Oauth authorization codes
     Faker.fakeTier({ CollectiveId: account.id }),
     Faker.fakeTransaction({ FromCollectiveId: account.id, CollectiveId: randomCollective.id }),
     Faker.fakeTransaction({ CollectiveId: account.id, FromCollectiveId: randomCollective.id }),

@@ -7,6 +7,7 @@
 // to use in loops and repeated tests.
 
 import { get, padStart, sample } from 'lodash';
+import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
@@ -17,6 +18,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import models from '../../server/models';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
@@ -736,7 +738,7 @@ export const fakeApplication = async (data = {}) => {
     CollectiveId = data.CollectiveId || user.CollectiveId;
   }
 
-  return models.Application.create({
+  const application = await models.Application.create({
     type: sample(['apiKey', 'oAuth']),
     apiKey: randStr('ApiKey-'),
     clientId: randStrOfLength(20),
@@ -748,6 +750,47 @@ export const fakeApplication = async (data = {}) => {
     CollectiveId,
     CreatedByUserId,
   });
+
+  return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
+};
+
+export const fakeUserToken = async (data = {}) => {
+  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const userToken = await models.UserToken.create({
+    type: TokenType.OAUTH,
+    accessToken: randStr('Token-'),
+    refreshToken: randStr('RefreshToken-'),
+    accessTokenExpiresAt: moment().add(60, 'days').toDate(),
+    refreshTokenExpiresAt: moment().add(300, 'days').toDate(),
+    ...data,
+    UserId: user.id,
+    ApplicationId: data.ApplicationId || (await fakeApplication({ user })).id,
+  });
+
+  // UserToken has a default scope that loads associations (which `.create` does not support)
+  return userToken.reload();
+};
+
+export const fakeOAuthAuthorizationCode = async (data = {}) => {
+  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const application =
+    data.application ||
+    (data.ApplicationId ? await models.Application.findByPk(data.ApplicationId) : await fakeApplication({ user }));
+
+  const authorization = await models.OAuthAuthorizationCode.create({
+    code: randStr('Code-'),
+    expiresAt: moment().add(60, 'days').toDate(),
+    redirectUri: application.callbackUrl,
+    ...data,
+    UserId: user.id,
+    ApplicationId: application.id,
+  });
+
+  // Bind associations
+  authorization.user = user;
+  authorization.application = application;
+
+  return authorization;
 };
 
 export const fakeRecurringExpense = async (data = {}) => {
