@@ -399,7 +399,7 @@ export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, opt
 };
 
 export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.PENDING, expenseStatus.ERROR].includes(expense.status)) {
+  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as incomplete in current status',
