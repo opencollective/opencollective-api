@@ -1,4 +1,4 @@
-import type OAuth2Server from 'oauth2-server';
+import type OAuth2Server from '@node-oauth/oauth2-server';
 
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';

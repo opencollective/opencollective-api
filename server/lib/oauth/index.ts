@@ -1,10 +1,10 @@
+import OAuth2Server, { AbstractGrantType, UnauthorizedRequestError } from '@node-oauth/oauth2-server';
+import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
+import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
 import Promise from 'bluebird';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import { assign } from 'lodash';
-import OAuth2Server, { AbstractGrantType, UnauthorizedRequestError } from 'oauth2-server';
-import InvalidArgumentError from 'oauth2-server/lib/errors/invalid-argument-error';
-import TokenHandler from 'oauth2-server/lib/handlers/token-handler';
 
 import * as auth from '../../lib/auth';
 
