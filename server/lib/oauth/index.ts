@@ -137,7 +137,6 @@ OAuthServer.prototype.authorize = function (options) {
         return handleResponse.call(this, req, res, response);
       })
       .catch(function (e) {
-        // TODO console.log(e);
         return handleError.call(this, e, req, res, response, next);
       });
   };
