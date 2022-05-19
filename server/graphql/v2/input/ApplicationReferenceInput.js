@@ -30,7 +30,6 @@ export const ApplicationReferenceInput = new GraphQLInputObjectType({
  * @param {object} input - id of the application
  */
 export const fetchApplicationWithReference = async input => {
-  console.log(input);
   let application;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);
