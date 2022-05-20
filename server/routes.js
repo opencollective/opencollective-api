@@ -113,12 +113,13 @@ export default async app => {
 
   // oAuth server (after authentication/JWT handling, at least for authorize)
   app.oauth = oauth;
-  app.post('/oauth/token', app.oauth.token());
+  app.post('/oauth/token', noCache, app.oauth.token());
   app.post(
     '/oauth/authorize',
+    noCache,
     app.oauth.authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
   );
-  app.post('/oauth/authenticate', app.oauth.authenticate());
+  app.post('/oauth/authenticate', noCache, app.oauth.authenticate());
 
   /**
    * Parameters.
