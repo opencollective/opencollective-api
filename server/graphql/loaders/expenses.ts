@@ -104,10 +104,14 @@ export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
 /**
  * Should only be used with paid expenses
  */
-export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<number, number> =>
+export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
+  number,
+  { rate: number; currency: string }
+> =>
   new DataLoader(async (expenseIds: number[]) => {
     const transactions = await models.Transaction.findAll({
-      attributes: ['ExpenseId', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
+      raw: true,
+      attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
       where: {
         ExpenseId: expenseIds,
         kind: TransactionKind.EXPENSE,
@@ -120,7 +124,8 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<numbe
 
     const groupedTransactions = groupBy(transactions, 'ExpenseId');
     return expenseIds.map(expenseId => {
-      const value = parseFloat(groupedTransactions[expenseId]?.[0].dataValues.expenseToHostFxRate);
-      return isNaN(value) ? null : value;
+      const transactionData = groupedTransactions[expenseId]?.[0];
+      const rate = parseFloat(transactionData?.expenseToHostFxRate);
+      return isNaN(rate) ? null : { rate, currency: transactionData?.currency };
     });
   });
