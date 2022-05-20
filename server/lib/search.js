@@ -108,7 +108,7 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
       if (sanitizedTerm) {
         tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
-        tsQueryArg = tsQueryFunc === 'to_tsquery' ? `:sanitizedTerm':*'` : ':sanitizedTerm';
+        tsQueryArg = tsQueryFunc === 'to_tsquery' ? `concat(:sanitizedTerm, ':*')` : ':sanitizedTerm';
         sqlConditions = `
         AND (${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
         OR ${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
