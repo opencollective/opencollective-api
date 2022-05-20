@@ -52,7 +52,6 @@ describe('server/routes/oauth', () => {
     const code = redirectUri.searchParams.get('code');
     const tokenResponse = await request(expressApp)
       .post(`/oauth/token`)
-      .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
       .type(`application/x-www-form-urlencoded`)
       .send({
         grant_type: 'authorization_code',
@@ -68,7 +67,7 @@ describe('server/routes/oauth', () => {
       });
 
     // Decode returned OAuth token
-    const oauthToken = tokenResponse.res.text;
+    const oauthToken = tokenResponse.body.access_token;
     expect(oauthToken).to.exist;
 
     const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret);

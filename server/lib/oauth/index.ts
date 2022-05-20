@@ -23,8 +23,8 @@ class CustomTokenHandler extends TokenHandler {
 
   getTokenType = function (model) {
     return {
-      valueOf: () =>
-        jwt.sign(
+      valueOf: () => {
+        const accessToken = jwt.sign(
           {
             // eslint-disable-next-line camelcase
             access_token: model.accessToken,
@@ -38,7 +38,10 @@ class CustomTokenHandler extends TokenHandler {
               kid: auth.KID,
             },
           },
-        ),
+        );
+        // eslint-disable-next-line camelcase
+        return { access_token: accessToken };
+      },
     };
   };
 }
