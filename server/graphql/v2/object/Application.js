@@ -3,8 +3,9 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 import models from '../../../models';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
-import Account from '../interface/Account';
+import { Account } from '../interface/Account';
 import { OAuthAuthorization } from '../object/OAuthAuthorization';
+import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
   name: 'Application',
@@ -64,8 +65,8 @@ export const Application = new GraphQLObjectType({
         }
       },
     },
-    callbackUrl: {
-      type: GraphQLString,
+    redirectUri: {
+      type: URL,
       resolve(application, args, req) {
         if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
           return application.callbackUrl;
@@ -74,8 +75,8 @@ export const Application = new GraphQLObjectType({
     },
     account: {
       type: new GraphQLNonNull(Account),
-      resolve(application) {
-        return application.getCollective();
+      resolve(application, args, req) {
+        return req.loaders.Collective.byId.load(application.CollectiveId);
       },
     },
     oauthAuthorization: {
@@ -89,7 +90,7 @@ export const Application = new GraphQLObjectType({
         });
         if (userToken) {
           return {
-            account: userToken.user.getCollective(),
+            account: await req.loaders.Collective.byId.load(userToken.user.CollectiveId),
             application: userToken.client,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,

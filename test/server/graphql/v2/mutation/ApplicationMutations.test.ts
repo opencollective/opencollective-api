@@ -16,7 +16,7 @@ const CREATE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
       description
       type
       apiKey
-      callbackUrl
+      redirectUri
       clientId
       clientSecret
     }
@@ -32,7 +32,7 @@ const UPDATE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
       description
       type
       apiKey
-      callbackUrl
+      redirectUri
       clientId
       clientSecret
     }
@@ -51,7 +51,7 @@ const DELETE_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
 const VALID_APPLICATION_PARAMS = {
   name: 'Test Application',
   description: 'Test Application description',
-  callbackUrl: 'https://example.com/callback',
+  redirectUri: 'https://example.com/callback',
 };
 
 describe('server/graphql/v2/mutation/ApplicationMutations', () => {
@@ -90,7 +90,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       expect(resultApp.type).to.eq('OAUTH');
       expect(resultApp.name).to.eq(VALID_APPLICATION_PARAMS.name);
       expect(resultApp.description).to.eq(VALID_APPLICATION_PARAMS.description);
-      expect(resultApp.callbackUrl).to.eq(VALID_APPLICATION_PARAMS.callbackUrl);
+      expect(resultApp.redirectUri).to.eq(VALID_APPLICATION_PARAMS.redirectUri);
       expect(resultApp.clientId).to.have.length(20);
       expect(resultApp.clientSecret).to.have.length(40);
 
@@ -152,7 +152,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       const resultApp = result.data.updateApplication;
       expect(resultApp.name).to.eq(VALID_APPLICATION_PARAMS.name);
       expect(resultApp.description).to.eq(VALID_APPLICATION_PARAMS.description);
-      expect(resultApp.callbackUrl).to.eq(VALID_APPLICATION_PARAMS.callbackUrl);
+      expect(resultApp.redirectUri).to.eq(VALID_APPLICATION_PARAMS.redirectUri);
     });
   });
 

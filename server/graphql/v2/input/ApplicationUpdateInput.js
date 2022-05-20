@@ -10,6 +10,6 @@ export const ApplicationUpdateInput = new GraphQLInputObjectType({
     ...ApplicationReferenceFields,
     name: { type: GraphQLString },
     description: { type: GraphQLString },
-    callbackUrl: { type: URL },
+    redirectUri: { type: URL },
   }),
 });

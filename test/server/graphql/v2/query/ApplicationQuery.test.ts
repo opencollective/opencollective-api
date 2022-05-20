@@ -13,7 +13,7 @@ const applicationQuery = gqlV2/* GraphQL */ `
       description
       type
       apiKey
-      callbackUrl
+      redirectUri
       clientId
       clientSecret
     }
@@ -32,7 +32,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(result.data.application.type).to.eq('OAUTH');
       expect(result.data.application.clientId).to.be.null;
       expect(result.data.application.clientSecret).to.be.null;
-      expect(result.data.application.callbackUrl).to.be.null;
+      expect(result.data.application.redirectUri).to.be.null;
       expect(result.data.application.apiKey).to.be.null;
     }
   });
@@ -45,7 +45,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     expect(result.data.application.type).to.eq('OAUTH');
     expect(result.data.application.clientId).to.not.be.null;
     expect(result.data.application.clientSecret).to.not.be.null;
-    expect(result.data.application.callbackUrl).to.not.be.null;
+    expect(result.data.application.redirectUri).to.not.be.null;
     expect(result.data.application.apiKey).to.not.be.null;
   });
 });

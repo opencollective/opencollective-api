@@ -10,6 +10,6 @@ export const ApplicationCreateInput = new GraphQLInputObjectType({
     type: { type: new GraphQLNonNull(ApplicationType), defaultValue: 'oAuth' },
     name: { type: GraphQLString },
     description: { type: GraphQLString },
-    callbackUrl: { type: URL },
+    redirectUri: { type: URL },
   }),
 });

@@ -9160,7 +9160,9 @@ type Application {
   apiKey: String
   clientId: String
   clientSecret: String
-  callbackUrl: String
+  redirectUri: URL
+  account: Account!
+  oauthAuthorization: OAuthAuthorization
 }
 
 """
@@ -9169,6 +9171,29 @@ All application types
 enum ApplicationType {
   API_KEY
   OAUTH
+}
+
+"""
+An OAuth authorization
+"""
+type OAuthAuthorization {
+  account: Individual!
+  application: Application!
+
+  """
+  The time of creation
+  """
+  createdAt: DateTime!
+
+  """
+  The time of last update
+  """
+  updatedAt: DateTime!
+
+  """
+  The time of expiration
+  """
+  expiresAt: DateTime!
 }
 
 input ExpenseReferenceInput {
@@ -11981,11 +12006,6 @@ input ProcessExpensePaymentParams {
   2FA code for if the host account has 2FA for payouts turned on.
   """
   feesPayer: FeesPayer = COLLECTIVE
-
-  """
-  Message to be attached to the action activity.
-  """
-  message: String
 }
 
 input ExpenseInviteDraftInput {

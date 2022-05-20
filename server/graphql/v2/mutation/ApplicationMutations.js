@@ -31,13 +31,14 @@ const createApplication = {
       throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
     }
 
-    const application = await models.Application.create({
-      ...pick(args.application, ['type', 'name', 'description', 'callbackUrl']),
+    const createParams = {
+      ...pick(args.application, ['type', 'name', 'description']),
+      callbackUrl: args.application.redirectUri,
       CreatedByUserId: req.remoteUser.id,
       CollectiveId: req.remoteUser.CollectiveId,
-    });
+    };
 
-    return application;
+    return models.Application.create(createParams);
   },
 };
 
@@ -60,7 +61,14 @@ const updateApplication = {
       throw new Forbidden('Authenticated user is not the application owner.');
     }
 
-    return application.update(pick(args.application, ['name', 'description', 'callbackUrl']));
+    const updateParams = pick(args.application, ['name', 'description']);
+
+    // Doing this we're not supporting update to NULL
+    if (args.application.redirectUri) {
+      updateParams.callbackUrl = args.application.redirectUri;
+    }
+
+    return application.update(updateParams);
   },
 };
 
