@@ -216,9 +216,9 @@ export default async app => {
   graphqlServerV2.applyMiddleware({ app, path: '/graphql/v2' });
 
   /**
-   * GraphQL default (v1)
+   * GraphQL default (v2)
    */
-  graphqlServerV1.applyMiddleware({ app, path: '/graphql' });
+  graphqlServerV2.applyMiddleware({ app, path: '/graphql' });
 
   /**
    * Webhooks that should bypass api key check
