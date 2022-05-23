@@ -3,9 +3,11 @@ import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
 import ExpenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
+import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
+import { createRefundTransaction } from '../lib/payments';
 import models, { Op } from '../models';
 
 export const getVirtualCardForTransaction = async cardId => {
@@ -138,6 +140,16 @@ export const persistTransaction = async (virtualCard, transaction) => {
       },
       order: [['createdAt', 'DESC']],
     });
+
+    if (expense) {
+      const [originalCreditTransaction] = await expense.getTransactions({
+        where: { type: TransactionTypes.CREDIT, kind: TransactionKind.EXPENSE },
+      });
+      if (originalCreditTransaction && originalCreditTransaction.amount === amount) {
+        await createRefundTransaction(originalCreditTransaction, 0, { refundTransactionId: transactionId });
+        return;
+      }
+    }
 
     await models.Transaction.createDoubleEntry({
       CollectiveId: collective.id,
