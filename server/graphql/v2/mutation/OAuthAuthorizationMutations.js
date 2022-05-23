@@ -1,16 +1,19 @@
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLNonNull } from 'graphql';
 
-import models from '../../../models';
 import { NotFound } from '../../errors';
-import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import {
+  fetchOAuthAuthorizationWithReference,
+  OAuthAuthorizationReferenceInput,
+} from '../input/OAuthAuthorizationReferenceInput';
 import { OAuthAuthorization } from '../object/OAuthAuthorization';
 
 const oauthAuthorizationMutations = {
   revokeOAuthAuthorization: {
     type: new GraphQLNonNull(OAuthAuthorization),
     args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLString),
+      oauthAuthorization: {
+        type: new GraphQLNonNull(OAuthAuthorizationReferenceInput),
+        description: 'Reference of the OAuth Authorization',
       },
     },
     async resolve(_, args, req) {
@@ -18,14 +21,22 @@ const oauthAuthorizationMutations = {
         return null;
       }
 
-      const id = parseInt(idDecode(args.id, IDENTIFIER_TYPES.USER_TOKEN));
-
-      const userToken = await models.UserToken.findByPk(id);
+      const userToken = await fetchOAuthAuthorizationWithReference(args.oauthAuthorization);
       if (!userToken || userToken.user.id !== req.remoteUser.id) {
         throw new NotFound();
       }
 
-      return userToken.destroy();
+      await userToken.destroy();
+
+      const account = await userToken.user.getCollective();
+      return {
+        id: userToken.id,
+        account: account,
+        application: userToken.client,
+        expiresAt: userToken.accessTokenExpiresAt,
+        createdAt: userToken.createdAt,
+        updatedAt: userToken.updatedAt,
+      };
     },
   },
 };
