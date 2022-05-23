@@ -1923,9 +1923,10 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   // TODO: Can we retrieve something for virtual cards?
 
   if (expense.status === 'PAID') {
-    const rate = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
-    if (rate !== null) {
-      return buildAmount(rate, OPENCOLLECTIVE, false, expense.createdAt);
+    const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
+    // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
+    if (result.rate !== null && (!expense.collective || expense.collective.currency === result.currency)) {
+      return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
     }
   }
 
