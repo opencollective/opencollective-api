@@ -6168,6 +6168,76 @@ type Individual implements Account {
   """
   host: Host
   hasSeenLatestChangelogEntry: Boolean!
+  oauthAuthorizations(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OauthAuthorizationCollection
+}
+
+"""
+A collection of "oAuth Authorizations"
+"""
+type OauthAuthorizationCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [OauthAuthorization]
+}
+
+"""
+An OAuth authorization
+"""
+type OauthAuthorization {
+  id: String
+  account: Individual!
+  application: Application!
+
+  """
+  The time of creation
+  """
+  createdAt: DateTime!
+
+  """
+  The time of last update
+  """
+  updatedAt: DateTime!
+
+  """
+  The time of expiration
+  """
+  expiresAt: DateTime!
+}
+
+"""
+An oAuth application or a personal token
+"""
+type Application {
+  id: String!
+  legacyId: Int!
+  type: ApplicationType
+  name: String
+  description: String
+  apiKey: String
+  clientId: String
+  clientSecret: String
+  redirectUri: URL
+  account: Account!
+  oauthAuthorization: OauthAuthorization
+}
+
+"""
+All application types
+"""
+enum ApplicationType {
+  API_KEY
+  OAUTH
 }
 
 """
@@ -7910,7 +7980,8 @@ type Query {
     """
     tier: TierReferenceInput
   ): PaypalPlan!
-  loggedInAccount: Account
+  loggedInAccount: Individual
+  me: Individual
 }
 
 """
@@ -9146,54 +9217,6 @@ enum CountryISO {
   Western Sahara
   """
   EH
-}
-
-"""
-An oAuth application or a personal token
-"""
-type Application {
-  id: String!
-  legacyId: Int!
-  type: ApplicationType
-  name: String
-  description: String
-  apiKey: String
-  clientId: String
-  clientSecret: String
-  redirectUri: URL
-  account: Account!
-  oauthAuthorization: OAuthAuthorization
-}
-
-"""
-All application types
-"""
-enum ApplicationType {
-  API_KEY
-  OAUTH
-}
-
-"""
-An OAuth authorization
-"""
-type OAuthAuthorization {
-  account: Individual!
-  application: Application!
-
-  """
-  The time of creation
-  """
-  createdAt: DateTime!
-
-  """
-  The time of last update
-  """
-  updatedAt: DateTime!
-
-  """
-  The time of expiration
-  """
-  expiresAt: DateTime!
 }
 
 input ExpenseReferenceInput {
@@ -10994,6 +11017,12 @@ type Mutation {
     role: MemberRole!
     isInvitation: Boolean
   ): Boolean
+  revokeOauthAuthorization(
+    """
+    Reference of the OAuth Authorization
+    """
+    oauthAuthorization: OauthAuthorizationReferenceInput!
+  ): OauthAuthorization!
 
   """
   To submit a new order
@@ -11480,7 +11509,7 @@ input ApplicationCreateInput {
   type: ApplicationType! = OAUTH
   name: String
   description: String
-  callbackUrl: URL
+  redirectUri: URL
 }
 
 """
@@ -11503,7 +11532,7 @@ input ApplicationUpdateInput {
   clientId: String
   name: String
   description: String
-  callbackUrl: URL
+  redirectUri: URL
 }
 
 input ApplicationReferenceInput {
@@ -12158,6 +12187,13 @@ input MemberInvitationReferenceInput {
   The internal id of the invitation (ie: 580)
   """
   legacyId: Int
+}
+
+input OauthAuthorizationReferenceInput {
+  """
+  The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
 }
 
 type OrderWithPayment {
