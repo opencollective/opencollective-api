@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 import { expenseStatus, expenseTypes } from '../../../server/constants';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
-import { fakeCollective, fakeExpense, fakeExpenseItem, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeExpenseItem, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('test/server/models/Expense', () => {
@@ -70,6 +70,21 @@ describe('test/server/models/Expense', () => {
       });
       expect(pendingCharges).to.have.length(1);
       expect(pendingCharges[0]).to.have.property('id').eq(newPendingCharge.id);
+    });
+
+    it('should ignore expenses with refunded transactions', async () => {
+      const refundedCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
+      await fakeExpenseItem({ ExpenseId: refundedCharge.id, url: null });
+      await fakeTransaction({ ExpenseId: refundedCharge.id });
+      await fakeTransaction({ ExpenseId: refundedCharge.id, isRefund: true });
+
+      const pendingCharges = await Expense.findPendingCardCharges({
+        where: {
+          CollectiveId: refundedCharge.CollectiveId,
+        },
+      });
+
+      expect(pendingCharges).to.have.length(0);
     });
   });
 });

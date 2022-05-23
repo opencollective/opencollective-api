@@ -496,15 +496,21 @@ function defineModel() {
   };
 
   Expense.findPendingCardCharges = async function ({ where = {}, include = [] } = {}) {
-    return Expense.findAll({
+    const expenses = await Expense.findAll({
       where: {
         ...where,
         type: expenseType.CHARGE,
         status: 'PAID',
         '$items.url$': { [Op.eq]: null },
       },
-      include: [...include, { model: models.ExpenseItem, as: 'items', required: true }],
+      include: [
+        ...include,
+        { model: models.ExpenseItem, as: 'items', required: true },
+        { model: models.Transaction, as: 'Transactions' },
+      ],
     });
+
+    return expenses.filter(expense => expense?.Transactions?.some(t => t.isRefund) === false);
   };
 
   Temporal(Expense, sequelize);
