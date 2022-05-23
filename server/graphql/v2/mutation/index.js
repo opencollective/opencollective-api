@@ -16,7 +16,7 @@ import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
 import memberInvitationMutations from './MemberInvitationMutations';
 import memberMutations from './MemberMutations';
-import oauthAuthorizationMutations from './OauthAuthorizationMutations';
+import oAuthAuthorizationMutations from './OAuthAuthorizationMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
@@ -44,7 +44,7 @@ const mutation = {
   ...individualMutations,
   ...memberInvitationMutations,
   ...memberMutations,
-  ...oauthAuthorizationMutations,
+  ...oAuthAuthorizationMutations,
   ...orderMutations,
   ...paymentMethodMutations,
   ...payoutMethodMutations,

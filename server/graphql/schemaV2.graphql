@@ -6168,7 +6168,7 @@ type Individual implements Account {
   """
   host: Host
   hasSeenLatestChangelogEntry: Boolean!
-  oauthAuthorizations(
+  oAuthAuthorizations(
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -6178,23 +6178,23 @@ type Individual implements Account {
     The offset to use to fetch
     """
     offset: Int! = 0
-  ): OauthAuthorizationCollection
+  ): OAuthAuthorizationCollection
 }
 
 """
-A collection of "oAuth Authorizations"
+A collection of "OAuth Authorizations"
 """
-type OauthAuthorizationCollection implements Collection {
+type OAuthAuthorizationCollection implements Collection {
   offset: Int
   limit: Int
   totalCount: Int
-  nodes: [OauthAuthorization]
+  nodes: [OAuthAuthorization]
 }
 
 """
 An OAuth authorization
 """
-type OauthAuthorization {
+type OAuthAuthorization {
   id: String
   account: Individual!
   application: Application!
@@ -6216,7 +6216,7 @@ type OauthAuthorization {
 }
 
 """
-An oAuth application or a personal token
+An OAuth application or a personal token
 """
 type Application {
   id: String!
@@ -6229,7 +6229,7 @@ type Application {
   clientSecret: String
   redirectUri: URL
   account: Account!
-  oauthAuthorization: OauthAuthorization
+  oAuthAuthorization: OAuthAuthorization
 }
 
 """
@@ -11017,12 +11017,12 @@ type Mutation {
     role: MemberRole!
     isInvitation: Boolean
   ): Boolean
-  revokeOauthAuthorization(
+  revokeOAuthAuthorization(
     """
     Reference of the OAuth Authorization
     """
-    oauthAuthorization: OauthAuthorizationReferenceInput!
-  ): OauthAuthorization!
+    oAuthAuthorization: OAuthAuthorizationReferenceInput!
+  ): OAuthAuthorization!
 
   """
   To submit a new order
@@ -12189,7 +12189,7 @@ input MemberInvitationReferenceInput {
   legacyId: Int
 }
 
-input OauthAuthorizationReferenceInput {
+input OAuthAuthorizationReferenceInput {
   """
   The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
   """

@@ -4,12 +4,12 @@ import models from '../../../models';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
-import { OauthAuthorization } from '../object/OauthAuthorization';
+import { OAuthAuthorization } from '../object/OAuthAuthorization';
 import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
   name: 'Application',
-  description: 'An oAuth application or a personal token',
+  description: 'An OAuth application or a personal token',
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
@@ -79,8 +79,8 @@ export const Application = new GraphQLObjectType({
         return req.loaders.Collective.byId.load(application.CollectiveId);
       },
     },
-    oauthAuthorization: {
-      type: OauthAuthorization,
+    oAuthAuthorization: {
+      type: OAuthAuthorization,
       async resolve(application, args, req) {
         if (!req.remoteUser) {
           return null;

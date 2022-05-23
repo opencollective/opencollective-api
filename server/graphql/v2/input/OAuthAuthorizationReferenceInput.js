@@ -4,16 +4,16 @@ import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
-export const OauthAuthorizationReferenceFields = {
+export const OAuthAuthorizationReferenceFields = {
   id: {
     type: GraphQLString,
     description: 'The id identifying the OAuth Authorization (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
   },
 };
 
-export const OauthAuthorizationReferenceInput = new GraphQLInputObjectType({
-  name: 'OauthAuthorizationReferenceInput',
-  fields: () => OauthAuthorizationReferenceFields,
+export const OAuthAuthorizationReferenceInput = new GraphQLInputObjectType({
+  name: 'OAuthAuthorizationReferenceInput',
+  fields: () => OAuthAuthorizationReferenceFields,
 });
 
 /**
@@ -21,7 +21,7 @@ export const OauthAuthorizationReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the OAuth Authorization
  */
-export const fetchOauthAuthorizationWithReference = async input => {
+export const fetchOAuthAuthorizationWithReference = async input => {
   let userToken;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.USER_TOKEN);

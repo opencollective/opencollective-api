@@ -5,8 +5,8 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Application } from '../object/Application';
 import { Individual } from '../object/Individual';
 
-export const OauthAuthorization = new GraphQLObjectType({
-  name: 'OauthAuthorization',
+export const OAuthAuthorization = new GraphQLObjectType({
+  name: 'OAuthAuthorization',
   description: 'An OAuth authorization',
   fields: () => ({
     id: {

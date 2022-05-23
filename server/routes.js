@@ -111,7 +111,7 @@ export default async app => {
    */
   app.use('*', authentication.authenticateUser); // populate req.remoteUser if JWT token provided in the request
 
-  // oAuth server (after authentication/JWT handling, at least for authorize)
+  // OAuth server (after authentication/JWT handling, at least for authorize)
   app.oauth = oauth;
   app.post('/oauth/token', noCache, app.oauth.token());
   app.post(
