@@ -3,8 +3,10 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
+import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
+import { CollectionArgs } from '../interface/Collection';
 
 import { Host } from './Host';
 
@@ -45,17 +47,14 @@ export const Individual = new GraphQLObjectType({
             type: new GraphQLNonNull(GraphQLString),
           },
         },
-        async resolve(userCollective, args) {
+        async resolve(collective, args, req) {
           const conversationId = parseInt(idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION));
-          const userDetails = await models.User.findOne({
-            where: { CollectiveId: userCollective.id },
-            attributes: ['id'],
-          });
+          const user = await req.loaders.User.byCollectiveId.load(collective.id);
 
-          if (!userDetails) {
+          if (!user) {
             return false;
           } else {
-            return models.ConversationFollower.isFollowing(userDetails.id, conversationId);
+            return models.ConversationFollower.isFollowing(user.id, conversationId);
           }
         },
       },
@@ -75,10 +74,8 @@ export const Individual = new GraphQLObjectType({
       },
       hasTwoFactorAuth: {
         type: GraphQLBoolean,
-        async resolve(collective) {
-          const user = await models.User.findOne({
-            where: { CollectiveId: collective.id },
-          });
+        async resolve(collective, args, req) {
+          const user = await req.loaders.User.byCollectiveId.load(collective.id);
           if (user.twoFactorAuthToken) {
             return true;
           } else {
@@ -97,9 +94,48 @@ export const Individual = new GraphQLObjectType({
       },
       hasSeenLatestChangelogEntry: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(collective) {
-          const user = collective.getUser();
+        async resolve(collective, args, req) {
+          const user = await req.loaders.User.byCollectiveId.load(collective.id);
           return hasSeenLatestChangelogEntry(user);
+        },
+      },
+      oauthAuthorizations: {
+        type: OAuthAuthorizationCollection,
+        args: {
+          ...CollectionArgs,
+        },
+        async resolve(collective, { limit, offset }, req) {
+          if (!req.remoteUser) {
+            return null;
+          }
+
+          const user = await req.loaders.User.byCollectiveId.load(collective.id);
+          if (!user || user.id !== req.remoteUser.id) {
+            return null;
+          }
+
+          const query = { where: { UserId: user.id } };
+
+          if (limit) {
+            query.limit = limit;
+          }
+          if (offset) {
+            query.offset = offset;
+          }
+
+          const result = await models.UserToken.findAndCountAll(query);
+          const nodes = result.rows.map(row => {
+            return {
+              id: row.id,
+              account: collective,
+              application: row.client,
+              expiresAt: row.accessTokenExpiresAt,
+              createdAt: row.createdAt,
+              updatedAt: row.updatedAt,
+            };
+          });
+
+          return { nodes, totalCount: result.count, limit, offset };
         },
       },
     };
