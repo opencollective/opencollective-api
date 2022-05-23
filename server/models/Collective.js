@@ -1282,6 +1282,8 @@ function defineModel() {
   Collective.prototype.isApproved = function () {
     if (this.type === types.EVENT) {
       throw new Error("isApproved must be called on event's parent collective");
+    } else if (this.id === this.HostCollectiveId) {
+      return true;
     } else {
       return Boolean(this.HostCollectiveId && this.isActive && this.approvedAt);
     }
