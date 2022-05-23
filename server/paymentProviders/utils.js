@@ -127,6 +127,18 @@ export const persistTransaction = async (virtualCard, transaction) => {
       return;
     }
 
+    const expense = await models.Expense.findOne({
+      where: {
+        CollectiveId: collective.id,
+        FromCollectiveId: vendor.id,
+        VirtualCardId: virtualCard.id,
+        type: ExpenseType.CHARGE,
+        status: ExpenseStatus.PAID,
+        amount,
+      },
+      order: [['createdAt', 'DESC']],
+    });
+
     await models.Transaction.createDoubleEntry({
       CollectiveId: collective.id,
       FromCollectiveId: vendor.id,
@@ -144,6 +156,7 @@ export const persistTransaction = async (virtualCard, transaction) => {
       hostCurrencyFxRate,
       isRefund: true,
       kind: TransactionKind.EXPENSE,
+      ExpenseId: expense?.id,
       data: { refundTransactionId: transactionId },
     });
 
