@@ -2,17 +2,17 @@ import { GraphQLNonNull } from 'graphql';
 
 import { NotFound } from '../../errors';
 import {
-  fetchOAuthAuthorizationWithReference,
-  OAuthAuthorizationReferenceInput,
-} from '../input/OAuthAuthorizationReferenceInput';
-import { OAuthAuthorization } from '../object/OAuthAuthorization';
+  fetchOauthAuthorizationWithReference,
+  OauthAuthorizationReferenceInput,
+} from '../input/OauthAuthorizationReferenceInput';
+import { OauthAuthorization } from '../object/OauthAuthorization';
 
 const oauthAuthorizationMutations = {
-  revokeOAuthAuthorization: {
-    type: new GraphQLNonNull(OAuthAuthorization),
+  revokeOauthAuthorization: {
+    type: new GraphQLNonNull(OauthAuthorization),
     args: {
       oauthAuthorization: {
-        type: new GraphQLNonNull(OAuthAuthorizationReferenceInput),
+        type: new GraphQLNonNull(OauthAuthorizationReferenceInput),
         description: 'Reference of the OAuth Authorization',
       },
     },
@@ -21,7 +21,7 @@ const oauthAuthorizationMutations = {
         return null;
       }
 
-      const userToken = await fetchOAuthAuthorizationWithReference(args.oauthAuthorization);
+      const userToken = await fetchOauthAuthorizationWithReference(args.oauthAuthorization);
       if (!userToken || userToken.user.id !== req.remoteUser.id) {
         throw new NotFound();
       }

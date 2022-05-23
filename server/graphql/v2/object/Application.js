@@ -4,7 +4,7 @@ import models from '../../../models';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
-import { OAuthAuthorization } from '../object/OAuthAuthorization';
+import { OauthAuthorization } from '../object/OauthAuthorization';
 import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
@@ -80,7 +80,7 @@ export const Application = new GraphQLObjectType({
       },
     },
     oauthAuthorization: {
-      type: OAuthAuthorization,
+      type: OauthAuthorization,
       async resolve(application, args, req) {
         if (!req.remoteUser) {
           return null;

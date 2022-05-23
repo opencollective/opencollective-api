@@ -3,7 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
-import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
+import { OauthAuthorizationCollection } from '../collection/OauthAuthorizationCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
@@ -100,7 +100,7 @@ export const Individual = new GraphQLObjectType({
         },
       },
       oauthAuthorizations: {
-        type: OAuthAuthorizationCollection,
+        type: OauthAuthorizationCollection,
         args: {
           ...CollectionArgs,
         },

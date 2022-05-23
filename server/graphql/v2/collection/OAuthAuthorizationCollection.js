@@ -1,20 +1,20 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
 import { Collection, CollectionFields } from '../interface/Collection';
-import { OAuthAuthorization } from '../object/OAuthAuthorization';
+import { OauthAuthorization } from '../object/OauthAuthorization';
 
-const OAuthAuthorizationCollection = new GraphQLObjectType({
-  name: 'OAuthAuthorizationCollection',
+const OauthAuthorizationCollection = new GraphQLObjectType({
+  name: 'OauthAuthorizationCollection',
   interfaces: [Collection],
   description: 'A collection of "oAuth Authorizations"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(OAuthAuthorization),
+        type: new GraphQLList(OauthAuthorization),
       },
     };
   },
 });
 
-export { OAuthAuthorizationCollection };
+export { OauthAuthorizationCollection };
