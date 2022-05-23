@@ -3,9 +3,7 @@
 
 import crypto from 'crypto';
 
-import config from 'config';
-import debugLib from 'debug';
-import type OAuth2Server from 'oauth2-server';
+import type OAuth2Server from '@node-oauth/oauth2-server';
 import {
   AuthorizationCode,
   AuthorizationCodeModel,
@@ -16,7 +14,9 @@ import {
   RefreshToken,
   RefreshTokenModel,
   Token,
-} from 'oauth2-server';
+} from '@node-oauth/oauth2-server';
+import config from 'config';
+import debugLib from 'debug';
 
 import models from '../../models';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';

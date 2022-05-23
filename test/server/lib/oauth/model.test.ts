@@ -1,6 +1,3 @@
-import { expect } from 'chai';
-import config from 'config';
-import moment from 'moment';
 import {
   AuthorizationCode,
   Client,
@@ -8,7 +5,10 @@ import {
   InvalidGrantError,
   InvalidTokenError,
   Token,
-} from 'oauth2-server';
+} from '@node-oauth/oauth2-server';
+import { expect } from 'chai';
+import config from 'config';
+import moment from 'moment';
 import { stub } from 'sinon';
 
 import OAuthModel, {
