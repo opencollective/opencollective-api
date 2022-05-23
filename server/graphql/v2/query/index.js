@@ -1,5 +1,5 @@
 import models from '../../../models';
-import { Account } from '../interface/Account';
+import { Individual } from '../object/Individual';
 
 import AccountsQuery from './collection/AccountsQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
@@ -48,7 +48,17 @@ const query = {
   update: UpdateQuery,
   paypalPlan: PaypalPlanQuery,
   loggedInAccount: {
-    type: Account,
+    type: Individual,
+    resolve(_, args, req) {
+      if (!req.remoteUser) {
+        return null;
+      } else {
+        return models.Collective.findByPk(req.remoteUser.CollectiveId);
+      }
+    },
+  },
+  me: {
+    type: Individual,
     resolve(_, args, req) {
       if (!req.remoteUser) {
         return null;
