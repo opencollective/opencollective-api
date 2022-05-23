@@ -28,6 +28,7 @@ import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
+import { MemberInvitation } from '../object/MemberInvitation';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { TagStats } from '../object/TagStats';
@@ -186,6 +187,13 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLList(AccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
+    },
+  },
+  memberInvitations: {
+    description: 'Get pending member invitations for this account',
+    type: new GraphQLList(MemberInvitation),
+    args: {
+      role: { type: new GraphQLList(MemberRole) },
     },
   },
   memberOf: {
