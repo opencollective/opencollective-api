@@ -120,18 +120,6 @@ export default async app => {
     app.oauth.authorize({ allowEmptyState: true, authenticateHandler: authorizeAuthenticateHandler }),
   );
   app.post('/oauth/authenticate', noCache, app.oauth.authenticate());
-  app.get('/oauth/me', noCache, async (req, res) => {
-    if (req.remoteUser) {
-      const account = await req.remoteUser.getCollective();
-      res.send({
-        id: account.id,
-        name: account.name,
-        email: req.remoteUser.email,
-        url: `${config.host.website}/${account.slug}`,
-        image: `${config.host.images}/${account.slug}/avatar.png`,
-      });
-    }
-  });
 
   /**
    * Parameters.
