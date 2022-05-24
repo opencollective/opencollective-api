@@ -123,11 +123,13 @@ export const Individual = new GraphQLObjectType({
             query.offset = offset;
           }
 
+          const userCollective = await req.loaders.Collective.byId.load(user.CollectiveId);
           const result = await models.UserToken.findAndCountAll(query);
           const nodes = result.rows.map(row => {
             return {
               id: row.id,
               account: collective,
+              createdByAccount: userCollective,
               application: row.client,
               expiresAt: row.accessTokenExpiresAt,
               createdAt: row.createdAt,

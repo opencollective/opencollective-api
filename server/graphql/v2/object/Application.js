@@ -91,6 +91,7 @@ export const Application = new GraphQLObjectType({
         if (userToken) {
           return {
             account: await req.loaders.Collective.byId.load(userToken.user.CollectiveId),
+            createdByAccount: () => req.loaders.Collective.byUserId.load(userToken.UserId),
             application: userToken.client,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,
