@@ -37,9 +37,5 @@ export const OAuthAuthorization = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The time of expiration',
     },
-    createdByAccount: {
-      type: new GraphQLNonNull(Individual),
-      description: 'The account that created this authorization',
-    },
   }),
 });
