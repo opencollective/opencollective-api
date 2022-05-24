@@ -1,5 +1,8 @@
-import OAuth2Server, { AbstractGrantType, UnauthorizedRequestError } from '@node-oauth/oauth2-server';
+import url from 'url';
+
+import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-server';
 import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
+import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
 import Promise from 'bluebird';
 import config from 'config';
@@ -20,8 +23,8 @@ class CustomTokenHandler extends TokenHandler {
 
   getTokenType = function (model) {
     return {
-      valueOf: () =>
-        jwt.sign(
+      valueOf: () => {
+        const accessToken = jwt.sign(
           {
             // eslint-disable-next-line camelcase
             access_token: model.accessToken,
@@ -35,12 +38,50 @@ class CustomTokenHandler extends TokenHandler {
               kid: auth.KID,
             },
           },
-        ),
+        );
+        // eslint-disable-next-line camelcase
+        return { access_token: accessToken };
+      },
     };
   };
 }
 
+class CustomAuthorizeHandler extends AuthorizeHandler {
+  constructor(...args) {
+    super(...args);
+  }
+
+  updateResponse = function (response, redirectUri, state): Promise<void> {
+    redirectUri.query = redirectUri.query || {};
+
+    if (state) {
+      redirectUri.query.state = state;
+    }
+
+    // eslint-disable-next-line camelcase
+    response.body = { redirect_uri: url.format(redirectUri) };
+  };
+}
+
 class CustomOAuth2Server extends OAuth2Server {
+  authorize = async function (
+    request: OAuth2Server.Request,
+    response: OAuth2Server.Response,
+    options?: OAuth2Server.AuthorizeOptions,
+  ): Promise<OAuth2Server.AuthorizationCode> {
+    options = assign(
+      {
+        allowEmptyState: false,
+        authorizationCodeLifetime: 5 * 60, // 5 minutes.
+      },
+      this.options,
+      options,
+    );
+
+    const authorizeHandler = <AuthorizeHandler>new CustomAuthorizeHandler(options);
+    return authorizeHandler.handle(request, response);
+  };
+
   // Library accepts a 4th parameter "callback", but it's not used there so we're omitting it
   token = async function (request, response, options): Promise<OAuth2Server.Token> {
     options = assign(
@@ -54,9 +95,8 @@ class CustomOAuth2Server extends OAuth2Server {
       options,
     );
 
-    const tokenHandler = <AbstractGrantType>(<unknown>new CustomTokenHandler(options));
-    const result = await tokenHandler.handle(request, response);
-    return result;
+    const tokenHandler = <TokenHandler>new CustomTokenHandler(options);
+    return tokenHandler.handle(request, response);
   };
 }
 

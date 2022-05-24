@@ -45,19 +45,13 @@ describe('server/routes/oauth', () => {
       .post(`/oauth/authorize?${authorizeParams.toString()}`)
       .set('Content-Type', `application/x-www-form-urlencoded`)
       .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
-      .redirects(0)
-      .expect(res => {
-        if (res.status !== 302) {
-          throw new Error(JSON.stringify(res.body, null, 2));
-        }
-      });
+      .expect(200);
 
     // Exchange authorization code for access token
-    const redirectUri = new URL(authorizeResponse.headers.location);
+    const redirectUri = new URL(authorizeResponse.body['redirect_uri']);
     const code = redirectUri.searchParams.get('code');
     const tokenResponse = await request(expressApp)
       .post(`/oauth/token`)
-      .set('Authorization', `Bearer ${application.createdByUser.jwt()}`)
       .type(`application/x-www-form-urlencoded`)
       .send({
         grant_type: 'authorization_code',
@@ -73,7 +67,7 @@ describe('server/routes/oauth', () => {
       });
 
     // Decode returned OAuth token
-    const oauthToken = tokenResponse.res.text;
+    const oauthToken = tokenResponse.body.access_token;
     expect(oauthToken).to.exist;
 
     const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret);

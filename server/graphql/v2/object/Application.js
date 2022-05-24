@@ -44,7 +44,7 @@ export const Application = new GraphQLObjectType({
     apiKey: {
       type: GraphQLString,
       resolve(application, args, req) {
-        if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
+        if (req.remoteUser.isAdmin(application.CollectiveId)) {
           return application.apiKey;
         }
       },
@@ -52,7 +52,7 @@ export const Application = new GraphQLObjectType({
     clientId: {
       type: GraphQLString,
       resolve(application, args, req) {
-        if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
+        if (req.remoteUser.isAdmin(application.CollectiveId)) {
           return application.clientId;
         }
       },
@@ -60,7 +60,7 @@ export const Application = new GraphQLObjectType({
     clientSecret: {
       type: GraphQLString,
       resolve(application, args, req) {
-        if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
+        if (req.remoteUser.isAdmin(application.CollectiveId)) {
           return application.clientSecret;
         }
       },
@@ -68,7 +68,7 @@ export const Application = new GraphQLObjectType({
     redirectUri: {
       type: URL,
       resolve(application, args, req) {
-        if (req.remoteUser && req.remoteUser.CollectiveId === application.CollectiveId) {
+        if (req.remoteUser.isAdmin(application.CollectiveId)) {
           return application.callbackUrl;
         }
       },
