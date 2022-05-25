@@ -193,7 +193,7 @@ const userFieldsConfig = {
   members: { model: models.Member, field: 'CreatedByUserId' },
   migrationLogs: { model: models.MigrationLog, field: 'CreatedByUserId' },
   notifications: { model: models.Notification, field: 'UserId' },
-  oauthAuthorizationCodes: { model: models.OAuthAuthorizationCode, field: 'UserId' },
+  oAuthAuthorizationCodes: { model: models.OAuthAuthorizationCode, field: 'UserId' },
   orders: { model: models.Order, field: 'CreatedByUserId' },
   paymentMethods: { model: models.PaymentMethod, field: 'CreatedByUserId' },
   payoutMethods: { model: models.PayoutMethod, field: 'CreatedByUserId' },

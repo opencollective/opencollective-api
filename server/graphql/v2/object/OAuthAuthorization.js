@@ -1,6 +1,7 @@
-import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Application } from '../object/Application';
 import { Individual } from '../object/Individual';
 
@@ -8,6 +9,10 @@ export const OAuthAuthorization = new GraphQLObjectType({
   name: 'OAuthAuthorization',
   description: 'An OAuth authorization',
   fields: () => ({
+    id: {
+      type: GraphQLString,
+      resolve: getIdEncodeResolver(IDENTIFIER_TYPES.USER_TOKEN),
+    },
     account: {
       type: new GraphQLNonNull(Individual),
       resolve(authorization) {

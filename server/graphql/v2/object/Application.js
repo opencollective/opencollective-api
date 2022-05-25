@@ -9,7 +9,7 @@ import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
   name: 'Application',
-  description: 'An oAuth application or a personal token',
+  description: 'An OAuth application or a personal token',
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
@@ -79,7 +79,7 @@ export const Application = new GraphQLObjectType({
         return req.loaders.Collective.byId.load(application.CollectiveId);
       },
     },
-    oauthAuthorization: {
+    oAuthAuthorization: {
       type: OAuthAuthorization,
       async resolve(application, args, req) {
         if (!req.remoteUser) {
@@ -90,7 +90,7 @@ export const Application = new GraphQLObjectType({
         });
         if (userToken) {
           return {
-            account: await req.loaders.Collective.byId.load(userToken.user.CollectiveId),
+            account: () => req.loaders.Collective.byId.load(userToken.user.CollectiveId),
             application: userToken.client,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,

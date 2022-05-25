@@ -17,7 +17,7 @@ const debugPaypal = debug('paypal');
 
 /**
  * PayPal paymentProvider
- * Provides a oAuth flow to creates a payment method that can be used to pay up to $2,000 USD or equivalent
+ * Provides a OAuth flow to creates a payment method that can be used to pay up to $2,000 USD or equivalent
  */
 
 /*
