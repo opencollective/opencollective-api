@@ -70,6 +70,11 @@ export default async app => {
           // 100 requests / minute for registered API Key
           opts.total = 100;
           opts.expire = 1000 * 60;
+        } else if (req.remoteUser) {
+          opts.lookup = 'remoteUser.id';
+          // 100 requests / minute for authenticated users
+          opts.total = 100;
+          opts.expire = 1000 * 60;
         } else {
           opts.lookup = 'ip';
           // 10 requests / minute / ip for anonymous requests
