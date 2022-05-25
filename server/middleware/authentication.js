@@ -14,7 +14,7 @@ import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
-const { User } = models;
+const { User, UserToken } = models;
 
 const { BadRequest, CustomError, Unauthorized } = errors;
 
@@ -100,6 +100,16 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     logger.error(`User id ${userId} has no collective linked`);
     next();
     return;
+  }
+
+  const accessToken = req.jwtPayload.access_token;
+  if (accessToken) {
+    const userToken = await UserToken.findOne({ where: { accessToken } });
+    if (!userToken) {
+      logger.warn(`UserToken for ${userId} not found`);
+      next();
+      return;
+    }
   }
 
   if (req.jwtPayload.scope === 'twofactorauth') {
