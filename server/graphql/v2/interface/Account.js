@@ -1,9 +1,10 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { assign, get, invert, isEmpty } from 'lodash';
+import { assign, get, invert, isEmpty, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
+import { PUBLIC_POLICIES } from '../../../constants/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
@@ -550,7 +551,8 @@ const accountFieldsDefinition = () => ({
       if (req.remoteUser?.isAdminOfCollective(account)) {
         return account.data?.policies || {};
       }
-      return null;
+
+      return pick(account.data?.policies, PUBLIC_POLICIES);
     },
   },
 });

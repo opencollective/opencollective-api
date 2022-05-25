@@ -5,4 +5,7 @@ enum POLICIES {
   COLLECTIVE_MINIMUM_ADMINS = 'COLLECTIVE_MINIMUM_ADMINS',
 }
 
+// List of Policies that can be seen by anyone
+export const PUBLIC_POLICIES = [POLICIES.COLLECTIVE_MINIMUM_ADMINS];
+
 export default POLICIES;
