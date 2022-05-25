@@ -2,40 +2,44 @@
 
 ## Node and npm
 
-You can play with GraphQL by opening:
-http://localhost:3060/graphql
-
-![](http://d.pr/i/Vxm1rw+)
+You can play with GraphQL by opening http://localhost:3060/graphql with a tool like [Altair GraphQL](https://altair.sirmuel.design/).
 
 For example, try this query:
 
-```
+```gql
 query {
-  Collective(slug:"apex") {
-      id
-      slug
-      name
-      description
-      tiers {
+  collective(slug: "apex") {
+    id
+    slug
+    name
+    description
+    tiers {
+      nodes {
         id
         name
         description
-        amount
-        currency
+        amount {
+          value
+          currency
+        }
       }
-      members{
+    }
+    members {
+      nodes {
         id
         role
-        member {
+        account {
           id
           slug
           name
         }
-        stats {
-          totalDonations
+        totalDonations {
+          value
+          currency
         }
       }
     }
+  }
 }
 ```
 
