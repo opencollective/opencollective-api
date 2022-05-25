@@ -149,6 +149,32 @@ function defineModel() {
     return this.destroy();
   };
 
+  MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAdmin = false, sequelizeParams = null) {
+    // Load invitee
+    const invitedUser = await models.User.findOne({
+      where: { CollectiveId: this.MemberCollectiveId },
+      include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
+    });
+
+    if (!invitedUser) {
+      throw new Error('Cannot find invited user');
+    }
+
+    // Load collective
+    const collective = this.collective || (await this.getCollective(sequelizeParams));
+
+    // Send member invitation
+    await emailLib.send('member.invitation', invitedUser.email, {
+      role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
+      invitation: pick(this, ['id', 'role', 'description', 'since']),
+      collective: pick(collective, ['id', 'slug', 'name']),
+      memberCollective: pick(invitedUser.collective, ['id', 'slug', 'name']),
+      invitedByUser: pick(remoteUser, ['collective.id', 'collective.slug', 'collective.name']),
+      skipDefaultAdmin: skipDefaultAdmin,
+    });
+  };
+
   // ---- Static methods ----
 
   MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
@@ -161,7 +187,7 @@ function defineModel() {
       throw new Error('Individual accounts do not support members');
     }
 
-    // Ensure the user is not already a member or invited as such
+    // Ensure the user is not already a member
     const existingMember = await models.Member.findOne({
       where: {
         CollectiveId: collective.id,
@@ -176,7 +202,8 @@ function defineModel() {
     }
 
     // Update the existing invitation if it exists
-    const existingInvitation = await models.MemberInvitation.findOne({
+    let invitation = await models.MemberInvitation.findOne({
+      include: [{ association: 'collective' }],
       where: {
         CollectiveId: collective.id,
         MemberCollectiveId: memberParams.MemberCollectiveId,
@@ -184,51 +211,31 @@ function defineModel() {
       ...sequelizeParams,
     });
 
-    if (existingInvitation) {
-      return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']), sequelizeParams);
+    if (invitation) {
+      const updateData = pick(memberParams, ['role', 'description', 'since']);
+      await invitation.update(updateData, sequelizeParams);
+    } else {
+      // Ensure collective has not invited too many people
+      const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
+      const nbMembers = await models.Member.count({ where: memberCountWhere, ...sequelizeParams });
+      const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
+      if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
+        throw new Error('You exceeded the maximum number of members for this account');
+      }
+
+      // Create new member invitation
+      invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
+      invitation.collective = collective;
     }
 
-    // Ensure collective has not invited too many people
-    const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
-    const nbMembers = await models.Member.count({ where: memberCountWhere, ...sequelizeParams });
-    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
-    if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
-      throw new Error('You exceeded the maximum number of members for this account');
-    }
-
-    // Load users
-    const memberUser = await models.User.findOne({
-      where: { CollectiveId: memberParams.MemberCollectiveId },
-      include: [{ model: models.Collective, as: 'collective' }],
-      ...sequelizeParams,
-    });
-
-    if (!memberUser) {
-      throw new Error('user not found');
-    }
-
+    // Load remote user
+    // TODO: We should make `createdByUser` a required param
     const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
-      include: [{ model: models.Collective, as: 'collective' }],
+      include: [{ association: 'collective' }],
       ...sequelizeParams,
     });
 
-    const invitation = await MemberInvitation.create(
-      {
-        ...memberParams,
-        CollectiveId: collective.id,
-      },
-      sequelizeParams,
-    );
-
-    await emailLib.send('member.invitation', memberUser.email, {
-      role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
-      invitation: pick(invitation, 'id'),
-      collective: pick(collective, ['slug', 'name']),
-      memberCollective: pick(memberUser.collective, ['slug', 'name']),
-      invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
-      skipDefaultAdmin: skipDefaultAdmin || false,
-    });
-
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams);
     return invitation;
   };
 
