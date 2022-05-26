@@ -5,6 +5,8 @@ import { pick } from 'lodash';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
+import POLICIES from '../../../constants/policies';
+import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
 import { stripHTML } from '../../../lib/sanitize-html';
@@ -144,6 +146,30 @@ const HostApplicationMutations = {
         throw new NotFound(`No application found for ${account.slug} in ${host.slug}`);
       } else if (account.approvedAt) {
         throw new ValidationFailed('This collective application has already been approved');
+      }
+
+      // If approving, check if Collective has enough admins
+      if (args.action === 'APPROVE') {
+        const where = {
+          CollectiveId: account.id,
+          role: MemberRoles.ADMIN,
+        };
+
+        const [adminCount, adminInvitationCount] = await Promise.all([
+          models.Member.count({ where }),
+          models.MemberInvitation.count({ where }),
+        ]);
+
+        if (
+          host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins >
+          adminCount + adminInvitationCount
+        ) {
+          throw new Forbidden(
+            `Your host policy requires at least ${
+              host.data.policies[POLICIES.COLLECTIVE_MINIMUM_ADMINS].numberOfAdmins
+            } admins for this account.`,
+          );
+        }
       }
 
       switch (args.action) {
