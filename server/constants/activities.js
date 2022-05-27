@@ -34,6 +34,7 @@ export default {
   COLLECTIVE_UNFROZEN: 'collective.unfrozen',
   COLLECTIVE_MEMBER_CREATED: 'collective.member.created',
   COLLECTIVE_CORE_MEMBER_ADDED: 'collective.core.member.added',
+  COLLECTIVE_CORE_MEMBER_INVITED: 'collective.core.member.invited',
   COLLECTIVE_CORE_MEMBER_REMOVED: 'collective.core.member.removed',
   COLLECTIVE_CORE_MEMBER_EDITED: 'collective.core.member.edited',
   COLLECTIVE_TRANSACTION_CREATED: 'collective.transaction.created',

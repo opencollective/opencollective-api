@@ -240,6 +240,19 @@ function defineModel() {
       // Create new member invitation
       invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
       invitation.collective = collective;
+
+      if ([roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER].includes(this.role)) {
+        const member = await models.Collective.findByPk(memberParams.MemberCollectiveId);
+        await models.Activity.create({
+          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+          CollectiveId: collective.id,
+          data: {
+            notify: false,
+            memberCollective: member.activity,
+            collective: collective.activity,
+          },
+        });
+      }
     }
 
     // Load remote user
