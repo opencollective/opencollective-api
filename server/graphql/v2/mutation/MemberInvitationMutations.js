@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
-import ActivityTypes from '../../../constants/activities';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
@@ -149,21 +148,6 @@ const memberInvitationMutations = {
 
       if (args.accept) {
         await invitation.accept();
-        if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(invitation.role)) {
-          const collective = await models.Collective.findByPk(invitation.CollectiveId);
-          const member = await models.Collective.findByPk(invitation.MemberCollectiveId);
-          await models.Activity.create({
-            type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
-            CollectiveId: collective.id,
-            UserId: req.remoteUser.id,
-            data: {
-              notify: false,
-              memberCollective: member.activity,
-              collective: collective.activity,
-              user: req.remoteUser.info,
-            },
-          });
-        }
       } else {
         await invitation.decline();
       }

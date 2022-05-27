@@ -1,6 +1,7 @@
 import config from 'config';
 import { pick } from 'lodash';
 
+import ActivityTypes from '../constants/activities';
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
@@ -140,6 +141,19 @@ function defineModel() {
         since: this.since,
       });
       purgeCacheForCollective(collective.slug);
+    }
+
+    if ([roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER].includes(this.role)) {
+      const member = await models.Collective.findByPk(this.MemberCollectiveId);
+      await models.Activity.create({
+        type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+        CollectiveId: this.CollectiveId,
+        data: {
+          notify: false,
+          memberCollective: member.activity,
+          collective: collective.activity,
+        },
+      });
     }
 
     return this.destroy();
