@@ -328,6 +328,9 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
       }
       return false;
     }
+    if (expense.status === expenseStatus.INCOMPLETE) {
+      return isHostAdmin(req, expense);
+    }
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
   }
 };
@@ -416,7 +419,7 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expen
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
+    return isHostAdmin(req, expense);
   }
 };
 
