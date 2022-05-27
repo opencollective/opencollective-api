@@ -5,6 +5,8 @@ import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models from '../../../models';
 import { hostResolver } from '../../common/collective';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
+import { PaymentMethodService } from '../enum/PaymentMethodService';
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { Host } from '../object/Host';
 
 export const AccountWithHostFields = {
@@ -29,6 +31,24 @@ export const AccountWithHostFields = {
   hostFeePercent: {
     description: 'Fees percentage that the host takes for this collective',
     type: GraphQLFloat,
+    args: {
+      paymentMethodService: { type: PaymentMethodService },
+      paymentMethodType: { type: PaymentMethodType },
+    },
+    resolve(account: typeof models.Collective, args): Promise<number> {
+      if (args.paymentMethodType === 'host' && account.data?.addedFundsHostFeePercent) {
+        return account.data?.addedFundsHostFeePercent;
+      } else if (args.paymentMethodType === 'manual' && account.data?.bankTransfersHostFeePercent) {
+        return account.data?.bankTransfersHostFeePercent;
+      } else if (args.paymentMethodType === 'creditcard' && account.data?.creditCardHostFeePercent) {
+        return account.data?.creditCardHostFeePercent;
+      } else if (args.paymentMethodService === 'stripe' && account.data?.creditCardHostFeePercent) {
+        return account.data?.creditCardHostFeePercent;
+      } else if (args.paymentMethodService === 'paypal' && account.data?.paypalHostFeePercent) {
+        return account.data?.paypalHostFeePercent;
+      }
+      return account.hostFeePercent;
+    },
   },
   platformFeePercent: {
     description: 'Fees percentage that the platform takes for this collective',
