@@ -11,6 +11,7 @@ import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
 import ConversationQuery from './ConversationQuery';
+import EmailExistenceQuery from './EmailExistenceQuery';
 import EventQuery from './EventQuery';
 import ExpenseQuery from './ExpenseQuery';
 import FundQuery from './FundQuery';
@@ -32,6 +33,7 @@ const query = {
   conversation: ConversationQuery,
   event: EventQuery,
   expense: ExpenseQuery,
+  emailExists: EmailExistenceQuery,
   expenses: ExpensesCollectionQuery,
   fund: FundQuery,
   host: HostQuery,
