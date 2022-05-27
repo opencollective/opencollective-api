@@ -859,7 +859,11 @@ export const isPlatformTipEligible = async (order, host = null) => {
 };
 
 export const getHostFeePercent = async (order, host = null) => {
-  host = host || (await order.collective.getHostCollective());
+  const collective = order.collective;
+
+  const parent = await collective.getParentCollective();
+
+  host = host || (await collective.getHostCollective());
 
   // No Host Fee for money going to an host itself
   if (order.collective.isHostAccount) {
@@ -874,7 +878,9 @@ export const getHostFeePercent = async (order, host = null) => {
   if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'manual') {
     // Fixed for Bank Transfers at collective level
     // As of August 2020, this will be only set on a selection of Collective (some foundation collectives 5%)
-    possibleValues.push(order.collective.data?.bankTransfersHostFeePercent);
+    possibleValues.push(collective.data?.bankTransfersHostFeePercent);
+    // Fixed for Bank Transfers at parent level
+    possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
     // Fixed for Bank Transfers at host level
     // As of August 2020, this will be only set on a selection of Hosts (foundation 8%)
     possibleValues.push(host.data?.bankTransfersHostFeePercent);
@@ -888,7 +894,9 @@ export const getHostFeePercent = async (order, host = null) => {
 
   if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'host') {
     // Fixed for Added Funds at collective level
-    possibleValues.push(order.collective.data?.addedFundsHostFeePercent);
+    possibleValues.push(collective.data?.addedFundsHostFeePercent);
+    // Fixed for Added Funds at parent level
+    possibleValues.push(parent?.data?.addedFundsHostFeePercent);
     // Fixed for Added Funds at host level
     possibleValues.push(host.data?.addedFundsHostFeePercent);
   }
@@ -899,19 +907,21 @@ export const getHostFeePercent = async (order, host = null) => {
   }
 
   if (order.paymentMethod.service === 'stripe') {
-    // Configurable by the Host globally or at the Collective level
-    possibleValues.push(order.collective.data?.creditCardHostFeePercent);
+    // Configurable by the Host globally, at the Collective or Parent level
+    possibleValues.push(collective.data?.creditCardHostFeePercent);
+    possibleValues.push(parent?.data?.creditCardHostFeePercent);
     possibleValues.push(host.data?.creditCardHostFeePercent);
   }
 
   if (order.paymentMethod.service === 'paypal') {
     // Configurable by the Host globally or at the Collective level
-    possibleValues.push(order.collective.data?.paypalHostFeePercent);
+    possibleValues.push(collective.data?.paypalHostFeePercent);
+    possibleValues.push(parent?.data?.paypalHostFeePercent);
     possibleValues.push(host.data?.paypalHostFeePercent);
   }
 
   // Default for Collective
-  possibleValues.push(order.collective.hostFeePercent);
+  possibleValues.push(collective.hostFeePercent);
 
   // Just in case, default on the platform (not used in normal operation)
   possibleValues.push(config.fees.default.hostPercent);

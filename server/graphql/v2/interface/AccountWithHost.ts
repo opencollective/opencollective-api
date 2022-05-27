@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { isNumber } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models from '../../../models';
@@ -35,19 +36,29 @@ export const AccountWithHostFields = {
       paymentMethodService: { type: PaymentMethodService },
       paymentMethodType: { type: PaymentMethodType },
     },
-    resolve(account: typeof models.Collective, args): Promise<number> {
-      if (args.paymentMethodType === 'host' && account.data?.addedFundsHostFeePercent) {
-        return account.data?.addedFundsHostFeePercent;
-      } else if (args.paymentMethodType === 'manual' && account.data?.bankTransfersHostFeePercent) {
-        return account.data?.bankTransfersHostFeePercent;
-      } else if (args.paymentMethodType === 'creditcard' && account.data?.creditCardHostFeePercent) {
-        return account.data?.creditCardHostFeePercent;
-      } else if (args.paymentMethodService === 'stripe' && account.data?.creditCardHostFeePercent) {
-        return account.data?.creditCardHostFeePercent;
-      } else if (args.paymentMethodService === 'paypal' && account.data?.paypalHostFeePercent) {
-        return account.data?.paypalHostFeePercent;
+    async resolve(account: typeof models.Collective, args): Promise<number> {
+      const parent = await account.getParentCollective();
+
+      const possibleValues = [];
+
+      if (args.paymentMethodType === 'host') {
+        possibleValues.push(account.data?.addedFundsHostFeePercent);
+        possibleValues.push(parent?.data?.addedFundsHostFeePercent);
+      } else if (args.paymentMethodType === 'manual') {
+        possibleValues.push(account.data?.bankTransfersHostFeePercent);
+        possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
+      } else if (args.paymentMethodType === 'creditcard') {
+        possibleValues.push(account.data?.creditCardHostFeePercent);
+        possibleValues.push(parent?.data?.creditCardHostFeePercent);
+      } else if (args.paymentMethodService === 'paypal') {
+        possibleValues.push(account.data?.paypalHostFeePercent);
+        possibleValues.push(parent?.data?.paypalHostFeePercent);
       }
-      return account.hostFeePercent;
+
+      possibleValues.push(account.hostFeePercent);
+
+      // Pick the first that is set as a Number
+      return possibleValues.find(isNumber);
     },
   },
   platformFeePercent: {
