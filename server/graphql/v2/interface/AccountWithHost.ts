@@ -1,10 +1,13 @@
 import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { isNumber } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import models from '../../../models';
 import { hostResolver } from '../../common/collective';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
+import { PaymentMethodService } from '../enum/PaymentMethodService';
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { Host } from '../object/Host';
 
 export const AccountWithHostFields = {
@@ -29,6 +32,34 @@ export const AccountWithHostFields = {
   hostFeePercent: {
     description: 'Fees percentage that the host takes for this collective',
     type: GraphQLFloat,
+    args: {
+      paymentMethodService: { type: PaymentMethodService },
+      paymentMethodType: { type: PaymentMethodType },
+    },
+    async resolve(account: typeof models.Collective, args): Promise<number> {
+      const parent = await account.getParentCollective();
+
+      const possibleValues = [];
+
+      if (args.paymentMethodType === 'host') {
+        possibleValues.push(account.data?.addedFundsHostFeePercent);
+        possibleValues.push(parent?.data?.addedFundsHostFeePercent);
+      } else if (args.paymentMethodType === 'manual') {
+        possibleValues.push(account.data?.bankTransfersHostFeePercent);
+        possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
+      } else if (args.paymentMethodType === 'creditcard') {
+        possibleValues.push(account.data?.creditCardHostFeePercent);
+        possibleValues.push(parent?.data?.creditCardHostFeePercent);
+      } else if (args.paymentMethodService === 'paypal') {
+        possibleValues.push(account.data?.paypalHostFeePercent);
+        possibleValues.push(parent?.data?.paypalHostFeePercent);
+      }
+
+      possibleValues.push(account.hostFeePercent);
+
+      // Pick the first that is set as a Number
+      return possibleValues.find(isNumber);
+    },
   },
   platformFeePercent: {
     description: 'Fees percentage that the platform takes for this collective',
