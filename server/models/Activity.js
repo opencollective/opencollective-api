@@ -51,7 +51,9 @@ function defineModel() {
 
       hooks: {
         afterCreate(activity) {
-          notify(activity); // intentionally no return statement, needs to be async
+          if (activity.data?.notify !== false) {
+            notify(activity); // intentionally no return statement, needs to be async
+          }
           return Promise.resolve();
         },
       },

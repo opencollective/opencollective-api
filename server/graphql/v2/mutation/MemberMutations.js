@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
+import ActivityTypes from '../../../constants/activities';
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import models from '../../../models';
@@ -161,6 +162,20 @@ const memberMutations = {
         throw new ValidationFailed(`Member ${memberAccount.slug} does not exist in Collective ${account.slug}`);
       }
 
+      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(this.role)) {
+        await models.Activity.create({
+          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
+          CollectiveId: account.id,
+          UserId: req.remoteUser.id,
+          data: {
+            notify: false,
+            memberCollective: memberAccount.activity,
+            collective: account.activity,
+            user: req.remoteUser.info,
+          },
+        });
+      }
+
       return members[0];
     },
   },
@@ -216,6 +231,19 @@ const memberMutations = {
       } else {
         await models.Member.destroy({
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
+        });
+      }
+      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(this.role)) {
+        await models.Activity.create({
+          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
+          CollectiveId: account.id,
+          UserId: req.remoteUser.id,
+          data: {
+            notify: false,
+            memberCollective: memberAccount.activity,
+            collective: account.activity,
+            user: req.remoteUser.info,
+          },
         });
       }
 
