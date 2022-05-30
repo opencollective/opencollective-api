@@ -210,6 +210,9 @@ function defineModel() {
 
   User.prototype.generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
+    if (!lastLoginAt) {
+      redirect = '/welcome-to-oc';
+    }
     const token = this.jwt({ scope: 'login', lastLoginAt });
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues

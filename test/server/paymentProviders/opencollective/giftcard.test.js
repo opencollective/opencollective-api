@@ -837,6 +837,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
             name: 'New User',
             email: 'new@user.com',
             twitterHandle: 'xdamman',
+            lastLoginAt: new Date(),
           },
           code: giftCardCode,
         };

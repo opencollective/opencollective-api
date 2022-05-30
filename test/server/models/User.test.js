@@ -117,14 +117,22 @@ describe('server/models/User', () => {
       });
       const mockUser = stub(user, 'jwt').callsFake(() => 'foo');
 
-      // When a login link is created
+      // When a login link is created (first time)
       const link = user.generateLoginLink('/path/to/redirect');
 
       // Then the link should contain the right url
       const parsedUrl = new URL(link);
       expect(`${parsedUrl.protocol}//${parsedUrl.host}`).to.equal(config.host.website);
-      expect(parsedUrl.search).to.equal('?next=/path/to/redirect');
+      expect(parsedUrl.search).to.equal('?next=/welcome-to-oc');
       expect(parsedUrl.pathname).to.equal('/signin/foo');
+
+      // When a login link is created (for already logged-in user)
+      user.lastLoginAt = new Date();
+      const link2 = user.generateLoginLink('/path/to/redirect');
+      const parsedUrl2 = new URL(link2);
+      expect(`${parsedUrl2.protocol}//${parsedUrl2.host}`).to.equal(config.host.website);
+      expect(parsedUrl2.search).to.equal('?next=/path/to/redirect');
+      expect(parsedUrl2.pathname).to.equal('/signin/foo');
 
       // And Then restore the mock
       mockUser.restore();
