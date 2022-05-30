@@ -356,7 +356,7 @@ const orderMutations = {
 
         const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasAmounts) {
-          const { amount, paymentProcessorFee, platformTip } = args.order;
+          const { amount, paymentProcessorFee, platformTip, hostFeePercent } = args.order;
 
           // Ensure amounts are provided with the right currency
           ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
@@ -387,6 +387,9 @@ const orderMutations = {
             order.set('data.platformTip', platformTipInCents);
             // Some parts of the order flow still uses data.platformFee
             order.set('data.platformFee', platformTipInCents);
+          }
+          if (hostFeePercent) {
+            order.set('data.hostFeePercent', hostFeePercent);
           }
           await order.save();
         }
