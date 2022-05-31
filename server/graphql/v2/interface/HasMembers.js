@@ -4,12 +4,12 @@ import { intersection } from 'lodash';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models, { Op } from '../../../models';
-import { BadRequest, Unauthorized } from '../../errors';
+import { BadRequest } from '../../errors';
 import { MemberCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { MemberRole } from '../enum/MemberRole';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { MemberInvitation } from '../object/MemberInvitation';
+import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
 
 export const HasMembersFields = {
@@ -90,26 +90,5 @@ export const HasMembersFields = {
       return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
     },
   },
-  memberInvitations: {
-    description: 'Get pending member invitations for this account',
-    type: new GraphQLList(MemberInvitation),
-    args: {
-      role: { type: new GraphQLList(MemberRole) },
-    },
-    async resolve(collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) && !req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
-        throw new Unauthorized('Only admins can fetch pending member invitations');
-      }
-
-      const where = { CollectiveId: collective.id };
-      if (args.role) {
-        where['role'] = { [Op.in]: args.role };
-      }
-
-      return models.MemberInvitation.findAll({
-        where,
-        include: [{ association: 'collective', required: true, attributes: [] }],
-      });
-    },
-  },
+  memberInvitations: MemberInvitationsQuery,
 };

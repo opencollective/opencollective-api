@@ -1,7 +1,8 @@
 import { GraphQLList } from 'graphql';
 
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import { Forbidden, ValidationFailed } from '../../errors';
+import { MemberRole } from '../enum/MemberRole';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { MemberInvitation } from '../object/MemberInvitation';
 
@@ -19,25 +20,24 @@ const MemberInvitationsQuery = {
       description:
         'A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.',
     },
+    role: {
+      type: new GraphQLList(MemberRole),
+      description: 'An array of Member roles to filter for',
+    },
   },
   async resolve(collective, args, { remoteUser }) {
     if (!remoteUser) {
       throw new Forbidden('Only collective admins can see pending invitations');
     }
 
-    if (!(args.account || args.memberAccount)) {
+    if (!(args.account || args.memberAccount || collective)) {
       throw new ValidationFailed('You must provide a reference either for collective or member collective');
     }
 
-    let { memberAccount, account } = args;
-
-    if (account) {
-      account = await fetchAccountWithReference(account, { throwIfMissing: true });
-    }
-
-    if (memberAccount) {
-      memberAccount = await fetchAccountWithReference(memberAccount, { throwIfMissing: true });
-    }
+    const account =
+      collective || (args.account && (await fetchAccountWithReference(args.account, { throwIfMissing: true })));
+    const memberAccount =
+      args.memberAccount && (await fetchAccountWithReference(args.memberAccount, { throwIfMissing: true }));
 
     // Must be an admin to see pending invitations
     const isAdminOfAccount = account && remoteUser.isAdminOfCollective(account);
@@ -48,12 +48,15 @@ const MemberInvitationsQuery = {
       new Forbidden('Only collective admins can see pending invitations');
     }
 
-    const where: Record<string, unknown> = {};
+    const where = {};
     if (account?.id) {
-      where.CollectiveId = account.id;
+      where['CollectiveId'] = account.id;
     }
     if (memberAccount?.id) {
-      where.MemberCollectiveId = memberAccount.id;
+      where['MemberCollectiveId'] = memberAccount.id;
+    }
+    if (args.role) {
+      where['role'] = { [Op.in]: args.role };
     }
 
     return models.MemberInvitation.findAll({
