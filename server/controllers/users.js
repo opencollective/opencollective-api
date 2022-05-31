@@ -51,31 +51,36 @@ export const exists = async (req, res) => {
 
 /**
  * Login or create a new user
+ *
+ * TODO: we are passing createProfile from frontend to specify if we need to
+ * create a new account. In the future once signin.js is fully deprecated (replaced by signinV2.js)
+ * this function should be refactored to remove createProfile.
  */
-export const signin = (req, res, next) => {
-  const { user, redirect, websiteUrl } = req.body;
-  let loginLink;
-  let clientIP;
-  return models.User.findOne({ where: { email: user.email.toLowerCase() } })
-    .then(u => u || models.User.createUserWithCollective(user))
-    .then(u => {
-      loginLink = u.generateLoginLink(redirect || '/', websiteUrl);
-      clientIP = req.ip;
-      if (config.env === 'development') {
-        logger.info(`Login Link: ${loginLink}`);
-      }
-      return emailLib.send('user.new.token', u.email, { loginLink, clientIP }, { sendEvenIfNotProduction: true });
-    })
-    .then(() => {
-      const response = { success: true };
-      // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
-      if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
-        response.redirect = loginLink;
-      }
-      return response;
-    })
-    .then(response => res.send(response))
-    .catch(next);
+export const signin = async (req, res) => {
+  const { user, redirect, websiteUrl, createProfile = true } = req.body;
+  let profile = await models.User.findOne({ where: { email: user.email.toLowerCase() } });
+  if (!profile && !createProfile) {
+    return res.send({
+      error: {
+        errorCode: 'EMAIL_DOES_NOT_EXIST',
+        message: 'Email does not exist',
+      },
+    });
+  } else if (!profile && createProfile) {
+    profile = await models.User.createUserWithCollective(user);
+  }
+  const loginLink = profile.generateLoginLink(redirect || '/', websiteUrl);
+  const clientIP = req.ip;
+  if (config.env === 'development') {
+    logger.info(`Login Link: ${loginLink}`);
+  }
+  await emailLib.send('user.new.token', profile.email, { loginLink, clientIP }, { sendEvenIfNotProduction: true });
+  const response = { success: true };
+  // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
+  if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
+    response.redirect = loginLink;
+  }
+  res.send(response);
 };
 
 /**
