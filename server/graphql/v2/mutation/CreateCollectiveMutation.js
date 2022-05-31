@@ -12,7 +12,8 @@ import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
-import { Forbidden, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { processInviteMembersInput } from '../../common/members';
+import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
 import { IndividualCreateInput } from '../input/IndividualCreateInput';
@@ -127,37 +128,11 @@ async function createCollective(_, args, req) {
       }
 
       if (args.inviteMembers && args.inviteMembers.length) {
-        if (args.inviteMembers.length > 30) {
-          throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
-        }
-        for (const inviteMember of args.inviteMembers) {
-          if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(inviteMember.role)) {
-            throw new Forbidden('You can only invite accountants, admins, or members.');
-          }
-          let memberAccount;
-          if (inviteMember.memberAccount) {
-            memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
-          } else if (inviteMember.memberInfo) {
-            let user = await models.User.findOne({
-              where: { email: inviteMember.memberInfo.email.toLowerCase() },
-              transaction,
-            });
-            if (!user) {
-              const userData = pick(inviteMember.memberInfo, ['name', 'email']);
-              user = await models.User.createUserWithCollective(userData, transaction);
-            }
-            memberAccount = await models.Collective.findByPk(user.CollectiveId, { transaction });
-          }
-          const memberParams = {
-            ...pick(inviteMember, ['role', 'description', 'since']),
-            MemberCollectiveId: memberAccount.id,
-            CreatedByUserId: req.remoteUser.id,
-          };
-          await models.MemberInvitation.invite(collective, memberParams, {
-            transaction,
-            skipDefaultAdmin: args.skipDefaultAdmin,
-          });
-        }
+        await processInviteMembersInput(args, req, {
+          transaction,
+          supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
+          collective,
+        });
       }
 
       return collective;

@@ -1,7 +1,6 @@
 import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
-import { pick } from 'lodash';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
@@ -12,6 +11,7 @@ import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
+import { processInviteMembersInput } from '../../common/members';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -88,28 +88,7 @@ const HostApplicationMutations = {
       });
 
       if (args.inviteMembers && args.inviteMembers.length) {
-        if (args.inviteMembers.length > 30) {
-          throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
-        }
-        for (const inviteMember of args.inviteMembers) {
-          if (inviteMember.role !== 'ADMIN') {
-            throw new Forbidden('You can only invite accountants, admins, or members.');
-          }
-          const memberAccount = await fetchAccountWithReference(inviteMember.memberAccount, { throwIfMissing: true });
-          if (!memberAccount) {
-            throw new NotFound(
-              `Could not find memberAccount #${inviteMember.memberAccount.id || inviteMember.memberAccount.lgacyId}`,
-            );
-          }
-          const memberParams = {
-            ...pick(inviteMember, ['role', 'description', 'since']),
-            MemberCollectiveId: memberAccount.id,
-            CreatedByUserId: req.remoteUser.id,
-          };
-          await models.MemberInvitation.invite(collective, memberParams, {
-            skipDefaultAdmin: args.skipDefaultAdmin,
-          });
-        }
+        await processInviteMembersInput(args, req, { supportedRoles: [MemberRoles.ADMIN], collective });
       }
 
       return response;
