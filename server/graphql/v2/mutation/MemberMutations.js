@@ -162,7 +162,7 @@ const memberMutations = {
         throw new ValidationFailed(`Member ${memberAccount.slug} does not exist in Collective ${account.slug}`);
       }
 
-      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(this.role)) {
+      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
           CollectiveId: account.id,
@@ -233,7 +233,7 @@ const memberMutations = {
           where: { MemberCollectiveId: memberAccount.id, CollectiveId: account.id, role: args.role },
         });
       }
-      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(this.role)) {
+      if ([MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
           CollectiveId: account.id,
