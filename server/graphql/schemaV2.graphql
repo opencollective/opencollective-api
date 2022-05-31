@@ -2084,6 +2084,10 @@ enum ActivityType {
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
   COLLECTIVE_MEMBER_CREATED
+  COLLECTIVE_CORE_MEMBER_ADDED
+  COLLECTIVE_CORE_MEMBER_INVITED
+  COLLECTIVE_CORE_MEMBER_REMOVED
+  COLLECTIVE_CORE_MEMBER_EDITED
   COLLECTIVE_TRANSACTION_CREATED
   COLLECTIVE_UPDATE_CREATED
   COLLECTIVE_UPDATE_PUBLISHED
@@ -2351,9 +2355,24 @@ type Host implements Account & AccountWithContributions {
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -3057,6 +3076,23 @@ enum ContributorRole {
   ACCOUNTANT
 }
 
+input AccountReferenceInput {
+  """
+  The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The internal id of the account (ie: 580)
+  """
+  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+
+  """
+  The slug identifying the account (ie: babel for https://opencollective.com/babel)
+  """
+  slug: String
+}
+
 """
 A collection of "MemberOf" (ie: Collective backed by an Organization)
 """
@@ -3074,23 +3110,6 @@ An existing member role and account type combination used used to filter collect
 type MemberOfCollectionRoles {
   type: AccountType!
   role: MemberRole!
-}
-
-input AccountReferenceInput {
-  """
-  The public id identifying the account (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
-  """
-  id: String
-
-  """
-  The internal id of the account (ie: 580)
-  """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
-
-  """
-  The slug identifying the account (ie: babel for https://opencollective.com/babel)
-  """
-  slug: String
 }
 
 """
@@ -4193,9 +4212,24 @@ type Bot implements Account {
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -4610,9 +4644,24 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -4948,7 +4997,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   Fees percentage that the host takes for this collective
   """
-  hostFeePercent: Float
+  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
   How much platform fees are charged for this account
@@ -5031,7 +5080,7 @@ interface AccountWithHost {
   """
   Fees percentage that the host takes for this collective
   """
-  hostFeePercent: Float
+  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
   Fees percentage that the platform takes for this collective
@@ -5351,9 +5400,24 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -5689,7 +5753,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   Fees percentage that the host takes for this collective
   """
-  hostFeePercent: Float
+  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
   How much platform fees are charged for this account
@@ -5876,9 +5940,24 @@ type Individual implements Account {
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -6427,9 +6506,24 @@ type Organization implements Account & AccountWithContributions {
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -6964,9 +7058,24 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -7302,7 +7411,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   """
   Fees percentage that the host takes for this collective
   """
-  hostFeePercent: Float
+  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
   How much platform fees are charged for this account
@@ -7741,6 +7850,11 @@ type Query {
     A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
     """
     account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
   ): [MemberInvitation]
   order(
     """
@@ -9405,9 +9519,24 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -9743,7 +9872,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   Fees percentage that the host takes for this collective
   """
-  hostFeePercent: Float
+  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
   How much platform fees are charged for this account
@@ -9922,9 +10051,24 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): MemberCollection!
 
   """
-  Get pending member invitations for this account
+  [AUTHENTICATED] Returns the pending invitations
   """
-  memberInvitations(role: [MemberRole]): [MemberInvitation]
+  memberInvitations(
+    """
+    A reference to an account (usually Individual). Will return invitations sent to the account to join as a member
+    """
+    memberAccount: AccountReferenceInput
+
+    """
+    A reference to an account (usually Collective, Fund or Organization). Will return invitations sent to join this account as a member.
+    """
+    account: AccountReferenceInput
+
+    """
+    An array of Member roles to filter for
+    """
+    role: [MemberRole]
+  ): [MemberInvitation]
   memberOf(
     limit: Int! = 150
     offset: Int! = 0
@@ -10260,7 +10404,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   Fees percentage that the host takes for this collective
   """
-  hostFeePercent: Float
+  hostFeePercent(paymentMethodService: PaymentMethodService, paymentMethodType: PaymentMethodType): Float
 
   """
   How much platform fees are charged for this account
