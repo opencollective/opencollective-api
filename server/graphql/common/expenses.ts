@@ -1928,7 +1928,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   if (expense.status === 'PAID') {
     const result = await req.loaders.Expense.expenseToHostTransactionFxRateLoader.load(expense.id);
     // If collective changed their currency since the expense was paid, we can't rely on transaction.currency
-    if (result.rate !== null && (!expense.collective || expense.collective.currency === result.currency)) {
+    if (!isNil(result?.rate) && (!expense.collective || expense.collective.currency === result.currency)) {
       return buildAmount(result.rate, OPENCOLLECTIVE, false, expense.createdAt);
     }
   }
