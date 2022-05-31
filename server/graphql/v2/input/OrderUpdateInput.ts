@@ -1,4 +1,4 @@
-import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import { AmountInput } from './AmountInput';
 
@@ -24,6 +24,10 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
     platformTip: {
       type: AmountInput,
       description: 'Amount intended as tip for the platform',
+    },
+    hostFeePercent: {
+      type: GraphQLFloat,
+      description: 'Host fee percent to be applied to the order',
     },
   }),
 });
