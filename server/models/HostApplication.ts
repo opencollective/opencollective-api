@@ -1,6 +1,5 @@
 import { pick } from 'lodash';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
@@ -25,21 +24,16 @@ interface HostApplicationCreationAttributes {
 }
 
 export class HostApplication extends Model<HostApplication, HostApplicationCreationAttributes> {
-  public readonly id!: number;
-  public CollectiveId!: number;
-  public HostCollectiveId!: number;
+  public declare readonly id: number;
+  public declare CollectiveId: number;
+  public declare HostCollectiveId: number;
   public CreatedByUserId: number;
-  public status!: HostApplicationStatus;
-  public customData: Record<string, unknown> | null;
-  public message: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date | null;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare status: HostApplicationStatus;
+  public declare customData: Record<string, unknown> | null;
+  public declare message: string;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date | null;
 
   // ---- Static ----
 

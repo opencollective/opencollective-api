@@ -3,7 +3,6 @@ import { BelongsToGetAssociationMixin, QueryTypes } from 'sequelize';
 
 import expenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
@@ -37,20 +36,15 @@ class TransactionSettlement
   extends Model<TransactionSettlementAttributes, TransactionSettlementCreateAttributes>
   implements TransactionSettlementAttributes
 {
-  TransactionGroup: string;
-  kind: TransactionKind;
-  status: TransactionSettlementStatus;
-  ExpenseId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
+  public declare TransactionGroup: string;
+  public declare kind: TransactionKind;
+  public declare status: TransactionSettlementStatus;
+  public declare ExpenseId: number;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
 
   public getExpense!: BelongsToGetAssociationMixin<typeof models.Expense>;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
 
   // ---- Static methods ----
 

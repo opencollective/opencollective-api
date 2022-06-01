@@ -3,7 +3,6 @@ import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
 
 import models from '.';
@@ -12,16 +11,11 @@ import models from '.';
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
 export class ExpenseAttachedFile extends Model {
-  public readonly id!: number;
-  public ExpenseId!: number;
-  public CreatedByUserId: number;
-  public url!: string;
-  public createdAt!: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare readonly id: number;
+  public declare ExpenseId: number;
+  public declare CreatedByUserId: number;
+  public declare url: string;
+  public declare createdAt: Date;
 
   /**
    * Create an attachment from user-submitted data.

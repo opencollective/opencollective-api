@@ -1,4 +1,3 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
@@ -25,23 +24,18 @@ class OAuthAuthorizationCode
   extends Model<OAuthAuthorizationCodeAttributes, OAuthAuthorizationCodeCreateAttributes>
   implements OAuthAuthorizationCodeAttributes
 {
-  id: number;
-  code: string;
-  redirectUri: string;
-  expiresAt: Date;
-  data: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  ApplicationId: number;
-  UserId: number;
-  application: typeof models.Application;
-  user: typeof models.User;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare id: number;
+  public declare code: string;
+  public declare redirectUri: string;
+  public declare expiresAt: Date;
+  public declare data: Record<string, unknown>;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt?: Date;
+  public declare ApplicationId: number;
+  public declare UserId: number;
+  public declare application: typeof models.Application;
+  public declare user: typeof models.User;
 }
 
 OAuthAuthorizationCode.init(

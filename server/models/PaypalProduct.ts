@@ -1,4 +1,3 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 interface PaypalProductAttributes {
@@ -20,17 +19,12 @@ class PaypalProduct
   extends Model<PaypalProductAttributes, PaypalProductCreateAttributes>
   implements PaypalProductAttributes
 {
-  public id!: string;
-  public CollectiveId!: number;
-  public TierId: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare id: string;
+  public declare CollectiveId: number;
+  public declare TierId: number;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
 }
 
 PaypalProduct.init(

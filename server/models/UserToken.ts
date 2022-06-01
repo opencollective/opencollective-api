@@ -1,6 +1,5 @@
 import type OAuth2Server from '@node-oauth/oauth2-server';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
@@ -29,27 +28,21 @@ interface UserTokenAttributes extends UserTokenCreateAttributes, OAuth2Server.To
 export enum TokenType {
   OAUTH = 'OAUTH',
 }
-
 class UserToken extends Model<UserTokenAttributes, UserTokenCreateAttributes> implements UserTokenAttributes {
-  id: number;
-  type: 'OAUTH';
-  accessToken: string;
-  accessTokenExpiresAt: Date;
-  refreshToken: string;
-  refreshTokenExpiresAt?: Date;
-  ApplicationId: number;
-  UserId: number;
-  data: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  user: typeof models.User;
-  client: typeof models.Application;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare id: number;
+  public declare type: 'OAUTH';
+  public declare accessToken: string;
+  public declare accessTokenExpiresAt: Date;
+  public declare refreshToken: string;
+  public declare refreshTokenExpiresAt?: Date;
+  public declare ApplicationId: number;
+  public declare UserId: number;
+  public declare data: Record<string, unknown>;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt?: Date;
+  public declare user: typeof models.User;
+  public declare client: typeof models.Application;
 }
 
 UserToken.init(

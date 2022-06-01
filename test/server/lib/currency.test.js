@@ -27,8 +27,8 @@ describe('server/lib/currency', () => {
 
       // Create some older rates to try and fool the query
       const yesterday = moment().subtract(1, 'day').toDate();
-      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', insertedAt: yesterday });
-      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', insertedAt: yesterday });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: yesterday });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', createdAt: yesterday });
 
       const result = await CurrencyLib.getRatesFromDb('USD', ['NGN', 'EUR']);
       expect(result.NGN).to.eq(expectedRates.NGN.rate);
@@ -41,18 +41,18 @@ describe('server/lib/currency', () => {
       const twoMonthAgo = moment().subtract(2, 'month').toDate();
 
       const ratesForNow = {
-        EUR: await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', insertedAt: now }),
-        NGN: await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', insertedAt: now }),
+        EUR: await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: now }),
+        NGN: await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', createdAt: now }),
       };
 
       const ratesFromOneMonthAgo = {
-        EUR: await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', insertedAt: oneMonthAgo }),
-        NGN: await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', insertedAt: oneMonthAgo }),
+        EUR: await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: oneMonthAgo }),
+        NGN: await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', createdAt: oneMonthAgo }),
       };
 
       // Create some older rates to try and fool the query
-      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', insertedAt: twoMonthAgo });
-      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', insertedAt: twoMonthAgo });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', createdAt: twoMonthAgo });
+      await fakeCurrencyExchangeRate({ from: 'USD', to: 'NGN', createdAt: twoMonthAgo });
 
       const resultForNow = await CurrencyLib.getRatesFromDb('USD', ['NGN', 'EUR'], now);
       expect(resultForNow.NGN).to.eq(ratesForNow.NGN.rate);

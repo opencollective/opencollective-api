@@ -2,7 +2,6 @@ import { get, pick } from 'lodash';
 import { DataTypes, Model, Transaction } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
@@ -41,22 +40,17 @@ export type PayoutMethodDataType =
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
 export class PayoutMethod extends Model {
-  public readonly id!: number;
-  public type!: PayoutMethodTypes;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date;
-  public name: string;
-  public isSaved: boolean;
-  public CollectiveId!: number;
-  public CreatedByUserId!: number;
+  public declare readonly id: number;
+  public declare type: PayoutMethodTypes;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
+  public declare name: string;
+  public declare isSaved: boolean;
+  public declare CollectiveId: number;
+  public declare CreatedByUserId: number;
 
   private static editableFields = ['data', 'name', 'isSaved'];
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
 
   /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
   get data(): PayoutMethodDataType {

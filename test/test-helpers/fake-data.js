@@ -670,20 +670,12 @@ export const fakeLegalDocument = async (data = {}) => {
 
 export const fakeCurrencyExchangeRate = async (data = {}) => {
   const currencies = ['USD', 'NSG', 'EUR', 'CZK', 'JPY', 'MYR', 'AUD'];
-  const rate = await models.CurrencyExchangeRate.create({
+  return models.CurrencyExchangeRate.create({
     from: sample(currencies),
     to: sample(currencies),
     rate: randNumber(0, 100) / 100.0,
     ...data,
   });
-
-  if (data.insertedAt) {
-    rate.createdAt = data.insertedAt;
-    rate.changed('createdAt', true);
-    return rate.save();
-  } else {
-    return rate;
-  }
 };
 
 export const fakeVirtualCard = async (virtualCardData = {}) => {

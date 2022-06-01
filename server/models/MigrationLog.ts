@@ -1,4 +1,3 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export enum MigrationLogType {
@@ -40,17 +39,12 @@ class MigrationLog
   extends Model<MigrationLogAttributes, MigrationLogCommonCreateAttributes>
   implements MigrationLogAttributes
 {
-  id: number;
-  type: MigrationLogType;
-  createdAt: Date;
-  description: string;
-  data: MigrationLogData;
-  CreatedByUserId: number;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare id: number;
+  public declare type: MigrationLogType;
+  public declare createdAt: Date;
+  public declare description: string;
+  public declare data: MigrationLogData;
+  public declare CreatedByUserId: number;
 
   static async getDataForMergeAccounts(
     fromAccountId: number,

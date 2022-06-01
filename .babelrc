@@ -1,6 +1,5 @@
 {
   "presets": [
-    "@babel/preset-typescript",
     [
       "@babel/preset-env",
       {
@@ -11,6 +10,7 @@
     ]
   ],
   "plugins": [
+    ["@babel/plugin-transform-typescript", { "allowDeclareFields": true }],
     "add-module-exports",
     "lodash",
     "@babel/plugin-proposal-class-properties",
