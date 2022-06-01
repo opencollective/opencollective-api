@@ -32,6 +32,7 @@ export const IDENTIFIER_TYPES = {
   UPDATE: 'update',
   APPLICATION: 'application',
   USER_TOKEN: 'user-token',
+  NOTIFICATION: 'notification',
 };
 
 const getDefaultInstance = type => {
