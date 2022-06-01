@@ -1,5 +1,5 @@
 import { get, pick } from 'lodash';
-import { DataTypes, Model, Transaction } from 'sequelize';
+import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
 import sequelize from '../lib/sequelize';
@@ -39,12 +39,12 @@ export type PayoutMethodDataType =
 /**
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
-export class PayoutMethod extends Model {
-  public declare readonly id: number;
+export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAttributes<PayoutMethod>> {
+  public declare readonly id: CreationOptional<number>;
   public declare type: PayoutMethodTypes;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
   public declare name: string;
   public declare isSaved: boolean;
   public declare CollectiveId: number;
@@ -68,7 +68,7 @@ export class PayoutMethod extends Model {
 
   /** Returns the raw data for this field. Includes sensitive information that should not be leaked to the user */
   get unfilteredData(): Record<string, unknown> {
-    return this.getDataValue('data');
+    return <Record<string, unknown>>this.getDataValue('data');
   }
 
   /**
@@ -83,8 +83,13 @@ export class PayoutMethod extends Model {
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     const cleanData = PayoutMethod.cleanData(payoutMethodData);
+    const type = payoutMethodData['type'] as string;
+    if (!(type in PayoutMethodTypes)) {
+      throw new Error(`Invalid payout method type: ${type}`);
+    }
+
     return PayoutMethod.create(
-      { ...cleanData, type: payoutMethodData['type'], CreatedByUserId: user.id, CollectiveId: collective.id },
+      { ...cleanData, type: type as PayoutMethodTypes, CreatedByUserId: user.id, CollectiveId: collective.id },
       { transaction: dbTransaction },
     );
   }

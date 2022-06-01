@@ -1,3 +1,5 @@
+import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
@@ -8,41 +10,8 @@ export enum VirtualCardProviders {
   STRIPE = 'STRIPE',
 }
 
-interface VirtualCardAttributes {
-  id: string;
-  CollectiveId: number;
-  HostCollectiveId: number;
-  UserId?: number;
-  name: string;
-  last4: string;
-  data: Record<string, any>;
-  privateData: string | Record<string, any>;
-  provider: VirtualCardProviders;
-  spendingLimitAmount: number;
-  spendingLimitInterval: string;
-  currency: string;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
-
-export interface VirtualCardCreateAttributes {
-  id: string;
-  name: string;
-  last4: string;
-  data: Record<string, any>;
-  privateData: Record<string, any>;
-  CollectiveId: number;
-  HostCollectiveId: number;
-  UserId?: number;
-  provider: VirtualCardProviders;
-  spendingLimitAmount: number;
-  spendingLimitInterval: string;
-  currency?: string;
-}
-
-class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttributes> implements VirtualCardAttributes {
-  public declare id: string;
+class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttributes<VirtualCard>> {
+  public declare id: CreationOptional<string>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
   public declare UserId: number;
@@ -54,13 +23,14 @@ class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttribut
   public declare spendingLimitAmount: number;
   public declare spendingLimitInterval: string;
   public declare currency: string;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
+
   // Associations
-  public declare collective?: any;
-  public declare host?: any;
-  public declare user?: any;
+  public declare collective?: NonAttribute<any>;
+  public declare host?: NonAttribute<any>;
+  public declare user?: NonAttribute<any>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
     return sequelize.models.Expense.findPendingCardCharges({

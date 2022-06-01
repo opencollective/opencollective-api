@@ -1,3 +1,5 @@
+import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export enum MigrationLogType {
@@ -6,22 +8,6 @@ export enum MigrationLogType {
   MERGE_ACCOUNTS = 'MERGE_ACCOUNTS',
   BAN_ACCOUNTS = 'BAN_ACCOUNTS',
   MOVE_ORDERS = 'MOVE_ORDERS',
-}
-
-interface MigrationLogAttributes {
-  id: number;
-  type: MigrationLogType;
-  createdAt: Date;
-  description: string;
-  data: Record<string, unknown>;
-  CreatedByUserId: number;
-}
-
-interface MigrationLogCommonCreateAttributes {
-  type: MigrationLogType;
-  description: string;
-  data: Record<string, unknown>;
-  CreatedByUserId: number;
 }
 
 export type MigrationLogDataForMergeAccounts = {
@@ -35,13 +21,10 @@ export type MigrationLogDataForMergeAccounts = {
 
 type MigrationLogData = MigrationLogDataForMergeAccounts | Record<string, unknown>;
 
-class MigrationLog
-  extends Model<MigrationLogAttributes, MigrationLogCommonCreateAttributes>
-  implements MigrationLogAttributes
-{
-  public declare id: number;
+class MigrationLog extends Model<InferAttributes<MigrationLog>, InferCreationAttributes<MigrationLog>> {
+  public declare id: CreationOptional<number>;
   public declare type: MigrationLogType;
-  public declare createdAt: Date;
+  public declare createdAt: CreationOptional<Date>;
   public declare description: string;
   public declare data: MigrationLogData;
   public declare CreatedByUserId: number;

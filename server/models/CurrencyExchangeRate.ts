@@ -1,10 +1,15 @@
+import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
-export class CurrencyExchangeRate extends Model {
-  public declare readonly id: number;
+export class CurrencyExchangeRate extends Model<
+  InferAttributes<CurrencyExchangeRate>,
+  InferCreationAttributes<CurrencyExchangeRate>
+> {
+  public declare readonly id: CreationOptional<number>;
   public declare rate: number;
   public declare from: string;
   public declare to: string;

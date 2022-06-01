@@ -1,5 +1,11 @@
 import { groupBy } from 'lodash';
-import { BelongsToGetAssociationMixin, QueryTypes } from 'sequelize';
+import {
+  BelongsToGetAssociationMixin,
+  CreationOptional,
+  InferAttributes,
+  InferCreationAttributes,
+  QueryTypes,
+} from 'sequelize';
 
 import expenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
@@ -15,36 +21,19 @@ export enum TransactionSettlementStatus {
   SETTLED = 'SETTLED',
 }
 
-interface TransactionSettlementAttributes {
-  TransactionGroup: string;
-  kind: TransactionKind;
-  status: TransactionSettlementStatus;
-  ExpenseId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
-
-interface TransactionSettlementCreateAttributes {
-  TransactionGroup: string;
-  kind: TransactionKind;
-  status: TransactionSettlementStatus;
-  ExpenseId?: number;
-}
-
-class TransactionSettlement
-  extends Model<TransactionSettlementAttributes, TransactionSettlementCreateAttributes>
-  implements TransactionSettlementAttributes
-{
+class TransactionSettlement extends Model<
+  InferAttributes<TransactionSettlement>,
+  InferCreationAttributes<TransactionSettlement>
+> {
   public declare TransactionGroup: string;
   public declare kind: TransactionKind;
   public declare status: TransactionSettlementStatus;
   public declare ExpenseId: number;
-  public declare createdAt: Date;
-  public declare updatedAt: Date;
-  public declare deletedAt: Date;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
 
-  public getExpense!: BelongsToGetAssociationMixin<typeof models.Expense>;
+  public declare getExpense: BelongsToGetAssociationMixin<typeof models.Expense>;
 
   // ---- Static methods ----
 
