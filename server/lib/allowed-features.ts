@@ -150,7 +150,7 @@ export const hasFeature = (collective: typeof models.Collective, feature: FEATUR
     return false;
   }
 
-  return true;
+  return get(collective, `data.features.${feature}`, true);
 };
 
 export { FEATURE };
