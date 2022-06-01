@@ -15,6 +15,7 @@ export enum HostApplicationStatus {
 interface HostApplicationCreationAttributes {
   CollectiveId: number;
   HostCollectiveId: number;
+  CreatedByUserId: number | null;
   status: HostApplicationStatus;
   customData?: Record<string, unknown> | null;
   message?: string;
@@ -27,6 +28,7 @@ export class HostApplication extends Model<HostApplication, HostApplicationCreat
   public readonly id!: number;
   public CollectiveId!: number;
   public HostCollectiveId!: number;
+  public CreatedByUserId: number;
   public status!: HostApplicationStatus;
   public customData: Record<string, unknown> | null;
   public message: string;
@@ -59,6 +61,7 @@ export class HostApplication extends Model<HostApplication, HostApplicationCreat
   static async recordApplication(
     host: typeof models.Collective,
     collective: typeof models.Collective,
+    user: typeof models.User,
     data: Record<string, unknown>,
   ): Promise<HostApplication> {
     const existingApplication = await this.getByStatus(host, collective, HostApplicationStatus.PENDING);
@@ -68,6 +71,7 @@ export class HostApplication extends Model<HostApplication, HostApplicationCreat
       return this.create({
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
+        CreatedByUserId: user.id,
         status: HostApplicationStatus.PENDING,
         ...(<Record<string, unknown>>pick(data, ['message', 'customData'])),
       });
@@ -117,6 +121,13 @@ function setupModel(HostApplication) {
         onDelete: 'CASCADE',
         onUpdate: 'CASCADE',
         allowNull: false,
+      },
+      CreatedByUserId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Users' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
       },
       status: {
         type: DataTypes.ENUM(...Object.values(HostApplicationStatus)),

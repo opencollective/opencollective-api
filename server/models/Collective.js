@@ -2252,7 +2252,7 @@ function defineModel() {
 
         // Record application
         promises.push(
-          models.HostApplication.recordApplication(hostCollective, this, {
+          models.HostApplication.recordApplication(hostCollective, this, creatorUser, {
             message: options?.message,
             customData: options?.applicationData,
           }),
