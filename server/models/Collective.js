@@ -3295,7 +3295,7 @@ function defineModel() {
   };
 
   Collective.prototype.hasPolicy = function (policy) {
-    return Boolean(this.data?.policies?.[policy]);
+    return this.data?.policies?.[policy] ? this.data.policies[policy] : false;
   };
 
   /**
