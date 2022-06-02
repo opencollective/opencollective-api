@@ -104,6 +104,7 @@ Object {
   "payoutMethods": 0,
   "transactions": 0,
   "updates": 0,
+  "userTokens": 0,
   "virtualCards": 0,
 }
 `;
@@ -130,6 +131,7 @@ Object {
   "payoutMethods": 0,
   "transactions": 0,
   "updates": 0,
+  "userTokens": 0,
   "virtualCards": 0,
 }
 `;
