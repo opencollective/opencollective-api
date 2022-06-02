@@ -2252,7 +2252,7 @@ function defineModel() {
 
         // Record application
         promises.push(
-          models.HostApplication.recordApplication(hostCollective, this, {
+          models.HostApplication.recordApplication(hostCollective, this, creatorUser, {
             message: options?.message,
             customData: options?.applicationData,
           }),
@@ -2261,6 +2261,7 @@ function defineModel() {
         if (!options?.skipCollectiveApplyActivity && !shouldAutomaticallyApprove) {
           promises.push(
             models.Activity.create({
+              UserId: creatorUser.id,
               CollectiveId: this.id,
               type: activities.COLLECTIVE_APPLY,
               data,
