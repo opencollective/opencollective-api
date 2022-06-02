@@ -947,14 +947,19 @@ const CollectiveFields = () => {
     },
     legalName: {
       type: GraphQLString,
-      resolve(collective, _, req) {
+      async resolve(collective, _, req) {
         if (
-          canSeeLegalName(req.remoteUser, collective) ||
-          getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, collective.id)
+          !canSeeLegalName(req.remoteUser, collective) &&
+          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, collective.id)
         ) {
-          return collective.legalName;
-        } else {
           return null;
+        } else if (collective.isIncognito) {
+          const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
+          if (mainProfile) {
+            return mainProfile.legalName || mainProfile.name;
+          }
+        } else {
+          return collective.legalName;
         }
       },
     },
@@ -991,13 +996,21 @@ const CollectiveFields = () => {
     location: {
       type: LocationType,
       description: 'Name, address, lat, long of the location.',
-      resolve(collective, _, req) {
+      async resolve(collective, _, req) {
         const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION];
         if (publicAddressesCollectiveTypes.includes(collective.type)) {
           return collective.location;
         } else if (!req.remoteUser) {
           return null;
         } else if (req.remoteUser.isAdminOfCollective(collective)) {
+          // For incognito profiles, we retrieve the location from the main user profile
+          if (collective.isIncognito) {
+            const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
+            if (mainProfile) {
+              return mainProfile.location;
+            }
+          }
+
           return collective.location;
         } else {
           return req.loaders.Collective.privateInfos.load(collective).then(c => c.location);

@@ -37,12 +37,9 @@ export const getTransactionPdf = async (transaction, user) => {
 export const getConsolidatedInvoicesData = async fromCollective => {
   const fromAccountCondition = [fromCollective.id];
 
-  const fromUser = await fromCollective.getUser();
-  if (fromUser) {
-    const incognitoProfile = await fromUser.getIncognitoProfile();
-    if (incognitoProfile) {
-      fromAccountCondition.push(incognitoProfile.id);
-    }
+  const incognitoProfile = await fromCollective.getIncognitoProfile();
+  if (incognitoProfile) {
+    fromAccountCondition.push(incognitoProfile.id);
   }
 
   const where = {

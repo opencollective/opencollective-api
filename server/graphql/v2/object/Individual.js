@@ -68,6 +68,14 @@ export const Individual = new GraphQLObjectType({
         async resolve(individual, _, req) {
           const canSeeLocation = req.remoteUser?.isAdmin(individual.id) || (await individual.isHost());
           if (canSeeLocation) {
+            // For incognito profiles, we retrieve the location from the main user profile
+            if (individual.isIncognito) {
+              const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
+              if (mainProfile) {
+                return mainProfile.location;
+              }
+            }
+
             return individual.location;
           }
         },

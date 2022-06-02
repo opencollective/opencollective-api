@@ -69,14 +69,19 @@ const accountFieldsDefinition = () => ({
   legalName: {
     type: GraphQLString,
     description: 'Private, legal name. Used for expense receipts, taxes, etc.',
-    resolve: (account, _, req) => {
+    resolve: async (account, _, req) => {
       if (
-        canSeeLegalName(req.remoteUser, account) ||
-        getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, account.id)
+        !canSeeLegalName(req.remoteUser, account) &&
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, account.id)
       ) {
-        return account.legalName;
-      } else {
         return null;
+      } else if (account.isIncognito) {
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
+        if (mainProfile) {
+          return mainProfile.legalName || mainProfile.name;
+        }
+      } else {
+        return account.legalName;
       }
     },
   },

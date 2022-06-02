@@ -937,19 +937,34 @@ function defineModel() {
   };
 
   /**
+   * Returns the incognito member for this collective (or null if none exists).
+   * Be careful: the link between an account and the incognito profile is a private information.
+   */
+  Collective.prototype.getIncognitoMember = async function ({ transaction } = {}) {
+    return models.Member.findOne({
+      transaction,
+      where: {
+        [this.isIncognito ? 'CollectiveId' : 'MemberCollectiveId']: this.id,
+        role: roles.ADMIN,
+      },
+      include: [
+        { association: 'memberCollective', required: true, where: { type: types.USER, isIncognito: false } },
+        { association: 'collective', required: true, where: { type: types.USER, isIncognito: true } },
+      ],
+    });
+  };
+
+  /**
    * Returns the incognito profile for this collective (or null if none exists).
    * Be careful: the link between an account and the incognito profile is a private information.
    */
   Collective.prototype.getIncognitoProfile = async function ({ transaction } = {}) {
     if (this.type !== types.USER) {
       return null;
+    } else if (this.isIncognito) {
+      return this;
     } else {
-      const incognitoMember = await models.Member.findOne({
-        where: { MemberCollectiveId: this.id, role: roles.ADMIN },
-        include: [{ association: 'collective', required: true, where: { type: types.USER, isIncognito: true } }],
-        transaction,
-      });
-
+      const incognitoMember = await this.getIncognitoMember({ transaction });
       return incognitoMember?.collective || null;
     }
   };

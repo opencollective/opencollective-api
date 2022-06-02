@@ -1,5 +1,8 @@
 import DataLoader from 'dataloader';
+import { first, groupBy } from 'lodash';
 
+import { roles } from '../../constants';
+import { types as CollectiveType } from '../../constants/collectives';
 import models, { sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
@@ -26,6 +29,43 @@ export default {
       );
 
       return sortResultsSimple(userIds, collectives, result => result.dataValues['__user_id__']);
+    });
+  },
+  /**
+   * Receives a list of incognito profiles, return their associated "main" profiles.
+   * Be careful: the link between an account and the incognito profile is a private information and this helper
+   * does not check permissions
+   */
+  mainProfileFromIncognito: (): DataLoader<typeof models.Collective, typeof models.Collective> => {
+    return new DataLoader(async incognitoProfilesIds => {
+      // Get all the admins for the incognito profiles
+      const members = await models.Member.findAll({
+        where: {
+          CollectiveId: incognitoProfilesIds,
+          role: roles.ADMIN,
+        },
+        include: [
+          // Get the administrator of the incognito profile
+          {
+            association: 'memberCollective',
+            required: true,
+            where: { type: CollectiveType.USER, isIncognito: false },
+          },
+          // Ensures that the requested profile is an incognito profile
+          {
+            association: 'collective',
+            attributes: [],
+            required: true,
+            where: { type: CollectiveType.USER, isIncognito: true },
+          },
+        ],
+      });
+
+      const groupedMembers = groupBy(members, 'CollectiveId');
+      return incognitoProfilesIds.map(incognitoProfileId => {
+        const admin = first(groupedMembers[incognitoProfileId]);
+        return admin?.memberCollective || null;
+      });
     });
   },
 };

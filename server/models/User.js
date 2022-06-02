@@ -256,9 +256,9 @@ function defineModel() {
     });
   };
 
-  User.prototype.getIncognitoProfile = function () {
-    // TODO: We should rely on the `Members` table for this
-    return models.Collective.findOne({ where: { isIncognito: true, CreatedByUserId: this.id } });
+  User.prototype.getIncognitoProfile = async function () {
+    const collective = this.collective || (await this.getCollective());
+    return collective.getIncognitoProfile();
   };
 
   User.prototype.populateRoles = async function () {
