@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
@@ -127,30 +128,6 @@ const HostApplicationMutations = {
         throw new ValidationFailed('This collective application has already been approved');
       }
 
-      // If approving, check if Collective has enough admins
-      if (args.action === 'APPROVE') {
-        const where = {
-          CollectiveId: account.id,
-          role: MemberRoles.ADMIN,
-        };
-
-        const [adminCount, adminInvitationCount] = await Promise.all([
-          models.Member.count({ where }),
-          models.MemberInvitation.count({ where }),
-        ]);
-
-        if (
-          host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins >
-          adminCount + adminInvitationCount
-        ) {
-          throw new Forbidden(
-            `Your host policy requires at least ${
-              host.data.policies[POLICIES.COLLECTIVE_MINIMUM_ADMINS].numberOfAdmins
-            } admins for this account.`,
-          );
-        }
-      }
-
       switch (args.action) {
         case 'APPROVE':
           return { account: await approveApplication(host, account, req.remoteUser) };
@@ -197,6 +174,23 @@ const HostApplicationMutations = {
 };
 
 const approveApplication = async (host, collective, remoteUser) => {
+  const where = {
+    CollectiveId: collective.id,
+    role: MemberRoles.ADMIN,
+  };
+
+  const [adminCount, adminInvitationCount] = await Promise.all([
+    models.Member.count({ where }),
+    models.MemberInvitation.count({ where }),
+  ]);
+
+  if (host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins > adminCount + adminInvitationCount) {
+    throw new Forbidden(
+      `Your host policy requires at least ${
+        host.data.policies[POLICIES.COLLECTIVE_MINIMUM_ADMINS].numberOfAdmins
+      } admins for this account.`,
+    );
+  }
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
   await sequelize.transaction(async transaction => {
     const newAccountData = { isActive: true, approvedAt: new Date(), HostCollectiveId: host.id };
@@ -225,6 +219,14 @@ const approveApplication = async (host, collective, remoteUser) => {
       },
     },
   });
+
+  // If collective does not have enough admins, block it from receiving Contributions
+  if (
+    host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.freeze &&
+    host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins > adminCount
+  ) {
+    await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+  }
 
   // Purge cache and change the status of the application
   purgeCacheForCollective(collective.slug);
