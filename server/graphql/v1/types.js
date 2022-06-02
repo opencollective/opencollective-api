@@ -164,6 +164,7 @@ export const UserType = new GraphQLObjectType({
       },
       name: {
         type: GraphQLString,
+        deprecationReason: '2022-06-02: Please use collective.name',
         resolve(user) {
           return user.name;
         },

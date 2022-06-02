@@ -72,6 +72,7 @@ export const loaders = req => {
 
   // Collective - by UserId
   context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
+  context.loaders.Collective.mainProfileFromIncognito = collectiveLoaders.mainProfileFromIncognito(req, cache);
 
   // Collective - Host
   context.loaders.Collective.host = new DataLoader(ids =>

@@ -151,12 +151,9 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
       req.remoteUser?.isAdminOfCollective(fromAccount) &&
       req.remoteUser.CollectiveId === fromAccount.id
     ) {
-      const fromAccountUser = await fromAccount.getUser();
-      if (fromAccountUser) {
-        const incognitoProfile = await fromAccountUser.getIncognitoProfile();
-        if (incognitoProfile) {
-          fromAccountCondition.push(incognitoProfile.id);
-        }
+      const incognitoProfile = await fromAccount.getIncognitoProfile();
+      if (incognitoProfile) {
+        fromAccountCondition.push(incognitoProfile.id);
       }
     }
 
