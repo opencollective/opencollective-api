@@ -6,7 +6,6 @@ import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
 import expenseStatus from '../constants/expense_status';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize from '../lib/sequelize';
 
 import models, { Op } from '.';
@@ -36,22 +35,17 @@ type RecurringExpenseCreateAttributes =
   | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
 export class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
-  public id: string;
-  public interval: string;
-  public CollectiveId: number;
-  public FromCollectiveId: number;
-  public lastDraftedAt: Date;
-  public endsAt: Date;
-  public createdAt: Date;
-  public updatedAt: Date;
-  public deletedAt: Date;
+  public declare id: string;
+  public declare interval: string;
+  public declare CollectiveId: number;
+  public declare FromCollectiveId: number;
+  public declare lastDraftedAt: Date;
+  public declare endsAt: Date;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
 
   public static RecurringExpenseIntervals = RecurringExpenseIntervals;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
 
   async getLastExpense(options = {}) {
     return models.Expense.findOne({

@@ -82,7 +82,7 @@ const model: OauthModel = {
       });
       oauthToken.user = user;
       oauthToken.client = client;
-      return oauthToken;
+      return <Token>oauthToken;
     } catch (e) {
       debug(e);
       // TODO: what should be thrown so it's properly catched on the library side?
@@ -109,17 +109,17 @@ const model: OauthModel = {
       throw new InvalidTokenError('Invalid token');
     }
 
-    return token;
+    return <Token>token;
   },
 
-  async getRefreshToken(refreshToken) {
+  async getRefreshToken(refreshToken): Promise<RefreshToken> {
     debug('model.getRefreshToken', refreshToken);
     const token = await UserToken.findOne({ where: { refreshToken } });
     if (!token) {
       throw new InvalidTokenError('Invalid refresh token');
     }
 
-    return token;
+    return <RefreshToken>token;
   },
 
   // -- Authorization code --

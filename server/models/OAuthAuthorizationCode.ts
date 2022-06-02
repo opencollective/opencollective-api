@@ -1,47 +1,26 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
 
-// Define attributes that can be used for model creation
-interface OAuthAuthorizationCodeCreateAttributes {
-  code: string;
-  redirectUri: string;
-  expiresAt: Date;
-  data: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  ApplicationId: number;
-  UserId: number;
-}
+class OAuthAuthorizationCode extends Model<
+  InferAttributes<OAuthAuthorizationCode>,
+  InferCreationAttributes<OAuthAuthorizationCode>
+> {
+  public declare readonly id: CreationOptional<number>;
+  public declare code: string;
+  public declare redirectUri: string;
+  public declare expiresAt: Date;
+  public declare data: Record<string, unknown>;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
+  public declare ApplicationId: number;
+  public declare UserId: number;
 
-// Define all attributes for the model
-interface OAuthAuthorizationCodeAttributes extends OAuthAuthorizationCodeCreateAttributes {
-  id: number;
-}
-
-class OAuthAuthorizationCode
-  extends Model<OAuthAuthorizationCodeAttributes, OAuthAuthorizationCodeCreateAttributes>
-  implements OAuthAuthorizationCodeAttributes
-{
-  id: number;
-  code: string;
-  redirectUri: string;
-  expiresAt: Date;
-  data: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  ApplicationId: number;
-  UserId: number;
-  application: typeof models.Application;
-  user: typeof models.User;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare application?: NonAttribute<typeof models.Application>;
+  public declare user?: NonAttribute<typeof models.User>;
 }
 
 OAuthAuthorizationCode.init(

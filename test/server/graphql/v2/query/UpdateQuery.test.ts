@@ -81,7 +81,7 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       const collective = await fakeCollective();
       await collective.addUserWithRole(admin, 'ADMIN');
       const backerUsers = await addRandomMemberUsers(collective, 3, 'BACKER');
-      const backerOrgs = await Promise.all(times(4, fakeOrganization));
+      const backerOrgs = await Promise.all(times(4, () => fakeOrganization()));
       const nbAdminsPerOrg = 2;
       await Promise.all(
         backerOrgs.map(async org => {

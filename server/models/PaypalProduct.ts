@@ -1,14 +1,6 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { InferAttributes } from 'sequelize';
 
-interface PaypalProductAttributes {
-  id: string;
-  CollectiveId: number;
-  TierId?: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export interface PaypalProductCreateAttributes {
   id: string;
@@ -16,21 +8,13 @@ export interface PaypalProductCreateAttributes {
   CollectiveId: number;
 }
 
-class PaypalProduct
-  extends Model<PaypalProductAttributes, PaypalProductCreateAttributes>
-  implements PaypalProductAttributes
-{
-  public id!: string;
-  public CollectiveId!: number;
-  public TierId: number;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+class PaypalProduct extends Model<InferAttributes<PaypalProduct>, PaypalProductCreateAttributes> {
+  public declare id: string;
+  public declare CollectiveId: number;
+  public declare TierId: number;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
 }
 
 PaypalProduct.init(

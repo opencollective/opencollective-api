@@ -1,55 +1,28 @@
-import type OAuth2Server from '@node-oauth/oauth2-server';
+import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
 
-// Define attributes that can be used for model creation
-interface UserTokenCreateAttributes {
-  type: 'OAUTH';
-  accessToken: string;
-  accessTokenExpiresAt?: Date | undefined;
-  refreshToken?: string | undefined;
-  refreshTokenExpiresAt?: Date | undefined;
-  ApplicationId: number;
-  UserId: number;
-  data: Record<string, unknown>;
-}
-
-// Define all attributes for the model
-interface UserTokenAttributes extends UserTokenCreateAttributes, OAuth2Server.Token {
-  id: number;
-  // Standard temporal fields
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-}
-
 export enum TokenType {
   OAUTH = 'OAUTH',
 }
+class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
+  public declare id: CreationOptional<number>;
+  public declare type: 'OAUTH';
+  public declare accessToken: string;
+  public declare accessTokenExpiresAt: Date;
+  public declare refreshToken: string;
+  public declare refreshTokenExpiresAt?: Date;
+  public declare ApplicationId: number;
+  public declare UserId: number;
+  public declare data: Record<string, unknown>;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
 
-class UserToken extends Model<UserTokenAttributes, UserTokenCreateAttributes> implements UserTokenAttributes {
-  id: number;
-  type: 'OAUTH';
-  accessToken: string;
-  accessTokenExpiresAt: Date;
-  refreshToken: string;
-  refreshTokenExpiresAt?: Date;
-  ApplicationId: number;
-  UserId: number;
-  data: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt?: Date;
-  user: typeof models.User;
-  client: typeof models.Application;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare user?: NonAttribute<typeof models.User>;
+  public declare client?: NonAttribute<typeof models.Application>;
 }
 
 UserToken.init(

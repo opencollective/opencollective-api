@@ -1,5 +1,6 @@
+import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+
 import { crypto } from '../lib/encryption';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
@@ -9,64 +10,27 @@ export enum VirtualCardProviders {
   STRIPE = 'STRIPE',
 }
 
-interface VirtualCardAttributes {
-  id: string;
-  CollectiveId: number;
-  HostCollectiveId: number;
-  UserId?: number;
-  name: string;
-  last4: string;
-  data: Record<string, any>;
-  privateData: string | Record<string, any>;
-  provider: VirtualCardProviders;
-  spendingLimitAmount: number;
-  spendingLimitInterval: string;
-  currency: string;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
+class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttributes<VirtualCard>> {
+  public declare id: CreationOptional<string>;
+  public declare CollectiveId: number;
+  public declare HostCollectiveId: number;
+  public declare UserId: number;
+  public declare name: string;
+  public declare last4: string;
+  public declare data: Record<string, any>;
+  public declare privateData: string | Record<string, any>;
+  public declare provider: VirtualCardProviders;
+  public declare spendingLimitAmount: number;
+  public declare spendingLimitInterval: string;
+  public declare currency: string;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
 
-export interface VirtualCardCreateAttributes {
-  id: string;
-  name: string;
-  last4: string;
-  data: Record<string, any>;
-  privateData: Record<string, any>;
-  CollectiveId: number;
-  HostCollectiveId: number;
-  UserId?: number;
-  provider: VirtualCardProviders;
-  spendingLimitAmount: number;
-  spendingLimitInterval: string;
-  currency?: string;
-}
-
-class VirtualCard extends Model<VirtualCardAttributes, VirtualCardCreateAttributes> implements VirtualCardAttributes {
-  public id!: string;
-  public CollectiveId!: number;
-  public HostCollectiveId!: number;
-  public UserId: number;
-  public name: string;
-  public last4: string;
-  public data: Record<string, any>;
-  public privateData: string | Record<string, any>;
-  public provider: VirtualCardProviders;
-  public spendingLimitAmount: number;
-  public spendingLimitInterval: string;
-  public currency: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date;
   // Associations
-  collective?: any;
-  host?: any;
-  user?: any;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare collective?: NonAttribute<any>;
+  public declare host?: NonAttribute<any>;
+  public declare user?: NonAttribute<any>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
     return sequelize.models.Expense.findPendingCardCharges({

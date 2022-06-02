@@ -1,18 +1,8 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import type { InferAttributes } from 'sequelize';
+
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import { PaypalProductCreateAttributes } from './PaypalProduct';
-
-interface PaypalPlanAttributes {
-  id: string;
-  ProductId: string;
-  currency: string;
-  interval: string;
-  amount: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
 
 interface PaypalPlanCommonCreateAttributes {
   id: string;
@@ -31,20 +21,15 @@ interface PaypalPlanCreateWithProductAttributes extends PaypalPlanCommonCreateAt
 
 type PaypalPlanCreateAttributes = PaypalPlanCreateWithProductIdAttributes | PaypalPlanCreateWithProductAttributes;
 
-class PaypalPlan extends Model<PaypalPlanAttributes, PaypalPlanCreateAttributes> implements PaypalPlanAttributes {
-  id: string;
-  ProductId: string;
-  currency: string;
-  interval: string;
-  amount: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+class PaypalPlan extends Model<InferAttributes<PaypalPlan>, PaypalPlanCreateAttributes> {
+  public declare id: string;
+  public declare ProductId: string;
+  public declare currency: string;
+  public declare interval: string;
+  public declare amount: number;
+  public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
 }
 
 PaypalPlan.init(

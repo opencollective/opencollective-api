@@ -1,20 +1,19 @@
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 /**
  * Sequelize model to represent an CurrencyExchangeRate, linked to the `CurrencyExchangeRates` table.
  */
-export class CurrencyExchangeRate extends Model {
-  public readonly id!: number;
-  public rate!: number;
-  public from!: string;
-  public to!: string;
-  public createdAt!: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+export class CurrencyExchangeRate extends Model<
+  InferAttributes<CurrencyExchangeRate>,
+  InferCreationAttributes<CurrencyExchangeRate>
+> {
+  public declare readonly id: CreationOptional<number>;
+  public declare rate: number;
+  public declare from: string;
+  public declare to: string;
+  public declare createdAt: Date;
 
   static getMany(
     fromCurrency: string,

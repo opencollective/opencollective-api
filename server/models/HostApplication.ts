@@ -1,6 +1,6 @@
 import { pick } from 'lodash';
+import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
@@ -12,34 +12,17 @@ export enum HostApplicationStatus {
   EXPIRED = 'EXPIRED',
 }
 
-interface HostApplicationCreationAttributes {
-  CollectiveId: number;
-  HostCollectiveId: number;
-  CreatedByUserId: number | null;
-  status: HostApplicationStatus;
-  customData?: Record<string, unknown> | null;
-  message?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-  deletedAt?: Date | null;
-}
-
-export class HostApplication extends Model<HostApplication, HostApplicationCreationAttributes> {
-  public readonly id!: number;
-  public CollectiveId!: number;
-  public HostCollectiveId!: number;
+export class HostApplication extends Model<InferAttributes<HostApplication>, InferCreationAttributes<HostApplication>> {
+  public declare readonly id: CreationOptional<number>;
+  public declare CollectiveId: number;
+  public declare HostCollectiveId: number;
   public CreatedByUserId: number;
-  public status!: HostApplicationStatus;
-  public customData: Record<string, unknown> | null;
-  public message: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date | null;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare status: HostApplicationStatus;
+  public declare customData: Record<string, unknown> | null;
+  public declare message: string;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
 
   // ---- Static ----
 

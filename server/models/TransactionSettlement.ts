@@ -1,9 +1,14 @@
 import { groupBy } from 'lodash';
-import { BelongsToGetAssociationMixin, QueryTypes } from 'sequelize';
+import {
+  BelongsToGetAssociationMixin,
+  CreationOptional,
+  InferAttributes,
+  InferCreationAttributes,
+  QueryTypes,
+} from 'sequelize';
 
 import expenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
@@ -16,41 +21,19 @@ export enum TransactionSettlementStatus {
   SETTLED = 'SETTLED',
 }
 
-interface TransactionSettlementAttributes {
-  TransactionGroup: string;
-  kind: TransactionKind;
-  status: TransactionSettlementStatus;
-  ExpenseId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
+class TransactionSettlement extends Model<
+  InferAttributes<TransactionSettlement>,
+  InferCreationAttributes<TransactionSettlement>
+> {
+  public declare TransactionGroup: string;
+  public declare kind: TransactionKind;
+  public declare status: TransactionSettlementStatus;
+  public declare ExpenseId: number;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
 
-interface TransactionSettlementCreateAttributes {
-  TransactionGroup: string;
-  kind: TransactionKind;
-  status: TransactionSettlementStatus;
-  ExpenseId?: number;
-}
-
-class TransactionSettlement
-  extends Model<TransactionSettlementAttributes, TransactionSettlementCreateAttributes>
-  implements TransactionSettlementAttributes
-{
-  TransactionGroup: string;
-  kind: TransactionKind;
-  status: TransactionSettlementStatus;
-  ExpenseId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-
-  public getExpense!: BelongsToGetAssociationMixin<typeof models.Expense>;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+  public declare getExpense: BelongsToGetAssociationMixin<typeof models.Expense>;
 
   // ---- Static methods ----
 

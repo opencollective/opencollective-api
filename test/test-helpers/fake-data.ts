@@ -8,6 +8,7 @@
 
 import { get, padStart, sample } from 'lodash';
 import moment from 'moment';
+import type { CreateOptions } from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
@@ -18,6 +19,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import models from '../../server/models';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
+import { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
@@ -48,7 +50,10 @@ export const fakeUUID = firstHeightChars => {
 /**
  * Creates a fake user. All params are optionals.
  */
-export const fakeUser = async (userData, collectiveData) => {
+export const fakeUser = async (
+  userData: Record<string, unknown> = {},
+  collectiveData: Record<string, unknown> = {},
+) => {
   const user = await models.User.create({
     email: randEmail(),
     ...userData,
@@ -71,7 +76,7 @@ export const fakeUser = async (userData, collectiveData) => {
 };
 
 /** Create a fake host */
-export const fakeHost = async hostData => {
+export const fakeHost = async (hostData = {}) => {
   return fakeCollective({
     type: CollectiveType.ORGANIZATION,
     name: randStr('Test Host '),
@@ -97,7 +102,10 @@ export const fakeHostApplication = async data => {
 /**
  * Creates a fake collective. All params are optionals.
  */
-export const fakeCollective = async (collectiveData = {}, sequelizeParams = {}) => {
+export const fakeCollective = async (
+  collectiveData: Record<string, unknown> = {},
+  sequelizeParams: CreateOptions = {},
+) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
   if (!collectiveData.CreatedByUserId) {
     collectiveData.CreatedByUserId = (await fakeUser()).id;
@@ -141,13 +149,14 @@ export const fakeCollective = async (collectiveData = {}, sequelizeParams = {}) 
   }
   if (collectiveData.admin) {
     try {
-      const isUser = collectiveData.admin instanceof models.User;
+      const admin = collectiveData.admin as Record<string, unknown>;
+      const isUser = admin instanceof models.User;
       await models.Member.create(
         {
           CollectiveId: collective.id,
-          MemberCollectiveId: isUser ? collectiveData.admin.CollectiveId : collectiveData.admin.id,
+          MemberCollectiveId: isUser ? admin.CollectiveId : admin.id,
           role: roles.ADMIN,
-          CreatedByUserId: isUser ? collectiveData.admin.id : collectiveData.admin.CreatedByUserId,
+          CreatedByUserId: isUser ? admin.id : admin.CreatedByUserId,
         },
         sequelizeParams,
       );
@@ -159,7 +168,7 @@ export const fakeCollective = async (collectiveData = {}, sequelizeParams = {}) 
   return collective;
 };
 
-export const fakeOrganization = (organizationData = {}) => {
+export const fakeOrganization = (organizationData: Record<string, unknown> = {}) => {
   return fakeCollective({
     HostCollectiveId: null,
     name: organizationData.isHostAccount ? randStr('Test Host ') : randStr('Test Organization '),
@@ -172,7 +181,7 @@ export const fakeOrganization = (organizationData = {}) => {
 /**
  * Creates a fake event. All params are optionals.
  */
-export const fakeEvent = async (collectiveData = {}) => {
+export const fakeEvent = async (collectiveData: Record<string, unknown> = {}) => {
   const ParentCollectiveId = collectiveData.ParentCollectiveId || (await fakeCollective()).id;
   const parentCollective = await models.Collective.findByPk(ParentCollectiveId);
   return fakeCollective({
@@ -188,7 +197,7 @@ export const fakeEvent = async (collectiveData = {}) => {
 /**
  * Creates a fake project. All params are optionals.
  */
-export const fakeProject = async (collectiveData = {}) => {
+export const fakeProject = async (collectiveData: Record<string, unknown> = {}) => {
   const ParentCollectiveId = collectiveData.ParentCollectiveId || (await fakeCollective()).id;
   const parentCollective = await models.Collective.findByPk(ParentCollectiveId);
   return fakeCollective({
@@ -204,7 +213,7 @@ export const fakeProject = async (collectiveData = {}) => {
 /**
  * Creates a fake update. All params are optionals.
  */
-export const fakeUpdate = async (updateData = {}, sequelizeParams = {}) => {
+export const fakeUpdate = async (updateData: Record<string, unknown> = {}, sequelizeParams: CreateOptions = {}) => {
   const update = await models.Update.create(
     {
       slug: randStr('update-'),
@@ -226,7 +235,7 @@ export const fakeUpdate = async (updateData = {}, sequelizeParams = {}) => {
 /**
  * Creates a fake expense item
  */
-export const fakeExpenseItem = async (attachmentData = {}) => {
+export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = {}) => {
   return models.ExpenseItem.create({
     amount: randAmount(),
     url: attachmentData.url || `${randUrl()}.pdf`,
@@ -240,7 +249,7 @@ export const fakeExpenseItem = async (attachmentData = {}) => {
 /**
  * Fake a Payout Method (defaults to PayPal)
  */
-export const fakePayoutMethod = async (data = {}) => {
+export const fakePayoutMethod = async (data: Record<string, unknown> = {}) => {
   const generateData = type => {
     if (type === PayoutMethodTypes.PAYPAL) {
       return { email: randEmail() };
@@ -263,7 +272,7 @@ export const fakePayoutMethod = async (data = {}) => {
     name: randStr('Fake Payout Method '),
     data: generateData(type),
     ...data,
-    type,
+    type: type as PayoutMethodTypes,
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
     CreatedByUserId: data.CreatedByUserId || (await fakeUser()).id,
   });
@@ -272,8 +281,8 @@ export const fakePayoutMethod = async (data = {}) => {
 /**
  * Creates a fake expense. All params are optionals.
  */
-export const fakeExpense = async (expenseData = {}) => {
-  let PayoutMethodId = expenseData.PayoutMethodId;
+export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => {
+  let PayoutMethodId = expenseData.PayoutMethodId as number;
   if (expenseData.legacyPayoutMethod && PayoutMethodId) {
     throw new Error('legacyPayoutMethod and PayoutMethodId are exclusive in fakeExpense');
   } else if (expenseData.legacyPayoutMethod) {
@@ -303,7 +312,8 @@ export const fakeExpense = async (expenseData = {}) => {
     legacyPayoutMethod,
   });
 
-  if (!expenseData || typeof expenseData.items === 'undefined') {
+  const items = expenseData?.items as Array<Record<string, unknown>> | undefined;
+  if (typeof items === 'undefined') {
     // Helper to generate an attachment. Ensures that items match expense amount
     const generateAttachment = (idx, nbItems) => {
       const baseAmount = Math.floor(expense.amount / nbItems);
@@ -313,10 +323,8 @@ export const fakeExpense = async (expenseData = {}) => {
     };
 
     expense.items = await Promise.all(randArray(generateAttachment, 1, 5));
-  } else if (expenseData?.items?.every(item => !item.id)) {
-    expense.items = await Promise.all(
-      expenseData.items.map(item => fakeExpenseItem({ ...item, ExpenseId: expense.id })),
-    );
+  } else if (items?.every(item => !item.id)) {
+    expense.items = await Promise.all(items.map(item => fakeExpenseItem({ ...item, ExpenseId: expense.id })));
   }
 
   expense.User = await models.User.findByPk(expense.UserId);
@@ -329,7 +337,7 @@ export const fakeExpense = async (expenseData = {}) => {
 /**
  * Creates a fake comment. All params are optionals.
  */
-export const fakeComment = async (commentData = {}, sequelizeParams = {}) => {
+export const fakeComment = async (commentData: Record<string, unknown> = {}, sequelizeParams: CreateOptions = {}) => {
   let FromCollectiveId = get(commentData, 'FromCollectiveId') || get(commentData, 'fromCollective.id');
   let CollectiveId = get(commentData, 'CollectiveId') || get(commentData, 'collective.id');
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
@@ -365,7 +373,10 @@ export const fakeComment = async (commentData = {}, sequelizeParams = {}) => {
 /**
  * Creates a fake comment reaction. All params are optionals.
  */
-export const fakeEmojiReaction = async (reactionData = {}, opts = {}) => {
+export const fakeEmojiReaction = async (
+  reactionData: Record<string, unknown> = {},
+  opts: Record<string, unknown> = {},
+) => {
   const UserId = reactionData.UserId || (await fakeUser()).id;
   const user = await models.User.findByPk(UserId);
   const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
@@ -390,7 +401,10 @@ export const fakeEmojiReaction = async (reactionData = {}, opts = {}) => {
   }
 };
 
-export const fakeConversation = async (conversationData = {}, sequelizeParams) => {
+export const fakeConversation = async (
+  conversationData: Record<string, unknown> = {},
+  sequelizeParams: CreateOptions = {},
+) => {
   const RootCommentId = conversationData.RootCommentId || (await fakeComment({}, sequelizeParams)).id;
   const rootComment = await models.Comment.findByPk(RootCommentId);
   return models.Conversation.create(
@@ -410,11 +424,11 @@ export const fakeConversation = async (conversationData = {}, sequelizeParams) =
 /**
  * Creates a fake tier. All params are optionals.
  */
-export const fakeTier = async (tierData = {}) => {
+export const fakeTier = async (tierData: Record<string, unknown> = {}) => {
   const name = randStr('tier');
   const interval = sample(['month', 'year']);
   const currency = tierData.currency || sample(['USD', 'EUR']);
-  const amount = tierData.amount || randAmount(1, 100) * 100;
+  const amount = <number>tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
   return models.Tier.create({
@@ -434,7 +448,7 @@ export const fakeTier = async (tierData = {}) => {
  * Creates a fake order. All params are optionals.
  */
 export const fakeOrder = async (
-  orderData = {},
+  orderData: Record<string, unknown> = {},
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
@@ -467,7 +481,7 @@ export const fakeOrder = async (
       currency: order.currency,
       isActive: true,
       quantity: order.quantity,
-      ...orderData.subscription,
+      ...(<Record<string, unknown> | null>orderData.subscription),
     });
     await order.update({ SubscriptionId: subscription.id });
     order.Subscription = subscription;
@@ -520,7 +534,7 @@ export const fakeSubscription = (params = {}) => {
   });
 };
 
-export const fakeNotification = async (data = {}) => {
+export const fakeNotification = async (data: Record<string, unknown> = {}) => {
   return models.Notification.create({
     channel: sample(Object.values(channels)),
     type: sample(Object.values(activities)),
@@ -535,7 +549,10 @@ export const fakeNotification = async (data = {}) => {
 /**
  * Pass `hooks: false` to `sequelizeParams` to prevent triggering a notification.
  */
-export const fakeActivity = async (data = {}, sequelizeParams) => {
+export const fakeActivity = async (
+  data: Record<string, unknown> = {},
+  sequelizeParams: Record<string, unknown> = {},
+) => {
   return models.Activity.create(
     {
       CollectiveId: data.CollectiveId || (await fakeCollective()).id,
@@ -550,7 +567,10 @@ export const fakeActivity = async (data = {}, sequelizeParams) => {
 /**
  * Creates a fake connectedAccount. All params are optionals.
  */
-export const fakeConnectedAccount = async (connectedAccountData = {}, sequelizeParams = {}) => {
+export const fakeConnectedAccount = async (
+  connectedAccountData: Record<string, unknown> = {},
+  sequelizeParams: Record<string, unknown> = {},
+) => {
   const CollectiveId = connectedAccountData.CollectiveId || (await fakeCollective({}, sequelizeParams)).id;
   const service = sample(['github', 'twitter', 'stripe', 'transferwise']);
 
@@ -568,7 +588,7 @@ export const fakeConnectedAccount = async (connectedAccountData = {}, sequelizeP
  * Creates a fake transaction. All params are optionals.
  */
 export const fakeTransaction = async (
-  transactionData = {},
+  transactionData: Record<string, unknown> = {},
   { settlementStatus = undefined, createDoubleEntry = false } = {},
 ) => {
   const amount = transactionData.amount || randAmount(10, 100) * 100;
@@ -615,7 +635,7 @@ export const fakeTransaction = async (
 /**
  * Creates a fake member. All params are optionals.
  */
-export const fakeMember = async (data = {}) => {
+export const fakeMember = async (data: Record<string, unknown> = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)
@@ -645,7 +665,7 @@ const fakePaymentMethodToken = (service, type) => {
 /**
  * Creates a fake Payment Method. All params are optionals.
  */
-export const fakePaymentMethod = async data => {
+export const fakePaymentMethod = async (data: Record<string, unknown>) => {
   const service = data.service || sample(PAYMENT_METHOD_SERVICES);
   const type = data.type || sample(PAYMENT_METHOD_TYPES);
   const token = data.token || fakePaymentMethodToken(service, type);
@@ -659,7 +679,7 @@ export const fakePaymentMethod = async data => {
   });
 };
 
-export const fakeLegalDocument = async (data = {}) => {
+export const fakeLegalDocument = async (data: Record<string, unknown> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
@@ -668,25 +688,17 @@ export const fakeLegalDocument = async (data = {}) => {
   });
 };
 
-export const fakeCurrencyExchangeRate = async (data = {}) => {
+export const fakeCurrencyExchangeRate = async (data: Record<string, unknown> = {}) => {
   const currencies = ['USD', 'NSG', 'EUR', 'CZK', 'JPY', 'MYR', 'AUD'];
-  const rate = await models.CurrencyExchangeRate.create({
+  return models.CurrencyExchangeRate.create({
     from: sample(currencies),
     to: sample(currencies),
     rate: randNumber(0, 100) / 100.0,
     ...data,
   });
-
-  if (data.insertedAt) {
-    rate.createdAt = data.insertedAt;
-    rate.changed('createdAt', true);
-    return rate.save();
-  } else {
-    return rate;
-  }
 };
 
-export const fakeVirtualCard = async (virtualCardData = {}) => {
+export const fakeVirtualCard = async (virtualCardData: Record<string, unknown> = {}) => {
   const CollectiveId = virtualCardData.CollectiveId || (await fakeCollective()).id;
   const HostCollectiveId =
     virtualCardData.HostCollectiveId || (await models.Collective.getHostCollectiveId(CollectiveId));
@@ -701,7 +713,7 @@ export const fakeVirtualCard = async (virtualCardData = {}) => {
   });
 };
 
-export const fakePaypalProduct = async (data = {}) => {
+export const fakePaypalProduct = async (data: Record<string, unknown> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
   return models.PaypalProduct.create({
     id: randStr('PaypalProduct-'),
@@ -710,10 +722,10 @@ export const fakePaypalProduct = async (data = {}) => {
   });
 };
 
-export const fakePaypalPlan = async (data = {}) => {
+export const fakePaypalPlan = async (data: Record<string, unknown> = {}) => {
   const product = data.ProductId
-    ? await models.PaypalProduct.findByPk(data.ProductId)
-    : await fakePaypalProduct(data.product || {});
+    ? await models.PaypalProduct.findByPk(<number>data.ProductId)
+    : await fakePaypalProduct(<Record<string, unknown>>data.product || {});
 
   const collective = await models.Collective.findByPk(product.CollectiveId);
   return models.PaypalPlan.create({
@@ -726,12 +738,13 @@ export const fakePaypalPlan = async (data = {}) => {
   });
 };
 
-export const fakeApplication = async (data = {}) => {
+export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
-    CollectiveId = data.user.CollectiveId;
-    CreatedByUserId = data.user.id;
+    const user = data.user as typeof models.User;
+    CollectiveId = user.CollectiveId;
+    CreatedByUserId = user.id;
   } else {
     const user = data.CreatedByUserId ? await models.User.findByPk(data.CreatedByUserId) : await fakeUser();
     CreatedByUserId = user.id;
@@ -754,7 +767,7 @@ export const fakeApplication = async (data = {}) => {
   return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
 };
 
-export const fakeUserToken = async (data = {}) => {
+export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
   const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
   const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
@@ -771,7 +784,7 @@ export const fakeUserToken = async (data = {}) => {
   return userToken.reload();
 };
 
-export const fakeOAuthAuthorizationCode = async (data = {}) => {
+export const fakeOAuthAuthorizationCode = async (data: Record<string, unknown> = {}) => {
   const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
   const application =
     data.application ||
@@ -793,13 +806,13 @@ export const fakeOAuthAuthorizationCode = async (data = {}) => {
   return authorization;
 };
 
-export const fakeRecurringExpense = async (data = {}) => {
+export const fakeRecurringExpense = async (data: Record<string, unknown> = {}) => {
   const CollectiveId = data.CollectiveId || (await fakeCollective()).id;
   const FromCollectiveId = data.FromCollectiveId || (await fakeCollective()).id;
   return models.RecurringExpense.create({
     ...data,
     CollectiveId,
     FromCollectiveId,
-    interval: data.interval || 'month',
+    interval: <RecurringExpenseIntervals>data.interval || RecurringExpenseIntervals.MONTH,
   });
 };

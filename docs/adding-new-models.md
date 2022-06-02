@@ -52,34 +52,15 @@ module.exports = {
 Example: `server/models/MyTable.ts`
 
 ```ts
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-// Define all attributes for the model
-interface MyTableAttributes {
-  id: number;
-  MyCollectiveId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
-
-// Define attributes that can be used for model creation
-interface MyTableCreateAttributes {
-  MyCollectiveId: number;
-}
-
-class MyTable extends Model<MyTableAttributes, MyTableCreateAttributes> implements MyTableAttributes {
-  id: number;
-  MyCollectiveId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+class MyTable extends Model<InferAttributes<MyTable>, InferCreationAttributes<MyTable>> {
+  declare id: CreationOptional<number>;
+  declare MyCollectiveId: number;
+  declare createdAt: CreationOptional<Date>;
+  declare updatedAt: CreationOptional<Date>;
+  declare deletedAt: CreationOptional<Date>;
 }
 
 MyTable.init(
