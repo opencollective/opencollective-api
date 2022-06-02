@@ -16,7 +16,7 @@ import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
 
 import { types } from '../../constants/collectives';
-import { FeaturesList } from '../../constants/feature';
+import FEATURE, { FeaturesList } from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
@@ -1183,7 +1183,7 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether this account is frozen',
       resolve(collective) {
-        return get(collective, 'data.features.ALL') === false;
+        return get(collective, `data.features.${FEATURE.ALL}`) === false;
       },
     },
     isArchived: {

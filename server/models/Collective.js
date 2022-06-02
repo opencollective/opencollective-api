@@ -1121,7 +1121,7 @@ function defineModel() {
   };
 
   Collective.prototype.freeze = async function (message) {
-    if (this.data?.features?.ALL === false) {
+    if (this.data?.features?.[FEATURE.ALL] === false) {
       throw new Error('This account is already frozen');
     }
 
@@ -1130,7 +1130,7 @@ function defineModel() {
       const children = await this.getChildren({ transaction });
       await Promise.all(
         [this, ...children].map(account =>
-          account.update({ data: set(cloneDeep(this.data || {}), 'features.ALL', false) }, { transaction }),
+          account.update({ data: set(cloneDeep(this.data || {}), `features.${FEATURE.ALL}`, false) }, { transaction }),
         ),
       );
 
@@ -1147,7 +1147,7 @@ function defineModel() {
   };
 
   Collective.prototype.unfreeze = async function (message) {
-    if (this.data?.features?.ALL !== false) {
+    if (this.data?.features?.[FEATURE.ALL] !== false) {
       throw new Error('This account is already unfrozen');
     }
 
@@ -1156,7 +1156,7 @@ function defineModel() {
       const children = await this.getChildren({ transaction });
       await Promise.all(
         [this, ...children].map(account =>
-          account.update({ data: omit(cloneDeep(this.data || {}), 'features.ALL') }, { transaction }),
+          account.update({ data: omit(cloneDeep(this.data || {}), `features.${FEATURE.ALL}`) }, { transaction }),
         ),
       );
 

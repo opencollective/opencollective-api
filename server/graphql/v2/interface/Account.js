@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { assign, get, invert, isEmpty, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
 import { PUBLIC_POLICIES } from '../../../constants/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
@@ -635,7 +636,7 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is frozen',
     resolve(collective) {
-      return get(collective, 'data.features.ALL') === false;
+      return get(collective, `data.features.${FEATURE.ALL}`) === false;
     },
   },
   isHost: {
