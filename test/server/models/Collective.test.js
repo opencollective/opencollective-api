@@ -4,6 +4,7 @@ import { SequelizeValidationError } from 'sequelize';
 import { createSandbox } from 'sinon';
 
 import { expenseStatus, roles } from '../../../server/constants';
+import FEATURE from '../../../server/constants/feature';
 import plans from '../../../server/constants/plans';
 import POLICIES from '../../../server/constants/policies';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
@@ -1269,6 +1270,27 @@ describe('server/models/Collective', () => {
       // Valid
       await expect(fakeCollective({ geoLocationLatLong: null })).to.be.fulfilled;
       await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } })).to.be.fulfilled;
+    });
+  });
+
+  describe('features', () => {
+    let collective;
+    beforeEach(async () => {
+      collective = await fakeCollective();
+    });
+
+    it('should disable comaptible feature', async () => {
+      await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+      expect(collective.data.features).to.have.property(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS).equals(false);
+    });
+
+    it('should enable comaptible feature', async () => {
+      await collective.enableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+      expect(collective.data.features).to.be.undefined;
+    });
+
+    it('should throw if feature is not supported', async () => {
+      return expect(collective.enableFeature('RECEIVE_POTATOES_FOR_THE_GIANT_RACLETTE')).to.eventually.be.rejected;
     });
   });
 });
