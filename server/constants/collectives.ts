@@ -1,6 +1,6 @@
 import config from 'config';
 
-export enum types {
+export enum CollectiveType {
   COLLECTIVE = 'COLLECTIVE',
   EVENT = 'EVENT',
   USER = 'USER',
@@ -11,7 +11,7 @@ export enum types {
   VENDOR = 'VENDOR',
 }
 
-export const CollectiveTypesList = Object.values(types);
+export const CollectiveTypesList = Object.values(CollectiveType);
 
 export const DEFAULT_BACKGROUND_IMG = `${config.host.website}/public/images/collectives/default-header-bg.jpg`;
 
