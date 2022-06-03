@@ -1,3 +1,4 @@
+import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
@@ -5,6 +6,7 @@ import { MemberRole } from '../enum/MemberRole';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
+import { Individual } from './Individual';
 import { Tier } from './Tier';
 
 export const MemberInvitation = new GraphQLObjectType({
@@ -15,6 +17,16 @@ export const MemberInvitation = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve: getIdEncodeResolver(IDENTIFIER_TYPES.MEMBER_INVITATION),
+      },
+      inviter: {
+        type: Individual,
+        description: 'The person who invited the member, if any',
+        resolve: async (member, _, req: express.Request): Promise<Record<string, unknown>> => {
+          const collective = await req.loaders.Collective.byUserId.load(member.CreatedByUserId);
+          if (!collective?.isIncognito) {
+            return collective;
+          }
+        },
       },
       createdAt: {
         type: new GraphQLNonNull(GraphQLDateTime),
