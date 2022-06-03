@@ -32,6 +32,7 @@ import { Location } from '../object/Location';
 import { MemberInvitation } from '../object/MemberInvitation';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
+import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
@@ -546,7 +547,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   policies: {
-    type: new GraphQLNonNull(GraphQLJSON),
+    type: new GraphQLNonNull(Policies),
     async resolve(account, _, req) {
       if (req.remoteUser?.isAdminOfCollective(account)) {
         return account.data?.policies || {};

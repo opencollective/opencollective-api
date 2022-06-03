@@ -308,7 +308,9 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         setPolicies(account: $account, policies: $policies) {
           id
           settings
-          policies
+          policies {
+            EXPENSE_AUTHOR_CANNOT_APPROVE
+          }
         }
       }
     `;
