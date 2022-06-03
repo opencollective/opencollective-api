@@ -551,6 +551,11 @@ An invitation to join the members of a collective
 """
 type MemberInvitation {
   id: String!
+
+  """
+  The person who invited the member, if any
+  """
+  inviter: Individual
   createdAt: DateTime!
   account: Account!
   memberAccount: Account!
@@ -3391,6 +3396,11 @@ type AccountStats {
   ): Amount!
 
   """
+  The consolidated amount of all the events and projects combined.
+  """
+  consolidatedBalance: Amount!
+
+  """
   Average amount spent per month based on the last 90 days
   """
   monthlySpending: Amount!
@@ -5980,6 +5990,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   The Event end date and time
   """
   endsAt: DateTime
+
+  """
+  Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)
+  """
+  timezone: String
 }
 
 """
@@ -10914,6 +10929,12 @@ type Mutation {
     """
     policies: JSON!
   ): Account!
+  deleteAccount(
+    """
+    Reference to the Account to be deleted.
+    """
+    account: AccountReferenceInput!
+  ): Account
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
   deleteApplication(application: ApplicationReferenceInput!): Application
@@ -11800,6 +11821,11 @@ input EventCreateInput {
   The Event end date and time
   """
   endsAt: DateTime!
+
+  """
+  Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)
+  """
+  timezone: String!
 }
 
 input FundCreateInput {
