@@ -61,6 +61,7 @@ import {
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
+import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
 import {
   getHostFees,
   getHostFeeShare,
@@ -466,23 +467,39 @@ function defineModel() {
         },
       },
 
+      /**
+       * @deprecated Keeping this one as a virtual field for easier migration. It should be removed
+       * when we'll move to a dedicated [SocialLinks table](https://github.com/opencollective/opencollective/issues/5097)
+       */
       githubHandle: {
-        type: DataTypes.STRING,
-        set(githubHandle) {
-          if (!githubHandle || githubHandle.length === 0) {
-            this.setDataValue('githubHandle', null);
-            return;
-          }
-
-          // Try to parse github URL, fallback on regular string
-          const githubUrlRegex = /https?:\/\/github\.com\/([^/\s]+)(\/([^/\s]+))?/;
-          const regexResult = githubHandle.match(githubUrlRegex);
-          if (regexResult) {
-            const [, username, , repository] = regexResult;
-            const formattedHandle = repository ? `${username}/${repository}` : username;
-            this.setDataValue('githubHandle', formattedHandle);
+        type: DataTypes.VIRTUAL,
+        get() {
+          return getGithubHandleFromUrl(this.repositoryUrl);
+        },
+        set(input) {
+          const cleanInput = input?.trim();
+          const githubUrl = getGithubUrlFromHandle(cleanInput);
+          if (githubUrl) {
+            this.setDataValue('repositoryUrl', githubUrl);
           } else {
-            this.setDataValue('githubHandle', githubHandle.replace(/^@/, ''));
+            this.setDataValue('repositoryUrl', null);
+          }
+        },
+      },
+
+      repositoryUrl: {
+        type: DataTypes.STRING,
+        validate: {
+          notEmpty: true,
+          isUrl: {
+            msg: 'Repository URL must be a valid URL',
+          },
+        },
+        set(repositoryUrl) {
+          if (repositoryUrl) {
+            this.setDataValue('repositoryUrl', prependHttp(repositoryUrl, { https: true }).trim());
+          } else {
+            this.setDataValue('repositoryUrl', null);
           }
         },
       },
@@ -601,6 +618,7 @@ function defineModel() {
             website: this.website,
             twitterHandle: this.twitterHandle,
             githubHandle: this.githubHandle,
+            repositoryUrl: this.repositoryUrl,
             publicUrl: this.publicUrl,
             hostFeePercent: this.hostFeePercent,
             platformFeePercent: this.platformFeePercent,
@@ -648,6 +666,7 @@ function defineModel() {
             slug: this.slug,
             twitterHandle: this.twitterHandle,
             githubHandle: this.githubHandle,
+            repositoryUrl: this.repositoryUrl,
             publicUrl: this.publicUrl,
           };
         },
@@ -662,6 +681,7 @@ function defineModel() {
             isIncognito: this.isIncognito,
             twitterHandle: this.twitterHandle,
             githubHandle: this.githubHandle,
+            repositoryUrl: this.repositoryUrl,
             description: this.description,
             previewImage: this.previewImage,
           };
@@ -2257,6 +2277,7 @@ function defineModel() {
               'website',
               'twitterHandle',
               'githubHandle',
+              'repositoryUrl',
             ]),
           },
           application: {

@@ -4,7 +4,7 @@ import '../server/env';
 import { padEnd } from 'lodash';
 import moment from 'moment';
 
-import { getOrg, getRepo, getUser } from '../server/lib/github';
+import { getGithubHandleFromUrl, getOrg, getRepo, getUser } from '../server/lib/github';
 import models, { Op, sequelize } from '../server/models';
 
 function report(collective, context) {
@@ -38,7 +38,7 @@ async function run() {
   const collectives = await models.Collective.findAll({
     where: {
       updatedAt: { [Op.gte]: moment().subtract(7, 'days').toDate() },
-      githubHandle: { [Op.not]: null },
+      repositoryUrl: { [Op.startsWith]: 'https://github.com/' },
       // data: { isBanned: { [Op.not]: true } },
     },
     order: [['updatedAt', 'DESC']],
@@ -52,7 +52,7 @@ async function run() {
     }
 
     try {
-      await checkGithubExists(collective.githubHandle);
+      await checkGithubExists(getGithubHandleFromUrl(collective.repositoryUrl));
     } catch (err) {
       // console.log(err);
       report(collective, 'NEW');

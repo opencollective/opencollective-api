@@ -123,6 +123,7 @@ describe('server/graphql/v1/collective', () => {
           website
           twitterHandle
           githubHandle
+          repositoryUrl
           image
           description
           longDescription

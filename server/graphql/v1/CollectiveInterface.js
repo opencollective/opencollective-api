@@ -781,7 +781,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       },
       role: { type: GraphQLString },
       twitterHandle: { type: GraphQLString },
-      githubHandle: { type: GraphQLString },
+      githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
+      repositoryUrl: { type: GraphQLString },
       website: { type: GraphQLString },
       updates: {
         type: new GraphQLList(UpdateType),
@@ -1633,7 +1634,11 @@ const CollectiveFields = () => {
     },
     githubHandle: {
       type: GraphQLString,
-      resolve: collective => collective.githubHandle,
+      deprecationReason: '2022-06-03: Please use repositoryUrl',
+    },
+    repositoryUrl: {
+      type: GraphQLString,
+      description: 'The URL of the repository',
     },
     website: {
       type: GraphQLString,

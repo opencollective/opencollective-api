@@ -141,6 +141,10 @@ function defineModel() {
           return this.userCollective.then(collective => collective.githubHandle);
         },
 
+        repositoryUrl() {
+          return this.userCollective.then(collective => collective.repositoryUrl);
+        },
+
         website() {
           return this.userCollective.then(collective => collective.website);
         },
@@ -443,6 +447,7 @@ function defineModel() {
       website: userData.website,
       twitterHandle: userData.twitterHandle,
       githubHandle: userData.githubHandle,
+      repositoryUrl: userData.repositoryUrl,
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
       isActive: false,

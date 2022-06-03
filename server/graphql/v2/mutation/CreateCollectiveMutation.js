@@ -56,7 +56,7 @@ async function createCollective(_, args, req) {
 
       const collectiveData = {
         slug: args.collective.slug.toLowerCase(),
-        ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle']),
+        ...pick(args.collective, ['name', 'description', 'tags', 'githubHandle', 'repositoryUrl']),
         isActive: false,
         CreatedByUserId: user.id,
         settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
@@ -78,8 +78,8 @@ async function createCollective(_, args, req) {
       }
 
       // Handle GitHub automated approval and apply to the Open Source Collective Host
-      if (args.automateApprovalWithGithub && args.collective.githubHandle) {
-        const githubHandle = args.collective.githubHandle;
+      const githubHandle = github.getGithubHandleFromUrl(collectiveData.repositoryUrl) || collectiveData.githubHandle;
+      if (args.automateApprovalWithGithub) {
         const opensourceHost = defaultHostCollective('opensource');
         host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
         try {

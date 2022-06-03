@@ -186,7 +186,7 @@ export async function createCollectiveFromGithub(_, args, req) {
 
   let collective;
   const user = req.remoteUser;
-  const githubHandle = args.collective.githubHandle;
+  const githubHandle = github.getGithubHandleFromUrl(args.collective.repositoryUrl) || args.collective.githubHandle;
   const collectiveData = {
     ...args.collective,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },

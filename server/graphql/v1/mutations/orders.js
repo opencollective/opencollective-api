@@ -370,7 +370,6 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
     }
 
     const { id, githubHandle } = order.collective;
-
     if (!id && !githubHandle) {
       throw new ValidationFailed('An Open Collective id or a GitHub handle is mandatory.');
     }
@@ -405,7 +404,12 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
         })
       )[0];
     } else if (order.collective.githubHandle) {
-      collective = await models.Collective.findOne({ where: { githubHandle: order.collective.githubHandle } });
+      const repositoryUrl = github.getGithubUrlFromHandle(order.collective.githubHandle);
+      if (!repositoryUrl) {
+        throw new Error('Invalid GitHub handle');
+      }
+
+      collective = await models.Collective.findOne({ where: { repositoryUrl } });
       if (!collective) {
         const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
         collective = await models.Collective.create({

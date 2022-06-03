@@ -1,7 +1,9 @@
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import config from 'config';
-import { get, has, pick } from 'lodash';
+import { trimStart } from 'lodash';
+import { trim } from 'lodash';
+import { get, has, pick, trimEnd } from 'lodash';
 
 import cache from './cache';
 import logger from './logger';
@@ -200,3 +202,64 @@ export async function checkGithubStars(githubHandle, accessToken) {
     }
   }
 }
+
+const githubUsernameRegex = new RegExp('[a-z\\d](?:[a-z\\d]|-(?=[a-z\\d])){0,38}', 'i');
+const githubRepositoryRegex = new RegExp('[a-z\\d](?:[a-z\\.\\d]|-(?=[a-z\\.\\d])){1,100}', 'i');
+const githubHandleRegex = new RegExp(`^${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?$`, 'i');
+const githubPathnameRegex = new RegExp(`^/${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?`, 'i');
+
+/**
+ * Return the github handle from a URL
+ *
+ * @param {string} url
+ * @returns {string|null} handle
+ *
+ * @example
+ * getGithubHandleFromUrl('https://github.com/opencollective/opencollective-frontend')
+ * => 'opencollective/opencollective-frontend'
+ */
+export const getGithubHandleFromUrl = url => {
+  try {
+    const { hostname, pathname } = new URL(url);
+    if (hostname !== 'github.com' || pathname.length < 2) {
+      return null;
+    }
+
+    const regexResult = pathname.match(githubPathnameRegex);
+    if (regexResult) {
+      const handle = trim(regexResult[0], '/');
+      if (githubHandleRegex.test(handle)) {
+        return handle;
+      }
+    }
+  } catch {
+    // Ignore invalid URLs
+  }
+
+  return null;
+};
+
+/**
+ * Generate a Github URL from a handle. Return null if handle is invalid
+ *
+ * @param {string} handle
+ * @returns {string|null}
+ */
+export const getGithubUrlFromHandle = handle => {
+  // "  @@@test//   " => "@test"
+  const cleanHandle = trimStart(trimEnd(handle?.trim(), '/'), '@');
+  if (cleanHandle) {
+    // In case handle is a Github URL, we return it with the proper format
+    const handleFromUrl = getGithubHandleFromUrl(cleanHandle);
+    if (handleFromUrl) {
+      return `https://github.com/${handleFromUrl}`;
+    }
+
+    if (githubHandleRegex.test(cleanHandle)) {
+      const [org, repo] = cleanHandle.replace(/^@/, '').split('/');
+      return `https://github.com/${repo ? `${org}/${repo}` : org}`;
+    }
+  }
+
+  return null;
+};
