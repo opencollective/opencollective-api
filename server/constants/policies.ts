@@ -9,6 +9,8 @@ export type Policies = Partial<{
   [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: boolean;
   [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: Partial<{
     numberOfAdmins: number;
+    applies: 'ALL_COLLECTIVES' | 'NEW_COLLECTIVES';
+    freeze: boolean;
   }>;
 }>;
 
