@@ -85,7 +85,7 @@ describe('MemberInvitationMutations', () => {
         {
           memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
           account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
-          description: 'new user 2 as ADMIN',
+          description: 'new user 2 as MEMBER',
           role: roles.MEMBER,
           since: new Date('01 January 2022').toISOString(),
         },
@@ -95,7 +95,7 @@ describe('MemberInvitationMutations', () => {
       const createdMemberInvitation = result.data.inviteMember;
       expect(result.errors).to.not.exist;
       expect(createdMemberInvitation.role).to.equal(roles.MEMBER);
-      expect(createdMemberInvitation.description).to.equal('new user 2 as ADMIN');
+      expect(createdMemberInvitation.description).to.equal('new user 2 as MEMBER');
       expect(createdMemberInvitation.since.toISOString()).to.equal(new Date('01 January 2022').toISOString());
       expect(sendEmailSpy.callCount).to.equal(1);
       expect(sendEmailSpy.args[0][0]).to.equal(user2.email);
@@ -212,11 +212,51 @@ describe('MemberInvitationMutations', () => {
     });
   });
 
-  //   describe('editMemberInvitation', () => {
-  //     it('should edit the role, description and since and document the changes in an activity', () => {});
-  //     it('must be authenticated as an admin of the collective', () => {});
-  //     it('can only update role to accountant, admin or member', () => {});
-  //   });
+  describe('editMemberInvitation', () => {
+    const editMemberInvitationMutation = gqlV2/* GraphQL */ `
+      mutation EditMemberInvitation(
+        $memberAccount: AccountReferenceInput!
+        $account: AccountReferenceInput!
+        $role: MemberRole
+        $description: String
+        $since: DateTime
+      ) {
+        editMemberInvitation(
+          memberAccount: $memberAccount
+          account: $account
+          role: $role
+          description: $description
+          since: $since
+        ) {
+          id
+          role
+          description
+          since
+        }
+      }
+    `;
+    it('should edit the role, description, and since and document the changes in an activity', async () => {
+      const result = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'new user 2 with role changed from MEMBER to ADMIN',
+          role: roles.ADMIN,
+          since: new Date('01 February 2022').toISOString(),
+        },
+        user1,
+      );
+
+      const editedMemberInvitation = result.data.editMemberInvitation;
+      expect(result.errors).to.not.exist;
+      expect(editedMemberInvitation.role).to.equal(roles.ADMIN);
+      expect(editedMemberInvitation.description).to.equal('new user 2 with role changed from MEMBER to ADMIN');
+      expect(editedMemberInvitation.since.toISOString()).to.equal(new Date('01 February 2022').toISOString());
+    });
+    //   it('must be authenticated as an admin of the collective', async () => {});
+    //   it('can only update role to accountant, admin or member', async () => {});
+  });
 
   //   describe('replyToMemberInvitation', () => {
   //     it('can accept the invitation and document the changes in an activity', () => {});
