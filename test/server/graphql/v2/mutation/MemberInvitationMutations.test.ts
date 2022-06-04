@@ -10,6 +10,7 @@ import models from '../../../../../server/models';
 import * as utils from '../../../../utils';
 
 let host, user1, user2, user3, user4, user5, user6, collective1, collective2;
+let createdMemberInvitationId1, createdMemberInvitationId2, createdMemberInvitationId3;
 let sandbox, sendEmailSpy;
 
 describe('MemberInvitationMutations', () => {
@@ -132,6 +133,7 @@ describe('MemberInvitationMutations', () => {
         },
         user1,
       );
+      createdMemberInvitationId1 = result1.data.inviteMember.id;
       expect(result1.errors).to.not.exist;
       expect(result1.data.inviteMember.role).to.equal(roles.ACCOUNTANT);
       expect(result1.data.inviteMember.description).to.equal('new user 3 as ACCOUNTANT');
@@ -151,6 +153,7 @@ describe('MemberInvitationMutations', () => {
         },
         user1,
       );
+      createdMemberInvitationId2 = result2.data.inviteMember.id;
       expect(result2.errors).to.not.exist;
       expect(result2.data.inviteMember.role).to.equal(roles.ADMIN);
       expect(result2.data.inviteMember.description).to.equal('new user 4 as ADMIN');
@@ -170,6 +173,7 @@ describe('MemberInvitationMutations', () => {
         },
         user1,
       );
+      createdMemberInvitationId3 = result3.data.inviteMember.id;
       expect(result3.errors).to.not.exist;
       expect(result3.data.inviteMember.role).to.equal(roles.MEMBER);
       expect(result3.data.inviteMember.description).to.equal('new user 5 as MEMBER');
@@ -200,7 +204,7 @@ describe('MemberInvitationMutations', () => {
         {
           memberAccount: { id: idEncode(collective2.id, IDENTIFIER_TYPES.ACCOUNT) },
           account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
-          description: 'new user 6 as BACKER',
+          description: 'not a user acccount',
           role: roles.MEMBER,
           since: new Date('01 January 2022').toISOString(),
         },
@@ -343,9 +347,47 @@ describe('MemberInvitationMutations', () => {
     });
   });
 
-  //   describe('replyToMemberInvitation', () => {
-  //     it('can accept the invitation and document the changes in an activity', () => {});
-  //     it('can decline the invitation and document the changes in an activity', () => {});
-  //     it('must be authenticated as the invited user', () => {});
-  //   });
+  describe('replyToMemberInvitation', () => {
+    const replyToMemberInvitationMutation = gqlV2`
+            mutation ReplyToMemberInvitation($invitation: MemberInvitationReferenceInput!, $accept: Boolean!) {
+                replyToMemberInvitation(invitation: $invitation, accept: $accept)
+            }
+        `;
+    it('can accept the invitation and document the changes in an activity', async () => {
+      const result = await utils.graphqlQueryV2(
+        replyToMemberInvitationMutation,
+        {
+          invitation: { id: createdMemberInvitationId1 },
+          accept: true,
+        },
+        user3,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.replyToMemberInvitation).to.equal(true);
+    });
+    it('can decline the invitation and document the changes in an activity', async () => {
+      const result = await utils.graphqlQueryV2(
+        replyToMemberInvitationMutation,
+        {
+          invitation: { id: createdMemberInvitationId2 },
+          accept: false,
+        },
+        user4,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.replyToMemberInvitation).to.equal(false);
+    });
+    it('must be authenticated as the invited user', async () => {
+      const result = await utils.graphqlQueryV2(
+        replyToMemberInvitationMutation,
+        {
+          invitation: { id: createdMemberInvitationId3 },
+          accept: true,
+        },
+        user2,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Only an admin of the invited account can reply to the invitation');
+    });
+  });
 });
