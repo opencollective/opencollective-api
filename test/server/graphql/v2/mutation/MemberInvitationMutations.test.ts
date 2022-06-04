@@ -254,8 +254,93 @@ describe('MemberInvitationMutations', () => {
       expect(editedMemberInvitation.description).to.equal('new user 2 with role changed from MEMBER to ADMIN');
       expect(editedMemberInvitation.since.toISOString()).to.equal(new Date('01 February 2022').toISOString());
     });
-    //   it('must be authenticated as an admin of the collective', async () => {});
-    //   it('can only update role to accountant, admin or member', async () => {});
+    it('must be authenticated as an admin of the collective', async () => {
+      const result = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'role changed to MEMBER',
+          role: roles.MEMBER,
+          since: new Date('01 February 2022').toISOString(),
+        },
+        user3,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Only admins can edit members.');
+    });
+    it('can only update role to accountant, admin or member', async () => {
+      // update role to ACCOUNTANT
+      const result1 = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'role changed to ACCOUNTANT',
+          role: roles.ACCOUNTANT,
+          since: new Date('01 February 2022').toISOString(),
+        },
+        user1,
+      );
+
+      const editedMemberInvitation1 = result1.data.editMemberInvitation;
+      expect(result1.errors).to.not.exist;
+      expect(editedMemberInvitation1.role).to.equal(roles.ACCOUNTANT);
+      expect(editedMemberInvitation1.description).to.equal('role changed to ACCOUNTANT');
+
+      // update role to ADMIN
+      const result2 = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'role changed to ADMIN',
+          role: roles.ADMIN,
+          since: new Date('01 February 2022').toISOString(),
+        },
+        user1,
+      );
+
+      const editedMemberInvitation2 = result2.data.editMemberInvitation;
+      expect(result2.errors).to.not.exist;
+      expect(editedMemberInvitation2.role).to.equal(roles.ADMIN);
+      expect(editedMemberInvitation2.description).to.equal('role changed to ADMIN');
+
+      // update role to MEMBER
+      const result3 = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'role changed to MEMBER',
+          role: roles.ADMIN,
+          since: new Date('01 February 2022').toISOString(),
+        },
+        user1,
+      );
+
+      const editedMemberInvitation3 = result3.data.editMemberInvitation;
+      expect(result3.errors).to.not.exist;
+      expect(editedMemberInvitation3.role).to.equal(roles.MEMBER);
+      expect(editedMemberInvitation3.description).to.equal('role changed to MEMBER');
+
+      // Throw error if updating to any other role
+      const result4 = await utils.graphqlQueryV2(
+        editMemberInvitationMutation,
+        {
+          memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
+          account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
+          description: 'role changed to BACKER',
+          role: roles.BACKER,
+          since: new Date('01 February 2022').toISOString(),
+        },
+        user1,
+      );
+
+      expect(result4.errors).to.have.length(1);
+      expect(result4.errors[0].message).to.equal('You can only edit accountants, admins, or members.');
+    });
   });
 
   //   describe('replyToMemberInvitation', () => {
