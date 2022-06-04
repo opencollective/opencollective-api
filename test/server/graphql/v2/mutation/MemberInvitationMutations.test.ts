@@ -314,7 +314,7 @@ describe('MemberInvitationMutations', () => {
           memberAccount: { id: idEncode(user2.id, IDENTIFIER_TYPES.ACCOUNT) },
           account: { id: idEncode(collective1.id, IDENTIFIER_TYPES.ACCOUNT) },
           description: 'role changed to MEMBER',
-          role: roles.ADMIN,
+          role: roles.MEMBER,
           since: new Date('01 February 2022').toISOString(),
         },
         user1,
