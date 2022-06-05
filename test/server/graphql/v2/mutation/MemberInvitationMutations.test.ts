@@ -3,6 +3,7 @@ import gqlV2 from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
+import ActivityTypes from '../../../../../server/constants/activities';
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
@@ -93,8 +94,17 @@ describe('MemberInvitationMutations', () => {
         user1,
       );
 
+      const activity = await models.Activity.findAll({
+        where: {
+          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+          CollectiveId: collective1.id,
+        },
+      });
       const createdMemberInvitation = result.data.inviteMember;
+
       expect(result.errors).to.not.exist;
+      expect(activity.length).to.equal(1);
+      expect(activity[0].data.memberCollective.id).to.equal(user2.id);
       expect(createdMemberInvitation.role).to.equal(roles.MEMBER);
       expect(createdMemberInvitation.description).to.equal('new user 2 as MEMBER');
       expect(createdMemberInvitation.since.toISOString()).to.equal(new Date('01 January 2022').toISOString());
@@ -362,6 +372,14 @@ describe('MemberInvitationMutations', () => {
         },
         user3,
       );
+      const activity = await models.Activity.findAll({
+        where: {
+          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+          CollectiveId: collective1.id,
+        },
+      });
+      expect(activity.length).to.equal(1);
+      expect(activity[0].data.memberCollective.id).to.equal(user3.id);
       expect(result.errors).to.not.exist;
       expect(result.data.replyToMemberInvitation).to.equal(true);
     });

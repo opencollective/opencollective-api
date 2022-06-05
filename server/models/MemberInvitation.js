@@ -143,7 +143,7 @@ function defineModel() {
       purgeCacheForCollective(collective.slug);
     }
 
-    if ([roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER].includes(this.role)) {
+    if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(this.role)) {
       const member = await models.Collective.findByPk(this.MemberCollectiveId);
       await models.Activity.create({
         type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
@@ -241,7 +241,7 @@ function defineModel() {
       invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
       invitation.collective = collective;
 
-      if ([roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER].includes(this.role)) {
+      if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
         const member = await models.Collective.findByPk(memberParams.MemberCollectiveId);
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
