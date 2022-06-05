@@ -17,8 +17,8 @@ let sandbox, sendEmailSpy;
 describe('MemberInvitationMutations', () => {
   /* SETUP
     - collective1: host, user1 as admin
-    - user2
-    - user3
+    - user2, user3, ... user6
+    - collective2: user2 as admin
   */
   before(() => {
     sandbox = createSandbox();
@@ -56,6 +56,8 @@ describe('MemberInvitationMutations', () => {
   });
   before(() => collective1.addUserWithRole(host, roles.HOST));
   before(() => collective1.addUserWithRole(user1, roles.ADMIN));
+  before(() => collective2.addUserWithRole(host, roles.HOST));
+  before(() => collective2.addUserWithRole(user2, roles.ADMIN));
 
   describe('inviteMember', () => {
     const inviteMemberMutation = gqlV2/* GraphQL */ `
@@ -249,7 +251,7 @@ describe('MemberInvitationMutations', () => {
         }
       }
     `;
-    it('should edit the role, description, and since and document the changes in an activity', async () => {
+    it('should edit the role, description, and since', async () => {
       const result = await utils.graphqlQueryV2(
         editMemberInvitationMutation,
         {
@@ -383,7 +385,7 @@ describe('MemberInvitationMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.replyToMemberInvitation).to.equal(true);
     });
-    it('can decline the invitation and document the changes in an activity', async () => {
+    it('can decline the invitation', async () => {
       const result = await utils.graphqlQueryV2(
         replyToMemberInvitationMutation,
         {
