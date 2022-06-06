@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import config from 'config';
 import gqlV2 from 'fake-tag';
 import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
@@ -484,6 +485,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       it('Fails if captcha is not provided', async () => {
+        const captchaDefaultValue = config.captcha.enabled;
+        config.captcha.enabled = true;
+
         const orderData = {
           ...validOrderParams,
           fromAccount: null,
@@ -494,6 +498,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         const result = await callCreateOrder({ order: orderData });
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal('You need to inform a valid captcha token');
+
+        config.captcha.enabled = captchaDefaultValue;
       });
     });
   });
