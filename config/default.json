@@ -120,7 +120,7 @@
     }
   },
   "captcha": {
-    "enabled": true
+    "enabled": false
   },
   "recaptcha": {
     "siteKey": "6LcyeXoUAAAAAFtdHDZfsxncFUkD9NqydqbIFcCK",
