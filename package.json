@@ -44,7 +44,7 @@
     "@sentry/node": "6.19.7",
     "apollo-server-express": "3.8.1",
     "argparse": "2.0.1",
-    "aws-sdk": "2.1148.0",
+    "aws-sdk": "2.1149.0",
     "axios": "0.27.2",
     "babel-plugin-add-module-exports": "1.0.4",
     "babel-plugin-lodash": "3.3.4",
