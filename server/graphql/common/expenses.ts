@@ -225,7 +225,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
   ];
 
   // Host and Collective Admin can attach receipts to paid charge expenses
-  if (expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID) {
+  if (expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
@@ -1044,7 +1044,9 @@ export async function editExpense(
   }
 
   const isPaidCreditCardCharge =
-    expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID && Boolean(expense.VirtualCardId);
+    expense.type === EXPENSE_TYPE.CHARGE &&
+    [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status) &&
+    Boolean(expense.VirtualCardId);
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
     throw new ValidationFailed(
