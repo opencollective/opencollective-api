@@ -61,11 +61,9 @@ export const signin = async (req, res, next) => {
   try {
     let user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
     if (!user && !createProfile) {
-      return res.send({
-        error: {
-          errorCode: 'EMAIL_DOES_NOT_EXIST',
-          message: 'Email does not exist',
-        },
+      return res.status(400).send({
+        errorCode: 'EMAIL_DOES_NOT_EXIST',
+        message: 'Email does not exist',
       });
     } else if (!user && createProfile) {
       user = await models.User.createUserWithCollective(user);
@@ -83,7 +81,7 @@ export const signin = async (req, res, next) => {
     }
     res.send(response);
   } catch (e) {
-    next(e);
+    next();
   }
 };
 
