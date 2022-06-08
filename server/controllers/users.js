@@ -66,7 +66,7 @@ export const signin = async (req, res, next) => {
         message: 'Email does not exist',
       });
     } else if (!user && createProfile) {
-      user = await models.User.createUserWithCollective(user);
+      user = await models.User.createUserWithCollective(req.body.user);
     }
     const loginLink = user.generateLoginLink(redirect || '/', websiteUrl);
     const clientIP = req.ip;
@@ -81,7 +81,7 @@ export const signin = async (req, res, next) => {
     }
     res.send(response);
   } catch (e) {
-    next();
+    next(e);
   }
 };
 
