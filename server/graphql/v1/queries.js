@@ -940,6 +940,11 @@ const queries = {
         description: 'Whether to skip recent accounts (48h)',
         defaultValue: false,
       },
+      skipGuests: {
+        type: GraphQLBoolean,
+        description: 'Whether to skip guest accounts',
+        defaultValue: true,
+      },
       limit: {
         type: GraphQLInt,
         description: 'Limit the amount of results. Defaults to 20',
@@ -951,15 +956,16 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts } = args;
+      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts, skipGuests } = args;
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
         const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
         const skipRecentKey = skipRecentAccounts ? 'skipRecent' : 'all';
+        const skipGuestsKey = skipGuests ? '-withGuests-' : '';
         return {
-          id: `search-${optionalParamsKey}-${cleanTerm}-${skipRecentKey}-${offset}-${limit}`,
+          id: `search-${optionalParamsKey}-${cleanTerm}${skipGuestsKey}-${skipRecentKey}-${offset}-${limit}`,
           total,
           collectives,
           limit,
@@ -978,6 +984,7 @@ const queries = {
           hostCollectiveIds,
           isHost,
           skipRecentAccounts,
+          skipGuests,
         });
         return generateResults(collectives, total);
       }

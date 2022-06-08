@@ -163,6 +163,7 @@ export const searchCollectivesInDB = async (
     isHost,
     onlyActive,
     skipRecentAccounts,
+    skipGuests = true,
     hasCustomContributionsEnabled,
     countries,
     tags,
@@ -200,6 +201,10 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND (COALESCE((c."data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR c."createdAt" < (NOW() - interval '2 day')) `;
   }
 
+  if (skipGuests) {
+    dynamicConditions += `AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE `;
+  }
+
   if (typeof hasCustomContributionsEnabled === 'boolean') {
     if (hasCustomContributionsEnabled) {
       dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
@@ -234,7 +239,6 @@ export const searchCollectivesInDB = async (
     LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id
     WHERE c."deletedAt" IS NULL
     AND c."deactivatedAt" IS NULL
-    AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
     AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
     AND c.name != 'incognito'
     AND c.name != 'anonymous'
