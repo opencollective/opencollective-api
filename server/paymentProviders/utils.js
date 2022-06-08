@@ -1,3 +1,5 @@
+import slugify from 'limax';
+
 import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
@@ -5,6 +7,7 @@ import ExpenseType from '../constants/expense_type';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
+import { crypto } from '../lib/encryption';
 import logger from '../lib/logger';
 import { toNegative } from '../lib/math';
 import { createRefundTransaction } from '../lib/payments';
@@ -235,14 +238,20 @@ export const persistTransaction = async (virtualCard, transaction) => {
 
 export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
   const slug = vendorProviderId.toString().toLowerCase();
+  const hash = crypto.hash(`${slug}${vendorName}`);
+  const uniqueSlug = slugify(`${vendorName}-${hash.slice(0, 6)}`);
 
   const [vendor] = await models.Collective.findOrCreate({
-    where: { slug },
-    defaults: { name: vendorName, type: CollectiveTypes.VENDOR },
+    where: { [Op.or]: [{ slug }, { slug: uniqueSlug }] },
+    defaults: { name: vendorName, type: CollectiveTypes.VENDOR, slug: uniqueSlug },
   });
 
   if (vendor && vendor.name !== vendorName) {
     logger.warn(`Virtual Card: vendor name mismatch for ${vendorProviderId}: '${vendorName}' / '${vendor.name}'`);
+  }
+  // Update existing vendor to use uniqueSlug.
+  if (vendor.slug === slug) {
+    await vendor.update({ slug: uniqueSlug });
   }
 
   return vendor;
