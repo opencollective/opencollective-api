@@ -3331,10 +3331,6 @@ function defineModel() {
     return this.update({ data: { ...this.data, policies } });
   };
 
-  Collective.prototype.hasPolicy = function (policy) {
-    return this.data?.policies?.[policy] ? this.data.policies[policy] : false;
-  };
-
   /**
    * Class Methods
    */
