@@ -361,7 +361,7 @@ export const buildSearchConditions = (
 export const getTagFrequencies = async args => {
   const searchConditions = getSearchTermSQLConditions(args.searchTerm);
   return sequelize.query(
-    `SELECT UNNEST(tags) AS tag, COUNT(id)
+    `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
       ${searchConditions.sqlConditions}
