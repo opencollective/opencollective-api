@@ -1,3 +1,5 @@
+import slugify from 'limax';
+
 import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import ExpenseStatus from '../constants/expense_status';
@@ -236,7 +238,8 @@ export const persistTransaction = async (virtualCard, transaction) => {
 
 export const getOrCreateVendor = async (vendorProviderId, vendorName) => {
   const slug = vendorProviderId.toString().toLowerCase();
-  const uniqueSlug = crypto.hash(`${slug}${vendorName}`);
+  const hash = crypto.hash(`${slug}${vendorName}`);
+  const uniqueSlug = slugify(`${vendorName}-${hash.slice(0, 6)}`);
 
   const [vendor] = await models.Collective.findOrCreate({
     where: { [Op.or]: [{ slug }, { slug: uniqueSlug }] },
