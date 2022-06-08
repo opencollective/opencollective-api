@@ -153,16 +153,15 @@ const memberInvitationMutations = {
 
         // Restore financial contributions if Collective now has enough admins to comply with host policy
         const collective = await invitation.getCollective();
-        console.log({ collective });
         if (collective.data?.features?.[FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS] === false) {
-          const host = await collective.getHost();
+          const host = await collective.getHostCollective();
           const adminCount = await models.Member.count({
             where: {
               CollectiveId: collective.id,
               role: MemberRoles.ADMIN,
             },
           });
-          if (host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins <= adminCount) {
+          if (host?.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins <= adminCount) {
             await collective.enableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
           }
         }
