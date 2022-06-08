@@ -550,11 +550,12 @@ const accountFieldsDefinition = () => ({
   policies: {
     type: new GraphQLNonNull(Policies),
     async resolve(account, _, req) {
+      const policies = account.data?.policies || {};
       if (req.remoteUser?.isAdminOfCollective(account)) {
-        return account.data?.policies || {};
+        return policies;
       }
 
-      return pick(account.data?.policies, PUBLIC_POLICIES);
+      return pick(policies, PUBLIC_POLICIES);
     },
   },
 });

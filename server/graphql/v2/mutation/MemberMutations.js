@@ -6,6 +6,7 @@ import ActivityTypes from '../../../constants/activities';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import { getPolicy } from '../../../lib/policies';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
@@ -228,12 +229,10 @@ const memberMutations = {
           const adminCount = await models.Member.count({
             where: { CollectiveId: account.id, role: MemberRoles.ADMIN },
           });
-          if (host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins <= adminCount) {
-            throw new Forbidden(
-              `Your host policy requires at least ${
-                host.data.policies[POLICIES.COLLECTIVE_MINIMUM_ADMINS].numberOfAdmins
-              } admins for this account.`,
-            );
+
+          const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+          if (policy?.numberOfAdmins <= adminCount) {
+            throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
           }
         }
       }

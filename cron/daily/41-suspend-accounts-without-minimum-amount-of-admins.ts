@@ -2,7 +2,9 @@ import '../../server/env';
 
 import { roles } from '../../server/constants';
 import FEATURE from '../../server/constants/feature';
+import POLICIES from '../../server/constants/policies';
 import logger from '../../server/lib/logger';
+import { getPolicy } from '../../server/lib/policies';
 import models, { sequelize } from '../../server/models';
 
 const run = async () => {
@@ -26,7 +28,7 @@ const run = async () => {
 
   for (const collective of collectives) {
     const admins = collective.members.length;
-    const requiredAdmins = collective.host.data.policies.COLLECTIVE_MINIMUM_ADMINS.numberOfAdmins;
+    const requiredAdmins = getPolicy(collective.host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins;
     if (admins < requiredAdmins) {
       logger.info(
         `Collective ${collective.slug} has ${admins} out of ${requiredAdmins} required admins, suspending donations.`,

@@ -9,6 +9,7 @@ import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
+import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
@@ -184,10 +185,10 @@ const approveApplication = async (host, collective, remoteUser) => {
     models.MemberInvitation.count({ where }),
   ]);
 
-  if (host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins > adminCount + adminInvitationCount) {
+  if (getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins > adminCount + adminInvitationCount) {
     throw new Forbidden(
       `Your host policy requires at least ${
-        host.data.policies[POLICIES.COLLECTIVE_MINIMUM_ADMINS].numberOfAdmins
+        getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
       } admins for this account.`,
     );
   }
@@ -221,10 +222,8 @@ const approveApplication = async (host, collective, remoteUser) => {
   });
 
   // If collective does not have enough admins, block it from receiving Contributions
-  if (
-    host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.freeze &&
-    host.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins > adminCount
-  ) {
+  const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+  if (policy?.freeze && policy.numberOfAdmins > adminCount) {
     await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
   }
 
