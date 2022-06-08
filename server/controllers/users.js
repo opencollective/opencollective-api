@@ -59,6 +59,17 @@ export const exists = async (req, res) => {
 export const signin = async (req, res, next) => {
   const { redirect, websiteUrl, createProfile = true } = req.body;
   try {
+    const rateLimit = new RateLimit(
+      `user_signin_attempt_ip_${req.ip}`,
+      config.limits.userSigninAttemptsPerHourPerIp,
+      ONE_HOUR_IN_SECONDS,
+      true,
+    );
+    if (!(await rateLimit.registerCall())) {
+      return res.status(403).send({
+        error: { message: 'Rate limit exceeded' },
+      });
+    }
     let user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
     if (!user && !createProfile) {
       return res.status(400).send({
