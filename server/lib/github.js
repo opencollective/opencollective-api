@@ -205,7 +205,10 @@ export async function checkGithubStars(githubHandle, accessToken) {
 
 const githubUsernameRegex = new RegExp('[a-z\\d](?:[a-z\\d]|-(?=[a-z\\d])){0,38}', 'i');
 const githubRepositoryRegex = new RegExp('[a-z\\d](?:[a-z\\.\\d]|-(?=[a-z\\.\\d])){1,100}', 'i');
-const githubHandleRegex = new RegExp(`^${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?$`, 'i');
+export const githubHandleRegex = new RegExp(
+  `^${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?$`,
+  'i',
+);
 const githubPathnameRegex = new RegExp(`^/${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?`, 'i');
 
 /**
