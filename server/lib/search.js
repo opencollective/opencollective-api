@@ -103,7 +103,7 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
     if (term[0] === '@' && splitTerm.length === 1) {
       // When the search starts with a `@`, we search by slug only
       sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
-      sqlConditions = `AND ${collectiveTable ? `${collectiveTable}.` : ''}"slug" ILIKE '%' || :sanitizedTerm || '%' `;
+      sqlConditions = `AND ${collectiveTable ? `${collectiveTable}.` : ''}"slug" ILIKE :sanitizedTerm || '%' `;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
       if (sanitizedTerm) {
