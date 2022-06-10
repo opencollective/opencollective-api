@@ -20,7 +20,6 @@ import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authen
 import models, { sequelize } from '../../../models';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
-import { Policy } from '../enum/Policy';
 import { idDecode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AccountUpdateInput } from '../input/AccountUpdateInput';
@@ -398,7 +397,7 @@ const accountMutations = {
         description: 'Account where the policies are being set',
       },
       policies: {
-        type: new GraphQLList(Policy),
+        type: new GraphQLNonNull(GraphQLJSON),
         description: 'The policy to be added',
       },
     },
@@ -418,7 +417,7 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
-      await account.setPolicies(args.policies || []);
+      await account.setPolicies(args.policies);
       return account;
     },
   },

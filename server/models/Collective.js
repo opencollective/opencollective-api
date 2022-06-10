@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import { TaxType } from '@opencollective/taxes';
 import Promise from 'bluebird';
 import config from 'config';
@@ -21,7 +23,6 @@ import {
   sum,
   sumBy,
   trim,
-  uniq,
   unset,
 } from 'lodash';
 import moment from 'moment';
@@ -1156,19 +1157,34 @@ function defineModel() {
     return this;
   };
 
+  Collective.prototype.enableFeature = async function (feature, { transaction } = {}) {
+    assert(FEATURE[feature], `Feature ${feature} is not supported`);
+
+    const children = await this.getChildren({ transaction });
+    const processCollective = account =>
+      account.update({ data: omit(cloneDeep(account.data || {}), `features.${feature}`) }, { transaction });
+
+    return Promise.all([this, ...children].map(processCollective));
+  };
+
+  Collective.prototype.disableFeature = async function (feature, { transaction } = {}) {
+    assert(FEATURE[feature], `Feature ${feature} is not supported`);
+
+    const children = await this.getChildren({ transaction });
+    const processCollective = account =>
+      account.update({ data: set(cloneDeep(account.data || {}), `features.${feature}`, false) }, { transaction });
+
+    return Promise.all([this, ...children].map(processCollective));
+  };
+
   Collective.prototype.freeze = async function (message) {
-    if (this.data?.features?.ALL === false) {
+    if (this.data?.features?.[FEATURE.ALL] === false) {
       throw new Error('This account is already frozen');
     }
 
     const host = this.host || (await this.getHostCollective());
     await sequelize.transaction(async transaction => {
-      const children = await this.getChildren({ transaction });
-      await Promise.all(
-        [this, ...children].map(account =>
-          account.update({ data: set(cloneDeep(this.data || {}), 'features.ALL', false) }, { transaction }),
-        ),
-      );
+      await this.disableFeature(FEATURE.ALL, { transaction });
 
       // Create the notification
       await models.Activity.create(
@@ -1183,18 +1199,13 @@ function defineModel() {
   };
 
   Collective.prototype.unfreeze = async function (message) {
-    if (this.data?.features?.ALL !== false) {
+    if (this.data?.features?.[FEATURE.ALL] !== false) {
       throw new Error('This account is already unfrozen');
     }
 
     const host = this.host || (await this.getHostCollective());
     await sequelize.transaction(async transaction => {
-      const children = await this.getChildren({ transaction });
-      await Promise.all(
-        [this, ...children].map(account =>
-          account.update({ data: omit(cloneDeep(this.data || {}), 'features.ALL') }, { transaction }),
-        ),
-      );
+      await this.enableFeature(FEATURE.ALL, { transaction });
 
       await models.Activity.create(
         {
@@ -3311,17 +3322,13 @@ function defineModel() {
   };
 
   Collective.prototype.setPolicies = async function (policies) {
-    for (const policy of policies) {
+    for (const policy of Object.keys(policies)) {
       if (!Object.keys(POLICIES).includes(policy)) {
         throw new Error(`Policy ${policy} is not supported`);
       }
     }
 
-    return this.update({ data: { ...this.data, policies: uniq(policies) } });
-  };
-
-  Collective.prototype.hasPolicy = function (policy) {
-    return Boolean(this.data?.policies?.includes(policy));
+    return this.update({ data: { ...this.data, policies } });
   };
 
   /**

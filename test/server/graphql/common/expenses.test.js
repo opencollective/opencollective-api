@@ -298,7 +298,7 @@ describe('server/graphql/common/expenses', () => {
 
     it('throws if author is trying to approve and EXPENSE_AUTHOR_CANNOT_APPROVE policy is set', async () => {
       const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
-      await collective.setPolicies([POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]);
+      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
       const newExpense = await fakeExpense({
         CollectiveId: collective.id,
         FromCollectiveId: collectiveAdmin.CollectiveId,

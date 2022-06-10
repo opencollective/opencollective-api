@@ -9,6 +9,7 @@ import { MemberCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
 import { MemberRole } from '../enum/MemberRole';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
 
 export const HasMembersFields = {
@@ -89,4 +90,5 @@ export const HasMembersFields = {
       return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
     },
   },
+  memberInvitations: MemberInvitationsQuery,
 };

@@ -1,9 +1,11 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { assign, get, invert, isEmpty } from 'lodash';
+import { assign, get, invert, isEmpty, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
+import { PUBLIC_POLICIES } from '../../../constants/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
@@ -21,7 +23,6 @@ import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from '../enum';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
-import { Policy } from '../enum/Policy';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -29,8 +30,10 @@ import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
+import { MemberInvitation } from '../object/MemberInvitation';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
+import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
@@ -187,6 +190,13 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLList(AccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
+    },
+  },
+  memberInvitations: {
+    description: 'Get pending member invitations for this account',
+    type: new GraphQLList(MemberInvitation),
+    args: {
+      role: { type: new GraphQLList(MemberRole) },
     },
   },
   memberOf: {
@@ -538,12 +548,14 @@ const accountFieldsDefinition = () => ({
     },
   },
   policies: {
-    type: new GraphQLList(Policy),
+    type: new GraphQLNonNull(Policies),
     async resolve(account, _, req) {
+      const policies = account.data?.policies || {};
       if (req.remoteUser?.isAdminOfCollective(account)) {
-        return account.data?.policies || [];
+        return policies;
       }
-      return null;
+
+      return pick(policies, PUBLIC_POLICIES);
     },
   },
 });
@@ -635,7 +647,7 @@ export const AccountFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Whether this account is frozen',
     resolve(collective) {
-      return get(collective, 'data.features.ALL') === false;
+      return get(collective, `data.features.${FEATURE.ALL}`) === false;
     },
   },
   isHost: {

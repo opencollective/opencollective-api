@@ -15,6 +15,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
 
+import FEATURE from '../../constants/feature';
 import INTERVALS from '../../constants/intervals';
 import { maxInteger } from '../../constants/math';
 import orderStatus from '../../constants/order_status';
@@ -230,7 +231,7 @@ export const UserType = new GraphQLObjectType({
         type: GraphQLBoolean,
         description: "Returns true if user account is limited (user can't use any feature)",
         resolve(user) {
-          return user.data && user.data.features && user.data.features.ALL === false;
+          return user.data && user.data.features && user.data.features[FEATURE.ALL] === false;
         },
       },
       hasSeenLatestChangelogEntry: {

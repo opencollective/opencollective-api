@@ -3,6 +3,8 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
+import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
@@ -148,6 +150,21 @@ const memberInvitationMutations = {
 
       if (args.accept) {
         await invitation.accept();
+
+        // Restore financial contributions if Collective now has enough admins to comply with host policy
+        const collective = await invitation.getCollective();
+        if (collective.data?.features?.[FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS] === false) {
+          const host = await collective.getHostCollective();
+          const adminCount = await models.Member.count({
+            where: {
+              CollectiveId: collective.id,
+              role: MemberRoles.ADMIN,
+            },
+          });
+          if (host?.data?.policies?.[POLICIES.COLLECTIVE_MINIMUM_ADMINS]?.numberOfAdmins <= adminCount) {
+            await collective.enableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+          }
+        }
       } else {
         await invitation.decline();
       }

@@ -120,7 +120,7 @@ export const hasOptedInForFeature = (collective: typeof models.Collective, featu
 export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
   if (!collective) {
     return false;
-  } else if (get(collective, 'data.features.ALL') === false) {
+  } else if (get(collective, `data.features.${FEATURE.ALL}`) === false) {
     return false;
   }
 
@@ -150,7 +150,7 @@ export const hasFeature = (collective: typeof models.Collective, feature: FEATUR
     return false;
   }
 
-  return true;
+  return get(collective, `data.features.${feature}`, true);
 };
 
 export { FEATURE };

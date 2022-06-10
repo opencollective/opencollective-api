@@ -3,8 +3,10 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { pick } from 'lodash';
 
 import ActivityTypes from '../../../constants/activities';
+import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import { getPolicy } from '../../../lib/policies';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
@@ -220,6 +222,18 @@ const memberMutations = {
       if (args.role === MemberRoles.ADMIN) {
         if (await isLastAdmin(account, memberAccount)) {
           throw new Forbidden('There must be at least one admin for the account.');
+        }
+
+        const host = await account.getHostCollective();
+        if (host) {
+          const adminCount = await models.Member.count({
+            where: { CollectiveId: account.id, role: MemberRoles.ADMIN },
+          });
+
+          const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+          if (policy?.numberOfAdmins <= adminCount) {
+            throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
+          }
         }
       }
 

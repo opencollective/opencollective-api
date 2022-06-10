@@ -1,17 +1,23 @@
 import express from 'express';
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 
 import { activities } from '../../../constants';
 import { types as CollectiveType } from '../../../constants/collectives';
+import FEATURE from '../../../constants/feature';
+import POLICIES from '../../../constants/policies';
+import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
+import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
-import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { processInviteMembersInput } from '../../common/members';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
+import { InviteMemberInput } from '../input/InviteMemberInput';
 import { Account } from '../interface/Account';
 import Conversation from '../object/Conversation';
 
@@ -50,6 +56,10 @@ const HostApplicationMutations = {
         type: GraphQLJSON,
         description: 'Further information about collective applying to host',
       },
+      inviteMembers: {
+        type: new GraphQLList(InviteMemberInput),
+        description: 'A list of members to invite when applying to the host',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       if (!req.remoteUser) {
@@ -74,10 +84,16 @@ const HostApplicationMutations = {
 
       // No need to check the balance, this is being handled in changeHost, along with most other checks
 
-      return collective.changeHost(host.id, req.remoteUser, {
+      const response = await collective.changeHost(host.id, req.remoteUser, {
         message: args.message,
         applicationData: args.applicationData,
       });
+
+      if (args.inviteMembers && args.inviteMembers.length) {
+        await processInviteMembersInput(args, req, { supportedRoles: [MemberRoles.ADMIN], collective });
+      }
+
+      return response;
     },
   },
   processHostApplication: {
@@ -159,6 +175,23 @@ const HostApplicationMutations = {
 };
 
 const approveApplication = async (host, collective, remoteUser) => {
+  const where = {
+    CollectiveId: collective.id,
+    role: MemberRoles.ADMIN,
+  };
+
+  const [adminCount, adminInvitationCount] = await Promise.all([
+    models.Member.count({ where }),
+    models.MemberInvitation.count({ where }),
+  ]);
+
+  if (getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins > adminCount + adminInvitationCount) {
+    throw new Forbidden(
+      `Your host policy requires at least ${
+        getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
+      } admins for this account.`,
+    );
+  }
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
   await sequelize.transaction(async transaction => {
     const newAccountData = { isActive: true, approvedAt: new Date(), HostCollectiveId: host.id };
@@ -187,6 +220,12 @@ const approveApplication = async (host, collective, remoteUser) => {
       },
     },
   });
+
+  // If collective does not have enough admins, block it from receiving Contributions
+  const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+  if (policy?.freeze && policy.numberOfAdmins > adminCount) {
+    await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+  }
 
   // Purge cache and change the status of the application
   purgeCacheForCollective(collective.slug);
