@@ -229,6 +229,7 @@ describe('server/lib/recurring-contributions', () => {
         },
         fromCollective: { slug: 'cslug', minimal: { id: 1 } },
         createdByUser: { email: 'user3@opencollective.com' },
+        getUserForActivity: () => Promise.resolve({ email: 'user3@opencollective.com' }),
       };
 
       // And given that we expect the method send from the mock to be
