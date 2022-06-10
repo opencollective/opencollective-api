@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLString } from 'graphql';
 
+import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../../../lib/github';
 import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
@@ -36,11 +37,19 @@ export const buildAccountQuery = ({ objectType }) => ({
       collective = await req.loaders.Collective.byId.load(id);
     } else if (args.githubHandle) {
       // Try with githubHandle, be it organization/user or repository
-      collective = await models.Collective.findOne({ where: { githubHandle: args.githubHandle } });
-      if (!collective && args.githubHandle.includes('/')) {
+      const repositoryUrl = getGithubUrlFromHandle(args.githubHandle);
+      if (!repositoryUrl) {
+        throw new Error(`Invalid githubHandle: ${args.githubHandle}`);
+      }
+
+      collective = await models.Collective.findOne({ where: { repositoryUrl } });
+      if (!collective) {
         // If it's a repository, try again with organization/user
-        const [githubOrg] = args.githubHandle.split('/');
-        collective = await models.Collective.findOne({ where: { githubHandle: githubOrg } });
+        const githubHandle = getGithubHandleFromUrl(repositoryUrl);
+        if (githubHandle.includes('/')) {
+          const [githubOrg] = githubHandle.split('/');
+          collective = await models.Collective.findOne({ where: { githubHandle: githubOrg } });
+        }
       }
     } else {
       return new Error('Please provide a slug or an id');

@@ -102,6 +102,10 @@ const accountFieldsDefinition = () => ({
   },
   githubHandle: {
     type: GraphQLString,
+    deprecationReason: '2022-06-03: Please use repositoryUrl',
+  },
+  repositoryUrl: {
+    type: GraphQLString,
   },
   currency: {
     type: GraphQLString,

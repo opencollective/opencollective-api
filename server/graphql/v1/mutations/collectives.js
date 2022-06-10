@@ -186,7 +186,12 @@ export async function createCollectiveFromGithub(_, args, req) {
 
   let collective;
   const user = req.remoteUser;
-  const githubHandle = args.collective.githubHandle;
+
+  if (args.collective.githubHandle && !github.githubHandleRegex.test(args.collective.githubHandle)) {
+    throw new ValidationFailed('githubHandle must be a valid github handle');
+  }
+
+  const githubHandle = github.getGithubHandleFromUrl(args.collective.repositoryUrl) || args.collective.githubHandle;
   const collectiveData = {
     ...args.collective,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
@@ -304,6 +309,10 @@ export function editCollective(_, args, req) {
     ...omit(args.collective, ['location', 'type', 'ParentCollectiveId', 'data', 'privateInstructions']),
     LastEditedByUserId: req.remoteUser.id,
   };
+
+  if (args.collective.githubHandle && !github.githubHandleRegex.test(args.collective.githubHandle)) {
+    throw new ValidationFailed('githubHandle must be a valid github handle');
+  }
 
   // Set location values
   const location = args.collective.location || {};

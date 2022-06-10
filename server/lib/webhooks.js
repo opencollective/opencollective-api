@@ -22,6 +22,7 @@ const getCollectiveInfo = collective => {
       'website',
       'twitterHandle',
       'githubHandle',
+      'repositoryUrl',
       'description',
       'previewImage',
       'image',

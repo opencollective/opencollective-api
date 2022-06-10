@@ -61,6 +61,7 @@ export const createUser = (
           'website',
           'twitterHandle',
           'githubHandle',
+          'repositoryUrl',
         ]),
       };
       organization = await models.Collective.create(organizationParams, { transaction });
