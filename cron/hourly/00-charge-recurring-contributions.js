@@ -60,11 +60,17 @@ async function run(options) {
 
   for (const order of orders) {
     queue.add(() =>
-      processOrderWithSubscription(order, options).then(csvEntry => {
-        if (csvEntry) {
-          data.push(csvEntry);
-        }
-      }),
+      processOrderWithSubscription(order, options)
+        .then(csvEntry => {
+          if (csvEntry) {
+            data.push(csvEntry);
+          }
+        })
+        .catch(err => {
+          console.log(`Error while processing order #${order.id} ${err.message}`);
+          console.log(err);
+          // TODO: report error on Sentry
+        }),
     );
   }
 
@@ -92,7 +98,9 @@ async function run(options) {
         await emailReport(orders, groupProcessedOrders(data), attachments);
       }
     } catch (err) {
+      console.log(`Error while generating report ${err.message}`);
       console.log(err);
+      // TODO: report error on Sentry
     }
 
     await sequelize.close();

@@ -603,28 +603,10 @@ const validatePayment = payment => {
   }
 };
 
-// For legacy purpose, we want to get a single user that we will use for:
-// - authentication with the PDF service
-// - constructing notification/activity objects
-// We can't rely on createdByUser because they have moved out of the Organization, Collective, etc ...
-const getUserForOrder = async order => {
-  if (order.fromCollective.type !== 'USER') {
-    const admins = await order.fromCollective.getAdmins();
-    if (admins.length > 0) {
-      const firstAdminUser = await admins[0].getUser();
-      if (firstAdminUser) {
-        return firstAdminUser;
-      }
-    }
-  }
-
-  return order.createdByUser;
-};
-
 const sendOrderConfirmedEmail = async (order, transaction) => {
   const attachments = [];
   const { collective, tier, interval, fromCollective, paymentMethod } = order;
-  const user = await getUserForOrder(order);
+  const user = await order.getUserForActivity();
   const host = await collective.getHostCollective();
 
   if (tier && tier.type === tiers.TICKET) {

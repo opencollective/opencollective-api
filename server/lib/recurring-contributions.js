@@ -32,8 +32,8 @@ export async function ordersWithPendingCharges({ limit, startDate } = {}) {
     limit: limit,
     include: [
       { model: models.User, as: 'createdByUser' },
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
+      { model: models.Collective, as: 'collective', required: true },
+      { model: models.Collective, as: 'fromCollective', required: true },
       { model: models.PaymentMethod, as: 'paymentMethod' },
       { model: models.Tier, as: 'Tier' },
       {
@@ -163,6 +163,8 @@ export async function processOrderWithSubscription(order, options) {
       }
     } catch (error) {
       console.log(`Error notifying order #${order.id} ${error}`);
+      console.log(error);
+      // TODO: report error on Sentry
     } finally {
       await order.Subscription.save();
       await order.save();
@@ -381,7 +383,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   const attachments = [];
   const { collective, paymentMethod } = order;
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
-  const user = order.createdByUser;
+  const user = await order.getUserForActivity();
   const host = await order.collective.getHostCollective();
 
   const data = {
