@@ -141,7 +141,6 @@ WITH banned_collectives AS (
   UPDATE ONLY "Orders" o SET "deletedAt" = NOW()
   FROM        deleted_profiles
   WHERE       (o."FromCollectiveId" = deleted_profiles.id OR o."CollectiveId" = deleted_profiles.id)
-  AND         o.status IN ('EXPIRED', 'PENDING', 'ERROR', 'CANCELLED')
   RETURNING   o.id
 ), deleted_notifications AS (
   -- Delete notifications
