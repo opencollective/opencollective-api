@@ -829,11 +829,13 @@ export async function sendMessageToCollective(_, args, req) {
   }
 
   // Limit email sent per user
-  const maxEmailMessagePerHour = config.limits.collectiveEmailMessagePerHour;
-  const cacheKey = `user_contact_send_message_${user.id}`;
-  const rateLimit = new RateLimit(cacheKey, maxEmailMessagePerHour, ONE_HOUR_IN_SECONDS);
-  if (!(await rateLimit.registerCall())) {
-    throw new RateLimitExceeded('Too many messages sent in a limited time frame. Please try again later.');
+  if (!user.isAdminOfCollectiveOrHost(collective) && !user.isRoot()) {
+    const maxEmailMessagePerHour = config.limits.collectiveEmailMessagePerHour;
+    const cacheKey = `user_contact_send_message_${user.id}`;
+    const rateLimit = new RateLimit(cacheKey, maxEmailMessagePerHour, ONE_HOUR_IN_SECONDS);
+    if (!(await rateLimit.registerCall())) {
+      throw new RateLimitExceeded('Too many messages sent in a limited time frame. Please try again later.');
+    }
   }
 
   // Create the activity (which will send the message to the users)
