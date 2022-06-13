@@ -43,6 +43,7 @@ export default {
   COLLECTIVE_UPDATE_PUBLISHED: 'collective.update.published',
   COLLECTIVE_CONTACT: 'collective.contact',
   COLLECTIVE_VIRTUAL_CARD_ADDED: 'collective.virtualcard.added',
+  CONTRIBUTION_REJECTED: 'contribution.rejected',
   ORGANIZATION_COLLECTIVE_CREATED: 'organization.collective.created',
   SUBSCRIPTION_ACTIVATED: 'subscription.activated',
   SUBSCRIPTION_CONFIRMED: 'subscription.confirmed',

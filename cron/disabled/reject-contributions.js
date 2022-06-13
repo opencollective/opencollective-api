@@ -4,6 +4,7 @@ import '../../server/env';
 import { ArgumentParser } from 'argparse';
 import { get, intersection } from 'lodash';
 
+import { activities } from '../../server/constants';
 import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation-categories';
 import orderStatus from '../../server/constants/order_status';
 import { purgeCacheForCollective } from '../../server/lib/cache';
@@ -189,7 +190,7 @@ async function run({ dryRun, limit, force } = {}) {
 
     if (shouldNotifyContributor) {
       const activity = {
-        type: 'contribution.rejected',
+        type: activities.CONTRIBUTION_REJECTED,
         data: {
           collective: { name: collective.name },
           rejectionReason: `${collective.name} banned some specific categories of contributors and there was a match with your profile.`,
