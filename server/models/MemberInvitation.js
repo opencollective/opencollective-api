@@ -160,7 +160,18 @@ function defineModel() {
   };
 
   MemberInvitation.prototype.decline = async function () {
-    return this.destroy();
+    await this.destroy();
+    const collective = this.collective || (await this.getCollective());
+    const memberCollective = this.memberCollective || (await this.getMemberCollective());
+    await models.Activity.create({
+      type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
+      CollectiveId: this.CollectiveId,
+      data: {
+        notify: false,
+        memberCollective: memberCollective?.activity,
+        collective: collective?.activity,
+      },
+    });
   };
 
   MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAdmin = false, sequelizeParams = null) {

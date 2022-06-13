@@ -654,6 +654,28 @@ export const fakeMember = async (data: Record<string, unknown> = {}) => {
   return member;
 };
 
+/**
+ * Creates a fake member invitation
+ */
+export const fakeMemberInvitation = async (data: Record<string, unknown> = {}) => {
+  const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
+  const memberCollective = data.MemberCollectiveId
+    ? await models.Collective.findByPk(data.MemberCollectiveId)
+    : (await fakeUser()).collective;
+  const member = await models.MemberInvitation.create({
+    ...data,
+    CollectiveId: collective.id,
+    MemberCollectiveId: memberCollective.id,
+    role: data.role || roles.ADMIN,
+    CreatedByUserId: collective.CreatedByUserId,
+  });
+
+  // Attach associations
+  member.collective = collective;
+  member.memberCollective = memberCollective;
+  return member;
+};
+
 const fakePaymentMethodToken = (service, type) => {
   if (service === 'stripe' && type === 'creditcard') {
     return `pm_${randStrOfLength(24)}`;
