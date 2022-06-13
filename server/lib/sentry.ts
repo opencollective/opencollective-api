@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import type { SeverityLevel } from '@sentry/types';
 import config from 'config';
 import { isEqual } from 'lodash';
 
@@ -87,7 +88,7 @@ export const SentryGraphQLPlugin = {
               scope.addBreadcrumb({
                 category: 'query-path',
                 message: err.path.join(' > '),
-                level: Sentry.Severity.Debug,
+                level: 'debug' as SeverityLevel,
               });
             }
 
