@@ -3,6 +3,7 @@ import { get, omit } from 'lodash';
 import moment from 'moment';
 import { Op } from 'sequelize';
 
+import activities from '../constants/activities';
 import intervals from '../constants/intervals';
 import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
@@ -368,7 +369,7 @@ export async function sendFailedEmail(order, lastAttempt) {
   };
 
   const activity = {
-    type: 'payment.failed',
+    type: activities.PAYMENT_FAILED,
     data,
   };
 
