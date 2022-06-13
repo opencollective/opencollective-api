@@ -6,6 +6,7 @@ import ACTIVITY from '../../constants/activities';
 import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
 import models, { Op, sequelize } from '../../models';
+import { Activity } from '../../models/Activity';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
@@ -28,7 +29,7 @@ export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> 
 /**
  * Load all activities for an expense
  */
-export const generateExpenseActivitiesLoader = (req: express.Request): DataLoader<number, typeof models.Activity> => {
+export const generateExpenseActivitiesLoader = (req: express.Request): DataLoader<number, Activity[]> => {
   return new DataLoader(async (expenseIDs: number[]) => {
     // Optimization: load expenses to get their collective IDs, as filtering on `data` (JSON)
     // can be expensive.
