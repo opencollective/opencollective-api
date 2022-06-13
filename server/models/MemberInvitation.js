@@ -143,7 +143,7 @@ function defineModel() {
       purgeCacheForCollective(collective.slug);
     }
 
-    if ([roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER].includes(this.role)) {
+    if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(this.role)) {
       const member = await models.Collective.findByPk(this.MemberCollectiveId);
       await models.Activity.create({
         type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
@@ -160,7 +160,18 @@ function defineModel() {
   };
 
   MemberInvitation.prototype.decline = async function () {
-    return this.destroy();
+    await this.destroy();
+    const collective = this.collective || (await this.getCollective());
+    const memberCollective = this.memberCollective || (await this.getMemberCollective());
+    await models.Activity.create({
+      type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
+      CollectiveId: this.CollectiveId,
+      data: {
+        notify: false,
+        memberCollective: memberCollective?.activity,
+        collective: collective?.activity,
+      },
+    });
   };
 
   MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAdmin = false, sequelizeParams = null) {
@@ -241,7 +252,7 @@ function defineModel() {
       invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
       invitation.collective = collective;
 
-      if ([roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER].includes(this.role)) {
+      if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
         const member = await models.Collective.findByPk(memberParams.MemberCollectiveId);
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
