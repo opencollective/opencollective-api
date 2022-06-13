@@ -1,20 +1,92 @@
+/**
+ * This file wraps Sentry for our API server. We are plugging it in 3 places:
+ * 1. For the GraphQL API, in `server/routes.js` > GraphQL server plugin
+ * 2. For all other REST endpoints, in `server/middleware/error_handler.js`
+ * 3. As a fallback for the entire APP (esp. CRON jobs), in this own file (see `.on('unhandledRejection')`)
+ */
+
+import '../env';
+
 import * as Sentry from '@sentry/node';
 import type { SeverityLevel } from '@sentry/types';
 import config from 'config';
-import { isEqual } from 'lodash';
+import { isEmpty, isEqual } from 'lodash';
 
-export const plugSentryToApp = (): void => {
-  if (!config.sentry?.dsn) {
-    return;
-  }
+import logger from './logger';
 
+if (config.sentry?.dsn) {
+  logger.info('Initializing Sentry');
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.env,
     attachStacktrace: true,
     enabled: config.env !== 'test',
   });
+
+  // Catch all errors that haven't been caught anywhere else
+  process
+    .on('unhandledRejection', (reason: any) => {
+      reportErrorToSentry(reason, { severity: 'fatal', handler: HandlerType.FALLBACK });
+    })
+    .on('uncaughtException', (err: Error) => {
+      reportErrorToSentry(err, { severity: 'fatal', handler: HandlerType.FALLBACK });
+    });
+}
+
+export enum HandlerType {
+  GQL = 'GQL',
+  REST = 'REST',
+  CRON = 'CRON',
+  FALLBACK = 'FALLBACK',
+}
+
+type CaptureErrorParams = {
+  severity?: SeverityLevel;
+  tags?: Record<string, string>;
+  extra?: Record<string, unknown>;
+  breadcrumbs?: Sentry.Breadcrumb[];
+  user?: Sentry.User;
+  handler?: HandlerType;
 };
+
+/**
+ * Helper to capture an error on Sentry
+ */
+export const reportErrorToSentry = (
+  err: Error,
+  { severity = 'error', tags, handler, extra, user, breadcrumbs }: CaptureErrorParams = {},
+): void => {
+  Sentry.withScope(scope => {
+    scope.setLevel(severity);
+
+    // Set tags
+    if (handler) {
+      scope.setTag('handler', handler);
+    }
+    if (!isEmpty(tags)) {
+      Object.entries(tags).forEach(([tag, value]) => scope.setTag(tag, value));
+    }
+
+    // Set user
+    if (user) {
+      scope.setUser(user);
+    }
+
+    // Set breadcrumbs
+    if (breadcrumbs) {
+      breadcrumbs.forEach(breadcrumb => scope.addBreadcrumb(breadcrumb));
+    }
+
+    // Set extra
+    if (!isEmpty(extra)) {
+      Object.entries(extra).forEach(([key, value]) => scope.setExtra(key, value));
+    }
+
+    Sentry.captureException(err);
+  });
+};
+
+// GraphQL
 
 const IGNORED_GQL_ERRORS = [
   {
@@ -66,36 +138,30 @@ export const SentryGraphQLPlugin = {
             continue;
           }
 
-          // Add scoped report details and send to Sentry
-          Sentry.withScope(scope => {
-            // Annotate whether failing operation was query/mutation/subscription
-            scope.setTag('kind', ctx.operation.operation);
+          // Try to generate a User object for Sentry if logged in
+          let remoteUserForSentry: Sentry.User | undefined;
+          if (ctx.context.remoteUser) {
+            remoteUserForSentry = { id: ctx.context.remoteUser.id, CollectiveId: ctx.context.remoteUser.CollectiveId };
+          }
 
-            // Log query and variables as extras
-            scope.setExtra('query', ctx.request.query);
-            scope.setExtra('variables', JSON.stringify(ctx.request.variables));
-
-            // Add logged in user (if any)
-            if (ctx.context.remoteUser) {
-              scope.setUser({
-                id: ctx.context.remoteUser.id,
-                CollectiveId: ctx.context.remoteUser.CollectiveId,
-              });
-            }
-
-            if (err.path) {
-              // We can also add the path as breadcrumb
-              scope.addBreadcrumb({
+          reportErrorToSentry(err, {
+            handler: HandlerType.GQL,
+            severity: 'error',
+            user: remoteUserForSentry,
+            tags: { kind: ctx.operation.operation },
+            extra: { query: ctx.request.query, variables: JSON.stringify(ctx.request.variables) },
+            breadcrumbs: err.path && [
+              {
                 category: 'query-path',
                 message: err.path.join(' > '),
                 level: 'debug' as SeverityLevel,
-              });
-            }
-
-            Sentry.captureException(err);
+              },
+            ],
           });
         }
       },
     };
   },
 };
+
+export { Sentry };
