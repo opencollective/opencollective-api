@@ -375,6 +375,32 @@ function defineModel() {
     });
   };
 
+  // For legacy purpose, we want to get a single user that we will use for:
+  // - authentication with the PDF service
+  // - constructing notification/activity objects
+  // We can't rely on createdByUser because they have moved out of the Organization, Collective, etc ...
+  Order.prototype.getUserForActivity = async function () {
+    if (!this.fromCollective) {
+      this.fromCollective = await this.getFromCollective();
+    }
+
+    if (this.fromCollective.type !== 'USER') {
+      const admins = await this.fromCollective.getAdmins();
+      if (admins.length > 0) {
+        const firstAdminUser = await admins[0].getUser();
+        if (firstAdminUser) {
+          return firstAdminUser;
+        }
+      }
+    }
+
+    if (!this.createdByUser) {
+      this.createdByUser = await this.getUser();
+    }
+
+    return this.createdByUser;
+  };
+
   /**
    * Populate all the foreign keys if necessary
    * (order.fromCollective, order.collective, order.createdByUser, order.tier)
