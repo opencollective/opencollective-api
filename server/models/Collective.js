@@ -1907,10 +1907,8 @@ function defineModel() {
     }
 
     // We only send the notification for new member for role MEMBER and ADMIN
-    const supportedTemplates = ['collective', 'organization'];
     const lowercaseType = this.type.toLowerCase();
-    const typeForTemplate = supportedTemplates.includes(lowercaseType) ? lowercaseType : 'collective';
-    const template = `${typeForTemplate}.newmember`;
+    const template = lowercaseType === 'organization' ? 'organization.newmember' : 'collective.newmember';
     return emailLib.send(
       template,
       memberUser.email,

@@ -1,6 +1,7 @@
 import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order_status';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -175,7 +176,7 @@ const transactionMutations = {
       const data = { collective, rejectionReason };
 
       const activity = {
-        type: 'contribution.rejected',
+        type: activities.CONTRIBUTION_REJECTED,
         data,
       };
 

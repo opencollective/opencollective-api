@@ -43,6 +43,7 @@ export default {
   COLLECTIVE_UPDATE_PUBLISHED: 'collective.update.published',
   COLLECTIVE_CONTACT: 'collective.contact',
   COLLECTIVE_VIRTUAL_CARD_ADDED: 'collective.virtualcard.added',
+  CONTRIBUTION_REJECTED: 'contribution.rejected',
   ORGANIZATION_COLLECTIVE_CREATED: 'organization.collective.created',
   SUBSCRIPTION_ACTIVATED: 'subscription.activated',
   SUBSCRIPTION_CONFIRMED: 'subscription.confirmed',
@@ -58,6 +59,7 @@ export default {
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT: 'activated.collective.as.independent',
   DEACTIVATED_COLLECTIVE_AS_HOST: 'deactivated.collective.as.host',
   VIRTUAL_CARD_REQUESTED: 'virtual_card.requested',
+  PAYMENT_FAILED: 'payment.failed',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG: 'added.fund.to.org',
