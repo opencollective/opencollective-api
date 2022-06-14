@@ -7,11 +7,12 @@ const errors = {
     Error.call(this, msg);
   },
 
-  ValidationFailed: function (type, fields, msg) {
+  ValidationFailed: function (type, fields, msg, data) {
     this.code = 400;
     this.type = type || 'validation_failed';
     this.message = msg || 'Missing required fields';
     this.fields = fields;
+    this.data = data;
   },
 
   Unauthorized: function (msg) {
