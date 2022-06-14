@@ -128,10 +128,11 @@ async function createCollective(_, args, req) {
       }
 
       if (args.inviteMembers && args.inviteMembers.length) {
-        await processInviteMembersInput(args, req, {
+        await processInviteMembersInput(args, {
           transaction,
           supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
           collective,
+          user,
         });
       }
 
