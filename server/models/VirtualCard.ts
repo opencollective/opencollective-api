@@ -1,14 +1,10 @@
 import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
+import VirtualCardProviders from '../constants/virtual_card_providers';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
-
-export enum VirtualCardProviders {
-  PRIVACY = 'PRIVACY',
-  STRIPE = 'STRIPE',
-}
 
 class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttributes<VirtualCard>> {
   public declare id: CreationOptional<string>;
