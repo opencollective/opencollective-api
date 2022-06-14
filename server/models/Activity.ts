@@ -1,11 +1,12 @@
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
+import ActivityTypes from '../constants/activities';
 import notify from '../lib/notifications';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
   public declare readonly id: CreationOptional<number>;
-  public declare type: string;
+  public declare type: ActivityTypes;
   public declare data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   public declare CollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
