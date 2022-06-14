@@ -3091,7 +3091,16 @@ function defineModel() {
       sections.push(args.height);
     }
 
-    return `${sections.join('/')}.${args.format || 'png'}`;
+    // Re-use original image format if supported, default to png otherwise
+    let format = args.format;
+    if (!format) {
+      format = this.backgroundImage.split('.').pop();
+      if (!['jpg', 'png'].includes(format)) {
+        format = 'png';
+      }
+    }
+
+    return `${sections.join('/')}.${format}`;
   };
 
   Collective.prototype.getHostedCollectivesCount = function () {
