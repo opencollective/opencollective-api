@@ -68,6 +68,7 @@
     "maxWebhooksPerUserPerCollective": 50,
     "searchEmailPerHour": 150,
     "searchEmailPerHourPerIp": 50,
+    "userSigninAttemptsPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60
   },

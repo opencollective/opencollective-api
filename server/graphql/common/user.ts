@@ -40,7 +40,10 @@ export const createUser = (
     let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() } }, { transaction });
 
     if (throwIfExists && user) {
-      throw new ValidationFailed('It looks like that email already exists, please sign in instead');
+      throw new ValidationFailed(
+        'It looks like that email already exists, please sign in instead',
+        'EMAIL_ALREADY_EXISTS',
+      );
     } else if (!user) {
       // Create user
       user = await models.User.createUserWithCollective(userData, transaction);
