@@ -8,6 +8,7 @@ const VALID_GITHUB_PROFILES = {
   'https://github.com/opencollective666/repo666': 'opencollective666/repo666',
   'https://github.com/my-org/my-repo': 'my-org/my-repo',
   'https://github.com/my-org/my.repo': 'my-org/my.repo',
+  'https://github.com/my-org/.my-repo': 'my-org/.my-repo',
 };
 
 const INVALID_GITHUB_URLS = ['https://example.com', 'https://github.com'];
@@ -19,6 +20,7 @@ const INVALID_GITHUB_HANDLES = [
   'https://example.com',
   'my.org', // Dots not allowed in usernames
   '-nope', // Cannot start with -
+  'test/-nope', // Cannot start with -
 ];
 
 describe('server/lib/github', () => {
