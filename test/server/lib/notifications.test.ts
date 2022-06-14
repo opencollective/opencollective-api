@@ -200,7 +200,7 @@ describe('server/lib/notification', () => {
 
     it('notifies only admins', async () => {
       const collective = await fakeCollective();
-      const activity = { type: 'TEST', CollectiveId: collective.id, data: {} };
+      const activity = { type: activities.ACTIVITY_ALL, CollectiveId: collective.id, data: {} };
 
       // Some random members to make sure our select query is working
       await fakeMember();
@@ -237,7 +237,7 @@ describe('server/lib/notification', () => {
 
     it('notifies only admins and accountants', async () => {
       const collective = await fakeCollective();
-      const activity = { type: 'TEST', CollectiveId: collective.id, data: {} };
+      const activity = { type: activities.ACTIVITY_ALL, CollectiveId: collective.id, data: {} };
 
       // Some random members to make sure our select query is working
       await fakeMember();
@@ -268,7 +268,7 @@ describe('server/lib/notification', () => {
     it('notifies only admins and accountants of parent', async () => {
       const collective = await fakeCollective();
       const event = await fakeEvent({ ParentCollectiveId: collective.id });
-      const activity = { type: 'TEST', CollectiveId: event.id, data: {} };
+      const activity = { type: activities.ACTIVITY_ALL, CollectiveId: event.id, data: {} };
 
       // Some random members to make sure our select query is working
       await fakeMember();
