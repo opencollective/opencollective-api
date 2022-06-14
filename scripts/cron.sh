@@ -7,5 +7,5 @@ TZ=utc
 
 for FILE in `ls $FILE_PATH`; do 
   echo "Running $BIN $FILE_PATH$FILE";
-  "$BIN_PATH/$BIN" ${BIN_OPTIONS} "$FILE_PATH$FILE";
+  "$BIN_PATH/$BIN" ${BIN_OPTIONS} -r "./server/lib/sentry.ts" "$FILE_PATH$FILE";
 done;

@@ -8,10 +8,12 @@ import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import models from '../models';
 
+import { FEATURE } from './allowed-features';
 import logger from './logger';
 import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
+import { reportErrorToSentry } from './sentry';
 import { getEditRecurringContributionsUrl } from './url-utils';
 import { sleep, toIsoDateStr } from './utils';
 
@@ -163,8 +165,7 @@ export async function processOrderWithSubscription(order, options) {
       }
     } catch (error) {
       console.log(`Error notifying order #${order.id} ${error}`);
-      console.log(error);
-      // TODO: report error on Sentry
+      reportErrorToSentry(error, { severity: 'fatal', tags: { feature: FEATURE.RECURRING_CONTRIBUTIONS } });
     } finally {
       await order.Subscription.save();
       await order.save();
