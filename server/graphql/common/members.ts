@@ -43,15 +43,15 @@ export async function editPublicMessage(_, { fromAccount, toAccount, FromCollect
 }
 
 export async function processInviteMembersInput(
-  args: { collective; inviteMembers: [{ memberAccount?; memberInfo?; role; description?; since? }]; skipDefaultAdmin },
-  options: { transaction?; supportedRoles?: [string]; collective?; user? },
+  collective: typeof models.Collective,
+  inviteMemberInputs: [{ memberAccount?; memberInfo?; role; description?; since? }],
+  options: { skipDefaultAdmin?; transaction?; supportedRoles?: [string]; user? },
 ) {
-  const collective = options.collective || (await fetchAccountWithReference(args.collective));
-  if (args.inviteMembers.length > 30) {
+  if (inviteMemberInputs.length > 30) {
     throw new Error('You exceeded the maximum number of invitations allowed at Collective creation.');
   }
 
-  for (const inviteMember of args.inviteMembers) {
+  for (const inviteMember of inviteMemberInputs) {
     if (!options.supportedRoles?.includes(inviteMember.role)) {
       throw new Forbidden('You can only invite accountants, admins, or members.');
     }
@@ -78,7 +78,7 @@ export async function processInviteMembersInput(
     };
     await models.MemberInvitation.invite(collective, memberParams, {
       transaction: options.transaction,
-      skipDefaultAdmin: args.skipDefaultAdmin,
+      skipDefaultAdmin: options.skipDefaultAdmin,
     });
   }
 }

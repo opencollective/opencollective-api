@@ -253,16 +253,19 @@ function defineModel() {
       invitation.collective = collective;
 
       if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
-        const member = await models.Collective.findByPk(memberParams.MemberCollectiveId);
-        await models.Activity.create({
-          type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
-          CollectiveId: collective.id,
-          data: {
-            notify: false,
-            memberCollective: member.activity,
-            collective: collective.activity,
+        const memberCollective = await models.Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+        await models.Activity.create(
+          {
+            type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+            CollectiveId: collective.id,
+            data: {
+              notify: false,
+              memberCollective: memberCollective.activity,
+              collective: collective.activity,
+            },
           },
-        });
+          sequelizeParams,
+        );
       }
     }
 

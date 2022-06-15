@@ -2,8 +2,11 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { createSandbox } from 'sinon';
 
+import { activities } from '../../../../../server/constants';
 import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
+import models from '../../../../../server/models';
+import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
   fakeEvent,
@@ -13,6 +16,27 @@ import {
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
+
+const APPLY_TO_HOST_MUTATION = gqlV2/* GraphQL */ `
+  mutation ApplyToHost(
+    $collective: AccountReferenceInput!
+    $host: AccountReferenceInput!
+    $message: String
+    $inviteMembers: [InviteMemberInput]
+  ) {
+    applyToHost(collective: $collective, host: $host, message: $message, inviteMembers: $inviteMembers) {
+      id
+      isActive
+      ... on AccountWithHost {
+        isApproved
+        host {
+          id
+          slug
+        }
+      }
+    }
+  }
+`;
 
 const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
   mutation ProcessHostApplication(
@@ -54,6 +78,10 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
 `;
 
 describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
+  before(async () => {
+    await resetTestDB();
+  });
+
   describe('processHostApplication', () => {
     let host, collective, hostAdmin, application, collectiveAdmin, sandbox, children, sendEmailSpy;
     const callProcessAction = (params, loggedInUser = null) => {
@@ -69,7 +97,6 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
     };
 
     before(async () => {
-      await resetTestDB();
       sandbox = createSandbox();
       sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
       hostAdmin = await fakeUser();
@@ -216,6 +243,94 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(body).to.include(`Your application to be fiscally hosted by ${host.name} has been rejected`);
         expect(bcc).to.eq('emailbcc@opencollective.com');
       });
+    });
+  });
+
+  describe('applyToHost', () => {
+    it('needs to be an admin of the applying collective', async () => {
+      const host = await fakeHost();
+      const adminUser = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const mutationParams = { host: { slug: host.slug }, collective: { slug: collective.slug } };
+      const resultUnauthenticated = await graphqlQueryV2(APPLY_TO_HOST_MUTATION, mutationParams);
+      expect(resultUnauthenticated.errors).to.exist;
+      expect(resultUnauthenticated.errors[0].message).to.eq('You need to be logged in');
+
+      const randomUser = await fakeUser();
+      const resultUnauthorized = await graphqlQueryV2(APPLY_TO_HOST_MUTATION, mutationParams, randomUser);
+      expect(resultUnauthorized.errors).to.exist;
+      expect(resultUnauthorized.errors[0].message).to.eq('You need to be an Admin of the account');
+    });
+
+    it('applies to host and invite other admins', async () => {
+      const host = await fakeHost();
+      const adminUser = await fakeUser();
+      const existingUserToInvite = await fakeUser();
+      const collective = await fakeCollective({ HostCollectiveId: null, admin: adminUser });
+      const result = await graphqlQueryV2(
+        APPLY_TO_HOST_MUTATION,
+        {
+          host: { slug: host.slug },
+          collective: { slug: collective.slug },
+          inviteMembers: [
+            // Existing user
+            {
+              memberAccount: { slug: existingUserToInvite.collective.slug },
+              role: 'ADMIN',
+              description: 'An admin with existing account',
+            },
+            // New user
+            {
+              memberInfo: { name: 'Another admin', email: randEmail() },
+              role: 'ADMIN',
+              description: 'An admin with a new account',
+            },
+          ],
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+
+      // Check that the application was properly recorded
+      const resultAccount = result.data.applyToHost;
+      expect(resultAccount.isActive).to.be.false;
+      expect(resultAccount.isApproved).to.be.false;
+      expect(resultAccount.host.slug).to.eq(host.slug);
+      const hostApplication = await models.HostApplication.findOne({
+        where: { CollectiveId: collective.id, HostCollectiveId: host.id },
+      });
+      expect(hostApplication).to.exist;
+      expect(hostApplication.status).to.eq('PENDING');
+      const hostApplicationActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_APPLY, CollectiveId: collective.id },
+      });
+      expect(hostApplicationActivity).to.exist;
+      expect(hostApplicationActivity.data.host.slug).to.eq(host.slug);
+
+      // Check that no-one was added directly as an admin
+      const admins = await collective.getAdmins();
+      expect(admins).to.have.length(1);
+      expect(admins[0].id).to.eq(adminUser.CollectiveId);
+
+      // Check that the other admins were invited
+      const invitedAdmins = await models.MemberInvitation.findAll({
+        order: [['id', 'ASC']],
+        where: { CollectiveId: collective.id },
+        include: [{ association: 'memberCollective' }],
+      });
+
+      expect(invitedAdmins).to.have.length(2);
+      expect(invitedAdmins[0].memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
+      expect(invitedAdmins[1].memberCollective.name).to.eq('Another admin');
+      const memberInvitationActivities = await models.Activity.findAll({
+        order: [['id', 'ASC']],
+        where: { type: activities.COLLECTIVE_CORE_MEMBER_INVITED, CollectiveId: collective.id },
+      });
+
+      expect(memberInvitationActivities).to.have.length(2);
+      expect(memberInvitationActivities[0].data.memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
+      expect(memberInvitationActivities[1].data.memberCollective.name).to.eq('Another admin');
     });
   });
 });
