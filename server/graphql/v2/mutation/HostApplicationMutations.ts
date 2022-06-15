@@ -90,9 +90,8 @@ const HostApplicationMutations = {
       });
 
       if (args.inviteMembers && args.inviteMembers.length) {
-        await processInviteMembersInput(args, {
+        await processInviteMembersInput(collective, args.inviteMembers, {
           supportedRoles: [MemberRoles.ADMIN],
-          collective,
           user: req.remoteUser,
         });
       }
