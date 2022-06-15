@@ -285,6 +285,7 @@ export async function createCollectiveFromGithub(_, args, req) {
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED_GITHUB,
     UserId: user.id,
+    ApplicationId: req.clientApp?.id,
     CollectiveId: collective.id,
     data: {
       collective: collective.info,
@@ -842,6 +843,7 @@ export async function sendMessageToCollective(_, args, req) {
   await models.Activity.create({
     type: activities.COLLECTIVE_CONTACT,
     UserId: user.id,
+    ApplicationId: req.clientApp?.id,
     CollectiveId: collective.id,
     data: {
       fromCollective,

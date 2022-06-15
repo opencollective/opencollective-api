@@ -286,7 +286,7 @@ const mutations = {
       },
     },
     async resolve(_, args, req) {
-      const { order } = await createOrder(args.order, req.loaders, req.remoteUser, req.ip);
+      const { order } = await createOrder(args.order, req);
       return order;
     },
   },

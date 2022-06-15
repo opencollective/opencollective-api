@@ -348,8 +348,11 @@ const hasPaymentMethod = order => {
   }
 };
 
-export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, reqMask) {
+export async function createOrder(order, req) {
   debug('Beginning creation of order', order);
+  const { loaders, ip: reqIp, mask: reqMask } = req;
+  const userAgent = req.header('user-agent');
+  let remoteUser = req.remoteUser;
 
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new FeatureNotAllowedForUser();
@@ -678,6 +681,8 @@ export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, 
       await models.Activity.create({
         type: activities.TICKET_CONFIRMED,
         CollectiveId: collective.id,
+        UserId: remoteUser.id,
+        ApplicationId: req.clientApp?.id,
         data: {
           EventCollectiveId: collective.id,
           UserId: remoteUser.id,

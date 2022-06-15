@@ -134,9 +134,9 @@ const HostApplicationMutations = {
 
       switch (args.action) {
         case 'APPROVE':
-          return { account: await approveApplication(host, account, req.remoteUser) };
+          return { account: await approveApplication(host, account, req) };
         case 'REJECT':
-          return { account: rejectApplication(host, account, req.remoteUser, args.message) };
+          return { account: rejectApplication(host, account, req, args.message) };
         case 'SEND_PRIVATE_MESSAGE':
           await sendPrivateMessage(host, account, args.message);
           return { account };
@@ -177,7 +177,7 @@ const HostApplicationMutations = {
   },
 };
 
-const approveApplication = async (host, collective, remoteUser) => {
+const approveApplication = async (host, collective, req) => {
   const where = {
     CollectiveId: collective.id,
     role: MemberRoles.ADMIN,
@@ -213,13 +213,14 @@ const approveApplication = async (host, collective, remoteUser) => {
   // Send a notification to collective admins
   await models.Activity.create({
     type: activities.COLLECTIVE_APPROVED,
-    UserId: remoteUser.id,
+    UserId: req.remoteUser?.id,
+    ApplicationId: req.clientApp?.id,
     CollectiveId: host.id,
     data: {
       collective: collective.info,
       host: host.info,
       user: {
-        email: remoteUser.email,
+        email: req.remoteUser?.email,
       },
     },
   });
@@ -236,10 +237,11 @@ const approveApplication = async (host, collective, remoteUser) => {
   return collective;
 };
 
-const rejectApplication = async (host, collective, remoteUser, reason: string) => {
+const rejectApplication = async (host, collective, req, reason: string) => {
   if (collective.isActive) {
     throw new Error('This application has already been approved');
   }
+  const { remoteUser } = req;
 
   // Reset host for collective & its children
   await collective.changeHost(null, remoteUser);
@@ -249,6 +251,7 @@ const rejectApplication = async (host, collective, remoteUser, reason: string) =
   await models.Activity.create({
     type: activities.COLLECTIVE_REJECTED,
     UserId: remoteUser.id,
+    ApplicationId: req.clientApp?.id,
     CollectiveId: host.id,
     data: {
       collective: collective.info,

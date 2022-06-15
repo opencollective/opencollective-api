@@ -168,6 +168,7 @@ async function createCollective(_, args, req) {
         models.Activity.create({
           type: activities.COLLECTIVE_CREATED,
           UserId: user.id,
+          ApplicationId: req.clientApp?.id,
           CollectiveId: get(host, 'id'),
           data: {
             collective: collective.info,

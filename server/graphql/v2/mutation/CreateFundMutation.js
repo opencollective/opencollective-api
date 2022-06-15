@@ -91,6 +91,7 @@ async function createFund(_, args, req) {
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED,
     UserId: remoteUser.id,
+    ApplicationId: req.clientApp?.id,
     CollectiveId: get(host, 'id'),
     data: {
       collective: fund.info,

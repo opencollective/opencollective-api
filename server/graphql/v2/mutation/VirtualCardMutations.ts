@@ -81,6 +81,7 @@ const virtualCardMutations = {
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_ADDED,
         UserId: req.remoteUser.id,
+        ApplicationId: req.clientApp?.id,
         CollectiveId: collective.id,
         data: {
           assignee: assignee.activity,
@@ -151,6 +152,7 @@ const virtualCardMutations = {
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_ADDED,
         UserId: req.remoteUser.id,
+        ApplicationId: req.clientApp?.id,
         CollectiveId: collective.id,
         data: {
           assignee: assignee.activity,
