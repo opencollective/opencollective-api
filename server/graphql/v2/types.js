@@ -1,5 +1,6 @@
 import { Account } from './interface/Account';
 import { Amount } from './object/Amount';
+import { Application } from './object/Application';
 import { Bot } from './object/Bot';
 import { Collective } from './object/Collective';
 import { Credit } from './object/Credit';
@@ -13,6 +14,7 @@ import { Vendor } from './object/Vendor';
 import { VirtualCard } from './object/VirtualCard';
 
 const types = [
+  Application,
   Account,
   Amount,
   Bot,

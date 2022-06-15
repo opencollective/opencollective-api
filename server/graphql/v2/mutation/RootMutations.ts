@@ -25,7 +25,7 @@ import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
 
 const BanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
-  fields: {
+  fields: () => ({
     isAllowed: {
       type: new GraphQLNonNull(GraphQLBoolean),
       description: 'Whether the accounts can be banned',
@@ -38,7 +38,7 @@ const BanAccountResponse = new GraphQLObjectType({
       type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Account))),
       description: 'The accounts impacted by the mutation',
     },
-  },
+  }),
 });
 
 /**

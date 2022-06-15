@@ -27,7 +27,7 @@ const CollectionFields = {
 const Collection = new GraphQLInterfaceType({
   name: 'Collection',
   description: 'Collection interface shared by all collection types',
-  fields: CollectionFields,
+  fields: () => CollectionFields,
 });
 
 /**
