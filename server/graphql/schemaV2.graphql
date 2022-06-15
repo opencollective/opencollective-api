@@ -5,9 +5,15 @@ type Application {
   id: String!
   legacyId: Int!
   type: ApplicationType
+    @deprecated(
+      reason: "2022-06-16: This Application object will only be used for OAuth tokens. Use PersonalToken for user tokens"
+    )
   name: String
   description: String
   apiKey: String
+    @deprecated(
+      reason: "2022-06-16: This Application object will only be used for OAuth tokens. Use PersonalToken for user tokens"
+    )
   clientId: String
   clientSecret: String
   redirectUri: URL
@@ -427,6 +433,21 @@ interface Account {
   The list of connected accounts (Stripe, Twitter, etc ...)
   """
   connectedAccounts: [ConnectedAccount]
+
+  """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -2704,6 +2725,21 @@ type Host implements Account & AccountWithContributions {
   connectedAccounts: [ConnectedAccount]
 
   """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -3367,6 +3403,16 @@ enum ConnectedAccountService {
   privacy
   thegivingblock
   meetup @deprecated(reason: "Not using this service anymore")
+}
+
+"""
+A collection of "Application"
+"""
+type OAuthApplicationCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Application]
 }
 
 """
@@ -4617,6 +4663,21 @@ type Bot implements Account {
   connectedAccounts: [ConnectedAccount]
 
   """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -5060,6 +5121,21 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   The list of connected accounts (Stripe, Twitter, etc ...)
   """
   connectedAccounts: [ConnectedAccount]
+
+  """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -5831,6 +5907,21 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   connectedAccounts: [ConnectedAccount]
 
   """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -6388,6 +6479,21 @@ type Individual implements Account {
   """
   connectedAccounts: [ConnectedAccount]
 
+  """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
+
   "\n          Address. This field is public for hosts, otherwise:\n            - Users can see their own address\n            - Hosts can see the address of users submitting expenses to their collectives\n        "
   location: Location
   categories: [String]!
@@ -6917,6 +7023,21 @@ type Organization implements Account & AccountWithContributions {
   The list of connected accounts (Stripe, Twitter, etc ...)
   """
   connectedAccounts: [ConnectedAccount]
+
+  """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
 
   "\n          Address. This field is public for hosts, otherwise:\n            - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.\n            - Hosts can see the address of organizations submitting expenses to their collectives.\n        "
   location: Location
@@ -7482,6 +7603,21 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   The list of connected accounts (Stripe, Twitter, etc ...)
   """
   connectedAccounts: [ConnectedAccount]
+
+  """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -9958,6 +10094,21 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   connectedAccounts: [ConnectedAccount]
 
   """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -10501,6 +10652,21 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   The list of connected accounts (Stripe, Twitter, etc ...)
   """
   connectedAccounts: [ConnectedAccount]
+
+  """
+  (Authenticated) The list of applications created by this account
+  """
+  oAuthApplications(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): OAuthApplicationCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -11894,6 +12060,11 @@ input ApplicationCreateInput {
   name: String
   description: String
   redirectUri: URL
+
+  """
+  The account to use as the owner of the application. Defaults to currently logged in user.
+  """
+  account: AccountReferenceInput
 }
 
 """

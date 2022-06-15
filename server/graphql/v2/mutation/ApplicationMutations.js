@@ -4,6 +4,7 @@ import { pick } from 'lodash';
 
 import models from '../../../models';
 import { Forbidden, NotFound, RateLimitExceeded, Unauthorized } from '../../errors';
+import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
 import { ApplicationCreateInput } from '../input/ApplicationCreateInput';
 import { ApplicationReferenceInput, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
 import { ApplicationUpdateInput } from '../input/ApplicationUpdateInput';
@@ -21,13 +22,16 @@ const createApplication = {
       throw new Unauthorized('You need to be authenticated to create an application.');
     }
 
-    const numberOfAppsForThisUser = await models.Application.count({
-      where: {
-        CollectiveId: req.remoteUser.CollectiveId,
-      },
-    });
+    const collective = args.application.account
+      ? await fetchAccountWithReference(args.application.account, { throwIfMissing: true })
+      : req.remoteUser.collective;
 
-    if (numberOfAppsForThisUser >= config.limits.maxNumberOfAppsPerUser) {
+    if (!req.remoteUser.isAdminOfCollective(collective)) {
+      throw new Forbidden();
+    }
+
+    const numberOfAppsForThisAccount = await models.Application.count({ where: { CollectiveId: collective.id } });
+    if (numberOfAppsForThisAccount >= config.limits.maxNumberOfAppsPerUser) {
       throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
     }
 
@@ -35,7 +39,7 @@ const createApplication = {
       ...pick(args.application, ['type', 'name', 'description']),
       callbackUrl: args.application.redirectUri,
       CreatedByUserId: req.remoteUser.id,
-      CollectiveId: req.remoteUser.CollectiveId,
+      CollectiveId: collective.id,
     };
 
     return models.Application.create(createParams);
@@ -54,10 +58,12 @@ const updateApplication = {
       throw new Unauthorized('You need to be authenticated to update an application.');
     }
 
-    const application = await fetchApplicationWithReference(args.application);
+    const application = await fetchApplicationWithReference(args.application, {
+      include: [{ association: 'collective', required: true }],
+    });
     if (!application) {
       throw new NotFound(`Application not found`);
-    } else if (req.remoteUser.CollectiveId !== application.CollectiveId) {
+    } else if (!req.remoteUser.isAdminOfCollective(application.collective)) {
       throw new Forbidden('Authenticated user is not the application owner.');
     }
 
@@ -84,10 +90,12 @@ const deleteApplication = {
       throw new Unauthorized('You need to be authenticated to delete an application.');
     }
 
-    const application = await fetchApplicationWithReference(args.application);
+    const application = await fetchApplicationWithReference(args.application, {
+      include: [{ association: 'collective', required: true }],
+    });
     if (!application) {
       throw new NotFound(`Application not found`);
-    } else if (req.remoteUser.CollectiveId !== application.CollectiveId) {
+    } else if (!req.remoteUser.isAdminOfCollective(application.collective)) {
       throw new Forbidden('Authenticated user is not the application owner.');
     }
 

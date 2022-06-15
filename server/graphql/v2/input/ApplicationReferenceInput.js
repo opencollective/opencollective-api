@@ -29,15 +29,15 @@ export const ApplicationReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the application
  */
-export const fetchApplicationWithReference = async input => {
+export const fetchApplicationWithReference = async (input, sequelizeOps = undefined) => {
   let application;
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.APPLICATION);
-    application = await models.Application.findByPk(id);
+    application = await models.Application.findByPk(id, sequelizeOps);
   } else if (input.legacyId) {
-    application = await models.Application.findByPk(input.legacyId);
+    application = await models.Application.findByPk(input.legacyId, sequelizeOps);
   } else if (input.clientId) {
-    application = await models.Application.findOne({ where: { clientId: input.clientId } });
+    application = await models.Application.findOne({ where: { clientId: input.clientId } }, sequelizeOps);
   } else {
     throw new Error('Please provide an id');
   }

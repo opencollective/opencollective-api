@@ -16,6 +16,7 @@ import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
+import { OAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { OrderCollection } from '../collection/OrderCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { UpdateCollection } from '../collection/UpdateCollection';
@@ -316,6 +317,24 @@ const accountFieldsDefinition = () => ({
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
     description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
+  },
+  oAuthApplications: {
+    type: OAuthApplicationCollection,
+    description: '(Authenticated) The list of applications created by this account',
+    args: {
+      ...CollectionArgs,
+    },
+    async resolve(collective, args, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      }
+
+      const { limit, offset } = args;
+      const order = [['createdAt', 'DESC']];
+      const where = { CollectiveId: collective.id, type: 'oAuth' };
+      const result = await models.Application.findAndCountAll({ where, order, limit, offset });
+      return { nodes: result.rows, totalCount: result.count, limit, offset };
+    },
   },
   location: {
     type: Location,
