@@ -7,7 +7,7 @@ import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
 import { Tier } from '../object/Tier';
 
-const MemberFields = {
+const getMemberFields = () => ({
   // _internal_id: {
   //   type: GraphQLInt,
   //   resolve(member) {
@@ -84,7 +84,7 @@ const MemberFields = {
       return member.description;
     },
   },
-};
+});
 
 const getMemberAccountResolver = field => async (member, args, req) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
@@ -100,7 +100,7 @@ export const Member = new GraphQLObjectType({
   description: 'This represents a Member relationship (ie: Organization backing a Collective)',
   fields: () => {
     return {
-      ...MemberFields,
+      ...getMemberFields(),
       account: {
         type: Account,
         resolve: getMemberAccountResolver('memberCollective'),
@@ -114,7 +114,7 @@ export const MemberOf = new GraphQLObjectType({
   description: 'This represents a MemberOf relationship (ie: Collective backed by an Organization)',
   fields: () => {
     return {
-      ...MemberFields,
+      ...getMemberFields(),
       account: {
         type: Account,
         resolve: getMemberAccountResolver('collective'),
