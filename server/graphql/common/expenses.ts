@@ -582,7 +582,7 @@ export const markExpenseAsSpam = async (
 export const scheduleExpenseForPayment = async (
   req: express.Request,
   expense: typeof models.Expense,
-  feesPayer: 'COLLECTIVE' | 'PAYEE',
+  options: { feesPayer?: 'COLLECTIVE' | 'PAYEE'; twoFactorAuthenticatorCode?: string } = {},
 ): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
     throw new BadRequest('Expense is already scheduled for payment');
@@ -597,7 +597,20 @@ export const scheduleExpenseForPayment = async (
 
   const payoutMethod = await expense.getPayoutMethod();
   await checkHasBalanceToPayExpense(host, expense, payoutMethod);
+  if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+    const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
 
+    if (hostHasPayoutTwoFactorAuthenticationEnabled) {
+      await handleTwoFactorAuthenticationPayoutLimit(
+        req.remoteUser,
+        options.twoFactorAuthenticatorCode,
+        expense,
+        req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`) || 'noSessionId',
+      );
+    }
+  }
+
+  const { feesPayer } = options;
   if (feesPayer && feesPayer !== expense.feesPayer) {
     await expense.update({ feesPayer: feesPayer });
   }
