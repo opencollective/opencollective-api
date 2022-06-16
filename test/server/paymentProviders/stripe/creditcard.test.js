@@ -247,7 +247,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
           data: { isFeesOnTop: true, platformFee: 100 },
         });
         await collective.update({ hostFeePercent: 10 });
-        await host.update({ plan: 'grow-plan-2021' });
+        await host.update({ currency: 'BRL', plan: 'grow-plan-2021' });
         await cache.clear();
 
         await creditcard.processOrder(order);
