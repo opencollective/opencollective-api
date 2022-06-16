@@ -122,7 +122,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const host = await order.collective.getHostCollective();
   const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   const isSharedRevenue = !!hostFeeSharePercent;
-  const isPlatformRevenueDirectlyCollected = !APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(order.currency));
+  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+    ? false
+    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
 
   // Compute Application Fee (Shared Revenue + Platform Tip)
   const applicationFee = await getApplicationFee(order, host);
