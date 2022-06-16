@@ -29,10 +29,9 @@ const refund = async transactionId => {
   const hostStripeAccount = await collective.getHostStripeAccount();
 
   /* Refund both charge & application fee */
-  const shouldRefundApplicationFee = transaction.platformFeeInHostCurrency > 0;
   if (!IS_DRY) {
     const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: shouldRefundApplicationFee }, // eslint-disable-line camelcase
+      { charge: chargeId, refund_application_fee: true }, // eslint-disable-line camelcase
       { stripeAccount: hostStripeAccount.username },
     );
 
