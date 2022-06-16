@@ -1,10 +1,11 @@
 /* eslint-disable camelcase */
 import { isEmpty, omit } from 'lodash';
 
+import VirtualCardProviders from '../../constants/virtual_card_providers';
 import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
 import models from '../../models';
-import VirtualCardModel, { VirtualCardProviders } from '../../models/VirtualCard';
+import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
 import { getVirtualCardForTransaction, persistTransaction } from '../utils';

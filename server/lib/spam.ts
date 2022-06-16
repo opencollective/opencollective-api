@@ -9,6 +9,7 @@ import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
 import models from '../models';
+import { Activity } from '../models/Activity';
 
 /** Return type when running a spam analysis */
 export type SpamAnalysisReport = {
@@ -691,7 +692,7 @@ export const notifyTeamAboutSuspiciousCollective = async (report: SpamAnalysisRe
 /**
  * Post a message on Slack when the expense is marked as spam
  */
-export const notifyTeamAboutSpamExpense = async (activity: typeof models.Activity): Promise<void> => {
+export const notifyTeamAboutSpamExpense = async (activity: Activity): Promise<void> => {
   const { collective, expense, user } = activity.data;
   const expenseUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}`;
   const submittedByUserUrl = `${config.host.website}/${user.slug}`;

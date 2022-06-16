@@ -5,9 +5,9 @@ import { groupBy, minBy, values } from 'lodash';
 import moment from 'moment';
 
 import { activities as activityTypes } from '../../server/constants';
+import VirtualCardProviders from '../../server/constants/virtual_card_providers';
 import logger from '../../server/lib/logger';
 import models, { Op, sequelize } from '../../server/models';
-import { VirtualCardProviders } from '../../server/models/VirtualCard';
 
 const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
   const virtualCard = expenses[0].virtualCard;

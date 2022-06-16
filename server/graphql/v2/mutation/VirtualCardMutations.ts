@@ -2,7 +2,8 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { activities, frequencies, providers } from '../../../constants';
+import { activities, frequencies } from '../../../constants';
+import VirtualCardProviders from '../../../constants/virtual_card_providers';
 import logger from '../../../lib/logger';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
@@ -65,7 +66,7 @@ const virtualCardMutations = {
         });
       }
 
-      const providerService = args.virtualCard.provider === providers.STRIPE ? stripe : privacy;
+      const providerService = args.virtualCard.provider === VirtualCardProviders.STRIPE ? stripe : privacy;
 
       const virtualCard = await providerService.assignCardToCollective(
         cardNumber,
@@ -221,7 +222,7 @@ const virtualCardMutations = {
       if (
         args.monthlyLimit &&
         virtualCard.spendingLimitInterval === frequencies.MONTHLY &&
-        virtualCard.provider === providers.STRIPE
+        virtualCard.provider === VirtualCardProviders.STRIPE
       ) {
         const monthlyLimitInCents = getValueInCentsFromAmountInput(args.monthlyLimit, {
           expectedCurrency: virtualCard.currency,
