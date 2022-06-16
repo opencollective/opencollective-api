@@ -294,7 +294,7 @@ export const PlanType = new GraphQLObjectType({
       type: GraphQLBoolean,
     },
     hostFeeSharePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
     },
     platformTips: {
       type: GraphQLBoolean,

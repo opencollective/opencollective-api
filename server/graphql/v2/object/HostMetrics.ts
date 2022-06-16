@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLFloat, GraphQLObjectType } from 'graphql';
 
 import { Amount } from './Amount';
 
@@ -15,6 +15,6 @@ export const HostMetrics = new GraphQLObjectType({
     pendingHostFeeShare: { type: Amount, description: 'Amount in host fee shared  requiring settlement' },
     settledHostFeeShare: { type: Amount, description: 'Amount in host fee shared not requiring settlement' },
     totalMoneyManaged: { type: Amount, description: 'Total amount managed on behalf of hosted collectives' },
-    hostFeeSharePercent: { type: GraphQLInt, description: 'Host fee sharing percent' },
+    hostFeeSharePercent: { type: GraphQLFloat, description: 'Host fee sharing percent' },
   }),
 });
