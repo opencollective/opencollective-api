@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { idEncode } from '../identifiers';
 
@@ -62,7 +62,7 @@ export const HostPlan = new GraphQLObjectType({
       description: 'Ability to charge Host Fees.',
     },
     hostFeeSharePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       description: 'Charge on revenues made through Host Fees.',
     },
     platformTips: {
