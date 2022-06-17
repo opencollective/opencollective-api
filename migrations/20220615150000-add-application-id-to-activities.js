@@ -2,9 +2,9 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('Activities', 'ApplicationId', {
+    await queryInterface.addColumn('Activities', 'UserTokenId', {
       type: Sequelize.INTEGER,
-      references: { key: 'id', model: 'Applications' },
+      references: { key: 'id', model: 'UserTokens' },
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
@@ -12,6 +12,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.removeColumn('Activities', 'ApplicationId');
+    await queryInterface.removeColumn('Activities', 'UserTokenId');
   },
 };

@@ -169,7 +169,7 @@ const memberMutations = {
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
           CollectiveId: account.id,
           UserId: req.remoteUser.id,
-          ApplicationId: req.clientApp?.id,
+          UserTokenId: req.userToken?.id,
           data: {
             notify: false,
             memberCollective: memberAccount.activity,
@@ -253,7 +253,7 @@ const memberMutations = {
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
           CollectiveId: account.id,
           UserId: req.remoteUser.id,
-          ApplicationId: req.clientApp?.id,
+          UserTokenId: req.userToken?.id,
           data: {
             notify: false,
             memberCollective: memberAccount.activity,

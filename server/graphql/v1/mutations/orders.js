@@ -682,7 +682,7 @@ export async function createOrder(order, req) {
         type: activities.TICKET_CONFIRMED,
         CollectiveId: collective.id,
         UserId: remoteUser.id,
-        ApplicationId: req.clientApp?.id,
+        UserTokenId: req.userToken?.id,
         data: {
           EventCollectiveId: collective.id,
           UserId: remoteUser.id,

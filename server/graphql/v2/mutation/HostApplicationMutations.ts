@@ -214,7 +214,7 @@ const approveApplication = async (host, collective, req) => {
   await models.Activity.create({
     type: activities.COLLECTIVE_APPROVED,
     UserId: req.remoteUser?.id,
-    ApplicationId: req.clientApp?.id,
+    UserTokenId: req.userToken?.id,
     CollectiveId: host.id,
     data: {
       collective: collective.info,
@@ -251,7 +251,7 @@ const rejectApplication = async (host, collective, req, reason: string) => {
   await models.Activity.create({
     type: activities.COLLECTIVE_REJECTED,
     UserId: remoteUser.id,
-    ApplicationId: req.clientApp?.id,
+    UserTokenId: req.userToken?.id,
     CollectiveId: host.id,
     data: {
       collective: collective.info,
