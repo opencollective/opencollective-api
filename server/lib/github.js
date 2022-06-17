@@ -1,12 +1,11 @@
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import config from 'config';
-import { trimStart } from 'lodash';
-import { trim } from 'lodash';
-import { get, has, pick, trimEnd } from 'lodash';
+import { get, has, pick, trim, trimEnd, trimStart } from 'lodash';
 
 import cache from './cache';
 import logger from './logger';
+import { reportMessageToSentry } from './sentry';
 
 const compactRepo = repo => {
   repo = pick(repo, [
@@ -80,6 +79,10 @@ export async function getAllUserPublicRepos(accessToken) {
 
   if (parameters.page === maxNbPages) {
     logger.error(`Aborted: Too many repos to fetch for user with token ${accessToken}`);
+    reportMessageToSentry('Aborted: Too many repos to fetch for user', {
+      severity: 'warning',
+      accessToken: accessToken.replace(/^(.{3})(.+)(.{3})$/, '$1****$3'), // abcdefghijkl -> abc****jkl
+    });
   }
 
   repos = repos.map(compactRepo);

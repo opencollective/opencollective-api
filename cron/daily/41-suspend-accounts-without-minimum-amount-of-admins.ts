@@ -5,6 +5,7 @@ import FEATURE from '../../server/constants/feature';
 import POLICIES from '../../server/constants/policies';
 import logger from '../../server/lib/logger';
 import { getPolicy } from '../../server/lib/policies';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { sequelize } from '../../server/models';
 
 const run = async () => {
@@ -42,6 +43,7 @@ if (require.main === module) {
   run()
     .catch(e => {
       logger.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     })
     .then(() => {

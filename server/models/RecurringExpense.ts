@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities } from '../constants';
 import expenseStatus from '../constants/expense_status';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 
 import models, { Op } from '.';
@@ -110,9 +111,10 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
         { id: expense.UserId },
         { ...draftedExpense.data, inviteUrl, description: draftedExpense.description },
       )
-      .catch(e =>
-        console.error('An error happened when creating the COLLECTIVE_EXPENSE_RECURRING_DRAFTED activity', e),
-      );
+      .catch(e => {
+        console.error('An error happened when creating the COLLECTIVE_EXPENSE_RECURRING_DRAFTED activity', e);
+        reportErrorToSentry(e);
+      });
 
     return draftedExpense;
   }

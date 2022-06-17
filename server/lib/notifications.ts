@@ -17,6 +17,7 @@ import { sanitizerOptions as updateSanitizerOptions } from '../models/Update';
 import activitiesLib from './activities';
 import emailLib, { NO_REPLY_EMAIL } from './email';
 import { getTransactionPdf } from './pdf';
+import { reportErrorToSentry } from './sentry';
 import slackLib from './slack';
 import twitter from './twitter';
 import { parseToBoolean, toIsoDateStr } from './utils';
@@ -62,6 +63,7 @@ export default async (activity: Activity) => {
       return Promise.resolve();
     }
   }).catch(err => {
+    reportErrorToSentry(err);
     console.error(
       `Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`,
       activity,

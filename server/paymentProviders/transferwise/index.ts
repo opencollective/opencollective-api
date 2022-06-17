@@ -11,6 +11,7 @@ import status from '../../constants/expense_status';
 import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import logger from '../../lib/logger';
+import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import models from '../../models';
 import PayoutMethod from '../../models/PayoutMethod';
@@ -584,6 +585,7 @@ const oauth = {
       res.redirect(redirectUrl.href);
     } catch (e) {
       logger.error(`Error with TransferWise OAuth callback: ${e.message}`, { ...e, state });
+      reportErrorToSentry(e);
       redirectUrl.searchParams.append(
         'error',
         `Could not OAuth with TransferWise, please contact support@opencollective.com. State: ${state}`,

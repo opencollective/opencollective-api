@@ -2,6 +2,7 @@ import cloudflare from 'cloudflare';
 import config from 'config';
 
 import logger from './logger';
+import { reportErrorToSentry } from './sentry';
 
 // Load config
 const cfConfig = config.cloudflare || {};
@@ -56,5 +57,8 @@ export const purgeCacheForPage = pagePaths => {
 
   logger.info(`Asking cloudflare to purge the cache for ${urlsToPurge}`);
 
-  return CloudflareLib.zones.purgeCache(cfConfig.zone, { files: urlsToPurge }).catch(logger.error);
+  return CloudflareLib.zones.purgeCache(cfConfig.zone, { files: urlsToPurge }).catch(error => {
+    logger.error(error);
+    reportErrorToSentry(error);
+  });
 };

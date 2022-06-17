@@ -9,6 +9,7 @@ import debugLib from 'debug';
 import { get, pick, set, uniq } from 'lodash';
 
 import { types as collectiveTypes } from '../../server/constants/collectives';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
 import { pluralize } from '../../server/lib/utils';
@@ -227,6 +228,7 @@ const sendTweet = async (tweet, twitterAccount, template) => {
       return res;
     } catch (e) {
       console.error('Unable to tweet', tweet, e);
+      reportErrorToSentry(e);
     }
   }
 };

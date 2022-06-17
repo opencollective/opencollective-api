@@ -9,6 +9,7 @@ import activities from '../../constants/activities';
 import status from '../../constants/order_status';
 import models from '../../models';
 import * as paymentsLib from '../payments';
+import { reportErrorToSentry } from '../sentry';
 
 const debug = debugLib('backyourstack');
 
@@ -85,6 +86,7 @@ export async function dispatchFunds(order) {
   } catch (err) {
     debug('Error fetching dependencies', err);
     console.error(err);
+    reportErrorToSentry(err);
     throw new Error('Unable to fetch dependencies, check jsonUrl.');
   }
 
@@ -168,5 +170,6 @@ export async function dispatch(order, subscription) {
   } catch (err) {
     console.log('>>>> Background dispatch failed');
     console.error(err);
+    reportErrorToSentry(err);
   }
 }

@@ -4,6 +4,7 @@ import { isEmpty, omit } from 'lodash';
 import VirtualCardProviders from '../../constants/virtual_card_providers';
 import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
+import { reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
 import { Transaction } from '../../types/privacy';
@@ -20,6 +21,7 @@ const processTransaction = async (
 
   if (!virtualCard) {
     logger.error(`Privacy: could not find virtual card ${privacyTransaction.card.token}`, privacyEvent);
+    reportMessageToSentry('Privacy: could not find virtual card', { extra: { privacyEvent, privacyTransaction } });
     return;
   }
 

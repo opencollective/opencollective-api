@@ -6,6 +6,7 @@ import models, { Op } from '../models';
 
 import emailLib from './email';
 import { templateNames } from './emailTemplates';
+import { reportErrorToSentry } from './sentry';
 
 const emailOptions = {
   from: 'Open Collective <support@opencollective.com>',
@@ -81,5 +82,6 @@ export async function processOnBoardingTemplate(template, startsAt, filter = nul
     logger.info(`${filteredCollectives.length} collectives processed.`);
   } catch (e) {
     logger.error('>>> error caught', e);
+    reportErrorToSentry(e);
   }
 }

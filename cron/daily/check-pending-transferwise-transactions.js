@@ -6,6 +6,7 @@ import { Op } from 'sequelize';
 
 import activities from '../../server/constants/activities';
 import status from '../../server/constants/expense_status';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import * as transferwiseLib from '../../server/lib/transferwise';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -71,7 +72,10 @@ export async function run() {
   console.log(`There are ${expenses.length} TransferWise transactions to verify...`);
 
   for (const expense of expenses) {
-    await processExpense(expense).catch(console.error);
+    await processExpense(expense).catch(e => {
+      console.error(e);
+      reportErrorToSentry(e);
+    });
   }
 }
 
@@ -82,6 +86,7 @@ if (require.main === module) {
     })
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     });
 }

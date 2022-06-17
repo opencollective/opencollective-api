@@ -6,6 +6,7 @@ import { createTransferWiseTransactionsAndUpdateExpense, getExpenseFees } from '
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
 
@@ -64,12 +65,9 @@ export async function payBatch(
     });
 
     if (expenseIds.length !== expenses.length) {
-      logger.error(
-        `Wise Batch Pay: Could not find all requested expenses. ${JSON.stringify({
-          requested: expenseIds,
-          found: expenses.map(e => e.id),
-        })}`,
-      );
+      const errorInfo = { requested: expenseIds, found: expenses.map(e => e.id) };
+      logger.error(`Wise Batch Pay: Could not find all requested expenses. ${JSON.stringify(errorInfo)}`);
+      reportMessageToSentry('Wise Batch Pay: Could not find all requested expenses', { extra: errorInfo });
       throw new errors.NotFound('Could not find requested expenses');
     }
     const ottHeader = headers['x-2fa-approval'] as string;
@@ -96,6 +94,7 @@ export async function payBatch(
     }
   } catch (e) {
     logger.error('Error paying Wise batch group', e);
+    reportErrorToSentry(e);
     res
       .status(e.code || 500)
       .send(e.toString())

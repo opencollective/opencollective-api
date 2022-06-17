@@ -5,6 +5,8 @@ import config from 'config';
 
 import logger from '../lib/logger';
 
+import { reportErrorToSentry } from './sentry';
+
 // Create S3 service object & set credentials and region
 let s3;
 if (config.aws.s3.key) {
@@ -24,6 +26,7 @@ export const uploadToS3 = (
       (s3 as S3).upload(params, (err, data) => {
         if (err) {
           logger.error('Error uploading file to S3: ', err);
+          reportErrorToSentry(err);
           reject(err);
         } else {
           resolve(data);

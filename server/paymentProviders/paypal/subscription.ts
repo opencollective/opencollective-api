@@ -7,6 +7,7 @@ import ORDER_STATUS from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models from '../../models';
 import PaypalPlan from '../../models/PaypalPlan';
 import { PaymentProviderService } from '../types';
@@ -225,6 +226,7 @@ export const setupPaypalSubscriptionForOrder = async (
     }
   } catch (e) {
     logger.error(`[PayPal] Error while creating subscription: ${e}`);
+    reportErrorToSentry(e);
 
     // Restore the initial subscription
     if (existingSubscription) {
@@ -244,6 +246,7 @@ export const setupPaypalSubscriptionForOrder = async (
     }
   } catch (e) {
     logger.error(`[PayPal] Error while activating subscription: ${e}`);
+    reportErrorToSentry(e);
     const error = new Error('Failed to activate PayPal subscription');
     error['rootException'] = e;
     order.update({ status: ORDER_STATUS.ERROR });

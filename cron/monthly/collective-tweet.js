@@ -7,6 +7,7 @@ import debugLib from 'debug';
 import _, { get, pick, set } from 'lodash';
 import moment from 'moment';
 
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import twitter from '../../server/lib/twitter';
 import models from '../../server/models';
 
@@ -127,6 +128,7 @@ const processCollective = collective => {
     .then(data => sendTweet(collective.twitterAccount, data))
     .catch(e => {
       console.error('Error in processing collective', collective.slug, e);
+      reportErrorToSentry(e);
     });
 };
 
@@ -187,6 +189,7 @@ const sendTweet = async (twitterAccount, data) => {
     console.log(tweet);
   } catch (e) {
     console.error('Unable to tweet', tweet, e);
+    reportErrorToSentry(e);
   }
 };
 

@@ -9,6 +9,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
@@ -381,6 +382,7 @@ function defineModel() {
       await this.createContributorMember();
     } catch (e) {
       // Don't crash if member can't be added as a contributor
+      reportErrorToSentry(e);
       logger.error(`Error when trying to add MEMBER in setPaid for expense ${this.id}: ${e}`);
     }
   };

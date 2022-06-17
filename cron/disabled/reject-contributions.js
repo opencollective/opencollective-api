@@ -11,6 +11,7 @@ import { purgeCacheForCollective } from '../../server/lib/cache';
 import logger from '../../server/lib/logger';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import * as libPayments from '../../server/lib/payments';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
 
 // Fetch all orders potentially affected: contributor flagged AND recipient setup rejection
@@ -242,6 +243,7 @@ if (require.main === module) {
     })
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     });
 }

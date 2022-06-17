@@ -6,6 +6,7 @@ import { groupBy, values } from 'lodash';
 
 import status from '../../server/constants/expense_status';
 import logger from '../../server/lib/logger';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import * as paypal from '../../server/paymentProviders/paypal/payouts';
@@ -36,6 +37,7 @@ if (require.main === module && process.env.SKIP_PAYPAL_PAYOUTS_WORKER !== 'true'
     })
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       setTimeout(() => process.exit(0), 10000);
       process.exit(1);
     });

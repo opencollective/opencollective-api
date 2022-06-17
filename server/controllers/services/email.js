@@ -5,6 +5,7 @@ import { get } from 'lodash';
 import emailLib from '../../lib/email';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models from '../../models';
 
 const debugEmail = debug('email');
@@ -122,6 +123,7 @@ export const webhook = async (req, res, next) => {
         .then(() => res.send('ok'))
         .catch(e => {
           logger.error(e);
+          reportErrorToSentry(e);
           return next(new errors.ServerError('Unexpected error'));
         });
     }

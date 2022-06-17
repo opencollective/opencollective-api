@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 
 import logger from '../lib/logger';
+import { reportErrorToSentry } from '../lib/sentry';
 import paymentProviders from '../paymentProviders';
 import paypalWebhookHandler from '../paymentProviders/paypal/webhook';
 import privacyWebhookHandler from '../paymentProviders/privacy/webhook';
@@ -13,6 +14,7 @@ export async function stripeWebhook(req: Request, res: Response, next: NextFunct
     res.sendStatus(200);
   } catch (error) {
     logger.error(`stripe/webhook : ${error.message}`, { body: req.body });
+    reportErrorToSentry(error);
     next(error);
   }
 }
@@ -49,6 +51,7 @@ export async function privacyWebhook(
     res.sendStatus(200);
   } catch (error) {
     logger.error(`privacy/webhook : ${error.message}`, { body: req.body });
+    reportErrorToSentry(error);
     next(error);
   }
 }

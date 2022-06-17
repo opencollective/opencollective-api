@@ -5,6 +5,7 @@ import { get } from 'lodash';
 import { uploadToS3 } from '../lib/awsS3';
 import { secretbox } from '../lib/encryption';
 import logger from '../lib/logger';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import models from '../models';
 
 const { User, LegalDocument, RequiredLegalDocument } = models;
@@ -79,6 +80,7 @@ async function callback(req, res) {
     }
     if (!user) {
       logger.error('Tax Form: could not find user matching metadata', metadata);
+      reportMessageToSentry('Tax Form: could not find user matching metadata', { extra: { metadata } });
       return res.sendStatus(400);
     } else if (!collective) {
       collective = await user.getCollective();
@@ -86,12 +88,16 @@ async function callback(req, res) {
 
     if (!collective) {
       logger.error('Tax Form: could not find collective matching metadata', metadata);
+      reportMessageToSentry('Tax Form: could not find collective matching metadata', { extra: { metadata } });
       return res.sendStatus(400);
     }
 
     const doc = await LegalDocument.findByTypeYearCollective({ year, documentType, collective });
     if (!doc) {
-      logger.error(`No legal document  found for ${documentType}/${year}/${collective.slug}`);
+      logger.error(`No legal document found for ${documentType}/${year}/${collective.slug}`);
+      reportMessageToSentry(`Tax Form: No legal document found`, {
+        extra: { documentType, year, collective: collective.info },
+      });
       return res.sendStatus(400);
     }
 
@@ -109,6 +115,7 @@ async function callback(req, res) {
         doc.requestStatus = ERROR;
         doc.save();
         logger.error('error saving tax form: ', err);
+        reportErrorToSentry(err);
         res.sendStatus(400);
       });
   } else {

@@ -10,6 +10,7 @@ import {
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -191,6 +192,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   if (paymentIntent.status !== 'succeeded') {
     logger.error('Unknown error with Stripe Payment Intent.');
     logger.error(paymentIntent);
+    reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
     throw new Error(UNKNOWN_ERROR_MSG);
   }
 
@@ -384,6 +386,7 @@ export default {
       logger.error(`Unknown Stripe Payment Error: ${error.message}`);
       logger.error(error);
       logger.error(error.stack);
+      reportErrorToSentry(error);
 
       throw new Error(UNKNOWN_ERROR_MSG);
     }

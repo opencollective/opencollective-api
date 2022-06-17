@@ -74,6 +74,7 @@ import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { canUseFeature } from '../lib/user-permissions';
@@ -919,6 +920,7 @@ function defineModel() {
         ics.createEvent(event, (err, res) => {
           if (err) {
             logger.error(`Error while generating the ics file for event id ${this.id} (${url})`, err);
+            reportErrorToSentry(err, { extra: { eventId: this.id, url } });
           }
           return resolve(res);
         });
@@ -1346,6 +1348,7 @@ function defineModel() {
       };
       if (!parent) {
         logger.error(`${this.type} (${this.id}) with an invalid parent (${this.ParentCollectiveId}).`);
+        reportMessageToSentry('Event/project has invalid parent', { extra: { collective: this.info } });
         return `/collective/${pathType[this.type]}/${this.slug}`;
       }
       return `/${parent.slug}/${pathType[this.type]}/${this.slug}`;
@@ -3368,7 +3371,10 @@ function defineModel() {
 
   Collective.createMany = (collectives, defaultValues) => {
     return Promise.map(collectives, u => Collective.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
-      logger.error,
+      error => {
+        logger.error(error);
+        reportErrorToSentry(error);
+      },
     );
   };
 

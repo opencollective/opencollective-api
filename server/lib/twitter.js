@@ -9,6 +9,7 @@ import activityType from '../constants/activities';
 import models from '../models';
 
 import logger from './logger';
+import { reportMessageToSentry } from './sentry';
 import { formatCurrency } from './utils';
 
 const debug = debugLib('twitter');
@@ -156,6 +157,7 @@ Become a financial contributor! 😃`,
 
   if (!messages['en-US'][template]) {
     console.error('Invalid tweet template', template);
+    reportMessageToSentry(`Invalid tweet template`, { extra: { template } });
     return;
   }
 
