@@ -24,7 +24,7 @@ import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
-import { SentryGraphQLPlugin } from './lib/sentry';
+import { reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -290,6 +290,14 @@ export default async app => {
    * Hello Works API - Helloworks hits this endpoint when a document has been completed.
    */
   app.post('/helloworks/callback', helloworks.callback);
+
+  /**
+   * An endpoint to easily test Sentry integration
+   */
+  app.get('/__test_sentry__', (req, res) => {
+    reportMessageToSentry('Testing sentry', { severity: 'debug', user: req.remoteUser });
+    res.sendStatus(200);
+  });
 
   /**
    * Override default 404 handler to make sure to obfuscate api_key visible in URL

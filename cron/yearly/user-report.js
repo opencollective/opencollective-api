@@ -7,6 +7,7 @@ import _ from 'lodash';
 
 import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 
@@ -220,7 +221,10 @@ const processCollective = collective => {
         }
       });
     })
-    .catch(console.error);
+    .catch(error => {
+      console.error(error);
+      reportErrorToSentry(error);
+    });
 };
 
 const getHosts = async () => {

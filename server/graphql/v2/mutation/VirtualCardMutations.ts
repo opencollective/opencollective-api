@@ -5,6 +5,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graph
 import { activities, frequencies } from '../../../constants';
 import VirtualCardProviders from '../../../constants/virtual_card_providers';
 import logger from '../../../lib/logger';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
@@ -87,7 +88,10 @@ const virtualCardMutations = {
           collective: collective.activity,
           host: host.activity,
         },
-      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ADDED activity', e));
+      }).catch(e => {
+        logger.error('An error occurred when creating the COLLECTIVE_VIRTUAL_CARD_ADDED activity', e);
+        reportErrorToSentry(e);
+      });
 
       return virtualCard;
     },
@@ -157,7 +161,10 @@ const virtualCardMutations = {
           collective: collective.activity,
           host: host.activity,
         },
-      }).catch(e => logger.error('An error occured when creating the COLLECTIVE_VIRTUAL_CARD_ADDED activity', e));
+      }).catch(e => {
+        logger.error('An error occurred when creating the COLLECTIVE_VIRTUAL_CARD_ADDED activity', e);
+        reportErrorToSentry(e);
+      });
 
       return virtualCard;
     },

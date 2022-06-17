@@ -13,6 +13,7 @@ import models from '../models';
 
 import templates from './emailTemplates';
 import logger from './logger';
+import { reportErrorToSentry } from './sentry';
 import { isEmailInternal, md5, sha512 } from './utils';
 import whiteListDomains from './whiteListDomains';
 
@@ -371,6 +372,7 @@ const generateEmailFromTemplateAndSend = async (template, recipient, data, optio
     .catch(err => {
       logger.error(err.message);
       logger.debug(err);
+      reportErrorToSentry(err);
     });
 };
 

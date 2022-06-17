@@ -16,6 +16,7 @@ import {
   getPlatformTip,
   isPlatformTipEligible,
 } from '../../lib/payments';
+import { reportErrorToSentry } from '../../lib/sentry';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
@@ -179,6 +180,7 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
     }
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e);
     next(e);
   }
 };

@@ -7,6 +7,7 @@ import models, { Op } from '../models';
 import { TOKEN_EXPIRATION_PDF } from './auth';
 import { fetchWithTimeout } from './fetch';
 import logger from './logger';
+import { reportErrorToSentry } from './sentry';
 import { parseToBoolean } from './utils';
 
 export const getTransactionPdf = async (transaction, user) => {
@@ -31,6 +32,7 @@ export const getTransactionPdf = async (transaction, user) => {
     })
     .catch(error => {
       logger.error(`Error fetching PDF: ${error.message}`);
+      reportErrorToSentry(error);
     });
 };
 
@@ -146,6 +148,7 @@ export const getConsolidatedInvoicePdfs = async fromCollective => {
       }
     } catch (error) {
       logger.error(`Error fetching PDF: ${error.message}`);
+      reportErrorToSentry(error);
     }
 
     // Push invoice to attachments if fetch is successful

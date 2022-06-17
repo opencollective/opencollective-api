@@ -7,6 +7,7 @@ import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
 import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
@@ -264,6 +265,7 @@ export const loaders = req => {
       })
       .catch(e => {
         console.error(e);
+        reportErrorToSentry(e);
         return [];
       })
       .then(results => sortResults(OrgCollectiveIds, results, 'OrgCollectiveId', {})),

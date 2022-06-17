@@ -10,6 +10,7 @@ import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../models/Le
 import emailLib from './email';
 import logger from './logger';
 import queries from './queries';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 import { isEmailInternal } from './utils';
 
 /**
@@ -119,6 +120,7 @@ export async function sendHelloWorksUsTaxForm(
   const mainUser = await getMainAdminToContact(accountToSubmitRequestTo, adminUsers);
   if (!mainUser) {
     logger.error(`No contact found for account #${account.id} (@${account.slug}). Skipping tax form.`);
+    reportMessageToSentry('Tax form: No contact found', { extra: { collectiveId: account.id } });
     return;
   }
 
@@ -182,6 +184,7 @@ export async function sendHelloWorksUsTaxForm(
       `Failed to initialize tax form for account #${accountToSubmitRequestTo.id} (${mainUser.email})`,
       error,
     );
+    reportErrorToSentry(error);
     return saveDocumentStatus(accountToSubmitRequestTo, year, LEGAL_DOCUMENT_REQUEST_STATUS.ERROR, {
       error: {
         message: error.message,

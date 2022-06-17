@@ -166,7 +166,7 @@ export async function processOrderWithSubscription(order, options) {
       }
     } catch (error) {
       console.log(`Error notifying order #${order.id} ${error}`);
-      reportErrorToSentry(error, { severity: 'fatal', tags: { feature: FEATURE.RECURRING_CONTRIBUTIONS } });
+      reportErrorToSentry(error, { severity: 'fatal', feature: FEATURE.RECURRING_CONTRIBUTIONS });
     } finally {
       await order.Subscription.save();
       await order.save();

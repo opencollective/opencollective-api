@@ -14,6 +14,7 @@ import ORDER_STATUS from '../../server/constants/order_status';
 import roles from '../../server/constants/roles';
 import emailLib from '../../server/lib/email';
 import { getConsolidatedInvoicePdfs } from '../../server/lib/pdf';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatCurrencyObject, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
@@ -213,6 +214,7 @@ const processBacker = async FromCollectiveId => {
     });
   } catch (e) {
     console.error(e);
+    reportErrorToSentry(e);
   }
 };
 

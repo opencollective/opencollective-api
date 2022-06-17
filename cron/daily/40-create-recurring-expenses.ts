@@ -1,6 +1,7 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { sequelize } from '../../server/models';
 
 const run = async () => {
@@ -12,6 +13,7 @@ const run = async () => {
     );
     await recurringExpense.createNextExpense().catch(e => {
       logger.error(`Error creating recurring expense #${recurringExpense.id}:`, e);
+      reportErrorToSentry(e);
     });
   }
 };
@@ -20,6 +22,7 @@ if (require.main === module) {
   run()
     .catch(e => {
       logger.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     })
     .then(() => {

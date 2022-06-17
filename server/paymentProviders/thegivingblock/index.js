@@ -9,6 +9,7 @@ import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { getHostFee, getHostFeeSharePercent } from '../../lib/payments';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
 
 const AES_ENCRYPTION_KEY = config.thegivingblock.aesEncryptionKey;
@@ -52,10 +53,12 @@ async function handleErrorsAndRetry(result, path, options = {}, account = null) 
         return result.data;
       } catch (err) {
         logger.error(err.message);
+        reportErrorToSentry(err);
         throw new Error(GENERIC_ERROR_MSG);
       }
     }
     logger.error(`The Giving Block: ${result.data.errorMessage} ${result.data.meta.errorCode}`);
+    reportMessageToSentry(`The Giving Block: ${result.data.errorMessage}`, { extra: result.data });
     throw new Error(GENERIC_ERROR_MSG);
   }
   return result.data;

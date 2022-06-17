@@ -9,6 +9,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
+import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
 import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
@@ -385,6 +386,10 @@ function defineModel() {
     if (this.monthlyLimitPerMember && !user) {
       console.error(
         '>>> this payment method has a monthly limit. Please provide a user to be able to compute their balance.',
+      );
+      reportMessageToSentry(
+        `This payment method has a monthly limit. Please provide a user to be able to compute their balance.`,
+        { extra: { paymentMethod: this.info } },
       );
       return { amount: 0, currency: this.currency };
     }

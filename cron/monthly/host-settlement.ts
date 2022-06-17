@@ -13,6 +13,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { SETTLEMENT_EXPENSE_PROPERTIES } from '../../server/constants/transactions';
 import { getTransactionsCsvUrl } from '../../server/lib/csv';
 import { getPendingHostFeeShare, getPendingPlatformTips } from '../../server/lib/host-metrics';
+import { reportErrorToSentry, reportMessageToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { sequelize } from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -173,6 +174,7 @@ AND t."createdAt" < :endDate`,
 
       if (!payoutMethod) {
         console.error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
+        reportMessageToSentry('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
         process.exit();
       }
 
@@ -227,6 +229,7 @@ if (require.main === module) {
   run(defaultDate)
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     })
     .then(() => {

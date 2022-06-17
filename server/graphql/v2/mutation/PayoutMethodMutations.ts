@@ -3,6 +3,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
 import logger from '../../../lib/logger';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import models from '../../../models';
 import PayoutMethodModel from '../../../models/PayoutMethod';
 import { Forbidden, NotFound, Unauthorized } from '../../errors';
@@ -40,6 +41,7 @@ const payoutMethodMutations = {
           await collective.setCurrency(args.payoutMethod.data.currency);
         } catch (error) {
           logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+          reportErrorToSentry(error);
         }
 
         const existingBankAccount = await models.PayoutMethod.findOne({

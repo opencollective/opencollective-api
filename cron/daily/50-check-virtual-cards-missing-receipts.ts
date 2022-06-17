@@ -7,6 +7,7 @@ import moment from 'moment';
 import { activities as activityTypes } from '../../server/constants';
 import VirtualCardProviders from '../../server/constants/virtual_card_providers';
 import logger from '../../server/lib/logger';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
 
 const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
@@ -76,6 +77,7 @@ const run = async () => {
   for (const expenses of expensesByVirtualCard) {
     await processVirtualCard(expenses).catch(e => {
       logger.error(`Error processing virtual card #${expenses[0].id}:`, e);
+      reportErrorToSentry(e);
     });
   }
 };
@@ -84,6 +86,7 @@ if (require.main === module) {
   run()
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     })
     .then(() => {

@@ -10,6 +10,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
 import { getCollectiveTransactionsCsv } from '../../server/lib/csv';
 import { notifyAdminsOfCollective } from '../../server/lib/notifications';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
 
@@ -217,6 +218,7 @@ const processCollective = async collective => {
     })
     .catch(e => {
       console.error('Error in processing collective', collective.slug, e);
+      reportErrorToSentry(e);
     });
 };
 

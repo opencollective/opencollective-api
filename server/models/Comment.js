@@ -4,6 +4,7 @@ import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 // Options for sanitizing comment's body
@@ -212,7 +213,10 @@ function defineModel() {
 
   Comment.createMany = (comments, defaultValues) => {
     return Promise.map(comments, u => Comment.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
-      console.error,
+      error => {
+        console.error(error);
+        reportErrorToSentry(error);
+      },
     );
   };
 

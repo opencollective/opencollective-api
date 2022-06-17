@@ -3,6 +3,7 @@
 import '../../server/env';
 
 import logger from '../../server/lib/logger';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
 
 /**
@@ -24,6 +25,7 @@ if (require.main === module) {
     .then(() => process.exit(0))
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     });
 }

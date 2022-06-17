@@ -18,6 +18,7 @@ import { getFxRate } from '../lib/currency';
 import { toNegative } from '../lib/math';
 import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments';
 import { stripHTML } from '../lib/sanitize-html';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV, parseToBoolean } from '../lib/utils';
 
@@ -397,7 +398,10 @@ function defineModel() {
         transaction[attr] = defaultValues[attr];
       }
       return Transaction.create(transaction);
-    }).catch(console.error);
+    }).catch(error => {
+      console.error(error);
+      reportErrorToSentry(error);
+    });
   };
 
   Transaction.createManyDoubleEntry = (transactions, defaultValues) => {
@@ -406,7 +410,10 @@ function defineModel() {
         transaction[attr] = defaultValues[attr];
       }
       return Transaction.createDoubleEntry(transaction);
-    }).catch(console.error);
+    }).catch(error => {
+      console.error(error);
+      reportErrorToSentry(error);
+    });
   };
 
   Transaction.exportCSV = (transactions, collectivesById) => {
@@ -1044,12 +1051,13 @@ function defineModel() {
           }
           return models.Activity.create(activityPayload, { transaction: options?.transaction });
         })
-        .catch(err =>
+        .catch(err => {
           console.error(
             `Error creating activity of type ${activities.COLLECTIVE_TRANSACTION_CREATED} for transaction ID ${transaction.id}`,
             err,
-          ),
-        )
+          );
+          reportErrorToSentry(err);
+        })
     );
   };
 

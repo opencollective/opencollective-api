@@ -10,6 +10,7 @@ import expenseStatus from '../../../constants/expense_status';
 import FEATURE from '../../../constants/feature';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
 import {
@@ -407,7 +408,10 @@ const expenseMutations = {
       const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
       expense
         .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, remoteUser, { ...expense.data, inviteUrl })
-        .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e));
+        .catch(e => {
+          logger.error('An error happened when creating the COLLECTIVE_EXPENSE_INVITE_DRAFTED activity', e);
+          reportErrorToSentry(e);
+        });
 
       if (config.env === 'development') {
         logger.info(`Expense Invite Link: ${inviteUrl}`);
@@ -477,9 +481,10 @@ const expenseMutations = {
 
       // Technically the expense was already created, but it was a draft. It truly becomes visible
       // for everyone (especially admins) at this point, so it's the right time to trigger `COLLECTIVE_EXPENSE_CREATED`
-      await expense
-        .createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser)
-        .catch(e => logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e));
+      await expense.createActivity(activities.COLLECTIVE_EXPENSE_CREATED, req.remoteUser).catch(e => {
+        logger.error('An error happened when creating the COLLECTIVE_EXPENSE_CREATED activity', e);
+        reportErrorToSentry(e);
+      });
 
       return expense;
     },

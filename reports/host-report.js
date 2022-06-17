@@ -10,6 +10,7 @@ import { getHostTransactionsCsvAsAdmin } from '../server/lib/csv';
 import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
+import { reportErrorToSentry, reportMessageToSentry } from '../server/lib/sentry';
 import { getTransactions } from '../server/lib/transactions';
 import { exportToPDF, sumByWhen } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
@@ -312,6 +313,7 @@ async function HostReport(year, month, hostId) {
           paper: host.currency === 'USD' ? 'Letter' : 'A4',
         }).catch(error => {
           console.error(error);
+          reportErrorToSentry(error);
           return;
         });
       }
@@ -485,6 +487,7 @@ async function HostReport(year, month, hostId) {
       await sendEmail(admins, data, attachments);
     } catch (e) {
       console.error(`Error in processing host ${host.slug}:`, e);
+      reportErrorToSentry(e);
       debug(e);
     }
   };
@@ -493,6 +496,7 @@ async function HostReport(year, month, hostId) {
     debug('Sending email to ', recipients);
     if (!recipients || recipients.length === 0) {
       console.error('Unable to send host report for ', data.host.slug, 'No recipient to send to');
+      reportMessageToSentry(`Unable to send host report for ${data.host.slug} No recipient to send to`);
       return;
     }
     debug('email data stats', JSON.stringify(data.stats, null, 2));

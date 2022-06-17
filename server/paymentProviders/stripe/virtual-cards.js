@@ -6,6 +6,7 @@ import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
+import { reportMessageToSentry } from '../../lib/sentry';
 import { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
@@ -130,6 +131,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeEvent } });
     return;
   }
 
@@ -214,6 +216,7 @@ export const processDeclinedAuthorization = async (stripeAuthorization, stripeEv
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeAuthorization, stripeEvent } });
     return;
   }
 
@@ -232,6 +235,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeTransaction.card.id}`, stripeEvent);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeTransaction, stripeEvent } });
     return;
   }
 
@@ -259,6 +263,7 @@ export const processUpdatedTransaction = async (stripeAuthorization, stripeEvent
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeAuthorization, stripeEvent } });
     return;
   }
 
@@ -279,6 +284,9 @@ export const processUpdatedTransaction = async (stripeAuthorization, stripeEvent
         `Stripe: could not find expense attached to reversed authorization ${stripeAuthorization.id}`,
         stripeEvent,
       );
+      reportMessageToSentry('Stripe: could not find expense attached to reversed authorization', {
+        extra: { stripeAuthorization, stripeEvent },
+      });
       return;
     } else if (expense.status !== ExpenseStatus.CANCELED) {
       await expense.update({ status: ExpenseStatus.CANCELED });
@@ -317,6 +325,7 @@ export const processCardUpdate = async (stripeCard, stripeEvent) => {
   const virtualCard = await models.VirtualCard.findByPk(stripeCard.id);
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeCard.id}`, stripeEvent);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeCard, stripeEvent } });
     return;
   }
 

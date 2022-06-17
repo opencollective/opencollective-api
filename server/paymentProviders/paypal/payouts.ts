@@ -10,6 +10,7 @@ import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as paypal from '../../lib/paypal';
+import { reportMessageToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models from '../../models';
 import { PayoutItemDetails } from '../../types/paypal';
@@ -120,6 +121,9 @@ export const checkBatchItemStatus = async (
           if (item.payout_item_fee.currency !== expense.currency) {
             // payout_item_fee is always supposed to be in currency_conversion.to_amount.currency. This is a sanity check just in case
             logger.error(`Payout item fee currency does not match expense #${expense.id} currency`);
+            reportMessageToSentry('Payout item fee currency does not match expense currency', {
+              extra: { expense: expense.info, item },
+            });
           }
         }
 

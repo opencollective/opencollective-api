@@ -10,6 +10,7 @@ import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
 import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
+import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 
 export const sanitizerOptions = buildSanitizerOptions({
@@ -466,9 +467,10 @@ function defineModel() {
   };
 
   Update.createMany = (updates, defaultValues) => {
-    return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
-      console.error,
-    );
+    return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(err => {
+      console.error(err);
+      reportErrorToSentry(err);
+    });
   };
 
   Temporal(Update, sequelize);

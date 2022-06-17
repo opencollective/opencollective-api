@@ -9,6 +9,7 @@ import models from '../models';
 
 import cache from './cache';
 import logger from './logger';
+import { reportErrorToSentry, reportMessageToSentry } from './sentry';
 
 const debug = debugLib('currency');
 
@@ -90,6 +91,9 @@ export const getRatesFromDb = async (
     // If some currencies are still missing, we have no choice but to throw an error
     if (missingCurrencies.length > 0) {
       logger.error(`FX rate error: missing currencies in CurrencyExchangeRate: ${missingCurrencies.join(', ')}`);
+      reportMessageToSentry('FX rate error: missing currencies in CurrencyExchangeRate', {
+        extra: { fromCurrency, toCurrencies, missingCurrencies },
+      });
       throw new Error(
         'We are not able to fetch the currency FX rates for some currencies at the moment, some statistics may be unavailable',
       );
@@ -142,6 +146,7 @@ export async function fetchFxRates(
         logger.info(`Unable to fetch fxRate with Fixer API: ${error.message}. Returning 1.1`);
       } else {
         logger.error(`Unable to fetch fxRate with Fixer API: ${error.message}. Using DB fallback`);
+        reportErrorToSentry(error);
       }
     }
   }

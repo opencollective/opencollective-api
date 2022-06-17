@@ -26,7 +26,9 @@ import {
   WebhookEvent,
 } from '../types/transferwise';
 
+import { FEATURE } from './allowed-features';
 import logger from './logger';
+import { reportErrorToSentry } from './sentry';
 
 const debug = Debug('transferwise');
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
@@ -127,6 +129,7 @@ export const requestDataAndThrowParsedError = (
       debug(JSON.stringify(e.response?.data, null, 2) || e);
       const error = parseError(e, defaultErrorMessage);
       logger.error(error.toString());
+      reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
       throw error;
     })
     .finally(() => {
@@ -370,6 +373,7 @@ export const getBorderlessAccount = async (token: string, profileId: string | nu
     return accounts.find(a => a.profileId === profileId);
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error("There was an error while fetching Host's Wise account");
   }
 };
@@ -386,6 +390,7 @@ export const createBatchGroup = async (
     });
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error('There was an error while creating the batch group.');
   }
 };
@@ -401,6 +406,7 @@ export const getBatchGroup = async (
     });
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error('There was an error while fetching the batch group.');
   }
 };
@@ -423,6 +429,7 @@ export const createBatchGroupTransfer = async (
     );
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error('There was an error while creating the Wise transfer in the batch group');
   }
 };
@@ -440,6 +447,7 @@ export const completeBatchGroup = async (
     });
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error('There was an error while creating the Wise transfer in the batch group');
   }
 };
@@ -457,6 +465,7 @@ export const cancelBatchGroup = async (
     });
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error('There was an error while creating the Wise transfer in the batch group');
   }
 };
@@ -490,6 +499,7 @@ export const fundBatchGroup = async (
         return { headers, status };
       } else {
         logger.error(e);
+        reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
         throw new Error('There was an error while funding the batch group');
       }
     });
@@ -599,6 +609,7 @@ export const getOrRefreshToken = async ({
     debug(JSON.stringify(e));
     const error = parseError(e, "There was an error while refreshing host's Wise token");
     logger.error(error.toString());
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw error;
   }
 };
@@ -615,6 +626,7 @@ export const listApplicationWebhooks = async (): Promise<Webhook[]> => {
     return webhooks;
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error("There was an error while listing Wise's application webhooks");
   }
 };
@@ -631,6 +643,7 @@ export const createApplicationWebhook = async (webhookInfo: WebhookCreateInput):
     return webhook;
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error("There was an error while creating Wise's application webhook");
   }
 };
@@ -646,6 +659,7 @@ export const deleteApplicationWebhook = async (id: string | number): Promise<any
       .then(getData);
   } catch (e) {
     logger.error(e);
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
     throw new Error("There was an error while deleting Wise's application webhook");
   }
 };

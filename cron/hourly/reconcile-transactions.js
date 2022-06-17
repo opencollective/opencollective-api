@@ -9,6 +9,7 @@ import Stripe from 'stripe';
 import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
 import logger from '../../server/lib/logger';
 import * as privacyLib from '../../server/lib/privacy';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op } from '../../server/models';
 import privacy from '../../server/paymentProviders/privacy';
 import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
@@ -114,6 +115,7 @@ async function reconcileConnectedAccount(connectedAccount) {
       }
     } catch (error) {
       logger.error(`Error while syncing card ${card.id}`, error);
+      reportErrorToSentry(error);
     }
   }
 }
@@ -144,7 +146,10 @@ export async function run() {
   logger.info(`Found ${connectedAccounts.length} connected Privacy and Stripe accounts...`);
 
   for (const connectedAccount of connectedAccounts) {
-    await reconcileConnectedAccount(connectedAccount).catch(console.error);
+    await reconcileConnectedAccount(connectedAccount).catch(error => {
+      console.error(error);
+      reportErrorToSentry(error);
+    });
   }
 }
 
@@ -155,6 +160,7 @@ if (require.main === module) {
     })
     .catch(e => {
       console.error(e);
+      reportErrorToSentry(e);
       process.exit(1);
     });
 }

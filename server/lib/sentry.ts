@@ -12,7 +12,10 @@ import type { SeverityLevel } from '@sentry/types';
 import config from 'config';
 import { isEmpty, isEqual } from 'lodash';
 
+import FEATURE from '../constants/feature';
+
 import logger from './logger';
+import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
 
 if (config.sentry?.dsn) {
   logger.info('Initializing Sentry');
@@ -47,21 +50,38 @@ type CaptureErrorParams = {
   breadcrumbs?: Sentry.Breadcrumb[];
   user?: Sentry.User;
   handler?: HandlerType;
+  feature?: FEATURE;
 };
 
-/**
- * Helper to capture an error on Sentry
- */
-export const reportErrorToSentry = (
-  err: Error,
-  { severity = 'error', tags, handler, extra, user, breadcrumbs }: CaptureErrorParams = {},
-): void => {
+const stringifyExtra = (value: unknown) => {
+  if (typeof value === 'string') {
+    return value;
+  } else if (value === null) {
+    return 'null';
+  } else if (value === undefined) {
+    return 'undefined';
+  } else if (value instanceof Error) {
+    return JSON.stringify(sanitizeObjectForJSON(value), Object.getOwnPropertyNames(value));
+  } else if (typeof value === 'object') {
+    return safeJsonStringify(value);
+  } else {
+    return value?.toString();
+  }
+};
+
+const withScopeFromCaptureErrorParams = (
+  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature }: CaptureErrorParams = {},
+  callback: (scope: Sentry.Scope) => void,
+) => {
   Sentry.withScope(scope => {
     scope.setLevel(severity);
 
     // Set tags
     if (handler) {
       scope.setTag('handler', handler);
+    }
+    if (feature) {
+      scope.setTag('feature', feature);
     }
     if (!isEmpty(tags)) {
       Object.entries(tags).forEach(([tag, value]) => scope.setTag(tag, value));
@@ -79,10 +99,28 @@ export const reportErrorToSentry = (
 
     // Set extra
     if (!isEmpty(extra)) {
-      Object.entries(extra).forEach(([key, value]) => scope.setExtra(key, value));
+      Object.entries(extra).forEach(([key, value]) => scope.setExtra(key, stringifyExtra(value)));
     }
 
+    callback(scope);
+  });
+};
+
+/**
+ * Helper to capture an error on Sentry
+ */
+export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {}): void => {
+  withScopeFromCaptureErrorParams(params, () => {
     Sentry.captureException(err);
+  });
+};
+
+/**
+ * Publish a message directly to Sentry
+ */
+export const reportMessageToSentry = (message: string, params: CaptureErrorParams = undefined) => {
+  withScopeFromCaptureErrorParams(params, () => {
+    Sentry.captureMessage(message, params?.severity || 'error');
   });
 };
 

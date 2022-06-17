@@ -8,6 +8,7 @@ import { get } from 'lodash';
 
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
@@ -139,6 +140,7 @@ export default {
       const updateHost = async connectedAccount => {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
+          reportMessageToSentry(`updateHost: error: no connectedAccount`, { extra: { CollectiveId } });
         }
 
         const { account } = connectedAccount.data;
@@ -164,6 +166,7 @@ export default {
           await collective.setCurrency(account.default_currency.toUpperCase());
         } catch (error) {
           logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+          reportErrorToSentry(error, { extra: { CollectiveId } });
         }
 
         collective.timezone = collective.timezone || account.timezone;

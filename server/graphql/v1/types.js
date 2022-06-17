@@ -23,6 +23,7 @@ import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
 import { getContributorsForTier } from '../../lib/contributors';
+import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
@@ -151,7 +152,9 @@ export const UserType = new GraphQLObjectType({
         type: CollectiveInterfaceType,
         resolve(user, args, req) {
           if (!user.CollectiveId) {
-            return console.error('>>> user', user.id, 'does not have a CollectiveId', user.CollectiveId);
+            console.error('>>> user', user.id, 'does not have a CollectiveId', user.CollectiveId);
+            reportMessageToSentry(`User does not have a CollectiveId`, { extra: { user: user.info } });
+            return null;
           }
           return req.loaders.Collective.byId.load(user.CollectiveId);
         },

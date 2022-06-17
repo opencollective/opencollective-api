@@ -10,6 +10,7 @@ import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';
 import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
+import { reportMessageToSentry } from '../lib/sentry';
 import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
@@ -98,6 +99,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     return;
   } else if (!user.collective) {
     logger.error(`User id ${userId} has no collective linked`);
+    reportMessageToSentry(`User has no collective linked`, { user });
     next();
     return;
   }
@@ -129,6 +131,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     if (path !== '/users/update-token') {
       if (config.env === 'production' || config.env === 'staging') {
         logger.error('Not allowed to use tokens with login scope on routes other than /users/update-token.');
+        reportMessageToSentry(`Not allowed to use tokens with login scope on routes other than /users/update-token`);
         next();
         return;
       } else {
@@ -140,7 +143,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     if (user.lastLoginAt) {
       if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
         if (config.env === 'production' || config.env === 'staging') {
-          logger.error('This login link is expired or has already been used');
+          logger.warn('This login link is expired or has already been used');
           return next(errors.Unauthorized('This login link is expired or has already been used'));
         } else {
           logger.info('This login link is expired or has already been used. Ignoring in non-production environment.');

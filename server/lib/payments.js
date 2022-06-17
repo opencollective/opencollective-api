@@ -25,6 +25,7 @@ import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
+import { reportMessageToSentry } from './sentry';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { getEditRecurringContributionsUrl } from './url-utils';
@@ -343,6 +344,9 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
       logger.error(
         `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
       );
+      reportMessageToSentry('Partial processor fees refunds are not supported', {
+        extra: { refundedPaymentProcessorFee, transaction: transaction.info },
+      });
     } else if (transaction.paymentProcessorFeeInHostCurrency) {
       // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
       const transactionToRefundPaymentProcessorFee = transaction.ExpenseId

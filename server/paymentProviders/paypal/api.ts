@@ -3,6 +3,7 @@ import fetch from 'node-fetch';
 
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
+import { reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
 
 /** Build an URL for the PayPal API */
@@ -79,6 +80,7 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
     logger.error('PayPal request failed', metadata);
+    reportMessageToSentry('PayPal request failed', { extra: metadata });
     throw new Error(message);
   } else if (result.status === 204) {
     return null;
@@ -113,6 +115,7 @@ export async function paypalRequestV2(
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
     logger.error('PayPal request failed', metadata);
+    reportMessageToSentry('PayPal request V2 failed', { extra: metadata });
     throw new Error(message);
   } else if (result.status === 204) {
     return null;

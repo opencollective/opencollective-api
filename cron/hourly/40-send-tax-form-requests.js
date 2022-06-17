@@ -6,6 +6,7 @@ import HelloWorks from 'helloworks-sdk';
 import moment from 'moment';
 import pThrottle from 'p-throttle';
 
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { findAccountsThatNeedToBeSentTaxForm, sendHelloWorksUsTaxForm } from '../../server/lib/tax-forms';
 import { sequelize } from '../../server/models';
 
@@ -41,6 +42,7 @@ const init = async () => {
 init()
   .catch(error => {
     console.error(error);
+    reportErrorToSentry(error);
   })
   .finally(() => {
     sequelize.close();
