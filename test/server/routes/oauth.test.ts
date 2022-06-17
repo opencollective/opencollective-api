@@ -73,8 +73,9 @@ describe('server/routes/oauth', () => {
     const decodedToken = jwt.verify(oauthToken, config.keys.opencollective.jwtSecret);
     expect(decodedToken.sub).to.eq(application.CreatedByUserId.toString());
     expect(decodedToken.access_token.startsWith('test_oauth_')).to.be.true;
-    expect(decodedToken.iat).to.eq(fakeNow.getTime() / 1000); // 1640995200
-    expect(decodedToken.exp).to.eq(1648771200);
+    const iat = fakeNow.getTime() / 1000;
+    expect(decodedToken.iat).to.eq(iat); // 1640995200
+    expect(decodedToken.exp).to.eq(iat + 7776000);
 
     // Test OAuth token with a real query
     const gqlRequestResult = await request(expressApp)
