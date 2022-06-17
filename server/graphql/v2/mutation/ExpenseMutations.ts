@@ -310,7 +310,10 @@ const expenseMutations = {
             args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
           );
         case 'SCHEDULE_FOR_PAYMENT':
-          return scheduleExpenseForPayment(req, expense, args.paymentParams?.feesPayer);
+          return scheduleExpenseForPayment(req, expense, {
+            twoFactorAuthenticatorCode: args.paymentParams?.twoFactorAuthenticatorCode,
+            feesPayer: args.paymentParams?.feesPayer,
+          });
         case 'UNSCHEDULE_PAYMENT':
           return unscheduleExpensePayment(req, expense);
         case 'PAY':
