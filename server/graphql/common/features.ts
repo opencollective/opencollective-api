@@ -5,6 +5,7 @@ import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
+import { isPastEvent } from '../../lib/collectivelib';
 import models, { Op } from '../../models';
 
 const checkIsActive = async (
@@ -14,10 +15,16 @@ const checkIsActive = async (
   return promise.then(result => (result ? FEATURE_STATUS.ACTIVE : fallback));
 };
 
-const checkReceiveFinancialContributions = async collective => {
+const checkReceiveFinancialContributions = async (collective, remoteUser) => {
   if (!collective.HostCollectiveId || !collective.approvedAt) {
     return FEATURE_STATUS.DISABLED;
   } else if (!collective.isActive) {
+    return FEATURE_STATUS.UNSUPPORTED;
+  } else if (
+    collective.type === types.EVENT &&
+    isPastEvent(collective) &&
+    !remoteUser?.isAdminOfCollectiveOrHost(collective)
+  ) {
     return FEATURE_STATUS.UNSUPPORTED;
   }
 
@@ -106,7 +113,7 @@ const checkCanEmitGiftCards = async collective => {
  */
 export const getFeatureStatusResolver =
   (feature: FEATURE) =>
-  async (collective: typeof models.Collective): Promise<FEATURE_STATUS> => {
+  async (collective: typeof models.Collective, _, req): Promise<FEATURE_STATUS> => {
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
     } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {
@@ -121,7 +128,7 @@ export const getFeatureStatusResolver =
       case FEATURE.ABOUT:
         return collective.longDescription ? FEATURE_STATUS.ACTIVE : FEATURE_STATUS.AVAILABLE;
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
-        return checkReceiveFinancialContributions(collective);
+        return checkReceiveFinancialContributions(collective, req.remoteUser);
       case FEATURE.RECEIVE_EXPENSES:
         return checkIsActive(models.Expense.count({ where: { CollectiveId: collective.id }, limit: 1 }));
       case FEATURE.UPDATES:
