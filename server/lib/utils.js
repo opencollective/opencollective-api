@@ -492,7 +492,8 @@ export const cleanTags = tags => {
   const cleanTagsList = tags
     .filter(t => Boolean(t)) // Remove null values
     .map(t => t.trim()) // Trim tags
-    .filter(t => t.length > 0); // Remove empty tags
+    .filter(t => t.length > 0) // Remove empty tags
+    .map(t => t.replace(/^#/g, '')); // Remove # prefixes
 
   return cleanTagsList.length > 0 ? cleanTagsList : null;
 };
