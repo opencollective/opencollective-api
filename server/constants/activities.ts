@@ -69,4 +69,79 @@ enum ActivityTypes {
   COLLECTIVE_VIRTUAL_CARD_CREATED = 'collective.virtualcard.created', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
 }
 
+/** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
+export const TransactionalActivities = [
+  ActivityTypes.ADDED_FUND_TO_ORG,
+  ActivityTypes.COLLECTIVE_APPLY,
+  ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+  ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+  ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+  ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
+  ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+  ActivityTypes.COLLECTIVE_EXPENSE_PAID,
+  ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
+  ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+  ActivityTypes.COLLECTIVE_FROZEN,
+  ActivityTypes.COLLECTIVE_MEMBER_CREATED,
+  ActivityTypes.COLLECTIVE_REJECTED,
+  ActivityTypes.COLLECTIVE_UNFROZEN,
+  ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
+  ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
+  ActivityTypes.CONTRIBUTION_REJECTED,
+  ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
+  ActivityTypes.PAYMENT_FAILED,
+  ActivityTypes.TICKET_CONFIRMED,
+  ActivityTypes.USER_CREATED,
+  ActivityTypes.VIRTUAL_CARD_REQUESTED,
+];
+
+export enum ActivityClasses {
+  COLLECTIVE = 'collective',
+  TRANSACTIONS = 'transactions',
+  CONTRIBUTIONS = 'contributions',
+  CONVERSATIONS = 'conversations',
+  REPORTS = 'reports',
+}
+
+export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
+  [ActivityClasses.COLLECTIVE]: [
+    ActivityTypes.COLLECTIVE_MEMBER_CREATED,
+    ActivityTypes.COLLECTIVE_APPLY,
+    ActivityTypes.COLLECTIVE_APPROVED,
+    ActivityTypes.COLLECTIVE_REJECTED,
+  ],
+  [ActivityClasses.TRANSACTIONS]: [
+    ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+    ActivityTypes.COLLECTIVE_EXPENSE_DELETED,
+    ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+    ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
+    ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
+    ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
+    ActivityTypes.COLLECTIVE_EXPENSE_PAID,
+    ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
+    ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
+    ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
+    ActivityTypes.COLLECTIVE_EXPENSE_PROCESSING,
+    ActivityTypes.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
+    ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
+    ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
+    ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
+    ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
+    ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
+    ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
+  ],
+  [ActivityClasses.CONTRIBUTIONS]: [
+    ActivityTypes.CONTRIBUTION_REJECTED,
+    ActivityTypes.SUBSCRIPTION_ACTIVATED,
+    ActivityTypes.SUBSCRIPTION_CONFIRMED,
+    ActivityTypes.SUBSCRIPTION_CANCELED,
+    ActivityTypes.ORDERS_SUSPICIOUS,
+  ],
+  [ActivityClasses.CONVERSATIONS]: [
+    ActivityTypes.COLLECTIVE_COMMENT_CREATED,
+    ActivityTypes.COLLECTIVE_CONVERSATION_CREATED,
+  ],
+  [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY],
+};
+
 export default ActivityTypes;
