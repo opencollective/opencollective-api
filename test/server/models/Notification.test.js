@@ -6,7 +6,7 @@ import ActivityTypes, { ActivityClasses } from '../../../server/constants/activi
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakeNotification, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { User, Collective, Notification, Tier, Order } = models;
@@ -80,6 +80,49 @@ describe('server/models/Notification', () => {
       expect(userNotifications[0]).to.have.property('channel').equal('email');
       expect(userNotifications[0]).to.have.property('UserId').equal(user.id);
       expect(userNotifications[0]).to.have.property('CollectiveId').equal(collective.id);
+    });
+  });
+
+  describe('subscribe', () => {
+    it('should delete all unsubscriptions for ActivityTypes', async () => {
+      const user = await fakeUser();
+      const notification = await fakeNotification({
+        UserId: user.id,
+        channel: 'email',
+        active: false,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+      });
+
+      let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      expect(userNotifications).to.have.length(1);
+
+      await Notification.subscribe(notification.type, notification.channel, user.id, notification.CollectiveId);
+
+      userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      expect(userNotifications).to.have.length(0);
+    });
+
+    it('should delete all unsubscriptions for ActivityClasses, including its ActivityTypes', async () => {
+      const user = await fakeUser();
+      const notification = await fakeNotification({
+        UserId: user.id,
+        channel: 'email',
+        active: false,
+        type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+      });
+
+      let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      expect(userNotifications).to.have.length(1);
+
+      await Notification.subscribe(
+        ActivityClasses.TRANSACTIONS,
+        notification.channel,
+        user.id,
+        notification.CollectiveId,
+      );
+
+      userNotifications = await Notification.findAll({ where: { UserId: user.id } });
+      expect(userNotifications).to.have.length(0);
     });
   });
 

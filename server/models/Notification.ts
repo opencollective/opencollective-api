@@ -73,6 +73,26 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     });
   }
 
+  static async subscribe(
+    type: ActivityTypes | ActivityClasses,
+    channel: channels,
+    UserId: number = null,
+    CollectiveId: number = null,
+  ) {
+    const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
+    return sequelize.transaction(async transaction => {
+      await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
+
+      // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
+      if (isClass && UserId) {
+        await Notification.destroy({
+          where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+          transaction,
+        });
+      }
+    });
+  }
+
   /**
    * Get the list of subscribers to a mailing list
    * (e.g. backers@:collectiveSlug.opencollective.com, :eventSlug@:collectiveSlug.opencollective.com)
