@@ -11,23 +11,25 @@ import models from '../../models';
 const debugEmail = debug('email');
 const debugWebhook = debug('webhook');
 
-export const unsubscribe = (req, res, next) => {
+export const unsubscribe = async (req, res, next) => {
   const { type, email, slug, token } = req.params;
 
   if (!emailLib.isValidUnsubscribeToken(token, email, slug, type)) {
     return next(new errors.BadRequest('Invalid token'));
   }
 
-  Promise.all([models.Collective.findOne({ where: { slug } }), models.User.findOne({ where: { email } })])
-    .then(results => {
-      if (!results[1]) {
-        throw new errors.NotFound(`Cannot find a user with email "${email}"`);
-      }
+  try {
+    const collective = await models.Collective.findOne({ where: { slug } });
+    const user = await models.User.findOne({ where: { email } });
+    if (!user) {
+      throw new errors.NotFound(`Cannot find a user with email "${email}"`);
+    }
 
-      return results[1].unsubscribe(results[0] && results[0].id, type, 'email');
-    })
-    .then(() => res.send({ response: 'ok' }))
-    .catch(next);
+    await models.Notification.unsubscribe(type, 'email', user.id, collective.id);
+    res.send({ response: 'ok' });
+  } catch (e) {
+    next(e);
+  }
 };
 
 // TODO: move to emailLib.js

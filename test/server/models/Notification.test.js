@@ -139,7 +139,7 @@ describe('server/models/Notification', () => {
       const subscribers = await Notification.getSubscribersUsers(collective.slug, 'backers');
       expect(subscribers.length).to.equal(2);
 
-      await subscribers[0].unsubscribe(collective.id, 'mailinglist.backers');
+      await Notification.unsubscribe('mailinglist.backers', 'email', subscribers[0].id, collective.id);
       const subscribers2 = await Notification.getSubscribers(collective.slug, 'backers');
       expect(subscribers2.length).to.equal(1);
     });
@@ -176,7 +176,7 @@ describe('server/models/Notification', () => {
       const subscribers = await Notification.getSubscribers(event.slug, event.slug);
       expect(subscribers.length).to.equal(2);
 
-      await users[0].unsubscribe(event.id, `mailinglist.${event.slug}`);
+      await Notification.unsubscribe(`mailinglist.${event.slug}`, 'email', users[0].id, event.id);
       const subscribers2 = await Notification.getSubscribers(event.slug, event.slug);
       expect(subscribers2.length).to.equal(1);
     });
