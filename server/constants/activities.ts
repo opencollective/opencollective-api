@@ -50,6 +50,7 @@ enum ActivityTypes {
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   TICKET_CONFIRMED = 'ticket.confirmed',
   USER_CREATED = 'user.created',
+  USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
   COLLECTIVE_MONTHLY = 'collective.monthly',
