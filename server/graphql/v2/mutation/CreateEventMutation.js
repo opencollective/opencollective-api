@@ -6,7 +6,7 @@ import { v4 as uuid } from 'uuid';
 import roles from '../../../constants/roles';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
-import { NotFound, Unauthorized } from '../../errors';
+import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { EventCreateInput } from '../input/EventCreateInput';
 import { Event } from '../object/Event';
@@ -22,7 +22,10 @@ async function createEvent(_, args, req) {
 
   const parent = await fetchAccountWithReference(args.account);
   if (!parent) {
-    throw new NotFound('Parent not found');
+    throw new NotFound('Parent account not found');
+  }
+  if (parent.type === 'USER') {
+    throw new BadRequest('Parent account should not be an Individual account');
   }
   if (!req.remoteUser.hasRole([roles.ADMIN, roles.MEMBER], parent.id)) {
     throw new Unauthorized(`You must be logged in as a member of the ${parent.slug} collective to create an Event`);
