@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { Account, AccountFields } from '../interface/Account';
@@ -50,6 +50,10 @@ export const Event = new GraphQLObjectType({
       endsAt: {
         description: 'The Event end date and time',
         type: GraphQLDateTime,
+      },
+      timezone: {
+        description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
+        type: GraphQLString,
       },
     };
   },
