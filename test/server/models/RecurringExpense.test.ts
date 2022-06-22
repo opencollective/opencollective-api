@@ -9,32 +9,31 @@ import * as utils from '../../utils';
 
 describe('server/models/RecurringExpense', () => {
   let sandbox, emailSendMessageSpy;
-  let expense, recurringExpense, newExpense;
+  let expense, recurringExpense;
 
-  before(async () => {
+  beforeEach(async () => {
     await utils.resetTestDB();
 
     sandbox = createSandbox();
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     expense = await fakeExpense({ status: 'PAID', description: 'Paycheck 2000' });
-  });
-
-  after(() => {
-    sandbox.restore?.();
-  });
-
-  it('creates RecurringExpense from Expense and interval', async () => {
     recurringExpense = await models.RecurringExpense.createFromExpense(
       expense,
       models.RecurringExpense.RecurringExpenseIntervals.MONTH,
     );
+  });
 
+  afterEach(() => {
+    sandbox.restore?.();
+  });
+
+  it('creates RecurringExpense from Expense and interval', async () => {
     expect(recurringExpense.CollectiveId).to.eq(expense.CollectiveId);
     expect(recurringExpense.FromCollectiveId).to.eq(expense.FromCollectiveId);
   });
 
   it('creates the next expense', async () => {
-    newExpense = await recurringExpense.createNextExpense();
+    const newExpense = await recurringExpense.createNextExpense();
 
     expect(newExpense.CollectiveId).to.eq(expense.CollectiveId);
     expect(newExpense.FromCollectiveId).to.eq(expense.FromCollectiveId);
@@ -48,6 +47,7 @@ describe('server/models/RecurringExpense', () => {
   });
 
   it('should mail the user notifying about a new draft', async () => {
+    const newExpense = await recurringExpense.createNextExpense();
     await utils.waitForCondition(() => emailSendMessageSpy.firstCall);
 
     const [, subject, body] = emailSendMessageSpy.firstCall.args;
@@ -57,6 +57,7 @@ describe('server/models/RecurringExpense', () => {
   });
 
   it('returns the last recurring Expense', async () => {
+    const newExpense = await recurringExpense.createNextExpense();
     const lastExpense = await recurringExpense.getLastExpense();
     expect(lastExpense.id).to.eq(newExpense.id);
   });
