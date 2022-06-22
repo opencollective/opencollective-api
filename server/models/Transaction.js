@@ -1043,7 +1043,7 @@ function defineModel() {
             type: activities.COLLECTIVE_TRANSACTION_CREATED,
             TransactionId: transaction.id,
             CollectiveId: transaction.CollectiveId,
-            CreatedByUserId: transaction.CreatedByUserId,
+            UserId: transaction.CreatedByUserId,
             data: {
               transaction: transaction.info,
               user: transaction.User && transaction.User.minimal,

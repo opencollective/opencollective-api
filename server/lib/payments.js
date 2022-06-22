@@ -617,6 +617,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
+      UserId: user.id,
       data: {
         EventCollectiveId: collective.id,
         UserId: user.id,

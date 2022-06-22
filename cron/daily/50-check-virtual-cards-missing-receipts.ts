@@ -9,9 +9,10 @@ import VirtualCardProviders from '../../server/constants/virtual_card_providers'
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
+import VirtualCard from '../../server/models/VirtualCard';
 
 const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
-  const virtualCard = expenses[0].virtualCard;
+  const virtualCard = expenses[0].virtualCard as VirtualCard;
   const host = expenses[0].host;
   const collective = expenses[0].collective;
 
@@ -33,6 +34,7 @@ const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
     await models.Activity.create({
       type: activityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
       CollectiveId: collective.id,
+      UserId: virtualCard.UserId,
       data,
     });
   } else if (
@@ -46,6 +48,7 @@ const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
     await models.Activity.create({
       type: activityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
       CollectiveId: collective.id,
+      UserId: virtualCard.UserId,
       data,
     });
   }
