@@ -18,5 +18,10 @@ export const EventCreateInput = new GraphQLInputObjectType({
       description: 'The Event end date and time',
       type: new GraphQLNonNull(GraphQLDateTime),
     },
+    timezone: {
+      description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
+      type: new GraphQLNonNull(GraphQLString),
+      default: 'UTC',
+    },
   }),
 });
