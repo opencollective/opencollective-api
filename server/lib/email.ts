@@ -11,13 +11,31 @@ import nodemailer from 'nodemailer';
 
 import models from '../models';
 
-import templates from './emailTemplates';
+import templates, { EmailTemplates } from './emailTemplates';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
 import { isEmailInternal, md5, sha512 } from './utils';
 import whiteListDomains from './whiteListDomains';
 
 const debug = debugLib('email');
+
+type SendMessageOptions = Pick<
+  nodemailer.SendMailOptions,
+  'from' | 'cc' | 'to' | 'bcc' | 'subject' | 'text' | 'html' | 'headers' | 'attachments'
+> & {
+  tag?;
+  replyTo?;
+  attachments?;
+  sendEvenIfNotProduction?: boolean;
+  type?: EmailTemplates;
+};
+
+type SendMessageData = {
+  notificationTypeLabel?: string;
+  unsubscribeUrl?: string;
+  interval?: string;
+  config?;
+} & Record<string, any>;
 
 export const NO_REPLY_EMAIL = 'Open Collective <no-reply@opencollective.com>';
 
@@ -39,7 +57,7 @@ export const getMailer = () => {
   }
 };
 
-const render = (template, data) => {
+const render = (template: EmailTemplates, data: any) => {
   data.imageNotSvg = data.collective && data.collective.image && !data.collective.image.endsWith('.svg');
   data = merge({}, data);
   delete data.config;
@@ -70,10 +88,10 @@ const isValidUnsubscribeToken = (token, email, collectiveSlug, type) => {
 /*
  * Gets the body from a string (usually a template)
  */
-const getTemplateAttributes = str => {
+const getTemplateAttributes = (str: string) => {
   let index = 0;
   const lines = str.split('\n');
-  const attributes = {};
+  const attributes = { body: '', subject: '' };
   let tokens;
   do {
     tokens = lines[index++].match(/^([a-z]+):(.+)/i);
@@ -100,7 +118,12 @@ const filterBccForTestEnv = emails => {
 /*
  * sends an email message to a recipient with given subject and body
  */
-const sendMessage = (recipients, subject, html, options = {}) => {
+const sendMessage = (
+  recipients: string | string[],
+  subject: string,
+  html: string,
+  options: SendMessageOptions = {},
+) => {
   options.bcc = options.bcc || 'emailbcc@opencollective.com';
 
   if (!isArray(recipients)) {
@@ -114,7 +137,7 @@ const sendMessage = (recipients, subject, html, options = {}) => {
     } else {
       return true;
     }
-  });
+  }) as string[];
 
   if (config.env === 'staging') {
     subject = `[STAGING] ${subject}`;
@@ -136,7 +159,7 @@ const sendMessage = (recipients, subject, html, options = {}) => {
     console.log('>>> preview email', filepath);
     if (options.text) {
       filepath = `/tmp/${options.tag}.${recipientSlug}.txt`;
-      fs.writeFileSync(filepath, options.text);
+      fs.writeFileSync(filepath, options.text as string);
       console.log('>>> preview email', filepath);
     }
 
@@ -213,7 +236,7 @@ const sendMessage = (recipients, subject, html, options = {}) => {
  * Get the label to unsubscribe from the email notification
  * Shown in the footer of the email following "To unsubscribe from "
  */
-const getNotificationLabel = (template, recipients) => {
+const getNotificationLabel = (template, recipients): string => {
   if (!isArray(recipients)) {
     recipients = [recipients];
   }
@@ -247,7 +270,12 @@ const isWhitelistedDomain = email => {
 /*
  * Given a template, recipient and data, generates email.
  */
-const generateEmailFromTemplate = (template, recipient, data = {}, options = {}) => {
+const generateEmailFromTemplate = (
+  template,
+  recipient,
+  data: SendMessageData = {},
+  options: SendMessageOptions = {},
+) => {
   const slug = get(options, 'collective.slug') || get(data, 'collective.slug') || 'undefined';
   const hostSlug = get(data, 'host.slug');
   const eventSlug = get(data, 'event.slug');
@@ -349,7 +377,12 @@ const isNotificationActive = async (template, data) => {
 /*
  * Given a template, recipient and data, generates email and sends it.
  */
-const generateEmailFromTemplateAndSend = async (template, recipient, data, options = {}) => {
+const generateEmailFromTemplateAndSend = async (
+  template,
+  recipient,
+  data: SendMessageData,
+  options: SendMessageOptions = {},
+) => {
   if (!recipient) {
     logger.info(`Email with template '${template}' not sent. No recipient.`);
     return;

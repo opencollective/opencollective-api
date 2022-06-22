@@ -101,7 +101,9 @@ export const templateNames = [
   'contribution.rejected',
   'virtualcard.requested',
   'authorization.declined',
-];
+] as const;
+
+export type EmailTemplates = typeof templateNames[number];
 
 const templatesPath = `${__dirname}/../../templates`;
 
@@ -133,4 +135,4 @@ templateNames.forEach(template => {
   templates[template] = handlebars.compile(source);
 });
 
-export default templates;
+export default templates as Record<EmailTemplates, handlebars.TemplateDelegate>;
