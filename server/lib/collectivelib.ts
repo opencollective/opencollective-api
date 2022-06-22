@@ -1,4 +1,5 @@
 import * as LibTaxes from '@opencollective/taxes';
+import { map } from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
@@ -6,10 +7,12 @@ import isURL from 'validator/lib/isURL';
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
-import models from '../models';
+import models, { Op } from '../models';
 
 import logger from './logger';
 import { md5 } from './utils';
+
+const { EVENT, PROJECT, USER } = CollectiveTypes;
 
 type AvatarUrlOpts = {
   height?: boolean;
@@ -269,3 +272,136 @@ export const isPastEvent = (event: typeof models.Collective): boolean => {
     return isOverSince > oneDay;
   }
 };
+
+export async function isCollectiveDeletable(collective) {
+  if (await collective.isHost()) {
+    return false;
+  }
+
+  let user;
+  if (collective.type === USER) {
+    user = await models.User.findOne({ where: { CollectiveId: collective.id } });
+
+    const adminMemberships = await models.Member.findAll({
+      where: { MemberCollectiveId: collective.id, role: 'ADMIN' },
+      include: [{ model: models.Collective, as: 'collective' }],
+    });
+    if (adminMemberships.length >= 1) {
+      for (const adminMembership of adminMemberships) {
+        const admins = await adminMembership.collective.getAdmins();
+        if (admins.length === 1) {
+          return false;
+        }
+      }
+    }
+  }
+
+  const transactionCount = await models.Transaction.count({
+    where: {
+      [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+    },
+  });
+
+  const orderCount = await models.Order.count({
+    where: {
+      [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+      status: ['PAID', 'ACTIVE', 'CANCELLED'],
+    },
+  });
+
+  let expenseCount;
+  if (user) {
+    expenseCount = await models.Expense.count({
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }, { UserId: user.id }],
+        status: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'],
+      },
+    });
+  } else {
+    expenseCount = await models.Expense.count({
+      where: {
+        [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
+        status: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'],
+      },
+    });
+  }
+
+  const childrenCount = await models.Collective.count({
+    where: { ParentCollectiveId: collective.id, type: { [Op.in]: [EVENT, PROJECT] } },
+  });
+
+  if (transactionCount > 0 || orderCount > 0 || expenseCount > 0 || childrenCount > 0) {
+    return false;
+  }
+
+  return true;
+}
+
+export async function deleteCollective(collective) {
+  let user;
+  if (collective.type === USER) {
+    user = await models.User.findOne({ where: { CollectiveId: collective.id } });
+  }
+
+  const members = models.Member.findAll({
+    where: {
+      [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
+    },
+  });
+  await map(members, member => member.destroy(), { concurrency: 3 });
+
+  const orders = await models.Order.findAll({
+    where: {
+      [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+      status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
+    },
+  });
+  await map(orders, order => order.destroy(), { concurrency: 3 });
+
+  const expenses = await models.Expense.findAll({
+    where: {
+      [Op.or]: [{ FromCollectiveId: collective.id }, { CollectiveId: collective.id }],
+      status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
+    },
+  });
+  await map(expenses, expense => expense.destroy(), { concurrency: 3 });
+
+  const tiers = await models.Tier.findAll({
+    where: { CollectiveId: collective.id },
+  });
+  await map(tiers, tier => tier.destroy(), { concurrency: 3 });
+
+  const paymentMethods = await models.PaymentMethod.findAll({
+    where: { CollectiveId: collective.id },
+  });
+  await map(paymentMethods, paymentMethod => paymentMethod.destroy(), { concurrency: 3 });
+
+  const connectedAccounts = await models.ConnectedAccount.findAll({
+    where: { CollectiveId: collective.id },
+  });
+  await map(connectedAccounts, connectedAccount => connectedAccount.destroy(), { concurrency: 3 });
+
+  const memberInvitations = await models.MemberInvitation.findAll({
+    where: { CollectiveId: collective.id },
+  });
+  await map(memberInvitations, memberInvitation => memberInvitation.destroy(), { concurrency: 3 });
+
+  // Update collective slug to free the current slug for future
+  const newSlug = `${collective.slug}-${Date.now()}`;
+  await collective.update({ slug: newSlug });
+
+  await collective.destroy();
+
+  if (user) {
+    // Update user email in order to free up for future reuse
+    // Split the email, username from host domain
+    const splitedEmail = user.email.split('@');
+    // Add the current timestamp to email username
+    const newEmail = `${splitedEmail[0]}-${Date.now()}@${splitedEmail[1]}`;
+    await user.update({ email: newEmail });
+
+    await user.destroy();
+  }
+
+  return collective;
+}

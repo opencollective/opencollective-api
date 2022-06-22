@@ -15,6 +15,7 @@ import { cloneDeep, set } from 'lodash';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import plans from '../../../constants/plans';
 import cache from '../../../lib/cache';
+import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
@@ -419,6 +420,44 @@ const accountMutations = {
 
       await account.setPolicies(args.policies);
       return account;
+    },
+  },
+  deleteAccount: {
+    type: Account,
+    args: {
+      account: {
+        description: 'Reference to the Account to be deleted.',
+        type: new GraphQLNonNull(AccountReferenceInput),
+      },
+    },
+    async resolve(_, args, req) {
+      if (!req.remoteUser) {
+        throw new Unauthorized();
+      }
+
+      const id = args.account.legacyId || idDecode(args.account.id, 'account');
+      const account = await req.loaders.Collective.byId.load(id);
+      if (!account) {
+        throw new NotFound('Account Not Found');
+      }
+
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Unauthorized('You need to be logged in as an Admin of the account.');
+      }
+
+      if (await account.isHost()) {
+        throw new Error(
+          `You can't delete an account activated as Host. Please, desactivate the account as Host and try again.`,
+        );
+      }
+
+      if (!(await collectivelib.isCollectiveDeletable(account))) {
+        throw new Error(
+          `You can't delete an Account with admin memberships, children, transactions, orders or expenses. Please archive it instead.`,
+        );
+      }
+
+      return collectivelib.deleteCollective(account);
     },
   },
 };
