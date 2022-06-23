@@ -612,6 +612,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   const { collective, tier, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
   const host = await collective.getHostCollective();
+  const parentCollective = await order.collective.getParentCollective();
 
   if (tier && tier.type === tiers.TICKET) {
     return models.Activity.create({
@@ -642,6 +643,8 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
+      customMessage:
+        order.collective.settings?.thankYouEmailMessage || parentCollective?.settings?.thankYouEmailMessage,
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)

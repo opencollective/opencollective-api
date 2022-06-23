@@ -387,6 +387,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
   const user = await order.getUserForActivity();
   const host = await order.collective.getHostCollective();
+  const parentCollective = await order.collective.getParentCollective();
 
   const data = {
     order: order.info,
@@ -400,6 +401,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     config: { host: config.host },
     interval: order.Subscription?.interval || order.interval,
     subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
+    customMessage: order.collective.settings?.thankYouEmailMessage || parentCollective?.settings?.thankYouEmailMessage,
   };
 
   // hit PDF service and get PDF (unless payment method type is gift card)
