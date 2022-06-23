@@ -44,8 +44,9 @@ export async function getConsolidatedBalanceAmount(collective, { currency, versi
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
 
-  const children = await collective.getChildren();
-  const collectiveChildIds = children.map(child => child.id);
+  const collectiveChildIds = await collective
+    .getChildren({ attributes: ['id'] })
+    .then(children => children.map(child => child.id));
 
   const results = await sumCollectivesTransactions([collective.id, ...collectiveChildIds], {
     currency,
