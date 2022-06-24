@@ -54,6 +54,7 @@ enum ActivityTypes {
   USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
   USER_CARD_CLAIMED = 'user.card.claimed',
+  USER_CARD_INVITED = 'user.card.invited',
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
   COLLECTIVE_MONTHLY = 'collective.monthly',

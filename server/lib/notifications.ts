@@ -392,6 +392,10 @@ async function notifyByEmail(activity: Activity) {
       notifyAdminsOfCollective(activity.data.CollectiveId, activity);
       break;
 
+    case ActivityTypes.USER_CARD_INVITED:
+      emailLib.send(activity.type, activity.data.email, activity.data);
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;
