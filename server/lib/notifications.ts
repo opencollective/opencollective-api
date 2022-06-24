@@ -410,6 +410,10 @@ async function notifyByEmail(activity: Activity) {
       }
       break;
 
+    case ActivityTypes.TAXFORM_REQUEST:
+      notifyUserId(activity.UserId, activity);
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;

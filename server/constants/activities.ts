@@ -69,6 +69,7 @@ enum ActivityTypes {
   VIRTUAL_CARD_CHARGE_DECLINED = 'virtualcard.charge.declined',
   PAYMENT_FAILED = 'payment.failed',
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
+  TAXFORM_REQUEST = 'taxform.request',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
@@ -84,6 +85,7 @@ export const TransactionalActivities = [
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PROCESSING,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
+  ActivityTypes.TAXFORM_REQUEST,
 
   // To Review:
   ActivityTypes.ADDED_FUND_TO_ORG,

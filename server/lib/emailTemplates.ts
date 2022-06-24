@@ -79,7 +79,7 @@ export const templateNames = [
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',
-  'tax-form-request',
+  'taxform.request',
   'ticket.confirmed',
   'ticket.confirmed.fearlesscitiesbrussels',
   'ticket.confirmed.open-2020',

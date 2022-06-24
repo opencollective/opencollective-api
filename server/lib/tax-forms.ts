@@ -3,11 +3,11 @@ import deepMerge from 'deepmerge';
 import HelloWorks from 'helloworks-sdk';
 import { truncate } from 'lodash';
 
+import { activities } from '../constants';
 import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
 import models, { Op } from '../models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../models/LegalDocument';
 
-import emailLib from './email';
 import logger from './logger';
 import queries from './queries';
 import { reportErrorToSentry, reportMessageToSentry } from './sentry';
@@ -177,8 +177,13 @@ export async function sendHelloWorksUsTaxForm(
     const recipientName = mainUser.collective.name || mainUser.collective.legalName;
     const accountName =
       accountToSubmitRequestTo.legalName || accountToSubmitRequestTo.name || accountToSubmitRequestTo.slug;
-    const emailData = { documentLink, recipientName, accountName };
-    return emailLib.send('tax-form-request', mainUser.email, emailData);
+    await models.Activity.create({
+      type: activities.TAXFORM_REQUEST,
+      UserId: mainUser.id,
+      CollectiveId: accountToSubmitRequestTo.id,
+      data: { documentLink, recipientName, accountName },
+    });
+    return document;
   } catch (error) {
     logger.error(
       `Failed to initialize tax form for account #${accountToSubmitRequestTo.id} (${mainUser.email})`,
