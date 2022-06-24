@@ -367,6 +367,10 @@ async function notifyByEmail(activity: Activity) {
   debug('notifyByEmail', activity.type);
   let collective, conversation;
   switch (activity.type) {
+    case ActivityTypes.USER_NEW_TOKEN:
+      notifyUserId(activity.UserId, activity, { sendEvenIfNotProduction: true });
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;

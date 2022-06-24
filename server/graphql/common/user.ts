@@ -1,9 +1,9 @@
 import config from 'config';
 import { pick } from 'lodash';
 
+import { activities } from '../../constants';
 import roles from '../../constants/roles';
 import cache, { fetchCollectiveId } from '../../lib/cache';
-import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import models, { Op, sequelize } from '../../models';
 import { ValidationFailed } from '../errors';
@@ -77,9 +77,17 @@ export const createUser = (
       if (config.env === 'development') {
         logger.info(`Login Link: ${loginLink}`);
       }
-      emailLib.send('user.new.token', user.email, { loginLink }, { sendEvenIfNotProduction: true });
+      await models.Activity.create(
+        {
+          type: activities.USER_NEW_TOKEN,
+          UserId: user.id,
+          data: {
+            loginLink,
+          },
+        },
+        { transaction },
+      );
     }
-
     return { user, organization };
   });
 };
