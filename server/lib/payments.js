@@ -18,7 +18,6 @@ import TransactionSettlement, { TransactionSettlementStatus } from '../models/Tr
 import paymentProviders from '../paymentProviders';
 
 import { getFxRate } from './currency';
-import emailLib from './email';
 import logger from './logger';
 import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
@@ -700,8 +699,11 @@ const sendCryptoOrderProcessingEmail = async order => {
       pledgeCurrency: order.data.thegivingblock.pledgeCurrency,
     };
 
-    return emailLib.send('order.crypto.processing', user.email, data, {
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+    await models.Activity.create({
+      type: activities.ORDER_PROCESSING_CRYPTO,
+      CollectiveId: collective.id,
+      UserId: user.id,
+      data,
     });
   }
 };

@@ -61,6 +61,7 @@ enum ActivityTypes {
   COLLECTIVE_MONTHLY = 'collective.monthly',
   ORDERS_SUSPICIOUS = 'orders.suspicious',
   ORDER_PROCESSING = 'order.processing',
+  ORDER_PROCESSING_CRYPTO = 'order.processing.crypto',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
@@ -84,6 +85,7 @@ export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PROCESSING,
+  ActivityTypes.ORDER_PROCESSING_CRYPTO,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.TAXFORM_REQUEST,
 

@@ -384,6 +384,12 @@ async function notifyByEmail(activity: Activity) {
       });
       break;
 
+    case ActivityTypes.ORDER_PROCESSING_CRYPTO:
+      notifyUserId(activity.UserId, activity, {
+        from: `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`,
+      });
+      break;
+
     case ActivityTypes.USER_CARD_CLAIMED:
       notifyUserId(activity.UserId, activity);
       break;
