@@ -57,6 +57,7 @@ enum ActivityTypes {
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
   COLLECTIVE_MONTHLY = 'collective.monthly',
   ORDERS_SUSPICIOUS = 'orders.suspicious',
+  ORDER_PROCESSING = 'order.processing',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
@@ -76,6 +77,7 @@ enum ActivityTypes {
 export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
   ActivityTypes.USER_CHANGE_EMAIL,
+  ActivityTypes.ORDER_PROCESSING,
 
   // To Review:
   ActivityTypes.ADDED_FUND_TO_ORG,

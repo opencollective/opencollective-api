@@ -744,8 +744,10 @@ export const sendOrderProcessingEmail = async order => {
       }
     });
   }
-  return emailLib.send('order.processing', user.email, data, {
-    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+  await models.Activity.create({
+    type: activities.ORDER_PROCESSING,
+    UserId: user.id,
+    data,
   });
 };
 

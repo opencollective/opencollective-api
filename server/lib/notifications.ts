@@ -378,6 +378,12 @@ async function notifyByEmail(activity: Activity) {
       });
       break;
 
+    case ActivityTypes.ORDER_PROCESSING:
+      notifyUserId(activity.UserId, activity, {
+        from: `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`,
+      });
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;
