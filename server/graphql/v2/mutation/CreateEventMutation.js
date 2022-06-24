@@ -39,6 +39,7 @@ async function createEvent(_, args, req) {
     approvedAt: parent.isActive ? new Date() : null,
     startsAt: args.event.startsAt,
     endsAt: args.event.endsAt,
+    timezone: args.event.timezone,
     ParentCollectiveId: parent.id,
     CreatedByUserId: remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
