@@ -24,6 +24,7 @@ import rootMutations from './RootMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
 import virtualCardMutations from './VirtualCardMutations';
+import webhookMutations from './WebhookMutations';
 
 const mutation = {
   addFunds: addFundsMutation,
@@ -52,6 +53,7 @@ const mutation = {
   ...transactionMutations,
   ...updateMutations,
   ...virtualCardMutations,
+  ...webhookMutations,
 };
 
 export default mutation;
