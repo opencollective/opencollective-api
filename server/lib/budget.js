@@ -40,6 +40,33 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
   });
 }
 
+export async function getConsolidatedBalanceAmount(collective, { currency, version }) {
+  version = version || collective.settings?.budget?.version || 'v1';
+  currency = currency || collective.currency;
+
+  const collectiveChildIds = await collective
+    .getChildren({ attributes: ['id'] })
+    .then(children => children.map(child => child.id));
+
+  const results = await sumCollectivesTransactions([collective.id, ...collectiveChildIds], {
+    currency,
+    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+    excludeRefunds: false,
+    withBlockedFunds: false,
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+  });
+
+  let total = 0;
+
+  for (const result of Object.values(results)) {
+    const fxRate = await getFxRate(result.currency, currency);
+    total += Math.round(result.value * fxRate);
+  }
+
+  // Sum and convert to final currency
+  return { value: total, currency };
+}
+
 export async function getBalanceWithBlockedFundsAmount(
   collective,
   { startDate, endDate, currency, version, loaders } = {},
