@@ -396,6 +396,12 @@ async function notifyByEmail(activity: Activity) {
       emailLib.send(activity.type, activity.data.email, activity.data);
       break;
 
+    case ActivityTypes.COLLECTIVE_MEMBER_INVITED:
+      notifyAdminsOfCollective(activity.data.memberCollective.id, activity, {
+        template: 'member.invitation',
+      });
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;

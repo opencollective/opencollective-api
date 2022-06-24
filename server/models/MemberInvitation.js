@@ -5,7 +5,6 @@ import ActivityTypes from '../constants/activities';
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
-import emailLib from '../lib/email';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
@@ -190,14 +189,21 @@ function defineModel() {
     const collective = this.collective || (await this.getCollective(sequelizeParams));
 
     // Send member invitation
-    await emailLib.send('member.invitation', invitedUser.email, {
-      role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
-      invitation: pick(this, ['id', 'role', 'description', 'since']),
-      collective: pick(collective, ['id', 'slug', 'name']),
-      memberCollective: pick(invitedUser.collective, ['id', 'slug', 'name']),
-      invitedByUser: pick(remoteUser, ['collective.id', 'collective.slug', 'collective.name']),
-      skipDefaultAdmin: skipDefaultAdmin,
-    });
+    await models.Activity.create(
+      {
+        type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+        CollectiveId: collective.id,
+        data: {
+          role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
+          invitation: pick(this, ['id', 'role', 'description', 'since']),
+          collective: pick(collective, ['id', 'slug', 'name']),
+          memberCollective: pick(invitedUser.collective, ['id', 'slug', 'name']),
+          invitedByUser: pick(remoteUser, ['collective.id', 'collective.slug', 'collective.name']),
+          skipDefaultAdmin: skipDefaultAdmin,
+        },
+      },
+      sequelizeParams,
+    );
   };
 
   // ---- Static methods ----

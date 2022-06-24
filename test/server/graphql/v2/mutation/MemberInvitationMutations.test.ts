@@ -67,6 +67,7 @@ describe('MemberInvitationMutations', () => {
         },
         collectiveAdminUser,
       );
+      await utils.waitForCondition(() => sendEmailSpy.callCount);
 
       const activity = await models.Activity.findAll({
         where: {
@@ -120,6 +121,7 @@ describe('MemberInvitationMutations', () => {
           },
           collectiveAdminUser,
         );
+        await utils.waitForCondition(() => sendEmailSpy.callCount);
 
         expect(result.errors).to.not.exist;
         expect(result.data.inviteMember.role).to.equal(role);
@@ -163,6 +165,7 @@ describe('MemberInvitationMutations', () => {
         },
         collectiveAdminUser,
       );
+
       expect(sendEmailSpy.callCount).to.equal(0);
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('You can only invite users.');

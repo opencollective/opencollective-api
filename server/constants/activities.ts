@@ -32,6 +32,7 @@ enum ActivityTypes {
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED = 'collective.virtualcard.suspended',
   COLLECTIVE_FROZEN = 'collective.frozen',
   COLLECTIVE_UNFROZEN = 'collective.unfrozen',
+  COLLECTIVE_MEMBER_INVITED = 'collective.member.invited',
   COLLECTIVE_MEMBER_CREATED = 'collective.member.created',
   COLLECTIVE_CORE_MEMBER_ADDED = 'collective.core.member.added',
   COLLECTIVE_CORE_MEMBER_INVITED = 'collective.core.member.invited',
