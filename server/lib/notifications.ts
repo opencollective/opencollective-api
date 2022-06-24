@@ -384,6 +384,10 @@ async function notifyByEmail(activity: Activity) {
       });
       break;
 
+    case ActivityTypes.USER_CARD_CLAIMED:
+      notifyUserId(activity.UserId, activity);
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;
