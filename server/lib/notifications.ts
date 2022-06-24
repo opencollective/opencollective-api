@@ -402,6 +402,14 @@ async function notifyByEmail(activity: Activity) {
       });
       break;
 
+    case ActivityTypes.VIRTUAL_CARD_CHARGE_DECLINED:
+      if (activity.UserId) {
+        notifyUserId(activity.UserId, activity);
+      } else {
+        notifyAdminsOfCollective(activity.CollectiveId, activity);
+      }
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;

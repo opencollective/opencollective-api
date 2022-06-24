@@ -99,8 +99,8 @@ export const templateNames = [
   'activated.collective.as.independent',
   'deactivated.collective.as.host',
   'contribution.rejected',
+  'virtualcard.charge.declined',
   'virtualcard.requested',
-  'authorization.declined',
 ] as const;
 
 export type EmailTemplates = typeof templateNames[number];

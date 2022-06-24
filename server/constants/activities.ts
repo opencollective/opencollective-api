@@ -66,6 +66,7 @@ enum ActivityTypes {
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
   DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
   VIRTUAL_CARD_REQUESTED = 'virtual_card.requested',
+  VIRTUAL_CARD_CHARGE_DECLINED = 'virtualcard.charge.declined',
   PAYMENT_FAILED = 'payment.failed',
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
 
