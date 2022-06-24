@@ -2,8 +2,8 @@ import crypto from 'crypto';
 
 import config from 'config';
 
+import { activities } from '../../../constants';
 import cache from '../../../lib/cache';
-import emailLib from '../../../lib/email';
 import models from '../../../models';
 import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
@@ -57,11 +57,16 @@ export const updateUserEmail = async (user, newEmail) => {
     user: {
       ...user.info,
       emailConfirmationToken: user.emailConfirmationToken,
+      emailWaitingForValidation: user.emailWaitingForValidation,
     },
   };
 
   // Send the email and return updated user
-  await emailLib.send('user.changeEmail', user.emailWaitingForValidation, data);
+  await models.Activity.create({
+    type: activities.USER_CHANGE_EMAIL,
+    UserId: user.id,
+    data,
+  });
 
   // Update the cache
   cache.set(countCacheKey, existingCount + 1, oneHourInSeconds);

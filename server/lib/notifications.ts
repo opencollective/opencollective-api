@@ -156,7 +156,7 @@ async function notifySubscribers(users, activity: Partial<Activity>, options: No
 async function notifyUserId(
   UserId: number,
   activity: Partial<Activity>,
-  options: NotifySubscribersOptions & { attachments?: any[] } = {},
+  options: NotifySubscribersOptions & { attachments?: any[]; to?: string } = {},
 ) {
   const user = await models.User.findByPk(UserId);
   debug('notifyUserId', UserId, user && user.email, activity.type);
@@ -205,7 +205,7 @@ async function notifyUserId(
     options.from = `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`;
   }
 
-  return emailLib.send(activity.type, user.email, activity.data, options);
+  return emailLib.send(activity.type, options.to || user.email, activity.data, options);
 }
 
 export async function notifyAdminsOfCollective(
@@ -369,6 +369,13 @@ async function notifyByEmail(activity: Activity) {
   switch (activity.type) {
     case ActivityTypes.USER_NEW_TOKEN:
       notifyUserId(activity.UserId, activity, { sendEvenIfNotProduction: true });
+      break;
+
+    case ActivityTypes.USER_CHANGE_EMAIL:
+      notifyUserId(activity.UserId, activity, {
+        to: activity.data.emailWaitingForValidation,
+        sendEvenIfNotProduction: true,
+      });
       break;
 
     case ActivityTypes.TICKET_CONFIRMED:

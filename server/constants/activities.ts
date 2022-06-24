@@ -51,6 +51,7 @@ enum ActivityTypes {
   TICKET_CONFIRMED = 'ticket.confirmed',
   USER_CREATED = 'user.created',
   USER_NEW_TOKEN = 'user.new.token',
+  USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
@@ -74,6 +75,7 @@ enum ActivityTypes {
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
+  ActivityTypes.USER_CHANGE_EMAIL,
 
   // To Review:
   ActivityTypes.ADDED_FUND_TO_ORG,
