@@ -284,7 +284,7 @@ export async function isCollectiveDeletable(collective) {
 
     const adminMemberships = await models.Member.findAll({
       where: { MemberCollectiveId: collective.id, role: 'ADMIN' },
-      include: [{ model: models.Collective, as: 'collective' }],
+      include: [{ model: models.Collective, as: 'collective', required: true }],
     });
     if (adminMemberships.length >= 1) {
       for (const adminMembership of adminMemberships) {
