@@ -388,6 +388,10 @@ async function notifyByEmail(activity: Activity) {
       notifyUserId(activity.UserId, activity);
       break;
 
+    case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:
+      notifyAdminsOfCollective(activity.data.CollectiveId, activity);
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;

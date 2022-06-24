@@ -65,6 +65,7 @@ enum ActivityTypes {
   DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
   VIRTUAL_CARD_REQUESTED = 'virtual_card.requested',
   PAYMENT_FAILED = 'payment.failed',
+  PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
@@ -79,6 +80,7 @@ export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PROCESSING,
+  ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
 
   // To Review:
   ActivityTypes.ADDED_FUND_TO_ORG,

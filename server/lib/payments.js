@@ -805,8 +805,11 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
     ...data,
     updateDetailsLink: `${config.host.website}/paymentmethod/${data.id}/update`,
   };
-
-  return emailLib.send('payment.creditcard.expiring', data.email, data);
+  await models.Activity.create({
+    type: activities.PAYMENT_CREDITCARD_EXPIRING,
+    CollectiveId: data.CollectiveId,
+    data,
+  });
 };
 
 export const getApplicationFee = async (order, host = null) => {
