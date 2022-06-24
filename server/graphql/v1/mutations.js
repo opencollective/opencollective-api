@@ -17,7 +17,6 @@ import {
   deactivateBudget,
   deactivateCollectiveAsHost,
   deleteCollective,
-  deleteUserCollective,
   editCollective,
   sendMessageToCollective,
   unarchiveCollective,
@@ -96,7 +95,7 @@ const mutations = {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
     resolve(_, args, req) {
-      return deleteUserCollective(_, args, req);
+      return deleteCollective(_, args, req);
     },
   },
   archiveCollective: {

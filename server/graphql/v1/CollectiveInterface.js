@@ -20,6 +20,7 @@ import FEATURE, { FeaturesList } from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
+import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { getContributorsForCollective } from '../../lib/contributors';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
@@ -1226,28 +1227,8 @@ const CollectiveFields = () => {
     isDeletable: {
       description: 'Returns whether this collective is deletable',
       type: GraphQLBoolean,
-      async resolve(collective) {
-        const transactionCount = await models.Transaction.count({
-          where: {
-            [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
-          },
-        });
-        const orderCount = await models.Order.count({
-          where: {
-            [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }],
-          },
-        });
-        const expenseCount = await models.Expense.count({
-          where: { [Op.or]: [{ CollectiveId: collective.id }, { FromCollectiveId: collective.id }], status: 'PAID' },
-        });
-        const eventCount = await models.Collective.count({
-          where: { ParentCollectiveId: collective.id, type: types.EVENT },
-        });
-
-        if (transactionCount > 0 || orderCount > 0 || expenseCount > 0 || eventCount > 0) {
-          return false;
-        }
-        return true;
+      resolve(collective) {
+        return isCollectiveDeletable(collective);
       },
     },
     host: {
