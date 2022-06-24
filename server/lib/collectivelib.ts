@@ -288,9 +288,11 @@ export async function isCollectiveDeletable(collective) {
     });
     if (adminMemberships.length >= 1) {
       for (const adminMembership of adminMemberships) {
-        const admins = await adminMembership.collective.getAdmins();
-        if (admins.length === 1) {
-          return false;
+        if (adminMembership.collective) {
+          const admins = await adminMembership.collective.getAdmins();
+          if (admins.length === 1) {
+            return false;
+          }
         }
       }
     }
