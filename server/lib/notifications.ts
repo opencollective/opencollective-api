@@ -605,6 +605,9 @@ async function notifyByEmail(activity: Activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'collective.created.opensource',
       });
+      notifyUserId(activity.UserId, activity, {
+        template: 'github.signup',
+      });
       break;
 
     case ActivityTypes.BACKYOURSTACK_DISPATCH_CONFIRMED:

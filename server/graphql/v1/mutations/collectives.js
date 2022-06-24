@@ -10,7 +10,6 @@ import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
-import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { canUseFeature } from '../../../lib/user-permissions';
@@ -274,13 +273,6 @@ export async function createCollectiveFromGithub(_, args, req) {
   ];
 
   await Promise.all(promises);
-
-  const data = { collective: collective.info };
-
-  // !!!
-  //  Remember to remove this email template when removing this mutation, it's not used elsewhere
-  // !!!
-  await emailLib.send('github.signup', user.email, data);
 
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED_GITHUB,
