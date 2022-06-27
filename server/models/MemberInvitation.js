@@ -1,14 +1,19 @@
 import config from 'config';
 import { pick } from 'lodash';
 
+import ActivityTypes from '../constants/activities';
 import { types } from '../constants/collectives';
 import roles, { MemberRoleLabels } from '../constants/roles';
+import { purgeCacheForCollective } from '../lib/cache';
 import emailLib from '../lib/email';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
-import models from '.';
+export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
 
-export default function (Sequelize, DataTypes) {
-  const MemberInvitation = Sequelize.define(
+function defineModel() {
+  const { models } = sequelize;
+
+  const MemberInvitation = sequelize.define(
     'MemberInvitation',
     {
       id: {
@@ -65,19 +70,7 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'member',
         validate: {
           isIn: {
-            args: [
-              [
-                roles.HOST,
-                roles.ADMIN,
-                roles.MEMBER,
-                roles.BACKER,
-                roles.CONTRIBUTOR,
-                roles.ATTENDEE,
-                roles.FOLLOWER,
-                roles.FUNDRAISER,
-              ],
-            ],
-            msg: 'Must be host, admin, member, backer, contributor, attendee, fundraiser or follower',
+            args: [MEMBER_INVITATION_SUPPORTED_ROLES],
           },
         },
       },
@@ -89,15 +82,14 @@ export default function (Sequelize, DataTypes) {
       // Dates.
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       deletedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
       since: {
         type: DataTypes.DATE,
@@ -148,30 +140,86 @@ export default function (Sequelize, DataTypes) {
         description: this.description,
         since: this.since,
       });
+      purgeCacheForCollective(collective.slug);
+    }
+
+    if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(this.role)) {
+      const member = await models.Collective.findByPk(this.MemberCollectiveId);
+      await models.Activity.create({
+        type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
+        CollectiveId: this.CollectiveId,
+        data: {
+          notify: false,
+          memberCollective: member.activity,
+          collective: collective.activity,
+        },
+      });
     }
 
     return this.destroy();
   };
 
   MemberInvitation.prototype.decline = async function () {
-    return this.destroy();
+    await this.destroy();
+    const collective = this.collective || (await this.getCollective());
+    const memberCollective = this.memberCollective || (await this.getMemberCollective());
+    await models.Activity.create({
+      type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
+      CollectiveId: this.CollectiveId,
+      data: {
+        notify: false,
+        memberCollective: memberCollective?.activity,
+        collective: collective?.activity,
+      },
+    });
+  };
+
+  MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAdmin = false, sequelizeParams = null) {
+    // Load invitee
+    const invitedUser = await models.User.findOne({
+      where: { CollectiveId: this.MemberCollectiveId },
+      include: [{ model: models.Collective, as: 'collective' }],
+      ...sequelizeParams,
+    });
+
+    if (!invitedUser) {
+      throw new Error('Cannot find invited user');
+    }
+
+    // Load collective
+    const collective = this.collective || (await this.getCollective(sequelizeParams));
+
+    // Send member invitation
+    await emailLib.send('member.invitation', invitedUser.email, {
+      role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
+      invitation: pick(this, ['id', 'role', 'description', 'since']),
+      collective: pick(collective, ['id', 'slug', 'name']),
+      memberCollective: pick(invitedUser.collective, ['id', 'slug', 'name']),
+      invitedByUser: pick(remoteUser, ['collective.id', 'collective.slug', 'collective.name']),
+      skipDefaultAdmin: skipDefaultAdmin,
+    });
   };
 
   // ---- Static methods ----
 
-  MemberInvitation.invite = async function (collective, memberParams) {
+  MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
+    const sequelizeParams = transaction ? { transaction } : undefined;
+
     // Check params
-    if (![roles.ADMIN, roles.MEMBER].includes(memberParams.role)) {
-      throw new Error('Can only invite users as admins or members');
+    if (!MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
+      throw new Error(`Member invitation roles can only be one of: ${MEMBER_INVITATION_SUPPORTED_ROLES.join(', ')}`);
+    } else if (collective.type === types.USER) {
+      throw new Error('Individual accounts do not support members');
     }
 
-    // Ensure the user is not already a member or invited as such
+    // Ensure the user is not already a member
     const existingMember = await models.Member.findOne({
       where: {
         CollectiveId: collective.id,
         MemberCollectiveId: memberParams.MemberCollectiveId,
         role: memberParams.role,
       },
+      ...sequelizeParams,
     });
 
     if (existingMember) {
@@ -179,52 +227,64 @@ export default function (Sequelize, DataTypes) {
     }
 
     // Update the existing invitation if it exists
-    const existingInvitation = await models.MemberInvitation.findOne({
+    let invitation = await models.MemberInvitation.findOne({
+      include: [{ association: 'collective' }],
       where: {
         CollectiveId: collective.id,
         MemberCollectiveId: memberParams.MemberCollectiveId,
       },
+      ...sequelizeParams,
     });
 
-    if (existingInvitation) {
-      return existingInvitation.update(pick(memberParams, ['role', 'description', 'since']));
+    if (invitation) {
+      const updateData = pick(memberParams, ['role', 'description', 'since']);
+      await invitation.update(updateData, sequelizeParams);
+    } else {
+      // Ensure collective has not invited too many people
+      const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
+      const nbMembers = await models.Member.count({ where: memberCountWhere, ...sequelizeParams });
+      const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
+      if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
+        throw new Error('You exceeded the maximum number of members for this account');
+      }
+
+      // Create new member invitation
+      invitation = await MemberInvitation.create({ ...memberParams, CollectiveId: collective.id }, sequelizeParams);
+      invitation.collective = collective;
+
+      if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
+        const memberCollective = await models.Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+        await models.Activity.create(
+          {
+            type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+            CollectiveId: collective.id,
+            data: {
+              notify: false,
+              memberCollective: memberCollective.activity,
+              collective: collective.activity,
+            },
+          },
+          sequelizeParams,
+        );
+      }
     }
 
-    // Ensure collective has not invited too many people
-    const nbInvitationsForCollective = await models.MemberInvitation.count({ where: { CollectiveId: collective.id } });
-    if (nbInvitationsForCollective >= config.limits.maxMemberInvitationsPerCollective) {
-      throw new Error(
-        'You have reached the max number of member invitations for this collective. Please wait for them to be accepted before sending others.',
-      );
-    }
-
-    // Load users
-    const memberUser = await models.User.findOne({
-      where: { CollectiveId: memberParams.MemberCollectiveId },
-      include: [{ model: models.Collective, as: 'collective' }],
-    });
-
-    if (!memberUser) {
-      throw new Error('user not found');
-    }
-
+    // Load remote user
+    // TODO: We should make `createdByUser` a required param
     const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
-      include: [{ model: models.Collective, as: 'collective' }],
+      include: [{ association: 'collective' }],
+      ...sequelizeParams,
     });
 
-    const invitation = await await MemberInvitation.create({
-      ...memberParams,
-      CollectiveId: collective.id,
-    });
-
-    return emailLib.send('member.invitation', memberUser.email, {
-      role: MemberRoleLabels[memberParams.role] || memberParams.role.toLowerCase(),
-      invitation: pick(invitation, 'id'),
-      collective: pick(collective, ['slug', 'name']),
-      memberCollective: pick(memberUser, ['collective.slug', 'collective.name']),
-      invitedByUser: pick(createdByUser, ['collective.slug', 'collective.name']),
-    });
+    await invitation.sendEmail(createdByUser, skipDefaultAdmin, sequelizeParams);
+    return invitation;
   };
 
   return MemberInvitation;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const MemberInvitation = defineModel();
+
+export default MemberInvitation;

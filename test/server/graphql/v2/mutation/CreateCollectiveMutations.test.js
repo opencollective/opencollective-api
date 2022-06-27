@@ -1,17 +1,40 @@
 import { expect } from 'chai';
+import gqlV2 from 'fake-tag';
 import nock from 'nock';
 
+import { activities } from '../../../../../server/constants';
 import models from '../../../../../server/models';
+import { randEmail } from '../../../../stores';
+import { fakeUser } from '../../../../test-helpers/fake-data';
 import * as utils from '../../../../utils';
 
-const createCollectiveQuery = `
-    mutation createCollective($collective: CollectiveCreateInput!, $host: AccountReferenceInput, $automateApprovalWithGithub: Boolean) {
-      createCollective(collective: $collective, host: $host, automateApprovalWithGithub: $automateApprovalWithGithub) {
-        name
-        slug
-        tags
+const createCollectiveMutation = gqlV2/* GraphQL */ `
+  mutation CreateCollective(
+    $collective: CollectiveCreateInput!
+    $host: AccountReferenceInput
+    $automateApprovalWithGithub: Boolean
+    $inviteMembers: [InviteMemberInput]
+  ) {
+    createCollective(
+      collective: $collective
+      host: $host
+      automateApprovalWithGithub: $automateApprovalWithGithub
+      inviteMembers: $inviteMembers
+    ) {
+      name
+      slug
+      tags
+      isActive
+      ... on AccountWithHost {
+        isApproved
+        host {
+          id
+          slug
+        }
       }
-    }`;
+    }
+  }
+`;
 
 const newCollectiveData = {
   name: 'My New Collective',
@@ -46,7 +69,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
 
   describe('simple case', async () => {
     it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQueryV2(createCollectiveQuery, {
+      const result = await utils.graphqlQueryV2(createCollectiveMutation, {
         collective: newCollectiveData,
       });
       expect(result.errors).to.have.length(1);
@@ -55,12 +78,71 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
 
     it('succeeds if all parameters are right', async () => {
       const user = await models.User.createUserWithCollective(utils.data('user2'));
-      const result = await utils.graphqlQueryV2(createCollectiveQuery, { collective: newCollectiveData }, user);
+      const result = await utils.graphqlQueryV2(createCollectiveMutation, { collective: newCollectiveData }, user);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.createCollective.name).to.equal(newCollectiveData.name);
       expect(result.data.createCollective.slug).to.equal(newCollectiveData.slug);
       expect(result.data.createCollective.tags).to.deep.equal(newCollectiveData.tags);
+    });
+
+    it('invite members', async () => {
+      const user = await models.User.createUserWithCollective(utils.data('user2'));
+      const existingUserToInvite = await fakeUser();
+      const result = await utils.graphqlQueryV2(
+        createCollectiveMutation,
+        {
+          collective: newCollectiveData,
+          inviteMembers: [
+            // Existing user
+            {
+              memberAccount: { slug: existingUserToInvite.collective.slug },
+              role: 'ADMIN',
+              description: 'An admin with existing account',
+            },
+            // New user
+            {
+              memberInfo: { name: 'Another admin', email: randEmail() },
+              role: 'ADMIN',
+              description: 'An admin with a new account',
+            },
+          ],
+        },
+        user,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+
+      const resultAccount = result.data.createCollective;
+      expect(resultAccount.name).to.equal(newCollectiveData.name);
+      expect(resultAccount.slug).to.equal(newCollectiveData.slug);
+      expect(resultAccount.tags).to.deep.equal(newCollectiveData.tags);
+
+      const collective = await models.Collective.findOne({ where: { slug: resultAccount.slug } });
+
+      // Check that no-one was added directly as an admin
+      const admins = await collective.getAdmins();
+      expect(admins).to.have.length(1);
+      expect(admins[0].id).to.eq(user.CollectiveId);
+
+      // Check that the other admins were invited
+      const invitedAdmins = await models.MemberInvitation.findAll({
+        order: [['id', 'ASC']],
+        where: { CollectiveId: collective.id },
+        include: [{ association: 'memberCollective' }],
+      });
+
+      expect(invitedAdmins).to.have.length(2);
+      expect(invitedAdmins[0].memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
+      expect(invitedAdmins[1].memberCollective.name).to.eq('Another admin');
+      const memberInvitationActivities = await models.Activity.findAll({
+        order: [['id', 'ASC']],
+        where: { type: activities.COLLECTIVE_CORE_MEMBER_INVITED, CollectiveId: collective.id },
+      });
+
+      expect(memberInvitationActivities).to.have.length(2);
+      expect(memberInvitationActivities[0].data.memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
+      expect(memberInvitationActivities[1].data.memberCollective.name).to.eq('Another admin');
     });
   });
 
@@ -83,7 +165,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         });
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: backYourStackCollectiveData,
           host: { slug: host.slug },
@@ -114,7 +196,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         });
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: backYourStackCollectiveData,
           host: { slug: host.slug },
@@ -148,7 +230,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .reply(200, [{ organization: { login: 'backyourstack' }, state: 'active', role: 'member' }]);
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: { ...backYourStackCollectiveData, githubHandle: 'backyourstack' },
           host: { slug: host.slug },
@@ -180,7 +262,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .reply(200, [{ name: 'backyourstack', stargazers_count: 102 }]); // eslint-disable-line camelcase
 
       const result = await utils.graphqlQueryV2(
-        createCollectiveQuery,
+        createCollectiveMutation,
         {
           collective: { ...backYourStackCollectiveData, githubHandle: 'backyourstack' },
           host: { slug: host.slug },

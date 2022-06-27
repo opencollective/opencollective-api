@@ -1,0 +1,407 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 1`] = `
+Object {
+  "activities": 1,
+  "applications": 1,
+  "childrenCollectives": 0,
+  "comments": 1,
+  "commentsCreated": 1,
+  "connectedAccounts": 1,
+  "conversations": 1,
+  "conversationsCreated": 1,
+  "creditTransactions": 1,
+  "debitTransactions": 1,
+  "emojiReactions": 1,
+  "expenses": 1,
+  "expensesCreated": 1,
+  "giftCardTransactions": 1,
+  "hostApplications": 0,
+  "hostApplicationsCreated": 0,
+  "hostedCollectives": 0,
+  "legalDocuments": 1,
+  "memberInvitations": 0,
+  "members": 1,
+  "membershipInvitations": 0,
+  "memberships": 0,
+  "notifications": 1,
+  "ordersCreated": 1,
+  "ordersReceived": 1,
+  "paymentMethods": 1,
+  "payoutMethods": 1,
+  "paypalProducts": 1,
+  "recurringExpenses": 0,
+  "recurringExpensesCreated": 0,
+  "requiredLegalDocuments": 0,
+  "tiers": 1,
+  "updates": 1,
+  "updatesCreated": 1,
+  "virtualCards": 0,
+  "virtualCardsHosted": 0,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 2`] = `
+Object {
+  "activities": 1,
+  "applications": 1,
+  "childrenCollectives": 0,
+  "comments": 1,
+  "commentsCreated": 1,
+  "connectedAccounts": 1,
+  "conversations": 1,
+  "conversationsCreated": 1,
+  "creditTransactions": 1,
+  "debitTransactions": 1,
+  "emojiReactions": 1,
+  "expenses": 1,
+  "expensesCreated": 1,
+  "giftCardTransactions": 1,
+  "hostApplications": 0,
+  "hostApplicationsCreated": 0,
+  "hostedCollectives": 0,
+  "legalDocuments": 1,
+  "memberInvitations": 0,
+  "members": 1,
+  "membershipInvitations": 0,
+  "memberships": 0,
+  "notifications": 1,
+  "ordersCreated": 1,
+  "ordersReceived": 1,
+  "paymentMethods": 1,
+  "payoutMethods": 1,
+  "paypalProducts": 1,
+  "recurringExpenses": 0,
+  "recurringExpensesCreated": 0,
+  "requiredLegalDocuments": 0,
+  "tiers": 1,
+  "updates": 1,
+  "updatesCreated": 1,
+  "virtualCards": 0,
+  "virtualCardsHosted": 0,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 3`] = `
+Object {
+  "activities": 0,
+  "applications": 0,
+  "collectives": 1,
+  "comments": 0,
+  "conversationFollowers": 0,
+  "conversations": 0,
+  "emojiReactions": 0,
+  "expenseAttachedFiles": 0,
+  "expenseItems": 0,
+  "expenses": 2,
+  "memberInvitations": 0,
+  "members": 0,
+  "migrationLogs": 0,
+  "notifications": 1,
+  "oAuthAuthorizationCodes": 0,
+  "orders": 2,
+  "paymentMethods": 0,
+  "payoutMethods": 0,
+  "transactions": 0,
+  "updates": 0,
+  "userTokens": 0,
+  "virtualCards": 0,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 4`] = `
+Object {
+  "activities": 0,
+  "applications": 0,
+  "collectives": 1,
+  "comments": 0,
+  "conversationFollowers": 0,
+  "conversations": 0,
+  "emojiReactions": 0,
+  "expenseAttachedFiles": 0,
+  "expenseItems": 0,
+  "expenses": 2,
+  "memberInvitations": 0,
+  "members": 0,
+  "migrationLogs": 0,
+  "notifications": 1,
+  "oAuthAuthorizationCodes": 0,
+  "orders": 2,
+  "paymentMethods": 0,
+  "payoutMethods": 0,
+  "transactions": 0,
+  "updates": 0,
+  "userTokens": 0,
+  "virtualCards": 0,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges a user profile 5`] = `
+Object {
+  "activities": 2,
+  "applications": 2,
+  "childrenCollectives": 0,
+  "comments": 2,
+  "commentsCreated": 2,
+  "connectedAccounts": 2,
+  "conversations": 2,
+  "conversationsCreated": 2,
+  "creditTransactions": 2,
+  "debitTransactions": 2,
+  "emojiReactions": 2,
+  "expenses": 2,
+  "expensesCreated": 2,
+  "giftCardTransactions": 2,
+  "hostApplications": 0,
+  "hostApplicationsCreated": 0,
+  "hostedCollectives": 0,
+  "legalDocuments": 1,
+  "memberInvitations": 0,
+  "members": 2,
+  "membershipInvitations": 0,
+  "memberships": 0,
+  "notifications": 2,
+  "ordersCreated": 2,
+  "ordersReceived": 2,
+  "paymentMethods": 2,
+  "payoutMethods": 2,
+  "paypalProducts": 2,
+  "recurringExpenses": 0,
+  "recurringExpensesCreated": 0,
+  "requiredLegalDocuments": 0,
+  "tiers": 2,
+  "updates": 2,
+  "updatesCreated": 2,
+  "virtualCards": 0,
+  "virtualCardsHosted": 0,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges an organization 1`] = `
+Object {
+  "activities": 1,
+  "applications": 1,
+  "childrenCollectives": 1,
+  "comments": 1,
+  "commentsCreated": 1,
+  "connectedAccounts": 1,
+  "conversations": 1,
+  "conversationsCreated": 1,
+  "creditTransactions": 1,
+  "debitTransactions": 1,
+  "emojiReactions": 1,
+  "expenses": 1,
+  "expensesCreated": 1,
+  "giftCardTransactions": 1,
+  "hostApplications": 0,
+  "hostApplicationsCreated": 0,
+  "hostedCollectives": 1,
+  "legalDocuments": 1,
+  "memberInvitations": 0,
+  "members": 2,
+  "membershipInvitations": 0,
+  "memberships": 2,
+  "notifications": 1,
+  "ordersCreated": 1,
+  "ordersReceived": 1,
+  "paymentMethods": 2,
+  "payoutMethods": 1,
+  "paypalProducts": 1,
+  "recurringExpenses": 0,
+  "recurringExpensesCreated": 0,
+  "requiredLegalDocuments": 0,
+  "tiers": 1,
+  "updates": 1,
+  "updatesCreated": 1,
+  "virtualCards": 1,
+  "virtualCardsHosted": 1,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges an organization 2`] = `
+Object {
+  "activities": 1,
+  "applications": 1,
+  "childrenCollectives": 1,
+  "comments": 1,
+  "commentsCreated": 1,
+  "connectedAccounts": 1,
+  "conversations": 1,
+  "conversationsCreated": 1,
+  "creditTransactions": 1,
+  "debitTransactions": 1,
+  "emojiReactions": 1,
+  "expenses": 1,
+  "expensesCreated": 1,
+  "giftCardTransactions": 1,
+  "hostApplications": 0,
+  "hostApplicationsCreated": 0,
+  "hostedCollectives": 1,
+  "legalDocuments": 1,
+  "memberInvitations": 0,
+  "members": 2,
+  "membershipInvitations": 0,
+  "memberships": 2,
+  "notifications": 1,
+  "ordersCreated": 1,
+  "ordersReceived": 1,
+  "paymentMethods": 2,
+  "payoutMethods": 1,
+  "paypalProducts": 1,
+  "recurringExpenses": 0,
+  "recurringExpensesCreated": 0,
+  "requiredLegalDocuments": 0,
+  "tiers": 1,
+  "updates": 1,
+  "updatesCreated": 1,
+  "virtualCards": 1,
+  "virtualCardsHosted": 1,
+}
+`;
+
+exports[`server/lib/merge-accounts mergeAccounts Merges an organization 3`] = `
+Object {
+  "activities": 2,
+  "applications": 2,
+  "childrenCollectives": 2,
+  "comments": 2,
+  "commentsCreated": 2,
+  "connectedAccounts": 2,
+  "conversations": 2,
+  "conversationsCreated": 2,
+  "creditTransactions": 2,
+  "debitTransactions": 2,
+  "emojiReactions": 2,
+  "expenses": 2,
+  "expensesCreated": 2,
+  "giftCardTransactions": 2,
+  "hostApplications": 0,
+  "hostApplicationsCreated": 0,
+  "hostedCollectives": 2,
+  "legalDocuments": 1,
+  "memberInvitations": 0,
+  "members": 4,
+  "membershipInvitations": 0,
+  "memberships": 4,
+  "notifications": 2,
+  "ordersCreated": 2,
+  "ordersReceived": 2,
+  "paymentMethods": 4,
+  "payoutMethods": 2,
+  "paypalProducts": 2,
+  "recurringExpenses": 0,
+  "recurringExpensesCreated": 0,
+  "requiredLegalDocuments": 0,
+  "tiers": 2,
+  "updates": 2,
+  "updatesCreated": 2,
+  "virtualCards": 2,
+  "virtualCardsHosted": 2,
+}
+`;
+
+exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the number of items to move for collective account 1`] = `
+"The profiles information will be merged.
+
+The following items will be moved to @to-collective:
+  - activities: 1
+  - applications: 1
+  - childrenCollectives: 1
+  - comments: 1
+  - commentsCreated: 1
+  - connectedAccounts: 1
+  - conversations: 1
+  - conversationsCreated: 1
+  - creditTransactions: 1
+  - debitTransactions: 1
+  - emojiReactions: 1
+  - expenses: 1
+  - expensesCreated: 1
+  - giftCardTransactions: 1
+  - hostedCollectives: 1
+  - legalDocuments: 1
+  - members: 2
+  - memberships: 2
+  - notifications: 1
+  - ordersCreated: 1
+  - ordersReceived: 1
+  - paymentMethods: 2
+  - payoutMethods: 1
+  - paypalProducts: 1
+  - tiers: 1
+  - updates: 1
+  - updatesCreated: 1
+  - virtualCards: 1
+  - virtualCardsHosted: 1
+
+"
+`;
+
+exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the number of items to move for organization account 1`] = `
+"The profiles information will be merged.
+
+The following items will be moved to @to-org:
+  - activities: 1
+  - applications: 1
+  - childrenCollectives: 1
+  - comments: 1
+  - commentsCreated: 1
+  - connectedAccounts: 1
+  - conversations: 1
+  - conversationsCreated: 1
+  - creditTransactions: 1
+  - debitTransactions: 1
+  - emojiReactions: 1
+  - expenses: 1
+  - expensesCreated: 1
+  - giftCardTransactions: 1
+  - hostedCollectives: 1
+  - legalDocuments: 1
+  - members: 2
+  - memberships: 2
+  - notifications: 1
+  - ordersCreated: 1
+  - ordersReceived: 1
+  - paymentMethods: 2
+  - payoutMethods: 1
+  - paypalProducts: 1
+  - tiers: 1
+  - updates: 1
+  - updatesCreated: 1
+  - virtualCards: 1
+  - virtualCardsHosted: 1
+
+"
+`;
+
+exports[`server/lib/merge-accounts simulateMergeAccounts Correctly estimates the number of items to move for user account 1`] = `
+"The profiles information will be merged.
+
+The following items will be moved to @to-user:
+  - activities: 1
+  - applications: 1
+  - comments: 1
+  - commentsCreated: 1
+  - connectedAccounts: 1
+  - conversations: 1
+  - conversationsCreated: 1
+  - creditTransactions: 1
+  - debitTransactions: 1
+  - emojiReactions: 1
+  - expenses: 1
+  - expensesCreated: 1
+  - giftCardTransactions: 1
+  - legalDocuments: 1
+  - members: 1
+  - notifications: 1
+  - ordersCreated: 1
+  - ordersReceived: 1
+  - paymentMethods: 1
+  - payoutMethods: 1
+  - paypalProducts: 1
+  - tiers: 1
+  - updates: 1
+  - updatesCreated: 1
+
+"
+`;

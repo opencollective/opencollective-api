@@ -20,7 +20,8 @@
     "frontend": "https://frontend.opencollective.com",
     "website": "https://opencollective.com",
     "images": "https://images.opencollective.com",
-    "invoices": "https://invoices.opencollective.com"
+    "pdf": "https://pdf.opencollective.com",
+    "rest": "https://rest.opencollective.com"
   },
   "log": {
     "slowRequest": true
@@ -28,16 +29,27 @@
   "stripe": {
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
   },
-  "slack": {
-    "privateActivityChannel": "#activity-private",
-    "publicActivityChannel": "#activity-public"
-  },
   "paypal": {
     "rest": {
       "mode": "live"
     }
   },
   "transferwise": {
-    "apiUrl": "https://api.transferwise.com"
+    "apiUrl": "https://api.transferwise.com",
+    "oauthUrl": "https://transferwise.com",
+    "redirectUri": "https://api.opencollective.com/connected-accounts/transferwise/callback"
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": true
+  },
+  "restService": {
+    "fetchCollectiveTransactionsCsv": true,
+    "fetchHostTransactionsCsv": true
+  },
+  "privacy": {
+    "apiUrl": "https://api.privacy.com"
+  },
+  "thegivingblock": {
+    "apiUrl": "https://public-api.tgbwidget.com/v1"
   }
 }

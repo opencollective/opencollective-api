@@ -1,9 +1,9 @@
-Subject: 🎁 {{emitter.name}} has granted you a {{{currency initialBalance currency=currency}}} gift card to donate on Open Collective!
+Subject: 🎁 {{emitter.name}} has given you {{currency initialBalance currency=currency}} to spend on Open Collective!
 
 {{> header}}
 
 <h1>
-  🎁 {{emitter.name}} has granted you a {{{currency initialBalance currency=currency}}} gift card to donate on Open Collective!
+  🎁 {{emitter.name}} has given you a gift card! You've got {{currency initialBalance currency=currency}} to spend on Open Collective.
 </h1>
 
 {{#if customMessage}}
@@ -31,9 +31,7 @@ Subject: 🎁 {{emitter.name}} has granted you a {{{currency initialBalance curr
         <td>
           <center>
             <p style="font-size: 17px; padding: 1em;">
-              You're one step away to redeem the {{{currency initialBalance currency=currency}}} gift card
-              offered to you by <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a>. Just
-              click on the button bellow and fill your info to redeem your gift card.
+              To redeem your {{currency initialBalance currency=currency}} gift card, click the button below.
             </p>
             <a href="{{config.host.website}}/{{emitter.slug}}/redeem/{{redeemCode}}?email={{email}}" class="btn blue" style="padding: 1em 2em;">
               <div style="font-size: 17px;">Redeem</div>
@@ -50,9 +48,7 @@ Subject: 🎁 {{emitter.name}} has granted you a {{{currency initialBalance curr
         <td>
           <center>
             <p style="font-size: 17px; padding: 0 1em;">
-              You're one step away to redeem the {{{currency initialBalance currency=currency}}} gift card
-              offered to you by <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a>. Just
-              click on the button bellow and fill your info to redeem your gift card.
+              To redeem your {{currency initialBalance currency=currency}} gift card, click the button below.
             </p>
             <a href="{{config.host.website}}/{{emitter.slug}}/redeem/{{redeemCode}}?email={{email}}" class="btn blue" style="padding: 1em 2em;">
               <div style="font-size: 17px;">Redeem</div>

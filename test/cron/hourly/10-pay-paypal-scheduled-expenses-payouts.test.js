@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { run as payPaypalScheduledExpenses } from '../../../cron/hourly/10-pay-paypal-scheduled-expenses-payouts';
 import status from '../../../server/constants/expense_status';
@@ -9,7 +9,7 @@ import { fakeCollective, fakeExpense, fakePayoutMethod, multiple } from '../../t
 import * as utils from '../../utils';
 
 describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
   let payExpensesBatch;
 
   afterEach(sandbox.restore);

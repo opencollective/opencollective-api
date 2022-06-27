@@ -1,41 +1,30 @@
-import bcrypt from 'bcrypt';
 import Promise from 'bluebird';
 import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
 import { defaults, get, intersection, pick } from 'lodash';
-import { Op } from 'sequelize';
+import Temporal from 'sequelize-temporal';
 
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isValidEmail } from '../lib/utils';
 
 const debug = debugLib('models:User');
 
-/**
- * Constants.
- */
-const SALT_WORK_FACTOR = 10;
+function defineModel() {
+  const { models } = sequelize;
 
-/**
- * Model.
- */
-export default (Sequelize, DataTypes) => {
-  const { models } = Sequelize;
-
-  const User = Sequelize.define(
+  const User = sequelize.define(
     'User',
     {
-      firstName: DataTypes.STRING,
-      lastName: DataTypes.STRING,
-
       email: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true, // need that? http://stackoverflow.com/questions/16356856/sequelize-js-custom-validator-check-for-unique-username-password
+        unique: true,
         set(val) {
           if (val && val.toLowerCase) {
             this.setDataValue('email', val.toLowerCase());
@@ -73,55 +62,25 @@ export default (Sequelize, DataTypes) => {
         type: DataTypes.STRING,
       },
 
-      _salt: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-
-      // eslint-disable-next-line camelcase
-      refresh_token: {
-        type: DataTypes.STRING,
-        defaultValue: bcrypt.genSaltSync(SALT_WORK_FACTOR),
-      },
-
-      // eslint-disable-next-line camelcase
-      password_hash: DataTypes.STRING,
-
-      password: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          const password = String(val);
-          this.setDataValue('password', password);
-          this.setDataValue('password_hash', bcrypt.hashSync(password, this._salt));
-        },
-        validate: {
-          len: {
-            args: [6, 128],
-            msg: 'Password must be between 6 and 128 characters in length',
-          },
-        },
-      },
-
-      resetPasswordTokenHash: DataTypes.STRING,
-      // hash the token to avoid someone with access to the db to generate passwords
-      resetPasswordToken: {
-        type: DataTypes.VIRTUAL,
-        set(val) {
-          this.setDataValue('resetPasswordToken', val);
-          this.setDataValue('resetPasswordTokenHash', bcrypt.hashSync(val, this._salt));
-        },
-      },
-
-      resetPasswordSentAt: DataTypes.DATE,
-
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
+      },
+
+      deletedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+
+      confirmedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: true,
       },
 
       lastLoginAt: {
@@ -136,6 +95,20 @@ export default (Sequelize, DataTypes) => {
 
       data: {
         type: DataTypes.JSONB,
+        allowNull: true,
+      },
+
+      twoFactorAuthToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+
+      twoFactorAuthRecoveryCodes: {
+        type: DataTypes.ARRAY(DataTypes.STRING),
+        allowNull: true,
+      },
+      changelogViewDate: {
+        type: DataTypes.DATE,
         allowNull: true,
       },
     },
@@ -156,10 +129,6 @@ export default (Sequelize, DataTypes) => {
           });
         },
 
-        username() {
-          return this.userCollective.then(collective => collective.slug);
-        },
-
         name() {
           return this.userCollective.then(collective => collective.name);
         },
@@ -170,6 +139,10 @@ export default (Sequelize, DataTypes) => {
 
         githubHandle() {
           return this.userCollective.then(collective => collective.githubHandle);
+        },
+
+        repositoryUrl() {
+          return this.userCollective.then(collective => collective.repositoryUrl);
         },
 
         website() {
@@ -192,8 +165,6 @@ export default (Sequelize, DataTypes) => {
         info() {
           return {
             id: this.id,
-            firstName: this.firstName,
-            lastName: this.lastName,
             email: this.email,
             emailWaitingForValidation: this.emailWaitingForValidation,
             createdAt: this.createdAt,
@@ -206,8 +177,6 @@ export default (Sequelize, DataTypes) => {
           return {
             id: this.id,
             CollectiveId: this.CollectiveId,
-            firstName: this.firstName,
-            lastName: this.lastName,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
           };
@@ -216,8 +185,6 @@ export default (Sequelize, DataTypes) => {
         minimal() {
           return {
             id: this.id,
-            firstName: this.firstName,
-            lastName: this.lastName,
             email: this.email,
           };
         },
@@ -226,8 +193,6 @@ export default (Sequelize, DataTypes) => {
         public() {
           return {
             id: this.id,
-            firstName: this.firstName,
-            lastName: this.lastName,
           };
         },
       },
@@ -295,8 +260,9 @@ export default (Sequelize, DataTypes) => {
     });
   };
 
-  User.prototype.getIncognitoProfile = function () {
-    return models.Collective.findOne({ where: { isIncognito: true, CreatedByUserId: this.id } });
+  User.prototype.getIncognitoProfile = async function () {
+    const collective = this.collective || (await this.getCollective());
+    return collective.getIncognitoProfile();
   };
 
   User.prototype.populateRoles = async function () {
@@ -319,19 +285,6 @@ export default (Sequelize, DataTypes) => {
         adminOf.push(m.CollectiveId);
       }
     });
-    // If this User is an admin of a host, we also populate the role ADMIN for all the hosted collectives
-    if (adminOf.length > 0) {
-      const hostedMemberships = await models.Member.findAll({
-        where: {
-          MemberCollectiveId: { [Op.in]: adminOf },
-          role: roles.HOST,
-        },
-      });
-      hostedMemberships.map(m => {
-        rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
-        rolesByCollectiveId[m.CollectiveId].push(roles.ADMIN);
-      });
-    }
     this.rolesByCollectiveId = rolesByCollectiveId;
     debug('populateRoles', this.rolesByCollectiveId);
     return this;
@@ -364,8 +317,34 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
+  // Slightly better API than the former
+  User.prototype.isAdminOfCollective = function (collective) {
+    if (!collective) {
+      return false;
+    } else if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isAdmin(collective.id) || this.isAdmin(collective.ParentCollectiveId);
+    } else {
+      return this.isAdmin(collective.id);
+    }
+  };
+
+  /**
+   * Check if the user is an admin of the collective or its fiscal host
+   */
+  User.prototype.isAdminOfCollectiveOrHost = function (collective) {
+    if (!collective) {
+      return false;
+    } else if (this.isAdminOfCollective(collective)) {
+      return true;
+    } else if (collective.HostCollectiveId) {
+      return this.isAdmin(collective.HostCollectiveId);
+    } else {
+      return false;
+    }
+  };
+
   User.prototype.isRoot = function () {
-    const result = this.hasRole([roles.ADMIN], 1);
+    const result = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
     debug('isRoot?', result);
     return result;
   };
@@ -377,55 +356,26 @@ export default (Sequelize, DataTypes) => {
     return result;
   };
 
-  // Determines whether a user can see updates for a collective based on their roles.
-  User.prototype.canSeeUpdates = function (CollectiveId) {
-    const result =
-      this.CollectiveId === CollectiveId ||
-      this.hasRole([roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER], CollectiveId);
-    debug('userid:', this.id, 'canSeeUpdates', CollectiveId, '?', result);
-    return result;
+  // Slightly better API than the former
+  User.prototype.isMemberOfCollective = function (collective) {
+    if (collective.type === 'EVENT' || collective.type === 'PROJECT') {
+      return this.isMember(collective.id) || this.isMember(collective.ParentCollectiveId);
+    } else {
+      return this.isMember(collective.id);
+    }
   };
 
-  User.prototype.getPersonalDetails = function (remoteUser) {
-    if (!remoteUser) {
-      return Promise.resolve(this.public);
-    }
-    return this.populateRoles()
-      .then(() => {
-        if (this.id === remoteUser.id) {
-          return true;
-        }
-        // all the CollectiveIds that the remoteUser is admin of.
-        const adminOfCollectives = Object.keys(remoteUser.rolesByCollectiveId).filter(CollectiveId =>
-          remoteUser.isAdmin(CollectiveId),
-        );
-        const memberOfCollectives = Object.keys(this.rolesByCollectiveId);
-        const canAccess = intersection(adminOfCollectives, memberOfCollectives).length > 0;
-        debug(
-          'getPersonalDetails',
-          'remoteUser id:',
-          remoteUser.id,
-          'is admin of collective ids:',
-          adminOfCollectives,
-          'this user id:',
-          this.id,
-          'is member of',
-          memberOfCollectives,
-          'canAccess?',
-          canAccess,
-        );
-        return canAccess;
-      })
-      .then(canAccess => {
-        return canAccess ? this.info : this.public;
-      });
+  // Determines whether a user can see updates for a collective based on their roles.
+  User.prototype.canSeePrivateUpdatesForCollective = function (collective) {
+    const allowedRoles = [roles.HOST, roles.ADMIN, roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER];
+    return this.hasRole(allowedRoles, collective.id) || this.hasRole(allowedRoles, collective.ParentCollectiveId);
   };
 
   /**
    * Limit the user account, preventing most actions on the platoform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
    */
-  User.prototype.limitAcount = async function (spamReport = null) {
+  User.prototype.limitAccount = async function (spamReport = null) {
     const newData = { ...this.data, features: { ...get(this.data, 'features'), ALL: false } };
     if (spamReport) {
       newData.spamReports = [...get(this.data, 'spamReports', []), spamReport];
@@ -433,6 +383,18 @@ export default (Sequelize, DataTypes) => {
 
     logger.info(`Limiting user account for ${this.id}`);
     return this.update({ data: newData });
+  };
+
+  /**
+   * Limit the user account, preventing a specific feature
+   * @param feature:the feature to limit. See `server/constants/feature.ts`.
+   */
+  User.prototype.limitFeature = async function (feature) {
+    const features = get(this.data, 'features', {});
+
+    features[feature] = false;
+
+    return this.update({ data: { ...this.data, features } });
   };
 
   /**
@@ -452,8 +414,8 @@ export default (Sequelize, DataTypes) => {
     );
   };
 
-  User.findByEmail = email => {
-    return User.findOne({ where: { email } });
+  User.findByEmail = (email, transaction) => {
+    return User.findOne({ where: { email: email.toLowerCase() } }, { transaction });
   };
 
   User.createUserWithCollective = async (userData, transaction) => {
@@ -463,17 +425,12 @@ export default (Sequelize, DataTypes) => {
 
     const sequelizeParams = transaction ? { transaction } : undefined;
     debug('createUserWithCollective', userData);
-    // TODO: 'firstName', 'lastName' are deprecated in the User table
-    const cleanUserData = pick(userData, ['email', 'firstName', 'lastName', 'newsletterOptIn']);
+    const cleanUserData = pick(userData, ['email', 'newsletterOptIn']);
     const user = await User.create(cleanUserData, sequelizeParams);
-    let name = userData.firstName;
-    if (name && userData.lastName) {
-      name += ` ${userData.lastName}`;
-    }
 
     // If user doesn't provide a name, set it to "incognito". If we cannot
-    // slugify it (for example firstName="------") then fallback on "user".
-    let collectiveName = userData.name || name;
+    // slugify it (for example name="------") then fallback on "user".
+    let collectiveName = userData.name;
     if (!collectiveName || collectiveName.trim().length === 0) {
       collectiveName = 'incognito';
     } else if (slugify(collectiveName).length === 0) {
@@ -483,20 +440,23 @@ export default (Sequelize, DataTypes) => {
     const userCollectiveData = {
       type: 'USER',
       name: collectiveName,
+      legalName: userData.legalName,
       image: userData.image,
-      mission: userData.mission,
       description: userData.description,
       longDescription: userData.longDescription,
       website: userData.website,
       twitterHandle: userData.twitterHandle,
       githubHandle: userData.githubHandle,
+      repositoryUrl: userData.repositoryUrl,
       currency: userData.currency,
       hostFeePercent: userData.hostFeePercent,
-      isActive: true,
+      isActive: false,
       isHostAccount: Boolean(userData.isHostAccount),
       CreatedByUserId: userData.CreatedByUserId || user.id,
       data: { UserId: user.id },
       settings: userData.settings,
+      countryISO: userData.location?.country,
+      address: userData.location?.address,
     };
     user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
 
@@ -521,5 +481,13 @@ export default (Sequelize, DataTypes) => {
     return { firstName, lastName };
   };
 
+  Temporal(User, sequelize);
+
   return User;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const User = defineModel();
+
+export default User;

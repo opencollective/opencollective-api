@@ -3,15 +3,23 @@ export enum PAYMENT_METHOD_SERVICE {
   STRIPE = 'stripe',
   OPENCOLLECTIVE = 'opencollective',
   PREPAID = 'prepaid',
+  THEGIVINGBLOCK = 'thegivingblock',
 }
+
 export const PAYMENT_METHOD_SERVICES = Object.values(PAYMENT_METHOD_SERVICE);
 
 export enum PAYMENT_METHOD_TYPE {
+  ALIPAY = 'alipay',
   CREDITCARD = 'creditcard',
   PREPAID = 'prepaid',
   PAYMENT = 'payment',
+  SUBSCRIPTION = 'subscription',
   COLLECTIVE = 'collective',
+  HOST = 'host',
   ADAPTIVE = 'adaptive',
-  VIRTUALCARD = 'virtualcard',
+  GIFTCARD = 'giftcard',
+  MANUAL = 'manual',
+  CRYPTO = 'crypto',
 }
+
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);

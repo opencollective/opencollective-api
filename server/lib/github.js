@@ -1,10 +1,11 @@
 import { createOAuthAppAuth } from '@octokit/auth-oauth-app';
 import { Octokit } from '@octokit/rest';
 import config from 'config';
-import { get, has, pick } from 'lodash';
+import { get, has, pick, trim, trimEnd, trimStart } from 'lodash';
 
 import cache from './cache';
 import logger from './logger';
+import { reportMessageToSentry } from './sentry';
 
 const compactRepo = repo => {
   repo = pick(repo, [
@@ -69,15 +70,19 @@ export async function getAllUserPublicRepos(accessToken) {
   let fetchRepos;
   const maxNbPages = 15; // More than that would probably timeout the request
   do {
-    // https://octokit.github.io/rest.js/#api-Repos-list
+    // https://octokit.github.io/rest.js/v18#repos-list-for-authenticated-user
     // https://developer.github.com/v3/repos/#list-your-repositories
-    fetchRepos = await octokit.repos.list(parameters).then(getData);
+    fetchRepos = await octokit.repos.listForAuthenticatedUser(parameters).then(getData);
     repos = [...repos, ...fetchRepos.filter(r => r.permissions.admin)];
     parameters.page++;
   } while (fetchRepos.length === parameters.per_page && parameters.page < maxNbPages);
 
   if (parameters.page === maxNbPages) {
     logger.error(`Aborted: Too many repos to fetch for user with token ${accessToken}`);
+    reportMessageToSentry('Aborted: Too many repos to fetch for user', {
+      severity: 'warning',
+      accessToken: accessToken.replace(/^(.{3})(.+)(.{3})$/, '$1****$3'), // abcdefghijkl -> abc****jkl
+    });
   }
 
   repos = repos.map(compactRepo);
@@ -102,7 +107,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
   let repos = [];
   let fetchRepos;
   do {
-    // https://octokit.github.io/rest.js/#api-Repos-listForOrg
+    // https://octokit.github.io/rest.js/v18#repos-list-for-org
     // https://developer.github.com/v3/repos/#list-organization-repositories
     fetchRepos = await octokit.repos.listForOrg(parameters).then(getData);
     repos = [...repos, ...fetchRepos];
@@ -118,7 +123,7 @@ export async function getAllOrganizationPublicRepos(org, accessToken) {
 
 export async function getRepo(name, accessToken) {
   const octokit = getOctokit(accessToken);
-  // https://octokit.github.io/rest.js/#api-Repos-get
+  // https://octokit.github.io/rest.js/v18#repos-get
   // https://developer.github.com/v3/repos/#get
   const [owner, repo] = name.split('/');
   return octokit.repos.get({ owner, repo }).then(getData);
@@ -126,17 +131,24 @@ export async function getRepo(name, accessToken) {
 
 export async function getOrg(name, accessToken) {
   const octokit = getOctokit(accessToken);
-  // https://octokit.github.io/rest.js/#api-Orgs-get
+  // https://octokit.github.io/rest.js/v18#orgs-get
   // https://developer.github.com/v3/orgs/#get-an-organization
   return octokit.orgs.get({ org: name }).then(getData);
 }
 
+export async function getUser(name, accessToken) {
+  const octokit = getOctokit(accessToken);
+  // https://octokit.github.io/rest.js/v18#users-get-by-username
+  // https://docs.github.com/en/rest/reference/users#get-a-user
+  return octokit.users.getByUsername({ username: name }).then(getData);
+}
+
 export async function getOrgMemberships(accessToken) {
   const octokit = getOctokit(accessToken);
-  // https://octokit.github.io/rest.js/#api-Orgs-listMemberships
+  // https://octokit.github.io/rest.js/v18#orgs-list-memberships-for-authenticated-user
   // https://developer.github.com/v3/orgs/members/#list-your-organization-memberships
   // eslint-disable-next-line camelcase
-  return octokit.orgs.listMemberships({ page: 1, per_page: 100 }).then(getData);
+  return octokit.orgs.listMembershipsForAuthenticatedUser({ page: 1, per_page: 100 }).then(getData);
 }
 
 export async function checkGithubExists(githubHandle, accessToken) {
@@ -193,3 +205,67 @@ export async function checkGithubStars(githubHandle, accessToken) {
     }
   }
 }
+
+const githubUsernameRegex = new RegExp('[a-z\\d](?:[a-z\\d]|-(?=[a-z\\d])){0,38}', 'i');
+const githubRepositoryRegex = new RegExp('\\.?[a-z\\d](?:[a-z\\.\\d]|-(?=[a-z\\.\\d])){1,100}', 'i');
+export const githubHandleRegex = new RegExp(
+  `^${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?$`,
+  'i',
+);
+const githubPathnameRegex = new RegExp(`^/${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?`, 'i');
+
+/**
+ * Return the github handle from a URL
+ *
+ * @param {string} url
+ * @returns {string|null} handle
+ *
+ * @example
+ * getGithubHandleFromUrl('https://github.com/opencollective/opencollective-frontend')
+ * => 'opencollective/opencollective-frontend'
+ */
+export const getGithubHandleFromUrl = url => {
+  try {
+    const { hostname, pathname } = new URL(url);
+    if (hostname !== 'github.com' || pathname.length < 2) {
+      return null;
+    }
+
+    const regexResult = pathname.match(githubPathnameRegex);
+    if (regexResult) {
+      const handle = trim(regexResult[0], '/');
+      if (githubHandleRegex.test(handle)) {
+        return handle;
+      }
+    }
+  } catch {
+    // Ignore invalid URLs
+  }
+
+  return null;
+};
+
+/**
+ * Generate a Github URL from a handle. Return null if handle is invalid
+ *
+ * @param {string} handle
+ * @returns {string|null}
+ */
+export const getGithubUrlFromHandle = handle => {
+  // "  @@@test//   " => "@test"
+  const cleanHandle = trimStart(trimEnd(handle?.trim(), '/'), '@');
+  if (cleanHandle) {
+    // In case handle is a Github URL, we return it with the proper format
+    const handleFromUrl = getGithubHandleFromUrl(cleanHandle);
+    if (handleFromUrl) {
+      return `https://github.com/${handleFromUrl}`;
+    }
+
+    if (githubHandleRegex.test(cleanHandle)) {
+      const [org, repo] = cleanHandle.replace(/^@/, '').split('/');
+      return `https://github.com/${repo ? `${org}/${repo}` : org}`;
+    }
+  }
+
+  return null;
+};

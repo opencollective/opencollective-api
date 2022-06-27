@@ -1,0 +1,18 @@
+Subject: Your contribution to {{{collective.name}}}
+
+{{> header}}
+
+<h1>Hello,</h1>
+
+<p>Your contribution to {{collective.name}} has been rejected.</p>
+
+{{#if rejectionReason}}
+<p>Note:</p>
+<blockquote
+	style="color:#6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">
+	{{rejectionReason}}</blockquote>
+{{/if}}
+
+<p>If you have questions or believe this was a mistake, contact <a
+		href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
+{{> footer}}

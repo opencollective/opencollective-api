@@ -1,19 +1,16 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import config from 'config';
+import { stub, useFakeTimers } from 'sinon';
 
 import slackLib from '../../../server/lib/slack';
-import {
-  collectiveSpamCheck,
-  notifyTeamAboutPreventedCollectiveCreate,
-  notifyTeamAboutSuspiciousCollective,
-} from '../../../server/lib/spam';
+import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam';
 import { fakeCollective } from '../../test-helpers/fake-data';
 
 describe('server/lib/spam', () => {
   let clock;
 
   before(() => {
-    clock = sinon.useFakeTimers(new Date('2020-01-01'));
+    clock = useFakeTimers(new Date('2020-01-01T00:00:00.000Z'));
   });
 
   after(() => {
@@ -24,55 +21,96 @@ describe('server/lib/spam', () => {
     it('detects bad keywords', async () => {
       // Description
       const collectiveWithBadDescription = await fakeCollective({ description: 'Some keto stuff' });
-      expect(collectiveSpamCheck(collectiveWithBadDescription, 'test')).to.deep.eq({
+      expect(await collectiveSpamCheck(collectiveWithBadDescription, 'test')).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
+        bayes: 'ham',
         context: 'test',
         data: collectiveWithBadDescription.info,
         date: '2020-01-01T00:00:00.000Z',
       });
 
       // Long description
-      expect(collectiveSpamCheck({ longDescription: 'Some PORN stuff' })).to.deep.eq({
+      const collectiveWithBadLongDescription = await fakeCollective({ longDescription: 'Some PORN stuff' });
+      expect(await collectiveSpamCheck(collectiveWithBadLongDescription)).to.deep.eq({
         score: 0.2,
         keywords: ['porn'],
         domains: [],
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { longDescription: 'Some PORN stuff' },
+        data: collectiveWithBadLongDescription.info,
       });
 
       // Website
-      expect(collectiveSpamCheck({ website: 'https://maxketo.com' })).to.deep.eq({
+      const collectiveWithBadWebsite = await fakeCollective({ website: 'https://maxketo.com' });
+      expect(await collectiveSpamCheck(collectiveWithBadWebsite)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { website: 'https://maxketo.com' },
+        data: collectiveWithBadWebsite.info,
       });
 
       // Name
-      expect(collectiveSpamCheck({ name: 'BEST KeTo!!!' })).to.deep.eq({
+      const collectiveWithBadName = await fakeCollective({ name: 'BEST KeTo!!!' });
+      expect(await collectiveSpamCheck(collectiveWithBadName)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
         domains: [],
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { name: 'BEST KeTo!!!' },
+        data: collectiveWithBadName.info,
       });
     });
 
-    it('detects blacklisted websites', async () => {
+    it('detects blocked websites', async () => {
       // Website
-      expect(collectiveSpamCheck({ website: 'https://supplementslove.com/promotion' })).to.deep.eq({
+      const collectiveWithBlockedWebsite = await fakeCollective({ website: 'https://supplementslove.com/promotion' });
+      expect(await collectiveSpamCheck(collectiveWithBlockedWebsite)).to.deep.eq({
         score: 1,
         keywords: [],
         domains: ['supplementslove.com'],
+        bayes: 'ham',
         context: undefined,
         date: '2020-01-01T00:00:00.000Z',
-        data: { website: 'https://supplementslove.com/promotion' },
+        data: collectiveWithBlockedWebsite.info,
+      });
+    });
+
+    it('detects bad domains in the URL', async () => {
+      const collective = await fakeCollective({
+        longDescription: 'Come and buy stuff on <a href="https://dasilex.co.uk/test">our website</a>!',
+      });
+
+      expect(await collectiveSpamCheck(collective)).to.deep.eq({
+        score: 1,
+        keywords: [],
+        domains: ['dasilex.co.uk'],
+        bayes: 'ham',
+        context: undefined,
+        date: '2020-01-01T00:00:00.000Z',
+        data: collective.info,
+      });
+    });
+
+    it('is ok with legit domains', async () => {
+      const collective = await fakeCollective({
+        longDescription: 'Come and buy stuff on <a href="https://google.fr">our website</a>!',
+      });
+
+      expect(await collectiveSpamCheck(collective)).to.deep.eq({
+        score: 0,
+        keywords: [],
+        domains: [],
+        bayes: 'ham',
+        context: undefined,
+        date: '2020-01-01T00:00:00.000Z',
+        data: collective.info,
       });
     });
   });
@@ -81,7 +119,7 @@ describe('server/lib/spam', () => {
     let slackPostMessageStub = null;
 
     before(() => {
-      slackPostMessageStub = sinon.stub(slackLib, 'postMessage');
+      slackPostMessageStub = stub(slackLib, 'postMessage');
     });
 
     after(() => {
@@ -89,7 +127,7 @@ describe('server/lib/spam', () => {
     });
 
     it('notifies Slack with the report info', async () => {
-      const report = collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
+      const report = await collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
       await notifyTeamAboutSuspiciousCollective(report);
       expect(slackPostMessageStub.calledOnce).to.be.true;
 
@@ -97,31 +135,30 @@ describe('server/lib/spam', () => {
       expect(args[0]).to.eq(
         '*Suspicious collective data was submitted for collective:* https://opencollective.com/ketoooo\nScore: 0.3\nKeywords: `keto`',
       );
-      expect(args[2].channel).to.eq('#abuse');
+      expect(args[1]).to.eq(config.slack.webhooks.abuse);
     });
   });
 
-  describe('notifyTeamAboutPreventedCollectiveCreate', () => {
-    let slackPostMessageStub = null;
-
-    before(() => {
-      slackPostMessageStub = sinon.stub(slackLib, 'postMessage');
+  describe('unredirectUrl', () => {
+    it('does nothing if not a redirected URL', () => {
+      expect(resolveRedirect(new URL('https://google.fr')).hostname).to.eq('google.fr');
+      expect(resolveRedirect(new URL(`${config.host.website}/test`)).origin).to.eq(config.host.website);
     });
 
-    after(() => {
-      slackPostMessageStub.restore();
-    });
-
-    it('notifies Slack with the report info', async () => {
-      const report = collectiveSpamCheck({ name: 'Keto stuff', slug: 'ketoooo' });
-      await notifyTeamAboutPreventedCollectiveCreate(report);
-      expect(slackPostMessageStub.calledOnce).to.be.true;
-
-      const args = slackPostMessageStub.getCall(0).args;
-      expect(args[0]).to.eq(
-        'A collective creation was prevented and the user has been put in limited mode.\nKeywords: `keto`\nCollective data:\n> {"name":"Keto stuff","slug":"ketoooo"}',
+    it('does not crash for invalid redirects', () => {
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect`)).origin).to.eq(config.host.website);
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect?url=something`)).origin).to.eq(
+        config.host.website,
       );
-      expect(args[2].channel).to.eq('#abuse');
+    });
+
+    it('returns the base URL', () => {
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect?url=https://google.fr`)).hostname).to.eq(
+        'google.fr',
+      );
+      expect(resolveRedirect(new URL(`${config.host.website}/redirect?url=https://google.fr/test`)).hostname).to.eq(
+        'google.fr',
+      );
     });
   });
 });

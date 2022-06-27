@@ -4,7 +4,24 @@ import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
-import { parseToBoolean } from './utils';
+import { md5, parseToBoolean } from './utils';
+
+const computeMask = req => {
+  const maskHeaders = pick(req.headers, [
+    'accept',
+    'accept-language',
+    'cache-control',
+    'dnt',
+    'pragma',
+    'x-requested-with',
+  ]);
+
+  const maskString = Object.keys(maskHeaders)
+    .map(key => [key, maskHeaders[key]].join(':'))
+    .join(';');
+
+  return md5(maskString);
+};
 
 const load = async app => {
   if (!config.hyperwatch || parseToBoolean(config.hyperwatch.enabled) !== true) {
@@ -12,6 +29,16 @@ const load = async app => {
   }
 
   const { input, lib, modules, pipeline } = hyperwatch;
+
+  // Init
+  hyperwatch.init({
+    modules: {
+      // Expose the status page
+      status: { active: true },
+      // Expose logs (HTTP and Websocket)
+      logs: { active: true },
+    },
+  });
 
   // Mount Hyperwatch API and Websocket
 
@@ -32,11 +59,13 @@ const load = async app => {
   const expressInput = input.express.create();
 
   app.use((req, res, next) => {
-    req.startAt = new Date();
+    req.startAt = req.startAt || new Date();
+
+    req.mask = computeMask(req);
 
     res.on('finish', async () => {
       const { success, reject } = expressInput;
-      req.endAt = new Date();
+      req.endAt = req.endAt || new Date();
       try {
         const executionTime = req.endAt - req.startAt;
         let log = hyperwatch.util.createLog(req, res).set('executionTime', executionTime);
@@ -46,6 +75,9 @@ const load = async app => {
 
         if (req.body && req.body.query && req.body.variables) {
           log = log.set('graphql', req.body);
+          if (res.servedFromGraphqlCache) {
+            log = log.setIn(['graphql', 'servedFromCache'], true);
+          }
         }
 
         if (req.clientApp) {
@@ -72,6 +104,12 @@ const load = async app => {
 
   pipeline.registerInput(expressInput);
 
+  // Configure Pipeline
+
+  pipeline.filter(log => log.has('graphql')).registerNode('graphql');
+
+  pipeline.filter(log => log.get('executionTime') >= config.log.slowRequestThreshold).registerNode('slow');
+
   // Configure logs
 
   const formatRequest = log => {
@@ -94,31 +132,23 @@ const load = async app => {
     return `${operationName} ${JSON.stringify(pick(variables, pickList))}`;
   };
 
-  const htmlFormatter = new lib.formatter.Formatter('html');
-  htmlFormatter.setFormat('request', formatRequest);
-
-  const consoleLogOutput = config.env === 'development' ? 'console' : 'text';
-  const consoleLogFormatter = new lib.formatter.Formatter(consoleLogOutput);
-  consoleLogFormatter.setFormat('request', formatRequest);
-
-  modules.logs.setFormatter(htmlFormatter);
-
-  pipeline.filter(log => log.has('graphql')).registerNode('graphql');
-
-  pipeline.filter(log => log.get('executionTime') >= config.log.slowRequestThreshold).registerNode('slow');
+  lib.logger.defaultFormatter.replaceFormat('request', formatRequest);
 
   // Access Logs
+
+  const consoleLogOutput = config.env === 'development' ? 'console' : 'text';
+
   if (get(config, 'log.accessLogs')) {
-    pipeline.map(log => console.log(consoleLogFormatter.format(log)));
+    pipeline.map(log => console.log(lib.logger.defaultFormatter.format(log, consoleLogOutput)));
   }
   // Or Slow logs
   else if (get(config, 'log.slowRequest')) {
-    pipeline.getNode('slow').map(log => console.log(consoleLogFormatter.format(log)));
+    pipeline.getNode('slow').map(log => console.log(lib.logger.defaultFormatter.format(log, consoleLogOutput)));
   }
 
   // Start
 
-  modules.load();
+  modules.beforeStart();
 
   pipeline.start();
 };

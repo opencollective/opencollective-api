@@ -1,9 +1,6 @@
 export default {
   host1: {
-    firstName: 'Women Who Code',
-    lastName: '501c3',
     name: 'WWCode',
-    username: 'wwcode',
     hostFeePercent: 10,
     email: 'finance+wwcode@opencollective.com',
     description: 'engineer',
@@ -15,10 +12,7 @@ export default {
     settings: { apply: true },
   },
   user1: {
-    firstName: 'Phil',
-    lastName: 'Mod',
     name: 'Phil Mod',
-    username: 'philmod',
     email: 'user1@opencollective.com',
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
@@ -27,9 +21,7 @@ export default {
   },
 
   user2: {
-    firstName: 'Anish',
-    lastName: 'Bas',
-    username: 'abas',
+    name: 'Anish Bas',
     image: 'https://pbs.twimg.com/profile_images/3075727251/5c825534ad62223ae6a539f6a5076d3c_400x400.jpeg',
     description: 'small guy',
     email: 'user2@opencollective.com',
@@ -39,31 +31,23 @@ export default {
   },
 
   user3: {
-    firstName: 'Xavier',
-    lastName: 'Damman',
-    username: 'xdamman',
+    name: 'Xavier Damman',
     email: 'user3@opencollective.com',
     address: 'Rue du paradis\n1000 Brussels\nBelgium',
   },
 
   user4: {
-    firstName: 'Bo',
-    lastName: 'Ki',
-    username: 'boki',
+    name: 'Bo Ki',
     email: 'user4@opencollective.com',
   },
 
   user5: {
-    firstName: 'Bo',
-    lastName: 'Ki',
-    username: 'boki',
+    name: 'Bo Ki',
     email: 'user5@opencollective.org',
   },
 
   user6: {
-    firstName: 'internal',
-    lastName: 'user',
-    username: 'interno',
+    name: 'internal user',
     email: 'internal_user@opencollective.com',
   },
 
@@ -79,7 +63,6 @@ export default {
     slug: 'scouts',
     hostFeePercent: 10,
     tags: ['open source', 'test'],
-    isSupercollective: false,
     isActive: true,
   },
 
@@ -93,7 +76,6 @@ export default {
     burnrate: 1000,
     hostFeePercent: 0,
     tags: ['meetup', 'test'],
-    isSupercollective: false,
     isActive: true,
   },
 
@@ -107,7 +89,6 @@ export default {
     settings: {
       superCollectiveTag: 'meetup',
     },
-    isSupercollective: true,
   },
 
   collective5: {
@@ -116,14 +97,13 @@ export default {
     settings: {
       superCollectiveTag: '#brusselstogether',
     },
-    isSupercollective: true,
   },
 
   relatedCollectives: [
     {
       name: 'Reinventing Brussels',
       slug: 'reinventingbrussels',
-      mission: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
+      description: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
       image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
       currency: 'EUR',
       settings: {
@@ -135,7 +115,7 @@ export default {
     {
       name: 'Refugees Got Talent',
       slug: 'refugeesgottalent',
-      mission: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
+      description: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -144,7 +124,7 @@ export default {
     {
       name: 'Brussels Smart City',
       slug: 'brusselssmartcity',
-      mission: 'improve the life of Brussels Citizens by the use of technology',
+      description: 'improve the life of Brussels Citizens by the use of technology',
       image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
       currency: 'EUR',
       tags: ['#brusselstogether'],
@@ -197,8 +177,7 @@ export default {
         UserId: 1,
         data: {
           user: {
-            firstName: 'John',
-            lastName: 'Doe',
+            name: 'John Doe',
             email: 'john@doe.com',
             websiteUrl: 'opencollective.com',
           },
@@ -212,8 +191,6 @@ export default {
       },
       { type: 'user.created', UserId: 3, data: {} },
       { type: 'collective.created', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 1, CollectiveId: 1, data: {} },
-      { type: 'collective.user.added', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 3, CollectiveId: 1, data: {} },
       { type: 'collective.updated', UserId: 1, CollectiveId: 1, data: {} },
@@ -254,6 +231,29 @@ export default {
             amount: -1298,
             currency: 'USD',
             description: 'pizza',
+            ExpenseId: 42,
+          },
+          collective: {
+            name: 'Pub quiz',
+            slug: 'pubquiz',
+            publicUrl: 'https://opencollective.com/pubquiz',
+          },
+        },
+      },
+      {
+        type: 'collective.transaction.created',
+        userId: 3,
+        CollectiveId: 1,
+        data: {
+          user: {
+            email: 'john@doe.com',
+          },
+          transaction: {
+            type: 'DEBIT',
+            amount: -1298,
+            currency: 'USD',
+            description: 'Refund of test contribution',
+            isRefund: true,
           },
           collective: {
             name: 'Pub quiz',
@@ -280,6 +280,11 @@ export default {
             name: 'Pub quiz',
             slug: 'pubquiz',
             publicUrl: 'https://opencollective.com/pubquiz',
+          },
+          expense: {
+            id: 42,
+            amount: 1298,
+            currency: 'USD',
           },
           preapprovalDetails: {
             maxTotalAmountOfAllPayments: 200,
@@ -376,20 +381,6 @@ export default {
         },
       },
       {
-        type: 'collective.user.added',
-        data: {
-          user: {
-            image: 'http://image.githubusercontent.com/asood123',
-            id: 2,
-          },
-          collective: {
-            name: 'Blah',
-            slug: 'blah',
-            publicUrl: 'https://opencollective.com/blah',
-          },
-        },
-      },
-      {
         type: 'collective.expense.created',
         data: {
           user: {
@@ -399,8 +390,10 @@ export default {
           collective: {
             name: 'Blah',
             publicUrl: 'blah.com',
+            slug: 'blah',
           },
           expense: {
+            id: 42,
             amount: 1234,
             currency: 'EUR',
             description: 'for pizza',
@@ -424,12 +417,14 @@ export default {
           collective: {
             name: 'Blah',
             publicUrl: 'blah.com',
+            slug: 'blah',
           },
           expense: {
             amount: 1234,
             currency: 'EUR',
             description: 'for pizza',
             lastEditedById: 2,
+            id: 42,
           },
         },
       },
@@ -443,6 +438,7 @@ export default {
             image: 'http://image.githubusercontent.com/asood123',
           },
           collective: {
+            slug: 'blah',
             name: 'Blah',
             publicUrl: 'blah.com',
           },
@@ -451,6 +447,7 @@ export default {
             currency: 'EUR',
             description: 'for pizza',
             lastEditedById: 2,
+            id: 42,
           },
         },
       },
@@ -490,6 +487,7 @@ export default {
         hostCurrency: 'USD',
         createdAt: '2015-01-23T08:00:00.000Z',
       },
+      // 1
       {
         description: 'Flight SFO-BRU',
         amount: -91859,
@@ -497,6 +495,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-02-22T08:00:00.000Z',
       },
+      // 2
       {
         description: 'Byword',
         amount: -1199,
@@ -504,6 +503,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-03-04T08:00:00.000Z',
       },
+      // 3
       {
         description: 'Tipbox.is domain + dedicated server',
         amount: -58861,
@@ -511,6 +511,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-06T07:00:00.000Z',
       },
+      // 4
       {
         description: 'Working lunch with @mdp',
         tags: ['food'],
@@ -519,6 +520,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-07T07:00:00.000Z',
       },
+      // 5
       {
         description: 'Homepage design end',
         amount: -30000,
@@ -526,6 +528,7 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-28T07:00:00.000Z',
       },
+      // 6
       {
         description: 'Homepage frontend code',
         amount: -30000,
@@ -533,15 +536,16 @@ export default {
         currency: 'USD',
         createdAt: '2015-04-29T07:00:00.000Z',
       },
+      // 7
       {
         description: 'Donation to that great project',
         amount: 10000,
-        netAmountInCollectiveCurrency: 9000,
         type: 'CREDIT',
         currency: 'USD',
         createdAt: '2015-05-29T07:00:00.000Z',
         PaymentMethodId: 1,
       },
+      // 8
       {
         description: 'Donation to that great project',
         amount: 5000,
@@ -571,9 +575,7 @@ export default {
 
     user: {
       id: 1,
-      firstName: 'Phil',
-      lastName: 'Mod',
-      username: 'philmod',
+      name: 'Phil Mod',
       email: 'user1@opencollective.com',
       image: null,
       twitterHandle: 'philmod',
@@ -653,7 +655,6 @@ export default {
     locationName: 'Balanced NYC',
     address: '547 Broadway, NY 10012',
     backgroundImage: 'http://opencollective.com/backgroundimage.png',
-    maxQuantity: 200,
     geoLocationLatLong: { type: 'Point', coordinates: [39.807222, -76.984722] },
   },
 

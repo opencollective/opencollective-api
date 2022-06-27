@@ -1,44 +1,57 @@
+import crypto from 'crypto';
+
 import * as LibTaxes from '@opencollective/taxes';
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { get, isNil, omit, pick } from 'lodash';
-import moment from 'moment';
-import { v4 as uuid } from 'uuid';
+import * as hcaptcha from 'hcaptcha';
+import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
+import { isEmail } from 'validator';
 
 import activities from '../../../constants/activities';
+import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
+import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
-import cache from '../../../lib/cache';
+import cache, { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
+import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
+import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
-import { handleHostPlanAddedFundsLimit, handleHostPlanBankTransfersLimit } from '../../../lib/plans';
 import recaptcha from '../../../lib/recaptcha';
-import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/subscriptions';
+import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { capitalize, formatCurrency, md5, pluralize } from '../../../lib/utils';
+import { formatCurrency, md5, parseToBoolean, sleep } from '../../../lib/utils';
 import models from '../../../models';
-import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { canRefund } from '../../common/transactions';
+import {
+  BadRequest,
+  FeatureNotAllowedForUser,
+  Forbidden,
+  NotFound,
+  Unauthorized,
+  ValidationFailed,
+} from '../../errors';
 
 const oneHourInSeconds = 60 * 60;
 
 const debug = debugLib('orders');
 
-async function checkOrdersLimit(order, remoteUser, reqIp) {
-  if (['ci', 'test'].includes(config.env)) {
-    return;
-  }
+export const ORDER_PUBLIC_DATA_FIELDS = {
+  pledgeCurrency: 'thegivingblock.pledgeCurrency',
+  pledgeAmount: 'thegivingblock.pledgeAmount',
+};
+
+function getOrdersLimit(order, reqIp, reqMask) {
+  const limits = [];
 
   const ordersLimits = config.limits.ordersPerHour;
   const collectiveId = get(order, 'collective.id');
   const fromCollectiveId = get(order, 'fromCollective.id');
   const userEmail = get(order, 'user.email');
-
-  const limits = [];
+  const guestInfo = get(order, 'guestInfo');
 
   if (fromCollectiveId) {
     // Limit on authenticated users
@@ -76,6 +89,37 @@ async function checkOrdersLimit(order, remoteUser, reqIp) {
     }
   }
 
+  if (reqMask && config.limits.enabledMasks.includes(reqMask)) {
+    limits.push({
+      key: `order_limit_on_mask_${reqMask}`,
+      value: ordersLimits.perMask,
+    });
+  }
+
+  // Guest Contributions
+  if (guestInfo && collectiveId) {
+    limits.push({
+      key: `order_limit_to_account_${collectiveId}`,
+      value: ordersLimits.forCollective,
+    });
+  }
+
+  return limits;
+}
+
+async function checkOrdersLimit(order, reqIp, reqMask) {
+  if (['ci', 'test'].includes(config.env)) {
+    return;
+  }
+
+  debug(`checkOrdersLimit reqIp:${reqIp} reqMask:${reqMask}`);
+
+  // Generic error message
+  // const errorMessage = 'Error while processing your request, please try again or contact support@opencollective.com.';
+  const errorMessage = 'Your card was declined.';
+
+  const limits = getOrdersLimit(order, reqIp, reqMask);
+
   for (const limit of limits) {
     const count = (await cache.get(limit.key)) || 0;
     debug(`${count} orders for limit '${limit.key}'`);
@@ -83,11 +127,11 @@ async function checkOrdersLimit(order, remoteUser, reqIp) {
     cache.set(limit.key, count + 1, oneHourInSeconds);
     if (limitReached) {
       debug(`Order limit reached for limit '${limit.key}'`);
-      const errorMessage =
-        'Error while processing your request, please try again or contact support@opencollective.com';
+      // Slow down
+      await sleep(Math.random() * 1000 * 5);
       // Show a developer-friendly message in DEV
-      if (process.env.NODE_ENV === 'development') {
-        throw new Error(`${errorMessage} - Orders limit reached`);
+      if (config.env === 'development') {
+        throw new Error(`${errorMessage} Orders limit reached.`);
       } else {
         throw new Error(errorMessage);
       }
@@ -95,57 +139,237 @@ async function checkOrdersLimit(order, remoteUser, reqIp) {
   }
 }
 
-async function checkRecaptcha(order, remoteUser, reqIp) {
-  if (['ci', 'test'].includes(config.env)) {
-    return;
+async function cleanOrdersLimit(order, reqIp, reqMask) {
+  const limits = getOrdersLimit(order, reqIp, reqMask);
+
+  for (const limit of limits) {
+    cache.del(limit.key);
+  }
+}
+
+const checkGuestContribution = async (order, loaders) => {
+  const { guestInfo } = order;
+
+  const collective = order.collective.id && (await loaders.Collective.byId.load(order.collective.id));
+  if (!collective) {
+    throw new BadRequest('Guest contributions need to be made to an existing collective');
   }
 
-  if (!order.recaptchaToken) {
-    // Fail if Recaptcha is required
-    if (!remoteUser) {
-      debug('Recaptcha token missing');
-      throw new Error(
-        'Error while processing your request (Recaptcha token missing), please try again or contact support@opencollective.com',
-      );
+  if (!guestInfo) {
+    throw new BadRequest('You need to provide a guest profile with an email for logged out contributions');
+  } else if (!guestInfo.email || !isEmail(guestInfo.email)) {
+    throw new BadRequest('You need to provide a valid email');
+  } else if (order.fromCollective) {
+    throw new BadRequest('You need to be logged in to specify a contributing profile');
+  } else if (order.paymentMethod?.id || order.paymentMethod?.uuid) {
+    throw new BadRequest('You need to be logged in to be able to use an existing payment method');
+  }
+};
+
+const mustUpdateLocation = (existingLocation, newLocation) => {
+  const simpleFields = ['country', 'name', 'address'];
+  const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
+  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
+};
+
+const mustUpdateNames = (fromAccount, fromAccountInfo) => {
+  return (!fromAccount.name && fromAccountInfo?.name) || (!fromAccount.legalName && fromAccountInfo?.legalName);
+};
+
+/**
+ * Checks that the profile has all requirements for this contribution (name, address, etc) and updates
+ * it if necessary. Must be called **after** checking permissions and authentication!
+ */
+const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
+  const { totalAmount, fromAccountInfo, guestInfo } = order;
+  const accountUpdatePayload = {};
+  const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
+  const isContributingFromSameHost = fromAccount.HostCollectiveId === order.collective.HostCollectiveId;
+
+  // Only enforce profile checks for guests and USD contributions at the moment
+  if (isGuest && currency === 'USD' && !isContributingFromSameHost) {
+    // Contributions that are more than $5000 must have an address attached
+    if (totalAmount > 5000e2) {
+      if (!location.structured && (!location.address || !location.country)) {
+        throw new BadRequest('Contributions that are more than $5000 must have an address attached');
+      }
     }
-    // Otherwise, pass for now
+
+    // Contributions that are more than $250 must have a name attached
+    if (totalAmount > 250e2) {
+      const name = fromAccountInfo?.name || fromAccountInfo?.legalName || fromAccount.name || fromAccount.legalName;
+      if (!name) {
+        throw new BadRequest('Contributions that are more than $250 must have a name attached');
+      }
+    }
+  }
+
+  // Update account with new info, unless we're making a guest contribution for an existing account
+  // (we don't want to let guests update the profile of an existing account that they may not own)
+  const isVerifiedProfile = !fromAccount.data?.isGuest;
+  if (!isGuest || !isVerifiedProfile) {
+    if (mustUpdateLocation(fromAccount.location, location)) {
+      accountUpdatePayload.data = { ...fromAccount.data, address: location.structured || fromAccount.data?.structured };
+      accountUpdatePayload.locationName = location.name || fromAccount.locationName;
+      accountUpdatePayload.address = location.address || fromAccount.address;
+      accountUpdatePayload.countryISO = location.country || fromAccount.countryISO;
+    }
+    if (mustUpdateNames(fromAccount, fromAccountInfo)) {
+      accountUpdatePayload.name = fromAccountInfo.name || fromAccountInfo.name;
+      accountUpdatePayload.legalName = fromAccountInfo.legalName || fromAccountInfo.legalName;
+    }
+    if (!isEmpty(accountUpdatePayload)) {
+      await fromAccount.update(accountUpdatePayload);
+    }
+  }
+};
+
+async function checkCaptcha(order, remoteUser, reqIp) {
+  const requestedProvider = order.guestInfo?.captcha?.provider;
+  const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
+  const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
+
+  // We're just enforcing Captcha if it's enabled and if the order is using Credit Card
+  if (!isCaptchaEnabled || !isCreditCardOrder) {
     return;
   }
 
-  const response = recaptcha.verify(order.recaptchaToken, reqIp);
+  if (!order.guestInfo?.captcha?.token) {
+    throw new BadRequest('You need to inform a valid captcha token');
+  }
+  let response;
+  if (requestedProvider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
+    response = await hcaptcha.verify(
+      config.hcaptcha.secret,
+      order.guestInfo.captcha.token,
+      reqIp,
+      config.hcaptcha.sitekey,
+    );
+  } else if (
+    requestedProvider === CAPTCHA_PROVIDERS.RECAPTCHA &&
+    config.recaptcha &&
+    parseToBoolean(config.recaptcha.enable)
+  ) {
+    response = await recaptcha.verify(order.guestInfo.captcha.token, reqIp);
+  } else {
+    throw new BadRequest('Could not find requested Captcha provider', undefined, order.guestInfo?.captcha);
+  }
 
-  // TODO: check response and throw an error if needed
+  if (response.success !== true) {
+    logger.warn('Captcha verification failed:', response);
+    throw new BadRequest('Captcha verification failed');
+  }
 
   return response;
 }
 
-export async function createOrder(order, loaders, remoteUser, reqIp) {
-  debug('Beginning creation of order', order);
-  if (!remoteUser) {
-    throw new Unauthorized();
-  }
-  await checkOrdersLimit(order, remoteUser, reqIp);
-  const recaptchaResponse = await checkRecaptcha(order, remoteUser, reqIp);
-  if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
+/**
+ * Check the taxes for order, returns the tax info
+ */
+const getTaxInfo = async (order, collective, host, tier, loaders) => {
+  // Load optional data
+  if (collective.ParentCollectiveId && !collective.parentCollective) {
+    collective.parentCollective = await loaders.Collective.byId.load(collective.ParentCollectiveId);
   }
 
-  let orderCreated;
+  const taxes = LibTaxes.getApplicableTaxes(collective, host, tier?.type);
+  if (taxes.some(({ type }) => type === LibTaxes.TaxType.VAT)) {
+    // ---- Taxes (VAT) ----
+    const parentCollective = collective.parentCollective;
+    let taxFromCountry = null;
+    let taxPercent = 0;
+    let vatSettings = {};
+
+    // Load tax info from DB, ignore if amount is 0
+    if (order.totalAmount !== 0 && tier && LibTaxes.isTierTypeSubjectToVAT(tier.type)) {
+      const vatType = get(collective, 'settings.VAT.type') ?? get(collective.parentCollective, 'settings.VAT.type');
+      const baseCountry = collective.countryISO || get(parentCollective, 'countryISO');
+      if (vatType === VAT_OPTIONS.OWN) {
+        taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, baseCountry, baseCountry);
+        vatSettings = { ...get(parentCollective, 'settings.VAT'), ...get(collective, 'settings.VAT') };
+      } else if (vatType === VAT_OPTIONS.HOST) {
+        const hostCountry = get(host, 'countryISO');
+        taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, hostCountry, baseCountry);
+        vatSettings = get(host, 'settings.VAT') || {};
+      }
+
+      // Adapt tax based on country / tax ID number
+      if (taxFromCountry) {
+        if (!order.countryISO) {
+          throw Error('This order has a tax attached, you must set a country');
+        } else if (order.taxIDNumber && !LibTaxes.checkVATNumberFormat(order.taxIDNumber).isValid) {
+          throw Error('Invalid VAT number');
+        }
+
+        const hasVatNumber = Boolean(order.taxIDNumber);
+        taxPercent = LibTaxes.getVatPercentage(tier.type, taxFromCountry, order.countryISO, hasVatNumber);
+      }
+    }
+
+    return {
+      id: LibTaxes.TaxType.VAT,
+      taxerCountry: taxFromCountry,
+      taxedCountry: order.countryISO,
+      percentage: taxPercent,
+      taxIDNumber: order.taxIDNumber,
+      taxIDNumberFrom: vatSettings.number,
+    };
+  } else if (taxes.some(({ type }) => type === LibTaxes.TaxType.GST)) {
+    const hostGSTNumber = get(host, 'settings.GST.number');
+    if (!hostGSTNumber) {
+      throw new Error('GST tax is not enabled for this host');
+    }
+
+    return {
+      id: LibTaxes.TaxType.GST,
+      taxerCountry: host.countryISO,
+      taxedCountry: order.countryISO,
+      percentage: LibTaxes.GST_RATE_PERCENT,
+      taxIDNumber: order.taxIDNumber,
+      taxIDNumberFrom: hostGSTNumber,
+    };
+  }
+};
+
+const hasPaymentMethod = order => {
+  const { paymentMethod } = order;
+  if (!paymentMethod) {
+    return false;
+  } else if (paymentMethod.service === 'paypal' && paymentMethod.type === 'payment') {
+    return Boolean(paymentMethod.data?.orderId);
+  } else {
+    return Boolean(
+      paymentMethod.uuid ||
+        paymentMethod.token ||
+        paymentMethod.type === 'manual' ||
+        paymentMethod.type === 'alipay' ||
+        paymentMethod.type === 'crypto',
+    );
+  }
+};
+
+export async function createOrder(order, loaders, remoteUser, reqIp, userAgent, reqMask) {
+  debug('Beginning creation of order', order);
+
+  if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
+    return new FeatureNotAllowedForUser();
+  } else if (!remoteUser) {
+    await checkGuestContribution(order, loaders);
+  }
+
+  await checkOrdersLimit(order, reqIp, reqMask);
+
+  let orderCreated, isGuest, guestToken;
   try {
     // ---- Set defaults ----
     order.quantity = order.quantity || 1;
     order.taxAmount = order.taxAmount || 0;
-
-    if (order.paymentMethod && order.paymentMethod.service === 'stripe' && order.paymentMethod.uuid && !remoteUser) {
-      throw new Error('You need to be logged in to be able to use a payment method on file');
-    }
 
     if (!order.collective || (!order.collective.id && !order.collective.website && !order.collective.githubHandle)) {
       throw new Error('No collective id/website/githubHandle provided');
     }
 
     const { id, githubHandle } = order.collective;
-
     if (!id && !githubHandle) {
       throw new ValidationFailed('An Open Collective id or a GitHub handle is mandatory.');
     }
@@ -164,7 +388,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     // Some tests are relying on this check being done at that point
     // Could be moved below at some point (see commented code)
-    if (order.platformFeePercent && !remoteUser.isRoot()) {
+    if (order.platformFeePercent && !remoteUser?.isRoot()) {
       throw new Error('Only a root can change the platformFeePercent');
     }
 
@@ -180,7 +404,12 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         })
       )[0];
     } else if (order.collective.githubHandle) {
-      collective = await models.Collective.findOne({ where: { githubHandle: order.collective.githubHandle } });
+      const repositoryUrl = github.getGithubUrlFromHandle(order.collective.githubHandle);
+      if (!repositoryUrl) {
+        throw new Error('Invalid GitHub handle');
+      }
+
+      collective = await models.Collective.findOne({ where: { repositoryUrl } });
       if (!collective) {
         const allowed = ['slug', 'name', 'company', 'description', 'website', 'twitterHandle', 'githubHandle', 'tags'];
         collective = await models.Collective.create({
@@ -195,31 +424,14 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
     if (!collective) {
       throw new Error(`No collective found: ${order.collective.id || order.collective.website}`);
     }
-    if (collective.settings?.disableCustomContributions && !order.tier) {
-      throw new Error(`Custom contributions are disabled for the selected collective`);
-    }
 
     if (order.fromCollective && order.fromCollective.id === collective.id) {
       throw new Error('Orders cannot be created for a collective by that same collective.');
     }
 
-    /*
-    if (order.platformFeePercent && collective.platformFeePercent) {
-      if (order.platformFeePercent < collective.platformFeePercent && !remoteUser.isRoot()) {
-        throw new Error('Only a root can set a lower platformFeePercent');
-      }
-    }
-    */
-
-    if (order.platformFee) {
-      if (collective.platformFeePercent && !remoteUser.isRoot()) {
-        throw new Error('Only a root can set a platformFee on a collective with non-zero platformFee');
-      }
-    }
-
     const host = await collective.getHostCollective();
     if (order.hostFeePercent) {
-      if (!remoteUser.isAdmin(host.id)) {
+      if (!remoteUser?.isAdmin(host.id)) {
         throw new Error('Only an admin of the host can change the hostFeePercent');
       }
     }
@@ -238,23 +450,10 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       }
     }
 
-    const paymentRequired = (order.totalAmount > 0 || (tier && tier.amount > 0)) && collective.isActive;
+    const paymentRequired = (order.totalAmount > 0 || tier?.requiresPayment()) && collective.isActive;
     debug('paymentRequired', paymentRequired, 'total amount:', order.totalAmount, 'isActive', collective.isActive);
-    if (
-      paymentRequired &&
-      (!order.paymentMethod ||
-        !(order.paymentMethod.uuid || order.paymentMethod.token || order.paymentMethod.type === 'manual'))
-    ) {
+    if (paymentRequired && !hasPaymentMethod(order)) {
       throw new Error('This order requires a payment method');
-    }
-    if (paymentRequired && order.paymentMethod && order.paymentMethod.type === 'manual') {
-      await handleHostPlanBankTransfersLimit(host);
-    }
-
-    if (tier && tier.maxQuantityPerUser > 0 && order.quantity > tier.maxQuantityPerUser) {
-      throw new Error(
-        `You can buy up to ${tier.maxQuantityPerUser} ${pluralize('ticket', tier.maxQuantityPerUser)} per person`,
-      );
     }
 
     if (tier) {
@@ -266,7 +465,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
 
     // find or create user, check permissions to set `fromCollective`
     let fromCollective;
-    if (!order.fromCollective || (!order.fromCollective.id && !order.fromCollective.name)) {
+    if (remoteUser && (!order.fromCollective || (!order.fromCollective.id && !order.fromCollective.name))) {
       fromCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
     }
 
@@ -277,15 +476,15 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         throw new Error(`From collective id ${order.fromCollective.id} not found`);
       }
 
-      const possibleRoles = [roles.ADMIN];
+      const possibleRoles = [];
       if (fromCollective.type === types.ORGANIZATION) {
         possibleRoles.push(roles.MEMBER);
       }
 
-      if (!remoteUser.hasRole(possibleRoles, order.fromCollective.id)) {
+      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.hasRole(possibleRoles, fromCollective.id)) {
         // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
         const HostId = await collective.getHostCollectiveId();
-        if (!remoteUser.isAdmin(HostId)) {
+        if (!remoteUser?.isAdmin(HostId)) {
           throw new Error(
             `You don't have sufficient permissions to create an order on behalf of the ${
               fromCollective.name
@@ -295,61 +494,36 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       }
     }
 
+    let captchaResponse;
     if (!fromCollective) {
-      fromCollective = await models.Collective.createOrganization(order.fromCollective, remoteUser, remoteUser);
+      if (remoteUser) {
+        // @deprecated - Creating organizations inline from this endpoint should not be supported anymore
+        logger.warn('createOrder: Inline org creation should not be used anymore');
+        fromCollective = await models.Collective.createOrganization(order.fromCollective, remoteUser, remoteUser);
+      } else {
+        // Create or retrieve guest profile from GUEST_TOKEN
+        const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
+        captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
+        const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
+        remoteUser = guestProfile.user;
+        fromCollective = guestProfile.collective;
+        isGuest = true;
+        guestToken = crypto.randomBytes(48).toString('hex');
+      }
     }
 
+    // Update the contributing profile with legal name / location
+    await checkAndUpdateProfileInfo(order, fromCollective, isGuest);
+
+    // Check currency
     const currency = (tier && tier.currency) || collective.currency;
     if (order.currency && order.currency !== currency) {
       throw new Error(`Invalid currency. Expected ${currency}.`);
     }
 
-    // ---- Taxes (VAT) ----
-    let taxFromCountry = null;
-    let taxPercent = 0;
-    let vatSettings = {};
-
-    // Load tax info from DB, ignore if amount is 0
-    if (order.totalAmount !== 0 && tier && LibTaxes.isTierTypeSubjectToVAT(tier.type)) {
-      let hostCollective = null;
-      let parentCollective = null;
-
-      // Load host and parent collective
-      if (collective.HostCollectiveId) {
-        hostCollective = await loaders.Collective.byId.load(collective.HostCollectiveId);
-      }
-
-      if (collective.ParentCollectiveId) {
-        parentCollective = await loaders.Collective.byId.load(collective.ParentCollectiveId);
-        if (parentCollective && !hostCollective) {
-          hostCollective = await loaders.Collective.byId.load(parentCollective.HostCollectiveId);
-        }
-      }
-
-      // Check if VAT is enabled
-      const vatType = get(collective, 'settings.VAT.type') || get(parentCollective, 'settings.VAT.type');
-      const baseCountry = collective.countryISO || get(parentCollective, 'countryISO');
-      if (vatType === VAT_OPTIONS.OWN) {
-        taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, baseCountry, baseCountry);
-        vatSettings = { ...get(parentCollective, 'settings.VAT'), ...get(collective, 'settings.VAT') };
-      } else if (vatType === VAT_OPTIONS.HOST) {
-        const hostCountry = get(hostCollective, 'countryISO');
-        taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, hostCountry, baseCountry);
-        vatSettings = get(hostCollective, 'settings.VAT') || {};
-      }
-
-      // Adapt tax based on country / tax ID number
-      if (taxFromCountry) {
-        if (!order.countryISO) {
-          throw Error('This order has a tax attached, you must set a country');
-        } else if (order.taxIDNumber && !LibTaxes.checkVATNumberFormat(order.taxIDNumber).isValid) {
-          throw Error('Invalid VAT number');
-        }
-
-        const hasVatNumber = Boolean(order.taxIDNumber);
-        taxPercent = LibTaxes.getVatPercentage(tier.type, taxFromCountry, order.countryISO, hasVatNumber);
-      }
-    }
+    // ---- Taxes ----
+    const taxInfo = await getTaxInfo(order, collective, host, tier, loaders);
+    const taxPercent = taxInfo?.percentage || 0;
 
     // Ensure tax amount is not out-of-bound
     if (order.taxAmount < 0) {
@@ -371,16 +545,17 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
         order.totalAmount = Math.round(order.quantity * tier.amount * (1 + taxPercent / 100));
       }
 
-      const netAmountForCollective = order.totalAmount - order.taxAmount - (order.platformFee || 0);
+      const tipAmount = order.platformTipAmount || 0;
+      const netAmountForCollective = order.totalAmount - order.taxAmount - (order.platformFee || 0) - tipAmount;
       const expectedAmountForCollective = order.quantity * tier.amount;
       const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
       if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
         const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
         const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
-        const taxInfo = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
+        const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
         const platformFeeInfo = order.platformFee ? ` + ${formatCurrency(order.platformFee, currency, 2)} fees` : '';
         throw new Error(
-          `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfo}${platformFeeInfo}. You set: ${prettyTotalAmount}`,
+          `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}${platformFeeInfo}. You set: ${prettyTotalAmount}`,
         );
       }
     }
@@ -395,18 +570,25 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       }
     }
 
-    const tierNameInfo = tier && tier.name ? ` (${tier.name})` : '';
-    let defaultDescription;
-    if (order.interval) {
-      defaultDescription = `${capitalize(order.interval)}ly financial contribution to ${
-        collective.name
-      }${tierNameInfo}`;
-    } else {
-      defaultDescription = `${
-        order.totalAmount === 0 || collective.type === types.EVENT ? 'Registration' : 'Financial contribution'
-      } to ${collective.name}${tierNameInfo}`;
-    }
+    const defaultDescription = models.Order.generateDescription(collective, order.totalAmount, order.interval, tier);
     debug('defaultDescription', defaultDescription, 'collective.type', collective.type);
+
+    // Default status, will get updated after the order is processed
+    let orderStatus = status.NEW;
+    // Special cases
+    if (collective.isPledged) {
+      orderStatus = status.PLEDGED;
+    }
+    if (get(order, 'paymentMethod.type') === 'manual') {
+      orderStatus = status.PENDING;
+    }
+
+    let orderPublicData;
+    if (order.data) {
+      orderPublicData = pick(order.data, Object.values(ORDER_PUBLIC_DATA_FIELDS));
+    }
+
+    const platformTipEligible = await libPayments.isPlatformTipEligible({ ...order, collective }, host);
 
     const orderData = {
       CreatedByUserId: remoteUser.id,
@@ -416,43 +598,42 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       quantity: order.quantity,
       totalAmount: order.totalAmount,
       currency,
-      taxAmount: taxFromCountry ? order.taxAmount : null,
+      taxAmount: taxInfo ? order.taxAmount : null,
       interval: order.interval,
       description: order.description || defaultDescription,
       publicMessage: order.publicMessage, // deprecated: '2019-07-03: This info is now stored at the Member level'
       privateMessage: order.privateMessage,
       processedAt: paymentRequired || !collective.isActive ? null : new Date(),
+      tags: order.tags,
+      platformTipAmount: order.platformTipAmount,
+      platformTipEligible,
       data: {
+        ...orderPublicData,
         reqIp,
-        recaptchaResponse,
-        tax: taxFromCountry && {
-          id: 'VAT',
-          taxerCountry: taxFromCountry,
-          taxedCountry: order.countryISO,
-          percentage: taxPercent,
-          taxIDNumber: order.taxIDNumber,
-          taxIDNumberFrom: vatSettings.number,
-        },
+        reqMask,
+        captchaResponse,
+        tax: taxInfo,
         customData: order.customData,
-        savePaymentMethod: Boolean(order.paymentMethod && order.paymentMethod.save),
+        savePaymentMethod: Boolean(!isGuest && order.paymentMethod?.save),
+        // Backward compatible
+        isFeesOnTop: order.platformTipAmount > 0,
+        platformFee: order.platformTipAmount,
+        guestToken, // For guest contributions, this token is a way to authenticate to confirm the order
+        isEmbed: Boolean(order.context?.isEmbed),
+        isGuest,
+        isBalanceTransfer: order.isBalanceTransfer,
+        fromAccountInfo: order.fromAccountInfo,
       },
-      status: status.PENDING, // default status, will get updated after the order is processed
+      status: orderStatus,
     };
 
     // Handle specific fees
     // we use data instead of a column for now because it's an edge/experimental case
     // should be moved to a column if it starts to be widely used
-    if (order.hostFeePercent) {
+    if (!isNil(order.hostFeePercent)) {
       orderData.data.hostFeePercent = order.hostFeePercent;
-    } else if (tier && tier.data && tier.data.hostFeePercent !== undefined) {
+    } else if (!isNil(tier?.data?.hostFeePercent)) {
       orderData.data.hostFeePercent = tier.data.hostFeePercent;
-    }
-    if (order.platformFee) {
-      orderData.data.platformFee = order.platformFee;
-    } else if (order.platformFeePercent) {
-      orderData.data.platformFeePercent = order.platformFeePercent;
-    } else if (tier && tier.data && tier.data.platformFeePercent !== undefined) {
-      orderData.data.platformFeePercent = tier.data.platformFeePercent;
     }
 
     // Handle status for "free" orders
@@ -466,11 +647,18 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       if (get(order, 'paymentMethod.type') === 'manual') {
         orderCreated.paymentMethod = order.paymentMethod;
       } else {
-        // Ideally, we should always save CollectiveId
-        // but this is breaking some conventions elsewhere
-        if (orderCreated.data.savePaymentMethod) {
-          order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
+        order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
+        if (get(order, 'paymentMethod.service') === 'stripe') {
+          // For Stripe `save` will be manually set to `true`, in `processOrder` if the order succeed
+          order.paymentMethod.saved = null;
+        } else {
+          order.paymentMethod.saved = Boolean(orderCreated.data.savePaymentMethod);
         }
+
+        if (isGuest) {
+          set(order.paymentMethod, 'data.isGuest', true);
+        }
+
         await orderCreated.setPaymentMethod(order.paymentMethod);
       }
       // also adds the user as a BACKER of collective
@@ -489,6 +677,7 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       await collective.addUserWithRole(remoteUser, roles.ATTENDEE, {}, { order: orderCreated });
       await models.Activity.create({
         type: activities.TICKET_CONFIRMED,
+        CollectiveId: collective.id,
         data: {
           EventCollectiveId: collective.id,
           UserId: remoteUser.id,
@@ -499,42 +688,54 @@ export async function createOrder(order, loaders, remoteUser, reqIp) {
       });
     }
 
+    // Invalidate Cloudflare cache for the collective pages
+    purgeCacheForCollective(collective.slug);
+    purgeCacheForCollective(fromCollective.slug);
+
+    const skipCleanOrdersLimitSlugs = config.limits.skipCleanOrdersLimitSlugs;
+
+    if (!skipCleanOrdersLimitSlugs || !skipCleanOrdersLimitSlugs.includes(collective.slug)) {
+      cleanOrdersLimit(order, reqIp, reqMask);
+    }
+
     order = await models.Order.findByPk(orderCreated.id);
 
-    return order;
+    return { order, guestToken };
   } catch (error) {
     if (orderCreated) {
       if (!orderCreated.processedAt) {
         if (error.stripeResponse) {
-          orderCreated.status = status.PENDING;
+          orderCreated.status = status.REQUIRE_CLIENT_CONFIRMATION;
         } else {
           orderCreated.status = status.ERROR;
         }
-        orderCreated.data.error = { message: error.message };
-        orderCreated.save();
+        // This is not working
+        // orderCreated.data.error = { message: error.message };
+        // This is working
+        orderCreated.data = { ...orderCreated.data, error: { message: error.message } };
+        await orderCreated.save();
       }
 
       if (!error.stripeResponse) {
         throw error;
       }
 
-      orderCreated.stripeError = {
+      const stripeError = {
         message: error.message,
         account: error.stripeAccount,
         response: error.stripeResponse,
       };
 
-      return orderCreated;
+      orderCreated.stripeError = stripeError;
+      return { order: orderCreated, stripeError, guestToken };
     }
 
     throw error;
   }
 }
 
-export async function confirmOrder(order, remoteUser) {
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to confirm an order');
-  } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
+export async function confirmOrder(order, remoteUser, guestToken) {
+  if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
     return new FeatureNotAllowedForUser();
   }
 
@@ -547,17 +748,29 @@ export async function confirmOrder(order, remoteUser) {
       { model: models.Collective, as: 'fromCollective' },
       { model: models.PaymentMethod, as: 'paymentMethod' },
       { model: models.Subscription, as: 'Subscription' },
+      { association: 'createdByUser' },
     ],
   });
 
   if (!order) {
     throw new NotFound('Order not found');
   }
-  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
+
+  if (!remoteUser) {
+    if (!guestToken || guestToken !== order.data?.guestToken) {
+      throw new Error('We could not authenticate your request');
+    } else {
+      // Guest token is verified, we can consider that request submitter is the owner of this order
+      remoteUser = order.createdByUser;
+    }
+  } else if (!remoteUser.isAdmin(order.FromCollectiveId)) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
-  if (order.status !== status.ERROR && order.status !== status.PENDING) {
-    throw new Error('Order can only be confirmed if its status is ERROR or PENDING.');
+
+  if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
+    // As August 2020, we're transitionning from PENDING to REQUIRE_CLIENT_CONFIRMATION
+    // PENDING can be safely removed after a few days (it will be dedicated for "Manual" payments)
+    throw new Error('Order can only be confirmed if its status is ERROR, PENDING or REQUIRE_CLIENT_CONFIRMATION.');
   }
 
   try {
@@ -570,6 +783,7 @@ export async function confirmOrder(order, remoteUser) {
       await libPayments.processOrder(order);
 
       order.status = status.ACTIVE;
+      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {
@@ -596,219 +810,6 @@ export async function confirmOrder(order, remoteUser) {
   }
 }
 
-export async function completePledge(remoteUser, order) {
-  const existingOrder = await models.Order.findOne({
-    where: { id: order.id },
-    include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-    ],
-  });
-
-  if (!existingOrder) {
-    throw new NotFound("This order doesn't exist");
-  } else if (!remoteUser || !remoteUser.isAdmin(existingOrder.FromCollectiveId)) {
-    throw new Unauthorized("You don't have the permissions to edit this order");
-  } else if (existingOrder.status !== status.PENDING) {
-    throw new NotFound('This pledge has already been completed');
-  } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
-  }
-
-  const paymentRequired = order.totalAmount > 0 && existingOrder.collective.isActive;
-
-  if (
-    paymentRequired &&
-    (!order.paymentMethod ||
-      !(order.paymentMethod.uuid || order.paymentMethod.token || order.paymentMethod.type === 'manual'))
-  ) {
-    throw new Error('This order requires a payment method');
-  }
-
-  if (order.paymentMethod && order.paymentMethod.save) {
-    order.paymentMethod.CollectiveId = existingOrder.FromCollectiveId;
-  }
-
-  if (paymentRequired) {
-    existingOrder.totalAmount = order.totalAmount;
-    existingOrder.interval = order.interval;
-    existingOrder.currency = order.currency;
-    if (get(order, 'paymentMethod.type') === 'manual') {
-      existingOrder.paymentMethod = order.paymentMethod;
-    } else {
-      await existingOrder.setPaymentMethod(order.paymentMethod);
-    }
-    // also adds the user as a BACKER of collective
-    await libPayments.executeOrder(remoteUser, existingOrder);
-  }
-  await existingOrder.reload();
-  return existingOrder;
-}
-
-/**
- * Cancel user's subscription. We don't prevent this event is user is limited (canUseFeature -> false)
- * because we don't want to prevent users from cancelling their subscriptions.
- */
-export async function cancelSubscription(remoteUser, orderId) {
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to cancel a subscription');
-  }
-
-  const query = {
-    where: {
-      id: orderId,
-    },
-    include: [
-      { model: models.Subscription },
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-    ],
-  };
-
-  const order = await models.Order.findOne(query);
-
-  if (!order) {
-    throw new NotFound('Subscription not found');
-  }
-  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw new Unauthorized("You don't have permission to cancel this subscription");
-  }
-  if (!order.Subscription.isActive && order.status === status.CANCELLED) {
-    throw new Error('Subscription already canceled');
-  }
-
-  await order.update({ status: status.CANCELLED });
-  await order.Subscription.deactivate();
-  await models.Activity.create({
-    type: activities.SUBSCRIPTION_CANCELED,
-    CollectiveId: order.CollectiveId,
-    UserId: order.CreatedByUserId,
-    data: {
-      subscription: order.Subscription,
-      collective: order.collective.minimal,
-      user: remoteUser.minimal,
-      fromCollective: order.fromCollective.minimal,
-    },
-  });
-
-  return models.Order.findOne(query);
-}
-
-export async function updateSubscription(remoteUser, args) {
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to update a subscription');
-  } else if (!canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
-  }
-
-  const { id, paymentMethod, amount } = args;
-
-  const query = {
-    where: {
-      id,
-    },
-    include: [{ model: models.Subscription }, { model: models.PaymentMethod, as: 'paymentMethod' }],
-  };
-
-  let order = await models.Order.findOne(query);
-
-  if (!order) {
-    throw new NotFound('Subscription not found');
-  }
-  if (!remoteUser.isAdmin(order.FromCollectiveId)) {
-    throw new Unauthorized("You don't have permission to update this subscription");
-  }
-  if (!order.Subscription.isActive) {
-    throw new Error('Subscription must be active to be updated');
-  }
-
-  if (paymentMethod !== undefined) {
-    let newPm;
-
-    // TODO: Would be even better if we could charge you here directly
-    // before letting you proceed
-
-    try {
-      // means it's an existing paymentMethod
-      if (paymentMethod.uuid && paymentMethod.uuid.length === 36) {
-        newPm = await models.PaymentMethod.findOne({
-          where: { uuid: paymentMethod.uuid },
-        });
-        if (!newPm) {
-          throw new Error('Payment method not found with this uuid', paymentMethod.uuid);
-        }
-      } else {
-        // means it's a new paymentMethod
-        const newPMData = Object.assign(paymentMethod, {
-          CollectiveId: order.FromCollectiveId,
-        });
-
-        newPm = await models.PaymentMethod.create(newPMData);
-        newPm = await setupCreditCard(newPm, {
-          user: remoteUser,
-        });
-      }
-
-      // determine if this order was pastdue
-      if (order.Subscription.chargeRetryCount > 0) {
-        const updatedDates = getNextChargeAndPeriodStartDates('updated', order);
-        const chargeRetryCount = getChargeRetryCount('updated', order);
-
-        await order.Subscription.update({
-          nextChargeDate: updatedDates.nextChargeDate,
-          chargeRetryCount,
-        });
-      }
-
-      order = await order.update({ PaymentMethodId: newPm.id });
-    } catch (error) {
-      if (!error.stripeResponse) {
-        throw error;
-      }
-
-      order.stripeError = {
-        message: error.message,
-        response: error.stripeResponse,
-      };
-    }
-  }
-
-  if (amount !== undefined) {
-    if (amount == order.Subscription.amount) {
-      throw new Error('Same amount');
-    }
-
-    if (amount < 100 || amount % 100 !== 0) {
-      throw new Error('Invalid amount');
-    }
-    await order.Subscription.deactivate();
-    order.status = status.CANCELLED;
-    await order.save();
-
-    const newSubscriptionDataValues = Object.assign(omit(order.Subscription.dataValues, ['id', 'deactivatedAt']), {
-      amount: amount,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      activatedAt: new Date(),
-      isActive: true,
-    });
-
-    const newSubscription = await models.Subscription.create(newSubscriptionDataValues);
-
-    const newOrderDataValues = Object.assign(omit(order.dataValues, ['id']), {
-      totalAmount: amount,
-      SubscriptionId: newSubscription.id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      status: status.ACTIVE,
-    });
-
-    order = await models.Order.create(newOrderDataValues);
-  }
-
-  return order;
-}
-
 export async function refundTransaction(_, args, req) {
   // 0. Retrieve transaction from database
   const transaction = await models.Transaction.findByPk(args.id, {
@@ -819,118 +820,25 @@ export async function refundTransaction(_, args, req) {
     throw new NotFound('Transaction not found');
   }
 
-  const collective = await models.Collective.findByPk(transaction.CollectiveId);
-  const isHost = await collective.isHost();
-  const HostCollectiveId = isHost ? collective.id : await collective.getHostCollectiveId();
-
-  // 1. Verify user permission. User must be either
-  //   a. Admin of the collective that received the donation - disabled for now
+  // 1a. Verify user permission using canRefund. User must be either
+  //   a. Admin of the collective that received the donation
   //   b. Admin of the Host Collective that received the donation
   //   c. Admin of opencollective.com/opencollective
+  // 1b. Check transaction age - only Host admins can refund transactions older than 30 days
+  // 1c. The transaction type must be CREDIT to prevent users from refunding their own DEBITs
 
-  if (
-    !req.remoteUser.isAdmin(HostCollectiveId) &&
-    !req.remoteUser.isRoot() /* && !req.remoteUser.isAdmin(collective.id) */
-  ) {
-    throw new Unauthorized('Not a site admin or host collective admin');
+  const canUserRefund = await canRefund(transaction, undefined, req);
+  if (!canUserRefund) {
+    throw new Forbidden('Cannot refund this transaction');
   }
 
   // 2. Refund via payment method
   // 3. Create new transactions with the refund value in our database
-  const result = await libPayments.refundTransaction(transaction, req.remoteUser);
+  const result = await libPayments.refundTransaction(transaction, req.remoteUser, args.message);
 
   // Return the transaction passed to the `refundTransaction` method
   // after it was updated.
   return result;
-}
-
-/** Create prepaid payment method that can be used by an organization
- *
- * @param {Object} args contains the parameters to create the new
- *  payment method.
- * @param {String} args.description The description of the new payment
- *  method.
- * @param {Number} args.CollectiveId The ID of the organization
- *  receiving the prepaid card.
- * @param {Number} args.HostCollectiveId The ID of the host that
- *  received the money on its bank account.
- * @param {Number} args.totalAmount The total amount that will be
- *  credited to the newly created payment method.
- * @param {models.User} remoteUser is the user creating the new credit
- *  card. Right now only site admins can use this feature.
- */
-export async function addFundsToOrg(args, remoteUser) {
-  if (!remoteUser.isRoot()) {
-    throw new Error('Only site admins can perform this operation');
-  }
-  const [fromCollective, hostCollective] = await Promise.all([
-    models.Collective.findByPk(args.CollectiveId),
-    models.Collective.findByPk(args.HostCollectiveId),
-  ]);
-  // creates a new Payment method
-  const paymentMethod = await models.PaymentMethod.create({
-    name: args.description || 'Host funds',
-    initialBalance: args.totalAmount,
-    monthlyLimitPerMember: null,
-    currency: hostCollective.currency,
-    CollectiveId: args.CollectiveId,
-    customerId: fromCollective.slug,
-    expiryDate: moment().add(3, 'year').format(),
-    uuid: uuid(),
-    data: { HostCollectiveId: args.HostCollectiveId },
-    service: 'opencollective',
-    type: 'prepaid',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
-  models.Activity.create({
-    type: activities.ADDED_FUND_TO_ORG,
-    CollectiveId: args.CollectiveId,
-    data: {
-      totalAmount: args.totalAmount,
-      collective: fromCollective,
-      currency: fromCollective.currency,
-      currentBalance: paymentMethod.initialBalance,
-      addedBy: hostCollective.name,
-    },
-  });
-
-  return paymentMethod;
-}
-
-export async function markOrderAsPaid(remoteUser, id) {
-  if (!remoteUser) {
-    throw new Unauthorized();
-  }
-
-  // fetch the order
-  const order = await models.Order.findByPk(id);
-  if (!order) {
-    throw new NotFound('Order not found');
-  }
-  if (order.status !== 'PENDING') {
-    throw new ValidationFailed("The order's status must be PENDING");
-  }
-  const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
-  if (!remoteUser.isAdmin(HostCollectiveId)) {
-    throw new Unauthorized('You must be logged in as an admin of the host of the collective');
-  }
-
-  order.paymentMethod = {
-    service: 'opencollective',
-    type: 'manual',
-    paid: true,
-  };
-  /**
-   * Takes care of:
-   * - creating the transactions
-   * - add backer as a BACKER in the Members table
-   * - send confirmation email
-   * - update order.status and order.processedAt
-   */
-  await libPayments.executeOrder(remoteUser, order);
-  return order;
 }
 
 export async function markPendingOrderAsExpired(remoteUser, id) {
@@ -948,104 +856,19 @@ export async function markPendingOrderAsExpired(remoteUser, id) {
     throw new ValidationFailed("The order's status must be PENDING");
   }
 
-  const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
-  if (!remoteUser.isAdmin(HostCollectiveId)) {
-    throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+  const collective = await models.Collective.findByPk(order.CollectiveId);
+  if (collective.isHostAccount) {
+    if (!remoteUser.isAdmin(collective.id)) {
+      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+    }
+  } else {
+    const HostCollectiveId = await models.Collective.getHostCollectiveId(order.CollectiveId);
+    if (!remoteUser.isAdmin(HostCollectiveId)) {
+      throw new Unauthorized('You must be logged in as an admin of the host of the collective');
+    }
   }
 
   order.status = 'EXPIRED';
   await order.save();
   return order;
-}
-
-export async function addFundsToCollective(order, remoteUser) {
-  if (!remoteUser) {
-    throw new Error('You need to be logged in to add fund to collective');
-  }
-
-  if (order.totalAmount < 0) {
-    throw new Error('Total amount cannot be a negative value');
-  }
-
-  const collective = await models.Collective.findByPk(order.collective.id);
-  if (!collective) {
-    throw new Error(`No collective found: ${order.collective.id}`);
-  }
-
-  const host = await collective.getHostCollective();
-  if (!remoteUser.isAdmin(host.id) && !remoteUser.isRoot()) {
-    throw new Error('Only an site admin or collective host admin can add fund');
-  }
-
-  // Check limits
-  await handleHostPlanAddedFundsLimit(host, { throwException: true });
-
-  order.collective = collective;
-  let fromCollective, user;
-
-  if (order.user && order.user.email) {
-    user = await models.User.findByEmail(order.user.email);
-    if (!user) {
-      user = await models.User.createUserWithCollective({
-        ...order.user,
-        currency: collective.currency,
-        CreatedByUserId: remoteUser ? remoteUser.id : null,
-      });
-    }
-  } else if (remoteUser) {
-    user = remoteUser;
-  }
-
-  if (order.fromCollective.id) {
-    fromCollective = await models.Collective.findByPk(order.fromCollective.id);
-    if (!fromCollective) {
-      throw new Error(`From collective id ${order.fromCollective.id} not found`);
-    } else if ([types.COLLECTIVE, types.EVENT].includes(fromCollective.type)) {
-      const isAdminOfFromCollective = remoteUser.isRoot() || remoteUser.isAdmin(fromCollective.id);
-      if (!isAdminOfFromCollective && fromCollective.HostCollectiveId !== host.id) {
-        const fromCollectiveHostId = await fromCollective.getHostCollectiveId();
-        if (!remoteUser.isAdmin(fromCollectiveHostId)) {
-          throw new Error("You don't have the permission to add funds from collectives you don't own or host.");
-        }
-      }
-    }
-  } else {
-    fromCollective = await models.Collective.createOrganization(order.fromCollective, user, remoteUser);
-  }
-
-  const orderData = {
-    CreatedByUserId: remoteUser.id || user.id,
-    FromCollectiveId: fromCollective.id,
-    CollectiveId: collective.id,
-    totalAmount: order.totalAmount,
-    currency: collective.currency,
-    description: order.description,
-    status: status.PENDING,
-    data: {},
-  };
-
-  // Handle specific fees
-  if (order.hostFeePercent) {
-    orderData.data.hostFeePercent = order.hostFeePercent;
-  }
-  if (order.platformFeePercent) {
-    orderData.data.platformFeePercent = order.platformFeePercent;
-  }
-
-  const orderCreated = await models.Order.create(orderData);
-
-  const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
-  await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
-
-  if (fromCollective.isHostAccount && fromCollective.id === collective.id) {
-    // Special Case, adding funds to itself
-    await models.Transaction.creditHost(orderCreated, collective);
-  } else {
-    await libPayments.executeOrder(remoteUser || user, orderCreated);
-  }
-
-  // Check if the maximum fund limit has been reached after execution
-  await handleHostPlanAddedFundsLimit(host, { notifyAdmins: true });
-
-  return models.Order.findByPk(orderCreated.id);
 }

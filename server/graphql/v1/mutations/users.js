@@ -16,6 +16,8 @@ const oneHourInSeconds = 60 * 60;
 export const updateUserEmail = async (user, newEmail) => {
   if (!user) {
     throw new Unauthorized();
+  } else if (!user.confirmedAt) {
+    throw new Error('You need to verify your account before changing your email address');
   }
 
   // Put some rate limiting for user so they can't bruteforce the system to guess emails
@@ -79,7 +81,9 @@ export const confirmUserEmail = async emailConfirmationToken => {
   const user = await models.User.findOne({ where: { emailConfirmationToken } });
 
   if (!user) {
-    throw new InvalidToken({ internalData: { emailConfirmationToken } });
+    throw new InvalidToken('Invalid email confirmation token', 'INVALID_TOKEN', {
+      internalData: { emailConfirmationToken },
+    });
   }
 
   return user.update({

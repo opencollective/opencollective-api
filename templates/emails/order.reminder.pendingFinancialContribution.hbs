@@ -1,5 +1,5 @@
-Subject: Pending financial contribution confirmation: {{{currency order.totalAmount
-currency=order.currency}}} for {{collective.name}}
+Subject: Has {{{currency order.totalAmount
+currency=order.currency}}} arrived for {{collective.name}}?
 
 <style>
   code {
@@ -16,12 +16,15 @@ currency=order.currency}}} for {{collective.name}}
 {{> toplogo}}
 
 <p>
-  Has {{{currency order.totalAmount
-    currency=order.currency}}} arrived in the bank account of {{host.name}} from {{fromCollective.name}} for {{collective.name}}?
+  Has {{host.name}} received {{{currency order.totalAmount
+    currency=order.currency}}} from {{fromCollective.name}} for {{collective.name}}?
+    The funds will not be credited to the balance of {{collective.name}} until you confirm.
 </p>
 
-<p>You can view the details, mark order as paid or cancel it on:
-  <a href="{{viewDetailsLink}}">{{viewDetailsLink}}</a>.
-</p>
+<p>Click the button below to confirm the funds as received or cancel the pending contribution. If you are still expecting the funds but they have not yet arrived, no action is required.</p>
+
+<a class="btn blue" href="{{viewDetailsLink}}">
+  <div style="font-size: 15px;">View Details</div>
+</a>
 
 {{> footer}}

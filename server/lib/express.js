@@ -10,20 +10,23 @@ import helmet from 'helmet';
 import { get, has } from 'lodash';
 import passport from 'passport';
 import { Strategy as GitHubStrategy } from 'passport-github';
-import { Strategy as MeetupStrategy } from 'passport-meetup-oauth2';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import redis from 'redis';
 
 import { loadersMiddleware } from '../graphql/loaders';
 
-import forest from './forest';
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 
 export default async function (app) {
   app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal'].concat(cloudflareIps));
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // It's currently breaking GraphQL playgrounds, to consider when activating this
+      contentSecurityPolicy: false,
+    }),
+  );
 
   // Loaders are attached to the request to batch DB queries per request
   // It also creates in-memory caching (based on request auth);
@@ -37,7 +40,7 @@ export default async function (app) {
       // the request body buffer to a new property called `rawBody` so we can
       // calculate the checksum to verify if the request is authentic.
       verify(req, res, buf) {
-        if (req.originalUrl.startsWith('/webhooks/transferwise')) {
+        if (req.originalUrl.startsWith('/webhooks')) {
           req.rawBody = buf.toString();
         }
       },
@@ -49,12 +52,9 @@ export default async function (app) {
   await hyperwatch(app);
 
   // Error handling.
-  if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'staging') {
+  if (config.env !== 'production' && config.env !== 'staging') {
     app.use(errorHandler());
   }
-
-  // Forest
-  await forest(app);
 
   // Cors.
   app.use(cors());
@@ -65,11 +65,6 @@ export default async function (app) {
     passport.use(new GitHubStrategy(get(config, 'github'), verify));
   } else {
     logger.info('Configuration missing for passport GitHubStrategy, skipping.');
-  }
-  if (has(config, 'meetup.clientID') && has(config, 'meetup.clientSecret')) {
-    passport.use(new MeetupStrategy(get(config, 'meetup'), verify));
-  } else {
-    logger.info('Configuration missing for passport MeetupStrategy, skipping.');
   }
   if (has(config, 'twitter.consumerKey') && has(config, 'twitter.consumerSecret')) {
     passport.use(new TwitterStrategy(get(config, 'twitter'), verify));
@@ -84,7 +79,13 @@ export default async function (app) {
   let store;
   if (get(config, 'redis.serverUrl')) {
     const RedisStore = connectRedis(session);
-    store = new RedisStore({ client: redis.createClient(get(config, 'redis.serverUrl')) });
+    const redisOptions = {};
+    if (get(config, 'redis.serverUrl').includes('rediss://')) {
+      redisOptions.tls = { rejectUnauthorized: false };
+    }
+    store = new RedisStore({
+      client: redis.createClient(get(config, 'redis.serverUrl'), redisOptions),
+    });
   }
 
   app.use(

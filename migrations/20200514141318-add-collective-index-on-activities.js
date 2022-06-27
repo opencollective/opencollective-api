@@ -31,7 +31,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.removeIndex('Activities', 'activities__collective_id');
     await queryInterface.removeIndex('Activities', 'activities__expense_id');
     await queryInterface.removeColumn('Activities', 'ExpenseId');

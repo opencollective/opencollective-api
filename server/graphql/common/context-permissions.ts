@@ -15,13 +15,14 @@
  * Permissions are stored inside the `req` as an object that looks like:
  * {
  *    // Action type as the key
- *    SEE_PAYOUT_METHOD_DATA: {
+ *    SEE_PAYOUT_METHOD_DETAILS: {
  *      // [EntityId (ie. UserId, CollectiveId)]: hasAccess
  *      45: true
  *    }
  * }
  */
 
+import express from 'express';
 import { get, has, isNil, set } from 'lodash';
 
 /**
@@ -29,8 +30,8 @@ import { get, has, isNil, set } from 'lodash';
  */
 export enum PERMISSION_TYPE {
   SEE_EXPENSE_ATTACHMENTS_URL = 'SEE_EXPENSE_ATTACHMENTS_URL',
-  SEE_PAYOUT_METHOD_DATA = 'SEE_PAYOUT_METHOD_DATA',
-  SEE_INCOGNITO_ACCOUNT_DETAILS = 'SEE_INCOGNITO_ACCOUNT_DETAILS',
+  SEE_PAYOUT_METHOD_DETAILS = 'SEE_PAYOUT_METHOD_DETAILS',
+  SEE_ACCOUNT_LEGAL_NAME = 'SEE_ACCOUNT_LEGAL_NAME',
 }
 
 /**
@@ -54,7 +55,7 @@ const checkPermissionType = (permissionType): void => {
  * @param entityId The unique identifier for the item to which the permissions apply
  */
 export const allowContextPermission = (
-  req: object,
+  req: express.Request,
   permissionType: PERMISSION_TYPE,
   entityId: string | number,
 ): void => {
@@ -70,7 +71,7 @@ export const allowContextPermission = (
  * @returns `true` if allowed, `false` if not allowed
  */
 export const getContextPermission = (
-  req: object,
+  req: express.Request,
   permissionType: PERMISSION_TYPE,
   entityId: string | number,
 ): boolean => {

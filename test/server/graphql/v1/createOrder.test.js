@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import config from 'config';
+import gql from 'fake-tag';
 import { cloneDeep } from 'lodash';
 import nock from 'nock';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
 import { maxInteger } from '../../../../server/constants/math';
@@ -33,8 +34,8 @@ const baseOrder = Object.freeze({
   },
 });
 
-const createOrderQuery = `
-  mutation createOrder($order: OrderInputType!) {
+const createOrderMutation = gql`
+  mutation CreateOrder($order: OrderInputType!) {
     createOrder(order: $order) {
       id
       status
@@ -66,7 +67,7 @@ const createOrderQuery = `
       }
     }
   }
-  `;
+`;
 
 const constants = Object.freeze({
   paymentMethod: {
@@ -85,16 +86,6 @@ describe('server/graphql/v1/createOrder', () => {
 
   before(() => {
     nock('https://data.fixer.io')
-      .get(/20[0-9]{2}\-[0-9]{2}\-[0-9]{2}/)
-      .times(5)
-      .query({
-        access_key: config.fixer.accessKey, // eslint-disable-line camelcase
-        base: 'EUR',
-        symbols: 'USD',
-      })
-      .reply(200, { base: 'EUR', date: '2017-09-01', rates: { USD: 1.192 } });
-
-    nock('https://data.fixer.io')
       .get('/latest')
       .times(5)
       .query({
@@ -109,7 +100,7 @@ describe('server/graphql/v1/createOrder', () => {
 
   beforeEach(async () => {
     await utils.resetTestDB();
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     tweetStatusSpy = sandbox.spy(twitter, 'tweetStatus');
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
 
@@ -126,7 +117,7 @@ describe('server/graphql/v1/createOrder', () => {
         currency: 'eur',
         status: 'succeeded',
       },
-      paymentIntent: {
+      paymentIntentConfirmed: {
         charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm', currency: 'eur', status: 'succeeded' }] },
         status: 'succeeded',
       },
@@ -144,20 +135,19 @@ describe('server/graphql/v1/createOrder', () => {
       slug: 'test',
       name: 'test',
       isActive: false,
+      isPledged: true,
       website: 'https://github.com/opencollective/frontend',
     });
     const thisOrder = cloneDeep(baseOrder);
     thisOrder.collective.id = collective.id;
 
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
       newsletterOptIn: true,
     });
     const res = await utils.graphqlQuery(
-      createOrderQuery,
+      createOrderMutation,
       {
         order: thisOrder,
       },
@@ -168,7 +158,7 @@ describe('server/graphql/v1/createOrder', () => {
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 
-    expect(res.data.createOrder.status).to.equal('PENDING');
+    expect(res.data.createOrder.status).to.equal('PLEDGED');
   });
 
   it('creates a pending order (pledge) with inactive subscription if interval is included and collective is not active', async () => {
@@ -176,6 +166,7 @@ describe('server/graphql/v1/createOrder', () => {
       slug: 'test',
       name: 'test',
       isActive: false,
+      isPledged: true,
       website: 'https://github.com/opencollective/frontend',
     });
     const thisOrder = cloneDeep(baseOrder);
@@ -183,14 +174,12 @@ describe('server/graphql/v1/createOrder', () => {
     thisOrder.interval = 'month';
 
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
       newsletterOptIn: true,
     });
     const res = await utils.graphqlQuery(
-      createOrderQuery,
+      createOrderMutation,
       {
         order: thisOrder,
       },
@@ -201,15 +190,16 @@ describe('server/graphql/v1/createOrder', () => {
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 
-    expect(res.data.createOrder.status).to.equal('PENDING');
+    expect(res.data.createOrder.status).to.equal('PLEDGED');
     expect(res.data.createOrder.subscription.interval).to.equal('month');
   });
 
   it('creates a pending order if the collective is active and the payment method type is manual', async () => {
-    const hostAdmin = await models.User.create({ email: store.randEmail(), name: '_____' });
+    const hostAdmin = await models.User.createUserWithCollective({ email: store.randEmail() });
     const host = await models.Collective.create({
       slug: 'host-collective',
       name: 'Open Collective 501c3',
+      type: 'ORGANIZATION',
       currency: 'USD',
       CreatedByUserId: hostAdmin.id,
       settings: {
@@ -221,6 +211,8 @@ describe('server/graphql/v1/createOrder', () => {
         },
       },
     });
+    await host.addUserWithRole(hostAdmin, 'ADMIN', { CreatedByUserId: hostAdmin.id });
+
     const collective = await models.Collective.create({
       slug: 'webpack',
       name: 'test',
@@ -243,6 +235,12 @@ describe('server/graphql/v1/createOrder', () => {
     });
     await collective.addHost(host, hostAdmin, { shouldAutomaticallyApprove: true });
     await collective.update({ isActive: true });
+
+    await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
+      tag: 'fearlesscitiesbrussels would love to be hosted ',
+    });
+    emailSendMessageSpy.resetHistory();
+
     const thisOrder = cloneDeep(baseOrder);
     delete thisOrder.paymentMethod;
     thisOrder.paymentMethod = { type: 'manual' };
@@ -251,13 +249,11 @@ describe('server/graphql/v1/createOrder', () => {
     thisOrder.quantity = 2;
     thisOrder.totalAmount = 2000;
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
     });
     const res = await utils.graphqlQuery(
-      createOrderQuery,
+      createOrderMutation,
       {
         order: thisOrder,
       },
@@ -273,11 +269,8 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: res.data.createOrder.id },
     });
     expect(transactionsCount).to.equal(0);
-    await utils.waitForCondition(() => emailSendMessageSpy.callCount == 3);
-    expect(emailSendMessageSpy.callCount).to.equal(3);
-
-    const hostEmailArgs = emailSendMessageSpy.args.find(callArgs => callArgs[1].includes('would love to be hosted'));
-    expect(hostEmailArgs).to.exist;
+    await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
+    expect(emailSendMessageSpy.callCount).to.equal(2);
 
     const pendingEmailArgs = emailSendMessageSpy.args.find(callArgs =>
       callArgs[1].includes('New pending financial contribution'),
@@ -290,9 +283,9 @@ describe('server/graphql/v1/createOrder', () => {
     expect(actionRequiredEmailArgs[0]).to.equal(remoteUser.email);
     expect(actionRequiredEmailArgs[2]).to.match(/IBAN 1234567890987654321/);
     expect(actionRequiredEmailArgs[2]).to.match(
-      /for the amount of \$20 with the mention: webpack event backer order: [0-9]+/,
+      /for the amount of <strong>\$20\.00<\/strong> with the mention: <strong>meetup<\/strong> <strong>backer<\/strong> order: <strong>[0-9]+<\/strong>/,
     );
-    expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20 registration to meetup is pending');
+    expect(actionRequiredEmailArgs[1]).to.equal('ACTION REQUIRED: your $20.00 registration to meetup is pending');
   });
 
   it('creates an order as new user and sends a tweet', async () => {
@@ -314,15 +307,14 @@ describe('server/graphql/v1/createOrder', () => {
     // And given an order
     order.collective = { id: fearlesscitiesbrussels.id };
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: 'John',
-      lastName: 'Smith',
+      name: 'John Smith',
       email: 'jsmith@email.com',
       twitterHandle: 'johnsmith',
       newsletterOptIn: true,
     });
 
     // When the query is executed
-    const res = await utils.graphqlQuery(createOrderQuery, { order }, remoteUser);
+    const res = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
 
     // Then there should be no errors
     res.errors && console.error(res.errors);
@@ -336,7 +328,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.FromCollectiveId).to.equal(fromCollective.id);
     expect(transaction.CollectiveId).to.equal(collective.id);
     expect(transaction.currency).to.equal(collective.currency);
-    expect(transaction.hostFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
+    expect(transaction.hostFeeInHostCurrency).to.equal(0);
     expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
     expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
     expect(transaction.data.charge.status).to.equal('succeeded');
@@ -356,7 +348,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.data.charge.currency).to.equal('eur');
 
     await utils.waitForCondition(() => tweetStatusSpy.callCount > 0);
-    expect(tweetStatusSpy.firstCall.args[1]).to.contain('@johnsmith thank you for your €1,543 donation!');
+    expect(tweetStatusSpy.firstCall.args[1]).to.contain('@johnsmith thank you for your €1,543.00 donation!');
   });
 
   it('creates an order for an event ticket and receives the ticket confirmation by email with iCal.ics attached', async () => {
@@ -395,7 +387,7 @@ describe('server/graphql/v1/createOrder', () => {
     // When the GraphQL query is executed
     let res;
     emailSendMessageSpy.resetHistory();
-    res = await utils.graphqlQuery(createOrderQuery, { order: newOrder }, user);
+    res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, user);
 
     // There should be no errors
     res.errors && console.error(res.errors);
@@ -415,7 +407,7 @@ describe('server/graphql/v1/createOrder', () => {
     newOrder.totalAmount = 0;
     delete newOrder.paymentMethod;
 
-    res = await utils.graphqlQuery(createOrderQuery, { order: newOrder }, user);
+    res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, user);
 
     // Make sure the order's status is PAID
     expect(res.data.createOrder.status).to.equal('PAID');
@@ -439,11 +431,13 @@ describe('server/graphql/v1/createOrder', () => {
     delete newOrder.paymentMethod;
 
     // When the GraphQL query is executed
-    const res = await utils.graphqlQuery(createOrderQuery, { order: newOrder });
+    const res = await utils.graphqlQuery(createOrderMutation, { order: newOrder });
 
     // Then there should be errors
     expect(res.errors).to.exist;
-    expect(res.errors[0].message).to.equal('You need to be authenticated to perform this action');
+    expect(res.errors[0].message).to.equal(
+      'You need to provide a guest profile with an email for logged out contributions',
+    );
   });
 
   it("doesn't store the payment method for user if order fail", async () => {
@@ -456,6 +450,8 @@ describe('server/graphql/v1/createOrder', () => {
       paymentMethod: {
         name: uniqueName,
         token: 'tok_chargeDeclinedProcessingError', // See https://stripe.com/docs/testing#cards
+        service: 'stripe',
+        type: 'creditcard',
         data: {
           expMonth: 10,
           expYear: 1999,
@@ -467,14 +463,13 @@ describe('server/graphql/v1/createOrder', () => {
       },
     };
     const remoteUser = await models.User.createUserWithCollective({
-      firstName: '',
-      lastName: '',
       email: store.randEmail('rejectedcard@protonmail.ch'),
     });
-    const res = await utils.graphqlQuery(createOrderQuery, { order: newOrder }, remoteUser);
+    const res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, remoteUser);
     expect(res.errors[0].message).to.equal('Your card was declined.');
     const pm = await models.PaymentMethod.findOne({ where: { name: uniqueName } });
-    expect(pm.saved).to.equal(false);
+    // If payment fails, we keep `saved` to null
+    expect(pm.saved).to.be.null;
   });
 
   it('creates an order as logged in user', async () => {
@@ -486,7 +481,7 @@ describe('server/graphql/v1/createOrder', () => {
     order.fromCollective = { id: xdamman.CollectiveId };
     order.collective = { id: fearlesscitiesbrussels.id };
     // When the query is executed
-    const res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+    const res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
 
     // Then there should be no errors
     res.errors && console.error(res.errors);
@@ -500,7 +495,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.FromCollectiveId).to.equal(xdamman.CollectiveId);
     expect(transaction.CollectiveId).to.equal(collective.id);
     expect(transaction.currency).to.equal(collective.currency);
-    expect(transaction.hostFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
+    expect(transaction.hostFeeInHostCurrency).to.equal(0);
     expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
     expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
     expect(transaction.data.charge.status).to.equal('succeeded');
@@ -534,7 +529,7 @@ describe('server/graphql/v1/createOrder', () => {
     order.paymentMethod = { uuid: pm.uuid };
 
     // When the order is created
-    const res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+    const res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
 
     // There should be no errors
     res.errors && console.error(res.errors);
@@ -549,7 +544,7 @@ describe('server/graphql/v1/createOrder', () => {
     expect(transaction.FromCollectiveId).to.equal(xdamman.CollectiveId);
     expect(transaction.CollectiveId).to.equal(collective.id);
     expect(transaction.currency).to.equal(collective.currency);
-    expect(transaction.hostFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
+    expect(transaction.hostFeeInHostCurrency).to.equal(0);
     expect(transaction.platformFeeInHostCurrency).to.equal(-(0.05 * order.totalAmount));
     expect(transaction.data.charge.currency).to.equal(collective.currency.toLowerCase());
     expect(transaction.data.charge.status).to.equal('succeeded');
@@ -575,7 +570,7 @@ describe('server/graphql/v1/createOrder', () => {
     order.totalAmount = 1000;
     order.collective = { id: fearlesscitiesbrussels.id };
     // When the order is created
-    const res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+    const res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
 
     // There should be no errors
     res.errors && console.error(res.errors);
@@ -618,7 +613,7 @@ describe('server/graphql/v1/createOrder', () => {
     const remoteUser = await models.User.createUserWithCollective({ email: store.randEmail() });
 
     // When the order is created
-    const res = await utils.graphqlQuery(createOrderQuery, { order }, remoteUser);
+    const res = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
 
     // There should be no errors
     res.errors && console.error(res.errors);
@@ -631,13 +626,16 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: orderCreated.id },
     });
     expect(fromCollective.website).to.equal('https://newco.com'); // api should prepend https://
-    expect(transactions.length).to.equal(2);
-    expect(transactions[0].type).to.equal('DEBIT');
-    expect(transactions[0].FromCollectiveId).to.equal(collective.id);
-    expect(transactions[0].CollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].type).to.equal('CREDIT');
-    expect(transactions[1].FromCollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].CollectiveId).to.equal(collective.id);
+    expect(transactions.length).to.equal(4);
+
+    const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+    expect(contributions.length).to.equal(2);
+    expect(contributions[0].type).to.equal('DEBIT');
+    expect(contributions[0].FromCollectiveId).to.equal(collective.id);
+    expect(contributions[0].CollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].type).to.equal('CREDIT');
+    expect(contributions[1].FromCollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].CollectiveId).to.equal(collective.id);
   });
 
   it('creates an order as a logged in user for an existing organization', async () => {
@@ -651,15 +649,18 @@ describe('server/graphql/v1/createOrder', () => {
       name: 'newco',
       CreatedByUserId: xdamman.id,
     });
+
     // And the order parameters
     order.fromCollective = { id: newco.id };
     order.collective = { id: fearlesscitiesbrussels.id };
     order.paymentMethod = {
       ...constants.paymentMethod,
       token: 'tok_4B5j8xDjPFcHOcTm3ogdnq0K',
+      service: 'stripe',
+      type: 'creditcard',
     };
-    // Should fail if not an admin or member of the organization
-    let res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+    // Should fail if not an admin of the organization
+    let res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
       "You don't have sufficient permissions to create an order on behalf of the newco organization",
@@ -668,11 +669,11 @@ describe('server/graphql/v1/createOrder', () => {
     await models.Member.create({
       CollectiveId: newco.id,
       MemberCollectiveId: duc.CollectiveId,
-      role: 'MEMBER',
+      role: 'ADMIN',
       CreatedByUserId: duc.id,
     });
 
-    res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+    res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
 
     // There should be no errors
     res.errors && console.error(res.errors);
@@ -685,13 +686,16 @@ describe('server/graphql/v1/createOrder', () => {
       where: { OrderId: orderCreated.id },
     });
     expect(orderCreated.createdByUser.id).to.equal(duc.id);
-    expect(transactions.length).to.equal(2);
-    expect(transactions[0].type).to.equal('DEBIT');
-    expect(transactions[0].FromCollectiveId).to.equal(collective.id);
-    expect(transactions[0].CollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].type).to.equal('CREDIT');
-    expect(transactions[1].FromCollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].CollectiveId).to.equal(collective.id);
+    expect(transactions.length).to.equal(4);
+
+    const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+    expect(contributions.length).to.equal(2);
+    expect(contributions[0].type).to.equal('DEBIT');
+    expect(contributions[0].FromCollectiveId).to.equal(collective.id);
+    expect(contributions[0].CollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].type).to.equal('CREDIT');
+    expect(contributions[1].FromCollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].CollectiveId).to.equal(collective.id);
   });
 
   it("creates an order as a logged in user for an existing collective using the collective's payment method", async () => {
@@ -714,7 +718,7 @@ describe('server/graphql/v1/createOrder', () => {
     order.paymentMethod = { uuid: paymentMethod.uuid };
 
     // Should fail if not an admin or member of the organization
-    let res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+    let res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
       "You don't have sufficient permissions to create an order on behalf of the newco organization",
@@ -728,22 +732,22 @@ describe('server/graphql/v1/createOrder', () => {
     });
 
     // Should fail if order.totalAmount > PaymentMethod.monthlyLimitPerMember
-    res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+    res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      'The total amount of this order (€200 ~= $239) is higher than your monthly spending limit on this payment method (stripe:creditcard) ($100)',
+      'The total amount of this order (€200.00 ~= $239.22) is higher than your monthly spending limit on this payment method (stripe:creditcard) ($100.00)',
     );
 
     sandbox.useFakeTimers(new Date('2017-09-22').getTime());
     await paymentMethod.update({ monthlyLimitPerMember: 25000 }); // $250 limit
-    res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+    res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
 
     // There should be no errors
     res.errors && console.error(res.errors);
     expect(res.errors).to.not.exist;
 
     const availableBalance = await paymentMethod.getBalanceForUser(duc);
-    expect(availableBalance.amount).to.equal(1160);
+    expect(availableBalance.amount).to.equal(1078);
 
     const orderCreated = res.data.createOrder;
     const fromCollective = orderCreated.fromCollective;
@@ -753,19 +757,22 @@ describe('server/graphql/v1/createOrder', () => {
       order: [['id', 'ASC']],
     });
     expect(orderCreated.createdByUser.id).to.equal(duc.id);
-    expect(transactions.length).to.equal(2);
-    expect(transactions[0].type).to.equal('DEBIT');
-    expect(transactions[0].FromCollectiveId).to.equal(collective.id);
-    expect(transactions[0].CollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].type).to.equal('CREDIT');
-    expect(transactions[1].FromCollectiveId).to.equal(fromCollective.id);
-    expect(transactions[1].CollectiveId).to.equal(collective.id);
+    expect(transactions.length).to.equal(4);
+
+    const contributions = transactions.filter(t => t.kind === 'CONTRIBUTION');
+    expect(contributions.length).to.equal(2);
+    expect(contributions[0].type).to.equal('DEBIT');
+    expect(contributions[0].FromCollectiveId).to.equal(collective.id);
+    expect(contributions[0].CollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].type).to.equal('CREDIT');
+    expect(contributions[1].FromCollectiveId).to.equal(fromCollective.id);
+    expect(contributions[1].CollectiveId).to.equal(collective.id);
 
     // Should fail if order.totalAmount > PaymentMethod.getBalanceForUser
-    res = await utils.graphqlQuery(createOrderQuery, { order }, duc);
+    res = await utils.graphqlQuery(createOrderMutation, { order }, duc);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      "You don't have enough funds available ($12 left) to execute this order (€200 ~= $239)",
+      "You don't have enough funds available ($10.78 left) to execute this order (€200.00 ~= $239.22)",
     );
   });
 
@@ -809,16 +816,16 @@ describe('server/graphql/v1/createOrder', () => {
     });
 
     it('Should fail if not enough funds in the fromCollective', async () => {
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, hostAdmin);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, hostAdmin);
       expect(res.errors).to.exist;
       expect(res.errors[0].message).to.equal(
-        "You don't have enough funds available ($7,461 left) to execute this order ($21,474,836)",
+        "You don't have enough funds available ($7,461.49 left) to execute this order ($21,474,836.47)",
       );
     });
 
     it('succeeds', async () => {
       order.totalAmount = 20000;
-      const res = await utils.graphqlQuery(createOrderQuery, { order }, hostAdmin);
+      const res = await utils.graphqlQuery(createOrderMutation, { order }, hostAdmin);
       expect(res.errors).to.not.exist;
     });
   });
@@ -863,15 +870,15 @@ describe('server/graphql/v1/createOrder', () => {
     delete order.tier;
 
     // Should fail if not enough funds in the fromCollective
-    let res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+    let res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
     expect(res.errors).to.exist;
     expect(res.errors[0].message).to.equal(
-      "You don't have enough funds available ($7,461 left) to execute this order ($21,474,836)",
+      "You don't have enough funds available ($7,461.49 left) to execute this order ($21,474,836.47)",
     );
 
     order.totalAmount = 20000;
 
-    res = await utils.graphqlQuery(createOrderQuery, { order }, xdamman);
+    res = await utils.graphqlQuery(createOrderMutation, { order }, xdamman);
 
     // There should be no errors
     res.errors && console.error(res.errors);

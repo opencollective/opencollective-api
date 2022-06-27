@@ -44,12 +44,14 @@ createdb "${LOCALDBNAME}"
 # Add POSTGIS extension
 psql "${LOCALDBNAME}" -c "CREATE EXTENSION POSTGIS;"
 
-
+echo Restore...
 
 # The first time we run it, we will trigger FK constraints errors
 set +e
 pg_restore --no-acl -n public -O -c -d "${LOCALDBNAME}" "${DBDUMPS_DIR}${FILENAME}" 2>/dev/null
 set -e
+
+echo Restore...
 
 # So we run it twice :-)
 pg_restore --no-acl -n public -O -c -d "${LOCALDBNAME}" "${DBDUMPS_DIR}${FILENAME}"

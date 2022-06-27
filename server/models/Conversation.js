@@ -3,12 +3,13 @@ import slugify from 'limax';
 import { activities } from '../constants';
 import { idEncode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import { generateSummaryForHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
-import models, { sequelize } from '.';
+function defineModel() {
+  const { models } = sequelize;
 
-export default function (Sequelize, DataTypes) {
-  const Conversation = Sequelize.define(
+  const Conversation = sequelize.define(
     'Conversation',
     {
       id: {
@@ -35,7 +36,7 @@ export default function (Sequelize, DataTypes) {
       slug: {
         type: DataTypes.VIRTUAL(DataTypes.STRING),
         get() {
-          return slugify(this.get('title')) || 'conversation';
+          return slugify(this.get('title') || 'conversation');
         },
       },
       summary: {
@@ -101,6 +102,7 @@ export default function (Sequelize, DataTypes) {
         info() {
           return {
             id: this.id,
+            hashId: this.hashId,
             title: this.title,
             slug: this.slug,
             summary: this.summary,
@@ -180,7 +182,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   Conversation.getMostPopularTagsForCollective = async function (collectiveId, limit = 100) {
-    return Sequelize.query(
+    return sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Conversations"
@@ -190,7 +192,7 @@ export default function (Sequelize, DataTypes) {
       LIMIT $limit
     `,
       {
-        type: Sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         bind: { collectiveId, limit },
       },
     );
@@ -212,18 +214,11 @@ export default function (Sequelize, DataTypes) {
     return followers.map(f => f.user);
   };
 
-  // ---- Prepare model ----
-
-  Conversation.associate = m => {
-    Conversation.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-    Conversation.belongsTo(m.Collective, {
-      foreignKey: 'FromCollectiveId',
-      as: 'fromCollective',
-    });
-  };
-
   return Conversation;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Conversation = defineModel();
+
+export default Conversation;

@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { isNaN } from 'lodash';
 
 import errors from '../lib/errors';
 import { isUUID } from '../lib/utils';
@@ -17,7 +17,7 @@ const parseIdOrUUID = param => {
 
   const id = parseInt(param);
 
-  if (_.isNaN(id)) {
+  if (isNaN(id)) {
     return Promise.reject(new errors.BadRequest('This is not a correct id.'));
   } else {
     return Promise.resolve({ id });
@@ -27,12 +27,12 @@ const parseIdOrUUID = param => {
 /**
  * Get a record by id or by name
  */
-function getByKeyValue(model, key, value) {
-  return model.findOne({ where: { [key]: value.toLowerCase() } }).tap(result => {
-    if (!result) {
-      throw new errors.NotFound(`${model.getTableName()} '${value}' not found`);
-    }
-  });
+async function getByKeyValue(model, key, value) {
+  const result = await model.findOne({ where: { [key]: value.toLowerCase() } });
+  if (!result) {
+    throw new errors.NotFound(`${model.getTableName()} '${value}' not found`);
+  }
+  return result;
 }
 
 export function uuid(req, res, next, uuid) {
@@ -40,7 +40,7 @@ export function uuid(req, res, next, uuid) {
     req.params.uuid = uuid;
   } else {
     const id = parseInt(uuid);
-    if (!_.isNaN(id)) {
+    if (!isNaN(id)) {
       req.params.id = id;
     }
   }
@@ -51,7 +51,7 @@ export function uuid(req, res, next, uuid) {
  * userid
  */
 export function userid(req, res, next, userIdOrName) {
-  getByKeyValue(User, isNaN(userIdOrName) ? 'username' : 'id', userIdOrName)
+  getByKeyValue(User, 'id', userIdOrName)
     .then(user => (req.user = user))
     .asCallback(next);
 }

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import _ from 'lodash';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../server/index';
@@ -22,8 +22,8 @@ describe('server/routes/webhooks.stripe', () => {
       livemode: false,
     });
 
-    const env = process.env.NODE_ENV;
-    process.env.NODE_ENV = 'production';
+    const env = process.env.OC_ENV;
+    process.env.OC_ENV = 'production';
 
     request(expressApp)
       .post('/webhooks/stripe')
@@ -31,14 +31,14 @@ describe('server/routes/webhooks.stripe', () => {
       .expect(200)
       .end(err => {
         expect(err).to.not.exist;
-        process.env.NODE_ENV = env;
+        process.env.OC_ENV = env;
         done();
       });
   });
 
   describe('Webhook events: ', () => {
     beforeEach(() => {
-      sandbox = sinon.createSandbox();
+      sandbox = createSandbox();
     });
 
     afterEach(() => {
@@ -82,23 +82,13 @@ describe('server/routes/webhooks.stripe', () => {
       request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_source_chargeable).expect(400).end(done);
     });
 
-    it('returns an error if the event is `source.chargeable`', done => {
+    it('should return HTTP 200 if event is not supported', done => {
       const stripeMock = _.cloneDeep(originalStripeMock);
       stripeMock.event_source_chargeable.type = 'application_fee.created';
 
       sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
 
-      request(expressApp)
-        .post('/webhooks/stripe')
-        .send(stripeMock.webhook_payment_succeeded)
-        .expect(400, {
-          error: {
-            code: 400,
-            type: 'bad_request',
-            message: 'Wrong event type received',
-          },
-        })
-        .end(done);
+      request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_payment_succeeded).expect(200).end(done);
     });
   });
 });

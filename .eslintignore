@@ -1,6 +1,6 @@
 node_modules/
 seeders/
-migrations/
+migrations/archives
 
 # Build and auto-generated files
 dist/

@@ -1,5 +1,5 @@
-import { GraphQLBoolean,GraphQLInputObjectType, GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLBoolean, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import PayoutMethodType from '../enum/PayoutMethodType';
 
@@ -8,13 +8,13 @@ import PayoutMethodType from '../enum/PayoutMethodType';
  */
 const PayoutMethodInput = new GraphQLInputObjectType({
   name: 'PayoutMethodInput',
-  fields: {
+  fields: () => ({
     id: { type: GraphQLString },
     data: { type: GraphQLJSON },
     name: { type: GraphQLString },
     isSaved: { type: GraphQLBoolean },
     type: { type: PayoutMethodType },
-  },
+  }),
 });
 
 export { PayoutMethodInput };

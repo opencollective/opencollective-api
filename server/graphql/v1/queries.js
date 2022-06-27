@@ -1,15 +1,20 @@
 import Promise from 'bluebird';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { get, pick, uniq } from 'lodash';
+import { get, uniq } from 'lodash';
 import { isEmail } from 'validator';
 
+import { roles } from '../../constants';
 import { types as CollectiveTypes } from '../../constants/collectives';
-import Algolia from '../../lib/algolia';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { fetchCollectiveId } from '../../lib/cache';
+import logger from '../../lib/logger';
+import { getConsolidatedInvoicesData } from '../../lib/pdf';
 import rawQueries from '../../lib/queries';
-import { searchCollectivesByEmail, searchCollectivesInDB, searchCollectivesOnAlgolia } from '../../lib/search';
+import { searchCollectivesByEmail, searchCollectivesInDB } from '../../lib/search';
 import { toIsoDateStr } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
+import { allowContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { canDownloadInvoice } from '../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { ApplicationType } from './Application';
@@ -20,23 +25,12 @@ import {
   HostCollectiveOrderFieldType,
   TypeOfCollectiveType,
 } from './CollectiveInterface';
-import { InvoiceInputType } from './inputTypes';
+import { TransactionInterfaceType } from './TransactionInterface';
 import {
-  PaginatedTransactionsType,
-  TransactionInterfaceType,
-  TransactionOrder,
-  TransactionType,
-} from './TransactionInterface';
-import {
-  ExpenseStatusType,
-  ExpenseType,
   InvoiceType,
   MemberInvitationType,
   MemberType,
-  OrderByType,
   OrderDirectionType,
-  OrderType,
-  PaginatedExpensesType,
   PaymentMethodType,
   TierType,
   UpdateType,
@@ -88,13 +82,6 @@ const queries = {
     },
   },
 
-  AuthenticatedUser: {
-    type: CollectiveInterfaceType,
-    resolve(_, args, req) {
-      return models.Collective.findByPk(req.remoteUser.CollectiveId);
-    },
-  },
-
   allInvoices: {
     type: new GraphQLList(InvoiceType),
     args: {
@@ -107,200 +94,17 @@ const queries = {
       if (!fromCollective) {
         throw new NotFound('User or organization not found');
       }
-      if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
+      if (
+        !req.remoteUser ||
+        (!req.remoteUser.isAdminOfCollective(fromCollective) &&
+          !req.remoteUser.hasRole(roles.ACCOUNTANT, fromCollective.id))
+      ) {
         throw new Unauthorized("You don't have permission to access invoices for this user");
       }
 
-      const transactions = await models.Transaction.findAll({
-        attributes: ['createdAt', 'HostCollectiveId', 'amountInHostCurrency', 'hostCurrency'],
-        where: {
-          type: 'CREDIT',
-          [Op.or]: [
-            { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-            { UsingVirtualCardFromCollectiveId: fromCollective.id },
-          ],
-        },
-      });
+      const invoices = await getConsolidatedInvoicesData(fromCollective);
 
-      const hostsById = {};
-      const invoicesByKey = {};
-      await Promise.map(transactions, async transaction => {
-        const HostCollectiveId = transaction.HostCollectiveId;
-        hostsById[HostCollectiveId] =
-          hostsById[HostCollectiveId] ||
-          (await models.Collective.findByPk(HostCollectiveId, {
-            attributes: ['id', 'slug'],
-          }));
-        const createdAt = new Date(transaction.createdAt);
-        const year = createdAt.getFullYear();
-        const month = createdAt.getMonth() + 1;
-        const month2digit = month < 10 ? `0${month}` : `${month}`;
-        const slug = `${year}${month2digit}.${hostsById[HostCollectiveId].slug}.${fromCollective.slug}`;
-        const totalAmount = invoicesByKey[slug]
-          ? invoicesByKey[slug].totalAmount + transaction.amountInHostCurrency
-          : transaction.amountInHostCurrency;
-
-        invoicesByKey[slug] = {
-          HostCollectiveId,
-          FromCollectiveId: fromCollective.id,
-          slug,
-          year,
-          month,
-          totalAmount,
-          currency: transaction.hostCurrency,
-        };
-      });
-      const invoices = [];
-      Object.keys(invoicesByKey).forEach(key => invoices.push(invoicesByKey[key]));
-      invoices.sort((a, b) => {
-        return a.slug > b.slug ? -1 : 1;
-      });
       return invoices;
-    },
-  },
-
-  Invoice: {
-    type: InvoiceType,
-    deprecationReason: '2020-03-09: This field was deprecated after introducing InvoiceByDateRange',
-    args: {
-      invoiceSlug: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'Slug of the invoice. Format: :year:2digitMonth.:hostSlug.:fromCollectiveSlug',
-      },
-    },
-    async resolve(_, args, req) {
-      const year = args.invoiceSlug.substr(0, 4);
-      const month = args.invoiceSlug.substr(4, 2);
-      const hostSlug = args.invoiceSlug.substring(7, args.invoiceSlug.lastIndexOf('.'));
-      const fromCollectiveSlug = args.invoiceSlug.substr(args.invoiceSlug.lastIndexOf('.') + 1);
-      if (!hostSlug || year < 2015 || month < 1 || month > 12) {
-        throw new ValidationFailed(
-          'Invalid invoiceSlug format. Should be :year:2digitMonth.:hostSlug.:fromCollectiveSlug',
-        );
-      }
-      const fromCollective = await models.Collective.findOne({
-        where: { slug: fromCollectiveSlug },
-      });
-      if (!fromCollective) {
-        throw new NotFound(`User or organization not found for slug ${fromCollectiveSlug}`);
-      }
-      const host = await models.Collective.findBySlug(hostSlug);
-      if (!host) {
-        throw new NotFound('Host not found');
-      }
-      if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
-        throw new Unauthorized("You don't have permission to access invoices for this user");
-      }
-
-      const startsAt = new Date(`${year}-${month}-01`);
-      const endsAt = new Date(startsAt);
-      endsAt.setMonth(startsAt.getMonth() + 1);
-
-      const where = {
-        [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: fromCollective.id },
-        ],
-        HostCollectiveId: host.id,
-        createdAt: { [Op.gte]: startsAt, [Op.lt]: endsAt },
-        type: 'CREDIT',
-      };
-
-      const order = [['createdAt', 'DESC']];
-      const transactions = await models.Transaction.findAll({ where, order });
-      if (transactions.length === 0) {
-        throw new NotFound('No transactions found');
-      }
-
-      const invoice = {
-        title: get(host, 'settings.invoiceTitle'),
-        extraInfo: get(host, 'settings.invoice.extraInfo'),
-        HostCollectiveId: host.id,
-        slug: args.invoiceSlug,
-        year,
-        month,
-      };
-      let totalAmount = 0;
-      transactions.map(transaction => {
-        totalAmount += transaction.amountInHostCurrency;
-        invoice.currency = transaction.hostCurrency;
-      });
-      invoice.FromCollectiveId = fromCollective.id;
-      invoice.totalAmount = totalAmount;
-      invoice.currency = invoice.currency || host.currency;
-      invoice.transactions = transactions;
-      return invoice;
-    },
-  },
-
-  InvoiceByDateRange: {
-    type: InvoiceType,
-    args: {
-      invoiceInputType: {
-        type: new GraphQLNonNull(InvoiceInputType),
-        description:
-          'Like the Slug of the invoice but spilt out into parts and includes dateFrom + dateTo for getting an invoice over a date range.',
-      },
-    },
-    async resolve(_, args, req) {
-      const { dateFrom, dateTo, fromCollectiveSlug, collectiveSlug } = args.invoiceInputType;
-
-      if (!dateFrom || !dateTo) {
-        throw new ValidationFailed('A valid date range must be provided');
-      } else if (!fromCollectiveSlug || !collectiveSlug) {
-        throw new ValidationFailed('You must provide a collective and a fromCollective');
-      }
-
-      const fromCollective = await models.Collective.findOne({
-        where: { slug: fromCollectiveSlug },
-      });
-      if (!fromCollective) {
-        throw new NotFound(`User or organization not found for slug ${args.fromCollective}`);
-      }
-      const host = await models.Collective.findBySlug(collectiveSlug);
-      if (!host) {
-        throw new NotFound('Host not found');
-      }
-
-      if (!req.remoteUser || !req.remoteUser.isAdmin(fromCollective.id)) {
-        throw new Unauthorized("You don't have permission to access invoices for this user");
-      }
-
-      if (dateTo < dateFrom) {
-        throw new ValidationFailed('Invalid date object. dateFrom must be before dateTo');
-      }
-
-      const where = {
-        [Op.or]: [
-          { FromCollectiveId: fromCollective.id, UsingVirtualCardFromCollectiveId: null },
-          { UsingVirtualCardFromCollectiveId: fromCollective.id },
-        ],
-        HostCollectiveId: host.id,
-        createdAt: { [Op.gte]: dateFrom, [Op.lte]: dateTo },
-        type: 'CREDIT',
-      };
-
-      const order = [['createdAt', 'DESC']];
-      const transactions = await models.Transaction.findAll({ where, order });
-
-      const invoice = {
-        title: get(host, 'settings.invoiceTitle'),
-        extraInfo: get(host, 'settings.invoice.extraInfo'),
-        HostCollectiveId: host.id,
-        FromCollectiveId: fromCollective.id,
-        dateFrom: dateFrom,
-        dateTo: dateTo,
-        currency: host.currency,
-        totalAmount: 0,
-        transactions: transactions,
-      };
-
-      transactions.forEach(transaction => {
-        invoice.currency = transaction.hostCurrency;
-        invoice.totalAmount += transaction.amountInHostCurrency;
-      });
-
-      return invoice;
     },
   },
 
@@ -317,36 +121,71 @@ const queries = {
         description: 'Slug of the transaction.',
       },
     },
-    async resolve(_, args) {
-      // Fetch transaction
-      const transaction = await models.Transaction.findOne({
-        where: { uuid: args.transactionUuid },
-      });
+    async resolve(_, args, req) {
+      if (!req.remoteUser) {
+        throw new Unauthorized('You need to be logged in to generate a receipt');
+      }
 
+      // Fetch transaction
+      let transaction = await models.Transaction.findOne({ where: { uuid: args.transactionUuid } });
       if (!transaction) {
         throw new NotFound(`Transaction ${args.transactionUuid} doesn't exists`);
       }
 
-      // If using a virtualcard, then billed collective will be the emitter
+      // If using a gift card, then billed collective will be the emitter
       const fromCollectiveId = transaction.paymentMethodProviderCollectiveId();
 
+      // Always take the CREDIT transaction if available
+      if (transaction.type === 'DEBIT') {
+        const oppositeTransaction = await transaction.getOppositeTransaction();
+        if (oppositeTransaction) {
+          transaction = oppositeTransaction;
+        }
+      }
+
       // Load transaction host
-      transaction.host = await transaction.getHostCollective();
+      let host;
+      if (transaction.HostCollectiveId) {
+        // If a `HostCollectiveId` is defined, we load it directly
+        host = await transaction.getHostCollective();
+      } else if (transaction.isRefund || transaction.kind === 'EXPENSE') {
+        const debitTransaction = await transaction.getOppositeTransaction();
+        if (debitTransaction) {
+          host = await debitTransaction.getHostCollective();
+        }
+      } else {
+        // TODO: Keeping the code below to be safe and not break anything, but the logic is wrong:
+        // A collective can change host and we would display the wrong one there. `Transaction.HostCollectiveId`
+        // should be the single source of truth for this.
+        const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
+        const collective = await models.Collective.findByPk(collectiveId);
+        host = await collective.getHostCollective();
+      }
 
-      // Get total in host currency
-      const totalAmountInHostCurrency =
-        transaction.type === 'CREDIT' ? transaction.amount : transaction.netAmountInCollectiveCurrency * -1;
+      if (!host) {
+        throw new Error(`Could not find the fiscal host for this transaction (${transaction.uuid})`);
+      }
 
+      // Check permissions
+      if (req.remoteUser.isAdminOfCollective(host) || (await canDownloadInvoice(transaction, null, req))) {
+        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, fromCollectiveId);
+        allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, fromCollectiveId);
+      } else {
+        throw new Forbidden('You are not allowed to download this receipt');
+      }
+
+      // Generate date string for receipt slug
       const createdAtString = toIsoDateStr(transaction.createdAt ? new Date(transaction.createdAt) : new Date());
+
       // Generate invoice
       const invoice = {
-        title: get(transaction.host, 'settings.invoiceTitle'),
-        extraInfo: get(transaction.host, 'settings.invoice.extraInfo'),
-        HostCollectiveId: get(transaction.host, 'id'),
-        slug: `${transaction.host.name}_${createdAtString}_${args.transactionUuid}`,
-        currency: transaction.hostCurrency,
+        title: get(host, 'settings.invoiceTitle'),
+        extraInfo: get(host, 'settings.invoice.extraInfo'),
+        HostCollectiveId: host.id,
         FromCollectiveId: fromCollectiveId,
-        totalAmount: totalAmountInHostCurrency,
+        slug: `${host.name}_${createdAtString}_${args.transactionUuid}`,
+        currency: transaction.hostCurrency,
+        totalAmount: Math.abs(transaction.amountInHostCurrency),
         transactions: [transaction],
         year: transaction.createdAt.getFullYear(),
         month: transaction.createdAt.getMonth() + 1,
@@ -364,8 +203,8 @@ const queries = {
     type: new GraphQLList(TransactionInterfaceType),
     description: `
     Given a collective, returns all its transactions:
-    - Debit transactions made by collective without using a virtual card
-    - Debit transactions made using a virtual card from collective
+    - Debit transactions made by collective without using a gift card
+    - Debit transactions made using a gift card from collective
     - Credit transactions made to collective
     `,
     args: {
@@ -376,8 +215,7 @@ const queries = {
       offset: { type: GraphQLInt },
       dateFrom: { type: GraphQLString },
       dateTo: { type: GraphQLString },
-      /** @deprecated since 2018-11-29: Virtual cards now included by default when necessary */
-      includeVirtualCards: { type: GraphQLBoolean },
+      kinds: { type: new GraphQLList(GraphQLString) },
       includeExpenseTransactions: {
         type: GraphQLBoolean,
         default: true,
@@ -402,82 +240,14 @@ const queries = {
       }
 
       return collective.getTransactions({
-        order: [['createdAt', 'DESC']],
+        order: [['createdAt', 'DESC'], ['kind'], ['type']],
         type: args.type,
         limit: args.limit,
         offset: args.offset,
         startDate: args.dateFrom,
         endDate: args.dateTo,
         includeExpenseTransactions: args.includeExpenseTransactions,
-      });
-    },
-  },
-
-  /*
-   * Returns all transactions
-   */
-  transactions: {
-    type: PaginatedTransactionsType,
-    args: {
-      limit: {
-        defaultValue: 100,
-        description: 'Defaults to 100',
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      orderBy: {
-        defaultValue: TransactionOrder.defaultValue,
-        type: TransactionOrder,
-      },
-      type: {
-        description: 'CREDIT or DEBIT are accepted values',
-        type: TransactionType,
-      },
-    },
-    async resolve(_, args) {
-      const { limit, offset, orderBy, type } = args;
-      const query = {
-        limit,
-        offset,
-        order: [Object.values(orderBy)],
-        where: {},
-      };
-
-      if (type) {
-        query.where = { type };
-      }
-
-      const [total, transactions] = await Promise.all([
-        models.Transaction.count({ where: query.where }),
-        models.Transaction.findAll(query),
-      ]);
-
-      return {
-        limit,
-        offset,
-        total,
-        transactions,
-      };
-    },
-  },
-
-  Update: {
-    type: UpdateType,
-    args: {
-      collectiveSlug: { type: GraphQLString },
-      updateSlug: { type: GraphQLString },
-      id: { type: GraphQLInt },
-    },
-    async resolve(_, args) {
-      if (args.id) {
-        return models.Update.findByPk(args.id);
-      }
-      const CollectiveId = await fetchCollectiveId(args.collectiveSlug);
-      return models.Update.findOne({
-        where: { CollectiveId, slug: args.updateSlug },
+        kinds: args.kinds,
       });
     },
   },
@@ -497,47 +267,18 @@ const queries = {
   },
 
   /*
-   * Given an ExpenseId or an UpdateId, returns all comments
-   */
-  allComments: {
-    type: new GraphQLList(UpdateType),
-    args: {
-      ExpenseId: { type: GraphQLInt },
-      UpdateId: { type: GraphQLInt },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    resolve(_, args) {
-      const query = { where: {} };
-      if (args.ExpenseId) {
-        query.where.ExpenseId = args.ExpenseId;
-      }
-      if (args.UpdateId) {
-        query.where.UpdateId = args.UpdateId;
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [['createdAt', 'ASC']];
-      return models.Comment.findAll(query);
-    },
-  },
-
-  /*
    * Given a collective slug, returns all updates
    */
   allUpdates: {
     type: new GraphQLList(UpdateType),
+    deprecationReason: '2022-01-26: This endpoint is deprecated and will be removed soon',
     args: {
       CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       includeHostedCollectives: { type: GraphQLBoolean },
       limit: { type: GraphQLInt },
       offset: { type: GraphQLInt },
     },
-    resolve(_, args, req) {
+    async resolve(_, args, req) {
       const query = { where: {} };
       if (args.limit) {
         query.limit = args.limit;
@@ -552,236 +293,24 @@ const queries = {
       if (!req.remoteUser || !req.remoteUser.isAdmin(args.CollectiveId)) {
         query.where.publishedAt = { [Op.ne]: null };
       }
-      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
-        if (!collective) {
-          throw new Error('Collective not found');
-        }
-        const getCollectiveIds = () => {
-          // if is host, we get all the updates across all the hosted collectives
-          if (args.includeHostedCollectives) {
-            return models.Member.findAll({
-              where: {
-                MemberCollectiveId: collective.id,
-                role: 'HOST',
-              },
-            }).map(member => member.CollectiveId);
-          } else {
-            return Promise.resolve([args.CollectiveId]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Update.findAll(query);
+      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
+      if (!collective) {
+        throw new Error('Collective not found');
+      }
+      let collectiveIds;
+      if (args.includeHostedCollectives) {
+        const members = await models.Member.findAll({
+          where: {
+            MemberCollectiveId: collective.id,
+            role: 'HOST',
+          },
         });
-      });
-    },
-  },
-
-  /*
-   * Given a collective slug, returns all orders
-   */
-  allOrders: {
-    type: new GraphQLList(OrderType),
-    args: {
-      CollectiveId: { type: GraphQLInt },
-      collectiveSlug: { type: GraphQLString },
-      includeHostedCollectives: { type: GraphQLBoolean },
-      status: {
-        type: GraphQLString,
-        description: 'Filter by status (PAID, PENDING, ERROR, ACTIVE, CANCELLED)',
-      },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    async resolve(_, args) {
-      const query = { where: {} };
-      const CollectiveId = args.CollectiveId || (await fetchCollectiveId(args.collectiveSlug));
-      if (args.status) {
-        query.where.status = args.status;
+        collectiveIds = members.map(member => member.CollectiveId);
+      } else {
+        collectiveIds = [args.CollectiveId];
       }
-      if (args.category) {
-        query.where.category = { [Op.iLike]: args.category };
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [
-        ['createdAt', 'DESC'],
-        ['id', 'DESC'],
-      ];
-      const getCollectiveIds = () => {
-        // if is host, we get all the orders across all the hosted collectives
-        if (args.includeHostedCollectives) {
-          return models.Member.findAll({
-            where: {
-              MemberCollectiveId: CollectiveId,
-              role: 'HOST',
-            },
-          }).map(member => member.CollectiveId);
-        } else {
-          return Promise.resolve([CollectiveId]);
-        }
-      };
-      return getCollectiveIds().then(collectiveIds => {
-        query.where.CollectiveId = { [Op.in]: collectiveIds };
-        return models.Order.findAll(query);
-      });
-    },
-  },
-
-  /*
-   * Given a collective slug, returns all expenses
-   */
-  allExpenses: {
-    type: new GraphQLList(ExpenseType),
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      includeHostedCollectives: { type: GraphQLBoolean },
-      status: { type: GraphQLString },
-      category: { type: GraphQLString },
-      FromCollectiveId: { type: GraphQLInt },
-      fromCollectiveSlug: { type: GraphQLString },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    async resolve(_, args, req) {
-      const query = { where: {} };
-      if (args.fromCollectiveSlug && !args.FromCollectiveId) {
-        args.FromCollectiveId = await fetchCollectiveId(args.fromCollectiveSlug);
-      }
-      if (args.FromCollectiveId) {
-        const user = await models.User.findOne({
-          attributes: ['id'],
-          where: { CollectiveId: args.FromCollectiveId },
-        });
-        if (!user) {
-          throw new Error('FromCollectiveId not found');
-        }
-        query.where.UserId = user.id;
-      }
-      if (args.status) {
-        query.where.status = args.status;
-      }
-      if (args.category) {
-        query.where[Op.and] = [sequelize.literal(`${sequelize.escape(args.category)} ILIKE ANY(tags)`)];
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [['createdAt', 'DESC']];
-      return req.loaders.Collective.byId.load(args.CollectiveId).then(collective => {
-        if (!collective) {
-          throw new Error('Collective not found');
-        }
-        const getCollectiveIds = () => {
-          // if is host, we get all the expenses across all the hosted collectives that are active
-          if (args.includeHostedCollectives) {
-            return models.Collective.findAll({
-              attributes: ['id'],
-              where: {
-                HostCollectiveId: collective.id,
-                isActive: true,
-              },
-            }).map(c => c.id);
-          } else {
-            return Promise.resolve([args.CollectiveId]);
-          }
-        };
-        return getCollectiveIds().then(collectiveIds => {
-          query.where.CollectiveId = { [Op.in]: collectiveIds };
-          return models.Expense.findAll(query);
-        });
-      });
-    },
-  },
-
-  /*
-   * Return all expenses, with optional collective slug
-   */
-  expenses: {
-    type: PaginatedExpensesType,
-    args: {
-      CollectiveId: { type: GraphQLInt },
-      CollectiveSlug: { type: GraphQLString },
-      status: { type: ExpenseStatusType },
-      category: { type: GraphQLString, deprecationReason: '2020-06-03: Expense are now using tags' },
-      FromCollectiveId: { type: GraphQLInt },
-      FromCollectiveSlug: { type: GraphQLString },
-      limit: {
-        defaultValue: 100,
-        description: 'Defaults to 100',
-        type: GraphQLInt,
-      },
-      offset: {
-        defaultValue: 0,
-        type: GraphQLInt,
-      },
-      orderBy: {
-        defaultValue: OrderByType.defaultValue,
-        type: OrderByType,
-      },
-    },
-    async resolve(_, args) {
-      const {
-        category,
-        CollectiveId,
-        CollectiveSlug,
-        FromCollectiveId,
-        FromCollectiveSlug,
-        limit,
-        offset,
-        orderBy,
-        status,
-      } = args;
-      const query = {
-        limit,
-        offset,
-        order: [Object.values(orderBy)],
-        where: {},
-      };
-
-      if (FromCollectiveId || FromCollectiveSlug) {
-        query.where.FromCollectiveId = FromCollectiveId || (await fetchCollectiveId(FromCollectiveSlug));
-      }
-
-      if (category) {
-        query.where.tags = { [Op.contains]: [category] };
-      }
-
-      if (status) {
-        query.where.status = status;
-      }
-
-      if (CollectiveId || CollectiveSlug) {
-        query.where.CollectiveId = CollectiveId || (await fetchCollectiveId(CollectiveSlug));
-      }
-
-      const { count: total, rows: expenses } = await models.Expense.findAndCountAll(query);
-      return {
-        expenses,
-        limit,
-        offset,
-        total,
-      };
-    },
-  },
-
-  /*
-   * Given an Expense id, returns the expense details
-   */
-  Expense: {
-    type: ExpenseType,
-    args: {
-      id: { type: new GraphQLNonNull(GraphQLInt) },
-    },
-    resolve(_, args) {
-      return models.Expense.findByPk(args.id);
+      query.where.CollectiveId = { [Op.in]: collectiveIds };
+      return models.Update.findAll(query);
     },
   },
 
@@ -872,7 +401,7 @@ const queries = {
     },
     async resolve(_, args) {
       const query = {
-        where: {},
+        where: { data: { hideFromSearch: { [Op.not]: true } } },
         limit: args.limit,
         include: [],
       };
@@ -960,6 +489,7 @@ const queries = {
                   FROM    "Transactions" t
                   WHERE   t."type" = 'CREDIT'
                   AND     t."CollectiveId" = "Collective".id
+                  AND     t."deletedAt" IS NULL
                 )`),
                 'totalDonations',
               ],
@@ -967,9 +497,30 @@ const queries = {
           };
           query.order = [[sequelize.col('totalDonations'), args.orderDirection]];
         }
+      } else if (args.orderBy === 'financialContributors') {
+        query.attributes = {
+          include: [
+            [
+              sequelize.literal(`(
+                SELECT  COUNT(DISTINCT m."MemberCollectiveId")
+                FROM    "Members" m
+                WHERE   m."deletedAt" IS NULL
+                AND     m."CollectiveId" = "Collective".id
+                AND     m."role" = 'BACKER'
+              )`),
+              'contributors_count',
+            ],
+          ],
+        };
+
+        query.order = [[sequelize.col('contributors_count'), args.orderDirection]];
       } else {
         query.order = [[args.orderBy, args.orderDirection]];
       }
+
+      // Make sure entries are always ordered
+      query.order = query.order || [];
+      query.order.push(['id', 'ASC']);
 
       if (args.minBackerCount) {
         const { total, collectives } = await rawQueries.getCollectivesWithMinBackers({
@@ -1063,31 +614,6 @@ const queries = {
     resolve: rawQueries.getUniqueCollectiveTags,
   },
 
-  /**
-   * Find a specific member. If multiple members match the given criteria, only
-   * one will be returned.
-   */
-  member: {
-    type: MemberType,
-    args: {
-      id: { type: GraphQLInt },
-      CollectiveId: { type: GraphQLInt },
-      MemberCollectiveId: { type: GraphQLInt },
-      TierId: { type: GraphQLInt },
-    },
-    async resolve(_, args) {
-      if (!args.id && !(args.MemberCollectiveId && (args.CollectiveId || args.TierId))) {
-        throw new ValidationFailed(
-          'Must provide either an id, a pair of MemberCollectiveId/CollectiveId or a pair of MemberCollectiveId/TierId',
-        );
-      }
-
-      return models.Member.findOne({
-        where: pick(args, ['id', 'CollectiveId', 'MemberCollectiveId', 'tierId']),
-      });
-    },
-  },
-
   /*
    * Given a collective slug, returns all members/memberships
    */
@@ -1119,14 +645,14 @@ const queries = {
       if (args.collectiveSlug) {
         args.CollectiveId = await fetchCollectiveId(args.collectiveSlug);
         if (!args.CollectiveId) {
-          throw new Error('Invalid collectiveSlug (not found)');
+          throw new Error(`No collective found with collectiveSlug ${args.collectiveSlug}`);
         }
       }
 
       if (args.memberCollectiveSlug) {
         args.MemberCollectiveId = await fetchCollectiveId(args.memberCollectiveSlug);
         if (!args.MemberCollectiveId) {
-          throw new Error('Invalid memberCollectiveSlug (not found)');
+          throw new Error(`No collective found with memberCollectiveSlug ${args.memberCollectiveSlug}`);
         }
       }
 
@@ -1140,59 +666,44 @@ const queries = {
         where.HostCollectiveId = args.MemberCollectiveId;
       }
 
-      const getCollectiveIds = () => {
-        if (args.includeHostedCollectives) {
-          return models.Member.findAll({
-            where: {
-              MemberCollectiveId: args.CollectiveId,
-              role: 'HOST',
-            },
-          }).map(members => members.CollectiveId);
-        } else {
-          return Promise.resolve([args[attr]]);
-        }
-      };
-
       if (['totalDonations', 'balance'].indexOf(args.orderBy) !== -1) {
         const queryName = args.orderBy === 'totalDonations' ? 'getMembersWithTotalDonations' : 'getMembersWithBalance';
         const tiersById = {};
 
         const options = args.isActive ? { ...args, limit: args.limit * 2 } : args;
 
-        return rawQueries[queryName](where, options)
-          .then(results => {
-            if (args.isActive) {
-              const TierIds = uniq(results.map(r => r.dataValues.TierId));
-              return models.Tier.findAll({
-                where: { id: { [Op.in]: TierIds } },
-              }).then(tiers => {
-                tiers.map(t => (tiersById[t.id] = t.dataValues));
-                return results
-                  .filter(r => {
-                    return models.Member.isActive({
-                      tier: tiersById[r.dataValues.TierId],
-                      lastDonation: r.dataValues.lastDonation,
-                    });
-                  })
-                  .slice(0, args.limit);
-              });
-            }
-            return results;
-          })
-          .map(collective => {
-            const res = {
-              id: collective.dataValues.MemberId,
-              role: collective.dataValues.role,
-              createdAt: collective.dataValues.createdAt,
-              CollectiveId: collective.dataValues.CollectiveId,
-              MemberCollectiveId: collective.dataValues.MemberCollectiveId,
-              ParentCollectiveId: collective.dataValues.ParentCollectiveId,
-              totalDonations: collective.dataValues.totalDonations,
-              TierId: collective.dataValues.TierId,
-            };
-            res[memberTable] = collective;
-            return res;
+        let results = await rawQueries[queryName](where, options);
+
+        if (args.isActive) {
+          const TierIds = uniq(results.map(r => r.dataValues.TierId));
+          const tiers = await models.Tier.findAll({
+            where: { id: { [Op.in]: TierIds } },
           });
+          tiers.map(t => (tiersById[t.id] = t.dataValues));
+          results = results
+            .filter(r =>
+              models.Member.isActive({
+                tier: tiersById[r.dataValues.TierId],
+                lastDonation: r.dataValues.lastDonation,
+              }),
+            )
+            .slice(0, args.limit);
+        }
+
+        return Promise.map(results, collective => {
+          const res = {
+            id: collective.dataValues.MemberId,
+            role: collective.dataValues.role,
+            createdAt: collective.dataValues.createdAt,
+            CollectiveId: collective.dataValues.CollectiveId,
+            MemberCollectiveId: collective.dataValues.MemberCollectiveId,
+            ParentCollectiveId: collective.dataValues.ParentCollectiveId,
+            totalDonations: collective.dataValues.totalDonations,
+            TierId: collective.dataValues.TierId,
+          };
+          res[memberTable] = collective;
+          return res;
+        });
       } else {
         const query = { where, include: [] };
         if (args.TierId) {
@@ -1222,39 +733,49 @@ const queries = {
           query.offset = args.offset;
         }
 
-        return getCollectiveIds()
-          .then(collectiveIds => {
-            query.where[attr] = { [Op.in]: collectiveIds };
-            query.where.role = { [Op.ne]: 'HOST' };
-            return models.Member.findAll(query);
-          })
-          .then(members => {
-            // also fetch the list of collectives that are members of the host
-            if (args.includeHostedCollectives) {
-              query.where = {
-                MemberCollectiveId: args.CollectiveId,
-                role: 'HOST',
-              };
-              query.order = [[sequelize.literal('collective.name'), 'ASC']];
-              query.include = [
-                {
-                  model: models.Collective,
-                  as: 'collective',
-                  required: true,
-                },
-              ];
-
-              return models.Member.findAll(query)
-                .map(m => {
-                  m.memberCollective = m.collective;
-                  delete m.collective;
-                  members.push(m);
-                })
-                .then(() => members);
-            } else {
-              return members;
-            }
+        let collectiveIds;
+        if (args.includeHostedCollectives) {
+          const members = await models.Member.findAll({
+            where: {
+              MemberCollectiveId: args.CollectiveId,
+              role: 'HOST',
+            },
           });
+          collectiveIds = members.map(members => members.CollectiveId);
+        } else {
+          collectiveIds = [args[attr]];
+        }
+
+        query.where[attr] = { [Op.in]: collectiveIds };
+        query.where.role = { [Op.ne]: 'HOST' };
+        const members = await models.Member.findAll(query);
+
+        // also fetch the list of collectives that are members of the host
+        if (args.includeHostedCollectives) {
+          query.where = {
+            MemberCollectiveId: args.CollectiveId,
+            role: 'HOST',
+          };
+          query.order = [[sequelize.literal('collective.name'), 'ASC']];
+          query.include = [
+            {
+              model: models.Collective,
+              as: 'collective',
+              required: true,
+            },
+          ];
+          const hostedMembers = await models.Member.findAll(query);
+          await Promise.map(hostedMembers, m => {
+            m.memberCollective = m.collective;
+            delete m.collective;
+            members.push(m);
+          });
+          return members;
+        } else if (args.CollectiveId && !req.remoteUser?.isAdmin(args.CollectiveId)) {
+          return members.filter(m => !m.collective?.isIncognito);
+        } else {
+          return members;
+        }
       }
     },
   },
@@ -1268,7 +789,7 @@ const queries = {
     },
     resolve(collective, args, { remoteUser }) {
       if (!remoteUser) {
-        new Forbidden('Only collective admins can see pending invitations');
+        throw new Forbidden('Only collective admins can see pending invitations');
       }
       if (!args.CollectiveId && !args.MemberCollectiveId) {
         throw new ValidationFailed('You must either provide a CollectiveId or a MemberCollectiveId');
@@ -1354,17 +875,30 @@ const queries = {
       id: { type: GraphQLInt },
       code: { type: GraphQLString },
     },
-    resolve(_, args) {
+    async resolve(_, args, req) {
       if (args.id) {
-        return models.PaymentMethod.findByPk(args.id);
+        const paymentMethod = await models.PaymentMethod.findByPk(args.id, {
+          include: [{ model: models.Collective, required: true }],
+        });
+
+        if (!paymentMethod || !req.remoteUser?.isAdminOfCollective(paymentMethod.Collective)) {
+          return null;
+        } else {
+          return paymentMethod;
+        }
       } else if (args.code) {
+        const redeemCodeRegex = /^[a-zA-Z0-9]{8}$/;
+        if (!redeemCodeRegex.test(args.code)) {
+          throw Error(`Code "${args.code}" has invalid format`);
+        }
+
         return models.PaymentMethod.findOne({
           where: sequelize.and(
             sequelize.where(sequelize.cast(sequelize.col('uuid'), 'text'), {
               [Op.like]: `${args.code}%`,
             }),
-            { service: 'opencollective' },
-            { type: 'virtualcard' },
+            { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE },
+            { type: PAYMENT_METHOD_TYPE.GIFTCARD },
           ),
         });
       } else {
@@ -1378,23 +912,38 @@ const queries = {
    */
   search: {
     type: CollectiveSearchResultsType,
-    description: `
-      Search for collectives. Uses Algolia, except if searching for users or if using flag to opt-out.
-      Results are returned with best matches first.
-    `,
+    description: `Search for collectives. Results are returned with best matches first.`,
     args: {
       term: {
         type: GraphQLString,
-        description:
-          'Fetch collectives related to this term based on name, description, tags, slug, mission, and location',
+        description: 'Fetch collectives related to this term based on name, description, tags, slug, and location',
       },
       hostCollectiveIds: {
         type: new GraphQLList(GraphQLInt),
-        description: '[NON AVAILABLE WITH ALGOLIA] Limit the search to collectives under these hosts',
+        description: 'Limit the search to collectives under these hosts',
       },
       types: {
         type: new GraphQLList(TypeOfCollectiveType),
         description: 'Only return collectives of this type',
+      },
+      isHost: {
+        type: GraphQLBoolean,
+        description: 'Filter on whether account is a host',
+      },
+      onlyActive: {
+        type: GraphQLBoolean,
+        description: 'Whether to return only active accounts',
+        deprecationReason: '2021-01-20: Not supported anymore.',
+      },
+      skipRecentAccounts: {
+        type: GraphQLBoolean,
+        description: 'Whether to skip recent accounts (48h)',
+        defaultValue: false,
+      },
+      skipGuests: {
+        type: GraphQLBoolean,
+        description: 'Whether to skip guest accounts',
+        defaultValue: true,
       },
       limit: {
         type: GraphQLInt,
@@ -1405,24 +954,18 @@ const queries = {
         type: GraphQLInt,
         defaultValue: 0,
       },
-      useAlgolia: {
-        type: GraphQLBoolean,
-        defaultValue: true,
-        description: `
-          If set to false, an internal query will be used to search the collective rather than Algolia.
-          You **must** set this to false when searching for users/organizations.
-        `,
-      },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, hostCollectiveIds, useAlgolia } = args;
+      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts, skipGuests } = args;
       const cleanTerm = term ? term.trim() : '';
-      const isEmptyTerm = cleanTerm.length === 0;
+      logger.info(`Search Query: ${cleanTerm}`);
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
         const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
+        const skipRecentKey = skipRecentAccounts ? 'skipRecent' : 'all';
+        const skipGuestsKey = skipGuests ? '-withGuests-' : '';
         return {
-          id: `search-${optionalParamsKey}-${cleanTerm}-${offset}-${limit}-${useAlgolia ? 'algolia' : 'direct'}`,
+          id: `search-${optionalParamsKey}-${cleanTerm}${skipGuestsKey}-${skipRecentKey}-${offset}-${limit}`,
           total,
           collectives,
           limit,
@@ -1430,20 +973,19 @@ const queries = {
         };
       };
 
-      if (useAlgolia && Algolia.isAvailable()) {
-        if (isEmptyTerm) {
-          return generateResults([], 0);
-        } else {
-          const [collectives, total] = await searchCollectivesOnAlgolia(cleanTerm, offset, limit, types);
-          return generateResults(collectives, total);
-        }
-      } else if (isEmail(cleanTerm) && req.remoteUser && (!types || types.includes(CollectiveTypes.USER))) {
+      if (isEmail(cleanTerm) && req.remoteUser && (!types || types.includes(CollectiveTypes.USER))) {
         // If an email is provided, search in the user table. Users must be authenticated
         // because we limit the rate of queries for this feature.
         const [collectives, total] = await searchCollectivesByEmail(cleanTerm, req.remoteUser);
         return generateResults(collectives, total);
       } else {
-        const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, types, hostCollectiveIds);
+        const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, {
+          types,
+          hostCollectiveIds,
+          isHost,
+          skipRecentAccounts,
+          skipGuests,
+        });
         return generateResults(collectives, total);
       }
     },
@@ -1460,6 +1002,7 @@ const queries = {
    */
   allTransactionsFromPaymentMethod: {
     type: new GraphQLList(TransactionInterfaceType),
+    deprecationReason: '2021-01-29: Not used anymore',
     args: {
       uuid: { type: new GraphQLNonNull(GraphQLString) },
       type: { type: GraphQLString },
@@ -1502,19 +1045,6 @@ const queries = {
       }
       const transactions = await models.Transaction.findAll(query);
       return transactions;
-    },
-  },
-
-  Order: {
-    type: OrderType,
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    resolve: async (_, args) => {
-      const order = await models.Order.findByPk(args.id);
-      return order;
     },
   },
 };

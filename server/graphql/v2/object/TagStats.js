@@ -3,10 +3,10 @@ import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'gr
 export const TagStats = new GraphQLObjectType({
   name: 'TagStat',
   description: 'Statistics for a given tag',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
-      description: 'An unique identified for this tag',
+      description: 'An unique identifier for this tag',
     },
     tag: {
       type: new GraphQLNonNull(GraphQLString),
@@ -16,5 +16,5 @@ export const TagStats = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLInt),
       description: 'Number of entries for this tag',
     },
-  },
+  }),
 });

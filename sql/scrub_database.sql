@@ -24,7 +24,7 @@ DELETE FROM "Transactions" where "CollectiveId" NOT IN (SELECT "CollectiveId" FR
 DELETE FROM "Users" where id NOT IN (SELECT "UserId" FROM "UserGroups");
 
 /* we obfuscate users' email address and tokens */
-UPDATE "Users" SET email=md5(random()::text) || '@gmail.com',_salt='*****',refresh_token='*****',"resetPasswordTokenHash"='*****',password_hash='*****',"seenAt"=NULL,"paypalEmail"='*****';
+UPDATE "Users" SET email=md5(random()::text) || '@gmail.com',"seenAt"=NULL;
 
 /* Delete collectives who are not part of the collectives that we keep */
 DELETE FROM "Groups" where id NOT IN (SELECT "GroupCollectiveROM "UserGroups");
@@ -51,7 +51,7 @@ DELETE FROM "Donations" WHERE "CollectiveId" IS NULL;
 
 /* We delete all subscriptions that don't have a parent donation anymore */
 DELETE FROM "Subscriptions" WHERE id NOT IN (SELECT "SubscriptionId" FROM "Donations");
-UPDATE "Subscriptions" SET data = NULL, "stripeSubscriptionId"='*****';
+UPDATE "Subscriptions" SET data = NULL, "stripeSubscriptionId"='*****', "paypalSubscriptionId"='********';
 
 /* We only keep the StripeAccounts from Users that remain (their stripePublishableKey have already been sanitized) */
 DELETE FROM "StripeAccounts" WHERE id NOT IN (SELECT "StripeAccountId" FROM "Users");

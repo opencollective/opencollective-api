@@ -1,6 +1,6 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-iso-date';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { ConnectedAccountService } from '../enum/ConnectedAccountService';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -8,7 +8,7 @@ import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 export const ConnectedAccount = new GraphQLObjectType({
   name: 'ConnectedAccount',
   description: 'This represents a Connected Account',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this connected account',
@@ -32,5 +32,5 @@ export const ConnectedAccount = new GraphQLObjectType({
     },
     settings: { type: GraphQLJSON },
     service: { type: new GraphQLNonNull(ConnectedAccountService) },
-  },
+  }),
 });

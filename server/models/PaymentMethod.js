@@ -1,14 +1,16 @@
 import Promise from 'bluebird';
+import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { Op } from 'sequelize';
 
 import { maxInteger } from '../constants/math';
-import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
 import * as libpayments from '../lib/payments';
+import { reportMessageToSentry } from '../lib/sentry';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
 import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 
@@ -16,10 +18,10 @@ import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:PaymentMethod');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+const { models } = sequelize;
 
-  const PaymentMethod = Sequelize.define(
+function defineModel() {
+  const PaymentMethod = sequelize.define(
     'PaymentMethod',
     {
       id: {
@@ -100,12 +102,12 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       confirmedAt: {
@@ -150,11 +152,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      limitedToCollectiveIds: {
-        type: DataTypes.ARRAY(DataTypes.INTEGER),
-        description: 'if not null, this payment method can only be used for collectives listed by their id',
-      },
-
       limitedToHostCollectiveIds: {
         type: DataTypes.ARRAY(DataTypes.INTEGER),
         description: 'if not null, this payment method can only be used for collectives hosted by these collective ids',
@@ -181,11 +178,15 @@ export default function (Sequelize, DataTypes) {
       hooks: {
         beforeCreate: instance => {
           if (instance.service !== 'opencollective') {
-            if (!instance.token) {
+            if (!instance.token && !instance.isPaypalPayment()) {
               throw new Error(`${instance.service} payment method requires a token`);
             }
-            if (instance.service === 'stripe' && !instance.token.match(/^(tok|src|pm)_[a-zA-Z0-9]{24}/)) {
-              if (process.env.NODE_ENV !== 'production' && isTestToken(instance.token)) {
+            if (
+              instance.service === 'stripe' &&
+              instance.type === 'creditcard' &&
+              !instance.token.match(/^(tok|src|pm)_[a-zA-Z0-9]{24}/)
+            ) {
+              if (config.env !== 'production' && isTestToken(instance.token)) {
                 // test token for end to end tests
               } else {
                 throw new Error(`Invalid Stripe token ${instance.token}`);
@@ -280,16 +281,6 @@ export default function (Sequelize, DataTypes) {
       );
     };
 
-    if (this.limitedToCollectiveIds) {
-      const collective = order.collective || (await order.getCollective());
-      if (!this.limitedToCollectiveIds.includes(collective.HostCollectiveId)) {
-        const collectives = await Promise.map(this.limitedToCollectiveIds, fetchCollectiveName);
-        throw new Error(
-          `This payment method can only be used for the following collectives ${formatArrayToString(collectives)}`,
-        );
-      }
-    }
-
     if (this.limitedToHostCollectiveIds) {
       const collective = order.collective || (await order.getCollective());
       if (!this.limitedToHostCollectiveIds.includes(collective.HostCollectiveId)) {
@@ -309,15 +300,17 @@ export default function (Sequelize, DataTypes) {
         );
       }
     } else {
+      const collective = await models.Collective.findByPk(this.CollectiveId);
+
       // If there is a monthly limit per member, the user needs to be a member or admin of the collective that owns the payment method
-      if (this.monthlyLimitPerMember && !user.isMember(this.CollectiveId)) {
+      if (this.monthlyLimitPerMember && !user.isMemberOfCollective(collective)) {
         throw new Error(
           "You don't have enough permissions to use this payment method (you need to be a member or an admin of the collective that owns this payment method)",
         );
       }
 
-      // If there is no monthly limit, the user needs to be an admin of the collective that owns the payment method
-      if (!this.monthlyLimitPerMember && !user.isAdmin(this.CollectiveId) && this.type !== 'manual') {
+      // If there is no monthly limit, the user needs to be an admin of the collective that owns the payment method (or its host)
+      if (!this.monthlyLimitPerMember && !user.isAdminOfCollectiveOrHost(collective) && this.type !== 'manual') {
         throw new Error(
           "You don't have enough permissions to use this payment method (you need to be an admin of the collective that owns this payment method)",
         );
@@ -365,6 +358,10 @@ export default function (Sequelize, DataTypes) {
     return await paymentProvider.updateBalance(this);
   };
 
+  PaymentMethod.prototype.isPaypalPayment = async function () {
+    return Boolean(this.service === 'paypal' && this.type === 'payment');
+  };
+
   /**
    * getBalanceForUser
    * Returns the available balance of the current payment method based on:
@@ -390,14 +387,18 @@ export default function (Sequelize, DataTypes) {
       console.error(
         '>>> this payment method has a monthly limit. Please provide a user to be able to compute their balance.',
       );
+      reportMessageToSentry(
+        `This payment method has a monthly limit. Please provide a user to be able to compute their balance.`,
+        { extra: { paymentMethod: this.info } },
+      );
       return { amount: 0, currency: this.currency };
     }
 
     if (user) {
       await user.populateRoles();
     }
-    // virtualcard monthlyLimitPerMember are calculated differently so the getBalance already returns the right result
-    if (this.type === 'virtualcard') {
+    // giftcard monthlyLimitPerMember are calculated differently so the getBalance already returns the right result
+    if (this.type === 'giftcard') {
       return getBalance(this);
     }
 
@@ -418,7 +419,7 @@ export default function (Sequelize, DataTypes) {
       include: [
         {
           model: models.PaymentMethod,
-          require: true,
+          required: true,
           attributes: [],
           where: { [Op.or]: { id: this.id, SourcePaymentMethodId: this.id } },
         },
@@ -443,26 +444,11 @@ export default function (Sequelize, DataTypes) {
   };
 
   /**
-   * Returns the sum of the children PaymenMethod values (aka the virtual cards which
-   * have `sourcePaymentMethod` set to this PM).
-   */
-  PaymentMethod.prototype.getChildrenPMTotalSum = async function () {
-    return models.PaymentMethod.findAll({
-      attributes: ['initialBalance', 'monthlyLimitPerMember'],
-      where: { SourcePaymentMethodId: this.id },
-    }).then(children => {
-      return children.reduce((total, pm) => {
-        return total + (pm.initialBalance || pm.monthlyLimitPerMember);
-      }, 0);
-    });
-  };
-
-  /**
-   * Check if virtual card is claimed.
+   * Check if gift card is claimed.
    * Always return true for other payment methods.
    */
   PaymentMethod.prototype.isConfirmed = function () {
-    return this.type !== 'virtualcard' || this.confirmedAt !== null;
+    return this.type !== 'giftcard' || this.confirmedAt !== null;
   };
 
   /**
@@ -494,7 +480,16 @@ export default function (Sequelize, DataTypes) {
         CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
       };
       debug('PaymentMethod.create', paymentMethodData);
-      return models.PaymentMethod.create(paymentMethodData);
+      // We don't need to have multiple Alipay PaymentMethod per-users because it is just we use this just as a flag for the payment type
+      if (paymentMethod.type === PAYMENT_METHOD_TYPE.ALIPAY) {
+        const [pm] = await models.PaymentMethod.findOrCreate({
+          where: { type: paymentMethod.type, service: paymentMethod.service, CollectiveId: paymentMethod.CollectiveId },
+          defaults: paymentMethodData,
+        });
+        return pm;
+      } else {
+        return models.PaymentMethod.create(paymentMethodData);
+      }
     } else {
       return PaymentMethod.findOne({
         where: { uuid: paymentMethod.uuid },
@@ -509,3 +504,9 @@ export default function (Sequelize, DataTypes) {
 
   return PaymentMethod;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const PaymentMethod = defineModel();
+
+export default PaymentMethod;

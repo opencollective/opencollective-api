@@ -10,14 +10,13 @@ Object {
         Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 7,
           },
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 20,
+          "id": 40,
           "paymentMethod": Object {
             "id": 13,
             "name": null,
@@ -26,16 +25,24 @@ Object {
           "type": "CREDIT",
         },
         Object {
+          "createdByUser": null,
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 37,
+          "type": "DEBIT",
+        },
+        Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 7,
           },
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 18,
+          "id": 36,
           "paymentMethod": Object {
             "id": 12,
             "name": null,
@@ -44,16 +51,24 @@ Object {
           "type": "CREDIT",
         },
         Object {
+          "createdByUser": null,
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 33,
+          "type": "DEBIT",
+        },
+        Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 6,
           },
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 16,
+          "id": 32,
           "paymentMethod": Object {
             "id": 11,
             "name": null,
@@ -62,16 +77,24 @@ Object {
           "type": "CREDIT",
         },
         Object {
+          "createdByUser": null,
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 29,
+          "type": "DEBIT",
+        },
+        Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 6,
           },
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 14,
+          "id": 28,
           "paymentMethod": Object {
             "id": 10,
             "name": null,
@@ -80,16 +103,24 @@ Object {
           "type": "CREDIT",
         },
         Object {
+          "createdByUser": null,
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 25,
+          "type": "DEBIT",
+        },
+        Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 5,
           },
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 12,
+          "id": 24,
           "paymentMethod": Object {
             "id": 9,
             "name": null,
@@ -98,236 +129,18 @@ Object {
           "type": "CREDIT",
         },
         Object {
+          "createdByUser": null,
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 21,
+          "type": "DEBIT",
+        },
+        Object {
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
             "id": 5,
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 10,
-          "paymentMethod": Object {
-            "id": 8,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 8,
-          "paymentMethod": Object {
-            "id": 7,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 6,
-          "paymentMethod": Object {
-            "id": 6,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 4,
-          "paymentMethod": Object {
-            "id": 5,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 2,
-          "paymentMethod": Object {
-            "id": 4,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-      ],
-    },
-  },
-}
-`;
-
-exports[`server/graphql/v1/transaction return transactions \`transactions\` query accepts orderBy argument to order transactions 1`] = `
-Object {
-  "data": Object {
-    "transactions": Object {
-      "limit": 5,
-      "offset": 0,
-      "total": 10,
-      "transactions": Array [
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdAt": "Sat Dec 31 2016 00:00:00 GMT+0000 (Coordinated Universal Time)",
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 4,
-          "paymentMethod": Object {
-            "id": 5,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdAt": "Wed Feb 01 2017 00:00:01 GMT+0000 (Coordinated Universal Time)",
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 8,
-          "paymentMethod": Object {
-            "id": 7,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdAt": "Thu Mar 02 2017 00:00:02 GMT+0000 (Coordinated Universal Time)",
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 12,
-          "paymentMethod": Object {
-            "id": 9,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdAt": "Mon Apr 03 2017 00:00:03 GMT+0000 (Coordinated Universal Time)",
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 6,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 8,
-            "slug": "max-point",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 16,
-          "paymentMethod": Object {
-            "id": 11,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdAt": "Thu May 04 2017 00:00:04 GMT+0000 (Coordinated Universal Time)",
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 7,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 9,
-            "slug": "praxent",
           },
           "host": Object {
             "id": 2,
@@ -335,238 +148,6 @@ Object {
           },
           "id": 20,
           "paymentMethod": Object {
-            "id": 13,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-      ],
-    },
-  },
-}
-`;
-
-exports[`server/graphql/v1/transaction return transactions \`transactions\` query accepts pagination arguments: limit & offset 1`] = `
-Object {
-  "data": Object {
-    "transactions": Object {
-      "limit": 5,
-      "offset": 5,
-      "total": 20,
-      "transactions": Array [
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 9,
-          "type": "DEBIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 5,
-          "type": "DEBIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 6,
-          "paymentMethod": Object {
-            "id": 6,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 1,
-          "type": "DEBIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 2,
-          "paymentMethod": Object {
-            "id": 4,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-      ],
-    },
-  },
-}
-`;
-
-exports[`server/graphql/v1/transaction return transactions \`transactions\` query accepts type argument to filter transactions by type 1`] = `
-Object {
-  "data": Object {
-    "transactions": Object {
-      "limit": 5,
-      "offset": 0,
-      "total": 10,
-      "transactions": Array [
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 7,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 9,
-            "slug": "praxent",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 18,
-          "paymentMethod": Object {
-            "id": 12,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 6,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 8,
-            "slug": "max-point",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 14,
-          "paymentMethod": Object {
-            "id": 10,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 10,
-          "paymentMethod": Object {
             "id": 8,
             "name": null,
           },
@@ -574,89 +155,7 @@ Object {
           "type": "CREDIT",
         },
         Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 6,
-          "paymentMethod": Object {
-            "id": 6,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 2,
-          "paymentMethod": Object {
-            "id": 4,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-      ],
-    },
-  },
-}
-`;
-
-exports[`server/graphql/v1/transaction return transactions \`transactions\` query default returns list of transactions with pagination data 1`] = `
-Object {
-  "data": Object {
-    "transactions": Object {
-      "limit": 100,
-      "offset": 0,
-      "total": 20,
-      "transactions": Array [
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 9,
-            "slug": "praxent",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 7,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
+          "createdByUser": null,
           "host": Object {
             "id": 2,
             "slug": "wwcode",
@@ -665,48 +164,24 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
-            "id": 7,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 9,
-            "slug": "praxent",
+            "id": 4,
           },
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 18,
+          "id": 16,
           "paymentMethod": Object {
-            "id": 12,
+            "id": 7,
             "name": null,
           },
           "subscription": null,
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 8,
-            "slug": "max-point",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 6,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
+          "createdByUser": null,
           "host": Object {
             "id": 2,
             "slug": "wwcode",
@@ -715,75 +190,24 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
+            "id": 4,
+          },
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 12,
+          "paymentMethod": Object {
             "id": 6,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 8,
-            "slug": "max-point",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 14,
-          "paymentMethod": Object {
-            "id": 10,
             "name": null,
           },
           "subscription": null,
           "type": "CREDIT",
         },
         Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 10,
-          "paymentMethod": Object {
-            "id": 8,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
+          "createdByUser": null,
           "host": Object {
             "id": 2,
             "slug": "wwcode",
@@ -792,21 +216,24 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
             "id": 3,
-            "slug": "wwcodeaustin",
           },
+          "host": Object {
+            "id": 2,
+            "slug": "wwcode",
+          },
+          "id": 8,
+          "paymentMethod": Object {
+            "id": 5,
+            "name": null,
+          },
+          "subscription": null,
+          "type": "CREDIT",
+        },
+        Object {
+          "createdByUser": null,
           "host": Object {
             "id": 2,
             "slug": "wwcode",
@@ -815,296 +242,9 @@ Object {
           "type": "DEBIT",
         },
         Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
           "createdByUser": Object {
             "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 6,
-          "paymentMethod": Object {
-            "id": 6,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
             "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 1,
-          "type": "DEBIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 2,
-          "paymentMethod": Object {
-            "id": 4,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 7,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 9,
-            "slug": "praxent",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 20,
-          "paymentMethod": Object {
-            "id": 13,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 9,
-            "slug": "praxent",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 7,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 19,
-          "type": "DEBIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 8,
-            "slug": "max-point",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 6,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 15,
-          "type": "DEBIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 6,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 8,
-            "slug": "max-point",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 16,
-          "paymentMethod": Object {
-            "id": 11,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 11,
-          "type": "DEBIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 5,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 7,
-            "slug": "holly-day",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 12,
-          "paymentMethod": Object {
-            "id": 9,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 7,
-          "type": "DEBIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 4,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 6,
-            "slug": "geoff-frey",
-          },
-          "host": Object {
-            "id": 2,
-            "slug": "wwcode",
-          },
-          "id": 8,
-          "paymentMethod": Object {
-            "id": 7,
-            "name": null,
-          },
-          "subscription": null,
-          "type": "CREDIT",
-        },
-        Object {
-          "collective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 5,
-            "slug": "craft-work",
           },
           "host": Object {
             "id": 2,
@@ -1112,61 +252,22 @@ Object {
           },
           "id": 4,
           "paymentMethod": Object {
-            "id": 5,
+            "id": 4,
             "name": null,
           },
           "subscription": null,
           "type": "CREDIT",
         },
         Object {
-          "attachment": null,
-          "collective": Object {
-            "id": 5,
-            "slug": "craft-work",
-          },
-          "createdByUser": Object {
-            "email": null,
-            "firstName": null,
-            "id": 3,
-            "lastName": null,
-          },
-          "fromCollective": Object {
-            "id": 3,
-            "slug": "wwcodeaustin",
-          },
+          "createdByUser": null,
           "host": Object {
             "id": 2,
             "slug": "wwcode",
           },
-          "id": 3,
+          "id": 1,
           "type": "DEBIT",
         },
       ],
-    },
-  },
-}
-`;
-
-exports[`server/graphql/v1/transaction return transactions returns one transaction  1`] = `
-Object {
-  "data": Object {
-    "Transaction": Object {
-      "createdByUser": Object {
-        "email": null,
-        "firstName": null,
-        "id": 2,
-      },
-      "host": Object {
-        "id": 2,
-        "slug": "wwcode",
-      },
-      "id": 2,
-      "paymentMethod": Object {
-        "id": 3,
-        "name": null,
-      },
-      "subscription": null,
-      "type": "CREDIT",
     },
   },
 }
@@ -1176,20 +277,13 @@ exports[`server/graphql/v1/transaction return transactions returns one transacti
 Object {
   "data": Object {
     "Transaction": Object {
-      "createdByUser": Object {
-        "email": null,
-        "firstName": null,
-        "id": 3,
-      },
+      "createdByUser": null,
       "host": Object {
         "id": 2,
         "slug": "wwcode",
       },
       "id": 2,
-      "paymentMethod": Object {
-        "id": 4,
-        "name": null,
-      },
+      "paymentMethod": null,
       "subscription": null,
       "type": "CREDIT",
     },
@@ -1201,12 +295,7 @@ exports[`server/graphql/v1/transaction return transactions returns one transacti
 Object {
   "data": Object {
     "Transaction": Object {
-      "attachment": null,
-      "createdByUser": Object {
-        "email": null,
-        "firstName": null,
-        "id": 3,
-      },
+      "createdByUser": null,
       "host": Object {
         "id": 2,
         "slug": "wwcode",
@@ -1224,23 +313,43 @@ Object {
     "allTransactions": Array [
       Object {
         "createdAt": "Fri May 04 2018 00:00:04 GMT+0000 (Coordinated Universal Time)",
-        "id": 18,
+        "id": 36,
+      },
+      Object {
+        "createdAt": "Fri May 04 2018 00:00:04 GMT+0000 (Coordinated Universal Time)",
+        "id": 33,
       },
       Object {
         "createdAt": "Tue Apr 03 2018 00:00:03 GMT+0000 (Coordinated Universal Time)",
-        "id": 14,
+        "id": 28,
+      },
+      Object {
+        "createdAt": "Tue Apr 03 2018 00:00:03 GMT+0000 (Coordinated Universal Time)",
+        "id": 25,
       },
       Object {
         "createdAt": "Fri Mar 02 2018 00:00:02 GMT+0000 (Coordinated Universal Time)",
-        "id": 10,
+        "id": 20,
+      },
+      Object {
+        "createdAt": "Fri Mar 02 2018 00:00:02 GMT+0000 (Coordinated Universal Time)",
+        "id": 17,
       },
       Object {
         "createdAt": "Thu Feb 01 2018 00:00:01 GMT+0000 (Coordinated Universal Time)",
-        "id": 6,
+        "id": 12,
+      },
+      Object {
+        "createdAt": "Thu Feb 01 2018 00:00:01 GMT+0000 (Coordinated Universal Time)",
+        "id": 9,
       },
       Object {
         "createdAt": "Sun Dec 31 2017 00:00:00 GMT+0000 (Coordinated Universal Time)",
-        "id": 2,
+        "id": 4,
+      },
+      Object {
+        "createdAt": "Sun Dec 31 2017 00:00:00 GMT+0000 (Coordinated Universal Time)",
+        "id": 1,
       },
     ],
   },
@@ -1253,23 +362,43 @@ Object {
     "allTransactions": Array [
       Object {
         "createdAt": "Thu May 04 2017 00:00:04 GMT+0000 (Coordinated Universal Time)",
-        "id": 20,
+        "id": 40,
+      },
+      Object {
+        "createdAt": "Thu May 04 2017 00:00:04 GMT+0000 (Coordinated Universal Time)",
+        "id": 37,
       },
       Object {
         "createdAt": "Mon Apr 03 2017 00:00:03 GMT+0000 (Coordinated Universal Time)",
-        "id": 16,
+        "id": 32,
+      },
+      Object {
+        "createdAt": "Mon Apr 03 2017 00:00:03 GMT+0000 (Coordinated Universal Time)",
+        "id": 29,
       },
       Object {
         "createdAt": "Thu Mar 02 2017 00:00:02 GMT+0000 (Coordinated Universal Time)",
-        "id": 12,
+        "id": 24,
+      },
+      Object {
+        "createdAt": "Thu Mar 02 2017 00:00:02 GMT+0000 (Coordinated Universal Time)",
+        "id": 21,
       },
       Object {
         "createdAt": "Wed Feb 01 2017 00:00:01 GMT+0000 (Coordinated Universal Time)",
+        "id": 16,
+      },
+      Object {
+        "createdAt": "Wed Feb 01 2017 00:00:01 GMT+0000 (Coordinated Universal Time)",
+        "id": 13,
+      },
+      Object {
+        "createdAt": "Sat Dec 31 2016 00:00:00 GMT+0000 (Coordinated Universal Time)",
         "id": 8,
       },
       Object {
         "createdAt": "Sat Dec 31 2016 00:00:00 GMT+0000 (Coordinated Universal Time)",
-        "id": 4,
+        "id": 5,
       },
     ],
   },
@@ -1281,23 +410,11 @@ Object {
   "data": Object {
     "allTransactions": Array [
       Object {
-        "id": 18,
+        "id": 36,
         "type": "CREDIT",
       },
       Object {
-        "id": 14,
-        "type": "CREDIT",
-      },
-      Object {
-        "id": 10,
-        "type": "CREDIT",
-      },
-      Object {
-        "id": 6,
-        "type": "CREDIT",
-      },
-      Object {
-        "id": 2,
+        "id": 28,
         "type": "CREDIT",
       },
       Object {
@@ -1305,19 +422,31 @@ Object {
         "type": "CREDIT",
       },
       Object {
-        "id": 16,
-        "type": "CREDIT",
-      },
-      Object {
         "id": 12,
         "type": "CREDIT",
       },
       Object {
-        "id": 8,
+        "id": 4,
         "type": "CREDIT",
       },
       Object {
-        "id": 4,
+        "id": 40,
+        "type": "CREDIT",
+      },
+      Object {
+        "id": 32,
+        "type": "CREDIT",
+      },
+      Object {
+        "id": 24,
+        "type": "CREDIT",
+      },
+      Object {
+        "id": 16,
+        "type": "CREDIT",
+      },
+      Object {
+        "id": 8,
         "type": "CREDIT",
       },
     ],
@@ -1336,9 +465,7 @@ Object {
         },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 7,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 9,
@@ -1348,7 +475,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 18,
+        "id": 36,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 12,
           "name": null,
@@ -1361,11 +489,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 33,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 6,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 8,
@@ -1375,7 +519,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 14,
+        "id": 28,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 10,
           "name": null,
@@ -1388,11 +533,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 25,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 5,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 7,
@@ -1402,7 +563,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 10,
+        "id": 20,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 8,
           "name": null,
@@ -1415,11 +577,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 17,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 4,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 6,
@@ -1429,7 +607,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 6,
+        "id": 12,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 6,
           "name": null,
@@ -1442,11 +621,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 9,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 3,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 5,
@@ -1456,7 +651,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 2,
+        "id": 4,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 4,
           "name": null,
@@ -1469,11 +665,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 1,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 7,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 9,
@@ -1483,7 +695,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 20,
+        "id": 40,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 13,
           "name": null,
@@ -1496,11 +709,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 37,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 6,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 8,
@@ -1510,7 +739,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 16,
+        "id": 32,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 11,
           "name": null,
@@ -1523,11 +753,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 29,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 5,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 7,
@@ -1537,7 +783,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 12,
+        "id": 24,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 9,
           "name": null,
@@ -1550,11 +797,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 21,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 4,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 6,
@@ -1564,7 +827,8 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 8,
+        "id": 16,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 7,
           "name": null,
@@ -1577,11 +841,27 @@ Object {
           "id": 3,
           "slug": "wwcodeaustin",
         },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 13,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
         "createdByUser": Object {
           "email": null,
-          "firstName": null,
           "id": 3,
-          "lastName": null,
         },
         "fromCollective": Object {
           "id": 5,
@@ -1591,13 +871,32 @@ Object {
           "id": 2,
           "slug": "wwcode",
         },
-        "id": 4,
+        "id": 8,
+        "kind": "CONTRIBUTION",
         "paymentMethod": Object {
           "id": 5,
           "name": null,
         },
         "subscription": null,
         "type": "CREDIT",
+      },
+      Object {
+        "collective": Object {
+          "id": 3,
+          "slug": "wwcodeaustin",
+        },
+        "createdByUser": null,
+        "fromCollective": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "host": Object {
+          "id": 2,
+          "slug": "wwcode",
+        },
+        "id": 5,
+        "kind": "HOST_FEE",
+        "type": "DEBIT",
       },
     ],
   },

@@ -10,7 +10,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
   let user, host, collective;
 
   /** Create a test PENDING order from `user` to `collective` */
-  const createOrder = async (amount = 5000) => {
+  const createOrder = async (amount = 5000, collective, options) => {
     const order = await models.Order.create({
       CreatedByUserId: user.id,
       FromCollectiveId: user.CollectiveId,
@@ -18,6 +18,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
       totalAmount: amount,
       currency: 'USD',
       status: 'PENDING',
+      ...options,
     });
 
     // Bind some required properties
@@ -59,7 +60,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
   describe('processOrder', () => {
     it('Returns the CREDIT transaction', async () => {
       const amount = 5000;
-      const order = await createOrder(amount);
+      const order = await createOrder(amount, collective);
       const transaction = await ManualPaymentMethod.processOrder(order);
 
       expect(transaction.type).to.equal('CREDIT');
@@ -68,10 +69,10 @@ describe('server/paymentProviders/opencollective/manual', () => {
       expect(transaction.OrderId).to.equal(order.id);
       expect(transaction.amount).to.equal(amount);
       expect(transaction.amountInHostCurrency).to.equal(amount);
-      expect(transaction.hostFeeInHostCurrency).to.equal(-250);
+      expect(transaction.hostFeeInHostCurrency).to.equal(0);
       expect(transaction.platformFeeInHostCurrency).to.equal(0); // We take no fee on manual transactions
       expect(transaction.paymentProcessorFeeInHostCurrency).to.equal(0); // We take no fee on manual transactions
-      expect(transaction.netAmountInCollectiveCurrency).to.equal(4750);
+      expect(transaction.netAmountInCollectiveCurrency).to.equal(5000);
       expect(transaction.HostCollectiveId).to.equal(host.id);
       expect(transaction.CreatedByUserId).to.equal(user.id);
       expect(transaction.FromCollectiveId).to.equal(user.collective.id);
@@ -79,13 +80,22 @@ describe('server/paymentProviders/opencollective/manual', () => {
       expect(transaction.PaymentMethodId).to.be.null;
     });
 
-    it('Is not fooled by floating issues', async () => {
-      // (hostFeePercent = 5 / 100) * 28 = 1.4000000000000001
-      const amount = 28;
-      const order = await createOrder(amount);
+    it("throws if Collective currency doesn't match Host currency unless CROSS_CURRENCY_MANUAL_TRANSACTIONS is enabled", async () => {
+      const otherCollective = await models.Collective.create({
+        name: 'collective4',
+        currency: 'FKA',
+        HostCollectiveId: host.id,
+        isActive: true,
+        hostFeePercent,
+      });
+
+      const order = await createOrder(50, otherCollective, { currency: 'FKA' });
+      await expect(ManualPaymentMethod.processOrder(order)).to.be.eventually.rejectedWith(Error);
+
+      await host.update({ settings: { features: { crossCurrencyManualTransactions: true } } });
+
       const transaction = await ManualPaymentMethod.processOrder(order);
-      expect(transaction.amountInHostCurrency).to.equal(amount);
-      expect(transaction.hostFeeInHostCurrency).to.equal(-1);
+      expect(transaction.currency).to.equal('FKA');
     });
   });
 
@@ -93,7 +103,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
   describe('refundTransaction', () => {
     it('Create opposite transactions', async () => {
       const amount = 5000;
-      const order = await createOrder(amount);
+      const order = await createOrder(amount, collective);
       const transaction = await ManualPaymentMethod.processOrder(order);
 
       // Check that the original transaction is correctly updated
@@ -108,15 +118,16 @@ describe('server/paymentProviders/opencollective/manual', () => {
       expect(refundTransaction.OrderId).to.equal(order.id);
       expect(refundTransaction.amount).to.equal(-amount);
       expect(refundTransaction.amountInHostCurrency).to.equal(-amount);
-      expect(refundTransaction.hostFeeInHostCurrency).to.equal(250);
+      expect(refundTransaction.hostFeeInHostCurrency).to.equal(0);
       expect(refundTransaction.platformFeeInHostCurrency).to.equal(0); // We take no fee on manual refundTransactions
       expect(refundTransaction.paymentProcessorFeeInHostCurrency).to.equal(0); // We take no fee on manual refundTransactions
-      expect(refundTransaction.netAmountInCollectiveCurrency).to.equal(-4750);
+      expect(refundTransaction.netAmountInCollectiveCurrency).to.equal(-5000);
       expect(refundTransaction.HostCollectiveId).to.equal(host.id);
       expect(refundTransaction.CreatedByUserId).to.equal(user.id);
       expect(refundTransaction.FromCollectiveId).to.equal(user.collective.id);
       expect(refundTransaction.CollectiveId).to.equal(collective.id);
       expect(refundTransaction.PaymentMethodId).to.be.null;
+      expect(refundTransaction.kind).to.eq(transaction.kind);
     });
   });
 });

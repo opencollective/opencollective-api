@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { sequelize } from '../../../server/models';
+import sequelize, { QueryTypes } from '../../../server/lib/sequelize';
 import { resetTestDB } from '../../utils';
 
 const getTableInfo = tableName => {
@@ -11,7 +11,7 @@ const getTableInfo = tableName => {
     AND table_name = ?
     ORDER BY column_name ASC
     `,
-    { replacements: [tableName], type: sequelize.QueryTypes.SELECT, raw: true },
+    { replacements: [tableName], type: QueryTypes.SELECT, raw: true },
   );
 };
 
@@ -105,7 +105,7 @@ describe('server/models/models-histories', () => {
                     return false;
                   } else if (column[k].includes('::"enum_')) {
                     // sequelize-temporal creates a new type for Enums, ie. enum_Expenses_type -> enum_ExpenseHistories_type
-                    const cleanValue = historyEquivalent[k].replace('Histories_type', 's_type');
+                    const cleanValue = historyEquivalent[k].replace('Histories_', 's_');
                     if (cleanValue === column[k]) {
                       return false;
                     }

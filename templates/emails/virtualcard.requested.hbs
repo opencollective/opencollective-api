@@ -1,0 +1,79 @@
+Subject: {{{collective.name}}} wants a Virtual Card
+
+{{> header}}
+
+<div class="hidden">Virtual Card requested by {{userCollective.name}}</div>
+
+<h1>{{collective.name}}</h1>
+
+<style>
+  th {
+    text-align: left;
+  }
+</style>
+
+Dear admin of {{host.name}},
+
+<p>
+  {{userCollective.name}} ({{userCollective.slug}}) wants a virtual card for their {{toLowerCase collective.type}}, {{collective.name}}.
+  To create one, set up a new virtual card and assign it to {{collective.name}}
+  in <a href="https://opencollective.com/{{host.slug}}/admin/host-virtual-cards">your settings</a>.
+</p>
+
+<h2>Collective details</h2>
+<table>
+  <tr>
+    <th>Name</th>
+    <td>{{collective.name}}</td>
+  </tr>
+  <tr>
+    <th>Url</th>
+    <td><a href="https://opencollective.com{{collective.path}}">https://opencollective.com{{collective.path}}</a></td>
+  </tr>
+  {{#if collective.website}}
+  <tr>
+    <th>Website</th>
+    <td>{{collective.website}}</td>
+  </tr>
+  {{/if}}
+  {{#if collective.twitterHandle}}
+  <tr>
+    <th>Twitter</th>
+    <td>{{collective.twitterHandle}}</td>
+  </tr>
+  {{/if}}
+  <tr>
+    <th>Description</th>
+    <td>{{collective.description}}</td>
+  </tr>
+</table>
+
+<h2>Request Details</h2>
+<p>
+  <strong>Assignee</strong><br />
+  {{userCollective.name}}
+</p>
+{{#if purpose}}
+<p>
+  <strong>Virtual Card Purpose</strong><br />
+  {{purpose}}
+</p>
+{{/if}}
+{{#if budget}}
+<p>
+  <strong>Monthly Budget</strong><br />
+  {{currency budget currency='USD'}}
+</p>
+{{/if}}
+{{#if notes}}
+<p>
+  <strong>Notes</strong><br />
+<blockquote
+  style="color: #6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">
+  {{notes}}</blockquote>
+</p>
+{{/if}}
+
+<br /><br />
+
+{{> footer}}

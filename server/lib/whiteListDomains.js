@@ -1,4 +1,4 @@
-export const whiteListDomains = [
+const whiteListDomains = [
   'hush.com',
   'opayq.com',
   'mailhero.io',
@@ -23,6 +23,10 @@ export const whiteListDomains = [
   'yeah.net',
   'nigge.rs',
   'xoxy.net',
+  'uymail.com',
+  'mailhaven.com',
+  'brainonfire.net',
+  'sohu.com',
 ];
 
 export default whiteListDomains;

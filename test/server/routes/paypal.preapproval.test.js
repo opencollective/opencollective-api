@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { stub } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../server/index';
@@ -19,7 +19,7 @@ describe('server/routes/paypal.preapproval', () => {
   });
 
   beforeEach(() => {
-    sinon.stub(paypalAdaptive, 'preapproval').callsFake(() => Promise.resolve(paypalMock.adaptive.preapproval));
+    stub(paypalAdaptive, 'preapproval').callsFake(() => Promise.resolve(paypalMock.adaptive.preapproval));
   });
 
   afterEach(() => {
@@ -93,9 +93,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Details from Paypal COMPLETED', () => {
       beforeEach('stub paypalAdaptive', () => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed),
+        );
       });
 
       afterEach('restore paypalAdaptive', () => {
@@ -121,7 +121,7 @@ describe('server/routes/paypal.preapproval', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .expect(302)
           .end((e, res) => {
-            expect(res.headers.location).to.include('paypal/redirect?status=success&service=paypal');
+            expect(res.headers.location).to.include('paypal/redirect?paypalApprovalStatus=success');
 
             models.PaymentMethod.findAndCountAll({
               where: { token: preapprovalkey },
@@ -148,9 +148,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Details from Paypal CREATED', () => {
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.created));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.created),
+        );
       });
 
       afterEach(() => {
@@ -163,7 +163,7 @@ describe('server/routes/paypal.preapproval', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
             expect(res.headers.location).to.contain(
-              'paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal&errorMessage=This%20preapprovalkey%20is%20not%20approved%20yet',
+              'paypal/redirect?paypalApprovalStatus=error&paypalApprovalError=This+preapprovalkey+is+not+approved+yet',
             );
             done();
           });
@@ -172,9 +172,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Details from Paypal ERROR', () => {
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.reject(paypalMock.adaptive.preapprovalDetails.error));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.reject(paypalMock.adaptive.preapprovalDetails.error),
+        );
       });
 
       afterEach(() => {
@@ -187,7 +187,7 @@ describe('server/routes/paypal.preapproval', () => {
           .set('Authorization', `Bearer ${user.jwt()}`)
           .end((e, res) => {
             expect(res.headers.location).to.contain(
-              '/paypal/redirect?status=error&service=paypal&error=Error%20while%20contacting%20PayPal',
+              '/paypal/redirect?paypalApprovalStatus=error&paypalApprovalError=Error+while+contacting+PayPal',
             );
             done();
           });
@@ -196,9 +196,9 @@ describe('server/routes/paypal.preapproval', () => {
 
     describe('Preapproval details', () => {
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed),
+        );
       });
 
       afterEach(() => {
@@ -238,9 +238,9 @@ describe('server/routes/paypal.preapproval', () => {
       });
 
       beforeEach(() => {
-        sinon
-          .stub(paypalAdaptive, 'preapprovalDetails')
-          .callsFake(() => Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed));
+        stub(paypalAdaptive, 'preapprovalDetails').callsFake(() =>
+          Promise.resolve(paypalMock.adaptive.preapprovalDetails.completed),
+        );
       });
 
       afterEach(() => {

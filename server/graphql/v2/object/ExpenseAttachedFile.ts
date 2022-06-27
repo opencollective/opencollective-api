@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType,GraphQLString } from 'graphql';
+import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import URL from '../scalar/URL';
@@ -6,7 +6,7 @@ import URL from '../scalar/URL';
 const ExpenseAttachedFile = new GraphQLObjectType({
   name: 'ExpenseAttachedFile',
   description: "Fields for an expense's attached file",
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Unique identifier for this file',
@@ -15,7 +15,7 @@ const ExpenseAttachedFile = new GraphQLObjectType({
     url: {
       type: URL,
     },
-  },
+  }),
 });
 
 export default ExpenseAttachedFile;

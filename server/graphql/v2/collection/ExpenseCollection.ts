@@ -7,12 +7,12 @@ const ExpenseCollection = new GraphQLObjectType({
   name: 'ExpenseCollection',
   interfaces: [Collection],
   description: 'A collection of "Expenses"',
-  fields: {
+  fields: () => ({
     ...CollectionFields,
     nodes: {
       type: new GraphQLList(Expense),
     },
-  },
+  }),
 });
 
 export { ExpenseCollection };

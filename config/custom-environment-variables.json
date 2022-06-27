@@ -1,6 +1,6 @@
 {
   "port": "PORT",
-  "env": "NODE_ENV",
+  "env": "OC_ENV",
   "maildev": {
     "client": "MAILDEV_CLIENT",
     "server": "MAILDEV_SERVER"
@@ -19,10 +19,16 @@
         "min": "PG_MIN_CONNECTIONS",
         "max": "PG_MAX_CONNECTIONS"
       }
-    }
+    },
+    "readOnly": "DATABASE_READ_ONLY"
   },
   "graphql": {
-    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY"
+    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY",
+    "apolloEngineAPIKeyV2": "APOLLO_ENGINE_API_KEY_V2",
+    "cache": {
+      "enabled": "GRAPHQL_CACHE_ENABLED",
+      "ttl": "GRAPHQL_CACHE_TTL"
+    }
   },
   "memcache": {
     "servers": "MEMCACHE_SERVERS",
@@ -40,9 +46,6 @@
       "emailUnsubscribeSecret": "EMAIL_UNSUBSCRIBE_SECRET",
       "hashidSalt": "HASHID_SALT"
     }
-  },
-  "cache": {
-    "middleware": "CACHE_MIDDLEWARE"
   },
   "log": {
     "level": "LOG_LEVEL",
@@ -93,7 +96,8 @@
     "images": "IMAGES_URL",
     "frontend": "FRONTEND_URL",
     "website": "WEBSITE_URL",
-    "invoices": "INVOICES_URL"
+    "pdf": "PDF_SERVICE_URL",
+    "rest": "REST_URL"
   },
   "limits": {
     "ordersPerHour": {
@@ -101,35 +105,39 @@
       "perAccountForCollective": "ORDERS_LIMIT_ACCOUNT_COLLECTIVE",
       "perEmail": "ORDERS_LIMIT_EMAIL",
       "perEmailForCollective": "ORDERS_LIMIT_EMAIL_COLLECTIVE",
-      "perIp": "ORDERS_LIMIT_IP"
-    }
+      "perIp": "ORDERS_LIMIT_IP",
+      "perMask": "ORDERS_LIMIT_MASK",
+      "forCollective": "ORDERS_LIMIT_COLLECTIVE"
+    },
+    "skipCleanOrdersLimitSlugs": "ORDERS_LIMIT_SKIP_CLEAN_SLUGS",
+    "enabledMasks": "ORDERS_LIMIT_ENABLED_MASKS"
   },
   "slack": {
-    "webhookUrl": "SLACK_HOOK_URL"
+    "webhooks": {
+      "abuse": "SLACK_WEBHOOK_ABUSE"
+    }
   },
   "github": {
     "clientID": "GITHUB_CLIENT_ID",
     "clientSecret": "GITHUB_CLIENT_SECRET"
   },
-  "meetup": {
-    "clientID": "MEETUP_CLIENT_ID",
-    "clientSecret": "MEETUP_CLIENT_SECRET"
-  },
   "twitter": {
     "consumerKey": "TWITTER_CONSUMER_KEY",
     "consumerSecret": "TWITTER_CONSUMER_SECRET"
   },
-  "algolia": {
-    "appId": "ALGOLIA_APP_ID",
-    "appKey": "ALGOLIA_KEY",
-    "index": "ALGOLIA_INDEX"
-  },
   "fixer": {
     "accessKey": "FIXER_ACCESS_KEY"
+  },
+  "captcha": {
+    "enabled": "CAPTCHA_ENABLE"
   },
   "recaptcha": {
     "siteKey": "RECAPTCHA_SITE_KEY",
     "secretKey": "RECAPTCHA_SECRET_KEY"
+  },
+  "hcaptcha": {
+    "secret": "HCAPTCHA_SECRET",
+    "sitekey": "HCAPTCHA_SITEKEY"
   },
   "helloworks": {
     "key": "HELLO_WORKS_KEY",
@@ -145,7 +153,17 @@
     "minNbStars": "GITHUB_FLOW_MIN_NB_STARS"
   },
   "transferwise": {
-    "apiUrl": "TRANSFERWISE_API_URL"
+    "apiUrl": "TRANSFERWISE_API_URL",
+    "oauthUrl": "TRANSFERWISE_OAUTH_URL",
+    "clientKey": "TRANSFERWISE_CLIENT_KEY",
+    "clientId": "TRANSFERWISE_CLIENT_ID",
+    "clientSecret": "TRANSFERWISE_CLIENT_SECRET",
+    "redirectUri": "TRANSFERWISE_REDIRECT_URI",
+    "privateKey": "TRANSFERWISE_PRIVATE_KEY",
+    "blockedCountries": "TRANSFERWISE_BLOCKED_COUNTRIES",
+    "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
+    "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
+    "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT"
   },
   "fixie": {
     "url": "FIXIE_URL"
@@ -156,5 +174,39 @@
     "realm": "HYPERWATCH_REALM",
     "username": "HYPERWATCH_USERNAME",
     "secret": "HYPERWATCH_SECRET"
+  },
+  "dbEncryption": {
+    "secretKey": "DB_ENCRYPTION_SECRET_KEY",
+    "cipher": "DB_ENCRYPTION_CIPHER"
+  },
+  "pdfService": {
+    "fetchTransactionsReceipts": "FETCH_TRANSACTIONS_RECEIPTS"
+  },
+  "restService": {
+    "fetchCollectiveTransactionsCsv": "FETCH_COLLECTIVE_TRANSACTIONS_CSV",
+    "fetchHostTransactionsCsv": "FETCH_HOST_TRANSACTIONS_CSV"
+  },
+  "sentry": {
+    "dsn": "SENTRY_DSN"
+  },
+  "privacy": {
+    "apiUrl": "PRIVACY_API_URL"
+  },
+  "ledger": {
+    "separateHostFees": "LEDGER_SEPARATE_HOST_FEES"
+  },
+  "activities": {
+    "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
+  },
+  "thegivingblock": {
+    "username": "THEGIVINGBLOCK_USERNAME",
+    "password": "THEGIVINGBLOCK_PASSWORD",
+    "aesEncryptionKey": "THEGIVINGBLOCK_AES_ENCRYPTION_KEY",
+    "aesEncryptionIv": "THEGIVINGBLOCK_AES_ENCRYPTION_IV",
+    "aesEncryptionMethod": "THEGIVINGBLOCK_AES_ENCRYPTION_METHOD",
+    "apiUrl": "THEGIVINGBLOCK_API_URL"
+  },
+  "twoFactorAuthentication": {
+    "enabled": "TWO_FACTOR_AUTHENTICATION_ENABLED"
   }
 }

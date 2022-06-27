@@ -26,7 +26,7 @@ describe('server/graphql/v2/scalar/URL', () => {
     });
 
     it('when url is a valid non locahost url', () => {
-      expect(URLResolver.parseValue('http://localhost/')).to.equal('http://localhost/');
+      expect(URLResolver.parseValue('https://www.google.com/')).to.equal('https://www.google.com/');
     });
   });
 });

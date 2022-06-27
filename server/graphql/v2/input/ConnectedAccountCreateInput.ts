@@ -1,5 +1,5 @@
-import { GraphQLInputObjectType,GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
+import { GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { ConnectedAccountService } from '../enum/ConnectedAccountService';
 
@@ -8,7 +8,7 @@ import { ConnectedAccountService } from '../enum/ConnectedAccountService';
  */
 const ConnectedAccountCreateInput = new GraphQLInputObjectType({
   name: 'ConnectedAccountCreateInput',
-  fields: {
+  fields: () => ({
     clientId: {
       type: GraphQLString,
       description: 'Optional Client ID for the token or secret',
@@ -37,7 +37,7 @@ const ConnectedAccountCreateInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Optional username for the connected account',
     },
-  },
+  }),
 });
 
 export { ConnectedAccountCreateInput };

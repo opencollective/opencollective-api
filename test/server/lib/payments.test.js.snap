@@ -1,0 +1,25 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/lib/payments createRefundTransaction should refund platform fees on top when refunding original transaction 1`] = `
+"
+| kind                    | type   | isRefund | isDebt | From            | To              | Host            | amount | currency | platformFee | paymentFee | Settlement | description                                            |
+| ----------------------- | ------ | -------- | ------ | --------------- | --------------- | --------------- | ------ | -------- | ----------- | ---------- | ---------- | ------------------------------------------------------ |
+| PLATFORM_TIP            | DEBIT  | false    | false  | Open Collective | User            | NULL            | -500   | USD      | 0           | 0          |            | Financial contribution to Open Collective              |
+| PLATFORM_TIP            | CREDIT | false    | false  | User            | Open Collective | Open Collective | 500    | USD      | 0           | 0          |            | Financial contribution to Open Collective              |
+| PLATFORM_TIP_DEBT       | DEBIT  | false    | true   | Host            | Open Collective | Open Collective | -500   | USD      | 0           | 0          |            | Platform Tip collected for Open Collective             |
+| PLATFORM_TIP_DEBT       | CREDIT | false    | true   | Open Collective | Host            | Host            | 500    | USD      | 0           | 0          |            | Platform Tip collected for Open Collective             |
+| HOST_FEE                | DEBIT  | false    |        | Host            | Collective      | Host            | -250   | USD      | 0           | 0          |            | Host Fee                                               |
+| HOST_FEE                | CREDIT | false    |        | Collective      | Host            | Host            | 250    | USD      | 0           | 0          |            | Host Fee                                               |
+| CONTRIBUTION            | DEBIT  | false    |        | Collective      | User            | NULL            | -4325  | USD      | 0           | -175       |            | Monthly subscription to Webpack                        |
+| CONTRIBUTION            | CREDIT | false    |        | User            | Collective      | Host            | 4500   | USD      | 0           | -175       |            | Monthly subscription to Webpack                        |
+| PLATFORM_TIP            | DEBIT  | true     | false  | User            | Open Collective | Open Collective | -500   | USD      | 0           | 0          |            | Refund of \\"Financial contribution to Open Collective\\"  |
+| PLATFORM_TIP            | CREDIT | true     | false  | Open Collective | User            | NULL            | 500    | USD      | 0           | 0          |            | Refund of \\"Financial contribution to Open Collective\\"  |
+| PLATFORM_TIP_DEBT       | DEBIT  | true     | true   | Open Collective | Host            | Host            | -500   | USD      | 0           | 0          |            | Refund of \\"Platform Tip collected for Open Collective\\" |
+| PLATFORM_TIP_DEBT       | CREDIT | true     | true   | Host            | Open Collective | Open Collective | 500    | USD      | 0           | 0          |            | Refund of \\"Platform Tip collected for Open Collective\\" |
+| PAYMENT_PROCESSOR_COVER | DEBIT  | true     |        | Collective      | Host            | Host            | -175   | USD      | 0           | 0          |            | Cover of payment processor fee for refund              |
+| PAYMENT_PROCESSOR_COVER | CREDIT | true     |        | Host            | Collective      | Host            | 175    | USD      | 0           | 0          |            | Cover of payment processor fee for refund              |
+| HOST_FEE                | DEBIT  | true     |        | Collective      | Host            | Host            | -250   | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"                                   |
+| HOST_FEE                | CREDIT | true     |        | Host            | Collective      | Host            | 250    | USD      | 0           | 0          |            | Refund of \\"Host Fee\\"                                   |
+| CONTRIBUTION            | DEBIT  | true     |        | User            | Collective      | Host            | -4500  | USD      | 0           | 0          |            | Refund of \\"Monthly subscription to Webpack\\"            |
+| CONTRIBUTION            | CREDIT | true     |        | Collective      | User            | NULL            | 4500   | USD      | 0           | 0          |            | Refund of \\"Monthly subscription to Webpack\\"            |"
+`;

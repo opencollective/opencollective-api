@@ -1,46 +1,39 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
-import { hostResolver } from '../../common/collective';
 import { Account, AccountFields } from '../interface/Account';
+import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
+import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
+import { AccountWithParent, AccountWithParentFields } from '../interface/AccountWithParent';
 
 import { Collective } from './Collective';
-import { Host } from './Host';
 
 export const Event = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event account',
-  interfaces: () => [Account],
+  interfaces: () => [Account, AccountWithHost, AccountWithContributions, AccountWithParent],
   isTypeOf: collective => collective.type === 'EVENT',
   fields: () => {
     return {
       ...AccountFields,
-      balance: {
-        description: 'Amount of money in cents in the currency of the collective currently available to spend',
-        deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
-        type: GraphQLInt,
-        resolve(collective, _, req) {
-          return req.loaders.Collective.balance.load(collective.id);
-        },
-      },
-      host: {
-        description: 'Get the host collective that is receiving the money on behalf of this collective',
-        type: Host,
-        resolve: hostResolver,
-      },
+      ...AccountWithHostFields,
+      ...AccountWithContributionsFields,
+      ...AccountWithParentFields,
       isApproved: {
-        description: 'Returns whether this collective is approved',
-        type: GraphQLBoolean,
+        description: "Returns whether it's approved by the Fiscal Host",
+        type: new GraphQLNonNull(GraphQLBoolean),
         async resolve(event, _, req) {
           if (!event.ParentCollectiveId) {
             return false;
           } else {
-            const parentCollective = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
-            return parentCollective && parentCollective.isApproved();
+            const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
+            return Boolean(parent?.isApproved());
           }
         },
       },
       parentCollective: {
-        description: 'The collective hosting this event',
+        description: 'The Collective hosting this Event',
+        deprecationReason: '2020/07/01 - Use parent instead.',
         type: Collective,
         async resolve(event, _, req) {
           if (!event.ParentCollectiveId) {
@@ -49,6 +42,18 @@ export const Event = new GraphQLObjectType({
             return req.loaders.Collective.byId.load(event.ParentCollectiveId);
           }
         },
+      },
+      startsAt: {
+        description: 'The Event start date and time',
+        type: GraphQLDateTime,
+      },
+      endsAt: {
+        description: 'The Event end date and time',
+        type: GraphQLDateTime,
+      },
+      timezone: {
+        description: 'Timezone of the Event (TZ database format, e.g. UTC or Europe/Berlin)',
+        type: GraphQLString,
       },
     };
   },

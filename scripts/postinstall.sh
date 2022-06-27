@@ -2,8 +2,13 @@
 
 set -e
 
-if [ "$NODE_ENV" = "ci" ]; then
-  echo "Skipping postinstall because NODE_ENV is \"ci\""
+if [ "$OC_ENV" = "ci" ]; then
+  echo "Skipping postinstall because OC_ENV is \"ci\""
+  exit $?; # exit with return code of previous command
+fi
+
+if [ "$SKIP_POSTINSTALL" = "1" ]; then
+  echo "Skipping postinstall because SKIP_POSTINSTALL is \"1\""
   exit $?; # exit with return code of previous command
 fi
 
@@ -19,7 +24,7 @@ if command -v psql > /dev/null; then
 else
   echo "𐄂 psql command doesn't exist. Make sure you have PostgreSQL installed."
   echo ""
-  echo "See: https://github.com/opencollective/opencollective-api/blob/master/docs/postgres.md"
+  echo "See: https://github.com/opencollective/opencollective-api/blob/main/docs/postgres.md"
   echo ""
   exit 1
 fi

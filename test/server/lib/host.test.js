@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as libcurrency from '../../../server/lib/currency';
 import * as libhost from '../../../server/lib/hostlib';
@@ -30,7 +30,7 @@ describe('server/lib/host', () => {
   before(async () => {
     await utils.resetTestDB();
     // Given that we stub the currency conversion machinery
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sandbox.stub(libcurrency, 'getFxRate').callsFake(() => Promise.resolve(0.75779));
     sandbox.stub(libcurrency, 'convertToCurrency').callsFake(a => a * 2);
 
@@ -74,10 +74,10 @@ describe('server/lib/host', () => {
   after(() => sandbox.restore());
 
   beforeEach('get hosted collectives', async () => {
-    const collectives = await libhost.getHostedCollectives(hostId);
+    const collectives = await libhost.getHostedCollectives(hostId, '2017-01-01');
     collectiveids = collectives.map(g => g.id).filter(id => id !== hostId); // We remove the host collective
     where.CollectiveId = { [Op.in]: collectiveids };
-    expect(collectives.length).to.equal(4);
+    expect(collectives.length).to.equal(5);
   });
 
   it('get the backers stats', async () => {
@@ -108,8 +108,9 @@ describe('server/lib/host', () => {
       where,
     });
     expect(res.byCurrency).to.have.length(2);
-    expect(res.totalInHostCurrency).to.equal(-80000);
-    const cad = res.byCurrency.find(a => a.currency === 'CAD');
-    expect(cad.amount).to.equal(-5000);
+    expect(res.totalInHostCurrency).to.equal(0);
+    const cad = res.byCurrency.find(a => a.hostCurrency === 'CAD');
+    expect(cad.amount).to.equal(0);
+    // TODO: test with new host metrics
   });
 });

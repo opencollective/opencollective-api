@@ -1,8 +1,10 @@
 import { expect } from 'chai';
+import { random, times } from 'lodash';
 import { SequelizeValidationError } from 'sequelize';
 
 import models from '../../../server/models';
 import { newCollectiveWithHost, randEmail } from '../../stores';
+import { fakeTier } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { Collective, User } = models;
@@ -134,6 +136,39 @@ describe('server/models/Tier', () => {
         const tier = await models.Tier.create({ ...validTierParams, name: '😵️' });
         expect(tier.slug).to.eq('tier');
       });
+    });
+
+    describe('description', () => {
+      it('must be appropriate length', async () => {
+        const veryLongDescription = times(520, () => random(35).toString(36)).join('');
+        const createPromise = models.Tier.create({ ...validTierParams, description: veryLongDescription });
+        await expect(createPromise).to.be.rejectedWith(
+          'Validation error: In "A valid tier name" tier, the description is too long (must be less than 510 characters)',
+        );
+      });
+    });
+  });
+
+  describe('requiresPayment', () => {
+    it('returns true if configured for it', async () => {
+      const shouldHavePayment = async params => {
+        const tier = await fakeTier(params);
+        expect(tier.requiresPayment()).to.be.true;
+      };
+
+      await shouldHavePayment({ amountType: 'FIXED', minimumAmount: 500, amount: 500, presets: null });
+      await shouldHavePayment({ amountType: 'FLEXIBLE', minimumAmount: 500, amount: 500, presets: [500, 1000, 10000] });
+    });
+
+    it('only allow free contributions if configured for it', async () => {
+      const shouldNotHavePayment = async params => {
+        const tier = await fakeTier({ ...params });
+        expect(tier.requiresPayment()).to.be.false;
+      };
+
+      await shouldNotHavePayment({ amountType: 'FIXED', amount: 0 });
+      await shouldNotHavePayment({ amountType: 'FLEXIBLE', amount: 50, minimumAmount: 0 });
+      await shouldNotHavePayment({ amountType: 'FLEXIBLE', amount: 50, presets: [0, 50, 100] });
     });
   });
 });

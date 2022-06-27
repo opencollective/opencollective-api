@@ -7,11 +7,15 @@ import jwt from 'jsonwebtoken';
 import { get } from 'lodash';
 
 import errors from '../../lib/errors';
+import logger from '../../lib/logger';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
+import alipay from './alipay';
 import creditcard from './creditcard';
+import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
@@ -48,6 +52,7 @@ export default {
   types: {
     default: creditcard,
     creditcard,
+    alipay,
   },
 
   oauth: {
@@ -93,11 +98,23 @@ export default {
       debug('state', state);
       const { CollectiveId, CreatedByUserId, redirect } = state;
 
+      if (req.query.error === 'access_denied') {
+        return res.redirect(redirect);
+      }
+
       if (!CollectiveId) {
         return next(new errors.BadRequest('No state in the callback'));
       }
 
       let redirectUrl = redirect;
+
+      const deleteStripeAccounts = () =>
+        models.ConnectedAccount.destroy({
+          where: {
+            service: 'stripe',
+            CollectiveId,
+          },
+        });
 
       const createStripeAccount = data =>
         models.ConnectedAccount.create({
@@ -123,7 +140,9 @@ export default {
       const updateHost = async connectedAccount => {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
+          reportMessageToSentry(`updateHost: error: no connectedAccount`, { extra: { CollectiveId } });
         }
+
         const { account } = connectedAccount.data;
         if (!collective.address && account.legal_entity) {
           const { address } = account.legal_entity;
@@ -143,11 +162,12 @@ export default {
           collective.address = addressLines.join('\n');
         }
 
-        // Adds the opencollective payment method to enable the host to allocate funds to collectives
-        // Note that it's not expected anymore to connect Stripe if you're not an host
-        await collective.becomeHost();
-
-        await collective.setCurrency(account.default_currency.toUpperCase());
+        try {
+          await collective.setCurrency(account.default_currency.toUpperCase());
+        } catch (error) {
+          logger.error(`Unable to set currency for '${collective.slug}': ${error.message}`);
+          reportErrorToSentry(error, { extra: { CollectiveId } });
+        }
 
         collective.timezone = collective.timezone || account.timezone;
 
@@ -159,6 +179,7 @@ export default {
           collective = c;
           redirectUrl = redirectUrl || `${config.host.website}/${collective.slug}`;
         })
+        .then(deleteStripeAccounts)
         .then(getToken(req.query.code))
         .then(getAccountInformation)
         .then(createStripeAccount)
@@ -185,18 +206,51 @@ export default {
     switch (order.paymentMethod.type) {
       case 'bitcoin':
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
+      case 'alipay':
+        return alipay.processOrder(order);
       case 'creditcard': /* Fallthrough */
       default:
         return creditcard.processOrder(order);
     }
   },
 
-  webhook: requestBody => {
+  webhook: request => {
+    const requestBody = request.body;
+
+    debug(`Stripe webhook event received : ${request.rawBody}`);
+
     // Stripe sends test events to production as well
     // don't do anything if the event is not livemode
-    if (process.env.NODE_ENV === 'production' && !requestBody.livemode) {
+    // NOTE: not using config.env because of ugly tests
+    if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
       return Promise.resolve();
     }
+
+    const stripeEvent = {
+      signature: request.headers['stripe-signature'],
+      rawBody: request.rawBody,
+    };
+
+    if (requestBody.type === 'issuing_authorization.request') {
+      return virtualcard.processAuthorization(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'issuing_authorization.created' && !requestBody.data.object.approved) {
+      return virtualcard.processDeclinedAuthorization(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'issuing_authorization.updated') {
+      return virtualcard.processUpdatedTransaction(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'issuing_transaction.created') {
+      return virtualcard.processTransaction(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'issuing_card.updated') {
+      return virtualcard.processCardUpdate(requestBody.data.object, stripeEvent);
+    }
+
     /**
      * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else
@@ -207,13 +261,16 @@ export default {
       }
       if (event.type === 'invoice.payment_succeeded') {
         return creditcard.webhook(requestBody, event);
+      } else if (event.type === 'charge.refund.updated') {
+        return alipay.webhook(requestBody, event);
       } else if (event.type === 'source.chargeable') {
         /* This will cause stripe to send us email alerts, saying
          * that our stuff is broken. But that should never happen
          * since they discontinued the support. */
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
       } else {
-        throw new errors.BadRequest('Wrong event type received');
+        logger.warn(`Stripe: Webhooks: Received an unsuported event type: ${event.type}`);
+        return;
       }
     });
   },

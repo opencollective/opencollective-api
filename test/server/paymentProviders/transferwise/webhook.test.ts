@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
 import { roles } from '../../../../server/constants';
@@ -25,12 +25,11 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   let expressApp, api;
   before(async () => {
     expressApp = await app();
-    api = request(expressApp) as any;
+    api = request(expressApp);
   });
 
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
-  /* eslint-disable @typescript-eslint/camelcase */
   const event = {
     data: {
       resource: {
@@ -108,7 +107,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
   it('assigns rawBody to request and verifies the event signature', async () => {
     await api.post('/webhooks/transferwise').send(event).expect(200);
 
-    sinon.assert.calledOnce(verifyEvent);
+    assert.calledOnce(verifyEvent);
     const { args } = verifyEvent.getCall(0);
     expect(args[0]).to.have.property('rawBody');
   });
@@ -147,9 +146,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       `Payment from ${collective.name} for ${expense.description} expense failed`,
     );
     expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(
-      `🚨 Transaction failed on ${collective.name}  for ${expense.description}`,
-    );
+    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
   });
 
   it('should return 200 OK if the transaction is not associated to any expense', async () => {

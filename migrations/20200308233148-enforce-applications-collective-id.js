@@ -1,7 +1,7 @@
 'use strict';
 
 module.exports = {
-  up: async (queryInterface, Sequelize) => {
+  up: async queryInterface => {
     await queryInterface.sequelize.query(`
       UPDATE ONLY "Applications" a
       SET "CollectiveId" = u."CollectiveId"
@@ -15,7 +15,7 @@ module.exports = {
     `);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     // We can't completely revert
     await queryInterface.sequelize.query(`
       ALTER TABLE "Applications" ALTER COLUMN "CollectiveId" INT NULL;

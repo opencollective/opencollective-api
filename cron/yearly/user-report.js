@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-// Only run on the first of the year
-const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the first of year, script aborted!');
-  process.exit();
-}
-
-process.env.PORT = 3066;
-
 import Promise from 'bluebird';
+import config from 'config';
 import _ from 'lodash';
 
 import emailLib from '../../server/lib/email';
 import queries from '../../server/lib/queries';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import { formatArrayToString, formatCurrency, formatCurrencyObject } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
+
+// Only run on the first of the year
+const today = new Date();
+if (config.env === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of year, script aborted!');
+  process.exit();
+}
+
+process.env.PORT = 3066;
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const startDate = new Date(`${d.getFullYear() - 1}`);
@@ -48,8 +50,8 @@ SELECT
   ut.*,
   host.slug as "hostSlug",
   host.name as "hostName",
-  host.image as "hostLogo", host."twitterHandle" as "hostTwitterHandle", host.description as "hostDescription", host.mission as "hostMission",
-  c.slug, c.name, c.mission, c.description, c.image, c."backgroundImage", c."twitterHandle", c.settings, c.data
+  host.image as "hostLogo", host."twitterHandle" as "hostTwitterHandle", host.description as "hostDescription",
+  c.slug, c.name, c.description, c.image, c."backgroundImage", c."twitterHandle", c.settings, c.data
 FROM "CollectiveTransactions" ut
 LEFT JOIN "Collectives" c ON ut."CollectiveId" = c.id
 LEFT JOIN "Collectives" host ON ut."HostCollectiveId" = host.id
@@ -127,7 +129,7 @@ const processCollective = collective => {
             name: row.hostName.trim() || row.hostSlug,
             image: row.hostLogo,
             twitterHandle: row.hostTwitterHandle,
-            description: row.hostDescription || row.hostMission,
+            description: row.hostDescription,
             collectivesBySlug: {},
           };
         }
@@ -135,7 +137,7 @@ const processCollective = collective => {
         collectivesBySlug[row.slug] = {
           slug: row.slug,
           name: row.name || row.slug,
-          description: row.mission || row.description,
+          description: row.description,
           image: row.image,
           backgroundImage:
             row.backgroundImage || 'https://opencollective.com/public/images/collectives/default-header-bg.jpg',
@@ -219,14 +221,18 @@ const processCollective = collective => {
         }
       });
     })
-    .catch(console.error);
+    .catch(error => {
+      console.error(error);
+      reportErrorToSentry(error);
+    });
 };
 
-const getHosts = () => {
-  return models.Member.findAll({
+const getHosts = async () => {
+  const members = await models.Member.findAll({
     attributes: [[sequelize.fn('DISTINCT', sequelize.col('MemberCollectiveId')), 'MemberCollectiveId']],
     where: { role: 'HOST' },
-  }).map(m => m.MemberCollectiveId);
+  });
+  return members.map(m => m.MemberCollectiveId);
 };
 
 const getCollectives = () => {

@@ -9,6 +9,7 @@ import activityType from '../constants/activities';
 import models from '../models';
 
 import logger from './logger';
+import { reportMessageToSentry } from './sentry';
 import { formatCurrency } from './utils';
 
 const debug = debugLib('twitter');
@@ -63,9 +64,10 @@ const tweetNewMember = async activity => {
   const template = settings.tweet;
 
   // todo: we should use the handlebar templating system to support {{#if}}{{/if}}
+  const amount = get(activity, 'data.order.totalAmount') - get(activity, 'data.order.data.platformFee', 0);
   const status = template
     .replace('{backerTwitterHandle}', `@${get(activity, 'data.member.memberCollective.twitterHandle')}`)
-    .replace('{amount}', formatCurrency(get(activity, 'data.order.totalAmount'), get(activity, 'data.order.currency')));
+    .replace('{amount}', formatCurrency(amount, get(activity, 'data.order.currency')));
 
   return await twitterLib.tweetStatus(
     twitterAccount,
@@ -121,33 +123,31 @@ const tweetStatus = (twitterAccount, status, url, options = {}) => {
 const compileTweet = (template, data, message) => {
   const messages = {
     'en-US': {
-      tenBackers: `🎉 {collective} just reached 10 backers! Thank you {topBackersTwitterHandles} 🙌
+      tenBackers: `🎉 {collective} just reached 10 financial contributors! Thank you {topBackersTwitterHandles} 🙌
 Support them too!`,
-      fiftyBackers: `🎉 {collective} just reached 50 backers!! 🙌
+      fiftyBackers: `🎉 {collective} just reached 50 financial contributors!! 🙌
 Support them too!`,
-      oneHundred: `🎉 {collective} just reached 100 backers!! 🙌
+      oneHundred: `🎉 {collective} just reached 100 financial contributors!! 🙌
 Support them too!`,
-      oneThousandBackers: `🎉 {collective} just reached 1,0000 backers!!! 🙌
+      oneThousandBackers: `🎉 {collective} just reached 1,000 financial contributors!!! 🙌
 Support them too!`,
       updatePublished: 'Latest update from the collective: {title}',
       monthlyStats: `In {month}, {totalNewBackers, select,
   0 {we}
-  1 {one new backer joined. We}
-  other {{totalNewBackers} {totalNewBackers, plural, one {backer} other {backers}} joined ({newBackersTwitterHandles}) - you are the best! 🙌
+  1 {one new financial contributor joined. We}
+  other {{totalNewBackers} {totalNewBackers, plural, one {financial contributor} other {financial contributors}} joined{newBackersTwitterHandlesCount, select, 0 {.} other { ({newBackersTwitterHandles}) - you are the best! 🙌}}
 
 We}
-} received {totalAmountReceived} from {totalActiveBackers} {totalActiveBackers, plural, one {backer} other {backers}}{totalAmountSpent, plural,
+} received {totalAmountReceived} from {totalActiveBackers} {totalActiveBackers, plural, one {financial contributor} other {financial contributors}}{totalAmountSpent, plural,
   =0 {.}
-  other { and we spent {topExpenseCategories, select,
-      none {{totalAmountSpent}}
-      other {{totalAmountSpent} on {topExpenseCategories}}}.}} Our current balance is {balance}.
+  other { and we spent {totalAmountSpent}.}} Our current balance is {balance}.{newBackersTwitterHandlesCount, select, 0 {} other {
 
-Top backers: {topBackersTwitterHandles}`,
+Top financial contributors: {topBackersTwitterHandles}}}`,
       monthlyStatsNoNewDonation: `In {month}, we haven't received any new donation.
 
 Our current balance is {balance}.
 
-Become a backer! 😃`,
+Become a financial contributor! 😃`,
     },
   };
 
@@ -157,6 +157,7 @@ Become a backer! 😃`,
 
   if (!messages['en-US'][template]) {
     console.error('Invalid tweet template', template);
+    reportMessageToSentry(`Invalid tweet template`, { extra: { template } });
     return;
   }
 

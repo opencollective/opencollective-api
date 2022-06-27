@@ -1,10 +1,12 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { Currency } from '../enum';
 import { ExpenseType } from '../enum/ExpenseType';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { ExpenseItemCreateInput } from './ExpenseItemCreateInput';
+import { ExpenseTaxInput } from './ExpenseTaxInput';
 import { LocationInput } from './LocationInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
 
@@ -13,10 +15,18 @@ import { PayoutMethodInput } from './PayoutMethodInput';
  */
 export const ExpenseCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseCreateInput',
-  fields: {
+  fields: () => ({
     description: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Main title of the expense',
+    },
+    longDescription: {
+      type: GraphQLString,
+      description: 'Longer text to attach to the expense',
+    },
+    currency: {
+      type: Currency,
+      description: 'Currency that should be used for the payout. Defaults to the account currency',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -28,20 +38,15 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     },
     privateMessage: {
       type: GraphQLString,
-      description: 'A private note that will be attached to your invoice',
+      description: 'A private note that will be attached to your invoice, as HTML',
     },
     invoiceInfo: {
       type: GraphQLString,
-      description: 'Tax ID, VAT number...etc This information will be printed on your invoice.',
+      description: 'Custom information to print on the invoice',
     },
     payoutMethod: {
       type: new GraphQLNonNull(PayoutMethodInput),
       description: 'The payout method that will be used to reimburse the expense',
-    },
-    attachments: {
-      type: new GraphQLList(ExpenseItemCreateInput),
-      description:
-        '@deprecated 2020-04-08: Please use the items field - The list of items for this expense. Total amount will be computed from them.',
     },
     items: {
       type: new GraphQLList(ExpenseItemCreateInput),
@@ -59,5 +64,9 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
       type: LocationInput,
       description: 'The address of the payee',
     },
-  },
+    tax: {
+      type: new GraphQLList(ExpenseTaxInput),
+      description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
+    },
+  }),
 });

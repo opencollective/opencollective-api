@@ -1,5 +1,6 @@
 import { Account } from './interface/Account';
 import { Amount } from './object/Amount';
+import { Application } from './object/Application';
 import { Bot } from './object/Bot';
 import { Collective } from './object/Collective';
 import { Credit } from './object/Credit';
@@ -9,8 +10,11 @@ import { Individual } from './object/Individual';
 import { Member, MemberOf } from './object/Member';
 import { Organization } from './object/Organization';
 import { TransferWise } from './object/TransferWise';
+import { Vendor } from './object/Vendor';
+import { VirtualCard } from './object/VirtualCard';
 
 const types = [
+  Application,
   Account,
   Amount,
   Bot,
@@ -23,6 +27,8 @@ const types = [
   MemberOf,
   Organization,
   TransferWise,
+  Vendor,
+  VirtualCard,
 ];
 
 export default types;

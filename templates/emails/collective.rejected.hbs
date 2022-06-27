@@ -2,9 +2,9 @@ Subject: Your application to {{host.name}}
 
 {{> header}}
 
-<h1>Hey {{collective.name}}</h1>
+<h1>Hello {{collective.name}}</h1>
 
-<p>Thank you for applying to host your Collective {{collective.name}} with {{host.name}}. Unfortunately your application has been rejected.</p>
+<p>Your application to be fiscally hosted by {{host.name}} has been rejected.</p>
 
 {{#if rejectionReason}}
   <p>Note from {{host.name}}:</p>
@@ -12,8 +12,9 @@ Subject: Your application to {{host.name}}
 {{/if}}
 
 <p>
-  If you would like to apply to another fiscal host, click the "apply" button on their page (if you meet their acceptance criteria). View fiscal hosts <a href="{{config.host.website}}/hosts">here</a>. You may also consider hosting your own Collective (<a href="https://docs.opencollective.com/help/fiscal-hosts/become-a-fiscal-host">more details</a>).
+  You may wish to <a href="{{config.host.website}}/hosts">find another Fiscal Host</a> to apply to.</p>
+
+  <p>You may also consider keeping the money in your own bank account instead of signing up with a Fiscal Host (<a href="https://docs.opencollective.com/help/fiscal-hosts/become-a-fiscal-host">more details</a>).
 </p>
 
-<p>If you have questions, reply to this email to reach {{host.name}}, or contact <a href="mailto:support@opencollective.com">support@opencollective.com</a> for general inquiries.</p>
 {{> footer}}

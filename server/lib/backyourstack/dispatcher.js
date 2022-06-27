@@ -9,6 +9,7 @@ import activities from '../../constants/activities';
 import status from '../../constants/order_status';
 import models from '../../models';
 import * as paymentsLib from '../payments';
+import { reportErrorToSentry } from '../sentry';
 
 const debug = debugLib('backyourstack');
 
@@ -65,11 +66,11 @@ async function createPaymentMethod(originalCreditTransaction) {
 export async function dispatchFunds(order) {
   // Amount shareable amongst dependencies
   const transaction = await models.Transaction.findOne({
-    where: { OrderId: order.id, type: 'CREDIT' },
+    where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
   });
 
   const originalCreditTransaction = await models.Transaction.findOne({
-    where: { OrderId: order.id, type: 'CREDIT' },
+    where: { OrderId: order.id, type: 'CREDIT', kind: 'CONTRIBUTION' },
   });
 
   const shareableAmount = transaction.netAmountInCollectiveCurrency;
@@ -85,6 +86,7 @@ export async function dispatchFunds(order) {
   } catch (err) {
     debug('Error fetching dependencies', err);
     console.error(err);
+    reportErrorToSentry(err);
     throw new Error('Unable to fetch dependencies, check jsonUrl.');
   }
 
@@ -125,7 +127,7 @@ export async function dispatchFunds(order) {
         description: `Monthly financial contribution to ${collective.name} through BackYourStack`,
         totalAmount,
         currency: order.currency,
-        status: status.PENDING,
+        status: status.NEW,
       };
       const orderCreated = await models.Order.create(orderData);
 
@@ -168,5 +170,6 @@ export async function dispatch(order, subscription) {
   } catch (err) {
     console.log('>>>> Background dispatch failed');
     console.error(err);
+    reportErrorToSentry(err);
   }
 }

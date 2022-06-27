@@ -1,0 +1,27 @@
+<h3 style="margin: 24px;">Expense items</h3>
+<table style="width: 100%;">
+  <tbody>
+    {{#each items}}
+      <tr>
+        {{#if this.url}}
+          <td style="width: 66px; border-bottom: 1px dotted rgb(196, 199, 204); padding: 12px 0;">
+            <div style="border: 1px solid #dcdee0; width: 48px; height: 48px; padding: 4px;">
+              <a href="{{this.url}}">
+                <div class="preview" style="width: 100%; height: 100%; z-index:0; background-size: contain; background-repeat: no-repeat; background-position: center; background-image: url('https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{this.url}}');"></div>
+              </a>
+            </div>
+          </td>
+        {{/if}}
+        <td style="border-bottom: 1px dotted rgb(196, 199, 204); padding: 12px 0; border-right: 1px dotted rgb(223 223 225); padding-right: 10px;">
+          <p style="margin: 0; margin-bottom: 4px;">{{{this.description}}}</p>
+          <p style="margin: 0; color: #9D9FA3;">{{moment this.incurredAt}}</p>
+        </td>
+        <td style="border-bottom: 1px dotted rgb(196, 199, 204); padding: 12px 10px;">
+          <p style="text-align: right;">
+            {{currency this.amount currency=../expense.currency}}
+          </p>
+        </td>
+      </tr>
+    {{/each}}
+  </tbody>
+</table>

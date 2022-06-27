@@ -1,7 +1,33 @@
-/* eslint-disable camelcase, @typescript-eslint/camelcase */
+/* eslint-disable camelcase */
 import paypal from '@paypal/payouts-sdk';
+import config from 'config';
+import express from 'express';
+import { difference, find } from 'lodash';
 
-import { PayoutBatchDetails, PayoutRequestBody, PayoutRequestResult } from '../types/paypal';
+import models, { Op } from '../models';
+import { paypalRequest } from '../paymentProviders/paypal/api';
+import {
+  PayoutBatchDetails,
+  PayoutRequestBody,
+  PayoutRequestResult,
+  PaypalWebhook,
+  PaypalWebhookEventType,
+  PaypalWebhookPatch,
+} from '../types/paypal';
+
+import logger from './logger';
+import { floatAmountToCents } from './math';
+
+const getPaypalWebhookUrl = host => {
+  if (config.env === 'development') {
+    // localhost URLs are not supported by PayPal
+    // Start this with: smee -u https://smee.io/opencollective-paypal-dev-testing-9805 -p 3060 -P /webhooks/paypal/9805
+    // (replace 9805 with the host id)
+    return `https://smee.io/opencollective-paypal-dev-testing-${host.id}`;
+  } else {
+    return `${config.host.api}/webhooks/paypal/${host.id}`;
+  }
+};
 
 const parseError = e => {
   try {
@@ -21,7 +47,7 @@ type ConnectedAccount = {
 
 const getPayPalClient = ({ token, clientId }: ConnectedAccount): ReturnType<typeof paypal.core.PayPalHttpClient> => {
   const environment =
-    process.env.NODE_ENV === 'production'
+    config.env === 'production'
       ? new paypal.core.LiveEnvironment(clientId, token)
       : new paypal.core.SandboxEnvironment(clientId, token);
 
@@ -30,7 +56,7 @@ const getPayPalClient = ({ token, clientId }: ConnectedAccount): ReturnType<type
 
 const executeRequest = async (
   connectedAccount: ConnectedAccount,
-  request: PayoutRequestBody | Record<string, any>,
+  request: PayoutRequestBody | Record<string, unknown>,
 ): Promise<any> => {
   try {
     const client = getPayPalClient(connectedAccount);
@@ -66,9 +92,22 @@ export const validateConnectedAccount = async ({ token, clientId }: ConnectedAcc
   await client.fetchAccessToken();
 };
 
+export const getHostPaypalAccount = async (host): Promise<typeof models.ConnectedAccount> => {
+  const [account] = await host.getConnectedAccounts({
+    where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
+    order: [['createdAt', 'DESC']],
+  });
+
+  if (!account || !account.clientId || !account.token) {
+    return null;
+  } else {
+    return account;
+  }
+};
+
 export const validateWebhookEvent = async (
   { token, clientId, settings }: ConnectedAccount,
-  req: any,
+  req: express.Request,
 ): Promise<void> => {
   const client = getPayPalClient({ token, clientId });
   const request = {
@@ -95,6 +134,188 @@ export const validateWebhookEvent = async (
   } catch (e) {
     throw new Error(parseError(e));
   }
+};
+
+/** Converts a PayPal amount like '12.50' to its value in cents (1250) */
+export const paypalAmountToCents = (amountStr: string): number => {
+  return floatAmountToCents(parseFloat(amountStr));
+};
+
+// ---- Webhooks management ----
+
+/**
+ * This array defines all the event types that we're watching in `server/paymentProviders/paypal/webhook.ts`.
+ * After adding something here, you'll need to run `scripts/update-hosts-paypal-webhooks.ts` to update
+ * all the existing webhooks.
+ */
+const WATCHED_EVENT_TYPES = [
+  // Payouts
+  'PAYMENT.PAYOUTSBATCH.DENIED',
+  'PAYMENT.PAYOUTSBATCH.PROCESSING',
+  'PAYMENT.PAYOUTSBATCH.SUCCESS',
+  'PAYMENT.PAYOUTS-ITEM.BLOCKED',
+  'PAYMENT.PAYOUTS-ITEM.CANCELED',
+  'PAYMENT.PAYOUTS-ITEM.DENIED',
+  'PAYMENT.PAYOUTS-ITEM.FAILED',
+  'PAYMENT.PAYOUTS-ITEM.HELD',
+  'PAYMENT.PAYOUTS-ITEM.REFUNDED',
+  'PAYMENT.PAYOUTS-ITEM.RETURNED',
+  'PAYMENT.PAYOUTS-ITEM.SUCCEEDED',
+  'PAYMENT.PAYOUTS-ITEM.UNCLAIMED',
+  // Payments
+  'PAYMENT.CAPTURE.COMPLETED',
+  'PAYMENT.CAPTURE.REFUNDED',
+  'PAYMENT.CAPTURE.REVERSED',
+  // Subscriptions
+  'BILLING.SUBSCRIPTION.CANCELLED',
+  'BILLING.SUBSCRIPTION.SUSPENDED',
+  'BILLING.SUBSCRIPTION.ACTIVATED',
+  'PAYMENT.SALE.COMPLETED',
+];
+
+/**
+ * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_list
+ */
+const listPaypalWebhooks = async (host): Promise<PaypalWebhook[]> => {
+  const result = await paypalRequest('notifications/webhooks', null, host, 'GET');
+  return <PaypalWebhook[]>result['webhooks'];
+};
+
+/**
+ * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_post
+ */
+const createPaypalWebhook = async (host, webhookData): Promise<PaypalWebhook> => {
+  return <PaypalWebhook>await paypalRequest(`notifications/webhooks`, webhookData, host, 'POST');
+};
+
+/**
+ * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_update
+ */
+const updatePaypalWebhook = async (
+  host,
+  webhookId: string,
+  patchRequest: PaypalWebhookPatch,
+): Promise<PaypalWebhook> => {
+  return <PaypalWebhook>await paypalRequest(`notifications/webhooks/${webhookId}`, patchRequest, host, 'PATCH');
+};
+
+/**
+ * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_get
+ */
+const getPaypalWebhook = async (host, webhookId): Promise<PaypalWebhook> => {
+  return <PaypalWebhook>await paypalRequest(`notifications/webhooks/${webhookId}`, null, host, 'GET');
+};
+
+/**
+ * See https://developer.paypal.com/docs/api/webhooks/v1/#webhooks_delete
+ */
+const deletePaypalWebhook = async (host, webhookId): Promise<void> => {
+  await paypalRequest(`notifications/webhooks/${webhookId}`, null, host, 'DELETE');
+};
+
+const isOpenCollectiveWebhook = (webhook: PaypalWebhook): boolean => {
+  if (config.env === 'development') {
+    // localhost URLs are not supported by PayPal
+    return webhook.url.startsWith(`https://smee.io/opencollective-paypal-dev-testing`);
+  } else {
+    return webhook.url.startsWith(`${config.host.api}/webhooks/paypal`);
+  }
+};
+
+/**
+ * Check if a webhook has all event types required by Open Collective
+ */
+const isCompatibleWebhook = (webhook: PaypalWebhook): boolean => {
+  if (!isOpenCollectiveWebhook(webhook)) {
+    return false;
+  } else if (webhook.url.endsWith('/paypal')) {
+    // Old format, force update
+    return false;
+  } else {
+    const webhookEvents = webhook['event_types'].map(event => event.name);
+    const differences = difference(WATCHED_EVENT_TYPES, webhookEvents);
+    return differences.length === 0;
+  }
+};
+
+/**
+ * Check if the connected account setup for this host is compatible with our system
+ */
+const hostPaypalWebhookIsReady = async (host): Promise<boolean> => {
+  const connectedAccount = await getHostPaypalAccount(host);
+  const webhookId = connectedAccount?.settings?.webhookId;
+  if (!webhookId) {
+    return false;
+  }
+
+  const webhook = await getPaypalWebhook(host, webhookId);
+  return webhook ? isCompatibleWebhook(webhook) : false;
+};
+
+const updatePaypalAccountWithWebhook = async (connectedAccount, webhook: PaypalWebhook) => {
+  if (connectedAccount.settings?.webhookId === webhook.id) {
+    return connectedAccount; // Nothing to do
+  }
+
+  return connectedAccount.update({ settings: { ...connectedAccount.settings, webhookId: webhook.id } });
+};
+
+/**
+ * If needed, create a new webhook on PayPal and update host's connected account with its new info
+ */
+export const setupPaypalWebhookForHost = async (host): Promise<void> => {
+  if (await hostPaypalWebhookIsReady(host)) {
+    logger.debug(`Host ${host.slug} already has a compatible webhook linked, skipping`);
+    return;
+  }
+
+  let newWebhook;
+  const connectedAccount = await getHostPaypalAccount(host);
+  const existingWebhooks = await listPaypalWebhooks(host);
+  const existingOCWebhook = find(existingWebhooks, isOpenCollectiveWebhook);
+  const webhookUrl = getPaypalWebhookUrl(host);
+
+  if (existingOCWebhook) {
+    if (isCompatibleWebhook(existingOCWebhook)) {
+      // Link webhook directly if it has the right events
+      logger.info(`Found an existing PayPal webhook to use, linking ${existingOCWebhook.id} to ${host.slug}`);
+      newWebhook = existingOCWebhook;
+    } else {
+      // Update webhook
+      logger.info(`Updating PayPal webhook ${existingOCWebhook.id} for ${host.slug}`);
+      const eventTypes = <PaypalWebhookEventType[]>WATCHED_EVENT_TYPES.map(name => ({ name }));
+      const patchRequest = [{ op: 'replace', path: '/event_types', value: eventTypes }];
+      newWebhook = await updatePaypalWebhook(host, existingOCWebhook.id, patchRequest);
+    }
+  } else {
+    // Create webhook
+    logger.info(`Creating PayPal webhook for ${host.slug}`);
+    const eventTypes = WATCHED_EVENT_TYPES.map(name => ({ name }));
+    const webhookData = { url: webhookUrl, event_types: eventTypes };
+    newWebhook = await createPaypalWebhook(host, webhookData);
+  }
+
+  await updatePaypalAccountWithWebhook(connectedAccount, newWebhook);
+};
+
+/**
+ * Removes all the Paypal webhooks pointing to Open Collective that are currently not used
+ */
+export const removeUnusedPaypalWebhooks = async (host): Promise<number> => {
+  const connectedAccount = await getHostPaypalAccount(host);
+  const currentWebhookId = connectedAccount?.settings?.webhookId;
+  const allHostWebhooks = await listPaypalWebhooks(host);
+
+  let deletedCount = 0;
+  for (const webhook of allHostWebhooks) {
+    if (isOpenCollectiveWebhook(webhook) && webhook.id !== currentWebhookId) {
+      logger.info(`Removing webhook: ${JSON.stringify(webhook)} for ${host.slug}`);
+      await deletePaypalWebhook(host, webhook.id);
+      deletedCount += 1;
+    }
+  }
+
+  return deletedCount;
 };
 
 export { paypal };

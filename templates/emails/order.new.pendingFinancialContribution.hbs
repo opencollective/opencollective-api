@@ -17,12 +17,13 @@ currency=order.currency}}} to {{collective.name}}
 
 <p>
   {{collective.name}} has a pending financial contribution of {{{currency order.totalAmount
-  currency=order.currency}}} from {{fromCollective.name}}. They have been sent bank wire transfer
-  instructions to transmit the funds to {{host.name}}.
+  currency=order.currency}}} from {{fromCollective.name}}. The payer has been sent instructions
+  to transmit the funds to the Fiscal Host, {{host.name}}. Once the funds arrive, the amount
+  will be credited to the balance of {{collective.name}}.
 </p>
 
-<p>Pending order details:
-  <a href="{{pendingOrderLink}}">{{pendingOrderLink}}</a>.
-</p>
+<a class="btn blue" href="{{pendingOrderLink}}">
+  <div style="font-size: 15px;">View Details</div>
+</a>
 
 {{> footer}}

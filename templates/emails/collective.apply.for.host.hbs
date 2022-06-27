@@ -1,4 +1,4 @@
-Subject: {{collective.name}} would love to be hosted by {{host.name}}
+Subject: {{{collective.name}}} wants to be hosted by {{{host.name}}}
 
 {{> header}}
 
@@ -15,15 +15,9 @@ Subject: {{collective.name}} would love to be hosted by {{host.name}}
 Dear admin of {{host.name}},
 
 <p>
-  {{user.collective.name}} would love you to host their {{collective.name}} collective.
-</p>
+  {{user.collective.name}} wants their Collective, {{collective.name}}, to join your Fiscal Host. If you approve this application, you agree to hold and account for money on their behalf.
 
-<p>By hosting them, you accept to collect money on their behalf and account for all of their transactions in your
-  books. For that service you will receive a commission of {{host.hostFeePercent}}% on all their donations (you
-  can edit that commission in the settings of your host on <a
-    href="https://opencollective.com/{{host.slug}}/edit">https://opencollective.com/{{host.slug}}/edit</a>.
-  You can read more about what it entails to be a host in our <a
-    href="https://docs.opencollective.com/help/hosts">FAQ</a>.</p>
+<p>{{host.name}} charges a default Host Fee of {{host.hostFeePercent}}%. You can edit your default Host Fee <a href="https://opencollective.com/{{host.slug}}/admin/fiscal-hosting">in your settings</a>, or set a custom fee per Collective in the Hosted Collectives area of <a href="https://opencollective.com/{{host.slug}}/admin/hosted-collectives">your Host Dashboard</a>. Or read more <a href="https://docs.opencollective.com/help/fiscal-hosts/fiscal-hosts">about Fiscal Hosting</a>.</p>
 
 <h2>Collective details</h2>
 <table>
@@ -35,14 +29,10 @@ Dear admin of {{host.name}},
     <th>Url</th>
     <td><a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></td>
   </tr>
+  {{#if collective.website}}
   <tr>
     <th>Website</th>
     <td>{{collective.website}}</td>
-  </tr>
-  {{#if collective.data.meetupSlug}}
-  <tr>
-    <th>Meetup</th>
-    <td>https://meetup.com/{{collective.data.meetupSlug}}</td>
   </tr>
   {{/if}}
   {{#if collective.data.members}}
@@ -51,22 +41,39 @@ Dear admin of {{host.name}},
     <td>{{collective.data.members}}</td>
   </tr>
   {{/if}}
+  {{#if collective.twitterHandle}}
   <tr>
     <th>Twitter</th>
     <td>{{collective.twitterHandle}}</td>
   </tr>
+  {{/if}}
   <tr>
     <th>Description</th>
     <td>{{collective.description}}</td>
   </tr>
   <tr>
     <th>Tags</th>
-    <td>{{{json collective.tags}}}</td>
+    <td>{{json collective.tags}}</td>
   </tr>
+  {{#if application.customData}}
+    {{#each application.customData}}
+      <tr>
+        <th style="min-width: 115px;">{{prettifyVariableName @key}}</th>
+        <td>{{this}}</td>
+      </tr>
+    {{/each}}
+  {{/if}}
 </table>
 
+{{#if application.message}}
+  <h2>Message</h2>
+  <p>
+    <blockquote style="color: #6a737d;font-size: 14px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">{{application.message}}</blockquote>
+  </p>
+{{/if}}
+
 <h2>Creator</h2>
-https://opencollective.com/{{user.collective.slug}}
+<a href="https://opencollective.com/{{user.collective.slug}}">https://opencollective.com/{{user.collective.slug}}</a>
 <br /><br />
 <table>
   <tr>
@@ -89,9 +96,9 @@ https://opencollective.com/{{user.collective.slug}}
 
 <br /><br />
 <center>
-  <a 
+  <a
     class="btn blue"
-    href="{{config.host.website}}/{{host.slug}}/dashboard/pending-applications#application-{{collective.id}}"
+    href="{{config.host.website}}/{{host.slug}}/admin/pending-applications#application-{{collective.id}}"
   >
     <div style="font-size: 15px;">View application</div>
   </a>

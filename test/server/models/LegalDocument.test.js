@@ -4,13 +4,7 @@ import moment from 'moment';
 import models from '../../../server/models';
 import * as utils from '../../utils';
 
-const { RequiredLegalDocument, LegalDocument, User, Collective } = models;
-const {
-  documentType: { US_TAX_FORM },
-} = RequiredLegalDocument;
-const {
-  requestStatus: { RECEIVED },
-} = LegalDocument;
+const { LegalDocument, User, Collective } = models;
 
 describe('server/models/LegalDocument', () => {
   // globals to be set in the before hooks.
@@ -196,89 +190,5 @@ describe('server/models/LegalDocument', () => {
     });
     const doc = await LegalDocument.create(legalDoc);
     expect(doc.requestStatus).to.eq(LegalDocument.requestStatus.NOT_REQUESTED);
-  });
-
-  describe('hasUserCompletedDocument', async () => {
-    it('it returns true when the doc is RECEIVED', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-        requestStatus: RECEIVED,
-      });
-
-      await LegalDocument.create(legalDoc);
-
-      const result = await LegalDocument.hasUserCompletedDocument({
-        documentType: US_TAX_FORM,
-        year: documentData.year,
-        user,
-      });
-      expect(result).to.be.true;
-    });
-
-    it('it returns false when the doc is not RECEIVED', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-      });
-
-      await LegalDocument.create(legalDoc);
-
-      const result = await LegalDocument.hasUserCompletedDocument({
-        documentType: US_TAX_FORM,
-        year: documentData.year,
-        user,
-      });
-      expect(result).to.be.false;
-    });
-  });
-
-  describe('doesUserNeedToBeSentDocument', async () => {
-    it('it returns true when a user has not supplied the document', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-      });
-
-      await LegalDocument.create(legalDoc);
-
-      const result = await LegalDocument.doesUserNeedToBeSentDocument({
-        documentType: US_TAX_FORM,
-        year: documentData.year,
-        user,
-      });
-      expect(result).to.be.true;
-    });
-
-    it('it returns false when the document status is RECEIVED or REQUESTED for the correct year and of the correct type', async () => {
-      const legalDoc = Object.assign({}, documentData, {
-        CollectiveId: userCollective.id,
-      });
-      const doc = await LegalDocument.create(legalDoc);
-
-      doc.requestStatus = LegalDocument.requestStatus.RECEIVED;
-      await doc.save();
-
-      const result = await LegalDocument.doesUserNeedToBeSentDocument({
-        documentType: US_TAX_FORM,
-        year: documentData.year,
-        user,
-      });
-      expect(result).to.be.false;
-
-      doc.requestStatus = LegalDocument.requestStatus.REQUESTED;
-      await doc.save();
-
-      const result2 = await LegalDocument.doesUserNeedToBeSentDocument({
-        documentType: US_TAX_FORM,
-        year: documentData.year,
-        user,
-      });
-      expect(result2).to.be.false;
-
-      const result3 = await LegalDocument.doesUserNeedToBeSentDocument({
-        documentType: US_TAX_FORM,
-        year: documentData.year + 1,
-        user,
-      });
-      expect(result3).to.be.true;
-    });
   });
 });

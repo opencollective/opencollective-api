@@ -4,14 +4,33 @@ Subject: Welcome to Open Collective!
 
 <h1>Hey {{collective.name}} 👋</h1>
 
-<p>I’m Pía, one of the founders of Open Collective. I’d love to help you set up and get your collective up and running. Feel free to reach out to me directly by replying to this email. I'm here to help you!</p>
+<p>We’d love to help you get your {{accountType}} up and running.</p>
 
-<p>Your collective is pending approval from your host (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>). Your host is the legal entity that will hold the money on behalf of your collective. Once they approve you, you will be able to collect money for your collective without having to worry about accounting, invoicing, etc. If you already have a legal entity that could act as your host, please reach out!</p>
+{{#if host}}
 
-<p>In the meantime, you can already customize your collective page, submit expenses, organize events (with free tickets), post updates and add members.</p>
-<p> Don't forget to check our <a href="https://docs.opencollective.com/help/collectives/customize-collective">docs</a> to make the most from our customization options.</p>
+<p>
+  {{#if hostPending}}
+  Your {{accountType}} is pending approval for Fiscal Hosting by (<a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>).
+  Your Host will hold money on behalf of your {{accountType}}.
+  Once approved, your {{accountType}} will be able to receive money.
+  {{else}}
+  Your {{accountType}} is hosted by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>, which will hold money on its behalf.
+  {{/if}}
+</p>
 
-<p>Let us know if you need any help setting things up, we are here to help your collective succeed.</p>
+{{else}}
+
+<p>
+  In order to receive money, you need to specify where funds will be held. You can either sign up with a <a href="https://opencollective.com/fiscal-hosting">Fiscal Host</a>, which will take care of things like accounting, banking, and tax reporting for you, or you can be an <a href="https://docs.opencollective.com/help/independent-collectives">Independent Collective</a> and hold money in your own bank account.
+</p>
+
+{{/if}}
+
+<p>There are lots of options and features to explore for your {{accountType}}, so <a href="https://opencollective.com/{{collective.slug}}/admin">head to your settings</a> to customize your page and add team members.</p>
+
+<p>Check our <a href="https://docs.opencollective.com/help/collectives/quick-start-guide">quick-start guide</a> to learn more.</p>
+
+<p>Let us know if you need any help!</p>
 
 <p>
   <center>
@@ -19,10 +38,10 @@ Subject: Welcome to Open Collective!
   </center>
 </p>
 
-<p>Feel free to schedule a call (<a href="http://calendly.com/piamancini/call">calendly.com/piamancini/call</a>), email me or <a href="https://slack.opencollective.com">join us on our Slack</a>. We would love to know your story.</p>
+<p>Feel free to reply to this email or <a href="https://slack.opencollective.com">join us on our Slack</a>.</p>
 
 <p>Best,</p>
 
-<p>Pía, and the Open Collective Team</p>
+<p>The Open Collective Team</p>
 
 {{> footer}}

@@ -22,12 +22,54 @@ const getCollectiveInfo = collective => {
       'website',
       'twitterHandle',
       'githubHandle',
+      'repositoryUrl',
       'description',
       'previewImage',
       'image',
     ]);
   }
 };
+
+const getTierInfo = tier => {
+  if (!tier) {
+    return null;
+  } else {
+    return pick(tier, ['id', 'name', 'amount', 'currency', 'description', 'maxQuantity']);
+  }
+};
+
+const getOrderInfo = order => {
+  if (!order) {
+    return null;
+  } else {
+    return pick(order, [
+      'id',
+      'totalAmount',
+      'currency',
+      'description',
+      'interval',
+      'createdAt',
+      'quantity',
+      'FromCollectiveId',
+      'TierId',
+    ]);
+  }
+};
+
+const expenseActivities = [
+  activities.COLLECTIVE_EXPENSE_CREATED,
+  activities.COLLECTIVE_EXPENSE_DELETED,
+  activities.COLLECTIVE_EXPENSE_UPDATED,
+  activities.COLLECTIVE_EXPENSE_REJECTED,
+  activities.COLLECTIVE_EXPENSE_APPROVED,
+  activities.COLLECTIVE_EXPENSE_UNAPPROVED,
+  activities.COLLECTIVE_EXPENSE_PAID,
+  activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,
+  activities.COLLECTIVE_EXPENSE_PROCESSING,
+  activities.COLLECTIVE_EXPENSE_ERROR,
+  activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
+  activities.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
+];
 
 /**
  * Sanitize an activity to make it suitable for posting on external webhooks
@@ -52,7 +94,7 @@ export const sanitizeActivity = activity => {
       'update.tags',
       'update.isPrivate',
     ]);
-  } else if (type === activities.COLLECTIVE_EXPENSE_CREATED) {
+  } else if (expenseActivities.includes(type)) {
     cleanActivity.data = pick(activity.data, [
       'expense.id',
       'expense.description',
@@ -61,39 +103,40 @@ export const sanitizeActivity = activity => {
     ]);
     cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
   } else if (type === activities.COLLECTIVE_MEMBER_CREATED) {
-    cleanActivity.data = pick(activity.data, [
-      'member.role',
-      'member.description',
-      'member.since',
-      'order.id',
-      'order.totalAmount',
-      'order.currency',
-      'order.description',
-      'order.interval',
-    ]);
+    cleanActivity.data = pick(activity.data, ['member.role', 'member.description', 'member.since']);
+    cleanActivity.data.order = getOrderInfo(activity.data.order);
     cleanActivity.data.member.memberCollective = getCollectiveInfo(activity.data.member.memberCollective);
+  } else if (type === activities.TICKET_CONFIRMED) {
+    cleanActivity.data = pick(activity.data, ['recipient.name']);
+    cleanActivity.data.tier = getTierInfo(activity.data.tier);
+    cleanActivity.data.order = getOrderInfo(activity.data.order);
   }
 
   return cleanActivity;
+};
+
+const enrichActivityData = data => {
+  if (!data) {
+    return null;
+  }
+
+  Object.entries(data).forEach(([key, value]) => {
+    if (value && typeof value === 'object') {
+      enrichActivityData(value);
+    } else if (key === 'amount' || key === 'totalAmount') {
+      const amount = value;
+      const currency = data['currency'];
+      const interval = data['interval'];
+      data.formattedAmount = currency ? formatCurrency(amount, currency, 2) : (amount / 100).toFixed(2);
+      data.formattedAmountWithInterval = interval ? `${data.formattedAmount} / ${interval}` : data.formattedAmount;
+    }
+  });
 };
 
 /**
  * Adds user-friendly fields to an activity. Mutates activity.
  */
 export const enrichActivity = activity => {
-  Object.entries(activity).forEach(([key, value]) => {
-    if (value && typeof value === 'object') {
-      enrichActivity(value);
-    } else if (key === 'amount' || key === 'totalAmount') {
-      const amount = activity['amount'] || activity['totalAmount'];
-      const currency = activity['currency'];
-      const interval = activity['interval'];
-      activity.formattedAmount = currency ? formatCurrency(amount, currency, 2) : (amount / 100).toFixed(2);
-      activity.formattedAmountWithInterval = interval
-        ? `${activity.formattedAmount} / ${interval}`
-        : activity.formattedAmount;
-    }
-  });
-
+  enrichActivityData(activity.data);
   return activity;
 };

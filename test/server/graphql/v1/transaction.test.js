@@ -1,9 +1,10 @@
 /**
  * Note: to update the snapshots run:
- * TZ=UTC CHAI_JEST_SNAPSHOT_UPDATE_ALL=true npx mocha test/graphql.transaction.test.js
+ * TZ=UTC CHAI_JEST_SNAPSHOT_UPDATE_ALL=true npx mocha test/server/graphql/v1/transaction.test.js
  */
 
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 
 import models from '../../../../server/models';
@@ -48,31 +49,27 @@ describe('server/graphql/v1/transaction', () => {
   describe('return collective.transactions', () => {
     it('when given a collective slug (case insensitive)', async () => {
       const limit = 40;
-      const query = `
+      const collectiveQuery = gql`
         query Collective($slug: String, $limit: Int) {
           Collective(slug: $slug) {
-            id,
+            id
             slug
             transactions(limit: $limit) {
               id
               type
               createdByUser {
                 id
-                firstName
                 email
-              },
+              }
               host {
                 id
                 slug
-              },
-              ... on Expense {
-                attachment
               }
               ... on Order {
                 paymentMethod {
                   id
                   name
-                },
+                }
                 subscription {
                   id
                   interval
@@ -82,40 +79,36 @@ describe('server/graphql/v1/transaction', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, {
+      const result = await utils.graphqlQuery(collectiveQuery, {
         slug: 'WWCodeAustin',
         limit,
       });
       expect(result.data.Collective).to.exist;
-      expect(result.data.Collective.transactions).to.have.length(10);
+      expect(result.data.Collective.transactions).to.have.length(20);
       expect(result).to.matchSnapshot();
     });
   });
 
   describe('return transactions', () => {
     it('returns one transaction by id', async () => {
-      const query = `
+      const transactionQuery = gql`
         query Transaction($id: Int) {
           Transaction(id: $id) {
             id
             type
             createdByUser {
               id
-              firstName
               email
-            },
+            }
             host {
               id
               slug
-            },
-            ... on Expense {
-              attachment
             }
             ... on Order {
               paymentMethod {
                 id
                 name
-              },
+              }
               subscription {
                 id
                 interval
@@ -124,33 +117,29 @@ describe('server/graphql/v1/transaction', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, { id: 2 });
+      const result = await utils.graphqlQuery(transactionQuery, { id: 2 });
       expect(result).to.matchSnapshot();
     });
 
     it('returns one transaction by uuid', async () => {
-      const query = `
+      const transactionQuery = gql`
         query Transaction($uuid: String) {
           Transaction(uuid: $uuid) {
             id
             type
             createdByUser {
               id
-              firstName
               email
-            },
+            }
             host {
               id
               slug
-            },
-            ... on Expense {
-              attachment
             }
             ... on Order {
               paymentMethod {
                 id
                 name
-              },
+              }
               subscription {
                 id
                 interval
@@ -160,7 +149,7 @@ describe('server/graphql/v1/transaction', () => {
         }
       `;
       const transaction = await models.Transaction.findOne();
-      const result = await utils.graphqlQuery(query, {
+      const result = await utils.graphqlQuery(transactionQuery, {
         uuid: transaction.uuid,
       });
       expect(result).to.matchSnapshot();
@@ -168,15 +157,15 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with filter on type', async () => {
       const limit = 100;
-      const query = `
-        query allTransactions($CollectiveId: Int!, $limit: Int, $offset: Int, $type: String) {
+      const allTransactionsQuery = gql`
+        query AllTransactions($CollectiveId: Int!, $limit: Int, $offset: Int, $type: String) {
           allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset, type: $type) {
             id
             type
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, {
+      const result = await utils.graphqlQuery(allTransactionsQuery, {
         CollectiveId: 3,
         limit,
         type: 'CREDIT',
@@ -187,9 +176,23 @@ describe('server/graphql/v1/transaction', () => {
 
     it('with dateFrom', async () => {
       // Given the followin query
-      const query = `
-        query allTransactions($CollectiveId: Int!, $limit: Int, $offset: Int, $type: String, $dateFrom: String $dateTo: String) {
-          allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset, type: $type, dateFrom: $dateFrom, dateTo: $dateTo) {
+      const allTransactionsQuery = gql`
+        query AllTransactions(
+          $CollectiveId: Int!
+          $limit: Int
+          $offset: Int
+          $type: String
+          $dateFrom: String
+          $dateTo: String
+        ) {
+          allTransactions(
+            CollectiveId: $CollectiveId
+            limit: $limit
+            offset: $offset
+            type: $type
+            dateFrom: $dateFrom
+            dateTo: $dateTo
+          ) {
             id
             createdAt
           }
@@ -197,19 +200,33 @@ describe('server/graphql/v1/transaction', () => {
       `;
 
       // When the query is executed with the parameter `dateFrom`
-      const result = await utils.graphqlQuery(query, {
+      const result = await utils.graphqlQuery(allTransactionsQuery, {
         CollectiveId: 3,
         dateFrom: '2017-10-01',
       });
-      expect(result.data.allTransactions).to.have.length(5);
+      expect(result.data.allTransactions).to.have.length(10);
       expect(result).to.matchSnapshot();
     });
 
     it('with dateTo', async () => {
       // Given the followin query
-      const query = `
-        query allTransactions($CollectiveId: Int!, $limit: Int, $offset: Int, $type: String, $dateFrom: String $dateTo: String) {
-          allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset, type: $type, dateFrom: $dateFrom, dateTo: $dateTo) {
+      const allTransactionsQuery = gql`
+        query AllTransactions(
+          $CollectiveId: Int!
+          $limit: Int
+          $offset: Int
+          $type: String
+          $dateFrom: String
+          $dateTo: String
+        ) {
+          allTransactions(
+            CollectiveId: $CollectiveId
+            limit: $limit
+            offset: $offset
+            type: $type
+            dateFrom: $dateFrom
+            dateTo: $dateTo
+          ) {
             id
             createdAt
           }
@@ -217,28 +234,27 @@ describe('server/graphql/v1/transaction', () => {
       `;
 
       // When the query is executed with the parameter `dateTo`
-      const result = await utils.graphqlQuery(query, {
+      const result = await utils.graphqlQuery(allTransactionsQuery, {
         CollectiveId: 3,
         dateTo: '2017-10-01',
       });
-      expect(result.data.allTransactions).to.have.length(5);
+      expect(result.data.allTransactions).to.have.length(10);
       expect(result).to.matchSnapshot();
     });
 
     it('with pagination', async () => {
       const limit = 20;
       const offset = 0;
-      const query = `
-        query allTransactions($CollectiveId: Int!, $limit: Int, $offset: Int) {
+      const allTransactionsQuery = gql`
+        query AllTransactions($CollectiveId: Int!, $limit: Int, $offset: Int) {
           allTransactions(CollectiveId: $CollectiveId, limit: $limit, offset: $offset) {
             id
             type
+            kind
             createdByUser {
               id
-              firstName
-              lastName
               email
-            },
+            }
             fromCollective {
               id
               slug
@@ -250,15 +266,12 @@ describe('server/graphql/v1/transaction', () => {
             host {
               id
               slug
-            },
-            ... on Expense {
-              attachment
             }
             ... on Order {
               paymentMethod {
                 id
                 name
-              },
+              }
               subscription {
                 id
                 interval
@@ -267,229 +280,12 @@ describe('server/graphql/v1/transaction', () => {
           }
         }
       `;
-      const result = await utils.graphqlQuery(query, {
+      const result = await utils.graphqlQuery(allTransactionsQuery, {
         CollectiveId: 3,
         limit,
         offset,
       });
       expect(result).to.matchSnapshot();
-    });
-
-    describe('`transactions` query', () => {
-      const limit = 5;
-      const offset = 5;
-
-      it('default returns list of transactions with pagination data', async () => {
-        const query = `
-          query transactions {
-            transactions {
-              limit
-              offset
-              total
-              transactions {
-                id
-                type
-                createdByUser {
-                  id
-                  firstName
-                  lastName
-                  email
-                },
-                fromCollective {
-                  id
-                  slug
-                }
-                collective {
-                  id
-                  slug
-                }
-                host {
-                  id
-                  slug
-                },
-                ... on Expense {
-                  attachment
-                }
-                ... on Order {
-                  paymentMethod {
-                    id
-                    name
-                  },
-                  subscription {
-                    id
-                    interval
-                  }
-                }
-              }
-            }
-          }
-        `;
-
-        const result = await utils.graphqlQuery(query);
-        expect(result.data.transactions.limit).to.exist;
-        expect(result.data.transactions.offset).to.exist;
-        expect(result.data.transactions.total).to.exist;
-        expect(result.data.transactions.transactions).to.exist;
-      });
-
-      it('accepts pagination arguments: limit & offset', async () => {
-        const query = `
-          query transactions($limit: Int!, $offset: Int!) {
-            transactions(limit: $limit, offset: $offset) {
-              limit
-              offset
-              total
-              transactions {
-                id
-                type
-                createdByUser {
-                  id
-                  firstName
-                  lastName
-                  email
-                },
-                fromCollective {
-                  id
-                  slug
-                }
-                collective {
-                  id
-                  slug
-                }
-                host {
-                  id
-                  slug
-                },
-                ... on Expense {
-                  attachment
-                }
-                ... on Order {
-                  paymentMethod {
-                    id
-                    name
-                  },
-                  subscription {
-                    id
-                    interval
-                  }
-                }
-              }
-            }
-          }
-        `;
-
-        const result = await utils.graphqlQuery(query, { limit, offset });
-        expect(result.data.transactions.limit).to.equal(limit);
-        expect(result.data.transactions.offset).to.equal(offset);
-        expect(result.data.transactions.total).to.equal(20);
-        expect(result.data.transactions.transactions).to.have.length(5);
-        expect(result).to.matchSnapshot();
-      });
-
-      it('accepts type argument to filter transactions by type', async () => {
-        const query = `
-          query transactions($limit: Int!) {
-            transactions(limit: $limit, type: CREDIT) {
-              limit
-              offset
-              total
-              transactions {
-                id
-                type
-                createdByUser {
-                  id
-                  firstName
-                  lastName
-                  email
-                },
-                fromCollective {
-                  id
-                  slug
-                }
-                collective {
-                  id
-                  slug
-                }
-                host {
-                  id
-                  slug
-                },
-                ... on Expense {
-                  attachment
-                }
-                ... on Order {
-                  paymentMethod {
-                    id
-                    name
-                  },
-                  subscription {
-                    id
-                    interval
-                  }
-                }
-              }
-            }
-          }
-        `;
-
-        const result = await utils.graphqlQuery(query, { limit });
-        expect(result).to.matchSnapshot();
-      });
-
-      it('accepts orderBy argument to order transactions', async () => {
-        const query = `
-          query transactions($limit: Int!) {
-            transactions(limit: $limit, type: CREDIT, orderBy: { field: CREATED_AT, direction: ASC }) {
-              limit
-              offset
-              total
-              transactions {
-                id
-                type
-                createdAt
-                createdByUser {
-                  id
-                  firstName
-                  lastName
-                  email
-                },
-                fromCollective {
-                  id
-                  slug
-                }
-                collective {
-                  id
-                  slug
-                }
-                host {
-                  id
-                  slug
-                },
-                ... on Expense {
-                  attachment
-                }
-                ... on Order {
-                  paymentMethod {
-                    id
-                    name
-                  },
-                  subscription {
-                    id
-                    interval
-                  }
-                }
-              }
-            }
-          }
-        `;
-
-        const result = await utils.graphqlQuery(query, { limit });
-        expect(result.data.transactions.limit).to.equal(5);
-        expect(result.data.transactions.offset).to.equal(0);
-        expect(result.data.transactions.total).to.equal(10);
-        expect(result.data.transactions.transactions).to.have.length(5);
-        expect(result).to.matchSnapshot();
-      });
     });
   });
 });

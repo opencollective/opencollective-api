@@ -1,0 +1,288 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`] = `
+"<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">
+<html xmlns=\\"http://www.w3.org/1999/xhtml\\">
+<head>
+  <meta http-equiv=\\"Content-Type\\" content=\\"text/html; charset=UTF-8\\">
+  <title></title>
+  <style>
+@media only screen and (min-device-width: 601px) {
+  .content {
+    width: 600px !important;
+  }
+}
+.btn.blue:hover {
+  background: linear-gradient(180deg,#297EFF 0%,#1869F5 100%);
+  background-color: #297EFF;
+  border-color: #297EFF;
+  color: #FFFFFF;
+}
+</style>
+</head>
+<body margin=\\"0\\" padding=\\"0\\" yahoo style=\\"margin: 0; padding: 0; min-width: 100%;\\">
+
+<table bgcolor=\\"white\\" border=\\"0\\" cellpadding=\\"0\\" cellspacing=\\"0\\" width=\\"100%\\" style=\\"font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:14px;\\"><tr><td align=\\"center\\" valign=\\"top\\">
+  <!--[if (gte mso 9)|(IE)]>
+    <table width=\\"600\\" align=\\"center\\" cellpadding=\\"0\\" cellspacing=\\"0\\" border=\\"0\\"><tr><td>
+  <![endif]-->
+  <table class=\\"content\\" border=\\"0\\" width=\\"100%\\" cellpadding=\\"0\\" cellspacing=\\"0\\" style=\\"width: 100%; max-width: 600px; padding: 0 10px;\\">
+    <tr>
+      <td></td>
+      <td>
+
+
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Xavier,</p>
+
+
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer à nous soutenir!</p>
+
+
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent recolté sur la page de notre collectif
+  ouvert:
+  <a href=\\"https://opencollective.com/enmarchebe\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe</a>.
+</p>
+
+<h2 style=\\"color: #303233; font-family: 'Helvetica Neue'; font-weight: normal; font-size: 20px; line-height: 24px; text-align: center;\\">Aidez-nous à récolter plus d'argent!</h2>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Partagez cette URL: <a href=\\"https://opencollective.com/enmarchebe/donate\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe/donate</a>.
+
+
+
+
+
+  </p><p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Encore merci! 🙏</p>
+
+  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">
+    – Le collectif En Marche
+  </p>
+
+  </td>
+  </tr>
+  <tr>
+    <td colspan=\\"3\\" height=\\"40\\"></td>
+  </tr>
+  <tr>
+    <td colspan=\\"3\\" align=\\"center\\">
+      <table width=\\"100%\\">
+        <tr>
+          <td></td>
+          <td width=\\"200\\">
+            <a href=\\"http://localhost:3000\\" style=\\"text-decoration: none; color: #297EFF;\\">
+              <img width=\\"220\\" height=\\"28\\" src=\\"http://localhost:3000/static/images/email/logo-email-footer@2x.png\\" style=\\"max-width: 100%;\\">
+            </a>
+          </td>
+          <td></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td colspan=\\"3\\" align=\\"center\\" style=\\"font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;\\">
+      We can do great things together<br><br>
+      To unsubscribe from thank you for your donation, <a href=\\"http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/thankyou/1a51cf8a95c4875db13b148cd2be2c4121b4514a7765630624c8a4432e61af2a1713d7ec26e18904df7b1d652cebc16829afbcc9b99958cdd64b14c8db397add\\" style=\\"text-decoration: none; color: #297EFF;\\">click here</a><br><br>
+  
+      You can also follow us on <a href=\\"https://twitter.com/OpenCollect\\" style=\\"text-decoration: none; color: #297EFF;\\">Twitter</a> or come chat with us on our public
+      <a href=\\"https://slack.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Slack channel</a>.
+      <br><br>
+      Made with ❤️ from <a href=\\"https://docs.opencollective.com/help/about/team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan=\\"3\\" height=\\"10\\"></td>
+  </tr>
+  </table><!-- 600px width content table -->
+  
+  <!--[if (gte mso 9)|(IE)]>
+    </td></tr></table>
+  <![endif]-->
+  
+  </td>
+  </tr>
+  </table><!-- 100% width table -->
+  <!-- OpenCollective.com -->
+  </body>
+  
+  </html>"
+`;
+
+exports[`server/lib/email Sending emails sends the thankyou.fr email template 2`] = `
+"Xavier,
+
+Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer
+à nous soutenir!
+
+Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent
+recolté sur la page de notre collectif ouvert:
+https://opencollective.com/enmarchebe [https://opencollective.com/enmarchebe].
+
+
+AIDEZ-NOUS À RÉCOLTER PLUS D'ARGENT!
+
+Partagez cette URL: https://opencollective.com/enmarchebe/donate
+[https://opencollective.com/enmarchebe/donate].
+
+Encore merci! 🙏
+
+– Le collectif En Marche
+
+[http://localhost:3000/static/images/email/logo-email-footer@2x.png]
+[http://localhost:3000]
+
+We can do great things together
+
+To unsubscribe from thank you for your donation, click here
+[http://localhost:3000/email/unsubscribe/user1%40opencollective.com/enmarchebe/thankyou/1a51cf8a95c4875db13b148cd2be2c4121b4514a7765630624c8a4432e61af2a1713d7ec26e18904df7b1d652cebc16829afbcc9b99958cdd64b14c8db397add]
+
+You can also follow us on Twitter [https://twitter.com/OpenCollect] or come chat
+with us on our public Slack channel [https://slack.opencollective.com].
+
+Made with ❤️ from all over the world
+[https://docs.opencollective.com/help/about/team]"
+`;
+
+exports[`server/lib/email render Automatically generates text version 1`] = `
+"Subject: Open Collective: Login
+
+<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">
+<html xmlns=\\"http://www.w3.org/1999/xhtml\\">
+<head>
+  <meta http-equiv=\\"Content-Type\\" content=\\"text/html; charset=UTF-8\\">
+  <title></title>
+  <style>
+@media only screen and (min-device-width: 601px) {
+  .content {
+    width: 600px !important;
+  }
+}
+.btn.blue:hover {
+  background: linear-gradient(180deg,#297EFF 0%,#1869F5 100%);
+  background-color: #297EFF;
+  border-color: #297EFF;
+  color: #FFFFFF;
+}
+</style>
+</head>
+<body margin=\\"0\\" padding=\\"0\\" yahoo style=\\"margin: 0; padding: 0; min-width: 100%;\\">
+
+<table bgcolor=\\"white\\" border=\\"0\\" cellpadding=\\"0\\" cellspacing=\\"0\\" width=\\"100%\\" style=\\"font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:14px;\\"><tr><td align=\\"center\\" valign=\\"top\\">
+  <!--[if (gte mso 9)|(IE)]>
+    <table width=\\"600\\" align=\\"center\\" cellpadding=\\"0\\" cellspacing=\\"0\\" border=\\"0\\"><tr><td>
+  <![endif]-->
+  <table class=\\"content\\" border=\\"0\\" width=\\"100%\\" cellpadding=\\"0\\" cellspacing=\\"0\\" style=\\"width: 100%; max-width: 600px; padding: 0 10px;\\">
+    <tr>
+      <td></td>
+      <td>
+
+<h1 style=\\"color: #3399FF; font-family: 'Helvetica Neue'; font-size: 36px; font-weight: 300; line-height: 44px; text-align: center;\\">🗝</h1>
+
+<center>
+  <h3 style=\\"color: #303233; font-family: 'Helvetica Neue'; font-size: 20px; font-weight: bold; line-height: 25px;\\">You are one click away from logging into Open Collective.</h3>
+  <a href=\\"https://opencollective/USER_LOGIN_LINK\\" class=\\"btn blue\\" style=\\"text-decoration: none; padding: 10px; border: 2px solid #3399FF; border-radius: 16px; display: inline-block; font-weight: 600; font-size: 14px; line-height: 17px; padding-bottom: 14px; padding-left: 24px; padding-right: 24px; padding-top: 14px; border-radius: 100px; min-height: 18px; background-color: #3399FF; background: linear-gradient(180deg,#1869F5 0%,#1258e2 100%); background-color: #1869F5; border-color: #1869F5; color: #FFFFFF;\\"><div style=\\"font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; line-height: 17px; font-size: 12px; text-align: center; color: white;\\">One-click login</div></a>
+  <br>
+  <br>
+  <br>
+  <hr>
+  <br>
+  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">
+    Link not working? Try this:<br>
+    <a href=\\"https://opencollective/USER_LOGIN_LINK\\" style=\\"text-decoration: none; color: #297EFF; word-break: break-all; font-size: 12px;\\">https://opencollective/USER_LOGIN_LINK</a>
+  </p>
+</center>
+
+<div itemscope itemtype=\\"http://schema.org/EmailMessage\\">
+  <div itemprop=\\"potentialAction\\" itemscope itemtype=\\"http://schema.org/ViewAction\\">
+    <link itemprop=\\"url\\" content=\\"https://opencollective/USER_LOGIN_LINK\\">
+    <meta itemprop=\\"name\\" content=\\"login\\">
+  </div>
+  <meta itemprop=\\"description\\" content=\\"Login to opencollective.com\\">
+</div>
+
+</td>
+</tr>
+<tr>
+  <td colspan=\\"3\\" height=\\"40\\"></td>
+</tr>
+<tr>
+  <td colspan=\\"3\\" align=\\"center\\">
+    <table width=\\"100%\\">
+      <tr>
+        <td></td>
+        <td width=\\"200\\">
+          <a href=\\"http://localhost:3000\\" style=\\"text-decoration: none; color: #297EFF;\\">
+            <img width=\\"220\\" height=\\"28\\" src=\\"http://localhost:3000/static/images/email/logo-email-footer@2x.png\\" style=\\"max-width: 100%;\\">
+          </a>
+        </td>
+        <td></td>
+      </tr>
+    </table>
+  </td>
+</tr>
+<tr>
+  <td colspan=\\"3\\" align=\\"center\\" style=\\"font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;\\">
+    We can do great things together<br><br>
+
+    You can also follow us on <a href=\\"https://twitter.com/OpenCollect\\" style=\\"text-decoration: none; color: #297EFF;\\">Twitter</a> or come chat with us on our public
+    <a href=\\"https://slack.opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">Slack channel</a>.
+    <br><br>
+    Made with ❤️ from <a href=\\"https://docs.opencollective.com/help/about/team\\" style=\\"text-decoration: none; color: #297EFF;\\">all over the world</a>
+  </td>
+</tr>
+<tr>
+  <td colspan=\\"3\\" height=\\"10\\"></td>
+</tr>
+</table><!-- 600px width content table -->
+
+<!--[if (gte mso 9)|(IE)]>
+  </td></tr></table>
+<![endif]-->
+
+</td>
+</tr>
+</table><!-- 100% width table -->
+<!-- OpenCollective.com -->
+</body>
+
+</html>
+<center>
+<div style=\\"margin-top: 1em; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;\\">
+  This sign in email was requested by
+    <span style=\\"padding: .2em .4em; margin: 0; background-color: rgba(27,31,35,.05); border-radius: 3px;\\">
+      
+    </span>.
+    If you did not request this email, please inform <a href=\\"mailto:support@opencollective.com\\" style=\\"text-decoration: none; color: #297EFF;\\">support@opencollective.com</a>.
+</div>
+</center>
+"
+`;
+
+exports[`server/lib/email render Automatically generates text version 2`] = `
+"🗝
+
+
+YOU ARE ONE CLICK AWAY FROM LOGGING INTO OPEN COLLECTIVE.
+
+One-click login
+[https://opencollective/USER_LOGIN_LINK]
+
+
+
+
+--------------------------------------------------------------------------------
+
+
+Link not working? Try this:
+https://opencollective/USER_LOGIN_LINK [https://opencollective/USER_LOGIN_LINK]
+
+
+
+[http://localhost:3000/static/images/email/logo-email-footer@2x.png]
+[http://localhost:3000]
+
+We can do great things together
+
+You can also follow us on Twitter [https://twitter.com/OpenCollect] or come chat
+with us on our public Slack channel [https://slack.opencollective.com].
+
+Made with ❤️ from all over the world
+[https://docs.opencollective.com/help/about/team]"
+`;

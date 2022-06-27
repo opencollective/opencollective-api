@@ -1,9 +1,12 @@
-import { get,pick } from 'lodash';
-import { Model, Transaction } from 'sequelize';
-import { isEmail } from 'validator';
+import { get, pick } from 'lodash';
+import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
+import isEmail from 'validator/lib/isEmail';
 
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
+
+import models from '.';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -12,6 +15,8 @@ export enum PayoutMethodTypes {
   OTHER = 'OTHER',
   PAYPAL = 'PAYPAL',
   BANK_ACCOUNT = 'BANK_ACCOUNT',
+  ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
+  CREDIT_CARD = 'CREDIT_CARD',
 }
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
@@ -25,28 +30,27 @@ export interface OtherPayoutMethodData {
 }
 
 /** Group all the possible types for payout method's data */
-export type PayoutMethodDataType = PaypalPayoutMethodData | OtherPayoutMethodData | object;
+export type PayoutMethodDataType =
+  | PaypalPayoutMethodData
+  | OtherPayoutMethodData
+  | BankAccountPayoutMethodData
+  | Record<string, unknown>;
 
 /**
  * Sequelize model to represent an PayoutMethod, linked to the `PayoutMethods` table.
  */
-export class PayoutMethod extends Model<PayoutMethod> {
-  public readonly id!: number;
-  public type!: PayoutMethodTypes;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date;
-  public name: string;
-  public isSaved: boolean;
-  public CollectiveId!: number;
-  public CreatedByUserId!: number;
+export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCreationAttributes<PayoutMethod>> {
+  public declare readonly id: CreationOptional<number>;
+  public declare type: PayoutMethodTypes;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
+  public declare name: string;
+  public declare isSaved: boolean;
+  public declare CollectiveId: number;
+  public declare CreatedByUserId: number;
 
   private static editableFields = ['data', 'name', 'isSaved'];
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
 
   /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */
   get data(): PayoutMethodDataType {
@@ -55,14 +59,16 @@ export class PayoutMethod extends Model<PayoutMethod> {
         return { email: this.data['email'] } as PaypalPayoutMethodData;
       case PayoutMethodTypes.OTHER:
         return { content: this.data['content'] } as OtherPayoutMethodData;
+      case PayoutMethodTypes.BANK_ACCOUNT:
+        return this.data as BankAccountPayoutMethodData;
       default:
         return {};
     }
   }
 
   /** Returns the raw data for this field. Includes sensitive information that should not be leaked to the user */
-  get unfilteredData(): PayoutMethodDataType {
-    return this.getDataValue('data');
+  get unfilteredData(): Record<string, unknown> {
+    return <Record<string, unknown>>this.getDataValue('data');
   }
 
   /**
@@ -71,14 +77,19 @@ export class PayoutMethod extends Model<PayoutMethod> {
    * @param user: User creating this payout method
    */
   static async createFromData(
-    payoutMethodData: object,
-    user,
-    collective,
+    payoutMethodData: Record<string, unknown>,
+    user: typeof models.User,
+    collective: typeof models.Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     const cleanData = PayoutMethod.cleanData(payoutMethodData);
+    const type = payoutMethodData['type'] as string;
+    if (!(type in PayoutMethodTypes)) {
+      throw new Error(`Invalid payout method type: ${type}`);
+    }
+
     return PayoutMethod.create(
-      { ...cleanData, type: payoutMethodData['type'], CreatedByUserId: user.id, CollectiveId: collective.id },
+      { ...cleanData, type: type as PayoutMethodTypes, CreatedByUserId: user.id, CollectiveId: collective.id },
       { transaction: dbTransaction },
     );
   }
@@ -89,16 +100,16 @@ export class PayoutMethod extends Model<PayoutMethod> {
    * @param user: User creating this
    */
   static async getOrCreateFromData(
-    payoutMethodData,
-    user,
-    collective,
+    payoutMethodData: Record<string, unknown>,
+    user: typeof models.User,
+    collective: typeof models.Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     // We try to load the existing payment method if it exists for this collective
     let existingPm = null;
     if (payoutMethodData['type'] === PayoutMethodTypes.PAYPAL) {
       const email = get(payoutMethodData, 'data.email');
-      if (email && isEmail(email)) {
+      if (email && typeof email === 'string' && isEmail(email)) {
         existingPm = await PayoutMethod.scope('paypal').findOne({
           where: {
             CollectiveId: collective.id,
@@ -112,23 +123,30 @@ export class PayoutMethod extends Model<PayoutMethod> {
     return existingPm || this.createFromData(payoutMethodData, user, collective, dbTransaction);
   }
 
-  /**
-   * Updates a payout method from user-submitted data.
-   * @param payoutMethodData: The (potentially unsafe) user data. Fields will be whitelisted.
-   */
-  static async updateFromData(payoutMethodData: object, dbTransaction: Transaction | null): Promise<PayoutMethod> {
-    const id = payoutMethodData['id'];
-    const cleanData = PayoutMethod.cleanData(payoutMethodData);
-    return PayoutMethod.update(cleanData, { where: { id }, transaction: dbTransaction });
+  static getLabel(payoutMethod: PayoutMethod): string {
+    if (!payoutMethod) {
+      return 'Other';
+    } else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+      const email = (<PaypalPayoutMethodData>payoutMethod.data)?.email;
+      return !email ? 'PayPal' : `PayPal (${email})`;
+    } else if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      return 'Wire Transfer';
+    } else {
+      return 'Other';
+    }
   }
 
+  static typeSupportsFeesPayer = (payoutMethodType: PayoutMethodTypes): boolean => {
+    return [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.OTHER].includes(payoutMethodType);
+  };
+
   /** Filters out all the fields that cannot be edited by user */
-  private static cleanData(data: object): object {
+  private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
     return pick(data, PayoutMethod.editableFields);
   }
 }
 
-export default (sequelize, DataTypes): typeof PayoutMethod => {
+function setupModel(PayoutMethod) {
   // Link the model to database fields
   PayoutMethod.init(
     {
@@ -139,7 +157,7 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       },
       type: {
         // Enum entries must match `PayoutMethodType`
-        type: DataTypes.ENUM('PAYPAL', 'BANK_ACCOUNT', 'OTHER'),
+        type: DataTypes.ENUM(...Object.values(PayoutMethodTypes)),
         allowNull: false,
         validate: {
           isIn: {
@@ -169,6 +187,10 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
               if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
                 throw new Error('Invalid format of BANK_ACCOUNT payout method data');
               }
+            } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
+              if (!value || !value.token) {
+                throw new Error('Invalid format of CREDIT_CARD payout method data');
+              }
             } else if (!value || Object.keys(value).length > 0) {
               throw new Error('Data for this payout method is not properly formatted');
             }
@@ -191,6 +213,11 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       name: {
         type: DataTypes.STRING,
         allowNull: true,
+      },
+      isSaved: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
       },
       CollectiveId: {
         type: DataTypes.INTEGER,
@@ -221,6 +248,10 @@ export default (sequelize, DataTypes): typeof PayoutMethod => {
       },
     },
   );
+}
 
-  return PayoutMethod;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(PayoutMethod);
+
+export default PayoutMethod;

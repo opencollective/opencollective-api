@@ -1,11 +1,13 @@
 import { execSync } from 'child_process';
+import querystring from 'querystring';
 
 import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
-import { cloneDeep, get, isArray, values } from 'lodash';
+import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
+import markdownTable from 'markdown-table';
 import nock from 'nock';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -13,10 +15,11 @@ import { loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
+import logger from '../server/lib/logger';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
-import stripe from '../server/lib/stripe';
-import { sequelize } from '../server/models';
+import stripe, { convertToStripeAmount } from '../server/lib/stripe';
+import models, { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
@@ -48,6 +51,72 @@ export const resetTestDB = async () => {
   // await sequelize.truncate({ force: true, cascade: true });
 };
 
+/**
+ * Our migrations use `sequelize.sync` rather than re-running the transactions, but we don't want to
+ * add the searchTsVector column on the model.
+ */
+export const runSearchTsVectorMigration = async () => {
+  try {
+    await sequelize.queryInterface.createFunction(
+      'array_to_string_immutable',
+      [
+        { type: 'text[]', name: 'textArray' },
+        { type: 'text', name: 'text' },
+      ],
+      'text',
+      'plpgsql',
+      'RETURN array_to_string(textArray, text);',
+      ['IMMUTABLE', 'STRICT', 'PARALLEL', 'SAFE'],
+    );
+  } catch {
+    // Ignore
+  }
+
+  await sequelize.query(`
+    ALTER TABLE "Collectives"
+    ADD COLUMN IF NOT EXISTS "searchTsVector" tsvector
+    GENERATED ALWAYS AS (
+      SETWEIGHT(to_tsvector('simple', "slug"), 'A')
+      || SETWEIGHT(to_tsvector('simple', "name"), 'B')
+      || SETWEIGHT(to_tsvector('english', "name"), 'B')
+      || SETWEIGHT(to_tsvector('english', COALESCE("description", '')), 'C')
+      || SETWEIGHT(to_tsvector('english', COALESCE("longDescription", '')), 'C')
+      || SETWEIGHT(to_tsvector('simple', array_to_string_immutable(COALESCE(tags, ARRAY[]::varchar[]), ' ')), 'C')
+    ) STORED
+  `);
+
+  await sequelize.query(`
+    CREATE INDEX CONCURRENTLY IF NOT EXISTS collective_search_index
+    ON "Collectives"
+    USING GIN("searchTsVector")
+    WHERE "deletedAt" IS NULL
+    AND "deactivatedAt" IS NULL
+    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
+    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    AND name != 'incognito'
+    AND name != 'anonymous'
+    AND "isIncognito" = FALSE
+  `);
+
+  await sequelize.query(`
+    CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
+      SELECT
+        c.id,
+        COUNT(DISTINCT t.id) AS "count",
+        SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'CREDIT') AS "totalAmountReceivedInHostCurrency",
+        SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'DEBIT') AS "totalAmountSpentInHostCurrency"
+      FROM "Collectives" c
+      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id AND t."deletedAt" IS NULL AND t."RefundTransactionId" IS NULL
+      WHERE c."deletedAt" IS NULL
+      AND c."deactivatedAt" IS NULL
+      AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
+      AND c.name != 'incognito'
+      AND c.name != 'anonymous'
+      AND c."isIncognito" = FALSE
+      GROUP BY c.id
+  `);
+};
+
 export async function loadDB(dbname) {
   await dbRestore.main({ force: true, file: dbname });
 }
@@ -58,11 +127,13 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = (remoteUser, query) => {
+export const makeRequest = (remoteUser, query, jwtPayload) => {
   return {
     remoteUser,
+    jwtPayload,
     body: { query },
     loaders: loaders({ remoteUser }),
+    header: () => null,
   };
 };
 
@@ -77,6 +148,7 @@ export const inspectSpy = (spy, argsCount) => {
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
  * @param {*} options: { timeout, delay }
+ * @returns {Promise}
  */
 export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
   new Promise(resolve => {
@@ -108,7 +180,7 @@ export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =
  * @param {object} remoteUser - The user to add to the context. It is not required.
  * @param {object} schema - Schema to which queries and mutations will be served against. Schema v1 by default.
  */
-export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1) => {
+export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload) => {
   const prepare = () => {
     if (remoteUser) {
       remoteUser.rolesByCollectiveId = null; // force refetching the roles
@@ -125,13 +197,13 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
   }
 
   return prepare().then(() =>
-    graphql(
+    graphql({
       schema,
-      query,
-      null, // rootValue
-      makeRequest(remoteUser, query), // context
-      variables,
-    ),
+      source: query,
+      rootValue: null,
+      contextValue: makeRequest(remoteUser, query, jwtPayload),
+      variableValues: variables,
+    }),
   );
 };
 
@@ -141,8 +213,8 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} remoteUser - The user to add to the context. It is not required.
  */
-export async function graphqlQueryV2(query, variables, remoteUser) {
-  return graphqlQuery(query, variables, remoteUser, schemaV2);
+export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPayload = null) {
+  return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload);
 }
 
 /** Helper for interpreting fee description in BDD tests
@@ -220,7 +292,8 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
     token: { id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' },
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
-    paymentIntent: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
+    paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
+    paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
@@ -238,6 +311,7 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
 
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
   sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
+  sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {
@@ -253,11 +327,11 @@ export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0,
   const balanceTransaction = {
     id: 'txn_1Bs9EEBYycQg1OMfTR33Y5Xr',
     object: 'balance_transaction',
-    amount,
+    amount: convertToStripeAmount(currency, amount),
     currency: currency.toLowerCase(),
     fee,
     fee_details: feeDetails, // eslint-disable-line camelcase
-    net: amount - fee,
+    net: convertToStripeAmount(currency, amount - fee),
     status: 'pending',
     type: 'charge',
   };
@@ -293,3 +367,169 @@ export function traverse(obj, cb) {
     }
   }
 }
+
+export const prettifyTransactionsData = (transactions, columns) => {
+  // Alias some columns for a simpler output
+  const TRANSACTION_KEY_ALIASES = {
+    HostCollectiveId: 'Host',
+    FromCollectiveId: 'From',
+    CollectiveId: 'To',
+    settlementStatus: 'Settlement',
+    TransactionGroup: 'Group',
+    paymentProcessorFeeInHostCurrency: 'paymentFee',
+    platformFeeInHostCurrency: 'platformFee',
+  };
+
+  // Prettify values
+  const aliasDBId = value => (value ? `#${value}` : 'NULL');
+  const prettifyValue = (key, value, transaction) => {
+    switch (key) {
+      case 'HostCollectiveId':
+        return transaction.host?.name || aliasDBId(value);
+      case 'CollectiveId':
+        return transaction.collective?.name || aliasDBId(value);
+      case 'FromCollectiveId':
+        return transaction.fromCollective?.name || aliasDBId(value);
+      case 'TransactionGroup':
+        return `#${value.split('-')[0]}`; // No need to display the full UUID
+      default:
+        return value;
+    }
+  };
+
+  if (columns) {
+    return transactions.map(transaction => {
+      const cleanDataValues = {};
+      columns.forEach(key => {
+        const label = TRANSACTION_KEY_ALIASES[key] || key;
+        const value = transaction.dataValues[key];
+        cleanDataValues[label] = prettifyValue(key, value, transaction);
+      });
+
+      return cleanDataValues;
+    });
+  } else {
+    return transactions.map(transaction => {
+      const cleanDataValues = {};
+      Object.entries(transaction.dataValues).forEach(([key, value]) => {
+        const label = TRANSACTION_KEY_ALIASES[key] || key;
+        cleanDataValues[label] = prettifyValue(key, value, transaction);
+      });
+
+      return cleanDataValues;
+    });
+  }
+};
+
+/**
+ * Create a nock for Fixer.io at given rate
+ */
+export const nockFixerRates = ratesConfig => {
+  nock('https://data.fixer.io')
+    .persist()
+    .get(/.*/)
+    .query(({ base, symbols }) => {
+      const splitSymbols = symbols.split(',');
+      if (splitSymbols.every(symbol => Boolean(ratesConfig[base][symbol]))) {
+        logger.debug(`Fixer: Returning mock value for ${base} -> ${symbols}`);
+        return true;
+      } else {
+        return false;
+      }
+    })
+    .reply(url => {
+      const { base, symbols } = querystring.parse(url);
+      return [
+        200,
+        {
+          base,
+          date: '2021-06-01',
+          rates: symbols.split(',').reduce((rates, symbol) => {
+            rates[symbol] = ratesConfig[base][symbol];
+            return rates;
+          }, {}),
+        },
+      ];
+    });
+};
+
+/**
+ * Preload associations for Transactions to produce prettier snapshots.
+ * Only support loading collectives at the moment.
+ */
+export const preloadAssociationsForTransactions = async (transactions, columns) => {
+  // Define the fields to preload
+  const mapOfFieldsToPreload = {
+    CollectiveId: 'collective',
+    FromCollectiveId: 'fromCollective',
+    HostCollectiveId: 'host',
+  };
+
+  Object.keys(mapOfFieldsToPreload).forEach(key => {
+    if (!columns.includes(key)) {
+      delete mapOfFieldsToPreload[key];
+    }
+  });
+
+  // Aggregate association IDs
+  const fieldsToPreload = Object.keys(mapOfFieldsToPreload);
+  const collectiveIds = new Set([]);
+  transactions.forEach(transaction => {
+    fieldsToPreload.forEach(field => {
+      const primaryKey = transaction.getDataValue(field);
+      if (primaryKey) {
+        collectiveIds.add(primaryKey);
+      }
+    });
+  });
+
+  // Load associations
+  const collectives = await models.Collective.findAll({ where: { id: Array.from(collectiveIds) } });
+  const groupedCollectives = groupBy(collectives, 'id');
+
+  // Bind associations
+  transactions.forEach(transaction => {
+    fieldsToPreload.forEach(field => {
+      const primaryKey = transaction.getDataValue(field);
+      if (primaryKey && groupedCollectives[primaryKey]) {
+        const targetFieldName = mapOfFieldsToPreload[field];
+        transaction[targetFieldName] = groupedCollectives[primaryKey][0];
+      }
+    });
+  });
+};
+
+export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
+  const allTransactions = await models.Transaction.findAll();
+  await preloadAssociationsForTransactions(allTransactions, columns);
+  const prettyTransactions = prettifyTransactionsData(allTransactions, columns);
+  const headers = Object.keys(prettyTransactions[0]);
+  console.log(markdownTable([headers, ...prettyTransactions.map(Object.values)]));
+};
+
+/**
+ * Generate a snapshot using a markdown table, aliasing columns for a prettier output.
+ * If associations (collective, host, ...etc) are loaded, their names will be used for the output.
+ */
+export const snapshotTransactions = (transactions, params = {}) => {
+  if (!transactions?.length) {
+    throw new Error('snapshotTransactions does not support empty arrays');
+  }
+
+  expect(prettifyTransactionsData(transactions, params.columns)).to.matchTableSnapshot();
+};
+
+/**
+ * Makes a full snapshot of the ledger
+ */
+export const snapshotLedger = async columns => {
+  const transactions = await models.Transaction.findAll({ order: [['id', 'DESC']] });
+  await preloadAssociationsForTransactions(transactions, columns);
+  if (columns.includes('settlementStatus')) {
+    await models.TransactionSettlement.attachStatusesToTransactions(transactions);
+  }
+
+  snapshotTransactions(transactions, { columns: columns });
+};
+
+export const getApolloErrorCode = call => call.catch(e => e?.extensions?.code);

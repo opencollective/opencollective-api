@@ -1,5 +1,6 @@
 import { expect } from 'chai';
-import sinon from 'sinon';
+import gqlV2 from 'fake-tag';
+import { createSandbox, stub } from 'sinon';
 
 import * as transferwise from '../../../../../server/lib/transferwise';
 import models from '../../../../../server/models';
@@ -8,7 +9,7 @@ import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
 describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
   beforeEach(() => {
     sandbox.restore();
     sandbox.stub(transferwise, 'getProfiles').resolves();
@@ -16,8 +17,11 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   beforeEach(utils.resetTestDB);
 
   describe('createConnectedAccount', () => {
-    const createConnectedAccountMutation = `
-      mutation createConnectedAccount($connectedAccount: ConnectedAccountCreateInput!, $account: AccountReferenceInput!) {
+    const createConnectedAccountMutation = gqlV2/* GraphQL */ `
+      mutation CreateConnectedAccount(
+        $connectedAccount: ConnectedAccountCreateInput!
+        $account: AccountReferenceInput!
+      ) {
         createConnectedAccount(connectedAccount: $connectedAccount, account: $account) {
           id
           legacyId
@@ -99,7 +103,7 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
         service: 'transferwise',
       };
 
-      (transferwise.getProfiles as sinon.stub).rejects();
+      (transferwise.getProfiles as stub).rejects();
 
       const result = await graphqlQueryV2(
         createConnectedAccountMutation,
@@ -117,8 +121,8 @@ describe('server/graphql/v2/mutation/ConnectedAccountMutations', () => {
   });
 
   describe('deleteConnectedAccount', () => {
-    const deleteConnectedAccountMutation = `
-      mutation deleteConnectedAccount($connectedAccount: ConnectedAccountReferenceInput!) {
+    const deleteConnectedAccountMutation = gqlV2/* GraphQL */ `
+      mutation DeleteConnectedAccount($connectedAccount: ConnectedAccountReferenceInput!) {
         deleteConnectedAccount(connectedAccount: $connectedAccount) {
           id
         }

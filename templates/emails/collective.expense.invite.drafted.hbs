@@ -1,0 +1,59 @@
+Subject: {{{collective.name}}} wants you to pay you
+
+
+{{> header}}
+
+<center>
+  <h1>
+    {{collective.name}} wants you to submit an expense
+  </h1>
+</center>
+<p>
+  This means <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> wants to pay you. You need to confirm some details so your payment can be processed.
+</p>
+
+
+<br />
+<br />
+
+<table>
+  <tr>
+    <th>Requested by </th>
+    <td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td>
+  </tr>
+  {{#if recipientNote}}
+  <tr>
+    <th>Note: </th>
+    <td>{{recipientNote}}</td>
+  </tr>
+  {{/if}}
+  {{#if items}}
+  <tr>
+    <th colspan="2"><br />Details:</th>
+  </tr>
+  {{#each items}}
+  <tr>
+    <td>{{{description}}}</td>
+    <td>{{currency amount currency=@root.expense.currency}}</td>
+  </tr>
+  {{/each}}
+  {{/if}}
+</table>
+
+<br />
+<br />
+
+<div class="info">
+  Don't worry, you'll be able to edit the info before submitting the expense for payment.
+</div>
+
+<br />
+<br />
+
+<center>
+  <a href="{{inviteUrl}}" class="btn blue">
+    <div>OK, let's go!</div>
+  </a>
+</center>
+
+{{> footer}}

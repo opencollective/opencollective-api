@@ -1,8 +1,16 @@
-import { get, pick } from 'lodash';
+import { pick } from 'lodash';
 
 import { maxInteger } from '../../constants/math';
 import { TransactionTypes } from '../../constants/transactions';
-import { associateTransactionRefundId, createRefundTransaction } from '../../lib/payments';
+import { FEATURE, hasOptedInForFeature } from '../../lib/allowed-features';
+import { getFxRate } from '../../lib/currency';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatformTipEligible,
+} from '../../lib/payments';
 import models from '../../models';
 
 /**
@@ -26,41 +34,66 @@ async function getBalance() {
  */
 async function processOrder(order) {
   // gets the Credit transaction generated
-  const payload = pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']);
   const host = await order.collective.getHostCollective();
 
-  if (host.currency !== order.currency) {
+  if (host.currency !== order.currency && !hasOptedInForFeature(host, FEATURE.CROSS_CURRENCY_MANUAL_TRANSACTIONS)) {
     throw Error(
       `Cannot manually record a transaction in a different currency than the currency of the host ${host.currency}`,
     );
   }
 
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = -Math.round((hostFeePercent / 100) * order.totalAmount);
+  // In some tests, we don't have an order.paymentMethod set ...
+  if (!order.paymentMethod) {
+    order.paymentMethod = { service: 'opencollective', type: 'manual' };
+  }
 
-  // Waive fees except if explicitely passed
-  const orderPlatformFee = get(order, 'data.platformFee');
-  const platformFeeInHostCurrency = isNaN(orderPlatformFee) ? 0 : orderPlatformFee;
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
 
-  const paymentProcessorFeeInHostCurrency = 0;
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = host.currency;
+  const hostCurrencyFxRate = await getFxRate(order.currency, hostCurrency);
+  const amountInHostCurrency = Math.round(order.totalAmount * hostCurrencyFxRate);
 
-  payload.transaction = {
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
+  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTip = getPlatformTip(order);
+  const platformTipInHostCurrency = Math.round(platformTip * hostCurrencyFxRate);
+
+  const paymentProcessorFee = order.data?.paymentProcessorFee || 0;
+  const paymentProcessorFeeInHostCurrency =
+    order.data?.paymentProcessorFeeInHostCurrency || Math.round(paymentProcessorFee * hostCurrencyFxRate) || 0;
+
+  const transactionPayload = {
+    ...pick(order, ['CreatedByUserId', 'FromCollectiveId', 'CollectiveId', 'PaymentMethodId']),
     type: TransactionTypes.CREDIT,
     OrderId: order.id,
-    amount: order.totalAmount,
-    currency: order.currency,
-    hostCurrency: host.currency,
-    hostCurrencyFxRate: 1,
-    netAmountInCollectiveCurrency: order.totalAmount - hostFeeInHostCurrency - platformFeeInHostCurrency,
-    amountInHostCurrency: order.totalAmount,
+    amount,
+    currency,
+    hostCurrency,
+    hostCurrencyFxRate,
+    amountInHostCurrency,
     hostFeeInHostCurrency,
-    platformFeeInHostCurrency,
-    paymentProcessorFeeInHostCurrency,
     taxAmount: order.taxAmount,
     description: order.description,
+    paymentProcessorFeeInHostCurrency,
+    data: {
+      isFeesOnTop: order.data?.isFeesOnTop,
+      hasPlatformTip: platformTip ? true : false,
+      isSharedRevenue,
+      platformTipEligible,
+      platformTip,
+      platformTipInHostCurrency,
+      hostFeeSharePercent,
+      tax: order.data?.tax,
+    },
   };
 
-  const creditTransaction = await models.Transaction.createFromPayload(payload);
+  const creditTransaction = await models.Transaction.createFromContributionPayload(transactionPayload);
+
   return creditTransaction;
 }
 
@@ -70,8 +103,7 @@ async function processOrder(order) {
  * they want to actually refund the money.
  */
 const refundTransaction = async (transaction, user) => {
-  const refundTransaction = await createRefundTransaction(transaction, 0, null, user);
-  return associateTransactionRefundId(transaction, refundTransaction);
+  return await createRefundTransaction(transaction, 0, null, user);
 };
 
 /* Expected API of a Payment Method Type */

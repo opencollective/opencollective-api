@@ -6,9 +6,10 @@ process.env.PORT = 3066;
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import _, { get, pick, set } from 'lodash';
+import { get, pick, set, uniq } from 'lodash';
 
 import { types as collectiveTypes } from '../../server/constants/collectives';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import slackLib from '../../server/lib/slack';
 import twitter from '../../server/lib/twitter';
 import { pluralize } from '../../server/lib/utils';
@@ -17,15 +18,15 @@ import models, { Op, sequelize } from '../../server/models';
 const TenMinutesAgo = new Date();
 TenMinutesAgo.setMinutes(TenMinutesAgo.getMinutes() - 10);
 
-if (process.env.NODE_ENV !== 'production') {
+if (config.env !== 'production') {
   TenMinutesAgo.setDate(TenMinutesAgo.getDate() - 40);
 }
 
 const debug = debugLib('milestones');
 const startTime = new Date();
 
-const init = () => {
-  models.Member.findAll({
+const init = async () => {
+  const transactionsGroups = await models.Member.findAll({
     attributes: [[sequelize.fn('COUNT', sequelize.col('Member.id')), 'count'], 'CollectiveId'],
     where: {
       createdAt: { [Op.gte]: TenMinutesAgo },
@@ -34,16 +35,17 @@ const init = () => {
     limit: 30,
     group: ['CollectiveId', 'collective.id'],
     include: [{ model: models.Collective, where: { type: { [Op.ne]: collectiveTypes.EVENT } }, as: 'collective' }],
-  })
-    .tap(transactionsGroups => {
-      console.log(`${transactionsGroups.length} different collectives got new backers since ${TenMinutesAgo}`);
-    })
-    .map(processNewMembersCount)
-    .then(() => {
-      const timeLapsed = new Date() - startTime;
-      console.log(`Total run time: ${timeLapsed}ms`);
-      process.exit(0);
-    });
+  });
+
+  console.log(
+    `${transactionsGroups.length} different collectives got new financial contributors since ${TenMinutesAgo}`,
+  );
+
+  return Promise.map(transactionsGroups, processNewMembersCount).then(() => {
+    const timeLapsed = new Date() - startTime;
+    console.log(`Total run time: ${timeLapsed}ms`);
+    process.exit(0);
+  });
 };
 
 const notifyCollective = async (CollectiveId, milestone, collective) => {
@@ -51,26 +53,32 @@ const notifyCollective = async (CollectiveId, milestone, collective) => {
     where: { service: 'twitter', CollectiveId },
   });
   const slackAccount = await models.Notification.findOne({
-    where: { channel: 'slack', CollectiveId },
+    where: { channel: 'slack', CollectiveId, type: 'all' },
   });
 
   const tweet = await compileTweet(collective, milestone, twitterAccount);
 
   if (!twitterAccount) {
     debug(`${collective.slug}: the collective id ${CollectiveId} doesn't have a twitter account connected, skipping`);
-    await postToSlack(tweet, slackAccount);
+    if (slackAccount) {
+      await postToSlack(tweet, slackAccount);
+    }
     return;
   }
   if (!get(twitterAccount, `settings.${milestone}.active`)) {
     debug(
       `${collective.slug}: the collective id ${CollectiveId} hasn't activated the ${milestone} milestone notification, skipping`,
     );
-    await postToSlack(tweet, slackAccount);
+    if (slackAccount) {
+      await postToSlack(tweet, slackAccount);
+    }
     return;
   }
   if (process.env.TWITTER_CONSUMER_SECRET) {
     const res = await sendTweet(tweet, twitterAccount, milestone);
-    return await postToSlack(res.url, slackAccount);
+    if (slackAccount) {
+      await postToSlack(res.url, slackAccount);
+    }
   }
 };
 
@@ -97,9 +105,14 @@ const processNewMembersCount = async newMembersCount => {
     collective,
     dataValues: { count },
   } = newMembersCount;
+
+  if (collective.settings?.disableTweets) {
+    return;
+  }
+
   const backersCount = await collective.getBackersCount();
   if (backersCount < 10) {
-    debug(`${collective.slug} only has ${backersCount} ${pluralize('backer', backersCount)}, skipping`);
+    debug(`${collective.slug} only has ${backersCount} financial ${pluralize('contributor', backersCount)}, skipping`);
     return;
   }
 
@@ -108,15 +121,21 @@ const processNewMembersCount = async newMembersCount => {
     backersCount - count < numberOfBackers && backersCount >= numberOfBackers;
 
   if (hasPassedMilestone(1000)) {
-    console.log(`🎉 ${collective.slug} just passed the 1,000 backers milestone with ${backersCount} backers`);
+    console.log(
+      `🎉 ${collective.slug} just passed the 1,000 financial contributors milestone with ${backersCount} financial contributors`,
+    );
     return await processMilestone('oneThousandBackers', collective);
   }
   if (hasPassedMilestone(100)) {
-    console.log(`🎉 ${collective.slug} just passed the 100 backers milestone with ${backersCount} backers`);
+    console.log(
+      `🎉 ${collective.slug} just passed the 100 financial contributors milestone with ${backersCount} financial contributors`,
+    );
     return await processMilestone('oneHundredBackers', collective);
   }
   if (hasPassedMilestone(50)) {
-    console.log(`🎉 ${collective.slug} just passed the 50 backers milestone with ${backersCount} backers`);
+    console.log(
+      `🎉 ${collective.slug} just passed the 50 financial contributors milestone with ${backersCount} financial contributors`,
+    );
     return await processMilestone('fiftyBackers', collective);
   }
   if (hasPassedMilestone(10)) {
@@ -124,7 +143,7 @@ const processNewMembersCount = async newMembersCount => {
       `🎉 ${collective.slug} got ${count} new ${pluralize(
         'backer',
         count,
-      )} and just passed the 10 backers milestone with ${backersCount} backers`,
+      )} and just passed the 10 financial contributors milestone with ${backersCount} financial contributors`,
     );
     return await processMilestone('tenBackers', collective);
   }
@@ -140,7 +159,7 @@ const processNewMembersCount = async newMembersCount => {
 const compileTwitterHandles = (userCollectives, total, limit) => {
   const twitterHandles = userCollectives.map(backer => backer.twitterHandle).filter(handle => Boolean(handle));
   const limitToShow = Math.min(twitterHandles.length, limit);
-  let res = _.uniq(twitterHandles)
+  let res = uniq(twitterHandles)
     .map(handle => `@${handle}`)
     .slice(0, limitToShow)
     .join(', ');
@@ -163,7 +182,7 @@ const compileTweet = async (collective, template, twitterAccount) => {
 
   let tweet = twitter.compileTweet(template, replacements, get(twitterAccount, `settings.${template}.tweet`));
   const path = await collective.getUrlPath();
-  tweet += `\nhttps://opencollective.com/${path}`;
+  tweet += `\nhttps://opencollective.com${path}`;
   return tweet;
 };
 
@@ -180,24 +199,16 @@ const postSlackMessage = async (message, webhookUrl, options = {}) => {
 };
 
 const postToSlack = async (message, slackAccount) => {
-  // post to slack.opencollective.com (bug: we send it twice if both `collective` and `host` have set up a Slack webhook)
-  await postSlackMessage(message, config.slack.webhookUrl, {
-    channel: config.slack.publicActivityChannel,
-    linkTwitterMentions: true,
-  });
-
   if (!slackAccount) {
     return console.warn(`No slack account to post ${message}`);
   }
 
-  await postSlackMessage(message, slackAccount.webhookUrl, {
-    linkTwitterMentions: true,
-  });
+  await postSlackMessage(message, slackAccount.webhookUrl, { linkTwitterMentions: true });
 };
 
 const sendTweet = async (tweet, twitterAccount, template) => {
   console.log('>>> sending tweet:', tweet.length, tweet);
-  if (process.env.NODE_ENV === 'production') {
+  if (config.env === 'production') {
     try {
       const res = await twitter.tweetStatus(twitterAccount, tweet, null, {
         // We thread the tweet with the previous milestone
@@ -217,6 +228,7 @@ const sendTweet = async (tweet, twitterAccount, template) => {
       return res;
     } catch (e) {
       console.error('Unable to tweet', tweet, e);
+      reportErrorToSentry(e);
     }
   }
 };

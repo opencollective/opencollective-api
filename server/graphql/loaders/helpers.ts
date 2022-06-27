@@ -62,7 +62,7 @@ export function sortResultsArray<ResultType>(
 }
 
 /**
- * @deprecated Prefer to use `simpleSortResults`.
+ * @deprecated Prefer to use `sortResultsSimple`.
  *
  * The legacy implementation of `sortResults`. Provides a complex mechanism for using sub-fields
  * for attributes with `:` which not standard nor documented. There's also some magic happening
@@ -76,11 +76,11 @@ export function sortResultsArray<ResultType>(
  * @param defaultValue: a default value used when there's no result in `results`
  */
 export const sortResults = (
-  keys: readonly any[],
-  results: readonly any[],
+  keys: readonly (string | number)[],
+  results: readonly Record<string, unknown>[],
   attribute = 'id',
   defaultValue = undefined,
-) => {
+): Record<string, unknown>[] => {
   const resultsById = {};
   results.forEach(r => {
     let key;

@@ -33,22 +33,3 @@ export async function editConnectedAccount(remoteUser, connectedAccountData) {
   await connectedAccount.update(pick(connectedAccountData, ediableAttributes));
   return connectedAccount;
 }
-
-export async function deleteConnectedAccount(remoteUser, connectedAccountId) {
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to delete a connected account');
-  }
-
-  const connectedAccount = await models.ConnectedAccount.findByPk(connectedAccountId);
-
-  if (!connectedAccount) {
-    throw new Unauthorized('Connected account not found');
-  }
-
-  if (!canEditConnectedAccount(remoteUser, connectedAccount)) {
-    throw new Unauthorized("You don't have permission to delete this connected account");
-  }
-
-  const res = await connectedAccount.destroy();
-  return res;
-}

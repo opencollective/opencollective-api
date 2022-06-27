@@ -123,13 +123,13 @@ module.exports = {
       WHERE "slug" IN ('europe', 'opencollective-host', 'foundation', 'opencollectiveinc');
     `);
 
-    if (['development', 'e2e', 'ci'].includes(process.env.NODE_ENV) || process.env.E2E_TEST) {
+    if (['development', 'e2e', 'ci'].includes(process.env.OC_ENV) || process.env.E2E_TEST) {
       await queryInterface.sequelize.query(`
         UPDATE "Collectives"
         SET "plan" = 'owned'
         WHERE "slug" IN ('opensourceorg');
      `);
-    } else if (['production', 'staging'].includes(process.env.NODE_ENV)) {
+    } else if (['production', 'staging'].includes(process.env.OC_ENV)) {
       await queryInterface.sequelize.query(`
         UPDATE "Collectives"
         SET "plan" = 'owned'

@@ -1,9 +1,14 @@
-import { GraphQLFloat,GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLFloat, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 export const Location = new GraphQLObjectType({
   name: 'Location',
   description: 'Type for Geographic location',
-  fields: {
+  fields: () => ({
+    id: {
+      type: GraphQLString,
+      description: 'Unique identifier for this location',
+    },
     name: {
       type: GraphQLString,
       description: 'A short name for the location (eg. Open Collective Headquarters)',
@@ -24,5 +29,9 @@ export const Location = new GraphQLObjectType({
       type: GraphQLFloat,
       description: 'Longitude',
     },
-  },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
+    },
+  }),
 });

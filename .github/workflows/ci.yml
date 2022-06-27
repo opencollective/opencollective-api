@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     types:
       - opened
@@ -13,7 +13,8 @@ on:
 env:
   TZ: UTC
   CI: true
-  NODE_ENV: ci
+  OC_ENV: ci
+  NODE_ENV: test
   AWS_KEY: ${{ secrets.AWS_KEY }}
   AWS_SECRET: ${{ secrets.AWS_SECRET }}
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -21,33 +22,32 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
           restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
@@ -58,33 +58,32 @@ jobs:
 
   prettier:
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
           restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
@@ -95,33 +94,32 @@ jobs:
 
   typescript:
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
           restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
@@ -130,72 +128,71 @@ jobs:
 
       - run: npm run type:check
 
-  depcheck:
-    runs-on: ubuntu-latest
+  # depcheck:
+  #   runs-on: ubuntu-latest
 
-    timeout-minutes: 15
+  #   timeout-minutes: 15
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2-beta
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+  #     - name: Setup node
+  #       uses: actions/setup-node@v2
+  #       with:
+  #         node-version: '16.x'
 
-      - name: Restore node_modules
-        uses: actions/cache@v1
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+  #     - name: Restore node_modules
+  #       uses: actions/cache@v2
+  #       id: api-node-modules
+  #       with:
+  #         path: node_modules
+  #         key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
-            - ${{ runner.os }}-api-npm-cache-
+  #     - name: Restore .npm cache
+  #       if: steps.api-node-modules.outputs.cache-hit != 'true'
+  #       uses: actions/cache@v2
+  #       with:
+  #         path: ~/.npm
+  #         key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+  #         restore-keys: |
+  #           - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+  #           - ${{ runner.os }}-api-npm-cache-
 
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
+  #     - name: Install dependencies
+  #       if: steps.api-node-modules.outputs.cache-hit != 'true'
+  #       run: npm ci --prefer-offline --no-audit
 
-      - run: npm run depcheck
+  #     - run: npm run depcheck
 
   build:
     runs-on: ubuntu-latest
-
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
           restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
@@ -203,7 +200,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit
 
       - name: Cache build
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: dist
           key: ${{ runner.os }}-api-build-${{ github.sha }}
@@ -223,10 +220,11 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: mdillon/postgis:9.6
+        image: postgis/postgis:13-3.1
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -235,26 +233,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
           restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
@@ -269,7 +267,6 @@ jobs:
 
   test-graphql:
     runs-on: ubuntu-latest
-
     timeout-minutes: 30
 
     services:
@@ -279,10 +276,11 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: mdillon/postgis:9.6
+        image: postgis/postgis:13-3.1
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
         ports:
           - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
@@ -291,26 +289,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2-beta
 
-      # - name: Setup node
-      #   uses: actions/setup-node@v1
-      #   with:
-      #     node-version: '12.x'
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
       - name: Restore node_modules
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
 
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v1
+        uses: actions/cache@v3
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
           restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
 
       - name: Install dependencies
@@ -322,3 +320,70 @@ jobs:
       - run: npm run test:graphql
 
       - run: npm run test:coverage
+
+  schema-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+      - name: Restore node_modules
+        uses: actions/cache@v3
+        id: api-node-modules
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+      - name: Restore .npm cache
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        uses: actions/cache@v3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+          restore-keys: |
+            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+            - ${{ runner.os }}-api-npm-cache-
+      - name: Install dependencies
+        if: steps.api-node-modules.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
+      - name: Generate & check schemas
+        run: ./scripts/check-schemas.sh
+
+  graphql-inspector:
+    name: GraphQL Inspector
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: --entrypoint redis-server
+      postgres:
+        image: postgis/postgis:13-3.1
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+
+      - name: GraphQL Inspector (V1)
+        uses: kamilkisiela/graphql-inspector@master
+        with:
+          name: 'GraphQL Inspector - Schema v1'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          schema: 'main:server/graphql/schemaV1.graphql'
+          fail-on-breaking: false
+      - name: GraphQL Inspector (V2)
+        uses: kamilkisiela/graphql-inspector@master
+        with:
+          name: 'GraphQL Inspector - Schema v2'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          schema: 'main:server/graphql/schemaV2.graphql'
+          fail-on-breaking: false

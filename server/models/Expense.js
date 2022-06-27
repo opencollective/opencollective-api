@@ -1,19 +1,32 @@
-import { get, pick } from 'lodash';
+import { get, isEmpty, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 import { isISO31661Alpha2 } from 'validator';
 
+import { roles } from '../constants';
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
 import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
+import logger from '../lib/logger';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { reportErrorToSentry } from '../lib/sentry';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import CustomDataTypes from '../models/DataTypes';
 
 import { PayoutMethodTypes } from './PayoutMethod';
-import models, { Op } from './';
 
-export default function (Sequelize, DataTypes) {
-  const Expense = Sequelize.define(
+// Options for sanitizing private messages
+const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+});
+
+function defineModel() {
+  const { models } = sequelize;
+
+  const Expense = sequelize.define(
     'Expense',
     {
       id: {
@@ -31,6 +44,15 @@ export default function (Sequelize, DataTypes) {
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
         allowNull: false,
+      },
+
+      HostCollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+        allowNull: true,
       },
 
       FromCollectiveId: {
@@ -51,7 +73,7 @@ export default function (Sequelize, DataTypes) {
             }
 
             // Validate keys
-            const validKeys = ['address', 'country', 'name', 'lat', 'long'];
+            const validKeys = ['address', 'country', 'name', 'lat', 'long', 'structured'];
             Object.keys(value).forEach(key => {
               if (!validKeys.includes(key)) {
                 throw new Error(`Invalid location key: ${key}`);
@@ -90,6 +112,21 @@ export default function (Sequelize, DataTypes) {
       description: {
         type: DataTypes.STRING,
         allowNull: false,
+        set(description) {
+          this.setDataValue('description', description.replace(/\s+/g, ' ').trim());
+        },
+      },
+
+      longDescription: {
+        type: DataTypes.TEXT,
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+            this.setDataValue('longDescription', cleanHtml || null);
+          } else {
+            this.setDataValue('longDescription', null);
+          }
+        },
       },
 
       /**
@@ -118,7 +155,26 @@ export default function (Sequelize, DataTypes) {
         allowNull: true,
       },
 
-      privateMessage: DataTypes.STRING,
+      VirtualCardId: {
+        type: DataTypes.STRING,
+        references: { key: 'id', model: 'VirtualCards' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      },
+
+      privateMessage: {
+        type: DataTypes.TEXT,
+        set(value) {
+          if (value) {
+            const cleanHtml = sanitizeHTML(value, PRIVATE_MESSAGE_SANITIZE_OPTS).trim();
+            this.setDataValue('privateMessage', cleanHtml || null);
+          } else {
+            this.setDataValue('privateMessage', null);
+          }
+        },
+      },
+
       invoiceInfo: DataTypes.TEXT,
       vat: DataTypes.INTEGER,
 
@@ -150,6 +206,12 @@ export default function (Sequelize, DataTypes) {
         defaultValue: expenseType.UNCLASSIFIED,
       },
 
+      feesPayer: {
+        type: DataTypes.ENUM('COLLECTIVE', 'PAYEE'),
+        defaultValue: 'COLLECTIVE',
+        allowNull: false,
+      },
+
       incurredAt: {
         type: DataTypes.DATE,
         allowNull: false,
@@ -157,13 +219,13 @@ export default function (Sequelize, DataTypes) {
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
         allowNull: false,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
         allowNull: false,
       },
 
@@ -175,13 +237,21 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.ARRAY(DataTypes.STRING),
         set(tags) {
           const sanitizedTags = sanitizeTags(tags);
-          if (!tags || sanitizedTags.length === 0) {
+          if (!sanitizedTags?.length) {
             this.setDataValue('tags', null);
           } else {
             this.setDataValue('tags', sanitizedTags);
           }
         },
         validate: { validateTags },
+      },
+
+      RecurringExpenseId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'RecurringExpenses' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
       },
     },
     {
@@ -249,8 +319,8 @@ export default function (Sequelize, DataTypes) {
    * @param {string} type: type of the activity, see `constants/activities.js`
    * @param {object} user: the user who triggered the activity. Leave blank for system activities.
    */
-  Expense.prototype.createActivity = async function (type, user) {
-    const submittedByUser = this.user || (await models.User.findByPk(this.UserId));
+  Expense.prototype.createActivity = async function (type, user, data) {
+    const submittedByUser = await this.getSubmitterUser();
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
     const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
     if (!this.collective) {
@@ -258,58 +328,82 @@ export default function (Sequelize, DataTypes) {
     }
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
-    const items = this.items || (await this.getItems());
+    const items = this.items || this.data?.items || (await this.getItems());
     const transaction =
       this.status === status.PAID &&
       (await models.Transaction.findOne({
         where: { type: 'DEBIT', ExpenseId: this.id },
       }));
-    await models.Activity.create({
+    return models.Activity.create({
       type,
       UserId: user?.id,
       CollectiveId: this.collective.id,
       ExpenseId: this.id,
       data: {
+        ...pick(data, ['isManualPayout', 'error', 'payee', 'draftKey', 'inviteUrl', 'recipientNote', 'message']),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
         expense: this.info,
-        transaction: transaction.info,
+        transaction: transaction?.info,
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
-        items: items.map(item => ({
-          id: item.id,
-          incurredAt: item.incurredAt,
-          description: item.description,
-          amount: item.amount,
-          url: item.url,
-        })),
+        items:
+          !isEmpty(items) &&
+          items.map(item => ({
+            id: item.id,
+            incurredAt: item.incurredAt,
+            description: item.description,
+            amount: item.amount,
+            url: item.url,
+          })),
       },
     });
   };
 
-  Expense.prototype.setApproved = function (lastEditedById) {
-    if (this.status === status.PAID) {
-      throw new Error("Can't approve an expense that is PAID");
+  Expense.prototype.getSubmitterUser = async function () {
+    if (!this.user) {
+      this.user = await models.User.findByPk(this.UserId);
     }
-    this.status = status.APPROVED;
-    this.lastEditedById = lastEditedById;
-    return this.save();
+    return this.user;
   };
 
-  Expense.prototype.setRejected = function (lastEditedById) {
-    if (this.status === status.PAID) {
-      throw new Error("Can't reject an expense that is PAID");
+  Expense.prototype.setPaid = async function (editedById) {
+    const collective = this.collective || (await this.getCollective());
+    const lastEditedById = editedById || this.lastEditedById;
+    await this.update({ status: status.PAID, lastEditedById, HostCollectiveId: collective.HostCollectiveId });
+
+    // Update transactions settlement
+    if (this.type === expenseType.SETTLEMENT || this.data?.['isPlatformTipSettlement']) {
+      await models.TransactionSettlement.markExpenseAsSettled(this);
     }
-    this.status = status.REJECTED;
-    this.lastEditedById = lastEditedById;
-    return this.save();
+
+    try {
+      await this.createContributorMember();
+    } catch (e) {
+      // Don't crash if member can't be added as a contributor
+      reportErrorToSentry(e);
+      logger.error(`Error when trying to add MEMBER in setPaid for expense ${this.id}: ${e}`);
+    }
   };
 
-  Expense.prototype.setPaid = function (lastEditedById) {
-    this.status = status.PAID;
-    this.lastEditedById = lastEditedById;
-    return this.save();
+  /**
+   * Register the payee as a `CONTRIBUTOR` member if it's a USER
+   */
+  Expense.prototype.createContributorMember = async function () {
+    // This will return `null` if the payee is not a user
+    const fromUser = await models.User.findOne({ where: { CollectiveId: this.FromCollectiveId } });
+    if (!fromUser) {
+      return null;
+    }
+
+    const collective = this.collective || (await this.getCollective());
+    await collective.addUserWithRole(fromUser, roles.CONTRIBUTOR).catch(e => {
+      // Ignore if member already exists
+      if (e.name === 'SequelizeUniqueConstraintError') {
+        logger.debug('User ', fromUser.id, 'is already a contributor');
+      }
+    });
   };
 
   Expense.prototype.setProcessing = function (lastEditedById) {
@@ -386,7 +480,7 @@ export default function (Sequelize, DataTypes) {
   };
 
   Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
-    return Sequelize.query(
+    return sequelize.query(
       `
       SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Expenses"
@@ -397,13 +491,37 @@ export default function (Sequelize, DataTypes) {
       LIMIT $limit
     `,
       {
-        type: Sequelize.QueryTypes.SELECT,
+        type: QueryTypes.SELECT,
         bind: { collectiveId, limit },
       },
     );
   };
 
-  Temporal(Expense, Sequelize);
+  Expense.findPendingCardCharges = async function ({ where = {}, include = [] } = {}) {
+    const expenses = await Expense.findAll({
+      where: {
+        ...where,
+        type: expenseType.CHARGE,
+        status: 'PAID',
+        '$items.url$': { [Op.eq]: null },
+      },
+      include: [
+        ...include,
+        { model: models.ExpenseItem, as: 'items', required: true },
+        { model: models.Transaction, as: 'Transactions' },
+      ],
+    });
+
+    return expenses.filter(expense => expense?.Transactions?.some(t => t.isRefund) === false);
+  };
+
+  Temporal(Expense, sequelize);
 
   return Expense;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Expense = defineModel();
+
+export default Expense;

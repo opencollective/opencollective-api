@@ -117,7 +117,7 @@
 </style>
 
 <div class="CollectiveCard">
-  <a href="https://opencollective.com/{{slug}}?{{@root.utm}}">
+  <a href="https://opencollective.com/{{slug}}">
     <div>
       <div class='CollectiveCard-head' style="background-image:url('{{resizeImage backgroundImage width=320 defaultImage="/public/images/collectives/default-header-bg.jpg"}}');">
         <center><img src="{{resizeImage image width=240}}" height="64" /></center>
@@ -129,7 +129,7 @@
       {{#if totalDonations}}
       <div class='SponsoredCard-footer'>
         <div class='SponsoredCard-type'>{{tier}}</div>
-        <div class='SponsoredCard-amount'>{{{currency totalDonations currency=currency}}}</div>
+        <div class='SponsoredCard-amount'>{{currency totalDonations currency=currency}}</div>
       </div>
       {{/if}}
       {{#if yearlyIncome}}
@@ -137,7 +137,7 @@
         <div class='clearfix mt2'>
           <div class='CollectiveCard-metric'>
             <div class='CollectiveCard-metric-value'>{{contributorsCount}}</div>
-            <div class='CollectiveCard-metric-label'>{{{pluralize "contributor" n=contributorsCount}}}</div>
+            <div class='CollectiveCard-metric-label'>{{pluralize "contributor" n=contributorsCount}}</div>
           </div>
           <div class='CollectiveCard-metric'>
             <div class='CollectiveCard-metric-value'>{{currency yearlyIncome currency=currency precision=0}}</div>

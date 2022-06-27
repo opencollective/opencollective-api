@@ -1,8 +1,8 @@
-import { sequelize } from '.';
+import sequelize, { DataTypes } from '../lib/sequelize';
 
-export default function (Sequelize, DataTypes) {
-  const ConversationFollower = Sequelize.define(
-    'ConversationFollowers',
+function defineModel() {
+  const ConversationFollower = sequelize.define(
+    'ConversationFollower',
     {
       id: {
         type: DataTypes.INTEGER,
@@ -101,19 +101,11 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  // ---- Prepare model ----
-
-  ConversationFollower.associate = m => {
-    ConversationFollower.belongsTo(m.User, {
-      foreignKey: 'UserId',
-      as: 'user',
-    });
-
-    ConversationFollower.belongsTo(m.Conversation, {
-      foreignKey: 'ConversationId',
-      as: 'conversation',
-    });
-  };
-
   return ConversationFollower;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const ConversationFollower = defineModel();
+
+export default ConversationFollower;

@@ -34,13 +34,13 @@ module.exports = {
         WHERE       pm2."type" = 'virtualcard'
         AND         pm2."SourcePaymentMethodId" = pm1.id
       ), fixed_orders AS (
-        -- Fix orders by making sure we use the virtual card id
+        -- Fix orders by making sure we use the gift card id
         UPDATE ONLY "Orders" o
         SET         "PaymentMethodId" = erroneous_orders.__virtual_card_id__
         FROM        erroneous_orders WHERE erroneous_orders.id = o.id
         RETURNING   *
       ), fixed_transactions AS (
-        -- Fix transactions by making sure we use the virtual card id
+        -- Fix transactions by making sure we use the gift card id
           UPDATE ONLY   "Transactions" t
           SET           "PaymentMethodId" = erroneous_orders.__virtual_card_id__
           FROM          erroneous_orders WHERE erroneous_orders.id = t."OrderId"

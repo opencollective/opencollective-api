@@ -1,6 +1,7 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
@@ -10,7 +11,7 @@ import * as utils from '../../../utils';
 describe('server/graphql/v1/user', () => {
   let user1, user2, host, collective1, collective2, tier1, ticket1, sandbox;
 
-  before(() => (sandbox = sinon.createSandbox()));
+  before(() => (sandbox = createSandbox()));
 
   before(() => {
     sandbox.stub(payments, 'executeOrder').callsFake((user, order) => {
@@ -22,16 +23,30 @@ describe('server/graphql/v1/user', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
-  beforeEach(() => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));
+  beforeEach(async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach(async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
+  beforeEach(async () => {
+    host = await models.User.createUserWithCollective(utils.data('host1'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective1')).tap(g => (collective1 = g)));
+  beforeEach(async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
 
-  beforeEach(() => models.Collective.create(utils.data('collective2')).tap(g => (collective2 = g)));
+  beforeEach(async () => {
+    collective2 = await models.Collective.create(utils.data('collective2'));
+  });
 
-  beforeEach(() => collective1.createTier(utils.data('tier1')).tap(t => (tier1 = t)));
-  beforeEach(() => collective1.createTier(utils.data('ticket1')).tap(t => (ticket1 = t)));
+  beforeEach(async () => {
+    tier1 = await collective1.createTier(utils.data('tier1'));
+  });
+  beforeEach(async () => {
+    ticket1 = await collective1.createTier(utils.data('ticket1'));
+  });
 
   beforeEach(() => collective1.addUserWithRole(user1, 'BACKER'));
   beforeEach(() => collective2.addUserWithRole(user1, 'ADMIN'));
@@ -47,16 +62,14 @@ describe('server/graphql/v1/user', () => {
 
   describe('graphql.user.test.js', () => {
     describe('logged in user', () => {
-      const LoggedInUserQuery = `
+      const loggedInUserQuery = gql`
         query LoggedInUser {
           LoggedInUser {
-            id,
-            firstName,
-            lastName,
+            id
             memberOf {
               collective {
                 slug
-              },
+              }
               role
             }
           }
@@ -64,7 +77,7 @@ describe('server/graphql/v1/user', () => {
       `;
 
       it('returns all collectives with role', async () => {
-        const result = await utils.graphqlQuery(LoggedInUserQuery, null, user1);
+        const result = await utils.graphqlQuery(loggedInUserQuery, null, user1);
         result.errors && console.error(result.errors);
         const data = result.data.LoggedInUser;
         expect(data.memberOf.length).to.equal(2);
@@ -73,7 +86,7 @@ describe('server/graphql/v1/user', () => {
       });
 
       it("doesn't return anything if not logged in", async () => {
-        const result = await utils.graphqlQuery(LoggedInUserQuery);
+        const result = await utils.graphqlQuery(loggedInUserQuery);
         result.errors && console.error(result.errors);
         const data = result.data.LoggedInUser;
         expect(data).to.be.null;
@@ -109,23 +122,24 @@ describe('server/graphql/v1/user', () => {
       };
 
       it('saves a payment method to the user', async () => {
-        const query = `
-        mutation createOrder($order: OrderInputType!) {
-          createOrder(order: $order) {
-            paymentMethod {
-              name
-            },
-            fromCollective {
-              id
-            }
-            createdByUser {
-              id,
-              email
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
+            createOrder(order: $order) {
+              paymentMethod {
+                name
+              }
+              fromCollective {
+                id
+              }
+              createdByUser {
+                id
+                email
+              }
             }
           }
-        }`;
+        `;
 
-        const result = await utils.graphqlQuery(query, { order: generateLoggedInOrder() }, user1);
+        const result = await utils.graphqlQuery(createOrderMutation, { order: generateLoggedInOrder() }, user1);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         const paymentMethods = await models.PaymentMethod.findAll({
@@ -140,60 +154,62 @@ describe('server/graphql/v1/user', () => {
       it('does not save a payment method to the user', async () => {
         const order = generateLoggedInOrder();
         order.paymentMethod.save = false;
-        const query = `
-        mutation createOrder($order: OrderInputType!) {
-          createOrder(order: $order) {
-            createdByUser {
-              id,
-              email,
-            },
-            paymentMethod {
-              name
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
+            createOrder(order: $order) {
+              createdByUser {
+                id
+                email
+              }
+              paymentMethod {
+                name
+              }
             }
           }
-        }`;
+        `;
 
-        const result = await utils.graphqlQuery(query, { order }, user1);
+        const result = await utils.graphqlQuery(createOrderMutation, { order }, user1);
         result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         const paymentMethods = await models.PaymentMethod.findAll({
           where: { CreatedByUserId: user1.id },
         });
         expect(paymentMethods).to.have.length(1);
-        expect(paymentMethods[0].CollectiveId).to.be.null;
+        expect(paymentMethods[0].CollectiveId).to.be.eq(user1.CollectiveId);
+        expect(paymentMethods[0].saved).to.be.null;
       });
 
       it("doesn't get the payment method of the user if not logged in", async () => {
-        const createOrderQuery = `
-        mutation createOrder($order: OrderInputType!) {
-          createOrder(order: $order) {
-            description
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
+            createOrder(order: $order) {
+              description
+            }
           }
-        }`;
+        `;
 
         const remoteUser = await models.User.createUserWithCollective({
           email: store.randEmail('user@opencollective.com'),
         });
         await utils.graphqlQuery(
-          createOrderQuery,
+          createOrderMutation,
           {
             order: generateLoggedOutOrder(ticket1),
           },
           remoteUser,
         );
 
-        const query = `
+        const tierQuery = gql`
           query Tier($id: Int!) {
             Tier(id: $id) {
-              id,
-              name,
+              id
+              name
               orders {
-                id,
-                description,
+                id
+                description
                 createdByUser {
-                  id,
-                  firstName
-                },
+                  id
+                }
                 paymentMethod {
                   name
                 }
@@ -201,12 +217,12 @@ describe('server/graphql/v1/user', () => {
             }
           }
         `;
-        const result = await utils.graphqlQuery(query, { id: ticket1.id });
+        const result = await utils.graphqlQuery(tierQuery, { id: ticket1.id });
         result.errors && console.error(result.errors);
         const orders = result.data.Tier.orders;
         expect(orders).to.have.length(1);
         expect(orders[0].paymentMethod).to.be.null;
-        const result2 = await utils.graphqlQuery(query, { id: ticket1.id }, user2);
+        const result2 = await utils.graphqlQuery(tierQuery, { id: ticket1.id }, user2);
         result2.errors && console.error(result2.errors);
         const orders2 = result2.data.Tier.orders;
         expect(orders2).to.have.length(1);
@@ -215,27 +231,27 @@ describe('server/graphql/v1/user', () => {
 
       it('gets the payment method of the user if logged in as that user', async () => {
         const order = generateLoggedInOrder();
-        const createOrderQuery = `
-        mutation createOrder($order: OrderInputType!) {
-          createOrder(order: $order) {
-            description
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
+            createOrder(order: $order) {
+              description
+            }
           }
-        }`;
+        `;
 
-        await utils.graphqlQuery(createOrderQuery, { order }, user1);
+        await utils.graphqlQuery(createOrderMutation, { order }, user1);
         await models.PaymentMethod.update({ confirmedAt: new Date() }, { where: { CreatedByUserId: user1.id } });
 
-        const query = `
+        const tierQuery = gql`
           query Tier($id: Int!) {
             Tier(id: $id) {
-              name,
+              name
               orders {
-                id,
-                description,
+                id
+                description
                 createdByUser {
-                  id,
-                  firstName
-                },
+                  id
+                }
                 paymentMethod {
                   name
                 }
@@ -243,7 +259,7 @@ describe('server/graphql/v1/user', () => {
             }
           }
         `;
-        const result = await utils.graphqlQuery(query, { id: tier1.id }, user1);
+        const result = await utils.graphqlQuery(tierQuery, { id: tier1.id }, user1);
         result.errors && console.error(result.errors);
         const orders = result.data.Tier.orders;
         expect(orders).to.have.length(1);

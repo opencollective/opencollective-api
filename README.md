@@ -1,6 +1,8 @@
 # Open Collective API
 
 [![Dependency Status](https://david-dm.org/opencollective/opencollective-api.svg)](https://david-dm.org/opencollective/opencollective-api)
+![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
+![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
 
 ## Foreword
 
@@ -10,9 +12,9 @@ If you see a step below that could be improved (or is outdated), please update t
 
 ### Prerequisite
 
-1. Make sure you have Node.js version >= 10.
+1. Make sure you have Node.js version 16.x and NPM version 8.x.
 
-- We recommend using [nvm](https://github.com/creationix/nvm): `nvm use`.
+- We recommend using [nvm](https://github.com/creationix/nvm): `nvm install && nvm use`.
 
 2. Make sure you have a PostgreSQL database available
 
@@ -64,5 +66,9 @@ See: [docs/deployment.md](docs/deployment.md)
 ## Discussion
 
 If you have any questions, ping us on Slack
-(https://slack.opencollective.org) or on Twitter
+(https://slack.opencollective.com) or on Twitter
 ([@opencollect](https://twitter.com/opencollect)).
+
+## License
+
+[MIT](LICENSE)

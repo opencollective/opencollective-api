@@ -12,10 +12,10 @@ import { Model } from 'sequelize';
  */
 export function diffDBEntries<T extends Model<T>>(
   oldEntries: T[],
-  newEntriesData: object[],
+  newEntriesData: Record<string, unknown>[],
   diffedFields: string[],
   idField = 'id',
-): [object[], T[], object[]] {
+): [Record<string, unknown>[], T[], Record<string, unknown>[]] {
   const toRemove = differenceBy(oldEntries, newEntriesData, idField);
   const toCreate = [];
   const toUpdate = [];

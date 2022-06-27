@@ -1,32 +1,34 @@
-import { GraphQLInt, GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
-import { OrderStatus } from '../enum/OrderStatus';
+import { OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
+import { getTierFrequencyFromInterval, TierFrequency } from '../enum/TierFrequency';
 import { idEncode } from '../identifiers';
+
+import { Amount } from './Amount';
 
 export const Tier = new GraphQLObjectType({
   name: 'Tier',
   description: 'Tier model',
   fields: () => {
     return {
-      // _internal_id: {
-      //   type: GraphQLInt,
-      //   resolve(member) {
-      //     return member.id;
-      //   },
-      // },
       id: {
-        type: GraphQLString,
+        type: new GraphQLNonNull(GraphQLString),
         resolve(tier) {
           return idEncode(tier.id, 'tier');
         },
       },
+      legacyId: {
+        type: new GraphQLNonNull(GraphQLInt),
+        resolve(tier) {
+          return tier.id;
+        },
+      },
       slug: {
         type: GraphQLString,
-        resolve(tier) {
-          return tier.slug;
-        },
       },
       name: {
         type: GraphQLString,
@@ -36,16 +38,13 @@ export const Tier = new GraphQLObjectType({
       },
       description: {
         type: GraphQLString,
-        resolve(tier) {
-          return tier.description;
-        },
       },
       orders: {
         description: 'Get all orders',
-        type: OrderCollection,
+        type: new GraphQLNonNull(OrderCollection),
         args: {
-          limit: { type: GraphQLInt, defaultValue: 100 },
-          offset: { type: GraphQLInt, defaultValue: 0 },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           status: { type: new GraphQLList(OrderStatus) },
         },
         async resolve(tier, args) {
@@ -61,6 +60,57 @@ export const Tier = new GraphQLObjectType({
 
           return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };
         },
+      },
+      amount: {
+        type: new GraphQLNonNull(Amount),
+        resolve(tier) {
+          return { value: tier.amount, currency: tier.currency };
+        },
+      },
+      type: {
+        type: new GraphQLNonNull(TierType),
+      },
+      interval: {
+        type: TierInterval,
+        deprecationReason: '2020-08-24: Please use "frequency"',
+      },
+      frequency: {
+        type: new GraphQLNonNull(TierFrequency),
+        resolve(tier) {
+          return getTierFrequencyFromInterval(tier.interval);
+        },
+      },
+      presets: {
+        type: new GraphQLList(GraphQLInt),
+      },
+      maxQuantity: {
+        type: GraphQLInt,
+      },
+      availableQuantity: {
+        type: GraphQLInt,
+        description: 'Number of tickets available. Returns null if there is no limit.',
+        resolve(tier, _, req) {
+          if (!tier.maxQuantity) {
+            return null;
+          } else {
+            return req.loaders.Tier.availableQuantity.load(tier.id);
+          }
+        },
+      },
+      customFields: {
+        type: GraphQLJSON,
+      },
+      amountType: {
+        type: new GraphQLNonNull(TierAmountType),
+      },
+      minimumAmount: {
+        type: new GraphQLNonNull(Amount),
+        resolve(tier) {
+          return { value: tier.minimumAmount };
+        },
+      },
+      endsAt: {
+        type: GraphQLDateTime,
       },
     };
   },

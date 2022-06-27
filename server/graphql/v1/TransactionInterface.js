@@ -1,29 +1,19 @@
 import {
-  GraphQLEnumType,
+  GraphQLBoolean,
   GraphQLFloat,
-  GraphQLInputObjectType,
   GraphQLInt,
   GraphQLInterfaceType,
-  GraphQLList,
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { get } from 'lodash';
+import { get, round } from 'lodash';
 
 import models from '../../models';
-import { canSeeExpenseAttachments, getExpenseItems } from '../common/expenses';
-import { idEncode } from '../v2/identifiers';
+import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
+import { TaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import {
-  DateString,
-  ExpenseType,
-  OrderDirectionType,
-  OrderType,
-  PaymentMethodType,
-  SubscriptionType,
-  UserType,
-} from './types';
+import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -31,9 +21,9 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
   resolveType: transaction => {
     switch (transaction.type) {
       case 'CREDIT':
-        return TransactionOrderType;
+        return 'Order';
       case 'DEBIT':
-        return TransactionExpenseType;
+        return 'Expense';
       default:
         return null;
     }
@@ -47,18 +37,43 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       currency: { type: GraphQLString },
       hostCurrency: { type: GraphQLString },
       hostCurrencyFxRate: { type: GraphQLFloat },
-      netAmountInCollectiveCurrency: { type: GraphQLInt },
-      hostFeeInHostCurrency: { type: GraphQLInt },
+      netAmountInCollectiveCurrency: {
+        type: GraphQLInt,
+        description: 'Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)',
+        args: {
+          fetchHostFee: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.',
+          },
+        },
+      },
+      amountInHostCurrency: {
+        type: GraphQLInt,
+      },
+      hostFeeInHostCurrency: {
+        type: GraphQLInt,
+        description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
+        args: {
+          fetchHostFee: {
+            type: GraphQLBoolean,
+            defaultValue: false,
+            description: 'Fetch HOST_FEE transaction for retro-compatiblity.',
+          },
+        },
+      },
       platformFeeInHostCurrency: { type: GraphQLInt },
       paymentProcessorFeeInHostCurrency: { type: GraphQLInt },
       taxAmount: { type: GraphQLInt },
+      taxInfo: { type: TaxInfo },
       createdByUser: { type: UserType },
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
       fromCollective: { type: CollectiveInterfaceType },
-      usingVirtualCardFromCollective: { type: CollectiveInterfaceType },
+      usingGiftCardFromCollective: { type: CollectiveInterfaceType },
       collective: { type: CollectiveInterfaceType },
       type: { type: GraphQLString },
+      kind: { type: GraphQLString },
       description: { type: GraphQLString },
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
@@ -78,18 +93,13 @@ const TransactionFields = () => {
     idV2: {
       type: GraphQLString,
       resolve(transaction) {
-        return idEncode(transaction.id, 'transaction');
+        return transaction.uuid;
       },
     },
     refundTransaction: {
       type: TransactionInterfaceType,
       resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getRefundTransaction
-        // otherwise we just null
-        if (transaction && transaction.getRefundTransaction) {
-          return transaction.getRefundTransaction();
-        }
-        return null;
+        return transaction.getRefundTransaction();
       },
     },
     uuid: {
@@ -110,6 +120,12 @@ const TransactionFields = () => {
       type: GraphQLString,
       resolve(transaction) {
         return transaction.type;
+      },
+    },
+    kind: {
+      type: GraphQLString,
+      resolve(transaction) {
+        return transaction.kind;
       },
     },
     amount: {
@@ -141,7 +157,17 @@ const TransactionFields = () => {
     hostFeeInHostCurrency: {
       type: GraphQLInt,
       description: 'Fee kept by the host in the lowest unit of the currency of the host (ie. in cents)',
-      resolve(transaction) {
+      args: {
+        fetchHostFee: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch HOST_FEE transaction for retro-compatiblity.',
+        },
+      },
+      resolve(transaction, args, req) {
+        if (args.fetchHostFee && !transaction.hostFeeInHostCurrency) {
+          return req.loaders.Transaction.hostFeeAmountForTransaction.load(transaction);
+        }
         return transaction.hostFeeInHostCurrency;
       },
     },
@@ -164,11 +190,55 @@ const TransactionFields = () => {
       type: GraphQLInt,
       description: 'The amount paid in tax (for example VAT) for this transaction',
     },
+    taxInfo: {
+      type: TaxInfo,
+      description: 'If taxAmount is set, this field will contain more info about the tax',
+      resolve(transaction, _, req) {
+        const tax = transaction.data?.tax;
+        if (!tax) {
+          return null;
+        } else {
+          return {
+            id: tax.id,
+            type: tax.id,
+            percentage: Math.round(tax.percentage ?? tax.rate * 100), // Does not support float
+            rate: tax.rate ?? round(tax.percentage / 100, 2),
+            idNumber: () => {
+              const collectiveId = transaction.paymentMethodProviderCollectiveId();
+              const canSeeDetails =
+                getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, collectiveId) ||
+                req.remoteUser.isAdmin(transaction.HostCollectiveId);
+
+              return canSeeDetails ? tax.idNumber : null;
+            },
+          };
+        }
+      },
+    },
     netAmountInCollectiveCurrency: {
       type: GraphQLInt,
       description: 'Amount after fees received by the collective in the lowest unit of its own currency (ie. cents)',
-      resolve(transaction) {
+      args: {
+        fetchHostFee: {
+          type: GraphQLBoolean,
+          defaultValue: false,
+          description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.',
+        },
+      },
+      async resolve(transaction, args, req) {
+        if (args.fetchHostFee && !transaction.hostFeeInHostCurrency) {
+          transaction.hostFeeInHostCurrency = await req.loaders.Transaction.hostFeeAmountForTransaction.load(
+            transaction,
+          );
+          return models.Transaction.calculateNetAmountInCollectiveCurrency(transaction);
+        }
         return transaction.netAmountInCollectiveCurrency;
+      },
+    },
+    amountInHostCurrency: {
+      type: GraphQLInt,
+      async resolve(transaction) {
+        return transaction.amountInHostCurrency;
       },
     },
     host: {
@@ -199,12 +269,12 @@ const TransactionFields = () => {
         // We don't return the user if the transaction has been created by someone who wanted to remain incognito
         // This is very suboptimal. We should probably record the CreatedByCollectiveId (or better CreatedByProfileId) instead of the User.
         if (transaction && transaction.getCreatedByUser) {
+          const collective = await transaction.getCollective();
           const fromCollective = await transaction.getFromCollective();
-          if (fromCollective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(transaction.CollectiveId))) {
+          if (fromCollective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
             return {};
           }
-          const collective = await transaction.getCollective();
-          if (collective.isIncognito && (!req.remoteUser || !req.remoteUser.isAdmin(transaction.FromCollectiveId))) {
+          if (collective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective)) {
             return {};
           }
           return transaction.getCreatedByUser();
@@ -226,16 +296,16 @@ const TransactionFields = () => {
         return null;
       },
     },
-    usingVirtualCardFromCollective: {
+    usingGiftCardFromCollective: {
       type: CollectiveInterfaceType,
       resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getVirtualCardEmitterCollective
-        // otherwise we find the collective by id if transactions has UsingVirtualCardFromCollectiveId, if not we return null
-        if (transaction && transaction.getVirtualCardEmitterCollective) {
-          return transaction.getVirtualCardEmitterCollective();
+        // If it's a sequelize model transaction, it means it has the method getGiftCardEmitterCollective
+        // otherwise we find the collective by id if transactions has UsingGiftCardFromCollectiveId, if not we return null
+        if (transaction && transaction.getGiftCardEmitterCollective) {
+          return transaction.getGiftCardEmitterCollective();
         }
-        if (transaction && transaction.UsingVirtualCardFromCollectiveId) {
-          return models.Collective.findByPk(transaction.UsingVirtualCardFromCollectiveId);
+        if (transaction && transaction.UsingGiftCardFromCollectiveId) {
+          return models.Collective.findByPk(transaction.UsingGiftCardFromCollectiveId);
         }
         return null;
       },
@@ -297,52 +367,12 @@ export const TransactionExpenseType = new GraphQLObjectType({
           return transaction.description || expense;
         },
       },
-      privateMessage: {
-        type: GraphQLString,
-        deprecationReason: 'Please use transaction.expense.privateMessage',
-        resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId
-          // otherwise we return null
-          return transaction.ExpenseId
-            ? req.loaders.Expense.byId.load(transaction.ExpenseId).then(expense => expense && expense.privateMessage)
-            : null;
-        },
-      },
-      category: {
-        type: GraphQLString,
-        deprecationReason: 'Please use transaction.expense.category',
-        resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId
-          // otherwise we return null
-          return transaction.ExpenseId
-            ? req.loaders.Expense.byId.load(transaction.ExpenseId).then(expense => expense && expense.tags?.[0])
-            : null;
-        },
-      },
       expense: {
         type: ExpenseType,
         resolve(transaction, args, req) {
           // If it's a expense transaction it'll have an ExpenseId
           // otherwise we return null
           return transaction.ExpenseId ? req.loaders.Expense.byId.load(transaction.ExpenseId) : null;
-        },
-      },
-      attachment: {
-        type: GraphQLString,
-        deprecationReason: 'Please use transaction.expense.attachment',
-        async resolve(transaction, args, req) {
-          // If it's a expense transaction it'll have an ExpenseId otherwise we return null
-          if (!transaction.ExpenseId) {
-            return null;
-          } else {
-            const expense = req.loaders.Expense.byId.load(transaction.ExpenseId);
-            if (!expense || !(await canSeeExpenseAttachments(req, expense))) {
-              return null;
-            } else {
-              const items = await getExpenseItems(transaction.ExpenseId, req);
-              return items[0] && items[0].url;
-            }
-          }
         },
       },
     };
@@ -358,101 +388,43 @@ export const TransactionOrderType = new GraphQLObjectType({
       ...TransactionFields(),
       description: {
         type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return either transaction.description or null
-          const getOrder = transaction.getOrder
-            ? transaction.getOrder().then(order => order && order.description)
-            : null;
-          return transaction.description || getOrder;
-        },
-      },
-      privateMessage: {
-        type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.privateMessage) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.description) {
+            return transaction.description;
+          } else {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            return order?.description;
+          }
         },
       },
       publicMessage: {
         type: GraphQLString,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.publicMessage) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            return order?.publicMessage;
+          }
         },
       },
       order: {
         type: OrderType,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder() : null;
+        resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            return req.loaders.Order.byId.load(transaction.OrderId);
+          }
         },
       },
       subscription: {
         type: SubscriptionType,
-        resolve(transaction) {
-          // If it's a sequelize model transaction, it means it has the method getOrder
-          // otherwise we return null
-          return transaction.getOrder ? transaction.getOrder().then(order => order && order.getSubscription()) : null;
+        async resolve(transaction, _, req) {
+          if (transaction.OrderId) {
+            const order = await req.loaders.Order.byId.load(transaction.OrderId);
+            if (order?.SubscriptionId) {
+              return req.loaders.Subscription.byId.load(order.SubscriptionId);
+            }
+          }
         },
       },
     };
   },
-});
-
-export const TransactionType = new GraphQLEnumType({
-  name: 'TransactionType',
-  description: 'Type of transaction in the ledger',
-  values: {
-    CREDIT: {},
-    DEBIT: {},
-  },
-});
-
-export const TransactionOrder = new GraphQLInputObjectType({
-  name: 'TransactionOrder',
-  description: 'Ordering options for transactions',
-  fields: {
-    field: {
-      description: 'The field to order transactions by.',
-      defaultValue: 'createdAt',
-      type: new GraphQLEnumType({
-        name: 'TransactionOrderField',
-        description: 'Properties by which transactions can be ordered.',
-        values: {
-          CREATED_AT: {
-            value: 'createdAt',
-            description: 'Order transactions by creation time.',
-          },
-        },
-      }),
-    },
-    direction: {
-      description: 'The ordering direction.',
-      defaultValue: 'DESC',
-      type: OrderDirectionType,
-    },
-  },
-});
-
-TransactionOrder.defaultValue = Object.entries(TransactionOrder.getFields()).reduce(
-  (values, [key, value]) => ({
-    ...values,
-    [key]: value.defaultValue,
-  }),
-  {},
-);
-
-export const PaginatedTransactionsType = new GraphQLObjectType({
-  name: 'PaginatedTransactions',
-  description: 'List of transactions with pagination data',
-  fields: () => ({
-    transactions: { type: new GraphQLList(TransactionInterfaceType) },
-    limit: { type: GraphQLInt },
-    offset: { type: GraphQLInt },
-    total: { type: GraphQLInt },
-  }),
 });

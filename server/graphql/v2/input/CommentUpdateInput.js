@@ -7,7 +7,6 @@ export const CommentUpdateInput = new GraphQLInputObjectType({
   name: 'CommentUpdateInput',
   fields: () => ({
     id: { type: new GraphQLNonNull(GraphQLString) },
-    markdown: { type: GraphQLString },
     html: { type: GraphQLString },
   }),
 });

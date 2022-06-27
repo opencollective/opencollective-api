@@ -7,6 +7,8 @@
  * contributors should surface only unique collectives.
  */
 
+import { omit } from 'lodash';
+
 import MemberRoles from '../constants/roles';
 import { sequelize } from '../models';
 
@@ -25,6 +27,7 @@ export interface Contributor {
   isBacker: boolean;
   isFundraiser: boolean;
   isIncognito: boolean;
+  isGuest: boolean;
   tiersIds: Array<number | null>;
   type: string;
   since: string;
@@ -84,6 +87,45 @@ const storeContributorsInCache = (collectiveId: number, allContributors: Contrib
   return cacheEntry;
 };
 
+const contributorsQuery = `
+  SELECT
+    c.id,
+    c."name",
+    c."slug" AS "collectiveSlug",
+    c."image",
+    c."type",
+    MIN(m."since") as "since",
+    ARRAY_AGG(DISTINCT m."role") AS "roles",
+    ARRAY_AGG(DISTINCT m."TierId") as "tiersIds",
+    MAX(m."publicMessage") AS "publicMessage",
+    c."isIncognito" as "isIncognito",
+    BOOL_OR(COALESCE((c."data" ->> 'isGuest') :: boolean, FALSE)) AS "isGuest",
+    COALESCE(MAX(m.description), MAX(tiers.name)) AS "description",
+    COALESCE(sum(transactions.amount) / count(DISTINCT m.id), 0) AS "totalAmountDonated"
+  FROM
+    "Collectives" c
+  INNER JOIN "Members" m
+    ON m."MemberCollectiveId" = c.id
+  LEFT JOIN "Transactions" transactions
+    ON transactions."CollectiveId" = :collectiveId
+    AND (transactions."FromCollectiveId" = c.id OR transactions."UsingGiftCardFromCollectiveId" = c.id)
+    AND transactions."type" = 'CREDIT'
+    AND transactions."deletedAt" IS NULL
+    AND transactions."RefundTransactionId" IS NULL
+  LEFT JOIN "Tiers" tiers
+    ON m."TierId" IS NOT NULL AND m."TierId" = tiers.id 
+  WHERE
+    m."CollectiveId" = :collectiveId
+    AND m."MemberCollectiveId" != :collectiveId
+    AND m."deletedAt" IS NULL
+    AND c."deletedAt" IS NULL
+  GROUP BY
+    c.id
+  ORDER BY
+    COALESCE(sum(transactions.amount) / count(DISTINCT m.id), 0) DESC,
+    MIN(m."since") ASC
+`;
+
 /**
  * Load contributors cache, filling it from DB if necessary.
  */
@@ -94,62 +136,12 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
     return fromCache;
   }
 
-  // Subquery to get the total amount contributed for each member
-  const TotalAmountContributedQuery = `
-    SELECT  COALESCE(SUM(amount), 0)
-    FROM    "Transactions"
-    WHERE   "CollectiveId" = :collectiveId
-    AND     TYPE = 'CREDIT'
-    AND     "deletedAt" IS NULL
-    AND     "RefundTransactionId" IS NULL
-    AND     ("FromCollectiveId" = mc.id OR "UsingVirtualCardFromCollectiveId" = mc.id)
-  `;
-
-  const allContributors = await sequelize.query(
-    `
-      WITH member_collectives_matching_roles AS (
-        SELECT      c.*
-        FROM        "Collectives" c
-        INNER JOIN  "Members" m ON m."MemberCollectiveId" = c.id
-        WHERE       m."CollectiveId" = :collectiveId
-        AND         c."id" != :collectiveId
-        AND         m."deletedAt" IS NULL AND c."deletedAt" IS NULL
-        GROUP BY    c.id
-      ) SELECT
-        mc.id,
-        MAX(mc.name) AS name,
-        MAX(mc.slug) AS "collectiveSlug",
-        MAX(mc.image) AS image,
-        MAX(mc.type) AS type,
-        MIN(m.since) AS since,
-        MAX(m."publicMessage") AS "publicMessage",
-        BOOL_OR(mc."isIncognito") AS "isIncognito",
-        ARRAY_AGG(DISTINCT m."role") AS roles,
-        ARRAY_AGG(DISTINCT tier."id") AS "tiersIds",
-        COALESCE(MAX(m.description), MAX(tier.name)) AS description,
-        (${TotalAmountContributedQuery}) AS "totalAmountDonated"
-      FROM
-        "member_collectives_matching_roles" mc
-      INNER JOIN
-        "Members" m ON m."MemberCollectiveId" = mc.id
-      LEFT JOIN
-        "Tiers" tier ON m."TierId" = tier.id
-      WHERE
-        m."CollectiveId" = :collectiveId
-      AND
-        m."deletedAt" IS NULL AND mc."deletedAt" IS NULL
-      GROUP BY
-        mc.id
-      ORDER BY
-        "totalAmountDonated" DESC,
-        "since" ASC
-    `,
-    {
-      raw: true,
-      type: sequelize.QueryTypes.SELECT,
-      replacements: { collectiveId },
-    },
-  );
+  // See https://github.com/opencollective/opencollective/issues/4121
+  const allContributors = await sequelize.query(contributorsQuery, {
+    raw: true,
+    type: sequelize.QueryTypes.SELECT,
+    replacements: { collectiveId },
+  });
 
   // Pre-fill some properties for contributors so we don't have to re-compute them
   allContributors.forEach((c: Contributor) => {
@@ -220,7 +212,11 @@ const filterContributors = (contributors: ContributorsList, filters: Contributor
     }
   }
 
-  return contributors.slice(filters.offset || 0, filters.limit);
+  if (filters.offset || filters.limit) {
+    return contributors.slice(filters.offset || 0, filters.limit);
+  } else {
+    return contributors;
+  }
 };
 
 // ---- Public API ----
@@ -238,13 +234,36 @@ export const getContributorsForCollective = async (
 };
 
 /**
+ * Returns all the contributors for given collective
+ */
+export const getPaginatedContributorsForCollective = async (
+  collectiveId: number,
+  filters: ContributorsFilters | null,
+): Promise<{
+  offset: number;
+  limit: number;
+  totalCount: number;
+  nodes: ContributorsList;
+}> => {
+  const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
+  const contributors = contributorsCache.all || [];
+  const filteredContributors = filterContributors(contributors, omit(filters, ['offset', 'limit']));
+  return {
+    offset: filters?.offset || 0,
+    limit: filters?.limit || 0,
+    totalCount: filteredContributors.length,
+    nodes: !filters ? filteredContributors : filteredContributors.slice(filters.offset || 0, filters.limit),
+  };
+};
+
+/**
  * Returns all the contributors for given tier
  */
 export const getContributorsForTier = async (
   collectiveId: number,
   tierId: number,
   filters: ContributorsFilters | null,
-) => {
+): Promise<ContributorsList> => {
   const contributorsCache: ContributorsCacheEntry = await loadContributors(collectiveId);
   const contributors = contributorsCache.tiers[tierId.toString()] || [];
   return filterContributors(contributors, filters);
@@ -263,7 +282,7 @@ export const getContributorsWithoutTier = async (
 };
 
 /** Invalidates the contributors cache for this collective */
-export const invalidateContributorsCache = async collectiveId => {
+export const invalidateContributorsCache = async (collectiveId: number): Promise<void> => {
   const cacheKey = getCacheKey(collectiveId);
   return cache.del(cacheKey);
 };

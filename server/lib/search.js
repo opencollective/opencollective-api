@@ -4,13 +4,12 @@
 
 import config from 'config';
 import slugify from 'limax';
-import { get, sortBy } from 'lodash';
+import { get } from 'lodash';
 
-import { CollectiveTypesList } from '../constants/collectives';
 import { RateLimitExceeded } from '../graphql/errors';
 import models, { Op, sequelize } from '../models';
 
-import algolia from './algolia';
+import { floatAmountToCents } from './math';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from './rate-limit';
 
 // Returned when there's no result for a search
@@ -61,60 +60,190 @@ export const searchCollectivesByEmail = async (email, user, offset = 0, limit = 
 };
 
 /**
- * Turn a search string into a TS vector using 'OR' operator.
- *
- * Ex: "open potatoes" => "open|potatoes"
+ * Trim leading/trailing spaces and remove multiple spaces from the string
  */
-const searchTermToTsVector = term => {
-  return term.replace(/\s+/g, '|');
+const trimSearchTerm = term => {
+  return term?.trim().replace(/\s+/g, ' ');
+};
+
+/**
+ * Example: "crème brulée => "creme brulee"
+ */
+const removeDiacritics = str => {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+};
+
+/**
+ * Sanitize a search string to be used in a SQL query
+ *
+ * Examples: "   crème     brulée => "creme brulee"
+ *
+ */
+const sanitizeSearchTermForTSQuery = term => {
+  return removeDiacritics(term)
+    .replace(/[^a-zA-Z0-9-\/_. ]/g, '')
+    .trim();
+};
+
+/**
+ * Removes special ILIKE characters like `%
+ */
+const sanitizeSearchTermForILike = term => {
+  return term.replace(/(_|%|\\)/g, '\\$1');
+};
+
+const getSearchTermSQLConditions = (term, collectiveTable) => {
+  let tsQueryFunc, tsQueryArg;
+  let sqlConditions = '';
+  let sanitizedTerm = '';
+  const trimmedTerm = trimSearchTerm(term);
+  if (trimmedTerm?.length > 0) {
+    // Cleanup term
+    const splitTerm = trimmedTerm.split(' ');
+    if (term[0] === '@' && splitTerm.length === 1) {
+      // When the search starts with a `@`, we search by slug only
+      sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
+      sqlConditions = `AND ${collectiveTable ? `${collectiveTable}.` : ''}"slug" ILIKE :sanitizedTerm || '%' `;
+    } else {
+      sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
+      if (sanitizedTerm) {
+        tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
+        tsQueryArg = tsQueryFunc === 'to_tsquery' ? `concat(:sanitizedTerm, ':*')` : ':sanitizedTerm';
+        sqlConditions = `
+        AND (${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
+        OR ${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
+      }
+    }
+  }
+
+  return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm };
+};
+
+const getSortSubQuery = (searchTermConditions, orderBy = null) => {
+  const sortSubQueries = {
+    ACTIVITY: `COALESCE(transaction_stats."count", 0)`,
+
+    RANK: `
+      CASE WHEN (c."slug" = :slugifiedTerm OR c."name" ILIKE :sanitizedTerm) THEN
+        1
+      ELSE
+        ${
+          searchTermConditions.tsQueryFunc
+            ? `ts_rank(c."searchTsVector", ${searchTermConditions.tsQueryFunc}('english', ${searchTermConditions.tsQueryArg}))`
+            : '0'
+        }
+      END`,
+
+    CREATED_AT: `c."createdAt"`,
+  };
+
+  let sortQueryType = orderBy?.field || 'RANK';
+  if (!searchTermConditions.sanitizedTerm && sortQueryType === 'RANK') {
+    sortQueryType = 'CREATED_AT'; // We can't sort by rank if there's no search term, fallback on createdAt
+  }
+
+  if (!(sortQueryType in sortSubQueries)) {
+    throw new Error(`Sort field ${sortQueryType} is not supported for this query`);
+  } else {
+    return sortSubQueries[sortQueryType];
+  }
 };
 
 /**
  * Search collectives directly in the DB, using a full-text query.
  */
-export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types, hostCollectiveIds) => {
-  // TSVector to search for collectives names/description/slug
-  const tsVector = `
-    to_tsvector('simple', c.name)
-    || to_tsvector('simple', c.slug)
-    || to_tsvector('simple', COALESCE(c.description, ''))
-    || to_tsvector('simple', COALESCE(c."longDescription", ''))
-    || COALESCE(array_to_tsvector(tags), '')
-  `;
-
+export const searchCollectivesInDB = async (
+  term,
+  offset = 0,
+  limit = 100,
+  {
+    orderBy,
+    types,
+    hostCollectiveIds,
+    isHost,
+    onlyActive,
+    skipRecentAccounts,
+    skipGuests = true,
+    hasCustomContributionsEnabled,
+    countries,
+    tags,
+  } = {},
+) => {
   // Build dynamic conditions based on arguments
   let dynamicConditions = '';
-
-  if (hostCollectiveIds && hostCollectiveIds.length > 0) {
-    dynamicConditions += 'AND "HostCollectiveId" IN (:hostCollectiveIds) ';
+  let countryCodes = null;
+  let searchedTags = '';
+  if (countries) {
+    countryCodes = `${countries.join(',')}`;
   }
 
-  if (term && term.length > 0) {
-    term = term.replace(/(_|%|\\)/g, ' ').trim();
-    dynamicConditions += `AND (${tsVector} @@ plainto_tsquery('simple', :vectorizedTerm) OR name ILIKE '%' || :term || '%' OR slug ILIKE '%' || :term || '%') `;
-  } else {
-    term = '';
+  if (tags?.length) {
+    searchedTags = `{${tags.map(tag => `"${tag}"`).join(',')}}`;
+  }
+
+  if (hostCollectiveIds && hostCollectiveIds.length > 0) {
+    dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
+  }
+
+  if (isHost) {
+    dynamicConditions += `AND c."isHostAccount" IS TRUE AND c."type" = 'ORGANIZATION' `;
+  }
+
+  if (types?.length) {
+    dynamicConditions += `AND c."type" IN (:types) `;
+  }
+
+  if (onlyActive) {
+    dynamicConditions += 'AND c."isActive" = TRUE ';
+  }
+
+  if (skipRecentAccounts) {
+    dynamicConditions += `AND (COALESCE((c."data"#>>'{spamReport,score}')::float, 0) <= 0.2 OR c."createdAt" < (NOW() - interval '2 day')) `;
+  }
+
+  if (skipGuests) {
+    dynamicConditions += `AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE `;
+  }
+
+  if (typeof hasCustomContributionsEnabled === 'boolean') {
+    if (hasCustomContributionsEnabled) {
+      dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
+    } else {
+      dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS TRUE `;
+    }
+  }
+
+  if (countryCodes) {
+    dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" IN (:countryCodes)) `;
+  }
+
+  if (tags?.length) {
+    dynamicConditions += `AND c."tags" @> (:searchedTags) `;
+  }
+
+  const searchTermConditions = getSearchTermSQLConditions(term, 'c');
+  if (searchTermConditions.sqlConditions) {
+    dynamicConditions += searchTermConditions.sqlConditions;
   }
 
   // Build the query
   const result = await sequelize.query(
     `
-    SELECT 
-      c.*, 
+    SELECT
+      c.*,
       COUNT(*) OVER() AS __total__,
-      (
-        CASE WHEN (slug = :slugifiedTerm OR name ILIKE :term) THEN
-          1
-        ELSE
-          ts_rank(${tsVector}, plainto_tsquery('simple', :vectorizedTerm))
-        END
-      ) AS __rank__
+      COALESCE(transaction_stats."totalAmountReceivedInHostCurrency", 0) AS "__stats_totalAmountReceivedInHostCurrency__",
+      (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
     FROM "Collectives" c
-    WHERE "deletedAt" IS NULL
-    AND "deactivatedAt" IS NULL
-    AND "isIncognito" = FALSE
-    AND type IN (:types) ${dynamicConditions}
-    ORDER BY __rank__ DESC
+    ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
+    LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id
+    WHERE c."deletedAt" IS NULL
+    AND c."deactivatedAt" IS NULL
+    AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    AND c.name != 'incognito'
+    AND c.name != 'anonymous'
+    AND c."isIncognito" = FALSE ${dynamicConditions}
+    ORDER BY __sort__ ${orderBy?.direction || 'DESC'}
     OFFSET :offset
     LIMIT :limit
     `,
@@ -122,13 +251,16 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
       model: models.Collective,
       mapToModel: true,
       replacements: {
-        types: types || CollectiveTypesList,
+        types,
         term: term,
-        slugifiedTerm: slugify(term),
-        vectorizedTerm: searchTermToTsVector(term),
+        slugifiedTerm: term ? slugify(term) : '',
+        sanitizedTerm: searchTermConditions.sanitizedTerm,
+        searchedTags,
+        countryCodes,
         offset,
         limit,
         hostCollectiveIds,
+        isHost,
       },
     },
   );
@@ -137,35 +269,117 @@ export const searchCollectivesInDB = async (term, offset = 0, limit = 100, types
 };
 
 /**
- * Search for collectives using Algolia.
- *
- * @returns a tuple like [collectives, total]
+ * Parse and clean a user search query
  */
-export const searchCollectivesOnAlgolia = async (term, offset, limit, types) => {
-  const index = algolia.getIndex();
-  if (!index) {
-    return EMPTY_SEARCH_RESULT;
+export const parseSearchTerm = fullSearchTerm => {
+  const searchTerm = trimSearchTerm(fullSearchTerm);
+  if (!searchTerm) {
+    return { type: 'text', term: '' };
   }
 
-  const { hits, nbHits: total } = await index.search({
-    query: term,
-    length: limit,
-    offset,
-  });
+  if (searchTerm.match(/^@.[^\s]+$/)) {
+    // Searching for slugs (e.g. `@babel`). Won't match if there are whitespace chars (eg. `@babel expense from last month`)
+    return { type: 'slug', term: searchTerm.replace(/^@/, '') };
+  } else if (searchTerm.match(/^#\d+$/)) {
+    // Searching for integer IDs (e.g. `#123`)
+    return { type: 'id', term: parseInt(searchTerm.replace(/^#/, '')) };
+  } else if (searchTerm.match(/^\d+\.?\d*$/)) {
+    return { type: 'number', term: parseFloat(searchTerm), isFloat: searchTerm.includes('.') };
+  } else {
+    return { type: 'text', term: searchTerm };
+  }
+};
 
-  const collectiveIds = hits.map(({ id }) => id);
+/**
+ *
+ * @param {string} searchTerm
+ * @param {object} fieldsDefinition
+ * @param {object} options
+ *  - {string} stringArrayTransformFn: A function to transform values for array strings, usually uppercase/lowercase
+ * @returns
+ */
+export const buildSearchConditions = (
+  searchTerm,
+  {
+    slugFields = [],
+    idFields = [],
+    textFields = [],
+    amountFields = [],
+    stringArrayFields = [],
+    stringArrayTransformFn = null,
+    castStringArraysToVarchar = false,
+  },
+) => {
+  const parsedTerm = parseSearchTerm(searchTerm);
 
-  if (collectiveIds.length === 0) {
-    return EMPTY_SEARCH_RESULT;
+  // Empty search => no condition
+  if (!parsedTerm.term) {
+    return [];
   }
 
-  // Build and run SQL query
-  const where = { id: { [Op.in]: collectiveIds } };
-  if (types !== undefined) {
-    where.type = { [Op.in]: types };
+  // Exclusive conditions: if an ID or a slug is searched, on don't search other attributes
+  // We don't use ILIKE for them, they must match exactly
+  if (parsedTerm.type === 'slug' && slugFields?.length) {
+    return slugFields.map(field => ({ [field]: parsedTerm.term }));
+  } else if (parsedTerm.type === 'id' && idFields?.length) {
+    return idFields.map(field => ({ [field]: parsedTerm.term }));
   }
 
-  const collectives = await models.Collective.findAll({ where });
-  const sortedCollectives = sortBy(collectives, collective => collectiveIds.indexOf(collective.id));
-  return [sortedCollectives, total];
+  // Inclusive conditions, search all fields except
+  const conditions = [];
+
+  // Conditions for text fields
+  const strTerm = parsedTerm.term.toString(); // Some terms are returned as numbers
+  const iLikeQuery = `%${sanitizeSearchTermForILike(strTerm)}%`;
+  const allTextFields = [...(slugFields || []), ...(textFields || [])];
+  allTextFields.forEach(field => conditions.push({ [field]: { [Op.iLike]: iLikeQuery } }));
+
+  // Conditions for string array (usually tags lists)
+  if (stringArrayFields?.length) {
+    const preparedTerm = stringArrayTransformFn ? stringArrayTransformFn(strTerm) : strTerm;
+    if (castStringArraysToVarchar) {
+      stringArrayFields.forEach(field =>
+        conditions.push({ [field]: { [Op.overlap]: sequelize.cast([preparedTerm], 'varchar[]') } }),
+      );
+    } else {
+      stringArrayFields.forEach(field => conditions.push({ [field]: { [Op.overlap]: [preparedTerm] } }));
+    }
+  }
+
+  // Conditions for numbers (ID, amount)
+  if (parsedTerm.type === 'number') {
+    if (!parsedTerm.isFloat && idFields?.length) {
+      conditions.push(...idFields.map(field => ({ [field]: parsedTerm.term })));
+    }
+    if (amountFields?.length) {
+      conditions.push(...amountFields.map(field => ({ [field]: floatAmountToCents(parsedTerm.term) })));
+    }
+  }
+
+  return conditions;
+};
+
+/**
+ * Returns tags along with their frequency of use.
+ */
+export const getTagFrequencies = async args => {
+  const searchConditions = getSearchTermSQLConditions(args.searchTerm);
+  return sequelize.query(
+    `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
+      FROM "Collectives"
+      WHERE "deletedAt" IS NULL
+      ${searchConditions.sqlConditions}
+      GROUP BY UNNEST(tags)
+      ORDER BY count DESC
+      LIMIT :limit
+      OFFSET :offset`,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        sanitizedTerm: searchConditions.sanitizedTerm,
+        limit: args.limit,
+        offset: args.offset,
+      },
+    },
+  );
 };

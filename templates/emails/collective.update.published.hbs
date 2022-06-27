@@ -1,4 +1,4 @@
-Subject: {{update.title}}
+Subject: {{{escapeForSubject update.title}}}
 
 {{> header}}
 
@@ -11,6 +11,52 @@ Subject: {{update.title}}
 
   .updateHtml {
     margin-top: 2rem;
+    width: 100%;
+    line-height: 1.75em;
+    overflow-wrap: break-word;
+    color: #333;
+    font-size: 14px;
+  }
+
+  .updateHtml h1,
+  .updateHtml h2,
+  .updateHtml h3 {
+    margin: 0;
+    margin-bottom: 0.5em;
+    font-weight: normal;
+    text-align: left;
+  }
+
+  .updateHtml h3 {
+    font-size: 18px;
+    margin-bottom: 0.25em;
+  }
+
+  .updateHtml figure {
+    margin: 0;
+  }
+
+  .updateHtml img {
+    max-width: 100%;
+  }
+  .updateHtml blockquote {
+    font-size: 1em;
+    border-left: 5px solid #e9e9e9;
+    background: white;
+    color: #757677;
+    margin: 0;
+    padding: 16px;
+  }
+
+  .updateHtml pre {
+    font-size: 11px;
+    line-height: 1.5em;
+    background: #f6f8fa;
+    color: #333;
+    border: none;
+    padding: 16px;
+    font-family: monospace;
+    overflow-x: auto;
   }
 </style>
 
@@ -34,11 +80,19 @@ Subject: {{update.title}}
 
 <br />
 
-<h2>{{update.title}}</h2>
-<div class="byline">by <a href="{{config.host.website}}/{{update.fromCollective.slug}}">{{update.fromCollective.name}}</a></div>
+<h2>{{{update.title}}}</h2>
+<div class="byline">by <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></div>
 
 <div class="updateHtml">
   {{{update.html}}}
 </div>
+
+<hr style="margin: 40px 0; background-color: #dadada; border: none; height: 1px;">
+
+<p>
+  <center>
+    <a href="{{url}}" class="btn blue"><div>Comment</div></a>
+  </center>
+</p>
 
 {{> footer}}

@@ -1,4 +1,4 @@
-Subject: {{{capitalize month}}} Report
+Subject: {{capitalize month}} Open Collective Report
 
 <style>
   h1, h2, h3, h4, h5, h6, p { margin: 0; }
@@ -221,30 +221,24 @@ Subject: {{{capitalize month}}} Report
       <div class="Section Intro">
         <h2>Hi {{fromCollective.name}} 👋</h2>
         <ul class="intro">
-          <li>In {{month}}, you have backed {{stats.collectives}} {{{pluralize "collective" n=stats.collectives}}} for a total of {{stats.totalDonatedString}}. Thank you for your {{{pluralize "contribution" n=stats.collectives}}}! 🙌
-          {{#if stats.expenses}}<br />They've spent a total of {{stats.totalSpentString}}{{stats.expensesBreakdownString}}.{{/if}}</li>
+          <li>In {{month}}, you have backed {{stats.collectives}} {{pluralize "collective" n=stats.collectives}} for a total of {{stats.totalDonatedString}}. Thank you for your {{pluralize "contribution" n=stats.collectives}}! 🙌
+          {{#if stats.expenses}}<br />These Collectives have spent a total of {{stats.totalSpentString}} in expenses.{{/if}}
+          {{#if consolidatedPdfs}}<br />You can find PDFs of all your contributions, organized by fiscal host, attached to this email.{{/if}}</li>
           {{#each collectives}}
             {{#if nextGoal}}
-              <li><a href="{{../config.host.website}}/{{slug}}">{{name}}</a> needs {{{currency nextGoal.missing.amount currency=currency}}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there). 
+              <li><a href="{{../config.host.website}}/{{slug}}">{{name}}</a> needs {{currency nextGoal.missing.amount currency=currency}} more {{#if nextGoal.missing.interval}}per {{nextGoal.missing.interval}}{{/if}} to reach their next goal of {{nextGoal.title}} ({{nextGoal.percentage}} there).
               {{#if order.Subscription}}
-              You are currently contributing {{{currency order.Subscription.amount currency=order.Subscription.currency}}} per {{order.Subscription.interval}}.
-              (<a href="{{../config.host.website}}/{{../fromCollective.slug}}/subscriptions">increase your contribution</a>)
+              You are currently contributing {{currency order.Subscription.amount currency=order.Subscription.currency}} per {{order.Subscription.interval}}.
+              (<a href="{{../config.host.website}}/recurring-contributions">increase your contribution</a>)
               (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{else}}
-              You have contributed {{{order.totalAmount}}}.
+              You have contributed {{order.totalAmount}}.
               (<a href="{{../config.host.website}}/{{slug}}/donate">increase your contribution</a>)
               (<a href="https://twitter.com/intent/tweet?text={{{encodeURIComponent nextGoal.tweet}}}">share their goal</a>)
               {{/if}}
               </li>
             {{/if}}
           {{/each}}
-          {{#if tags.opensource}}
-            {{#if ORGANIZATION}}
-              <li><font color="red"><b>NEW!</b></font> Check your profile on <a href="https://backyourstack.com/{{fromCollective.slug}}">backyourstack.com/{{fromCollective.slug}}</a> to find out what are the open source projects that your organization is depending on and that need financial support! (note: you may need to adapt the url to match your organization slug on Github)</li>
-            {{else}}
-              <li><font color="red"><b>NEW!</b></font> We built <a href="https://backyourstack.com/">backyourstack.com</a> to help you discover the open source projects that your organization is depending on and that need financial support!</li>
-            {{/if}}
-          {{/if}}
         </ul>
       </div>
       <div class="Section Subscriptions">
@@ -257,20 +251,10 @@ Subject: {{{capitalize month}}} Report
           {{/each}}
         </table>
       </div>
-      {{#if relatedCollectives.length}}
-      <table class="Section Interest"><tr><td>
-        <h3>Collectives that might interest you:</h3>
-        <div class="Cards CardsCount-{{relatedCollectives.length}}">
-          {{#each relatedCollectives}}
-            {{> collectivecard}}
-          {{/each}}
-        </div>
-      </td></tr></table>
-      {{/if}}
       <div class="Section Notice">
         <p>We hope that you find this report useful. Do not hesitate to send us your feedback or ideas. Just reply to this email!</p>
 
-        <p>To manage your subscriptions, <a href="{{manageSubscriptionsUrl}}?{{utm}}">click here</a>.</p>
+        <p>To manage your recurring contributions, <a href="{{manageSubscriptionsUrl}}">click here</a>.</p>
 
         <p>
         {{#if notificationTypeLabel}}
@@ -278,8 +262,7 @@ Subject: {{{capitalize month}}} Report
         {{/if}}
         </p>
 
-        <p>For questions or feedback just reply to this email.</p>
-        <p>You can also follow us on <a href="https://twitter.com/opencollect">Twitter</a> or come chat with us on our public <a href="https://opencollective.slack.com">Slack Channel</a>.</p>
+        <p>You can also follow us on <a href="https://twitter.com/opencollect">Twitter</a> or come chat with us on our <a href="https://opencollective.slack.com">Slack</a>.</p>
       </div>
       {{> mr-footer}}
     </div>

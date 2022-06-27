@@ -1,5 +1,6 @@
 import { GraphQLObjectType } from 'graphql';
 
+import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Account } from '../interface/Account';
 import { Transaction, TransactionFields } from '../interface/Transaction';
 
@@ -13,14 +14,22 @@ export const Debit = new GraphQLObjectType({
       ...TransactionFields(),
       fromAccount: {
         type: Account,
-        resolve(transaction) {
-          return transaction.getCollective();
+        resolve(transaction, _, req) {
+          if (transaction.CollectiveId) {
+            if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
+              allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, transaction.CollectiveId);
+            }
+
+            return req.loaders.Collective.byId.load(transaction.CollectiveId);
+          }
         },
       },
       toAccount: {
         type: Account,
-        resolve(transaction) {
-          return transaction.getFromCollective();
+        resolve(transaction, _, req) {
+          if (transaction.FromCollectiveId) {
+            return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
+          }
         },
       },
     };

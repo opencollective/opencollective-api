@@ -15,7 +15,7 @@ module.exports = {
         CASE WHEN "category" IS NULL THEN NULL
         ELSE ARRAY[UPPER("category")]
         END
-      );  
+      );
     `);
 
     await queryInterface.sequelize.query(`
@@ -24,7 +24,7 @@ module.exports = {
         CASE WHEN "category" IS NULL THEN NULL
         ELSE ARRAY[UPPER("category")]
         END
-      );  
+      );
     `);
 
     await queryInterface.removeColumn('Expenses', 'category');

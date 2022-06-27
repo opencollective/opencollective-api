@@ -1,7 +1,7 @@
-/* eslint-disable camelcase, @typescript-eslint/camelcase */
+/* eslint-disable camelcase */
 import paypalPayoutsSDK from '@paypal/payouts-sdk';
 import { expect } from 'chai';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import { validateConnectedAccount, validateWebhookEvent } from '../../../server/lib/paypal';
 
@@ -13,7 +13,7 @@ describe('lib/paypal', () => {
       webhookId: 'fakeWebhookId',
     },
   };
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
   describe('validateConnectedAccount', () => {
     let fetchAccessToken;

@@ -22,11 +22,15 @@ describe('server/routes/stripe', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  beforeEach('create a host', () => models.User.createUserWithCollective(utils.data('host1')).tap(u => (host = u)));
-  beforeEach('create a user', () => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user = u)));
-  beforeEach('create a collective', () =>
-    models.Collective.create(utils.data('collective1')).tap(c => (collective = c)),
-  );
+  beforeEach('create a host', async () => {
+    host = await models.User.createUserWithCollective(utils.data('host1'));
+  });
+  beforeEach('create a user', async () => {
+    user = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach('create a collective', async () => {
+    collective = await models.Collective.create(utils.data('collective1'));
+  });
   beforeEach('add host', () => collective.addHost(host.collective, host));
   beforeEach('add backer', () => collective.addUserWithRole(user, roles.BACKER));
 

@@ -1,12 +1,12 @@
-Subject: Expense paid on {{collective.name}}: {{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}} for {{transaction.description}}
+Subject: Expense paid for {{{collective.name}}}: {{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}} for {{{escapeForSubject transaction.description}}}
 
 {{> header}}
 
 <center>
-  <h3> Hi there! Just a note to let you know that an expense was paid in {{collective.name}}. </h3>
-  <h2>{{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency precision=2}}}</h2>
-  <div>{{transaction.description}}</div>
-  <div>To: {{fromCollective.name}}</div>
+  <h3> An expense for {{collective.name}} has been paid. </h3>
+  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}"{{currency transaction.netAmountInCollectiveCurrency currency=transaction.currency}}</a></h2>
+  <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}"{{transaction.description}}</a></div>
+  <div>Payee: {{fromCollective.name}}</div>
   {{#if payoutMethod}}
     {{#ifCond payoutMethod.type '===' 'PAYPAL'}}
       <div>Paypal Email: {{payoutMethod.data.email}}</div>

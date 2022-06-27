@@ -1,8 +1,11 @@
 import { expect } from 'chai';
 import { pick } from 'lodash';
 
+import { expenseStatus, expenseTypes } from '../../../server/constants';
 import models from '../../../server/models';
-import { fakeCollective, fakeExpense, fakeUser } from '../../test-helpers/fake-data';
+import Expense from '../../../server/models/Expense';
+import { fakeCollective, fakeExpense, fakeExpenseItem, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('test/server/models/Expense', () => {
   describe('Create', () => {
@@ -34,6 +37,54 @@ describe('test/server/models/Expense', () => {
         await item.reload({ paranoid: false });
         expect(item.deletedAt).to.not.be.null;
       }
+    });
+  });
+
+  describe('findPendingCardCharges', () => {
+    let pendingCharge;
+
+    before(async () => {
+      await resetTestDB();
+
+      pendingCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
+      await fakeExpenseItem({ ExpenseId: pendingCharge.id, url: null });
+
+      const completeCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
+      await fakeExpenseItem({ ExpenseId: completeCharge.id });
+    });
+
+    it('should return all pending card charges', async () => {
+      const pendingCharges = await Expense.findPendingCardCharges();
+      expect(pendingCharges).to.have.length(1);
+      expect(pendingCharges[0]).to.have.property('id').eq(pendingCharge.id);
+    });
+
+    it('should return pending card charges for given attributes', async () => {
+      const newPendingCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
+      await fakeExpenseItem({ ExpenseId: newPendingCharge.id, url: null });
+
+      const pendingCharges = await Expense.findPendingCardCharges({
+        where: {
+          CollectiveId: newPendingCharge.CollectiveId,
+        },
+      });
+      expect(pendingCharges).to.have.length(1);
+      expect(pendingCharges[0]).to.have.property('id').eq(newPendingCharge.id);
+    });
+
+    it('should ignore expenses with refunded transactions', async () => {
+      const refundedCharge = await fakeExpense({ type: expenseTypes.CHARGE, status: expenseStatus.PAID });
+      await fakeExpenseItem({ ExpenseId: refundedCharge.id, url: null });
+      await fakeTransaction({ ExpenseId: refundedCharge.id });
+      await fakeTransaction({ ExpenseId: refundedCharge.id, isRefund: true });
+
+      const pendingCharges = await Expense.findPendingCardCharges({
+        where: {
+          CollectiveId: refundedCharge.CollectiveId,
+        },
+      });
+
+      expect(pendingCharges).to.have.length(0);
     });
   });
 });

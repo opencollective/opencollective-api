@@ -1,11 +1,13 @@
 import { expect } from 'chai';
+import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
 import emailLib from '../../../../server/lib/email';
 import * as payments from '../../../../server/lib/payments';
 import models from '../../../../server/models';
+import { fakePaymentMethod } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 let host, user1, user2, user3, collective1, event1, ticket1;
@@ -18,7 +20,7 @@ describe('server/graphql/v1/mutation', () => {
   */
 
   before(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     emailSendSpy = sandbox.spy(emailLib, 'send');
     emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
     executeOrderStub = sandbox.stub(payments, 'executeOrder').callsFake((user, order) => {
@@ -54,68 +56,71 @@ describe('server/graphql/v1/mutation', () => {
     await utils.resetTestDB();
   });
 
-  beforeEach('create user1', () => models.User.createUserWithCollective(utils.data('user1')).tap(u => (user1 = u)));
-  beforeEach('create host user 1', () =>
-    models.User.createUserWithCollective({
+  beforeEach('create user1', async () => {
+    user1 = await models.User.createUserWithCollective(utils.data('user1'));
+  });
+  beforeEach('create host user 1', async () => {
+    host = await models.User.createUserWithCollective({
       ...utils.data('host1'),
       currency: 'EUR',
-    }).tap(u => (host = u)),
-  );
+    });
+  });
 
-  beforeEach('create user2', () => models.User.createUserWithCollective(utils.data('user2')).tap(u => (user2 = u)));
-  beforeEach('create user3', () => models.User.createUserWithCollective(utils.data('user3')).tap(u => (user3 = u)));
-  beforeEach('create collective1', () =>
-    models.Collective.create(utils.data('collective1')).tap(g => (collective1 = g)),
-  );
+  beforeEach('create user2', async () => {
+    user2 = await models.User.createUserWithCollective(utils.data('user2'));
+  });
+  beforeEach('create user3', async () => {
+    user3 = await models.User.createUserWithCollective(utils.data('user3'));
+  });
+  beforeEach('create collective1', async () => {
+    collective1 = await models.Collective.create(utils.data('collective1'));
+  });
   beforeEach('add host', () => collective1.addHost(host.collective, host));
   beforeEach('add user1 as admin to collective1', () => collective1.addUserWithRole(user1, roles.ADMIN));
   beforeEach('add user2 as admin to collective1', () => collective1.addUserWithRole(user2, roles.ADMIN));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
-  beforeEach('create an event collective', () =>
-    models.Collective.create(
+  beforeEach('create an event collective', async () => {
+    event1 = await models.Collective.create(
       Object.assign(utils.data('event1'), {
         CreatedByUserId: user1.id,
         ParentCollectiveId: collective1.id,
       }),
-    ).tap(e => (event1 = e)),
-  );
-  beforeEach('add user1 as admin of event1', () => event1.addUserWithRole(user1, roles.ADMIN));
+    );
+  });
 
   describe('createCollective tests', () => {
-    const createCollectiveQuery = `
-    mutation createCollective($collective: CollectiveInputType!) {
-      createCollective(collective: $collective) {
-        id
-        slug
-        currency
-        hostFeePercent
-        host {
+    const createCollectiveMutation = gql`
+      mutation CreateCollective($collective: CollectiveInputType!) {
+        createCollective(collective: $collective) {
           id
+          slug
           currency
-        }
-        parentCollective {
-          id
-          currency
-        }
-        isActive
-        tiers {
-          id
-          name
-          amount
-          presets
+          hostFeePercent
+          host {
+            id
+            currency
+          }
+          parentCollective {
+            id
+            currency
+          }
+          isActive
+          tiers {
+            id
+            name
+            amount
+            presets
+          }
         }
       }
-    }
     `;
 
     describe('creates an event collective', () => {
@@ -145,7 +150,7 @@ describe('server/graphql/v1/mutation', () => {
       };
 
       it('fails if not authenticated', async () => {
-        const result = await utils.graphqlQuery(createCollectiveQuery, {
+        const result = await utils.graphqlQuery(createCollectiveMutation, {
           collective: getEventData(collective1),
         });
         expect(result.errors).to.have.length(1);
@@ -155,7 +160,7 @@ describe('server/graphql/v1/mutation', () => {
       it('fails if authenticated but cannot edit parent collective', async () => {
         await host.collective.update({ settings: { apply: true } });
         const result = await utils.graphqlQuery(
-          createCollectiveQuery,
+          createCollectiveMutation,
           { collective: getEventData(collective1) },
           user3,
         );
@@ -173,7 +178,7 @@ describe('server/graphql/v1/mutation', () => {
         });
         const event = getEventData(collective1);
 
-        const result = await utils.graphqlQuery(createCollectiveQuery, { collective: event }, user1);
+        const result = await utils.graphqlQuery(createCollectiveMutation, { collective: event }, user1);
         result.errors && console.error(result.errors[0]);
         const createdEvent = result.data.createCollective;
         expect(createdEvent.slug).to.contain('brusselstogether-meetup');
@@ -189,14 +194,9 @@ describe('server/graphql/v1/mutation', () => {
           order: [['MemberCollectiveId', 'ASC']],
         });
         expect(createdEvent.currency).to.equal(createdEvent.parentCollective.currency);
-        expect(members).to.have.length(3);
-        expect(members[0].CollectiveId).to.equal(event.id);
-        expect(members[0].MemberCollectiveId).to.equal(user1.CollectiveId);
-        expect(members[0].role).to.equal(roles.ADMIN);
-        expect(members[1].role).to.equal(roles.HOST);
-        expect(members[1].MemberCollectiveId).to.equal(collective1.HostCollectiveId);
-        expect(members[2].role).to.equal(roles.ADMIN);
-        expect(members[2].MemberCollectiveId).to.equal(user2.CollectiveId);
+        expect(members).to.have.length(1);
+        expect(members[0].role).to.equal(roles.HOST);
+        expect(members[0].MemberCollectiveId).to.equal(collective1.HostCollectiveId);
 
         // We remove the first tier
         event.tiers.shift();
@@ -204,18 +204,18 @@ describe('server/graphql/v1/mutation', () => {
         // We update the second (now only) tier
         event.tiers[0].amount = 123;
 
-        const updateQuery = `
-        mutation editCollective($collective: CollectiveInputType!) {
-          editCollective(collective: $collective) {
-            id,
-            slug,
-            tiers {
-              id,
-              name,
-              amount
+        const updateQuery = gql`
+          mutation editCollective($collective: CollectiveInputType!) {
+            editCollective(collective: $collective) {
+              id
+              slug
+              tiers {
+                id
+                name
+                amount
+              }
             }
           }
-        }
         `;
 
         const r2 = await utils.graphqlQuery(updateQuery, { collective: event });
@@ -225,7 +225,7 @@ describe('server/graphql/v1/mutation', () => {
         const r3 = await utils.graphqlQuery(updateQuery, { collective: event }, user3);
         expect(r3.errors).to.have.length(1);
         expect(r3.errors[0].message).to.equal(
-          'You must be logged in as the creator of this Event or as an admin of the scouts collective to edit this Event Collective',
+          'You must be logged in as admin of the scouts collective to edit this Event.',
         );
 
         const r4 = await utils.graphqlQuery(updateQuery, { collective: event }, user1);
@@ -234,95 +234,21 @@ describe('server/graphql/v1/mutation', () => {
         expect(updatedEvent.tiers[0].amount).to.equal(event.tiers[0].amount);
       });
     });
-
-    describe('apply to create a collective', () => {
-      let newCollectiveData;
-
-      beforeEach(() => {
-        newCollectiveData = {
-          slug: 'newcollective',
-          name: 'new collective',
-          website: 'http://newcollective.org',
-          twitterHandle: 'newcollective',
-          HostCollectiveId: host.collective.id,
-          currency: 'EUR',
-        };
-      });
-
-      it('fails if not logged in', async () => {
-        const res = await utils.graphqlQuery(createCollectiveQuery, {
-          collective: newCollectiveData,
-        });
-        expect(res.errors).to.exist;
-        expect(res.errors[0].message).to.contain('You need to be logged in to create a collective');
-      });
-
-      it("fails to create a collective on a host that doesn't accept applications", async () => {
-        await host.collective.update({ settings: { apply: false } });
-        const collective = {
-          name: 'new collective',
-          HostCollectiveId: host.CollectiveId,
-        };
-        const result = await utils.graphqlQuery(createCollectiveQuery, { collective }, user1);
-        expect(result.errors[0].message).to.equal('This host does not accept applications for new collectives');
-      });
-
-      it('creates a collective', async () => {
-        emailSendMessageSpy.resetHistory();
-        await host.collective.update({ settings: { apply: true } });
-        const res = await utils.graphqlQuery(createCollectiveQuery, { collective: newCollectiveData }, user1);
-        res.errors && console.error(res.errors[0]);
-        const newCollective = res.data.createCollective;
-        const hostMembership = await models.Member.findOne({
-          where: { CollectiveId: newCollective.id, role: 'HOST' },
-        });
-        const adminMembership = await models.Member.findOne({
-          where: { CollectiveId: newCollective.id, role: 'ADMIN' },
-        });
-
-        expect(newCollective.currency).to.equal(newCollectiveData.currency);
-        expect(newCollective.tiers).to.have.length(2);
-        expect(newCollective.tiers[0].presets).to.have.length(4);
-        expect(hostMembership.MemberCollectiveId).to.equal(host.CollectiveId);
-        expect(adminMembership.MemberCollectiveId).to.equal(user1.CollectiveId);
-
-        expect(newCollective.isActive).to.be.false;
-        expect(newCollective.host.id).to.equal(host.collective.id);
-        await utils.waitForCondition(() => emailSendMessageSpy.callCount === 3);
-        expect(emailSendMessageSpy.callCount).to.equal(3);
-
-        const applyEmailArgs = emailSendMessageSpy.args.find(callArgs => callArgs[1].includes('Thanks for applying'));
-        expect(applyEmailArgs).to.exist;
-        expect(applyEmailArgs[0]).to.equal(user1.email);
-
-        const newCollectiveArgs = emailSendMessageSpy.args.find(callArgs =>
-          callArgs[1].includes('would love to be hosted'),
-        );
-        expect(newCollectiveArgs).to.exist;
-        expect(newCollectiveArgs[0]).to.equal(host.email);
-
-        const welcomeArgs = emailSendMessageSpy.args.find(callArgs =>
-          callArgs[1].includes('Welcome to Open Collective!'),
-        );
-        expect(welcomeArgs).to.exist;
-        expect(welcomeArgs[0]).to.equal(user1.email);
-      });
-    });
   });
 
   describe('editCollective tests', () => {
     describe('edit tiers', () => {
-      const editTiersQuery = `
-      mutation editTiers($id: Int!, $tiers: [TierInputType]) {
-        editTiers(id: $id, tiers: $tiers) {
-          id
-          name
-          type
-          amount
-          interval
-          goal
+      const editTiersMutation = gql`
+        mutation EditTiers($id: Int!, $tiers: [TierInputType]) {
+          editTiers(id: $id, tiers: $tiers) {
+            id
+            name
+            type
+            amount
+            interval
+            goal
+          }
         }
-      }
       `;
 
       const tiers = [
@@ -331,7 +257,7 @@ describe('server/graphql/v1/mutation', () => {
       ];
 
       it('fails if not authenticated', async () => {
-        const result = await utils.graphqlQuery(editTiersQuery, {
+        const result = await utils.graphqlQuery(editTiersMutation, {
           id: collective1.id,
           tiers,
         });
@@ -340,7 +266,7 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       it('fails if not authenticated as host or member of collective', async () => {
-        const result = await utils.graphqlQuery(editTiersQuery, { id: collective1.id }, user3);
+        const result = await utils.graphqlQuery(editTiersMutation, { id: collective1.id }, user3);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.equal(
           "You need to be logged in as a core contributor or as a host of the Scouts d'Arlon collective",
@@ -348,7 +274,7 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       it('add new tiers and update existing', async () => {
-        const result = await utils.graphqlQuery(editTiersQuery, { id: collective1.id, tiers }, user1);
+        const result = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
         result.errors && console.error(result.errors[0]);
         expect(tiers).to.have.length(2);
         tiers.sort((a, b) => b.amount - a.amount);
@@ -357,7 +283,7 @@ describe('server/graphql/v1/mutation', () => {
         tiers[0].goal = 20000;
         tiers[1].amount = 100000;
         tiers.push({ name: 'free ticket', type: 'TICKET', amount: 0 });
-        const result2 = await utils.graphqlQuery(editTiersQuery, { id: collective1.id, tiers }, user1);
+        const result2 = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
         result2.errors && console.error(result2.errors[0]);
         const updatedTiers = result2.data.editTiers;
         updatedTiers.sort((a, b) => b.amount - a.amount);
@@ -368,23 +294,23 @@ describe('server/graphql/v1/mutation', () => {
     });
 
     describe('change the hostFeePercent of the host', () => {
-      const updateQuery = `
-      mutation editCollective($collective: CollectiveInputType!) {
-        editCollective(collective: $collective) {
-          id,
-          slug,
-          hostFeePercent,
-          host {
+      const updateHostFeePercentMutation = gql`
+        mutation UpdateHostFeePercent($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
             id
+            slug
             hostFeePercent
+            host {
+              id
+              hostFeePercent
+            }
           }
         }
-      }
       `;
 
       it('fails if not authenticated as an admin of the host', async () => {
         const result = await utils.graphqlQuery(
-          updateQuery,
+          updateHostFeePercentMutation,
           { collective: { id: collective1.id, hostFeePercent: 11 } },
           user1,
         );
@@ -396,7 +322,7 @@ describe('server/graphql/v1/mutation', () => {
 
       it('updates the hostFeePercent of the collective, not of the host', async () => {
         const result = await utils.graphqlQuery(
-          updateQuery,
+          updateHostFeePercentMutation,
           { collective: { id: collective1.id, hostFeePercent: 11 } },
           host,
         );
@@ -406,7 +332,7 @@ describe('server/graphql/v1/mutation', () => {
 
       it('updates the hostFeePercent of the host and of the hosted collectives', async () => {
         const result = await utils.graphqlQuery(
-          updateQuery,
+          updateHostFeePercentMutation,
           { collective: { id: host.collective.id, hostFeePercent: 9 } },
           host,
         );
@@ -419,51 +345,10 @@ describe('server/graphql/v1/mutation', () => {
     });
   });
 
-  describe('delete Collective', () => {
-    const deleteEventCollectiveQuery = `
-      mutation deleteEventCollective($id: Int!) {
-        deleteEventCollective(id: $id) {
-          id,
-          name
-        }
-      }`;
-
-    it('fails to delete a collective if not logged in', async () => {
-      const result = await utils.graphqlQuery(deleteEventCollectiveQuery, {
-        id: event1.id,
-      });
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in to delete a collective');
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.not.be.null;
-      });
-    });
-
-    it('fails to delete a collective if logged in as another user', async () => {
-      const result = await utils.graphqlQuery(deleteEventCollectiveQuery, { id: event1.id }, user3);
-      expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(
-        'You need to be logged in as a core contributor or as a host to delete this collective',
-      );
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.not.be.null;
-      });
-    });
-
-    it('deletes a collective', async () => {
-      const res = await utils.graphqlQuery(deleteEventCollectiveQuery, { id: event1.id }, user1);
-      res.errors && console.error(res.errors[0]);
-      expect(res.errors).to.not.exist;
-      return models.Collective.findByPk(event1.id).then(event => {
-        expect(event).to.be.null;
-      });
-    });
-  });
-
   describe('createOrder tests', () => {
-    beforeEach('create ticket 1', () =>
-      models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id })).tap(t => (ticket1 = t)),
-    );
+    beforeEach('create ticket 1', async () => {
+      ticket1 = await models.Tier.create(Object.assign(utils.data('ticket1'), { CollectiveId: event1.id }));
+    });
 
     beforeEach('create ticket 2', () =>
       models.Tier.create(Object.assign(utils.data('ticket2'), { CollectiveId: event1.id })),
@@ -475,39 +360,39 @@ describe('server/graphql/v1/mutation', () => {
 
     describe('throws an error', () => {
       it('when missing all required fields', async () => {
-        const query = `
-          mutation createOrder($order: OrderInputType!) {
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
             createOrder(order: $order) {
-              id,
+              id
               collective {
                 id
               }
               tier {
-                id,
-                name,
+                id
+                name
                 description
               }
             }
           }
         `;
 
-        const result = await utils.graphqlQuery(query, { order: {} });
+        const result = await utils.graphqlQuery(createOrderMutation, { order: {} });
         expect(result.errors.length).to.equal(1);
         expect(result.errors[0].message).to.contain('collective');
       });
 
       describe("when collective/tier doesn't exist", () => {
         it("when collective doesn't exist", async () => {
-          const query = `
+          const createOrderMutation = gql`
             mutation createOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -518,22 +403,22 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 3 },
             quantity: 1,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal(`No collective found: ${order.collective.id}`);
         });
 
         it("when tier doesn't exist", async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -545,7 +430,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 1002 },
             quantity: 1,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors.length).to.equal(1);
           expect(result.errors[0].message).to.equal(
             `No tier found with tier id: 1002 for collective slug ${event1.slug}`,
@@ -555,16 +440,16 @@ describe('server/graphql/v1/mutation', () => {
 
       describe('after checking ticket quantity', () => {
         it('and if not enough are available', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -576,23 +461,23 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 3 },
             quantity: 101,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors[0].message).to.equal(`No more tickets left for ${ticket1.name}`);
         });
       });
 
       describe('when no payment method', () => {
         it("and it's a paid ticket", async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 collective {
                   id
                 }
                 tier {
-                  id,
-                  name,
+                  id
+                  name
                   description
                 }
               }
@@ -604,7 +489,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 4 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors[0].message).to.equal('This order requires a payment method');
         });
       });
@@ -618,19 +503,19 @@ describe('server/graphql/v1/mutation', () => {
       });
 
       describe('as an organization', () => {
-        const query = `
-          mutation createOrder($order: OrderInputType!) {
+        const createOrderMutation = gql`
+          mutation CreateOrder($order: OrderInputType!) {
             createOrder(order: $order) {
-              id,
+              id
               tier {
-                id,
-              },
+                id
+              }
               fromCollective {
                 slug
                 twitterHandle
-              },
+              }
               collective {
-                id,
+                id
                 slug
               }
             }
@@ -659,7 +544,7 @@ describe('server/graphql/v1/mutation', () => {
             quantity: 2,
           };
           emailSendMessageSpy.resetHistory();
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -695,7 +580,9 @@ describe('server/graphql/v1/mutation', () => {
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user2@opencollective.com');
           expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Your Organization on Open Collective');
           expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal("Google joined Scouts d'Arlon as backer");
+          expect(emailSendMessageSpy.secondCall.args[1]).to.equal(
+            "New financial contributor to Scouts d'Arlon: Google ($20.00/m)",
+          );
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain('Looking forward!'); // publicMessage
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain(
             '@google thanks for your financial contribution to @scouts',
@@ -732,7 +619,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 5 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -775,30 +662,30 @@ describe('server/graphql/v1/mutation', () => {
 
       describe('in a free ticket', () => {
         it('from an existing user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     totalOrders
                     availableQuantity
                   }
-                },
+                }
                 fromCollective {
-                  id,
+                  id
                   slug
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -811,7 +698,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 3 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -849,8 +736,9 @@ describe('server/graphql/v1/mutation', () => {
             },
           });
           expect(members).to.have.length(1);
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 1);
-          expect(emailSendSpy.callCount).to.equal(2);
+          // 2 for the collective admins, 1 for the contributor
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 3);
+          expect(emailSendSpy.callCount).to.equal(3);
           const activityData = emailSendSpy.firstCall.args[2];
           expect(activityData.member.role).to.equal('ATTENDEE');
           expect(activityData.collective.type).to.equal('EVENT');
@@ -858,17 +746,24 @@ describe('server/graphql/v1/mutation', () => {
           expect(activityData.collective.slug).to.equal(event1.slug);
           expect(activityData.member.memberCollective.slug).to.equal(user2.collective.slug);
           expect(emailSendSpy.firstCall.args[0]).to.equal('collective.member.created');
-          expect(emailSendSpy.secondCall.args[0]).to.equal('ticket.confirmed');
-          expect(emailSendMessageSpy.callCount).to.equal(2);
+          expect(emailSendSpy.secondCall.args[0]).to.equal('collective.member.created');
+          expect(emailSendSpy.thirdCall.args[0]).to.equal('ticket.confirmed');
+          expect(emailSendMessageSpy.callCount).to.equal(3);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Anish Bas joined January meetup as attendee');
+          expect(emailSendMessageSpy.firstCall.args[1]).to.equal(
+            'New financial contributor to January meetup: Anish Bas',
+          );
           expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user2@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal('2 tickets confirmed for January meetup');
+          expect(emailSendMessageSpy.secondCall.args[1]).to.equal(
+            'New financial contributor to January meetup: Anish Bas',
+          );
+          expect(emailSendMessageSpy.thirdCall.args[0]).to.equal('user2@opencollective.com');
+          expect(emailSendMessageSpy.thirdCall.args[1]).to.equal('2 tickets confirmed for January meetup');
         });
 
         it('from a new user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
                 id
                 createdByUser {
@@ -886,7 +781,7 @@ describe('server/graphql/v1/mutation', () => {
                 }
               }
             }
-        `;
+          `;
 
           const order = {
             collective: { id: event1.id },
@@ -896,7 +791,8 @@ describe('server/graphql/v1/mutation', () => {
           const remoteUser = await models.User.createUserWithCollective({
             email: 'newuser@email.com',
           });
-          const result = await utils.graphqlQuery(query, { order }, remoteUser);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
+          result.errors && console.error(result.errors);
           expect(result).to.deep.equal({
             data: {
               createOrder: {
@@ -931,25 +827,25 @@ describe('server/graphql/v1/mutation', () => {
 
       describe('in a paid ticket', () => {
         it('from an existing user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     availableQuantity
                   }
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -970,7 +866,7 @@ describe('server/graphql/v1/mutation', () => {
             tier: { id: 4 },
             quantity: 2,
           };
-          const result = await utils.graphqlQuery(query, { order }, user2);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           result.errors && console.error(result.errors[0]);
           expect(result.data).to.deep.equal({
             createOrder: {
@@ -1004,82 +900,132 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].totalAmount).to.equal(4000);
           expect(executeOrderArgument[1].currency).to.equal('USD');
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
-          expect(emailSendMessageSpy.callCount).to.equal(1);
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
+          expect(emailSendMessageSpy.callCount).to.equal(2);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
-          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(`Anish Bas joined ${event1.name} as backer`);
+          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+            `New financial contributor to ${event1.name}: Anish Bas ($40.00)`,
+          );
           expect(emailSendMessageSpy.firstCall.args[2]).to.contain('/scouts/events/jan-meetup');
         });
 
-        it('from an existing but logged out user (should fail)', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+        describe('from an existing but logged out user', async () => {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     availableQuantity
                   }
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
             }
           `;
 
-          const order = {
-            paymentMethod: {
-              token: 'tok_123456781234567812345678',
-              service: 'stripe',
-              name: '4242',
-              data: {
-                expMonth: 11,
-                expYear: 2020,
+          it('works with an order that has only fresh info', async () => {
+            const order = {
+              paymentMethod: {
+                token: 'tok_123456781234567812345678',
+                service: 'stripe',
+                name: '4242',
+                data: {
+                  expMonth: 11,
+                  expYear: 2020,
+                },
               },
-            },
-            collective: { id: event1.id },
-            tier: { id: 4 },
-            quantity: 2,
-            user: { email: user2.email },
-          };
+              collective: { id: event1.id },
+              tier: { id: 4 },
+              quantity: 2,
+              guestInfo: {
+                email: user2.email,
+                captcha: { token: '10000000-aaaa-bbbb-cccc-000000000001', provider: 'HCAPTCHA' },
+              },
+            };
 
-          const loggedInUser = null;
-          const result = await utils.graphqlQuery(query, { order }, loggedInUser);
-          // result.errors && console.error(result.errors[0]);
-          expect(result.errors).to.exist;
-          expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+            const loggedInUser = null;
+            const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
+            result.errors && console.error(result.errors[0]);
+            expect(result.errors).to.not.exist;
+            expect(result.data).to.deep.equal({
+              createOrder: {
+                id: 1,
+                tier: {
+                  stats: {
+                    availableQuantity: 98,
+                  },
+                  description: '$20 ticket',
+                  id: 4,
+                  maxQuantity: 100,
+                  name: 'paid ticket',
+                },
+                createdByUser: {
+                  email: null,
+                  id: 3,
+                },
+                collective: {
+                  id: event1.id,
+                  slug: 'jan-meetup',
+                },
+              },
+            });
+          });
+
+          it('cannot use an existing payment method', async () => {
+            const user2PaymentMethod = await fakePaymentMethod({
+              CollectiveId: user2.CollectiveId,
+              service: 'opencollective',
+              type: 'prepaid',
+            });
+            const order = {
+              paymentMethod: { id: user2PaymentMethod.id },
+              collective: { id: event1.id },
+              tier: { id: 4 },
+              quantity: 2,
+              guestInfo: { email: user2.email },
+            };
+
+            const loggedInUser = null;
+            const result = await utils.graphqlQuery(createOrderMutation, { order }, loggedInUser);
+            expect(result.errors).to.exist;
+            expect(result.errors[0].message).to.equal(
+              'You need to be logged in to be able to use an existing payment method',
+            );
+          });
         });
 
         it('from a new user', async () => {
-          const query = `
-            mutation createOrder($order: OrderInputType!) {
+          const createOrderMutation = gql`
+            mutation CreateOrder($order: OrderInputType!) {
               createOrder(order: $order) {
-                id,
+                id
                 createdByUser {
-                  id,
+                  id
                   email
-                },
+                }
                 tier {
-                  id,
-                  name,
-                  description,
-                  maxQuantity,
+                  id
+                  name
+                  description
+                  maxQuantity
                   stats {
                     availableQuantity
                   }
-                },
+                }
                 collective {
-                  id,
+                  id
                   slug
                 }
               }
@@ -1100,7 +1046,7 @@ describe('server/graphql/v1/mutation', () => {
             quantity: 2,
           };
           const remoteUser = await models.User.createUserWithCollective({ email: 'newuser@email.com' });
-          const result = await utils.graphqlQuery(query, { order }, remoteUser);
+          const result = await utils.graphqlQuery(createOrderMutation, { order }, remoteUser);
           result.errors && console.error(result.errors[0]);
           const executeOrderArgument = executeOrderStub.firstCall.args;
           expect(result).to.deep.equal({
@@ -1136,10 +1082,12 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].totalAmount).to.equal(4000);
           expect(executeOrderArgument[1].currency).to.equal('USD');
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
-          expect(emailSendMessageSpy.callCount).to.equal(1);
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
+          expect(emailSendMessageSpy.callCount).to.equal(2);
           expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
-          expect(emailSendMessageSpy.firstCall.args[1]).to.contain('incognito joined January meetup as backer');
+          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+            'New financial contributor to January meetup: incognito ($40.00)',
+          );
         });
       });
     });

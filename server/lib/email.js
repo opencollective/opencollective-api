@@ -4,7 +4,7 @@ import path from 'path';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import he from 'he';
+import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
@@ -13,10 +13,13 @@ import models from '../models';
 
 import templates from './emailTemplates';
 import logger from './logger';
-import { md5, sha512 } from './utils';
+import { reportErrorToSentry } from './sentry';
+import { isEmailInternal, md5, sha512 } from './utils';
 import whiteListDomains from './whiteListDomains';
 
 const debug = debugLib('email');
+
+export const NO_REPLY_EMAIL = 'Open Collective <no-reply@opencollective.com>';
 
 export const getMailer = () => {
   if (config.maildev.client) {
@@ -37,17 +40,13 @@ export const getMailer = () => {
 };
 
 const render = (template, data) => {
-  let text;
   data.imageNotSvg = data.collective && data.collective.image && !data.collective.image.endsWith('.svg');
   data = merge({}, data);
   delete data.config;
   data.config = { host: config.host };
 
-  if (templates[`${template}.text`]) {
-    text = templates[`${template}.text`](data);
-  }
-  const html = juice(he.decode(templates[template](data)));
-
+  const html = juice(templates[template](data));
+  const text = htmlToText(html);
   return { text, html };
 };
 
@@ -85,6 +84,17 @@ const getTemplateAttributes = str => {
 
   attributes.body = lines.slice(index).join('\n').trim();
   return attributes;
+};
+
+const filterBccForTestEnv = emails => {
+  if (!emails) {
+    return emails;
+  }
+
+  const isString = typeof emails === 'string';
+  const list = isString ? emails.split(',') : emails;
+  const filtered = list.filter(isEmailInternal);
+  return isString ? filtered.join(',') : filtered;
 };
 
 /*
@@ -147,6 +157,10 @@ const sendMessage = (recipients, subject, html, options = {}) => {
       debug('emailLib.sendMessage error: No recipient defined');
       return Promise.resolve();
     }
+
+    // Filter users added as BCC
+    options.bcc = filterBccForTestEnv(options.bcc);
+
     let sendToBcc = true;
     // Don't send to BCC if sendEvenIfNotProduction and NOT in testing env
     if (options.sendEvenIfNotProduction === true && !['ci', 'test'].includes(config.env)) {
@@ -204,11 +218,7 @@ const getNotificationLabel = (template, recipients) => {
     recipients = [recipients];
   }
 
-  template = template.replace('.text', '');
-
   const notificationTypeLabels = {
-    'email.approve': 'notifications of new emails pending approval',
-    'email.message': `the ${recipients[0].substr(0, recipients[0].indexOf('@'))} mailing list`,
     'collective.order.created': 'notifications of new donations for this collective',
     'collective.comment.created': 'notifications of new comments submitted to this collective',
     'collective.expense.created': 'notifications of new expenses submitted to this collective',
@@ -264,17 +274,14 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   }
 
   if (template === 'collective.approved') {
-    if (hostSlug === 'the-social-change-agency') {
-      template += '.the-social-change-agency';
+    if (['foundation', 'the-social-change-nest'].includes(hostSlug)) {
+      template = `${template}.${hostSlug}`;
     }
   }
 
   if (template === 'collective.created') {
-    if (hostSlug === 'opensource') {
-      template += '.opensource';
-    }
-    if (hostSlug === 'the-social-change-agency') {
-      template += '.the-social-change-agency';
+    if (['opensource', 'the-social-change-nest'].includes(hostSlug)) {
+      template = `${template}.${hostSlug}`;
     }
   }
 
@@ -287,14 +294,8 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
       template = 'thankyou.wwcode';
     } else if (['foundation', 'opensource'].includes(hostSlug)) {
       template = `thankyou.${hostSlug}`;
-    } else if (includes(['chsf', 'kendraio', 'brusselstogether', 'sustainoss', 'ispcwa'], slug)) {
-      template = `thankyou.${slug}`;
-    } else if (includes(['laprimaire', 'lesbarbares', 'nuitdebout', 'enmarchebe', 'monnaie-libre'], slug)) {
-      if (slug === 'laprimaire') {
-        template = 'thankyou.laprimaire';
-      } else {
-        template = 'thankyou.fr';
-      }
+    } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre'], slug)) {
+      template = 'thankyou.fr';
 
       // xdamman: hack
       switch (data.interval) {
@@ -327,7 +328,6 @@ const generateEmailFromTemplate = (template, recipient, data = {}, options = {})
   }
 
   data.config = pick(config, ['host']);
-  data.utm = `utm_source=opencollective&utm_campaign=${template}&utm_medium=email`;
 
   if (!templates[template]) {
     return Promise.reject(new Error(`Invalid email template: ${template}`));
@@ -361,18 +361,23 @@ const generateEmailFromTemplateAndSend = async (template, recipient, data, optio
     return;
   }
 
-  return generateEmailFromTemplate(template, recipient, data, options).then(renderedTemplate => {
-    const attributes = getTemplateAttributes(renderedTemplate.html);
-    options.text = renderedTemplate.text;
-    options.tag = template;
-    debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
-    return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
-  });
+  return generateEmailFromTemplate(template, recipient, data, options)
+    .then(renderedTemplate => {
+      const attributes = getTemplateAttributes(renderedTemplate.html);
+      options.text = renderedTemplate.text;
+      options.tag = template;
+      debug(`Sending email to: ${recipient} subject: ${attributes.subject}`);
+      return emailLib.sendMessage(recipient, attributes.subject, attributes.body, options);
+    })
+    .catch(err => {
+      logger.error(err.message);
+      logger.debug(err);
+      reportErrorToSentry(err);
+    });
 };
 
 const emailLib = {
   render,
-  getTemplateAttributes,
   sendMessage,
   generateUnsubscribeToken,
   isValidUnsubscribeToken,

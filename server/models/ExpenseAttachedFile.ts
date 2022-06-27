@@ -1,23 +1,21 @@
-import { Model, Transaction } from 'sequelize';
+import config from 'config';
+import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import sequelize from '../lib/sequelize';
+
+import models from '.';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
-export class ExpenseAttachedFile extends Model<ExpenseAttachedFile> {
-  public readonly id!: number;
-  public ExpenseId!: number;
-  public CreatedByUserId: number;
-  public url!: string;
-  public createdAt!: Date;
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
+export class ExpenseAttachedFile extends Model {
+  public declare readonly id: number;
+  public declare ExpenseId: number;
+  public declare CreatedByUserId: number;
+  public declare url: string;
+  public declare createdAt: Date;
 
   /**
    * Create an attachment from user-submitted data.
@@ -27,8 +25,8 @@ export class ExpenseAttachedFile extends Model<ExpenseAttachedFile> {
    */
   static async createFromData(
     url: string,
-    user,
-    expense,
+    user: typeof models.User,
+    expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {
     return ExpenseAttachedFile.create(
@@ -42,12 +40,15 @@ export class ExpenseAttachedFile extends Model<ExpenseAttachedFile> {
    * added, removed or added.
    * @returns [newEntries, removedEntries, updatedEntries]
    */
-  static diffDBEntries = (baseAttachments, attachmentsData): [object[], ExpenseAttachedFile[], object[]] => {
+  static diffDBEntries = (
+    baseAttachments: ExpenseAttachedFile[],
+    attachmentsData: Record<string, unknown>[],
+  ): [Record<string, unknown>[], ExpenseAttachedFile[], Record<string, unknown>[]] => {
     return diffDBEntries(baseAttachments, attachmentsData, ['url']);
   };
 }
 
-export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
+function setupModel(ExpenseAttachedFile) {
   // Link the model to database fields
   ExpenseAttachedFile.init(
     {
@@ -74,9 +75,8 @@ export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
         type: DataTypes.STRING,
         allowNull: false,
         validate: {
-          isUrl: true,
-          isValidImage(url: string): void {
-            if (url && !isValidUploadedImage(url)) {
+          isValid(url: string): void {
+            if (url && !isValidUploadedImage(url) && !url.startsWith(config.host.rest)) {
               throw new Error('The attached file URL is not valid');
             }
           },
@@ -93,6 +93,10 @@ export default (sequelize, DataTypes): typeof ExpenseAttachedFile => {
       tableName: 'ExpenseAttachedFiles',
     },
   );
+}
 
-  return ExpenseAttachedFile;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(ExpenseAttachedFile);
+
+export default ExpenseAttachedFile;

@@ -66,10 +66,9 @@ const replaceHostStripeTokens = () => {
 };
 
 const replaceUsersStripeTokens = () => {
-  return models.PaymentMethod.update(
-    { token: 'tok_mastercard' },
-    { where: { service: 'stripe' }, force: true },
-  ).catch(e => console.error("Can't remove users stripe tokens. Please do it manually", e));
+  return models.PaymentMethod.update({ token: 'tok_mastercard' }, { where: { service: 'stripe' }, force: true }).catch(
+    e => console.error("Can't remove users stripe tokens. Please do it manually", e),
+  );
 };
 
 // Removes all tokens from connected accounts
@@ -84,9 +83,9 @@ const removeConnectedAccountsTokens = () => {
 
 // Remove all webhooks to ensure we won't use users Zapier apps
 const deleteWebhooks = () => {
-  return models.Notification.destroy({ where: { channel: channels.WEBHOOK } }).catch(e =>
-    console.error('There was an error removing the webhooks. Please do it manually', e),
-  );
+  return models.Notification.destroy({
+    where: { channel: [channels.WEBHOOK, channels.GITTER, channels.SLACK, channels.TWITTER] },
+  }).catch(e => console.error('There was an error removing the webhooks. Please do it manually', e));
 };
 
 const deleteLegalDocuments = () => {

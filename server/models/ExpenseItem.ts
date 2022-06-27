@@ -1,14 +1,18 @@
 import { pick } from 'lodash';
-import { Model, Transaction } from 'sequelize';
+import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize from '../lib/sequelize';
+
+import models from '.';
 
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
-export class ExpenseItem extends Model<ExpenseItem> {
+export class ExpenseItem extends Model {
   public readonly id!: number;
   public ExpenseId!: number;
   public CreatedByUserId!: number;
@@ -32,7 +36,10 @@ export class ExpenseItem extends Model<ExpenseItem> {
    * added, removed or added.
    * @returns [newEntries, removedEntries, updatedEntries]
    */
-  static diffDBEntries = (baseItems, itemsData): [object[], ExpenseItem[], object[]] => {
+  static diffDBEntries = (
+    baseItems: ExpenseItem[],
+    itemsData: Record<string, unknown>[],
+  ): [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]] => {
     return diffDBEntries(baseItems, itemsData, ExpenseItem.editableFields);
   };
 
@@ -43,9 +50,9 @@ export class ExpenseItem extends Model<ExpenseItem> {
    * @param expense: The linked expense
    */
   static async createFromData(
-    itemData: object,
-    user,
-    expense,
+    itemData: Record<string, unknown>,
+    user: typeof models.User,
+    expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseItem> {
     const cleanData = ExpenseItem.cleanData(itemData);
@@ -59,19 +66,27 @@ export class ExpenseItem extends Model<ExpenseItem> {
    * Updates an expense item from user-submitted data.
    * @param itemData: The (potentially unsafe) user data. Fields will be whitelisted.
    */
-  static async updateFromData(itemData: object, dbTransaction: Transaction | null): Promise<ExpenseItem> {
+  static async updateFromData(itemData: Record<string, unknown>, dbTransaction: Transaction | null): Promise<void> {
     const id = itemData['id'];
     const cleanData = ExpenseItem.cleanData(itemData);
-    return ExpenseItem.update(cleanData, { where: { id }, transaction: dbTransaction });
+    await ExpenseItem.update(cleanData, { where: { id }, transaction: dbTransaction });
   }
 
   /** Filters out all the fields that cannot be edited by user */
-  private static cleanData(data: object): object {
+  private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
     return pick(data, ExpenseItem.editableFields);
   }
 }
 
-export default (sequelize, DataTypes): typeof ExpenseItem => {
+const descriptionSanitizerOptions = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+});
+
+function setupModel(ExpenseItem) {
   // Link the model to database fields
   ExpenseItem.init(
     {
@@ -104,8 +119,15 @@ export default (sequelize, DataTypes): typeof ExpenseItem => {
         },
       },
       description: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
+        set(value) {
+          if (value) {
+            this.setDataValue('description', sanitizeHTML(value, descriptionSanitizerOptions));
+          } else {
+            this.setDataValue('description', null);
+          }
+        },
       },
       createdAt: {
         type: DataTypes.DATE,
@@ -146,6 +168,10 @@ export default (sequelize, DataTypes): typeof ExpenseItem => {
       tableName: 'ExpenseItems',
     },
   );
+}
 
-  return ExpenseItem;
-};
+// We're using the setupModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+setupModel(ExpenseItem);
+
+export default ExpenseItem;

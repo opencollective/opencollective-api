@@ -1,10 +1,16 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
-import GraphQLJSON from 'graphql-type-json';
-import { pick } from 'lodash';
+import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
+import { GraphQLJSON } from 'graphql-type-json';
+import { get, pick } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { getLegacyPaymentMethodType, PaymentMethodLegacyType } from '../enum/PaymentMethodLegacyType';
+import { PaymentMethodService } from '../enum/PaymentMethodService';
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Amount } from '../object/Amount';
+import { Host } from '../object/Host';
 
 export const PaymentMethod = new GraphQLObjectType({
   name: 'PaymentMethod',
@@ -24,26 +30,39 @@ export const PaymentMethod = new GraphQLObjectType({
         },
       },
       name: {
-        // last 4 digit of card number for Stripe
         type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.name;
+        async resolve(paymentMethod, _, req) {
+          const publicProviders = [
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.GIFTCARD],
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.PREPAID],
+            [PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, PAYMENT_METHOD_TYPE.COLLECTIVE],
+          ];
+
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (
+            (paymentMethod.CollectiveId && req.remoteUser?.isAdminOfCollective(collective)) ||
+            publicProviders.some(([service, type]) => paymentMethod.service === service && paymentMethod.type === type)
+          ) {
+            return paymentMethod.name;
+          } else {
+            return null;
+          }
         },
       },
       service: {
-        type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.service;
-        },
+        type: PaymentMethodService,
       },
       type: {
-        type: GraphQLString,
-        resolve(paymentMethod) {
-          return paymentMethod.type;
-        },
+        type: PaymentMethodType,
+      },
+      providerType: {
+        description: 'Defines the type of the payment method. Meant to be moved to "type" in the future.',
+        deprecationReason: '2021-03-02: Please use service + type',
+        type: PaymentMethodLegacyType,
+        resolve: getLegacyPaymentMethodType,
       },
       balance: {
-        type: Amount,
+        type: new GraphQLNonNull(Amount),
         description: 'Returns the balance amount and the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
           const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
@@ -53,30 +72,74 @@ export const PaymentMethod = new GraphQLObjectType({
       account: {
         type: Account,
         resolve(paymentMethod, _, req) {
-          return req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (paymentMethod.CollectiveId) {
+            return req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          }
+        },
+      },
+      sourcePaymentMethod: {
+        type: PaymentMethod,
+        description: 'For gift cards, this field will return to the source payment method',
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (paymentMethod.SourcePaymentMethodId && req.remoteUser?.isAdminOfCollective(collective)) {
+            return req.loaders.PaymentMethod.byId.load(paymentMethod.SourcePaymentMethodId);
+          }
         },
       },
       data: {
         type: GraphQLJSON,
-        resolve(paymentMethod, _, req) {
-          if (!paymentMethod.data) {
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective) && paymentMethod.type !== PAYMENT_METHOD_TYPE.CRYPTO) {
             return null;
           }
 
-          // Protect and whitelist fields for virtualcard
-          if (paymentMethod.type === 'virtualcard') {
-            if (!req.remoteUser || !req.remoteUser.isAdmin(paymentMethod.CollectiveId)) {
-              return null;
-            }
-            return pick(paymentMethod.data, ['email']);
+          // Protect and limit fields
+          let allowedFields = [];
+          if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
+            allowedFields = ['email'];
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
+            allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4'];
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CRYPTO) {
+            allowedFields = ['depositAddress'];
           }
 
-          const data = paymentMethod.data;
-          // white list fields to send back; removes fields like CustomerIdForHost
-          const dataSubset = pick(data, ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4']);
-
-          return dataSubset;
+          return pick(paymentMethod.data, allowedFields);
         },
+      },
+      limitedToHosts: {
+        type: new GraphQLList(Host),
+        async resolve(paymentMethod, args, req) {
+          let hosts;
+          if (paymentMethod.type === 'prepaid') {
+            const hostId = get(paymentMethod, 'data.HostCollectiveId', null);
+            if (!hostId) {
+              return;
+            }
+            const host = await req.loaders.Collective.byId.load(hostId);
+            hosts = [host];
+          } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD && paymentMethod.limitedToHostCollectiveIds) {
+            hosts = paymentMethod.limitedToHostCollectiveIds.map(id => {
+              return req.loaders.Collective.byId.load(id);
+            });
+          }
+          return hosts;
+        },
+      },
+      expiryDate: {
+        type: GraphQLDateTime,
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective)) {
+            return null;
+          } else {
+            return paymentMethod.expiryDate;
+          }
+        },
+      },
+      createdAt: {
+        type: GraphQLDateTime,
       },
     };
   },

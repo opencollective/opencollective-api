@@ -1,4 +1,4 @@
-Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expense.currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond expense.currency '===' 'GBP'}}💷 {{/ifCond}}{{{currency expense.amount currency=expense.currency precision=2}}} from {{collective.name}} for {{expense.description}}
+Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expense.currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond expense.currency '===' 'GBP'}}💷 {{/ifCond}}{{currency expense.amount currency=expense.currency}} paid from {{{collective.name}}} for {{{escapeForSubject expense.description}}}
 
 {{> header}}
 
@@ -11,21 +11,35 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
 
 <center>
   <h3>Hi there!</h3>
-  <p>Just a quick note to let you know that your expense <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b> that you filed on {{{moment expense.createdAt}}} to the <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}} collective</a> has just been paid.</p>
-  <h2>{{{currency expense.amount currency=expense.currency precision=2}}}</h2>
-  <div>{{transaction.description}}</div>
+  <p>
+    Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, submitted to <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on {{moment expense.createdAt}} has been paid.
+    {{#if expense.payoutMethod}}
+      {{#ifCond expense.payoutMethod.type '===' 'BANK_ACCOUNT'}}
+        The money can take a few days to arrive, depending on the bank.
+      {{/ifCond}}
+    {{else}}
+      The money can take a few days to arrive, depending on the payment processor.
+    {{/if}}
+  </p>
+  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h2>
+  <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{transaction.description}}</a></div>
   <table>
     <tr>
-      <th>To:</th><td>{{fromCollective.name}}</td>
+      <th>Payee:</th><td>{{fromCollective.name}}</td>
     </tr>
     <tr>
-      <th>Payout Method:</th><td>{{expense.payoutMethod}}</td>
+      <th>Payout Method:</th><td>{{expense.payoutMethodLabel}}</td>
     </tr>
   </table>
 
   <br /><br />
-  <a href="{{config.host.website}}/{{collective.slug}}/expenses/new" class="btn blue"><div>Submit Another Expenses</div></a>
-  <a href="{{config.host.website}}/{{collective.slug}}/expenses" class="btn"><div>View All Expenses</div></a>
+
+    <center>
+      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+        <div>View Expense</div>
+      </a>
+    </center>
+  </p>
 
 </center>
 

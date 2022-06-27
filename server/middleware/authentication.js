@@ -5,15 +5,17 @@ import debugLib from 'debug';
 import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
 import passport from 'passport';
-import request from 'request-promise';
 
 import * as connectedAccounts from '../controllers/connectedAccounts';
 import errors from '../lib/errors';
+import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
+import { reportMessageToSentry } from '../lib/sentry';
+import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
-const { User } = models;
+const { User, UserToken } = models;
 
 const { BadRequest, CustomError, Unauthorized } = errors;
 
@@ -43,16 +45,13 @@ const debug = debugLib('auth');
 export const parseJwtNoExpiryCheck = (req, res, next) => {
   let token = req.params.access_token || req.query.access_token || req.body.access_token;
   if (!token) {
-    const header = req.headers && req.headers.authorization;
-    if (!header) {
-      return next();
-    }
-
-    const parts = header.split(' ');
-    const scheme = parts[0];
-    token = parts[1];
-    if (!/^Bearer$/i.test(scheme) || !token) {
-      return next(new BadRequest('Format is Authorization: Bearer [token]'));
+    try {
+      token = getTokenFromRequestHeaders(req);
+      if (!token) {
+        return next();
+      }
+    } catch (err) {
+      return next(err);
     }
   }
 
@@ -91,11 +90,32 @@ export const _authenticateUserByJwt = async (req, res, next) => {
   }
 
   const userId = Number(req.jwtPayload.sub);
-  const user = await User.findByPk(userId);
+  const user = await User.findByPk(userId, {
+    include: [{ association: 'collective', required: false, attributes: ['id'] }],
+  });
   if (!user) {
     logger.warn(`User id ${userId} not found`);
     next();
     return;
+  } else if (!user.collective) {
+    logger.error(`User id ${userId} has no collective linked`);
+    reportMessageToSentry(`User has no collective linked`, { user });
+    next();
+    return;
+  }
+
+  const accessToken = req.jwtPayload.access_token;
+  if (accessToken) {
+    const userToken = await UserToken.findOne({ where: { accessToken } });
+    if (!userToken) {
+      logger.warn(`UserToken for ${userId} not found`);
+      next();
+      return;
+    }
+  }
+
+  if (req.jwtPayload.scope === 'twofactorauth') {
+    return next(errors.Unauthorized('Cannot use this token on this route.'));
   }
 
   /**
@@ -104,28 +124,45 @@ export const _authenticateUserByJwt = async (req, res, next) => {
    * to log in, and update the lastLoginAt.
    */
   if (req.jwtPayload.scope === 'login') {
+    // We check the path because we don't want login tokens used on routes besides /users/update-token.
+    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
+    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
+    const path = req.path;
+    if (path !== '/users/update-token') {
+      if (config.env === 'production' || config.env === 'staging') {
+        logger.error('Not allowed to use tokens with login scope on routes other than /users/update-token.');
+        reportMessageToSentry(`Not allowed to use tokens with login scope on routes other than /users/update-token`);
+        next();
+        return;
+      } else {
+        logger.info(
+          'Not allowed to use tokens with login scope on routes other than /users/update-token. Ignoring in non-production environment.',
+        );
+      }
+    }
     if (user.lastLoginAt) {
-      if (!req.jwtPayload.lastLoginAt) {
-        // This should only happen with pre-migration tokens, that don't have this field.
-        // Should be turned into an error in the future.
-        if (config.env === 'production') {
-          logger.warn('Using a token without `lastLoginAt`');
-          logger.warn(req.jwtPayload);
-        }
-      } else if (user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
-        if (config.env === 'production') {
-          logger.error('This login link is expired or has already been used');
+      if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
+        if (config.env === 'production' || config.env === 'staging') {
+          logger.warn('This login link is expired or has already been used');
           return next(errors.Unauthorized('This login link is expired or has already been used'));
         } else {
           logger.info('This login link is expired or has already been used. Ignoring in non-production environment.');
         }
       }
     }
-    await user.update({
-      // The login was accepted, we can update lastLoginAt. This will invalidate all older tokens.
-      lastLoginAt: new Date(),
-      data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
-    });
+
+    // If a guest signs in, it's safe to directly confirm its account
+    if (!user.confirmedAt) {
+      await confirmGuestAccount(user);
+    }
+
+    if (!parseToBoolean(config.database.readOnly)) {
+      await user.update({
+        // The login was accepted, we can update lastLoginAt. This will invalidate all older tokens.
+        lastLoginAt: new Date(),
+        data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
+      });
+    }
   }
 
   await user.populateRoles();
@@ -172,7 +209,7 @@ export const authenticateService = (req, res, next) => {
   const opts = { callbackURL: getOAuthCallbackUrl(req) };
 
   if (service === 'github') {
-    if (context == 'createCollective') {
+    if (context === 'createCollective') {
       opts.scope = [
         // We need this to call github.getOrgMemberships and check if the user is an admin of a given Organization
         'read:org',
@@ -200,10 +237,6 @@ export const authenticateService = (req, res, next) => {
       .catch(next);
   }
 
-  if (service === 'meetup') {
-    opts.scope = 'ageless';
-  }
-
   return passport.authenticate(service, opts)(req, res, next);
 };
 
@@ -223,11 +256,7 @@ export const authenticateServiceCallback = (req, res, next) => {
     if (!accessToken) {
       return res.redirect(config.host.website);
     }
-    let emails;
-    if (service === 'github' && !req.remoteUser) {
-      emails = await getGithubEmails(accessToken);
-    }
-    connectedAccounts.createOrUpdate(req, res, next, accessToken, data, emails).catch(next);
+    connectedAccounts.createOrUpdate(req, res, next, accessToken, data).catch(next);
   })(req, res, next);
 };
 
@@ -237,22 +266,17 @@ export const authenticateServiceDisconnect = (req, res) => {
 
 function getOAuthCallbackUrl(req) {
   // eslint-disable-next-line camelcase
-  const { utm_source, CollectiveId, access_token, redirect } = req.query;
+  const { CollectiveId, access_token, context } = req.query;
   const { service } = req.params;
 
   // eslint-disable-next-line camelcase
-  const params = new URLSearchParams(omitBy({ access_token, redirect, CollectiveId, utm_source }, isNil));
+  const params = new URLSearchParams(omitBy({ CollectiveId, access_token, context }, isNil));
 
-  return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
-}
-
-function getGithubEmails(accessToken) {
-  return request({
-    uri: 'https://api.github.com/user/emails',
-    qs: { access_token: accessToken }, // eslint-disable-line camelcase
-    headers: { 'User-Agent': 'OpenCollective' },
-    json: true,
-  }).then(json => json.map(entry => entry.email));
+  if (params.toString().length > 0) {
+    return `${config.host.website}/api/connected-accounts/${service}/callback?${params.toString()}`;
+  } else {
+    return `${config.host.website}/api/connected-accounts/${service}/callback`;
+  }
 }
 
 /**
@@ -326,7 +350,6 @@ export function authorizeClientApp(req, res, next) {
       method: 'GET',
       regex: /^\/connected-accounts\/(stripe|paypal)\/callback/,
     },
-    { method: 'GET', regex: /^\/services\/email\/approve\?messageId=.+/ },
     {
       method: 'GET',
       regex: /^\/services\/email\/unsubscribe\/(.+)\/([a-zA-Z0-9-_]+)\/([a-zA-Z0-9-_\.]+)\/.+/,
@@ -371,3 +394,27 @@ export function mustBeLoggedIn(req, res, next) {
     }
   });
 }
+
+export const checkTwoFactorAuthJWT = (req, res, next) => {
+  let token;
+  try {
+    token = getTokenFromRequestHeaders(req);
+  } catch (err) {
+    return next(err);
+  }
+
+  jwt.verify(token, jwtSecret, (err, decoded) => {
+    // JWT library either returns an error or the decoded version
+    if (err) {
+      return next(new BadRequest(err.message));
+    } else {
+      req.jwtPayload = decoded;
+      // if token does not have scope of 'twofactorauth' we should reject it
+      if (!req.jwtPayload || req.jwtPayload.scope !== 'twofactorauth') {
+        return next(new Unauthorized('Cannot use this token on this route.'));
+      } else {
+        return next();
+      }
+    }
+  });
+};

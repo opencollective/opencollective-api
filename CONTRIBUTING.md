@@ -1,5 +1,9 @@
 # Contributing
 
+## Bounties
+
+This repo is part of the Open Collective bounty program. Get paid to contribute to Open Source! The Open Collective engineering team is small and we're always looking for new contributors to our Open Source codebases. Our Bounty program is an opportunity to solve issues that could be neglected otherwise. Contributors who fix these issues will be rewarded financially. Please see our docs for more information: https://docs.opencollective.com/help/contributing/development/bounties
+
 ## To fork or not to fork
 
 If you want to change a simple thing, for example, fix a typo or update copy, feel free to use the GitHub web interface, that's perfect. Under the hood, it will do complex things but you don't need to think about it!
@@ -36,7 +40,7 @@ We do aim having a clean Git history! When submitting a Pull Request, make sure:
 
 Some tips to keep a clean Git history while working on your feature branch:
 
-- always update from master with `git pull --rebase origin master` or similar
+- always update from main with `git pull --rebase origin main` or similar
 - you might have to `git push origin --force`, that's all right if you're the only one working on the feature branch
 - `git commit --amend` to modify your last commit with "fix", "typo", "prettier" or "eslint" modifications
 - `git rebase --interactive` to rewrite the history

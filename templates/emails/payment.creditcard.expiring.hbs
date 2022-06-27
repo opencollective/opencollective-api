@@ -1,7 +1,7 @@
 {{#if reminder}}
-Subject: Reminder: your {{brand}} ending in {{name}} is about to expire
+Subject: Reminder: your {{brand}} card ending in {{name}} is about to expire
 {{else}}
-Subject: Your {{brand}} ending in {{name}} is about to expire
+Subject: Your {{brand}} card ending in {{name}} is about to expire
 {{/if}}
 
 <style>
@@ -17,7 +17,7 @@ Subject: Your {{brand}} ending in {{name}} is about to expire
 {{> header}}
 
 {{#if collectiveName}}
-<p>Dear {{collectiveName}},</p>
+<p>Hi {{collectiveName}},</p>
 {{else}}
 <p>Hello,</p>
 {{/if}}
@@ -25,19 +25,17 @@ Subject: Your {{brand}} ending in {{name}} is about to expire
 
 {{#if reminder}}
 <p>
-  Just a quick reminder: your {{brand}} ending in {{name}} is about to expire.
+  Just a quick reminder: your {{brand}} card ending in {{name}} is about to expire.
 </p>
 {{else}}
 <p>
-  Your {{brand}} ending in {{name}} is about to expire.
+  Your {{brand}} card ending in {{name}} is about to expire.
 </p>
 {{/if}}
 
-<p>To continue your subscriptions without interruption, you should update this card before the end of the month.</p>
+<p>To continue your recurring contributions without interruption, <a href="{{updateDetailsLink}}">update your card</a> before the end of the month.</p>
 
-<p>Add a new credit card <a href="{{updateDetailsLink}}">here</a> to keep your subscriptions going.</p>
-
-<p>If you have any questions, please contact <a href="https://opencollective.com/support">Open Collective support</a>.
+<p>If you have any questions, please <a href="https://opencollective.com/support">contact support</a>.
 </p>
 
 <p>Warmly,</p>

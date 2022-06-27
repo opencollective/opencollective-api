@@ -1,13 +1,23 @@
 import config from 'config';
-import { get, result } from 'lodash';
+import { get, toUpper } from 'lodash';
 
 import * as constants from '../../constants/transactions';
 import logger from '../../lib/logger';
-import * as paymentsLib from '../../lib/payments';
-import stripe, { extractFees } from '../../lib/stripe';
+import {
+  getApplicationFee,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatformTipEligible,
+} from '../../lib/payments';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
+import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
 import models from '../../models';
 
+import { refundTransaction, refundTransactionOnlyInDatabase } from './common';
+
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
+const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /**
  * Get or create a customer under the platform stripe account
@@ -44,7 +54,20 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
   // to the platform stripe account, not to the host's stripe
   // account. Since payment methods had no name before that
   // migration, we're using it to test for pre-migration users;
+
+  // Well, DISCARD what is written above, these customers are coming from the Host
   if (!paymentMethod.name) {
+    const customer = await stripe.customers.retrieve(paymentMethod.customerId, {
+      stripeAccount: hostStripeAccount.username,
+    });
+
+    if (customer) {
+      logger.info(`Pre-migration customer found: ${paymentMethod.customerId}`);
+      logger.info(JSON.stringify(customer));
+      return customer;
+    }
+
+    logger.info(`Pre-migration customer not found: ${paymentMethod.customerId}`);
     return { id: paymentMethod.customerId };
   }
 
@@ -97,21 +120,29 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  * See: Shared Customers: https://stripe.com/docs/connect/shared-customers
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
-  // Read or compute Platform Fee
-  const platformFee = paymentsLib.getPlatformFee(order);
+  const host = await order.collective.getHostCollective();
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
+  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+    ? false
+    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+
+  // Compute Application Fee (Shared Revenue + Platform Tip)
+  const applicationFee = await getApplicationFee(order, host);
 
   // Make sure data is available (breaking in some old tests)
   order.data = order.data || {};
 
-  let paymentIntent;
-  if (!order.data || !order.data.paymentIntent) {
-    /* eslint-disable camelcase */
-    const payload = {
-      amount: order.totalAmount,
+  /* eslint-disable camelcase */
+
+  let paymentIntent = order.data.paymentIntent;
+  if (!paymentIntent) {
+    const createPayload = {
+      amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
       customer: hostStripeCustomer.id,
       description: order.description,
-      confirm: true,
+      confirm: false,
       confirmation_method: 'manual',
       metadata: {
         from: `${config.host.website}/${order.fromCollective.slug}`,
@@ -119,32 +150,35 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       },
     };
     // We don't add a platform fee if the host is the root account
-    if (platformFee && hostStripeAccount.username !== config.stripe.accountId) {
-      payload.application_fee_amount = platformFee;
+    if (
+      applicationFee &&
+      isPlatformRevenueDirectlyCollected &&
+      hostStripeAccount.username !== config.stripe.accountId
+    ) {
+      createPayload.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
     }
     if (order.interval) {
-      payload.setup_future_usage = 'off_session';
+      createPayload.setup_future_usage = 'off_session';
     } else if (!order.processedAt && order.data.savePaymentMethod) {
-      payload.setup_future_usage = 'on_session';
+      createPayload.setup_future_usage = 'on_session';
     }
     // Add Payment Method ID if it's available
     const paymentMethodId = get(hostStripeCustomer, 'default_source', get(hostStripeCustomer, 'sources.data[0].id'));
     if (paymentMethodId) {
-      payload.payment_method = paymentMethodId;
+      createPayload.payment_method = paymentMethodId;
     } else {
       logger.info('paymentMethod is missing in hostStripeCustomer to pass to Payment Intent.');
       logger.info(JSON.stringify(hostStripeCustomer));
     }
-    /* eslint-enable camelcase */
-
-    paymentIntent = await stripe.paymentIntents.create(payload, {
-      stripeAccount: hostStripeAccount.username,
-    });
-  } else {
-    paymentIntent = await stripe.paymentIntents.confirm(order.data.paymentIntent.id, {
+    paymentIntent = await stripe.paymentIntents.create(createPayload, {
       stripeAccount: hostStripeAccount.username,
     });
   }
+  paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
+    stripeAccount: hostStripeAccount.username,
+  });
+
+  /* eslint-enable camelcase */
 
   if (paymentIntent.next_action) {
     order.data.paymentIntent = { id: paymentIntent.id, status: paymentIntent.status };
@@ -158,13 +192,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   if (paymentIntent.status !== 'succeeded') {
     logger.error('Unknown error with Stripe Payment Intent.');
     logger.error(paymentIntent);
+    reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
     throw new Error(UNKNOWN_ERROR_MSG);
-  }
-
-  // Success: delete reference to paymentIntent
-  if (order.data.paymentIntent) {
-    delete order.data.paymentIntent;
-    await order.update({ data: order.data });
   }
 
   const charge = paymentIntent.charges.data[0];
@@ -174,49 +203,70 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 
   // Create a Transaction
-  const fees = extractFees(balanceTransaction);
-  const hostFeePercent = get(order, 'data.hostFeePercent', order.collective.hostFeePercent);
-  const hostFeeInHostCurrency = paymentsLib.calcFee(balanceTransaction.amount, hostFeePercent);
-  const payload = {
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = balanceTransaction.currency.toUpperCase();
+  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+
+  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTip = getPlatformTip(order);
+
+  let platformTipInHostCurrency, platformFeeInHostCurrency;
+  if (platformTip) {
+    platformTipInHostCurrency = isSharedRevenue
+      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
+  } else if (config.env === 'test' || config.env === 'ci') {
+    // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
+    // TODO: we need to stop supporting this
+    platformFeeInHostCurrency = fees.applicationFee;
+  }
+
+  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
+
+  const data = {
+    charge,
+    balanceTransaction,
+    isFeesOnTop: order.data?.isFeesOnTop,
+    hasPlatformTip: platformTip ? true : false,
+    isSharedRevenue,
+    platformTipEligible,
+    platformTip,
+    platformTipInHostCurrency,
+    hostFeeSharePercent,
+    settled: true,
+    tax: order.data?.tax,
+  };
+
+  const transactionPayload = {
     CreatedByUserId: order.CreatedByUserId,
     FromCollectiveId: order.FromCollectiveId,
     CollectiveId: order.CollectiveId,
     PaymentMethodId: order.PaymentMethodId,
-    transaction: {
-      type: constants.TransactionTypes.CREDIT,
-      OrderId: order.id,
-      amount: order.totalAmount,
-      currency: order.currency,
-      hostCurrency: balanceTransaction.currency,
-      amountInHostCurrency: balanceTransaction.amount,
-      hostCurrencyFxRate: balanceTransaction.amount / order.totalAmount,
-      hostFeeInHostCurrency,
-      platformFeeInHostCurrency: fees.applicationFee,
-      paymentProcessorFeeInHostCurrency: fees.stripeFee,
-      taxAmount: order.taxAmount,
-      description: order.description,
-      data: { charge, balanceTransaction },
-    },
+    type: constants.TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount,
+    currency,
+    hostCurrency,
+    amountInHostCurrency,
+    hostCurrencyFxRate,
+    paymentProcessorFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    taxAmount: order.taxAmount,
+    description: order.description,
+    hostFeeInHostCurrency,
+    data,
   };
 
-  return models.Transaction.createFromPayload(payload);
-};
-
-/**
- * Given a charge id, retrieves its correspind charge and refund data.
- */
-export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
-  const charge = await stripe.charges.retrieve(chargeId, {
-    stripeAccount: stripeAccount.username,
+  return models.Transaction.createFromContributionPayload(transactionPayload, {
+    isPlatformRevenueDirectlyCollected,
   });
-  if (!charge) {
-    throw Error(`charge id ${chargeId} not found`);
-  }
-  const refundId = get(charge, 'refunds.data[0].id');
-  const refund = await stripe.refunds.retrieve(refundId, {
-    stripeAccount: stripeAccount.username,
-  });
-  return { charge, refund };
 };
 
 export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {
@@ -268,125 +318,89 @@ export default {
   processOrder: async order => {
     const hostStripeAccount = await order.collective.getHostStripeAccount();
 
-    const hostStripeCustomer = await getOrCreateCustomerOnHostAccount(hostStripeAccount, {
-      paymentMethod: order.paymentMethod,
-      user: order.createdByUser,
-    });
-
     let transactions;
     try {
+      const hostStripeCustomer = await getOrCreateCustomerOnHostAccount(hostStripeAccount, {
+        paymentMethod: order.paymentMethod,
+        user: order.createdByUser,
+      });
+
       transactions = await createChargeAndTransactions(hostStripeAccount, {
         order,
         hostStripeCustomer,
       });
     } catch (error) {
+      // Here, we check strictly the error message
       const knownErrors = [
         'Your card has insufficient funds.',
         'Your card was declined.',
         'Your card does not support this type of purchase.',
         'Your card has expired.',
-        "Your card's security code is incorrect",
+        'Your card is not supported.',
+        "Your card's security code is incorrect.",
+        "Your card's security code is invalid.",
+        'Your card number is incorrect.',
+        'The zip code you supplied failed validation.',
+        'Invalid amount.',
         'Payment Intent require action',
+        'Invalid account.',
       ];
 
       if (knownErrors.includes(error.message)) {
+        logger.error(
+          `Stripe Error (handled): ${error.type}, Message: ${error.message}, Decline Code: ${error.decline_code}, Code: ${error.code}`,
+        );
         throw error;
+      }
+
+      // Here, we do a partial check and rewrite the error.
+      const identifiedErrors = {
+        // This object cannot be accessed right now because another API request or Stripe process is currently accessing it.
+        // If you see this error intermittently, retry the request.
+        // If you see this error frequently and are making multiple concurrent requests to a single object, make your requests serially or at a lower rate.
+        'This object cannot be accessed right now because another API request or Stripe process is currently accessing it.':
+          'Payment Processing error (API request).',
+        // You cannot confirm this PaymentIntent because it's missing a payment method.
+        // To confirm the PaymentIntent with cus_9cNHqpdWYOV4aH, specify a payment method attached to this customer along with the customer ID.
+        "You cannot confirm this PaymentIntent because it's missing a payment method.":
+          'Internal Payment error (invalid PaymentIntent)',
+        // You have exceeded the maximum number of declines on this card in the last 24 hour period.
+        // Please contact us via https://support.stripe.com/contact if you need further assistance.
+        'You have exceeded the maximum number of declines on this card': 'Your card was declined.',
+        // An error occurred while processing your card. Try again in a little bit.
+        'An error occurred while processing your card.': 'Payment Processing error (API error).',
+        // This account cannot currently make live charges.
+        // If you are a customer trying to make a purchase, please contact the owner of this site.
+        // Your transaction has not been processed.
+        'This account cannot currently make live charges.': 'Payment Processing error (Host error).',
+        // This is a new unhandled error. We think customers should delete the card and add it again.
+        // eslint-disable-next-line camelcase
+        card_error_authentication_required:
+          'There is an issue with your card, please contact support@opencollective.com.',
+      };
+      const errorKey = Object.keys(identifiedErrors).find(errorMessage => error.message.includes(errorMessage));
+      if (errorKey) {
+        throw new Error(identifiedErrors[errorKey]);
       }
 
       logger.error(`Unknown Stripe Payment Error: ${error.message}`);
       logger.error(error);
       logger.error(error.stack);
+      reportErrorToSentry(error);
 
       throw new Error(UNKNOWN_ERROR_MSG);
     }
 
-    await order.paymentMethod.update({ confirmedAt: new Date() });
+    await order.paymentMethod.update({
+      confirmedAt: new Date(),
+      saved: order.paymentMethod.saved || Boolean(order.data?.savePaymentMethod),
+    });
 
     return transactions;
   },
 
-  /** Refund a given transaction */
-  refundTransaction: async (transaction, user) => {
-    /* What's going to be refunded */
-    const chargeId = result(transaction.data, 'charge.id');
-
-    /* From which stripe account it's going to be refunded */
-    const collective = await models.Collective.findByPk(
-      transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
-    );
-    const hostStripeAccount = await collective.getHostStripeAccount();
-
-    /* Refund both charge & application fee */
-    const shouldRefundApplicationFee = transaction.platformFeeInHostCurrency > 0;
-    const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: shouldRefundApplicationFee }, // eslint-disable-line camelcase
-      { stripeAccount: hostStripeAccount.username },
-    );
-    const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
-    const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
-      stripeAccount: hostStripeAccount.username,
-    });
-    const fees = extractFees(refundBalance);
-
-    /* Create negative transactions for the received transaction */
-    const refundTransaction = await paymentsLib.createRefundTransaction(
-      transaction,
-      fees.stripeFee,
-      {
-        refund,
-        balanceTransaction: refundBalance,
-      },
-      user,
-    );
-
-    /* Associate RefundTransactionId to all the transactions created */
-    return paymentsLib.associateTransactionRefundId(transaction, refundTransaction, {
-      ...transaction.data,
-      charge,
-    });
-  },
-
-  /** Refund a given transaction that was already refunded
-   * in stripe but not in our database
-   */
-  refundTransactionOnlyInDatabase: async (transaction, user) => {
-    /* What's going to be refunded */
-    const chargeId = result(transaction.data, 'charge.id');
-
-    /* From which stripe account it's going to be refunded */
-    const collective = await models.Collective.findByPk(
-      transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
-    );
-    const hostStripeAccount = await collective.getHostStripeAccount();
-
-    /* Refund both charge & application fee */
-    const { charge, refund } = await retrieveChargeWithRefund(chargeId, hostStripeAccount);
-    if (!refund) {
-      throw new Error('No refunds found in stripe.');
-    }
-    const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
-      stripeAccount: hostStripeAccount.username,
-    });
-    const fees = extractFees(refundBalance);
-
-    /* Create negative transactions for the received transaction */
-    const refundTransaction = await paymentsLib.createRefundTransaction(
-      transaction,
-      fees.stripeFee,
-      {
-        refund,
-        balanceTransaction: refundBalance,
-      },
-      user,
-    );
-
-    /* Associate RefundTransactionId to all the transactions created */
-    return paymentsLib.associateTransactionRefundId(transaction, refundTransaction, {
-      ...transaction.data,
-      charge,
-    });
-  },
-
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
   webhook: (/* requestBody, event */) => {
     // We don't do anything at the moment
     return Promise.resolve();

@@ -7,6 +7,7 @@ import { Op } from 'sequelize';
 import activities from '../../server/constants/activities';
 import status from '../../server/constants/order_status';
 import { dispatchFunds, needsDispatching } from '../../server/lib/backyourstack/dispatcher';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 import models from '../../server/models';
 
 async function run() {
@@ -79,6 +80,7 @@ async function run() {
         .catch(error => {
           console.log(`Error occurred processing and dispatching order ${order.id}`);
           console.error(error);
+          reportErrorToSentry(error);
         });
     },
     { concurrency: 3 },
@@ -93,5 +95,6 @@ run()
   .catch(error => {
     console.log('Error when dispatching fund');
     console.error(error);
+    reportErrorToSentry(error);
     process.exit(1);
   });

@@ -42,6 +42,43 @@ export type PayoutRequestResult = {
   };
 };
 
+export type PayoutItemDetails = {
+  payout_item_id: string;
+  transaction_id: string;
+  transaction_status: TransactionStatus;
+  payout_batch_id: string;
+  payout_item_fee: {
+    currency: string;
+    value: string;
+  };
+  payout_item: {
+    recipient_type: 'EMAIL';
+    amount: {
+      value: string;
+      currency: string;
+    };
+    note: string;
+    receiver: string;
+    sender_item_id: string;
+  };
+  time_processed: string;
+  currency_conversion?: {
+    to_amount: { value: number; currency: string };
+    from_amount: { value: number; currency: string };
+    exchange_rate: string;
+  };
+  errors?: {
+    name: string;
+    debug_id: string;
+    message: string;
+    information_link: string;
+    payout_errors_details: {
+      field: string;
+      issue: string;
+    }[];
+  };
+};
+
 export type PayoutBatchDetails = {
   batch_header: {
     payout_batch_id: string;
@@ -61,27 +98,7 @@ export type PayoutBatchDetails = {
       currency: string;
     };
   };
-  items: {
-    payout_item_id: string;
-    transaction_id: string;
-    transaction_status: TransactionStatus;
-    payout_batch_id: string;
-    payout_item_fee: {
-      currency: string;
-      value: string;
-    };
-    payout_item: {
-      recipient_type: 'EMAIL';
-      amount: {
-        value: string;
-        currency: string;
-      };
-      note: string;
-      receiver: string;
-      sender_item_id: string;
-    };
-    time_processed: string;
-  }[];
+  items: PayoutItemDetails[];
 };
 
 type PayPalLink = {
@@ -135,3 +152,20 @@ export type PayoutWebhookRequest = {
   };
   links: PayPalLink[];
 };
+
+export type PaypalWebhookEventType = {
+  name: string;
+  description: string;
+};
+
+export type PaypalWebhook = {
+  id: string;
+  url: string;
+  event_types: PaypalWebhookEventType[];
+};
+
+export type PaypalWebhookPatch = {
+  op: string;
+  path: string;
+  value: string | PaypalWebhookEventType[];
+}[];

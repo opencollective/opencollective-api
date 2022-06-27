@@ -2,10 +2,11 @@
 import '../../server/env';
 
 import Promise from 'bluebird';
-import fetch from 'isomorphic-fetch';
+import config from 'config';
+import merge from 'deepmerge';
 import _ from 'lodash';
-import merge from 'merge-options';
 import moment from 'moment-timezone';
+import fetch from 'node-fetch';
 import showdown from 'showdown';
 
 import activities from '../../server/constants/activities';
@@ -69,6 +70,14 @@ const excludeOcTeam = {
     CollectiveId: {
       [Op.not]: 1, // OpenCollective collective
     },
+  },
+};
+
+const feesOnTop = {
+  where: {
+    CollectiveId: 1,
+    type: 'CREDIT',
+    data: { isFeesOnTop: true },
   },
 };
 
@@ -151,214 +160,205 @@ function getLatestIssues(state = 'open') {
   }).then(response => response.json());
 }
 
-export default function run() {
-  return Promise.props({
-    // Donation statistics
+export default async function run() {
+  try {
+    const results = await Promise.props({
+      // Donation statistics
 
-    stripeDonationCount: Transaction.count(merge({}, lastWeekDonations, service('stripe'))),
+      stripeDonationCount: Transaction.count(merge({}, lastWeekDonations, service('stripe'))),
 
-    priorStripeDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('stripe'))),
+      priorStripeDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('stripe'))),
 
-    manualDonationCount: Transaction.count(merge({}, lastWeekDonations, service('opencollective'))),
+      manualDonationCount: Transaction.count(merge({}, lastWeekDonations, service('opencollective'))),
 
-    priorManualDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('opencollective'))),
+      priorManualDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('opencollective'))),
 
-    paypalDonationCount: Transaction.count(merge({}, lastWeekDonations, service('paypal'))),
+      paypalDonationCount: Transaction.count(merge({}, lastWeekDonations, service('paypal'))),
 
-    priorPaypalDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('paypal'))),
+      priorPaypalDonationCount: Transaction.count(merge({}, weekBeforeDonations, service('paypal'))),
 
-    revenue: Transaction.aggregate(
-      'platformFeeInHostCurrency',
-      'SUM',
-      merge({}, lastWeekDonations, groupAndOrderBy('Transaction', 'hostCurrency')),
-    ),
-
-    priorRevenue: Transaction.aggregate(
-      'platformFeeInHostCurrency',
-      'SUM',
-      merge({}, weekBeforeDonations, groupAndOrderBy('Transaction', 'hostCurrency')),
-    ),
-
-    stripeDonationAmount: Transaction.aggregate(
-      'amount',
-      'SUM',
-      merge({}, lastWeekDonations, groupAndOrderBy('Transaction'), service('stripe')),
-    ),
-
-    priorStripeDonationAmount: Transaction.aggregate(
-      'amount',
-      'SUM',
-      merge({}, weekBeforeDonations, groupAndOrderBy('Transaction'), service('stripe')),
-    ),
-
-    manualDonationAmount: Transaction.aggregate(
-      'amount',
-      'SUM',
-      merge({}, lastWeekDonations, groupAndOrderBy('Transaction'), service('opencollective')),
-    ),
-
-    priorManualDonationAmount: Transaction.aggregate(
-      'amount',
-      'SUM',
-      merge({}, weekBeforeDonations, groupAndOrderBy('Transaction'), service('opencollective')),
-    ),
-
-    paypalReceivedCount: Activity.count(merge({}, createdLastWeek, paypalReceived)),
-
-    paypalDonationAmount: Transaction.sum('amount', merge({}, lastWeekDonations, service('paypal'))),
-
-    priorPaypalDonationAmount: Transaction.sum('amount', merge({}, weekBeforeDonations, service('paypal'))),
-
-    // Expense statistics
-
-    pendingExpenseCount: Expense.count(pendingLastWeekExpenses),
-
-    approvedExpenseCount: Expense.count(approvedLastWeekExpenses),
-
-    rejectedExpenseCount: Expense.count(rejectedLastWeekExpenses),
-
-    paidExpenseCount: Expense.count(paidLastWeekExpenses),
-
-    priorPaidExpenseCount: Expense.count(paidWeekBeforeExpenses),
-
-    pendingExpenseAmount: Expense.aggregate(
-      'amount',
-      'SUM',
-      merge({}, pendingLastWeekExpenses, groupAndOrderBy('Expense')),
-    ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
-
-    approvedExpenseAmount: Expense.aggregate(
-      'amount',
-      'SUM',
-      merge({}, approvedLastWeekExpenses, groupAndOrderBy('Expense')),
-    ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
-
-    rejectedExpenseAmount: Expense.aggregate(
-      'amount',
-      'SUM',
-      merge({}, rejectedLastWeekExpenses, groupAndOrderBy('Expense')),
-    ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
-
-    paidExpenseAmount: Expense.aggregate('amount', 'SUM', merge({}, paidLastWeekExpenses, groupAndOrderBy('Expense'))),
-
-    priorPaidExpenseAmount: Expense.aggregate(
-      'amount',
-      'SUM',
-      merge({}, paidWeekBeforeExpenses, groupAndOrderBy('Expense')),
-    ),
-
-    // Collective statistics
-
-    activeCollectivesWithTransactions: Transaction.findAll(
-      merge({ attributes: ['CollectiveId'] }, createdLastWeek, distinct, excludeOcTeam, onlyIncludeCollectiveType),
-    ).map(row => row.CollectiveId),
-
-    priorActiveCollectivesWithTransactions: Transaction.findAll(
-      merge(
-        { attributes: ['CollectiveId'] },
-        createdSameWeekPreviousMonth,
-        distinct,
-        excludeOcTeam,
-        onlyIncludeCollectiveType,
+      revenue: Transaction.aggregate(
+        'platformFeeInHostCurrency',
+        'SUM',
+        merge({}, lastWeekDonations, groupAndOrderBy('Transaction', 'hostCurrency')),
       ),
-    ).map(row => row.CollectiveId),
 
-    activeCollectivesWithExpenses: Expense.findAll(
-      merge({ attributes: ['CollectiveId'] }, updatedLastWeek, distinct, excludeOcTeam),
-    ).map(row => row.CollectiveId),
+      priorRevenue: Transaction.aggregate(
+        'platformFeeInHostCurrency',
+        'SUM',
+        merge({}, weekBeforeDonations, groupAndOrderBy('Transaction', 'hostCurrency')),
+      ),
 
-    priorActiveCollectivesWithExpenses: Expense.findAll(
-      merge({ attributes: ['CollectiveId'] }, updatedSameWeekPreviousMonth, distinct, excludeOcTeam),
-    ).map(row => row.CollectiveId),
+      feesOnTop: Transaction.aggregate('amount', 'SUM', merge({}, lastWeekDonations, feesOnTop)),
 
-    newCollectives: Collective.findAll(
-      merge({}, { attributes: ['slug', 'name', 'tags'], where: { type: 'COLLECTIVE' } }, createdLastWeek),
-    ).map(collective => {
-      const openSource = collective.dataValues.tags && collective.dataValues.tags.indexOf('open source') !== -1;
-      return `[${collective.dataValues.name || collective.dataValues.slug}](https://opencollective.com/${
-        collective.dataValues.slug
-      }) (${openSource ? 'open source' : collective.dataValues.tags})`;
-    }),
+      priorFeesOnTop: Transaction.aggregate('amount', 'SUM', merge({}, weekBeforeDonations, feesOnTop)),
 
-    priorNewCollectivesCount: Collective.count(
-      merge({}, { where: { type: 'COLLECTIVE' } }, createdSameWeekPreviousMonth),
-    ),
+      stripeDonationAmount: Transaction.aggregate(
+        'amount',
+        'SUM',
+        merge({}, lastWeekDonations, groupAndOrderBy('Transaction'), service('stripe')),
+      ),
 
-    openIssues: getLatestIssues('open'),
-    closedIssues: getLatestIssues('closed'),
-  })
-    .then(async results => {
-      results.revenueInUSD = -(await reduceArrayToCurrency(
-        results.revenue.map(({ SUM, currency }) => {
-          return { amount: SUM, currency };
-        }),
-      ));
-      results.priorRevenueInUSD = -(await reduceArrayToCurrency(
-        results.priorRevenue.map(({ SUM, currency }) => {
-          return { amount: SUM, currency };
-        }),
-      ));
-      results.activeCollectiveCount = _.union(
-        results.activeCollectivesWithTransactions,
-        results.activeCollectivesWithExpenses,
-      ).length;
-      results.priorActiveCollectiveCount = _.union(
-        results.priorActiveCollectivesWithTransactions,
-        results.priorActiveCollectivesWithExpenses,
-      ).length;
-      return reportString(results);
-    })
-    .then(async report => {
-      console.log(report);
-      const outlineUrl = await postToOutline(subtitle.substr(0, subtitle.indexOf('(') - 1), report);
-      const reportWithOutline = report.replace(subtitle, `${subtitle}\n\n[View this report on Outline](${outlineUrl})`);
-      const html = markdownConverter.makeHtml(reportWithOutline);
-      const data = {
-        title,
-        html,
-      };
-      return emailLib.send('report.platform.weekly', 'team@opencollective.com', data);
-    })
-    .then(() => {
-      console.log('Weekly reporting done!');
-      process.exit();
-    })
-    .catch(err => {
-      console.log('err', err);
-      process.exit();
+      priorStripeDonationAmount: Transaction.aggregate(
+        'amount',
+        'SUM',
+        merge({}, weekBeforeDonations, groupAndOrderBy('Transaction'), service('stripe')),
+      ),
+
+      manualDonationAmount: Transaction.aggregate(
+        'amount',
+        'SUM',
+        merge({}, lastWeekDonations, groupAndOrderBy('Transaction'), service('opencollective')),
+      ),
+
+      priorManualDonationAmount: Transaction.aggregate(
+        'amount',
+        'SUM',
+        merge({}, weekBeforeDonations, groupAndOrderBy('Transaction'), service('opencollective')),
+      ),
+
+      paypalReceivedCount: Activity.count(merge({}, createdLastWeek, paypalReceived)),
+
+      paypalDonationAmount: Transaction.sum('amount', merge({}, lastWeekDonations, service('paypal'))),
+
+      priorPaypalDonationAmount: Transaction.sum('amount', merge({}, weekBeforeDonations, service('paypal'))),
+
+      // Expense statistics
+
+      pendingExpenseCount: Expense.count(pendingLastWeekExpenses),
+
+      approvedExpenseCount: Expense.count(approvedLastWeekExpenses),
+
+      rejectedExpenseCount: Expense.count(rejectedLastWeekExpenses),
+
+      paidExpenseCount: Expense.count(paidLastWeekExpenses),
+
+      priorPaidExpenseCount: Expense.count(paidWeekBeforeExpenses),
+
+      pendingExpenseAmount: Expense.aggregate(
+        'amount',
+        'SUM',
+        merge({}, pendingLastWeekExpenses, groupAndOrderBy('Expense')),
+      ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
+
+      approvedExpenseAmount: Expense.aggregate(
+        'amount',
+        'SUM',
+        merge({}, approvedLastWeekExpenses, groupAndOrderBy('Expense')),
+      ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
+
+      rejectedExpenseAmount: Expense.aggregate(
+        'amount',
+        'SUM',
+        merge({}, rejectedLastWeekExpenses, groupAndOrderBy('Expense')),
+      ).map(row => `${row.currency} ${formatCurrency(row.SUM, row.currency)}`),
+
+      paidExpenseAmount: Expense.aggregate(
+        'amount',
+        'SUM',
+        merge({}, paidLastWeekExpenses, groupAndOrderBy('Expense')),
+      ),
+
+      priorPaidExpenseAmount: Expense.aggregate(
+        'amount',
+        'SUM',
+        merge({}, paidWeekBeforeExpenses, groupAndOrderBy('Expense')),
+      ),
+
+      // Collective statistics
+
+      activeCollectivesWithTransactions: Transaction.findAll(
+        merge({ attributes: ['CollectiveId'] }, createdLastWeek, distinct, excludeOcTeam, onlyIncludeCollectiveType),
+      ).map(row => row.CollectiveId),
+
+      priorActiveCollectivesWithTransactions: Transaction.findAll(
+        merge(
+          { attributes: ['CollectiveId'] },
+          createdSameWeekPreviousMonth,
+          distinct,
+          excludeOcTeam,
+          onlyIncludeCollectiveType,
+        ),
+      ).map(row => row.CollectiveId),
+
+      activeCollectivesWithExpenses: Expense.findAll(
+        merge({ attributes: ['CollectiveId'] }, updatedLastWeek, distinct, excludeOcTeam),
+      ).map(row => row.CollectiveId),
+
+      priorActiveCollectivesWithExpenses: Expense.findAll(
+        merge({ attributes: ['CollectiveId'] }, updatedSameWeekPreviousMonth, distinct, excludeOcTeam),
+      ).map(row => row.CollectiveId),
+
+      newCollectives: Collective.findAll(
+        merge({}, { attributes: ['slug', 'name', 'tags'], where: { type: 'COLLECTIVE' } }, createdLastWeek),
+      ).map(collective => {
+        const openSource = collective.dataValues.tags && collective.dataValues.tags.indexOf('open source') !== -1;
+        return `[${collective.dataValues.name || collective.dataValues.slug}](https://opencollective.com/${
+          collective.dataValues.slug
+        }) (${openSource ? 'open source' : collective.dataValues.tags})`;
+      }),
+
+      priorNewCollectivesCount: Collective.count(
+        merge({}, { where: { type: 'COLLECTIVE' } }, createdSameWeekPreviousMonth),
+      ),
+
+      openIssues: getLatestIssues('open'),
+      closedIssues: getLatestIssues('closed'),
     });
-}
 
-function postToOutline(title, text) {
-  if (!process.env.OUTLINE_API_KEY) {
-    console.info('Outline API KEY not found, skipping posting report to GetOutline');
-    return;
-  }
-  const collection = '581a033e-b2ea-485d-8fda-2e1c4e021cfb'; // https://opencollective.getoutline.com/collections/581a033e-b2ea-485d-8fda-2e1c4e021cfb
-  return fetch('https://www.getoutline.com/api/documents.create', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${process.env.OUTLINE_API_KEY}`,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify({
+    // Account for Fees On Top in the Revenue
+    results.revenue = results.revenue.map(r => {
+      if (r.currency === 'USD') {
+        // Revenue is negative here, that's why we subtract
+        return { ...r, SUM: r.SUM - results.feesOnTop };
+      } else {
+        return r;
+      }
+    });
+    results.priorRevenue = results.revenue.map(r => {
+      if (r.currency === 'USD') {
+        // Revenue is negative here, that's why we subtract
+        return { ...r, SUM: r.SUM - results.priorFeesOnTop };
+      } else {
+        return r;
+      }
+    });
+    results.revenueInUSD = -(await reduceArrayToCurrency(
+      results.revenue.map(({ SUM, currency }) => {
+        return { amount: SUM, currency };
+      }),
+    ));
+    results.priorRevenueInUSD = -(await reduceArrayToCurrency(
+      results.priorRevenue.map(({ SUM, currency }) => {
+        return { amount: SUM, currency };
+      }),
+    ));
+    results.activeCollectiveCount = _.union(
+      results.activeCollectivesWithTransactions,
+      results.activeCollectivesWithExpenses,
+    ).length;
+    results.priorActiveCollectiveCount = _.union(
+      results.priorActiveCollectivesWithTransactions,
+      results.priorActiveCollectivesWithExpenses,
+    ).length;
+
+    const report = reportString(results);
+    console.log(report);
+
+    const html = markdownConverter.makeHtml(report);
+    const data = {
       title,
-      text,
-      collection,
-      publish: true,
-    }),
-  })
-    .then(response => response.json())
-    .then(json => {
-      const url = `https://opencollective.getoutline.com${json.data.url}`;
-      console.log('>>> report posted to outline', url);
-      return url;
-    })
-    .catch(e => {
-      console.log('>>> error while posting to outline', e);
-    });
+      html,
+    };
+    await emailLib.send('report.platform.weekly', 'team@opencollective.com', data);
+    console.log('Weekly reporting done!');
+    process.exit();
+  } catch (err) {
+    console.log('err', err);
+    process.exit();
+  }
 }
+
 /**
  * Heroku scheduler only has daily or hourly cron jobs, we only want to run
  * this script once per week on Monday (1). If the day is not Monday on production
@@ -366,8 +366,8 @@ function postToOutline(title, text) {
  */
 function onlyExecuteInProdOnMondays() {
   const today = new Date();
-  if (process.env.NODE_ENV === 'production' && today.getDay() !== 1) {
-    console.log('NODE_ENV is production and day is not Monday, script aborted!');
+  if (config.env === 'production' && today.getDay() !== 1) {
+    console.log('OC_ENV is production and day is not Monday, script aborted!');
     process.exit();
   }
 }
@@ -402,6 +402,8 @@ function reportString({
   priorRevenue,
   revenueInUSD,
   priorRevenueInUSD,
+  feesOnTop,
+  priorFeesOnTop,
   priorActiveCollectiveCount,
   priorStripeDonationAmount,
   priorStripeDonationCount,
@@ -419,6 +421,8 @@ function reportString({
 }) {
   const growth = (revenueInUSD - priorRevenueInUSD) / priorRevenueInUSD;
   const growthPercent = `${Math.round(growth * 100)}%`;
+  const feesOnTopGrowth = (feesOnTop - priorFeesOnTop) / priorFeesOnTop;
+  const feesOnTopGrowthPercent = `${Math.round(feesOnTopGrowth * 100)}%`;
   return `# ${title}
 ${subtitle}
 
@@ -430,9 +434,15 @@ ${subtitle}
       ({ SUM, currency }) =>
         `* ${currency} ${formatCurrency(-SUM, currency)} (${compareNumbers(-SUM, -getSum(priorRevenue, currency), n =>
           formatCurrency(n, currency),
-        )})`,
+        )}) ${currency === 'USD' ? '¹' : ''}`,
     )
     .join('\n  ')}
+
+  ¹ _Fees on Top account for ${formatCurrency(feesOnTop, 'USD')} of the total USD revenue. (${compareNumbers(
+    feesOnTop,
+    priorFeesOnTop,
+    n => formatCurrency(n, 'USD'),
+  )}) (${feesOnTopGrowthPercent} growth)_
 
 ## Donations
   - STRIPE: ${stripeDonationCount} donations received (${compareNumbers(stripeDonationCount, priorStripeDonationCount)})

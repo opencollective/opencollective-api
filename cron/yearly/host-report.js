@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import config from 'config';
+
+import HostReport from '../../reports/host-report';
+
 // Only run on the first of the month
 const today = new Date();
-if (process.env.NODE_ENV === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
-  console.log('NODE_ENV is production and today is not the first of the first month of the year, script aborted!');
+if (config.env === 'production' && today.getDate() !== 1 && today.getMonth() !== 0 && !process.env.OFFCYCLE) {
+  console.log('OC_ENV is production and today is not the first of the first month of the year, script aborted!');
   process.exit();
 }
 
 process.env.PORT = 3066;
-
-import HostReport from '../../reports/host-report';
 
 const d = process.env.START_DATE ? new Date(process.env.START_DATE) : new Date();
 const year = new Date(d.getFullYear() - 1, 1, 1).getFullYear();

@@ -9,7 +9,7 @@ module.exports = {
     await queryInterface.addColumn('Expenses', colName, columnSettings);
   },
 
-  down: async (queryInterface, Sequelize) => {
+  down: async queryInterface => {
     await queryInterface.removeColumn('Expenses', colName);
     await queryInterface.removeColumn('ExpenseHistories', colName);
   },

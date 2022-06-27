@@ -1,4 +1,4 @@
-Subject: {{remoteUser.collective.name}} added you with the role "{{role}}" to {{collective.name}} {{collective.type}} on Open Collective
+Subject: {{remoteUser.collective.name}} added you as {{role}} to {{{collective.name}}} on Open Collective
 
 {{> header}}
 
@@ -10,15 +10,15 @@ Subject: {{remoteUser.collective.name}} added you with the role "{{role}}" to {{
 <p>Hi,</p>
 {{/if}}
 
-<p>Just a quick note to let you know that {{remoteUser.collective.name}} (cced) added you with the role "{{role}}" to <a href="https://opencollective.com/{{collective.slug}}">{{collective.name}} {{collective.type}}</a> on Open Collective.</p>
+<p>{{remoteUser.collective.name}} (cced) added you as {{role}} for <a href="https://opencollective.com/{{collective.slug}}">{{collective.name}}</a> on Open Collective.</p>
 
 {{#if isAdmin }}
-<p>As an administrator, you can edit the profile of the organization and add or remove members. You can do so on https://opencollective.com/{{collective.slug}}/edit.</p>
+<p>As an administrator, you can <a href="https://opencollective.com/{{collective.slug}}/admin">edit the settings</a> and add or remove team members.</p>
 {{else}}
-<p>You are now listed as a member of the organization on https://opencollective.com/{{collective.slug}}.</p>
+<p>You are now listed as a team member on <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>.</p>
 {{/if}}
 
-<h2>Your current profile details are:</h2>
+<h2>Your details:</h2>
 
 <table>
   {{#if recipient.collective.previewImage}}
@@ -32,8 +32,10 @@ Subject: {{remoteUser.collective.name}} added you with the role "{{role}}" to {{
   <tr><th>Twitter:</th><td>{{recipient.collective.twitterHandle}}</td></tr>
 </table>
 
-<p>You can login and edit your profile by <a href="{{loginLink}}">clicking here</a></p>
+<a href="{{{loginLink}}}" class="btn blue">
+  <div>Log in</div>
+</a>
 
-<p>If you have questions about Open Collective, feel free to reply to this email.</p>
+<p>If you have questions, feel free to reply to this email.</p>
 
 {{> footer}}

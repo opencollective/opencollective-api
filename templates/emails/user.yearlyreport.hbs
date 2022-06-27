@@ -65,11 +65,11 @@ Subject: 🏅Your year on Open Collective
 <div class="stats">
   <div class="largeEmoji">🎁</div>
   <p>{{tweet.text}}<br />
-    <a href="https://opencollective.com/{{collective.slug}}?{{utm}}">https://opencollective.com/{{collective.slug}}</a></p>
+    <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a></p>
   <a href="{{tweet.url}}">
     <div class="btn">Tweet this!</div>
   </a>
-  <a href="{{fburl}}">share on facebook</a>
+  <a href="{{fburl}}">share on Facebook</a>
 </div>
 
 
@@ -78,33 +78,27 @@ Subject: 🏅Your year on Open Collective
 </p>
 
 <p>
-  {{year}} is already ending 🎉. That was fast!
+  {{year}} is ending.
 </p>
 
 <p>
-  In these troubled times of social unrest and climate change, we believe more than ever in the strength of our
-  communities. Whereas big institutions that surround us are increasingly unable to make our voice heard, our
-  communities make our contributions matter. They give us an opportunity to connect and to learn from each other. They
-  give us the opportunity to make meaningful contributions. They give us meaning.
+  We believe more than ever in the strength of communities. Our communities make our contributions matter. They give us an opportunity to connect and to learn. They give us the opportunity to make a difference.
 </p>
 
 <p>
-  But we need to nurture them. They need us. They need us to contribute with our time and our skills, to attend their
-  events, to promote them in our social networks and to support them financially. If we all do that, we will be
-  surrounded by thriving communities that will give everyone of us the opportunity to do meaningful contributions in
-  the world 🌍
+  We need to nurture communities. They need us to contribute with our time, skills, and money. If we all contribute, we will be
+  surrounded by thriving communities. 🌍
 </p>
 <p>
-  In {{year}}, {{platformStats.totalCollectives}} collectives joined our community. Together, they already have a
-  yearly budget of more than {{{currency platformStats.totalAnnualBudget currency="USD"}}} 💰💰💰.
+  In {{year}}, {{platformStats.totalCollectives}} Collectives joined our community of Open Collective. Together, they raised {{currency platformStats.totalAnnualBudget currency="USD"}} this year 💰💰💰.
 </p>
 
 <p>
-  Thank you for the contributions that you made this year. Thank you for playing your part in building this future 🙏.
+  Thank you for your contributions this year. Thank you for playing your part in building this future 🙏.
 </p>
 
 <p>In {{year}} you have contributed a total of {{stats.totalDonationsString}} across {{stats.totalCollectives}}
-  {{{pluralize "collective" n=stats.totalCollectives}}}:
+  {{pluralize "collective" n=stats.totalCollectives}}:
 </p>
 
 <div>
@@ -114,7 +108,7 @@ Subject: 🏅Your year on Open Collective
     <table width="100%" height=30>
       <tr>
         <td class="tdline"></td>
-        <th rowspan=2 nowrap><a href="{{@root.config.host.website}}/{{slug}}?{{@root.utm}}">{{name}}</a></th>
+        <th rowspan=2 nowrap><a href="{{@root.config.host.website}}/{{slug}}">{{name}}</a></th>
         <td class="tdline"></td>
       </tr>
       <tr>
@@ -133,16 +127,15 @@ Subject: 🏅Your year on Open Collective
 </div>
 
 <p>
-  <b>📍Don't forget:</b><br />
-  - You can discover other great collectives to support on <a href="https://opencollective.com/discover?{{utm}}">https://opencollective.com/discover</a><br />
-  - You can manage your subscriptions on <a href="https://opencollective.com/{{collective.slug}}/subscriptions?{{utm}}">https://opencollective.com/{{collective.slug}}/subscriptions</a><br />
-  - We are an open collective ourselves and <a href="https://github.com/opencollective/opencollective">our code is
-    available on Github</a> under MIT license. We welcome contributions of any kind! 😊
+  <b>📍Tips:</b><br />
+  - <a href="https://opencollective.com/discover">Discover other great Collectives</a> to support<br />
+  - <a href="https://opencollective.com/recurring-contributions">Manage your recurring contributions</a><br />
+  - We are open too! <a href="https://github.com/opencollective/opencollective">our code is
+    open source</a> and <a href="https://opencollective.com/opencollective">our budget is transparent</a>! 😊
 </p>
 
 <p>
-  - For the Open Collective Community<br />
-  <a href="https://twitter.com/piamancini">Pía</a> and <a href="https://twitter.com/xdamman">Xavier</a>
+  - Team Open Collective
 </p>
 
 {{>footer}}

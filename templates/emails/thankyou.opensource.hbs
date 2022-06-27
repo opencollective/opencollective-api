@@ -1,8 +1,4 @@
-{{#if interval }}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}}/{{interval}} contribution to {{collective.name}}
-{{else}}
-Subject: Thank you for your {{{currency order.totalAmount currency=order.currency}}} contribution to {{collective.name}}
-{{/if}}
+Subject: Thank you for your contribution to {{collective.name}}
 
 {{> header}}
 
@@ -16,16 +12,16 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 
 {{#if interval}}
   {{#if firstPayment }}
-    <p>We would like to thank you for your pledge to give {{{currency order.totalAmount currency=order.currency}}} per {{interval}}.
-      Your first payment was received on {{{moment order.createdAt}}}. As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
+    <p>Thank you for contributing {{currency order.totalAmount currency=order.currency}} per {{interval}} to {{collective.name}}.
+       Your first payment was made on {{moment order.createdAt}}. As the collective's fiscal sponsor, Open Source Collective acknowledges your donation.</p>
       {{> charge_date_notice}}
   {{else}}
-    <p>We would like to thank you for your continued support. Your latest {{interval}}ly contribution of {{{currency order.totalAmount currency=order.currency}}} was received on {{{moment transaction.createdAt}}}.
+    <p>Thank you for your continued support! Your latest {{interval}}ly contribution of {{currency order.totalAmount currency=order.currency}} was received on {{moment transaction.createdAt}}.
       As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
   {{/if}}
 {{else}}
 
-<p>We would like to thank you for your contribution of {{{currency order.totalAmount currency=order.currency}}} on {{{moment order.createdAt}}}.
+<p>Thank you for your contribution of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}}.
   As the collective's fiscal sponsor, Open Source Collective, a public recognized tax-exempt organization under IRS Section 501(c)(6), acknowledges your donation.</p>
 {{/if}}
 
@@ -34,25 +30,49 @@ Subject: Thank you for your {{{currency order.totalAmount currency=order.currenc
 </p>
 
 <h2>Help us raise more money!</h2>
-<p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>
+<p>See our activities and transparent budget on
+  <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>, and share the link to help us spread the word!
 </p>
 
+{{#if transactionPdf}}
+<h2>📎 Attachments</h2>
+<ul>
+  <li>A PDF receipt of your contribution to {{collective.name}}</li>
+  {{#if platformTipPdf}}
+    <li>A PDF receipt of your contribution to Open Collective</li>
+  {{/if}}
+</ul>
+{{/if}}
+
+{{#if order.platformTipAmount}}
+<h2>Payment Details</h2>
+
+<ul>
+  <li>Contribution to {{collective.name}}: {{currency order.netAmount currency=order.currency}}</li>
+  <li>Tip for Open Collective: {{currency order.platformTipAmount currency=order.currency}}</li>
+  <li>Total amount: {{currency order.chargeAmount currency=order.currency}}</li>
+</ul>
+
+<p>Your payment will appear on your statement as {{currency order.chargeAmount currency=order.currency}}</p>
+{{/if}}
+
 <p>
-  P.S: You can download a PDF receipt for your contribution <a href="{{config.host.website}}/{{fromCollective.slug}}/transactions">on your transactions page</a>{{#if subscriptionsLink}}, and you can manage your subscriptions <a href="{{subscriptionsLink}}">here</a>{{/if}}.
+  {{#if order.interval}}
+    To manage your recurring contributions, <a href="{{subscriptionsLink}}">Sign in</a> and
+    go to your profile page.
+    <br/>
+  {{/if}}
+  If you need help, contact <a href="mailto:support@opencollective.com">support</a>.
 </p>
 
 <p>Warmly,</p>
 
 <p>
-Alanna Irving - Executive Director<br/>
+Benjamin Nickolls - Executive Director<br/>
 Open Source Collective<br/>
 340 S. Lemon Ave, #3717<br/>
 Walnut, CA 91789<br/>
 EIN 82-2037583
 </p>
-
-{{#if relatedCollectives.length}}
-{{> relatedcollectives}}
-{{/if}}
 
 {{> footer}}

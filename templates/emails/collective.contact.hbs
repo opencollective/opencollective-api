@@ -1,4 +1,4 @@
-Subject: New message from {{fromCollective.name}} on Open Collective{{#if subject}}: {{subject}}{{/if}}
+Subject: New message from {{{fromCollective.name}}} on Open Collective{{#if subject}}: {{{escapeForSubject subject}}}{{/if}}
 
 {{> header}}
 
@@ -6,9 +6,7 @@ Subject: New message from {{fromCollective.name}} on Open Collective{{#if subjec
   Hi {{collective.name}},
   <br /><br />
   <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just sent you a message on Open
-  Collective. You can send a reply message to <a href="mailto:{{user.email}}">{{user.email}}</a> by
-  replying directly to this email. If this is a spam, please forward it to
-  <a href="mailto:support@opencollective.com">support@opencollective.com</a>.
+  Collective. Simply reply to this email to reply to the sender.
 </p>
 
 <table style="width: 100%;">
@@ -27,5 +25,7 @@ Subject: New message from {{fromCollective.name}} on Open Collective{{#if subjec
     </tr>
   </tbody>
 </table>
+
+<p>If this message is spam, please forward it to <a href="mailto:support@opencollective.com">support@opencollective.com</a>.</p>
 
 {{> footer}}

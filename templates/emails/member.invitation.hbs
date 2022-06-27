@@ -1,4 +1,4 @@
-Subject: Invitation to join {{collective.name}}
+Subject: Invitation to join {{{collective.name}}} on Open Collective
 
 {{> header}}
 
@@ -9,12 +9,15 @@ Subject: Invitation to join {{collective.name}}
 {{/if}}
 
 <p>
-  <a href="{{config.host.website}}/{{invitedByUser.collective.slug}}">{{invitedByUser.collective.name}}</a> just invited you to join <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a>
-  with the role "<strong>{{role}}</strong>".
+  {{#if skipDefaultAdmin}}
+    You were just invited you to the role of {{role}} of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on Open Collective.
+  {{else}}
+    <a href="{{config.host.website}}/{{invitedByUser.collective.slug}}">{{invitedByUser.collective.name}}</a> just invited you to the role of {{role}} of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on Open Collective.
+  {{/if}}
 </p>
-<br />
+
 <p>
-Click on the button below to accept or decline the invitation:
+Click on the button below to accept or decline:
 </p>
 
 <br />

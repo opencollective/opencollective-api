@@ -14,13 +14,22 @@ export const ExpenseProcessAction = new GraphQLEnumType({
       description: 'To mark the expense as rejected',
     },
     MARK_AS_UNPAID: {
-      description: 'To mark the expense as rejected',
+      description: 'To mark the expense as unpaid (marks the transaction as refunded)',
     },
     SCHEDULE_FOR_PAYMENT: {
       description: 'To schedule the expense for payment',
     },
+    UNSCHEDULE_PAYMENT: {
+      description: 'To unschedule the expense payment',
+    },
     PAY: {
       description: 'To trigger the payment',
+    },
+    MARK_AS_SPAM: {
+      description: 'To mark the expense as spam',
+    },
+    MARK_AS_INCOMPLETE: {
+      description: 'To mark the expense as incomplete and notify the payee it requires more information',
     },
   },
 });

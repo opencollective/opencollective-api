@@ -4,13 +4,14 @@
  */
 
 /* Test libraries */
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 import { v4 as uuid } from 'uuid';
 
-import * as expenses from '../../server/graphql/v1/mutations/expenses';
+import * as expenses from '../../server/graphql/common/expenses';
 import * as libpayments from '../../server/lib/payments';
 /* Libraries that create the objects */
 import models from '../../server/models';
+import { randStr } from '../test-helpers/fake-data';
 import * as utils from '../utils';
 
 /** Randomize email since it's a unique key in the database
@@ -31,8 +32,8 @@ export function randEmail(email = 'test-user@emailprovider.com') {
 }
 
 /** Returns a random URL. */
-export function randUrl() {
-  return `https://example.com/${uuid()}`;
+export function randUrl(base = 'example.com') {
+  return `https://${base}/${uuid()}`;
 }
 
 /** Convert string to lower case and swap spaces with dashes */
@@ -45,9 +46,10 @@ function slugify(value) {
  * @param {String} name is the name of the new user. The email created
  *  for the user will be `{name}@oc.com`.
  * @param {Object} data is whatever other data that needs to be passed
- *  to the user's creation. The fields "name", "email", "username" and
+ *  to the user's creation. The fields "name", "email" and
  *  "description" can't be overrided.
  * @return {Object} with references for `user` and `userCollective`.
+ * @deprecated Prefer the `fake-data` lib: use `fakeUser()`
  */
 export async function newUser(name, data = {}) {
   name = name || uuid().split('-')[0];
@@ -58,7 +60,6 @@ export async function newUser(name, data = {}) {
     email,
     slug,
     name,
-    username: name,
     description: `A user called ${name}`,
   });
   return { user, userCollective: user.collective, [slug]: user };
@@ -102,7 +103,7 @@ export async function newIncognitoProfile(user) {
 export async function newHost(name, currency, hostFee, userData = {}, hostData = {}) {
   // Host Admin
   const slug = slugify(name);
-  const hostAdmin = (await newUser(`${name} Admin`, { firstName: 'host', lastName: 'admin', ...userData })).user;
+  const hostAdmin = (await newUser(`${name} Admin`, { name: 'host admin', ...userData })).user;
   const hostFeePercent = hostFee ? parseInt(hostFee) : 0;
   const hostCollective = await models.Collective.create({
     name,
@@ -149,9 +150,10 @@ export async function newOrganization(orgData, adminUser) {
  *  collective
  * @returns {Object} with references for `hostCollective`,
  *  `hostAdmin`, and `collective`.
+ * @deprecated Prefer the `fake-data` lib: use `fakeCollective()`
  */
 export async function newCollectiveWithHost(name, currency, hostCurrency, hostFee, user = null, data = {}) {
-  name = name || uuid();
+  name = name || randStr();
   const { hostAdmin, hostCollective } = await newHost(`${name} Host`, hostCurrency, hostFee, { currency });
   const slug = slugify(name);
   const { hostFeePercent } = hostCollective;
@@ -332,7 +334,7 @@ export async function stripeOneTimeDonation(opt) {
   // Every transaction made can use different values, so we stub the
   // stripe call, create the order, and restore the stripe call so it
   // can be stubbed again by the next call to this helper.
-  const sandbox = sinon.createSandbox();
+  const sandbox = createSandbox();
 
   // Freeze the time to guarantee that all the objects have the
   // requested creation date. It will be reset right after the

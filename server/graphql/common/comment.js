@@ -1,7 +1,6 @@
 import { pick } from 'lodash';
 
 import { mustBeLoggedInTo } from '../../lib/auth';
-import { stripTags } from '../../lib/utils';
 import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
@@ -43,7 +42,7 @@ async function editComment(commentData, remoteUser) {
   }
 
   // Prepare args and update
-  const editableAttributes = ['markdown', 'html'];
+  const editableAttributes = ['html'];
   return await comment.update(pick(commentData, editableAttributes));
 }
 
@@ -71,11 +70,11 @@ async function createCommentResolver(_, { comment: commentData }, req) {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
 
-  if (!commentData.markdown && !commentData.html) {
-    throw new ValidationFailed('comment.markdown or comment.html required');
+  if (!commentData.html) {
+    throw new ValidationFailed('Comment is empty');
   }
 
-  const { ConversationId, ExpenseId, UpdateId, markdown, html } = commentData;
+  const { ConversationId, ExpenseId, UpdateId, html } = commentData;
 
   // Ensure at least (and only) one entity to comment is specified
   if ([ConversationId, ExpenseId, UpdateId].filter(Boolean).length !== 1) {
@@ -102,7 +101,6 @@ async function createCommentResolver(_, { comment: commentData }, req) {
     UpdateId,
     ConversationId,
     html, // HTML is sanitized at the model level, no need to do it here
-    markdown, // DEPRECATED - sanitized at the model level, no need to do it here
     CreatedByUserId: remoteUser.id,
     FromCollectiveId: remoteUser.CollectiveId,
   });
@@ -122,17 +120,4 @@ function fromCollectiveResolver({ FromCollectiveId }, _, { loaders }) {
   return loaders.Collective.byId.load(FromCollectiveId);
 }
 
-/**
- * Returns a resolver function that strip tags from the object prop.
- * @param {string} prop - prop to look in the object of the resolver first argument.
- */
-const getStripTagsResolver = prop => obj => stripTags(obj[prop] || '');
-
-export {
-  editComment,
-  deleteComment,
-  createCommentResolver,
-  collectiveResolver,
-  fromCollectiveResolver,
-  getStripTagsResolver,
-};
+export { editComment, deleteComment, createCommentResolver, collectiveResolver, fromCollectiveResolver };

@@ -1,10 +1,12 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { Currency } from '../enum';
 import { ExpenseType } from '../enum/ExpenseType';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
+import { NewAccountOrReferenceInput } from './AccountReferenceInput';
 import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
 import { ExpenseItemInput } from './ExpenseItemInput';
+import { ExpenseTaxInput } from './ExpenseTaxInput';
 import { LocationInput } from './LocationInput';
 import { PayoutMethodInput } from './PayoutMethodInput';
 
@@ -13,7 +15,7 @@ import { PayoutMethodInput } from './PayoutMethodInput';
  */
 export const ExpenseUpdateInput = new GraphQLInputObjectType({
   name: 'ExpenseUpdateInput',
-  fields: {
+  fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'ID of the expense that you are trying to edit',
@@ -21,6 +23,14 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
     description: {
       type: GraphQLString,
       description: 'Main title of the expense',
+    },
+    longDescription: {
+      type: GraphQLString,
+      description: 'Longer text to attach to the expense',
+    },
+    currency: {
+      type: Currency,
+      description: 'Currency that should be used for the payout. Defaults to the account currency',
     },
     tags: {
       type: new GraphQLList(GraphQLString),
@@ -32,7 +42,7 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
     },
     privateMessage: {
       type: GraphQLString,
-      description: 'A private note that will be attached to your invoice',
+      description: 'A private note that will be attached to your invoice, as HTML',
     },
     invoiceInfo: {
       type: GraphQLString,
@@ -56,12 +66,16 @@ export const ExpenseUpdateInput = new GraphQLInputObjectType({
       description: '(Optional) A list of files that you want to attach to this expense',
     },
     payee: {
-      type: AccountReferenceInput,
+      type: NewAccountOrReferenceInput,
       description: 'Account to reimburse',
     },
     payeeLocation: {
       type: LocationInput,
       description: 'The address of the payee',
     },
-  },
+    tax: {
+      type: new GraphQLList(ExpenseTaxInput),
+      description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
+    },
+  }),
 });

@@ -3,13 +3,12 @@ import { get, isNil } from 'lodash';
 import { v1 as uuid } from 'uuid';
 
 import errors from '../../lib/errors';
-import logger from '../../lib/logger';
 
 import paypalAdaptive from './adaptiveGateway';
 
 /**
  * PayPal paymentProvider
- * Provides a oAuth flow to creates a payment method that can be used to pay up to $2,000 USD or equivalent
+ * Provides a OAuth flow to creates a payment method that can be used to pay up to $2,000 USD or equivalent
  */
 
 /*
@@ -109,7 +108,6 @@ export default {
       const updatedPM = await getPreapprovalDetailsAndUpdatePaymentMethod(paymentMethod);
       return { amount: updatedPM.data.balance, currency: updatedPM.currency };
     } catch (e) {
-      logger.error('getBalance for PayPal pre-approval failed', e);
       return { amount: 0, currency: paymentMethod.currency };
     }
   },

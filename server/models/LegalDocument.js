@@ -1,14 +1,18 @@
+import sequelize, { DataTypes } from '../lib/sequelize';
+
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
 };
 
-export default function (Sequelize, DataTypes) {
-  const NOT_REQUESTED = 'NOT_REQUESTED';
-  const REQUESTED = 'REQUESTED';
-  const RECEIVED = 'RECEIVED';
-  const ERROR = 'ERROR';
+export const LEGAL_DOCUMENT_REQUEST_STATUS = {
+  NOT_REQUESTED: 'NOT_REQUESTED',
+  REQUESTED: 'REQUESTED',
+  RECEIVED: 'RECEIVED',
+  ERROR: 'ERROR',
+};
 
-  const LegalDocument = Sequelize.define(
+function defineModel() {
+  const LegalDocument = sequelize.define(
     'LegalDocument',
     {
       id: {
@@ -37,17 +41,17 @@ export default function (Sequelize, DataTypes) {
       },
       requestStatus: {
         type: DataTypes.ENUM,
-        values: [NOT_REQUESTED, REQUESTED, RECEIVED, ERROR],
+        values: Object.values(LEGAL_DOCUMENT_REQUEST_STATUS),
         allowNull: false,
-        defaultValue: NOT_REQUESTED,
+        defaultValue: LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED,
       },
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       deletedAt: {
         type: DataTypes.DATE,
@@ -63,51 +67,40 @@ export default function (Sequelize, DataTypes) {
         allowNull: false,
         unique: 'yearTypeCollective',
       },
+      data: {
+        type: DataTypes.JSONB,
+        allowNull: true,
+      },
     },
     {
       paranoid: true,
     },
   );
 
-  LegalDocument.findByTypeYearUser = ({ documentType, year, user }) => {
-    return user.getCollective().then(collective => {
-      if (collective) {
-        return LegalDocument.findOne({
-          where: {
-            year,
-            CollectiveId: collective.id,
-            documentType,
-          },
-        });
-      }
+  LegalDocument.findByTypeYearCollective = ({ documentType, year, collective }) => {
+    return LegalDocument.findOne({
+      where: {
+        year,
+        CollectiveId: collective.id,
+        documentType,
+      },
     });
   };
 
-  LegalDocument.hasUserCompletedDocument = async ({ documentType, year, user }) => {
-    const doc = await LegalDocument.findByTypeYearUser({ documentType, year, user });
-
-    return doc !== null && doc.requestStatus == RECEIVED;
+  LegalDocument.prototype.shouldBeRequested = function () {
+    return (
+      this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.NOT_REQUESTED ||
+      this.requestStatus === LEGAL_DOCUMENT_REQUEST_STATUS.ERROR
+    );
   };
 
-  LegalDocument.doesUserNeedToBeSentDocument = async ({ documentType, year, user }) => {
-    const doc = await LegalDocument.findByTypeYearUser({ documentType, year, user });
-
-    return doc == null || doc.requestStatus == NOT_REQUESTED || doc.requestStatus == ERROR;
-  };
-
-  LegalDocument.requestStatus = {
-    REQUESTED,
-    NOT_REQUESTED,
-    RECEIVED,
-    ERROR,
-  };
-
-  LegalDocument.associate = m => {
-    LegalDocument.belongsTo(m.Collective, {
-      foreignKey: 'CollectiveId',
-      as: 'collective',
-    });
-  };
+  LegalDocument.requestStatus = LEGAL_DOCUMENT_REQUEST_STATUS;
 
   return LegalDocument;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const LegalDocument = defineModel();
+
+export default LegalDocument;

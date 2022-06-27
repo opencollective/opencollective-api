@@ -1,8 +1,8 @@
 # PostgreSQL Database
 
-You need to have PostgreSQL 9.x, 10.x or 11.x with the Postgis extension.
+You need to have PostgreSQL 13.x with the Postgis extension.
 
-In production, we're currently running 9.6.17.
+In production, we're currently running 13.3.
 
 ## Installation
 
@@ -18,6 +18,34 @@ Get the app from [Postgres.app](http://postgresapp.com/). Install it.
 
 Then to enable the CLI tools, follow the steps from: https://postgresapp.com/documentation/cli-tools.html
 
+### On Linux
+
+#### Fedora / RedHat
+
+```bash
+# Install Postgres
+sudo dnf install postgresql-server postgresql-contrib postgis
+
+# (Optional) Start postgres at boot time
+sudo systemctl enable postgresql
+
+# Initialize DB
+PGSETUP_INITDB_OPTIONS="-U postgres" sudo postgresql-setup --initdb
+```
+
+Then edit your `/var/lib/pgsql/data/pg_hba.conf`. Comment existing lines, and add the following content:
+
+```
+# Allow local connections without password
+local   all             all                                     trust
+# IPv4 local connections:
+host    all             all             127.0.0.1/32            trust
+# IPv6 local connections:
+host    all             all             ::1/128                 trust
+```
+
+Finally start Postgres with `sudo systemctl start postgresql`.
+
 ### With Docker
 
 If you don't want to run a local instance of PostgreSQL in your computer, you can run one in Docker.
@@ -25,7 +53,7 @@ If you don't want to run a local instance of PostgreSQL in your computer, you ca
 Create and run the container:
 
 ```
-docker run -p 5432:5432 -d --name opencollective-postgres mdillon/postgis:9.6
+docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres postgis/postgis:13-3.1
 ```
 
 Set the necessary environment variables:
@@ -52,7 +80,7 @@ sudo apt-get install postgresql-client
 
 #### Development
 
-Please be aware of the `NODE_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
+Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used.
 
 The development database should be automatically installed after `npm install`.
 
@@ -62,7 +90,7 @@ To force a restore run `npm run db:restore`, then `npm run db:migrate`.
 
 #### Test
 
-Please be aware of the `NODE_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
+Please be aware of the `NODE_ENV`/`OC_ENV` variable. By default, it's set to `development` and the `opencollective_dvl` database will be used. You have to set it yourself to `test` to switch to the test environment and use `opencollective_test` instead.
 
 To setup the database for tests, run `npm run db:setup` or run `NODE_ENV=test npm run db:setup` to force the environment.
 
@@ -86,6 +114,36 @@ Sometime, things dont't work as expected and you need to start from scratch. Do:
 dropdb opencollective_dvl
 dropdb opencollective_test
 dropuser opencollective
+```
+
+## Migrations
+
+When creating migrations and interacting with the database please follow the guidelines below.
+
+### Create a migration
+
+This will create a file in `migrations/` where you'll be able to put your migration and rollback procedures:
+
+```
+# The name of the migration should use kebab case
+
+npm run db:migration:create -- --name <name-of-your-migration>
+```
+
+**Note:** To create a migration, always use the above command, so that it aligns with the default [Sequelize](https://sequelize.org/) file naming conventions.
+
+### Run migrations
+
+This will run all the pending migrations in `migrations/`:
+
+```
+npm run db:migrate
+```
+
+### Rollback last migration
+
+```
+npm run db:migrate:undo
 ```
 
 ## Troubleshooting

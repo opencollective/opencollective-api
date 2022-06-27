@@ -1,29 +1,45 @@
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
+import moment from 'moment';
 
-import { types as CollectiveType } from '../../constants/collectives';
-import { maxInteger } from '../../constants/math';
+import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getListOfAccessibleMembers } from '../../lib/auth';
-import queries from '../../lib/queries';
+import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
+import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
 import commentsLoader from './comments';
 import conversationLoaders from './conversation';
+import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
-import { generateCanSeeUserPrivateInfoLoader } from './user';
+import * as transactionLoaders from './transactions';
+import updatesLoader from './updates';
+import { generateCanSeeUserPrivateInfoLoader, generateUserByCollectiveIdLoader } from './user';
+import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
   const cache = {};
   const context = createContext(sequelize);
 
+  // Custom helpers
+  context.loaders.CurrencyExchangeRate.convert = generateConvertToCurrencyLoader(req, cache);
+  context.loaders.CurrencyExchangeRate.fxRate = generateFxRateLoader(req, cache);
+
   // Comment
-  context.loaders.Comment.findAllByAttribute = commentsLoader.findAllByAttribute(req, cache);
   context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);
+
+  // Comment Reactions
+  context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId(req, cache);
+  context.loaders.Comment.remoteUserReactionsByCommentId = commentsLoader.remoteUserReactionsByCommentId(req, cache);
+
+  // Update Reactions
+  context.loaders.Update.reactionsByUpdateId = updatesLoader.reactionsByUpdateId(req, cache);
+  context.loaders.Update.remoteUserReactionsByUpdateId = updatesLoader.remoteUserReactionsByUpdateId(req, cache);
 
   // Conversation
   context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);
@@ -33,32 +49,53 @@ export const loaders = req => {
   context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);
   context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles(req, cache);
   context.loaders.Expense.items = expenseLoaders.generateExpenseItemsLoader(req, cache);
+  context.loaders.Expense.userTaxFormRequiredBeforePayment = expenseLoaders.userTaxFormRequiredBeforePayment(
+    req,
+    cache,
+  );
+  context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments(req, cache);
+  context.loaders.Expense.expenseToHostTransactionFxRateLoader =
+    expenseLoaders.generateExpenseToHostTransactionFxRateLoader(req, cache);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);
   context.loaders.PayoutMethod.byCollectiveId = generateCollectivePayoutMethodsLoader(req, cache);
 
+  // Virtual Card
+  context.loaders.VirtualCard.byCollectiveId = generateCollectiveVirtualCardLoader(req, cache);
+  context.loaders.VirtualCard.byHostCollectiveId = generateHostCollectiveVirtualCardLoader(req, cache);
+
   // User
   context.loaders.User.canSeeUserPrivateInfo = generateCanSeeUserPrivateInfoLoader(req, cache);
+  context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
 
   /** *** Collective *****/
 
   // Collective - by UserId
   context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
+  context.loaders.Collective.mainProfileFromIncognito = collectiveLoaders.mainProfileFromIncognito(req, cache);
 
-  // Collective - ChildCollectives
-  context.loaders.Collective.childCollectives = new DataLoader(parentIds =>
+  // Collective - Host
+  context.loaders.Collective.host = new DataLoader(ids =>
     models.Collective.findAll({
-      where: { ParentCollectiveId: { [Op.in]: parentIds }, type: CollectiveType.COLLECTIVE },
-    }).then(collectives => sortResults(parentIds, collectives, 'ParentCollectiveId', [])),
+      attributes: ['id'],
+      where: { id: { [Op.in]: ids } },
+      include: [{ model: models.Collective, as: 'host' }],
+    }).then(results => {
+      const resultsById = {};
+      for (const result of results) {
+        resultsById[result.id] = result.host;
+      }
+      return ids.map(id => resultsById[id] || null);
+    }),
   );
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
-    queries
-      .getBalances(ids)
-      .then(results => sortResults(ids, results, 'CollectiveId'))
-      .map(result => get(result, 'balance') || 0),
+    getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+  );
+  context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
+    getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
 
   // Collective - ConnectedAccounts
@@ -86,9 +123,7 @@ export const loaders = req => {
         ],
         where: { HostCollectiveId: { [Op.in]: ids } },
         group: ['HostCollectiveId'],
-      })
-        .then(results => sortResults(ids, results, 'TierId'))
-        .map(result => get(result, 'dataValues.count') || 0),
+      }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
     ),
     backers: new DataLoader(ids => {
       return models.Member.findAll({
@@ -159,7 +194,15 @@ export const loaders = req => {
         attributes: [
           'Order.CollectiveId',
           'Subscription.interval',
-          [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('Subscription.amount')), 0), 'total'],
+          [
+            sequelize.fn(
+              'SUM',
+              sequelize.literal(
+                `COALESCE("Order"."totalAmount", 0) - COALESCE(("Order"."data"->>'platformFee')::integer, 0)`,
+              ),
+            ),
+            'total',
+          ],
         ],
         where: {
           CollectiveId: { [Op.in]: ids },
@@ -191,18 +234,7 @@ export const loaders = req => {
     ),
   };
 
-  // getUserDetailsByCollectiveId
-  context.loaders.getUserDetailsByCollectiveId = new DataLoader(UserCollectiveIds =>
-    getListOfAccessibleMembers(req.remoteUser, UserCollectiveIds)
-      .then(accessibleUserCollectiveIds =>
-        models.User.findAll({
-          where: { CollectiveId: { [Op.in]: accessibleUserCollectiveIds } },
-        }),
-      )
-      .then(results => sortResults(UserCollectiveIds, results, 'CollectiveId', {})),
-  );
-
-  // getOrgDetailsByCollectiveId
+  // @deprecated Getting orgs emails by `CreatedByUserId` is unreliable. See https://github.com/opencollective/opencollective/issues/3415
   context.loaders.getOrgDetailsByCollectiveId = new DataLoader(OrgCollectiveIds =>
     getListOfAccessibleMembers(req.remoteUser, OrgCollectiveIds)
       .then(accessibleOrgCollectiveIds =>
@@ -224,13 +256,16 @@ export const loaders = req => {
         return models.User.findAll({
           attributes: ['id', 'CollectiveId', 'email'],
           where: { id: { [Op.in]: Object.keys(accessibleOrgCreators) } },
-        }).map(u => {
-          u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
-          return u;
+        }).then(users => {
+          return users.map(u => {
+            u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
+            return u;
+          });
         });
       })
       .catch(e => {
         console.error(e);
+        reportErrorToSentry(e);
         return [];
       })
       .then(results => sortResults(OrgCollectiveIds, results, 'OrgCollectiveId', {})),
@@ -244,20 +279,27 @@ export const loaders = req => {
         `
           SELECT t.id, (t."maxQuantity" - COALESCE(SUM(o.quantity), 0)) AS "availableQuantity"
           FROM "Tiers" t
-          LEFT JOIN "Orders" o ON o."TierId" = t.id AND o."processedAt" IS NOT NULL
+          LEFT JOIN "Orders" o ON o."TierId" = t.id AND o."processedAt" IS NOT NULL AND o."status" NOT IN (?)
           WHERE t.id IN (?)
           AND t."maxQuantity" IS NOT NULL
           GROUP BY t.id
         `,
         {
-          replacements: [tierIds],
+          replacements: [
+            [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED],
+            tierIds,
+          ],
           type: sequelize.QueryTypes.SELECT,
         },
       )
       .then(results => {
         return tierIds.map(tierId => {
           const result = results.find(({ id }) => id === tierId);
-          return result ? result.availableQuantity : maxInteger;
+          if (result) {
+            return result.availableQuantity > 0 ? result.availableQuantity : 0;
+          } else {
+            return null;
+          }
         });
       }),
   );
@@ -277,9 +319,7 @@ export const loaders = req => {
       ],
       where: { TierId: { [Op.in]: ids } },
       group: ['TierId'],
-    })
-      .then(results => sortResults(ids, results, 'TierId'))
-      .map(result => get(result, 'dataValues.count') || 0),
+    }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
   );
 
   // Tier - totalOrders
@@ -288,9 +328,7 @@ export const loaders = req => {
       attributes: ['TierId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
       where: { TierId: { [Op.in]: ids }, processedAt: { [Op.ne]: null } },
       group: ['TierId'],
-    })
-      .then(results => sortResults(ids, results, 'TierId'))
-      .map(result => get(result, 'dataValues.count') || 0),
+    }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
   );
 
   // Tier - totalActiveDistinctOrders
@@ -309,9 +347,7 @@ export const loaders = req => {
       ],
       where: { TierId: { [Op.in]: ids }, processedAt: { [Op.ne]: null }, status: { [Op.in]: ['ACTIVE', 'PAID'] } },
       group: ['TierId'],
-    })
-      .then(results => sortResults(ids, results, 'TierId'))
-      .map(result => get(result, 'dataValues.count') || 0),
+    }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
   );
 
   // Tier - totalDonated
@@ -321,7 +357,7 @@ export const loaders = req => {
         `
         SELECT "Order"."TierId" AS "TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
         FROM "Transactions" AS "Transaction"
-        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND ("Order"."deletedAt" IS NULL)
+        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Transaction"."CollectiveId" = "Order"."CollectiveId" AND ("Order"."deletedAt" IS NULL)
         WHERE "TierId" IN (?)
         AND "Transaction"."deletedAt" IS NULL
         AND "Transaction"."RefundTransactionId" IS NULL
@@ -344,7 +380,8 @@ export const loaders = req => {
         SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount"), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-        WHERE "TierId" IN (?)
+        WHERE o."TierId" IN (?)
+        AND o."deletedAt" IS NULL
         AND s."isActive" = TRUE
         AND s."interval" = 'month'
         GROUP BY "TierId";
@@ -365,7 +402,8 @@ export const loaders = req => {
         SELECT o."TierId" AS "TierId", COALESCE(SUM(s."amount"), 0) AS "total"
         FROM "Orders" o
         INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-        WHERE "TierId" IN (?)
+        WHERE o."TierId" IN (?)
+        AND o."deletedAt" IS NULL
         AND s."isActive" = TRUE
         AND s."interval" = 'year'
         GROUP BY "TierId";
@@ -377,6 +415,37 @@ export const loaders = req => {
       )
       .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result.total : 0))),
   );
+
+  // Tier - totalRecurringDonations
+  context.loaders.Tier.totalRecurringDonations = new DataLoader(ids => {
+    return sequelize
+      .query(
+        `
+          SELECT o."TierId" AS "TierId",
+          COALESCE(
+            SUM(
+              CASE
+                WHEN s."interval" = 'year'
+                  THEN s."amount"/12
+                ELSE s."amount"
+              END
+            ), 0)
+          AS "total"
+          FROM "Orders" o
+          INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
+          WHERE o."TierId" IN (?)
+          AND o."deletedAt" IS NULL
+          AND s."isActive" = TRUE
+          AND s."interval" IN ('year', 'month')
+          GROUP BY "TierId";
+      `,
+        {
+          replacements: [ids],
+          type: sequelize.QueryTypes.SELECT,
+        },
+      )
+      .then(results => sortResults(ids, results, 'TierId').map(result => (result ? result.total : 0)));
+  });
 
   // Tier - contributorsStats
   context.loaders.Tier.contributorsStats = new DataLoader(tiersIds =>
@@ -432,8 +501,10 @@ export const loaders = req => {
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
         name: { [Op.ne]: null },
-        expiryDate: { [Op.or]: [null, { [Op.gte]: new Date() }] },
         archivedAt: null,
+        expiryDate: {
+          [Op.or]: [null, { [Op.gte]: moment().subtract(6, 'month') }],
+        },
       },
       order: [['id', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
@@ -453,12 +524,12 @@ export const loaders = req => {
     }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', [])),
   );
 
-  // Order - findPendingOrdersForCollective
-  context.loaders.Order.findPendingOrdersForCollective = new DataLoader(CollectiveIds =>
+  // Order - findPledgedOrdersForCollective
+  context.loaders.Order.findPledgedOrdersForCollective = new DataLoader(CollectiveIds =>
     models.Order.findAll({
       where: {
         CollectiveId: { [Op.in]: CollectiveIds },
-        status: 'PENDING',
+        status: 'PLEDGED',
       },
       order: [['createdAt', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
@@ -471,18 +542,16 @@ export const loaders = req => {
         attributes: ['OrderId', [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count']],
         where: { OrderId: { [Op.in]: ids } },
         group: ['OrderId'],
-      })
-        .then(results => sortResults(ids, results, 'OrderId'))
-        .map(result => get(result, 'dataValues.count') || 0),
+      }).then(results => sortResults(ids, results, 'OrderId').map(result => get(result, 'dataValues.count') || 0)),
     ),
     totalTransactions: new DataLoader(keys =>
       models.Transaction.findAll({
         attributes: ['OrderId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
         where: { OrderId: { [Op.in]: keys } },
         group: ['OrderId'],
-      })
-        .then(results => sortResults(keys, results, 'OrderId'))
-        .map(result => get(result, 'dataValues.totalAmount') || 0),
+      }).then(results =>
+        sortResults(keys, results, 'OrderId').map(result => get(result, 'dataValues.totalAmount') || 0),
+      ),
     ),
   };
 
@@ -508,6 +577,13 @@ export const loaders = req => {
 
   /** *** Transaction *****/
   context.loaders.Transaction = {
+    ...context.loaders.Transaction,
+    byOrderId: new DataLoader(async keys => {
+      const where = { OrderId: { [Op.in]: keys } };
+      const order = [['createdAt', 'ASC']];
+      const transactions = await models.Transaction.findAll({ where, order });
+      return sortResults(keys, transactions, 'OrderId', []);
+    }),
     findByOrderId: options =>
       createDataLoaderWithOptions(
         (OrderIds, options) => {
@@ -542,36 +618,11 @@ export const loaders = req => {
         });
       }),
     ),
-    donationsThroughEmittedVirtualCardsFromTo: new DataLoader(keys =>
-      models.Transaction.findAll({
-        attributes: [
-          'UsingVirtualCardFromCollectiveId',
-          'CollectiveId',
-          [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
-        ],
-        where: {
-          UsingVirtualCardFromCollectiveId: {
-            [Op.in]: keys.map(k => k.FromCollectiveId),
-          },
-          CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
-          type: TransactionTypes.CREDIT,
-        },
-        group: ['UsingVirtualCardFromCollectiveId', 'CollectiveId'],
-      }).then(results => {
-        const resultsByKey = {};
-        results.forEach(r => {
-          resultsByKey[`${r.UsingVirtualCardFromCollectiveId}-${r.CollectiveId}`] = r.dataValues.totalAmount;
-        });
-        return keys.map(key => {
-          return resultsByKey[`${key.FromCollectiveId}-${key.CollectiveId}`] || 0;
-        });
-      }),
-    ),
     totalAmountDonatedFromTo: new DataLoader(keys =>
       models.Transaction.findAll({
         attributes: [
           'FromCollectiveId',
-          'UsingVirtualCardFromCollectiveId',
+          'UsingGiftCardFromCollectiveId',
           'CollectiveId',
           [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
         ],
@@ -580,20 +631,21 @@ export const loaders = req => {
             FromCollectiveId: {
               [Op.in]: keys.map(k => k.FromCollectiveId),
             },
-            UsingVirtualCardFromCollectiveId: {
+            UsingGiftCardFromCollectiveId: {
               [Op.in]: keys.map(k => k.FromCollectiveId),
             },
           },
           CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
           type: TransactionTypes.CREDIT,
+          RefundTransactionId: null,
         },
-        group: ['FromCollectiveId', 'UsingVirtualCardFromCollectiveId', 'CollectiveId'],
+        group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],
       }).then(results => {
         const resultsByKey = {};
-        results.forEach(({ CollectiveId, FromCollectiveId, UsingVirtualCardFromCollectiveId, dataValues }) => {
-          // Credit collective that emitted the virtual card (if any)
-          if (UsingVirtualCardFromCollectiveId) {
-            const key = `${UsingVirtualCardFromCollectiveId}-${CollectiveId}`;
+        results.forEach(({ CollectiveId, FromCollectiveId, UsingGiftCardFromCollectiveId, dataValues }) => {
+          // Credit collective that emitted the gift card (if any)
+          if (UsingGiftCardFromCollectiveId) {
+            const key = `${UsingGiftCardFromCollectiveId}-${CollectiveId}`;
             const donated = resultsByKey[key] || 0;
             resultsByKey[key] = donated + dataValues.totalAmount;
           }
@@ -607,6 +659,8 @@ export const loaders = req => {
         });
       }),
     ),
+    hostFeeAmountForTransaction: transactionLoaders.generateHostFeeAmountForTransactionLoader(),
+    relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
   };
 
   return context.loaders;

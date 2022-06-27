@@ -1,22 +1,33 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults } from 'lodash';
-import { Op } from 'sequelize';
+import { defaults, min } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import { maxInteger } from '../constants/math';
-import { capitalize, days, formatCurrency, stripTags } from '../lib/utils';
+import orderStatus from '../constants/order_status';
+import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import sequelize, { DataTypes, Op } from '../lib/sequelize';
+import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:Tier');
 
-export default function (Sequelize, DataTypes) {
-  const { models } = Sequelize;
+const longDescriptionSanitizerOpts = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+  videoIframes: true,
+});
 
-  const Tier = Sequelize.define(
+function defineModel() {
+  const { models } = sequelize;
+
+  const Tier = sequelize.define(
     'Tier',
     {
       id: {
@@ -76,7 +87,17 @@ export default function (Sequelize, DataTypes) {
         defaultValue: 'TIER',
       },
 
-      description: DataTypes.STRING(510),
+      description: {
+        type: DataTypes.STRING(510),
+        validate: {
+          length(description) {
+            if (description?.length > 510) {
+              const tierName = this.getDataValue('name');
+              throw new Error(`In "${tierName}" tier, the description is too long (must be less than 510 characters)`);
+            }
+          },
+        },
+      },
 
       longDescription: {
         type: DataTypes.TEXT,
@@ -88,9 +109,15 @@ export default function (Sequelize, DataTypes) {
           if (!content) {
             this.setDataValue('longDescription', null);
           } else {
-            this.setDataValue('longDescription', stripTags(content));
+            this.setDataValue('longDescription', sanitizeHTML(content, longDescriptionSanitizerOpts));
           }
         },
+      },
+
+      useStandalonePage: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
 
       videoUrl: {
@@ -163,22 +190,21 @@ export default function (Sequelize, DataTypes) {
         type: DataTypes.STRING(8),
         validate: {
           isIn: {
-            args: [['month', 'year']],
-            msg: 'Must be month or year',
+            args: [['month', 'year', 'flexible']],
+            msg: 'Must be month, year or flexible',
+          },
+          isValidTier(value) {
+            if (this.amountType === 'FIXED' && value === 'flexible') {
+              throw new Error(
+                `In ${this.name}'s tier, "flexible" interval can not be selected with "fixed" amount type.`,
+              );
+            }
           },
         },
       },
 
       // Max quantity of tickets to sell (0 for unlimited)
       maxQuantity: {
-        type: DataTypes.INTEGER,
-        validate: {
-          min: 0,
-        },
-      },
-
-      // Max quantity of tickets per user (0 for unlimited)
-      maxQuantityPerUser: {
         type: DataTypes.INTEGER,
         validate: {
           min: 0,
@@ -193,10 +219,6 @@ export default function (Sequelize, DataTypes) {
         },
       },
 
-      password: {
-        type: DataTypes.STRING,
-      },
-
       customFields: {
         type: DataTypes.JSONB,
       },
@@ -207,22 +229,20 @@ export default function (Sequelize, DataTypes) {
 
       startsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       endsAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
       },
 
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
 
       deletedAt: {
@@ -239,6 +259,7 @@ export default function (Sequelize, DataTypes) {
             name: this.name,
             description: this.description,
             amount: this.amount,
+            interval: this.interval,
             currency: this.currency,
             maxQuantity: this.maxQuantity,
             startsAt: this.startsAt,
@@ -268,7 +289,7 @@ export default function (Sequelize, DataTypes) {
             str = `${formatCurrency(this.amount || 0, this.currency)}`;
           }
 
-          if (this.interval) {
+          if (this.interval && this.interval !== 'flexible') {
             str += ` per ${this.interval}`;
           }
           return str;
@@ -326,10 +347,10 @@ export default function (Sequelize, DataTypes) {
             debug('No transaction found for order', order.dataValues);
             return false;
           }
-          if (this.interval === 'month' && days(transaction.createdAt, until) <= 31) {
+          if (order.interval === 'month' && days(transaction.createdAt, until) <= 31) {
             return true;
           }
-          if (this.interval === 'year' && days(transaction.createdAt, until) <= 365) {
+          if (order.interval === 'year' && days(transaction.createdAt, until) <= 365) {
             return true;
           }
           return false;
@@ -338,7 +359,6 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  // TODO: Check for maxQuantityPerUser
   Tier.prototype.availableQuantity = function () {
     if (!this.maxQuantity) {
       return Promise.resolve(maxInteger);
@@ -347,6 +367,7 @@ export default function (Sequelize, DataTypes) {
     return models.Order.sum('quantity', {
       where: {
         TierId: this.id,
+        status: { [Op.notIn]: [orderStatus.ERROR, orderStatus.CANCELLED, orderStatus.EXPIRED, orderStatus.REJECTED] },
         processedAt: { [Op.ne]: null },
       },
     }).then(usedQuantity => {
@@ -363,6 +384,30 @@ export default function (Sequelize, DataTypes) {
 
   Tier.prototype.checkAvailableQuantity = function (quantityNeeded = 1) {
     return this.availableQuantity().then(available => available - quantityNeeded >= 0);
+  };
+
+  Tier.prototype.setCurrency = async function (currency) {
+    // Nothing to do
+    if (currency === this.currency) {
+      return this;
+    }
+
+    return this.update({ currency });
+  };
+
+  /**
+   * To check if free contributions are possible for this tier
+   */
+  Tier.prototype.requiresPayment = function () {
+    if (this.amountType === 'FIXED') {
+      return Boolean(this.amount);
+    } else if (this.minimumAmount !== null) {
+      return Boolean(this.minimumAmount);
+    } else if (this.presets?.length && min(this.presets) === 0) {
+      return false;
+    } else {
+      return true;
+    }
   };
 
   /**
@@ -397,7 +442,13 @@ export default function (Sequelize, DataTypes) {
     });
   };
 
-  Temporal(Tier, Sequelize);
+  Temporal(Tier, sequelize);
 
   return Tier;
 }
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Tier = defineModel();
+
+export default Tier;

@@ -1,0 +1,39 @@
+Subject: Open Collective: Verify your email
+
+{{> header}}
+
+<h1>Thanks for signing up to Open Collective!</h1>
+
+<center>
+  <p style="margin: 40px 0 20px; font-size: 15px;">
+    Please verify your email address ({{email}}) by clicking the button below:
+  </p>
+  <a href="{{{verifyAccountLink}}}" class="btn blue"><div>Verify</div></a>
+  <br/>
+  <br/>
+  <br/>
+  <p>
+    Link not working? Try this:<br/>
+    <a href="{{{verifyAccountLink}}}" style="word-break: break-all;">{{{verifyAccountLink}}}</a>
+  </p>
+</center>
+
+<div itemscope itemtype="http://schema.org/EmailMessage">
+  <div itemprop="potentialAction" itemscope itemtype="http://schema.org/ViewAction">
+    <link itemprop="url" content="{{{verifyAccountLink}}}"/>
+    <meta itemprop="name" content="Verify email"/>
+  </div>
+  <meta itemprop="description" content="Verify email"/>
+</div>
+
+{{> footer}}
+
+<center>
+  <div style="margin-top: 1em; font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
+    This signup in email was requested by
+    <span style="padding: .2em .4em; margin: 0; background-color: rgba(27,31,35,.05); border-radius: 3px;">
+      {{clientIp}}
+    </span>.
+    If you did not request this email, please forward it to <a href="mailto:support@opencollective.com">support@opencollective.com</a> and let us know.
+  </div>
+</center>

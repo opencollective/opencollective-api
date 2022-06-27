@@ -1,23 +1,31 @@
 import Promise from 'bluebird';
-import _ from 'lodash';
+import { intersection, sum } from 'lodash';
 
 import { convertToCurrency } from '../lib/currency';
 import models, { Op, sequelize } from '../models';
 
-export function getHostedCollectives(hostid, endDate = new Date()) {
+export function getHostedCollectives(hostid, startDate, endDate = new Date()) {
   return sequelize.query(
     `
-    SELECT g.* FROM "Collectives" g
-    LEFT JOIN "Members" ug ON g.id = ug."CollectiveId"
-    WHERE ug.role='HOST'
-      AND ug."MemberCollectiveId"=:hostid
-      AND g."deletedAt" IS NULL
-      AND ug."deletedAt" IS NULL
-      AND ug."createdAt" < :endDate
-      AND g."createdAt" < :endDate
+    with "members" as (
+      SELECT m."CollectiveId"
+      FROM "Members" m
+      WHERE m.role='HOST'
+        AND m."MemberCollectiveId" = :hostid
+        AND (m."deletedAt" IS NULL OR m."deletedAt" > :startDate)
+        AND m."createdAt" < :endDate
+    ), "transactions" as (
+      SELECT DISTINCT t."CollectiveId" FROM "Transactions" t WHERE t."HostCollectiveId" = :hostid AND t."createdAt" < :endDate AND t."createdAt" > :startDate
+    )
+
+    SELECT DISTINCT *
+    FROM "Collectives" c
+    WHERE
+      c.id IN (SELECT "CollectiveId" FROM "members" UNION SELECT "CollectiveId" FROM "transactions")
+      AND c."createdAt" < :endDate;
   `,
     {
-      replacements: { hostid, endDate },
+      replacements: { hostid, endDate, startDate },
       model: models.Collective,
       type: sequelize.QueryTypes.SELECT,
     },
@@ -49,31 +57,40 @@ export function getBackersStats(startDate = new Date('2015-01-01'), endDate = ne
     getBackersIds(startDate, endDate),
   ]).then(results => {
     stats.total = results[0].length;
-    stats.repeat = _.intersection(results[1], results[2]).length;
+    stats.repeat = intersection(results[1], results[2]).length;
     stats.new = results[2].length - stats.repeat;
     stats.inactive = stats.total - (stats.repeat + stats.new);
     return stats;
   });
 }
 
-export function sumTransactionsBy(groupBy, attribute, query) {
+export async function sumTransactionsBy(groupBy, attribute, query) {
   const findAllQuery = {
-    attributes: [[sequelize.fn('SUM', sequelize.col(attribute)), 'amount'], groupBy],
+    attributes: [[sequelize.fn('SUM', sequelize.fn('COALESCE', sequelize.col(attribute), 0)), 'amount'], groupBy],
     group: [`Transaction.${groupBy}`],
     ...query,
   };
-  return models.Transaction.findAll(findAllQuery).then(rows => {
-    // when it's a raw query, the result is not in dataValues
-    if (query.raw) {
-      return rows;
-    } else {
-      return rows.map(r => r.dataValues);
-    }
-  });
+  const transactions = await models.Transaction.findAll(findAllQuery);
+  // when it's a raw query, the result is not in dataValues
+  if (query.raw) {
+    return transactions;
+  } else {
+    return transactions.map(r => r.dataValues);
+  }
 }
 
 export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurrency', query) {
-  return sumTransactionsBy('currency', attribute, query);
+  const groupByCurrency = [
+    'amountInHostCurrency',
+    'paymentProcessorFeeInHostCurrency',
+    'hostFeeInHostCurrency',
+    'platformFeeInHostCurrency',
+    'netAmountInHostCurrency',
+  ].includes(attribute)
+    ? 'hostCurrency'
+    : 'currency';
+
+  return sumTransactionsBy(groupByCurrency, attribute, query);
 }
 
 /**
@@ -88,23 +105,15 @@ export function sumTransactionsByCurrency(attribute = 'netAmountInCollectiveCurr
  *   totalInHostCurrency: Float!
  * }
  */
-export function sumTransactions(attribute, query = {}, hostCurrency, date) {
-  const { where } = query;
-  if (where.createdAt) {
-    date = date || where.createdAt[Op.lt] || where.createdAt[Op.gte];
-  }
-  const res = {};
-  return sumTransactionsByCurrency(attribute, query)
-    .tap(amounts => {
-      res.byCurrency = amounts;
-    })
-    .then(amounts => Promise.map(amounts, s => convertToCurrency(s.amount, s.currency, hostCurrency || 'USD', date)))
-    .then(amounts => {
-      let total = 0;
-      amounts.map(a => (total += a));
-      res.totalInHostCurrency = Math.round(total); // in cents
-      return res;
-    });
+export async function sumTransactions(attribute, query = {}, hostCurrency) {
+  const amountsByCurrency = await sumTransactionsByCurrency(attribute, query);
+  const convertedAmounts = await Promise.map(amountsByCurrency, s =>
+    convertToCurrency(s.amount, s.currency || s.hostCurrency, hostCurrency || 'USD'),
+  );
+  return {
+    byCurrency: amountsByCurrency,
+    totalInHostCurrency: Math.round(sum(convertedAmounts)), // in cents
+  };
 }
 
 export function getTotalHostFees(

@@ -1,4 +1,4 @@
-Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷 {{/ifCond}}You received {{{currency initialBalance currency=currency}}} from {{emitter.name}} to donate on Open Collective
+Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶 {{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷 {{/ifCond}}You've got {{currency initialBalance currency=currency}} from {{emitter.name}} to spend on Open Collective
 
 {{> header}}
 
@@ -8,7 +8,7 @@ Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===
    <td>
      <center>
       <h1>{{#ifCond currency '===' 'USD'}}💵{{/ifCond}}{{#ifCond currency '===' 'EUR'}}💶{{/ifCond}}{{#ifCond currency '===' 'GBP'}}💷{{/ifCond}}</h1>
-      <p>The {{{currency initialBalance currency=currency}}} gift card offered by <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a> has been added to your Open Collective account. 🎉</p>
+      <p>You have a {{currency initialBalance currency=currency}} gift card from <a href="{{config.host.website}}/{{emitter.slug}}">{{emitter.name}}</a>. It has been added to your Open Collective account. 🎉</p>
       <p>&nbsp;</p>
      </center>
    </td>
@@ -19,13 +19,15 @@ Subject: {{#ifCond currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond currency '===
   </tr>
 </table>
 
-<p>Click on the button below to log in, choose the project(s) that you want to support and select <b>{{name}}</b> from the list of available payment methods.</p>
+<p>Click below to log in, then choose the Collectives(s) you want to support. At checkout, select <b>{{name}}</b> from the list of available payment methods.</p>
 
 <center>
-  <a href="{{loginLink}}" class="btn blue"><div>One-click login</div></a>
+  <a href="{{{loginLink}}}" class="btn blue"><div>Login</div></a>
 </center>
 
-<p>You can donate the full amount to one project or divide it between several projects. You can also start subscriptions. We will let you know when the gift card runs out. <strong>Hurry up, as this card expires on {{{moment expiryDate}}}</strong>.</p>
+<p>You can contribute the full amount to one Collective or divide it between several. You can also start recurring contributions, and we'll let you know when the gift card balance runs out.</p>
+
+<p><strong>Your gift card expires on {{moment expiryDate}}</strong>.</p>
 
 
 {{> footer}}

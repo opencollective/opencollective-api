@@ -1,14 +1,14 @@
 import { expect } from 'chai';
 import config from 'config';
 import jwt from 'jsonwebtoken';
-import sinon from 'sinon';
+import { useFakeTimers } from 'sinon';
 
 import * as auth from '../../../server/lib/auth';
 
 describe('server/lib/auth', () => {
   it('should generate valid tokens', () => {
     // Given that time `Date.now` returns zero (0)
-    const clock = sinon.useFakeTimers();
+    const clock = useFakeTimers();
 
     // When the token is generated
     const token = auth.createJwt('subject', { foo: 'bar' }, 5);
@@ -21,6 +21,20 @@ describe('server/lib/auth', () => {
     expect(decoded.sub).to.equal('subject');
     expect(decoded.exp).to.equal(5);
     expect(decoded.foo).to.equal('bar');
+  });
+
+  it('should automatically attribute a session id', () => {
+    const token = auth.createJwt('subject', {}, 5);
+
+    const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret);
+    expect(decoded).to.have.property('sessionId');
+  });
+
+  it('should mantain session id when renewing token', () => {
+    const token = auth.createJwt('subject', { sessionId: 'fake-session-id' }, 5);
+
+    const decoded = jwt.verify(token, config.keys.opencollective.jwtSecret);
+    expect(decoded).to.have.property('sessionId').equal('fake-session-id');
   });
 
   it('should validate tokens', () => {

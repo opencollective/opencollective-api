@@ -1,4 +1,4 @@
-Subject: {{{host.name}}} Host {{reportName}}
+Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/if}}: {{/if}}{{host.name}} Host {{reportName}}
 
 {{> header}}
 
@@ -71,58 +71,64 @@ Subject: {{{host.name}}} Host {{reportName}}
 </style>
 
 <div class="hidden">
-  Collectives: {{{number stats.totalCollectives}}} ({{{number stats.totalActiveCollectives}}} active) //
-  Backers: {{{number stats.backers.total}}} (+{{{number stats.backers.new}}}{{#if stats.backers.lost}},
-  -{{{number stats.backers.lost}}}{{/if}}) //
-  Balance: {{{currency stats.balance.totalInHostCurrency currency=host.currency}}}
-  ({{{currency stats.delta.totalInHostCurrency currency=host.currency sign=true}}}) //
-  Host fees: {{{currency stats.totalHostFees.totalInHostCurrency currency=host.currency}}} //
+  Collectives: {{number stats.totalCollectives}} ({{number stats.totalActiveCollectives}} active) //
+  Backers: {{number stats.backers.total}} (+{{number stats.backers.new}}{{#if stats.backers.lost}},
+  -{{number stats.backers.lost}}{{/if}}) //
+  Balance: {{currency stats.balance currency=host.currency}}
+  ({{currency stats.delta currency=host.currency sign=true}}) //
+  Host fees: {{currency stats.totalHostFees currency=host.currency}} //
 </div>
 
 <div>
-  <p>Hi {{recipient.firstName}}!</p>
-  <p>Here are your {{#if month}}monthly{{else}}yearly{{/if}} stats report from {{{moment startDate}}} till
-    {{{moment endDateIncluded}}} included:</p>
+  {{#if erratumMessage}}
+    <p style="margin-bottom: 40px;padding-bottom: 24px;box-shadow: 0px 9px 6px -5px #e8e8e8;">
+      <strong>Erratum:</strong> <span style="white-space: pre-wrap;">{{erratumMessage}}</span>
+    </p>
+  {{/if}}
+  <p>Hi {{recipient.name}}!</p>
+  <p>Here is your {{#if month}}monthly{{else}}yearly{{/if}} stats report, from {{moment startDate}} to
+    {{moment endDateIncluded}}.</p>
   <center>
     <table border=0 cellpadding=0 cellspacing=0 width=300 style="margin: 30px 0px">
       <tr>
-        <td align="center"><span
-            class="counter">{{{currency stats.balance.totalInHostCurrency currency=host.currency}}}</span></td>
+        <td align="center"><span class="counter">{{currency stats.totalMoneyManaged currency=host.currency}}</span></td>
         <td width=200>&nbsp;</td>
-        <td align="center"><span class="counter">{{{number stats.backers.total}}}</span></td>
+        <td align="center"><span class="counter">{{number stats.backers.total}}</span></td>
       </tr>
       <tr>
-        <td align="center" nowrap><span class="label">current balance</span></td>
+        <td align="center" nowrap><span class="label">Amount Managed*</span></td>
         <td></td>
-        <td align="center" nowrap><span class="label">total backers</span></td>
+        <td align="center" nowrap><span class="label">Financial Contributors</span></td>
       </tr>
       <tr>
         <td align="center">
-          <span
-            class="positive">(+{{{currency stats.totalNetAmountReceived.totalInHostCurrency currency=host.currency}}})</span><br />
-          <span
-            class="negative">&nbsp;{{#if stats.totalAmountSpent.totalInHostCurrency}}({{{currency stats.totalAmountSpent.totalInHostCurrency currency=host.currency}}}){{/if}}&nbsp;</span>
+          <span class="positive">(+{{currency stats.totalNetAmountReceived currency=host.currency}})</span><br />
+          <span class="negative">&nbsp;{{#if stats.totalAmountSpent}}({{currency stats.totalAmountSpent
+            currency=host.currency}}){{/if}}&nbsp;</span>
         </td>
         <td></td>
         <td align="center">
-          <span class="positive">(+{{{number stats.backers.new}}})</span><br />
+          <span class="positive">(+{{number stats.backers.new}})</span><br />
           <span class="negative">&nbsp;{{#if stats.backers.lost}}(-{{host.stats.backers.lost}}){{/if}}&nbsp;</span>
         </td>
       </tr>
     </table>
   </center>
+  <p>
+    * Total funds held by this Fiscal Host.
+  </p>
 
   <h2>Details for the {{#if month}}month{{else}}year{{/if}}</h2>
   <table border=0 width="100%">
     <tr>
-      <td>Number of collectives</td>
+      <td>Collectives</td>
       <td></td>
-      <td align="right">{{{number stats.totalCollectives}}}</td>
+      <td align="right">{{number stats.totalCollectives}}</td>
     </tr>
     <tr class="indent1">
-      <td>Active</td>
+      <td>Active Collectives</td>
       <td></td>
-      <td align="right">{{{number stats.totalActiveCollectives}}}</td>
+      <td align="right">{{number stats.totalActiveCollectives}}</td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
@@ -130,91 +136,211 @@ Subject: {{{host.name}}} Host {{reportName}}
     <tr>
       <td>Number of transactions</td>
       <td></td>
-      <td align="right">{{{number stats.numberTransactions}}}</td>
+      <td align="right">{{number stats.numberTransactions}}</td>
     </tr>
     <tr class="indent1">
-      <td>Number of {{{pluralize "donation" n=stats.numberDonations}}}</td>
+      <td>{{pluralize "Contribution" n=stats.numberDonations}}</td>
       <td></td>
-      <td align="right">{{{number stats.numberDonations}}}</td>
+      <td align="right">{{number stats.numberDonations}}</td>
     </tr>
     <tr class="indent1">
-      <td>Number of {{{pluralize "expense" n=stats.numberPaidExpenses}}}</td>
+      <td>{{pluralize "Expense" n=stats.numberPaidExpenses}}</td>
       <td></td>
-      <td align="right">{{{number stats.numberPaidExpenses}}}</td>
+      <td align="right">{{number stats.numberPaidExpenses}}</td>
     </tr>
+    {{#if stats.numberDebts}}
+    <tr class="indent1">
+      <td>{{pluralize "Debt" n=stats.numberDebts}}</td>
+      <td></td>
+      <td align="right">{{number stats.numberDebts}}</td>
+    </tr>
+    {{/if}}
+    {{#if stats.numberOtherCredits}}
+    <tr class="indent1">
+      <td>Other {{pluralize "credit" n=stats.numberOtherCredits}}</td>
+      <td></td>
+      <td align="right">{{number stats.numberOtherCredits}}</td>
+    </tr>
+    {{/if}}
+    {{#if stats.numberOtherDebits}}
+    <tr class="indent1">
+      <td>Other {{pluralize "debit" n=stats.numberOtherDebits}}</td>
+      <td></td>
+      <td align="right">{{number stats.numberOtherDebits}}</td>
+    </tr>
+    {{/if}}
     <tr>
       <td colspan=3 height=10></td>
     </tr>
     <tr>
-      <td>Total donations (before fees)</td>
+      <td>Total contributions (before fees)</td>
       <td></td>
-      <td align="right">{{{currency stats.totalAmountDonations.totalInHostCurrency currency=host.currency precision=2}}}
+      <td align="right">{{currency stats.totalAmountDonations currency=host.currency}}
       </td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (Stripe)</td>
       <td></td>
       <td align="right">
-        {{{currency stats.paymentProcessorFees.totalInHostCurrency currency=host.currency precision=2}}}
+        {{currency stats.paymentProcessorFees currency=host.currency}}
       </td>
     </tr>
+    {{#if stats.platformFees}}
     <tr class="indent1">
       <td>Platform fees (Open Collective)</td>
       <td></td>
       <td align="right">
-        {{{currency stats.platformFees.totalInHostCurrency currency=host.currency precision=2}}}
+        {{currency stats.platformFees currency=host.currency}}
       </td>
     </tr>
+    {{/if}}
+    {{#if stats.numberOtherCredits}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Other Credits</td>
+      <td></td>
+      <td align="right">{{currency stats.totalAmountOtherCredits currency=host.currency}}
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3 class="muted">E.g. refunded expenses, debts, etc</td>
+    </tr>
+    {{#if stats.platformFeesOtherCredits }}
+    <tr class="indent1">
+      <td>Platform fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.platformFeesOtherCredits currency=host.currency}}
+      </td>
+    </tr>
+    {{/if}}
+    {{#if stats.paymentProcessorFeesOtherCredits }}
+    <tr class="indent1">
+      <td>Payment processor fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.paymentProcessorFeesOtherCredits currency=host.currency}}
+      </td>
+    </tr>
+    {{/if}}
+    {{/if}}
+
     <tr>
       <td colspan=2></td>
       <td height=10 class="line">
         <hr />
       </td>
     </tr>
+
     <tr>
       <td>Total amount received</td>
       <td></td>
       <td align="right">
-        {{{currency stats.totalNetAmountReceived.totalInHostCurrency currency=host.currency precision=2}}}</td>
-    </tr>
-    <tr>
-      <td colspan=3 class="muted">Total amount transferred to your {{host.name}} bank account</td>
+        {{currency stats.totalNetAmountReceived currency=host.currency}}</td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
     </tr>
-    {{#if stats.totalTaxAmountCollected.totalInHostCurrency}}
+    {{#if stats.taxesSummary}}
+      <tr>
+        <td>Taxes</td>
+        <td></td>
+        <td align="right"></td>
+      </tr>
+
+      {{#each stats.taxesSummary}}
+        <tr class="indent1">
+          <td>{{@key}} collected</td>
+          <td></td>
+          <td align="right">{{currency this.collected currency=../host.currency}}</td>
+        </tr>
+        <tr class="indent1">
+          <td>{{@key}} paid</td>
+          <td></td>
+          <td align="right">{{currency this.paid currency=../host.currency}}</td>
+        </tr>
+      {{/each}}
+
+      <tr>
+        <td colspan="3" height="10"></td>
+      </tr>
+    {{/if}}
+
+    {{#if stats.totalAmountDebts}}
     <tr>
-      <td>Taxes collected</td>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Debts</td>
+      <td></td>
+      <td align="right">{{currency stats.totalAmountDebts currency=host.currency}}
+      </td>
+    </tr>
+
+    {{#if stats.totalOwedPlatformTips }}
+    <tr class="indent1">
+      <td>Platform Tips (collected for Open Collective)</td>
       <td></td>
       <td align="right">
-        {{{currency stats.totalTaxAmountCollected.totalInHostCurrency currency=host.currency precision=2}}}</td>
-    </tr>
-    <tr>
-      <td colspan=3 class="muted">VAT received</td>
+        {{currency stats.totalOwedPlatformTips currency=host.currency}}
+      </td>
     </tr>
     {{/if}}
+
+    {{#if stats.totalOwedHostFeeShare }}
+    <tr class="indent1">
+      <td>Host Fee Share (owed to Open Collective)</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalOwedHostFeeShare currency=host.currency}}
+      </td>
+    </tr>
+    {{/if}}
+
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+
+    {{/if}}
+
     <tr>
       <td>Host fees</td>
       <td></td>
-      <td align="right">{{{currency stats.totalHostFees.totalInHostCurrency currency=host.currency precision=2}}}</td>
+      <td align="right">{{currency stats.totalHostFees currency=host.currency}}</td>
     </tr>
-    <tr>
-      <td colspan=3 class="muted">Total commission for {{host.name}}</td>
+    {{#if stats.totalSharedRevenue}}
+    <tr class="indent1">
+      <td>Platform revenue share ({{stats.plan.hostFeeSharePercent}}%)</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalSharedRevenue currency=host.currency}} </td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
     </tr>
     <tr>
-      <td>Net amount</td>
+      <td class="ident1">Net Host Fees for {{host.name}}</td>
       <td></td>
       <td align="right">
-        {{{currency stats.totalNetAmountReceivedForCollectives.totalInHostCurrency currency=host.currency precision=2}}}
+        {{currency stats.hostNetRevenue currency=host.currency}}
       </td>
     </tr>
+    {{else}}
     <tr>
-      <td colspan=3 class="muted">Net amount received for your {{{number stats.totalCollectives}}}
-        {{{pluralize "collective" n=stats.totalCollectives}}}</td>
+      <td colspan=3 class="muted">Net revenue for {{host.name}}</td>
+    </tr>
+    {{/if}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Net amount for Collectives</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.totalNetAmountReceivedForCollectives currency=host.currency}}
+      </td>
     </tr>
     <tr>
       <td colspan=3 height=10></td>
@@ -223,21 +349,59 @@ Subject: {{{host.name}}} Host {{reportName}}
       <td>Expenses paid</td>
       <td></td>
       <td align="right">
-        {{{currency stats.totalAmountPaidExpenses.totalInHostCurrency currency=host.currency precision=2}}}</td>
+        {{currency stats.totalAmountPaidExpenses currency=host.currency}}</td>
     </tr>
     <tr class="indent1">
       <td>Payment processor fees (PayPal)</td>
       <td></td>
       <td align="right">
-        {{{currency stats.payoutProcessorFeesPaypal.totalInHostCurrency currency=host.currency precision=2}}} </td>
+        {{currency stats.payoutProcessorFeesPaypal currency=host.currency}} </td>
     </tr>
     <tr class="indent1">
-      <td>Payment processor fees (other)</td>
+      <td>Payment processor fees (Wise)</td>
       <td></td>
       <td align="right">
-        {{{currency stats.payoutProcessorFeesOther.totalInHostCurrency currency=host.currency precision=2}}}
+        {{currency stats.payoutProcessorFeesTransferWise currency=host.currency}} </td>
+    </tr>
+    <tr class="indent1">
+      <td>Other payment processor fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.payoutProcessorFeesOther currency=host.currency}}
       </td>
     </tr>
+    {{#if stats.numberOtherDebits}}
+    <tr>
+      <td colspan=3 height=10></td>
+    </tr>
+    <tr>
+      <td>Other Debits</td>
+      <td></td>
+      <td align="right">{{currency stats.totalAmountOtherDebits currency=host.currency}}
+      </td>
+    </tr>
+    <tr>
+      <td colspan=3 class="muted">E.g. contributions to other Collectives, refunds, etc.</td>
+    </tr>
+    {{#if stats.platformFeesOtherDebits}}
+    <tr class="indent1">
+      <td>Platform fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.platformFeesOtherDebits currency=host.currency}}
+      </td>
+    </tr>
+    {{/if}}
+    {{#if stats.aymentProcessorFeesOtherDebits}}
+    <tr class="indent1">
+      <td>Payment processor fees</td>
+      <td></td>
+      <td align="right">
+        {{currency stats.paymentProcessorFeesOtherDebits currency=host.currency}}
+      </td>
+    </tr>
+    {{/if}}
+    {{/if}}
     <tr>
       <td colspan=2></td>
       <td height=10 class="line">
@@ -245,13 +409,13 @@ Subject: {{{host.name}}} Host {{reportName}}
       </td>
     </tr>
     <tr>
-      <td>Total amount spent</td>
+      <td>Total outgoings</td>
       <td></td>
-      <td align="right">{{{currency stats.totalAmountSpent.totalInHostCurrency currency=host.currency precision=2}}}
+      <td align="right">{{currency stats.totalAmountSpent currency=host.currency}}
       </td>
     </tr>
     <tr>
-      <td colspan=3 class="muted">Total amount that left your {{host.name}} bank account</td>
+      <td colspan=3 class="muted">Amount that left the bank account of {{host.name}}</td>
     </tr>
   </table>
 
@@ -259,22 +423,23 @@ Subject: {{{host.name}}} Host {{reportName}}
   <h2>🗒 {{transactions.length}} transactions</h2>
   <table width="100%" border=0 class="small-table">
     <tr>
-      <th>date</th>
-      <th>collective</th>
-      <th>amount</th>
-      <th>net amount*</th>
-      <th>description</th>
+      <th>Date</th>
+      <th>Collective</th>
+      <th>Amount</th>
+      <th>Net*</th>
+      <th>Description</th>
     </tr>
     {{#each transactions}}
     <tr>
       <td valign="top"><a
-          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}?utm_source=opencollective&utm_campaign=monthlyreport&utm_medium=email">{{{moment createdAt format="MM/DD"}}}</a>
+          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}">{{moment
+          createdAt format="MM/DD"}}</a>
       </td>
       <td valign="top"><a href="{{@root.config.host.website}}/{{collective.slug}}">{{collective.shortSlug}}</a></td>
       <td valign="top" align="right" valign="top" nowrap class="{{type}}">
-        {{{currency amount currency=collective.currency precision=2}}}</td>
+        {{currency amount currency=collective.currency}}</td>
       <td valign="top" align="right" valign="top" nowrap class="{{type}}">
-        {{{currency netAmountInHostCurrency currency=../host.currency precision=2}}}{{#if notes}}**{{/if}}</td>
+        {{currency netAmountInHostCurrency currency=../host.currency}}{{#if notes}}**{{/if}}</td>
       <td valign="top" width="100%">{{description}}</td>
     </tr>
     {{else}}
@@ -284,20 +449,23 @@ Subject: {{{host.name}}} Host {{reportName}}
   {{/if}}
 
   <p class="muted">
-    * Net amount in {{host.currency}} after payment processor fees, host fees, and platform fees.
+    * Net after payment processor fees, host fees, and platform fees.
     {{#if notes}}<br />** {{notes}}{{/if}}
   </p>
 
   <h2>📎 Attachments</h2>
   <ul>
-    <li>A CSV export of all the transactions of the {{#if month}}month{{else}}year{{/if}}</li>
+    <li>A CSV export of all the transactions for this {{#if month}}month{{else}}year{{/if}}</li>
+    {{#if csvV2}}
+      <li>NEW: A second CSV export in a different format (v2). Send us your feedback!</li>
+    {{/if}}
     {{#if expensesPdf}}
-      <li>A PDF with all the receipts</li>
+      <li>A PDF with all receipts</li>
     {{/if}}
   </ul>
 
   <h2>🗣 Feedback</h2>
-  As always, feel free to reply to this email to give us your feedback. A human will always be there on the other side!
+  Feel free to reply to this email. A human will always be on the other side!
 
 </div>
 

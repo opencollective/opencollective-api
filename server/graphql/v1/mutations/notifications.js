@@ -17,9 +17,18 @@ const MaxWebhooksExceededError = new Forbidden('You have reached the webhooks li
  * Edits (by replacing) the admin-level webhooks for a collective.
  */
 export async function editWebhooks(args, remoteUser) {
-  if (!(remoteUser && remoteUser.isAdmin(args.collectiveId))) {
+  if (!remoteUser) {
     throw NotificationPermissionError;
-  } else if (!args.notifications) {
+  }
+
+  const collective = await models.Collective.findByPk(args.collectiveId);
+  if (!collective) {
+    throw new Error('Collective not found');
+  } else if (!remoteUser.isAdminOfCollective(collective)) {
+    throw NotificationPermissionError;
+  }
+
+  if (!args.notifications) {
     return Promise.resolve();
   }
 
@@ -47,13 +56,15 @@ export async function editWebhooks(args, remoteUser) {
   // Create
   if (toCreate.length > 0) {
     promises.push(
-      toCreate.map(notification =>
-        models.Notification.create({
-          ...pick(notification, allowedFields),
-          CollectiveId: args.collectiveId,
-          UserId: remoteUser.id,
-          channel: channels.WEBHOOK,
-        }),
+      Promise.all(
+        toCreate.map(notification =>
+          models.Notification.create({
+            ...pick(notification, allowedFields),
+            CollectiveId: args.collectiveId,
+            UserId: remoteUser.id,
+            channel: channels.WEBHOOK,
+          }),
+        ),
       ),
     );
   }

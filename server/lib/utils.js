@@ -6,10 +6,14 @@ import { URL } from 'url';
 import Promise from 'bluebird';
 import config from 'config';
 import pdf from 'html-pdf';
-import { cloneDeep, get, isEqual, padStart } from 'lodash';
-import sanitizeHtml from 'sanitize-html';
+import { filter, get, isEqual, padStart, sumBy } from 'lodash';
 
+import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
+
+import errors from './errors';
 import handlebars from './handlebars';
+
+const { BadRequest } = errors;
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
@@ -48,112 +52,13 @@ export function getDomain(url = '') {
   if (arrLen > 2) {
     domain = `${splitArr[arrLen - 2]}.${splitArr[arrLen - 1]}`;
     // check to see if it's using a Country Code Top Level Domain (ccTLD) (i.e. ".me.uk")
-    if (splitArr[arrLen - 1].length == 2 && splitArr[arrLen - 1].length == 2) {
+    if (splitArr[arrLen - 1].length === 2 && splitArr[arrLen - 1].length === 2) {
       // this is using a ccTLD
       domain = `${splitArr[arrLen - 3]}.${domain}`;
     }
   }
   return domain;
 }
-
-/**
- * @deprecated Please use the functions in `server/lib/sanitize-html.js`
- */
-export function stripTags(str, allowedTags) {
-  return sanitizeHtml(str, {
-    allowedTags: allowedTags || sanitizeHtml.defaults.allowedTags.concat(['img', 'h1', 'h2', 'h3']),
-    allowedAttributes: {
-      a: ['href', 'name', 'target'],
-      img: ['src'],
-      iframe: [
-        'src',
-        'allowfullscreen',
-        'frameborder',
-        'autoplay',
-        'width',
-        'height',
-        {
-          name: 'allow',
-          multiple: true,
-          values: ['autoplay', 'encrypted-media', 'gyroscope'],
-        },
-      ],
-    },
-    allowedIframeHostnames: ['www.youtube.com', 'www.youtube-nocookie.com', 'player.vimeo.com'],
-  });
-}
-
-export const sanitizeObject = (obj, attributes, sanitizerFn) => {
-  const sanitizer = typeof sanitizerFn === 'function' ? sanitizerFn : stripTags;
-
-  attributes.forEach(attr => {
-    if (!obj[attr]) {
-      return;
-    }
-    if (typeof obj[attr] === 'object') {
-      return sanitizeObject(obj[attr], Object.keys(obj[attr]), sanitizerFn);
-    }
-    obj[attr] = sanitizer(obj[attr] || '');
-  });
-  return obj;
-};
-
-/**
- * recursively reads all values of an object and hide emails and tokens
- * @param {*} obj
- */
-export const sanitizeForLogs = obj => {
-  const sanitizer = value => {
-    if (!value) {
-      return;
-    }
-    if (typeof value === 'string') {
-      if (value.indexOf('@') !== -1) {
-        return '(email obfuscated)';
-      }
-      if (value.substr(0, 4) === 'tok_') {
-        return '(token obfuscated)';
-      }
-    }
-    return value;
-  };
-
-  return sanitizeObject(cloneDeep(obj), Object.keys(obj), sanitizer);
-};
-
-String.prototype.trunc = function (n, useWordBoundary) {
-  if (this.length <= n) {
-    return this;
-  }
-  const subString = this.substr(0, n - 1);
-  return `${useWordBoundary ? subString.substr(0, subString.lastIndexOf(' ')) : subString}&hellip;`;
-};
-
-/**
- * Add parameters to an url.
- */
-export const addParameterUrl = (url, parameters) => {
-  const parsedUrl = new URL(url);
-
-  function removeTrailingChar(str, char) {
-    if (str.substr(-1) === char) {
-      return str.substr(0, str.length - 1);
-    }
-
-    return str;
-  }
-
-  parsedUrl.pathname = removeTrailingChar(parsedUrl.pathname, '/');
-
-  parsedUrl.searchParams.delete('search'); // Otherwise .search is used in place of .query
-  parsedUrl.searchParams.delete('api_key'); // make sure we don't surface the api_key publicly
-
-  for (const p in parameters) {
-    parsedUrl.searchParams.set(p, parameters[p]);
-  }
-
-  return parsedUrl.toString();
-};
 
 /**
  * Gives the number of days between two dates
@@ -365,16 +270,20 @@ export function exportToPDF(template, data, options) {
  * @param {"opensource" | null} category of the collective
  */
 export const defaultHostCollective = category => {
-  if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
+  if (config.env === 'production' || config.env === 'staging') {
     if (category === 'opensource') {
       return { id: 772, CollectiveId: 11004, ParentCollectiveId: 83 }; // Open Source Host Collective
+    } else if (category === 'foundation') {
+      return { CollectiveId: 11049 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
   }
-  if (process.env.NODE_ENV === 'development' || process.env.E2E_TEST) {
+  if (config.env === 'development' || process.env.E2E_TEST) {
     if (category === 'opensource') {
       return { CollectiveId: 9805, ParentCollectiveId: 83 }; // Open Source Host Collective
+    } else if (category === 'foundation') {
+      return { CollectiveId: 9805 };
     } else {
       return {}; // Don't automatically assign a host anymore
     }
@@ -466,7 +375,15 @@ export function formatArrayToString(arr, conjonction = 'and') {
   return `${arr.slice(0, arr.length - 1).join(', ')} ${conjonction} ${arr.slice(-1)}`;
 }
 
-export function formatCurrency(amount, currency, precision = 0) {
+export const getDefaultCurrencyPrecision = currency => {
+  if (ZERO_DECIMAL_CURRENCIES.includes(currency?.toUpperCase())) {
+    return 0;
+  } else {
+    return 2;
+  }
+};
+
+export function formatCurrency(amount, currency, precision = 2) {
   amount = amount / 100; // converting cents
   let locale;
   switch (currency) {
@@ -492,7 +409,7 @@ export function formatCurrency(amount, currency, precision = 0) {
  * @PRE: { USD: 1000, EUR: 6000 }
  * @POST: "€60 and $10"
  */
-export function formatCurrencyObject(currencyObj, options = { precision: 0, conjonction: 'and' }) {
+export function formatCurrencyObject(currencyObj, options = { precision: 2, conjunction: 'and' }) {
   const array = [];
   for (const currency in currencyObj) {
     if (currencyObj[currency] > 0) {
@@ -508,7 +425,7 @@ export function formatCurrencyObject(currencyObj, options = { precision: 0, conj
   array.sort((a, b) => b.value - a.value);
   return formatArrayToString(
     array.map(r => r.str),
-    options.conjonction,
+    options.conjunction,
   );
 }
 
@@ -520,6 +437,7 @@ export function isUUID(str) {
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
 export function chunkArray(startArray, chunkSize) {
   let j = -1;
   return startArray.reduce((arr, item, ix) => {
@@ -544,6 +462,11 @@ export function promiseSeq(arr, predicate, consecutive = 100) {
 }
 
 export function parseToBoolean(value) {
+  // If value is already a boolean, don't bother converting it
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
   let lowerValue = value;
   // check whether it's string
   if (lowerValue && (typeof lowerValue === 'string' || lowerValue instanceof String)) {
@@ -611,4 +534,32 @@ export const toIsoDateStr = date => {
   const month = date.getMonth() + 1;
   const day = date.getUTCDate();
   return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
+};
+
+export const getTokenFromRequestHeaders = req => {
+  const header = req.headers && req.headers.authorization;
+  if (!header) {
+    return null;
+  }
+
+  const parts = header.split(' ');
+  const scheme = parts[0];
+  const token = parts[1];
+  if (!/^Bearer$/i.test(scheme) || !token) {
+    throw new BadRequest('Format is Authorization: Bearer [token]');
+  }
+
+  return token;
+};
+
+export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
+
+/**
+ * Returns the start and end dates as ISO 8601 strings.
+ */
+export const computeDatesAsISOStrings = (startDate, endDate) => {
+  startDate = startDate ? startDate.toISOString() : null;
+  endDate = endDate ? endDate.toISOString() : null;
+
+  return { startDate, endDate };
 };

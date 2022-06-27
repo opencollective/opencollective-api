@@ -14,13 +14,25 @@ if (!salt) {
 const instances = {};
 
 export const IDENTIFIER_TYPES = {
+  ACCOUNT: 'account',
   ACTIVITY: 'activity',
+  COMMENT: 'comment',
+  COMMENT_REACTION: 'comment-reaction',
   CONVERSATION: 'conversation',
+  HOST_APPLICATION: 'host-application',
+  MEMBER_INVITATION: 'member-invitation',
   PAYOUT_METHOD: 'payout-method',
+  PAYMENT_METHOD: 'paymentMethod',
   EXPENSE: 'expense',
   CONNECTED_ACCOUNT: 'connected-account',
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
+  RECURRING_EXPENSE: 'recurring-expense',
+  ORDER: 'order',
+  UPDATE: 'update',
+  APPLICATION: 'application',
+  USER_TOKEN: 'user-token',
+  NOTIFICATION: 'notification',
 };
 
 const getDefaultInstance = type => {
@@ -70,7 +82,10 @@ export const idDecode = (string, type) => {
  * @param {string} type - Type the fields belongs to. For example: 'comment' and 'transaction'
  * @param {string} idField - Field that represents the id. By default 'id'
  */
-export const getIdEncodeResolver = (type, idField = 'id') => entity => idEncode(entity[idField], type);
+export const getIdEncodeResolver =
+  (type, idField = 'id') =>
+  entity =>
+    idEncode(entity[idField], type);
 
 /**
  * Resolve original id by decoding if string, otherwise return as is.

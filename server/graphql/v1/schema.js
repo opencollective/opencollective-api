@@ -7,8 +7,11 @@ import {
   CollectiveStatsType,
   CollectiveType,
   EventCollectiveType,
+  FundCollectiveType,
   OrganizationCollectiveType,
+  ProjectCollectiveType,
   UserCollectiveType,
+  VendorCollectiveType,
 } from './CollectiveInterface';
 import mutation from './mutations';
 import query from './queries';
@@ -32,18 +35,21 @@ const Mutation = new GraphQLObjectType({
 
 const Schema = new GraphQLSchema({
   types: [
+    ApplicationInputType,
+    ApplicationType,
     CollectiveInterfaceType,
     CollectiveSearchResultsType,
-    CollectiveType,
     CollectiveStatsType,
-    UserCollectiveType,
-    OrganizationCollectiveType,
+    CollectiveType,
     EventCollectiveType,
+    FundCollectiveType,
+    OrganizationCollectiveType,
+    ProjectCollectiveType,
+    TransactionExpenseType,
     TransactionInterfaceType,
     TransactionOrderType,
-    TransactionExpenseType,
-    ApplicationType,
-    ApplicationInputType,
+    UserCollectiveType,
+    VendorCollectiveType,
   ],
   query: Query,
   mutation: Mutation,

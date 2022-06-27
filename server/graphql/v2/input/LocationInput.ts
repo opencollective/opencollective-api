@@ -1,11 +1,12 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { CountryISO } from '../enum/CountryISO';
 
 export const LocationInput = new GraphQLInputObjectType({
   name: 'LocationInput',
   description: 'Input type for Geographic location',
-  fields: {
+  fields: () => ({
     name: {
       type: GraphQLString,
       description: 'A short name for the location (eg. Open Collective Headquarters)',
@@ -26,5 +27,9 @@ export const LocationInput = new GraphQLInputObjectType({
       type: GraphQLFloat,
       description: 'Longitude',
     },
-  },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
+    },
+  }),
 });

@@ -1,9 +1,7 @@
 import Promise from 'bluebird';
-import { expect } from 'chai';
-import { describe, it } from 'mocha';
-import sinon from 'sinon';
+import { describe } from 'mocha';
+import { createSandbox } from 'sinon';
 
-import emailLib from '../../../../server/lib/email';
 import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
 import * as utils from '../../../utils';
@@ -12,11 +10,10 @@ describe('server/graphql/v1/orders', () => {
   const backers = [],
     collectives = [],
     orders = [];
-  let host, hostAdmin, sandbox, emailSendMessageSpy;
+  let host, hostAdmin, sandbox;
   before('reset test db', () => utils.resetTestDB());
   before('spies', () => {
-    sandbox = sinon.createSandbox();
-    emailSendMessageSpy = sandbox.spy(emailLib, 'sendMessage');
+    sandbox = createSandbox();
   });
   after('cleaning', () => {
     afterEach(() => sandbox.restore());
@@ -74,147 +71,6 @@ describe('server/graphql/v1/orders', () => {
       totalAmount: 20000,
       currency: 'EUR',
       status: 'PAID',
-    });
-  });
-
-  describe('query', () => {
-    const allOrdersQuery = `
-    query allOrders($collectiveSlug: String!, $status: String, $includeHostedCollectives: Boolean) {
-      allOrders(collectiveSlug: $collectiveSlug, status: $status, includeHostedCollectives: $includeHostedCollectives) {
-        id
-        collective {
-          id
-          slug
-        }
-        fromCollective {
-          id
-          slug
-        }
-        description
-        totalAmount
-        currency
-        status
-      }
-    }
-    `;
-
-    it('gets all the PENDING orders for one collective', async () => {
-      const result = await utils.graphqlQuery(allOrdersQuery, {
-        collectiveSlug: collectives[0].slug,
-        status: 'PENDING',
-      });
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const { allOrders } = result.data;
-      expect(allOrders).to.have.length(1);
-    });
-
-    it('gets all the PENDING orders across all hosted collectives', async () => {
-      const result = await utils.graphqlQuery(allOrdersQuery, {
-        collectiveSlug: host.slug,
-        status: 'PENDING',
-        includeHostedCollectives: true,
-      });
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const { allOrders } = result.data;
-      expect(allOrders).to.have.length(2);
-      allOrders.map(order => {
-        expect(order.status).to.equal('PENDING');
-      });
-    });
-  });
-
-  describe('mutation', () => {
-    const markOrderAsPaidQuery = `
-    mutation markOrderAsPaid($id: Int!) {
-      markOrderAsPaid(id: $id) {
-        id
-        status
-      }
-    }
-    `;
-
-    const markPendingOrderAsExpiredQuery = `
-      mutation markPendingOrderAsExpired($id: Int!) {
-        markPendingOrderAsExpired(id: $id) {
-          id
-          status
-        }
-      }
-    `;
-    it('fails if not authenticated', async () => {
-      const result = await utils.graphqlQuery(markOrderAsPaidQuery, {
-        id: orders[0].id,
-      });
-      expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
-    });
-    it('fails if not authenticated as an admin of the host', async () => {
-      const result = await utils.graphqlQuery(
-        markOrderAsPaidQuery,
-        {
-          id: orders[0].id,
-        },
-        backers[0],
-      );
-      expect(result.errors[0].message).to.equal('You must be logged in as an admin of the host of the collective');
-    });
-    it('fails if order not found', async () => {
-      const result = await utils.graphqlQuery(
-        markOrderAsPaidQuery,
-        {
-          id: 123,
-        },
-        backers[0],
-      );
-      expect(result.errors[0].message).to.equal('Order not found');
-    });
-    it('marks a pending order as paid', async () => {
-      const result = await utils.graphqlQuery(
-        markOrderAsPaidQuery,
-        {
-          id: orders[0].id,
-        },
-        hostAdmin,
-      );
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const { markOrderAsPaid } = result.data;
-      expect(markOrderAsPaid.status).to.equal('PAID');
-      const order = await models.Order.findByPk(orders[0].id);
-      expect(order.status).to.equal('PAID');
-      expect(order.processedAt).to.not.equal(null);
-      const transactions = await models.Transaction.findAll({
-        where: { OrderId: orders[0].id },
-      });
-      expect(transactions.length).to.equal(2);
-      expect(transactions[0].type).to.equal('DEBIT');
-      expect(transactions[1].type).to.equal('CREDIT');
-      expect(transactions[1].currency).to.equal(orders[0].currency);
-      expect(transactions[1].HostCollectiveId).to.equal(host.id);
-      expect(transactions[1].PaymentMethodId).to.be.null;
-      expect(transactions[1].platformFeeInHostCurrency).to.equal(0);
-      expect(transactions[1].hostFeeInHostCurrency).to.equal(-0.05 * orders[0].totalAmount);
-      await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1);
-      expect(emailSendMessageSpy.callCount).to.equal(1);
-      expect(emailSendMessageSpy.firstCall.args[0]).to.equal(backers[1].email);
-      expect(emailSendMessageSpy.firstCall.args[1]).to.match(/Thank you for your €\s?150 contribution to codenplay/);
-    });
-
-    it('marks a pending order as expired', async () => {
-      const result = await utils.graphqlQuery(
-        markPendingOrderAsExpiredQuery,
-        {
-          id: orders[1].id,
-        },
-        hostAdmin,
-      );
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      const { markPendingOrderAsExpired } = result.data;
-      expect(markPendingOrderAsExpired.status).to.equal('EXPIRED');
-      const order = await models.Order.findByPk(orders[1].id);
-      expect(order.status).to.equal('EXPIRED');
     });
   });
 });

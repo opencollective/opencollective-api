@@ -1,16 +1,26 @@
 import handlebars from 'handlebars';
+import { isNil, lowercase } from 'lodash';
 import moment from 'moment-timezone';
 
-import { capitalize, formatCurrencyObject, pluralize, resizeImage } from './utils';
+import {
+  capitalize,
+  formatCurrency,
+  formatCurrencyObject,
+  getDefaultCurrencyPrecision,
+  pluralize,
+  resizeImage,
+} from './utils';
 
 // from https://stackoverflow.com/questions/8853396/logical-operator-in-a-handlebars-js-if-conditional
 handlebars.registerHelper('ifCond', function (v1, operator, v2, options) {
   switch (operator) {
     case '==':
+      // eslint-disable-next-line eqeqeq
       return v1 == v2 ? options.fn(this) : options.inverse(this);
     case '===':
       return v1 === v2 ? options.fn(this) : options.inverse(this);
     case '!=':
+      // eslint-disable-next-line eqeqeq
       return v1 != v2 ? options.fn(this) : options.inverse(this);
     case '!==':
       return v1 !== v2 ? options.fn(this) : options.inverse(this);
@@ -90,8 +100,12 @@ handlebars.registerHelper('moment', (value, props) => {
   return d.format(format);
 });
 
+handlebars.registerHelper('moment-timezone', value => {
+  return moment().tz(value).format('Z');
+});
+
 handlebars.registerHelper('currency', (value, props) => {
-  const { currency, precision, size, sign } = props.hash;
+  const { currency, size, sign, precision } = props.hash;
 
   if (isNaN(value)) {
     return '';
@@ -111,8 +125,8 @@ handlebars.registerHelper('currency', (value, props) => {
     return value.toLocaleString(locale, {
       style: 'currency',
       currency,
-      minimumFractionDigits: precision || 0,
-      maximumFractionDigits: precision || 0,
+      minimumFractionDigits: precision || getDefaultCurrencyPrecision(currency),
+      maximumFractionDigits: !isNil(precision) ? precision : getDefaultCurrencyPrecision(currency),
     });
   })();
 
@@ -120,7 +134,7 @@ handlebars.registerHelper('currency', (value, props) => {
     res = `+${res}`;
   }
   // If we are limited in space, no need to show the trailing .00
-  if (size && precision == 2) {
+  if (size && precision === 2) {
     res = res.replace(/\.00$/, '');
   }
   if (size) {
@@ -146,12 +160,68 @@ handlebars.registerHelper('resizeImage', (imageUrl, props) => resizeImage(imageU
 handlebars.registerHelper('capitalize', str => capitalize(str));
 handlebars.registerHelper('pluralize', (str, props) => pluralize(str, props.hash.n || props.hash.count));
 
+/**
+ * From totalAmountToBeRaised, return "Total amount to be raised"
+ */
+handlebars.registerHelper('prettifyVariableName', str => {
+  return capitalize(lowercase(str));
+});
+
 handlebars.registerHelper('encodeURIComponent', str => {
   return encodeURIComponent(str);
 });
 
 handlebars.registerHelper('formatCurrencyObject', (obj, props) => formatCurrencyObject(obj, props.hash));
 
+handlebars.registerHelper('formatOrderAmountWithInterval', order => {
+  if (!order.currency || !order.totalAmount) {
+    return null;
+  }
+
+  const formattedAmount = formatCurrency(order.totalAmount, order.currency);
+  const subscription = order.subscription;
+  const interval = subscription?.interval || order.interval;
+
+  if (interval !== null) {
+    if (interval === 'month') {
+      return `(${formattedAmount}/m)`;
+    } else if (interval === 'year') {
+      return `(${formattedAmount}/y)`;
+    }
+  } else {
+    return `(${formattedAmount})`;
+  }
+});
+
 handlebars.registerHelper('debug', console.log);
+
+/**
+ * Email subjects are text only, so it's safe to unescape the content in there. However, new line
+ * characters could cause troubles by allowing attackers to override headers. For example, if you have an email like:
+ *
+ * ```template.hbs
+ * Subject: Hello {collective.name}!
+ *
+ * Hello world!
+ * ```
+ *
+ * And a collective name like:
+ * ```es6
+ * collective.name = `Test
+ * Subject: Override subject
+ * `
+ * ```
+ *
+ * The "Subject" header will be overwritten:
+ * ```
+ * Subject: Hello Test
+ * Subject: Override subject!
+ *
+ * Hello world!
+ * ```
+ */
+handlebars.registerHelper('escapeForSubject', str => {
+  return str ? str.replace(/[\r\n]/g, ' ') : '';
+});
 
 export default handlebars;

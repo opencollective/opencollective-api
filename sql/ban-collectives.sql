@@ -28,6 +28,45 @@ WITH banned_collectives AS (
   FROM        deleted_profiles
   WHERE       u."CollectiveId" = deleted_profiles.id
   RETURNING   u.id
+), deleted_oauth_authorization_codes AS (
+  UPDATE ONLY "OAuthAuthorizationCodes" code
+  SET         "deletedAt" = NOW(),
+              data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
+  FROM        deleted_users u
+  WHERE       u."id" = code."UserId"
+  RETURNING   code.id
+), deleted_user_tokens AS (
+  -- User tokens
+  UPDATE ONLY "UserTokens" t
+  SET         "deletedAt" = NOW(),
+              data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
+  FROM        deleted_users
+  WHERE       t."UserId" = deleted_users.id
+  RETURNING   t.id
+), transactions_groups_to_delete AS (
+  SELECT DISTINCT "TransactionGroup"
+  FROM "Transactions" t
+  INNER JOIN deleted_profiles
+    ON deleted_profiles.id = t."CollectiveId"
+    OR deleted_profiles.id = t."FromCollectiveId"
+    OR deleted_profiles.id = t."HostCollectiveId"
+  WHERE t."TransactionGroup" IS NOT NULL
+  AND t."deletedAt" IS NULL
+), deleted_transactions AS (
+  -- Delete the transactions
+  UPDATE ONLY "Transactions" t
+  SET         "deletedAt" = NOW(),
+              data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
+  FROM        transactions_groups_to_delete
+  WHERE       t."TransactionGroup" = transactions_groups_to_delete."TransactionGroup"
+  RETURNING   t.id
+), deleted_transaction_settlements AS (
+  -- Delete the transaction settlements
+  UPDATE ONLY "TransactionSettlements" ts
+  SET         "deletedAt" = NOW()
+  FROM        transactions_groups_to_delete
+  WHERE       ts."TransactionGroup" = transactions_groups_to_delete."TransactionGroup"
+  RETURNING   ts."TransactionGroup"
 ), deleted_tiers AS (
   -- Delete tiers
   UPDATE ONLY "Tiers" t SET "deletedAt" = NOW()
@@ -102,7 +141,6 @@ WITH banned_collectives AS (
   UPDATE ONLY "Orders" o SET "deletedAt" = NOW()
   FROM        deleted_profiles
   WHERE       (o."FromCollectiveId" = deleted_profiles.id OR o."CollectiveId" = deleted_profiles.id)
-  AND         o.status IN ('EXPIRED', 'PENDING', 'ERROR', 'CANCELLED')
   RETURNING   o.id
 ), deleted_notifications AS (
   -- Delete notifications
@@ -110,9 +148,19 @@ WITH banned_collectives AS (
   USING       deleted_users
   WHERE       n."UserId" = deleted_users.id
   RETURNING   n.id
+), deleted_recurring_expenses AS (
+  -- Delete Recurring Expenses 
+  UPDATE ONLY "RecurringExpenses" re SET "deletedAt" = NOW()
+  FROM        deleted_profiles
+  WHERE       (re."FromCollectiveId" = deleted_profiles.id OR re."CollectiveId" = deleted_profiles.id)
+  RETURNING   re.id
 ) SELECT 
   (SELECT COUNT(*) FROM deleted_profiles) AS nb_deleted_profiles,
   (SELECT COUNT(*) FROM deleted_users) AS deleted_users,
+  (SELECT COUNT(*) FROM deleted_oauth_authorization_codes) AS nb_deleted_oauth_authorization_codes,
+  (SELECT COUNT(*) FROM deleted_user_tokens) AS nb_deleted_user_tokens,
+  (SELECT COUNT(*) FROM deleted_transactions) AS nb_deleted_transactions,
+  (SELECT COUNT(*) FROM deleted_transaction_settlements) AS nb_deleted_transaction_settlements,
   (SELECT COUNT(*) FROM deleted_tiers) AS nb_deleted_tiers,
   (SELECT COUNT(*) FROM deleted_members) AS nb_deleted_members,
   (SELECT COUNT(*) FROM deleted_updates) AS nb_deleted_updates,
@@ -126,6 +174,7 @@ WITH banned_collectives AS (
   (SELECT COUNT(*) FROM deleted_orders) AS nb_deleted_orders,
   (SELECT COUNT(*) FROM deleted_notifications) AS nb_deleted_notifications,
   (SELECT COUNT(*) FROM deleted_users) AS nb_deleted_users,
+  (SELECT COUNT(*) FROM deleted_recurring_expenses) AS nb_deleted_recurring_expenses,
   (SELECT ARRAY_AGG(deleted_profiles.id) FROM deleted_profiles) AS deleted_profiles_ids
   
 -- TODO:

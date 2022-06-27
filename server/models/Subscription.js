@@ -1,9 +1,12 @@
 import Temporal from 'sequelize-temporal';
 
+import sequelize, { DataTypes } from '../lib/sequelize';
+import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscription';
+
 import CustomDataTypes from './DataTypes';
 
-export default (Sequelize, DataTypes) => {
-  const Subscription = Sequelize.define(
+function defineModel() {
+  const Subscription = sequelize.define(
     'Subscription',
     {
       amount: {
@@ -42,6 +45,10 @@ export default (Sequelize, DataTypes) => {
 
       stripeSubscriptionId: DataTypes.STRING,
 
+      paypalSubscriptionId: { type: DataTypes.STRING, allowNull: true },
+
+      isManagedExternally: { type: DataTypes.BOOLEAN, defaultValue: false },
+
       activatedAt: DataTypes.DATE,
 
       deactivatedAt: DataTypes.DATE,
@@ -58,14 +65,24 @@ export default (Sequelize, DataTypes) => {
     return this.save();
   };
 
-  Subscription.prototype.deactivate = function () {
-    this.isActive = false;
-    this.deactivatedAt = new Date();
+  Subscription.prototype.deactivate = async function (reason) {
+    // If subscription exists on a third party, cancel it there
+    if (this.paypalSubscriptionId) {
+      const order = await this.getOrder();
+      order.Subscription = this;
+      await cancelPaypalSubscription(order, reason);
+    }
 
-    return this.save();
+    return this.update({ isActive: false, deactivatedAt: new Date() });
   };
 
-  Temporal(Subscription, Sequelize);
+  Temporal(Subscription, sequelize);
 
   return Subscription;
-};
+}
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Subscription = defineModel();
+
+export default Subscription;

@@ -1,7 +1,9 @@
-export default function (Sequelize, DataTypes) {
+import sequelize, { DataTypes } from '../lib/sequelize';
+
+function defineModel() {
   const US_TAX_FORM = 'US_TAX_FORM';
 
-  const RequiredLegalDocument = Sequelize.define('RequiredLegalDocument', {
+  const RequiredLegalDocument = sequelize.define('RequiredLegalDocument', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -15,11 +17,11 @@ export default function (Sequelize, DataTypes) {
     },
     createdAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW,
+      defaultValue: DataTypes.NOW,
     },
     updatedAt: {
       type: DataTypes.DATE,
-      defaultValue: Sequelize.NOW,
+      defaultValue: DataTypes.NOW,
     },
     deletedAt: {
       type: DataTypes.DATE,
@@ -39,12 +41,11 @@ export default function (Sequelize, DataTypes) {
   RequiredLegalDocument.documentType = {};
   RequiredLegalDocument.documentType.US_TAX_FORM = US_TAX_FORM;
 
-  RequiredLegalDocument.associate = m => {
-    RequiredLegalDocument.belongsTo(m.Collective, {
-      foreignKey: 'HostCollectiveId',
-      as: 'hostCollective',
-    });
-  };
-
   return RequiredLegalDocument;
 }
+
+// We're using the defineModel method to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const RequiredLegalDocument = defineModel();
+
+export default RequiredLegalDocument;

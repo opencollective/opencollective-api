@@ -1,12 +1,12 @@
-Subject: Your expense to {{collective.name}} for {{{currency expense.amount currency=expense.currency precision=2}}} has been approved ✓
+Subject: Your expense to {{{collective.name}}} for {{currency expense.amount currency=expense.currency}} has been approved ✓
 
 {{> header}}
 
-<p>Quick message to let you know that your expense for <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a> has been approved.</p>
-<p>Next step: the host of the <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}} collective</a> (<a href="{{config.host.website}}/{{host.slug}}">{{host.name}}</a>) will reimburse your expense shortly (may take a couple of days depending on the host)</p>
-
+<p>Your expense, <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a>, has been approved.</p>
+<p>Most payments are processed within a few days, but the timing will depend on the available budget of <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a>, the payment method, and other factors.</p>
+<p>If you have any questions related to this expense, please post a comment on <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">the expense page</a>.</p>
 <center>
-  <h1>{{{currency expense.amount currency=expense.currency precision=2}}}</h1>
+  <h1><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h1>
   <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></div>
 </center>
 
@@ -17,7 +17,7 @@ Subject: Your expense to {{collective.name}} for {{{currency expense.amount curr
   <tr><th>Submitted by:</th><td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td></tr>
   <tr><th>Payout method:</th><td>{{expense.payoutMethodLabel}}</td></tr>
   {{#if expense.privateMessage}}
-    <tr><th valign="top">Private instructions:</th><td>{{expense.privateMessage}}</td></tr>
+    <tr><th valign="top">Private note:</th><td>{{{expense.privateMessage}}}</td></tr>
   {{/if}}
 </table>
 
@@ -25,12 +25,15 @@ Subject: Your expense to {{collective.name}} for {{{currency expense.amount curr
 <br />
 
 <center>
-  <a href="{{actions.view}}">
-    <img src="https://res.cloudinary.com/opencollective/image/fetch/w_640,f_jpg/{{expense.attachment}}" width="100%" />
-  </a>
-
+  {{> expenseItems items=items}}
   <br /><br />
-  <a href="{{actions.viewLatestExpenses}}" class="btn"><div>View Latest Expenses</div></a>
+  <p>
+    <center>
+      <a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}" class="btn blue">
+        <div>View Expense</div>
+      </a>
+    </center>
+  </p>
 
 </center>
 

@@ -2,6 +2,7 @@
 import '../../server/env';
 
 import email from '../../server/lib/email';
+import { reportErrorToSentry } from '../../server/lib/sentry';
 
 const recipients = 'ops@opencollective.com';
 
@@ -22,5 +23,6 @@ run()
   })
   .catch(error => {
     console.error(error);
+    reportErrorToSentry(error);
     process.exit(1);
   });

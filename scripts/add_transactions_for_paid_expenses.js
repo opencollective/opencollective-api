@@ -12,7 +12,7 @@ process.exit();
 /*
 
 import models, { sequelize } from '../server/models';
-import { createFromPaidExpense as createTransactionFromPaidExpense } from '../server/lib/transactions';
+import { createTransactionsFromPaidExpense } from '../server/lib/transactions';
 
 const done = err => {
   if (err) console.log('err', err);
@@ -62,7 +62,7 @@ function run() {
           expense = e;
           return e.collective.getHostCollective();
         })
-        .then(host => createTransactionFromPaidExpense(host, null, expense, null, expense.UserId))
+        .then(host => createTransactionsFromPaidExpense(host, null, expense, null, expense.UserId))
         .then(() => expensesFixed.push(expenseId));
     })
     .then(() => console.log('Expenses fixed: ', expensesFixed.length))

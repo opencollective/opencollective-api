@@ -1,9 +1,13 @@
-import crypto from 'crypto';
+import { randomBytes } from 'crypto';
 
-import { merge } from 'lodash';
+import { isNil, merge } from 'lodash';
+import { DataTypes } from 'sequelize';
 
-export default function (Sequelize, DataTypes) {
-  const Application = Sequelize.define(
+import { crypto } from '../lib/encryption';
+import sequelize from '../lib/sequelize';
+
+function defineModel() {
+  const Application = sequelize.define(
     'Application',
     {
       id: {
@@ -41,6 +45,13 @@ export default function (Sequelize, DataTypes) {
       },
       clientSecret: {
         type: DataTypes.STRING,
+        get() {
+          const encrypted = this.getDataValue('clientSecret');
+          return isNil(encrypted) ? null : crypto.decrypt(encrypted);
+        },
+        set(value) {
+          this.setDataValue('clientSecret', crypto.encrypt(value));
+        },
       },
       callbackUrl: {
         type: DataTypes.STRING,
@@ -88,13 +99,13 @@ export default function (Sequelize, DataTypes) {
   Application.create = props => {
     if (props.type === 'apiKey') {
       props = merge(props, {
-        apiKey: crypto.randomBytes(20).toString('hex'),
+        apiKey: randomBytes(20).toString('hex'),
       });
     }
     if (props.type === 'oAuth') {
       props = merge(props, {
-        clientId: crypto.randomBytes(20).toString('hex'),
-        clientSecret: crypto.randomBytes(40).toString('hex'),
+        clientId: randomBytes(10).toString('hex'), // Will be 20 length in ascii
+        clientSecret: randomBytes(20).toString('hex'), // Will be 40 length in ascii
       });
     }
     return Application.build(props).save();
@@ -102,3 +113,9 @@ export default function (Sequelize, DataTypes) {
 
   return Application;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Application = defineModel();
+
+export default Application;

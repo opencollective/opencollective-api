@@ -1,8 +1,12 @@
+import { pick } from 'lodash';
+
+import { types as CollectiveType } from '../constants/collectives';
 import roles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
+import sequelize, { DataTypes } from '../lib/sequelize';
 import { days } from '../lib/utils';
 
-export default function (Sequelize, DataTypes) {
+function defineModel() {
   const invalidateContributorsCacheUsingInstance = instance => {
     if (instance.role !== roles.FOLLOWER) {
       invalidateContributorsCache(instance.CollectiveId);
@@ -10,7 +14,7 @@ export default function (Sequelize, DataTypes) {
     return null;
   };
 
-  const Member = Sequelize.define(
+  const Member = sequelize.define(
     'Member',
     {
       id: {
@@ -82,11 +86,11 @@ export default function (Sequelize, DataTypes) {
       // Dates.
       createdAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
         type: DataTypes.DATE,
-        defaultValue: Sequelize.NOW,
+        defaultValue: DataTypes.NOW,
       },
       since: {
         type: DataTypes.DATE,
@@ -139,11 +143,59 @@ export default function (Sequelize, DataTypes) {
     if (member.tier.interval === 'month' && days(new Date(member.lastDonation)) <= 31) {
       return true;
     }
-    if (member.tier.interval === 'year' && days(new Date(member.lastDonation)) <= 365) {
+    if (['year', 'flexible'].includes(member.tier.interval) && days(new Date(member.lastDonation)) <= 365) {
       return true;
     }
+
     return false;
+  };
+
+  Member.connectCollectives = (childCollective, parentCollective, user, memberInfo) => {
+    const CONNECTED_ACCOUNT_ACCEPTED_TYPES = [
+      CollectiveType.COLLECTIVE,
+      CollectiveType.EVENT,
+      CollectiveType.ORGANIZATION,
+      CollectiveType.PROJECT,
+      CollectiveType.FUND,
+    ];
+
+    if (childCollective.id === parentCollective.id) {
+      throw new Error('Cannot connect an account to itself');
+    } else if (
+      !CONNECTED_ACCOUNT_ACCEPTED_TYPES.includes(childCollective.type) ||
+      !CONNECTED_ACCOUNT_ACCEPTED_TYPES.includes(parentCollective.type)
+    ) {
+      throw new Error('Account type not supported for connected accounts');
+    }
+
+    const uniqueMemberAttributes = {
+      role: roles.CONNECTED_COLLECTIVE,
+      MemberCollectiveId: childCollective.id,
+      CollectiveId: parentCollective.id,
+    };
+
+    return sequelize.transaction(async transaction => {
+      const existingMember = await Member.findOne({ where: uniqueMemberAttributes }, { transaction });
+      if (existingMember) {
+        return existingMember;
+      } else {
+        return Member.create(
+          {
+            ...pick(memberInfo, ['description', 'since']),
+            ...uniqueMemberAttributes,
+            CreatedByUserId: user.id,
+          },
+          { transaction },
+        );
+      }
+    });
   };
 
   return Member;
 }
+
+// We're using the defineModel function to keep the indentation and have a clearer git history.
+// Please consider this if you plan to refactor.
+const Member = defineModel();
+
+export default Member;

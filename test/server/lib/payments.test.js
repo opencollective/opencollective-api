@@ -2,19 +2,19 @@ import Promise from 'bluebird';
 import { expect } from 'chai';
 import config from 'config';
 import nock from 'nock';
-import sinon from 'sinon';
+import { createSandbox } from 'sinon';
 
 import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import emailLib from '../../../server/lib/email';
 import * as payments from '../../../server/lib/payments';
-import * as plansLib from '../../../server/lib/plans';
 import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -24,6 +24,22 @@ const STRIPE_TOKEN = 'tok_123456781234567812345678';
 const EMAIL = 'anotheruser@email.com';
 const userData = utils.data('user3');
 const PLAN_NAME = 'small';
+
+const SNAPSHOT_COLUMNS = [
+  'kind',
+  'type',
+  'isRefund',
+  'isDebt',
+  'FromCollectiveId',
+  'CollectiveId',
+  'HostCollectiveId',
+  'amount',
+  'currency',
+  'platformFeeInHostCurrency',
+  'paymentProcessorFeeInHostCurrency',
+  'settlementStatus',
+  'description',
+];
 
 describe('server/lib/payments', () => {
   let host, user, user2, collective, order, collective2, sandbox, emailSendSpy;
@@ -47,11 +63,17 @@ describe('server/lib/payments', () => {
   beforeEach(() => utils.resetTestDB());
 
   beforeEach(() => {
-    sandbox = sinon.createSandbox();
+    sandbox = createSandbox();
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
     sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
+      Promise.resolve({
+        id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
+        status: 'requires_confirmation',
+      }),
+    );
+    sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(() =>
       Promise.resolve({
         charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] },
         status: 'succeeded',
@@ -59,7 +81,6 @@ describe('server/lib/payments', () => {
     );
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
     emailSendSpy = sandbox.spy(emailLib, 'send');
-    sandbox.stub(plansLib, 'subscribeOrUpgradePlan').resolves();
   });
 
   afterEach(() => sandbox.restore());
@@ -104,14 +125,12 @@ describe('server/lib/payments', () => {
   beforeEach('add host to collective', () => collective.addHost(host.collective, host));
   beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
 
-  beforeEach('create stripe account', done => {
-    models.ConnectedAccount.create({
+  beforeEach('create stripe account', async () => {
+    await models.ConnectedAccount.create({
       service: 'stripe',
       token: 'abc',
       CollectiveId: host.collective.id,
-    })
-      .tap(() => done())
-      .catch(done);
+    });
   });
 
   /**
@@ -216,12 +235,6 @@ describe('server/lib/payments', () => {
                 expect(member).to.exist;
               }));
 
-            it('calls subscribeOrUpgradePlan', async () => {
-              expect(plansLib.subscribeOrUpgradePlan.callCount).to.equal(1);
-              // This test is too fast and that can lead to deadlock issues
-              await new Promise(res => setTimeout(res, 100));
-            });
-
             it('successfully sends out an email to donor1', async () => {
               await utils.waitForCondition(() => emailSendSpy.callCount > 0);
               expect(emailSendSpy.lastCall.args[0]).to.equal('thankyou');
@@ -318,25 +331,23 @@ describe('server/lib/payments', () => {
   describe('createRefundTransaction', () => {
     it('should allow collective to start a refund', async () => {
       // Given the following pair of transactions created
-      const transaction = await models.Transaction.createFromPayload({
+      const transaction = await models.Transaction.createFromContributionPayload({
         CreatedByUserId: user.id,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: collective.id,
         PaymentMethodId: order.PaymentMethodId,
-        transaction: {
-          type: 'CREDIT',
-          OrderId: order.id,
-          amount: 5000,
-          currency: 'USD',
-          hostCurrency: 'USD',
-          amountInHostCurrency: 5000,
-          hostCurrencyFxRate: 1,
-          hostFeeInHostCurrency: 250,
-          platformFeeInHostCurrency: 250,
-          paymentProcessorFeeInHostCurrency: 175,
-          description: 'Monthly subscription to Webpack',
-          data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
-        },
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        platformFeeInHostCurrency: 250,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
       });
 
       // When the refund transaction is created
@@ -350,7 +361,9 @@ describe('server/lib/payments', () => {
       });
 
       // Then there should be 4 transactions in total under that order id
-      expect(allTransactions.length).to.equal(4);
+      expect(allTransactions.length).to.equal(10);
+
+      // TODO: check that HOST_FEES, PAYMENT_PROCESSOR_COVER are there
 
       // And Then two transactions should be refund
       const refundTransactions = allTransactions.filter(
@@ -360,17 +373,92 @@ describe('server/lib/payments', () => {
 
       // And then the values for the transaction from the collective
       // to the donor are correct
+      // TODO: more precise filters
       const [creditRefundTransaction] = refundTransactions.filter(t => t.type === 'CREDIT');
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
-      expect(creditRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
+      expect(creditRefundTransaction.kind).to.equal('CONTRIBUTION');
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
       const [debitRefundTransaction] = refundTransactions.filter(t => t.type === 'DEBIT');
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
-      expect(debitRefundTransaction.data).to.deep.equal({ dataField: 'foo' });
+      expect(debitRefundTransaction.kind).to.equal('CONTRIBUTION');
+    });
+
+    it('should refund platform fees on top when refunding original transaction', async () => {
+      // Create Open Collective Inc
+      await fakeHost({ id: 8686, name: 'Open Collective' });
+      const host = await fakeHost({ name: 'Host' });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, name: 'Collective' });
+      const contributorUser = await fakeUser(undefined, { name: 'User' });
+      const order = await fakeOrder({
+        status: 'ACTIVE',
+        CollectiveId: collective.id,
+        FromCollectiveId: contributorUser.CollectiveId,
+      });
+      const transaction = await models.Transaction.createFromContributionPayload({
+        CreatedByUserId: contributorUser.id,
+        FromCollectiveId: order.FromCollectiveId,
+        CollectiveId: order.CollectiveId,
+        PaymentMethodId: order.PaymentMethodId,
+        type: 'CREDIT',
+        OrderId: order.id,
+        amount: 5000,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        amountInHostCurrency: 5000,
+        hostCurrencyFxRate: 1,
+        hostFeeInHostCurrency: 250,
+        platformFeeInHostCurrency: 500,
+        paymentProcessorFeeInHostCurrency: 175,
+        description: 'Monthly subscription to Webpack',
+        data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
+      });
+
+      // Should have 6 transactions:
+      // - 2 for contributions
+      // - 2 for host fees
+      // - 2 for platform tip (contributor -> Open Collective)
+      // - 2 for platform tip debt (host -> Open Collective)
+      const originalTransactions = await order.getTransactions();
+      expect(originalTransactions).to.have.lengthOf(8);
+
+      // Should have created a settlement entry for tip
+      const tipTransaction = originalTransactions.find(t => t.kind === TransactionKind.PLATFORM_TIP_DEBT);
+      const tipSettlement = await models.TransactionSettlement.getByTransaction(tipTransaction);
+      expect(tipSettlement.status).to.eq('OWED');
+
+      // Do refund
+      await payments.createRefundTransaction(transaction, 0, null, user);
+
+      // Snapshot ledger
+      const allTransactions = await order.getTransactions({ order: [['id', 'ASC']] });
+      await utils.preloadAssociationsForTransactions(allTransactions, SNAPSHOT_COLUMNS);
+      utils.snapshotTransactions(allTransactions, { columns: SNAPSHOT_COLUMNS });
+
+      const refundedTransactions = await order.getTransactions({ where: { isRefund: true } });
+      expect(refundedTransactions).to.have.lengthOf(10);
+      expect(refundedTransactions.filter(t => t.kind === 'CONTRIBUTION')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'HOST_FEE')).to.have.lengthOf(2);
+      expect(refundedTransactions.filter(t => t.kind === 'PAYMENT_PROCESSOR_COVER')).to.have.lengthOf(2);
+
+      // TODO(LedgerRefactor): Check debt transactions and settlement status
+
+      // Settlement should be marked as SETTLED since it's was not invoiced yet
+      await tipSettlement.reload();
+      expect(tipSettlement.status).to.eq('SETTLED');
+    });
+
+    it('should remove the settlement if the tip was already invoiced', async () => {
+      // TODO(LedgerRefactor)
+    });
+
+    it('should revert the settlement if the tip was already paid', async () => {
+      // TODO(LedgerRefactor)
     });
   }); /* createRefundTransaction */
 

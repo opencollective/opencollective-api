@@ -5,6 +5,7 @@ import '../server/env';
  * Use ./scripts/watch_email_template.sh [template] to compile an email template
  */
 import config from 'config';
+import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 
 import { getMailer } from '../server/lib/email';
@@ -21,9 +22,12 @@ data['onboarding.day21.noTwitter'] = {
     slug: 'yeoman',
   },
 };
-data['onboarding.day2.opensource'] = data['onboarding.day7.opensource'] = data[
-  'onboarding.noExpenses.opensource'
-] = data['onboarding.day28'] = data['onboarding.day35.inactive'] = data['onboarding.day21.noTwitter'];
+data['onboarding.day2.opensource'] =
+  data['onboarding.day7.opensource'] =
+  data['onboarding.noExpenses.opensource'] =
+  data['onboarding.day28'] =
+  data['onboarding.day35.inactive'] =
+    data['onboarding.day21.noTwitter'];
 data['collective.expense.approved'] = {
   host: { id: 1, name: 'WWCode', slug: 'wwcode' },
   expense: {
@@ -130,10 +134,10 @@ data['github.signup'] = {
     slug: 'webpack',
   },
 };
-data['collective.created.the-social-change-agency'] = data['collective.approved.the-social-change-agency'] = {
+data['collective.created.the-social-change-nest'] = data['collective.approved.the-social-change-nest'] = {
   host: {
-    slug: 'the-social-change-agency',
-    name: 'The Social Change Agency',
+    slug: 'the-social-change-nest',
+    name: 'The Social Change Nest',
   },
   collective: {
     slug: 'coinbase',
@@ -164,9 +168,7 @@ data['collective.update.published'] = {
     CreatedByUserId: 2,
     LastEditedByUserId: null,
     title: 'Testing update html',
-    markdown: '',
-    html:
-      '<p>The first stable release of rebar3 was a little over 2 years ago. Since that time dozens of contributors over those years it has kept a steady pace of improvement, but there is so much left to do to improve the daily development lives of Erlang developers.</p><p><br /></p><p>We\'ve started this collective in hopes of raising funds to cover both a few minimal expenses (domain registration, S3 hosting of binaries) and more dedicated development time. The coming work will be tracked on the github project https://github.com/erlang/rebar3/projects/1, a few of the main features and fixes we have planned are:</p><p><br /></p><p>* Multi-repo support</p><p>** Host the packages you need and only hit the global hexpm when it isn\'t found in your internal repo</p><p>* Hex.pm organizations</p><p>** Support for hosting private packages on the official hexpm</p><p>* Performance improvements</p><p>** Parallel compilation of applications</p><p>* Streamline appup and relup creation</p><p>* Integrate changes and functionality upstream to OTP</p><p>* Regular bugfixing</p><p><img src="https://i.imgur.com/YW5kaBu.jpg" /></p>',
+    html: '<p>The first stable release of rebar3 was a little over 2 years ago. Since that time dozens of contributors over those years it has kept a steady pace of improvement, but there is so much left to do to improve the daily development lives of Erlang developers.</p><p><br /></p><p>We\'ve started this collective in hopes of raising funds to cover both a few minimal expenses (domain registration, S3 hosting of binaries) and more dedicated development time. The coming work will be tracked on the github project https://github.com/erlang/rebar3/projects/1, a few of the main features and fixes we have planned are:</p><p><br /></p><p>* Multi-repo support</p><p>** Host the packages you need and only hit the global hexpm when it isn\'t found in your internal repo</p><p>* Hex.pm organizations</p><p>** Support for hosting private packages on the official hexpm</p><p>* Performance improvements</p><p>** Parallel compilation of applications</p><p>* Streamline appup and relup creation</p><p>* Integrate changes and functionality upstream to OTP</p><p>* Regular bugfixing</p><p><img src="https://i.imgur.com/YW5kaBu.jpg" /></p>',
     image: null,
     tags: null,
     deletedAt: null,
@@ -388,10 +390,10 @@ data['report.platform'] = {
   },
 };
 data['user.monthlyreport'] = {
-  recipient: { firstName: 'Xavier' },
+  recipient: { name: 'Xavier' },
   month: 'march',
   year: '2017',
-  manageSubscriptionsUrl: 'https://opencollective.com/subscriptions',
+  manageSubscriptionsUrl: 'https://opencollective.com/recurring-contributions',
   utm: Date.now(),
   fallbackUrl: 'opencollective.com/email/some_id',
   subscriptions: [
@@ -453,7 +455,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -465,7 +467,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -477,7 +479,7 @@ data['user.monthlyreport'] = {
       backgroundImage: 'http://opencollective.com/proxy/images/?src=https://cldup.com/Gj243bgI0f.jpg&width=1024',
       slug: 'cyclejs',
       name: 'Cycle.js',
-      mission: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
+      description: 'We are on a mission to provide a framework for clean code, easy debugging experience, and fun.',
       // totalDonations: 41,
       tier: 'backer',
       yearlyIncome: 6271 * 100,
@@ -485,21 +487,22 @@ data['user.monthlyreport'] = {
     },
   ],
 };
-
-data['pledge.complete'] = {
+data['collective.member.created'] = {
+  member: {
+    memberCollective: {
+      name: 'John Doe',
+    },
+    role: 'contributor',
+  },
   collective: {
-    name: 'Johnny Five',
-    slug: 'johnny-five',
+    name: 'TheCollective',
   },
-  fromCollective: {
-    name: 'Jane Doe',
-    slug: 'jane-doe',
-  },
-  interval: 'month',
   order: {
     currency: 'USD',
-    id: '123456',
-    totalAmount: 1000,
+    totalAmount: 64 * 100,
+    subscription: {
+      interval: 'month',
+    },
   },
 };
 
@@ -536,7 +539,6 @@ if (!templateName) {
   console.log('Where <name> is the name of a template found in:');
   console.log('./server/lib/emailTemplates\n');
   console.log('  Example 1: npm run -s compile:email user.monthlyreport\n');
-  console.log('  Example 2: npm run -s compile:email email.approve > email-approve.html\n');
   console.log('Note: `-s` switch is required to suppress warnings from npm.');
   console.log('Note: Edit the script to specify the data that is passed to the template.');
 } else if (!data[templateName]) {
@@ -547,10 +549,7 @@ if (!templateName) {
   if (template) {
     const emailData = { ...data[templateName], ...defaultData };
     const html = juice(template(emailData));
-    let text;
-    if (libEmailTemplates[`${templateName}.text`]) {
-      text = libEmailTemplates[`${templateName}.text`](emailData);
-    }
+
     const mailer = getMailer();
     if (mailer) {
       const attributes = getTemplateAttributes(html);
@@ -561,7 +560,7 @@ if (!templateName) {
           from: config.email.from,
           to,
           subject: attributes.subject,
-          text,
+          text: htmlToText(attributes.body),
           html: attributes.body,
         },
         () => {

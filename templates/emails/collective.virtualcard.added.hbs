@@ -1,0 +1,36 @@
+Subject: Virtual Card added to {{collective.name}}
+
+
+{{> header}}
+
+<center>
+  <h1>
+    Virtual Card added for {{collective.name}}
+  </h1>
+</center>
+
+<p>
+  You have a new Virtual Card for {{collective.name}}. Use it like a credit or debit card online to spend directly from your Collective balance.
+</p>
+<p>
+  View and manage cards on your <a href="{{config.host.website}}/{{collective.slug}}/admin/virtual-cards">Virtual Cards settings page</a>, where you can also review {{host.name}}'s Virtual Card policy.
+</p>
+<p>
+    Each charge to this card will trigger an email instructing you to submit the receipt. Your Fiscal Host may freeze the card if you do not upload all receipts. You can view all Virtual Card charges on your <a href="{{config.host.website}}/{{collective.slug}}/expenses">Expenses page</a>.
+</p>
+<p>
+  For more info, see <a
+    href="https://docs.opencollective.com/help/expenses-and-getting-paid/virtual-cards">the Virtual Cards documentation</a>.
+</p>
+
+
+<br />
+<br />
+
+<center>
+  <a href="{{config.host.website}}/{{collective.slug}}/admin/virtual-cards" class="btn blue">
+    Your Virtual Cards
+  </a>
+</center>
+
+{{> footer}}
