@@ -10,11 +10,11 @@ export const DateTimeField = new GraphQLEnumType({
     },
     UPDATED_AT: {
       value: 'updatedAt',
-      description: 'The updated time of a resource',
+      description: 'The update time of a resource',
     },
     PUBLISHED_AT: {
       value: 'publishedAt',
-      description: 'The published time of a resource (if available)',
+      description: 'The publication time of a resource (if available)',
     },
   },
 });
