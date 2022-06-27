@@ -10,7 +10,7 @@ const CurrencyExchangeRate = new GraphQLObjectType({
   fields: () => ({
     value: {
       type: new GraphQLNonNull(GraphQLFloat),
-      description: 'Exchange rate value as a percentage',
+      description: 'Exchange rate value as a scalar',
     },
     source: {
       type: new GraphQLNonNull(CurrencyExchangeRateSourceType),
