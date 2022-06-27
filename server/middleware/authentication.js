@@ -112,6 +112,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
       next();
       return;
     }
+    req.userToken = userToken;
   }
 
   if (req.jwtPayload.scope === 'twofactorauth') {

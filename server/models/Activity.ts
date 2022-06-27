@@ -10,6 +10,7 @@ export class Activity extends Model<InferAttributes<Activity>, InferCreationAttr
   public declare data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   public declare CollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
+  public declare UserTokenId: CreationOptional<number>;
   public declare TransactionId: CreationOptional<number>;
   public declare ExpenseId: CreationOptional<number>;
   public declare createdAt: CreationOptional<Date>;
@@ -39,6 +40,14 @@ function setupModel() {
         type: DataTypes.INTEGER,
         references: {
           model: 'Users',
+          key: 'id',
+        },
+      },
+
+      UserTokenId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'UserTokens',
           key: 'id',
         },
       },

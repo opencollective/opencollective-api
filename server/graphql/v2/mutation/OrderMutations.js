@@ -128,8 +128,7 @@ const orderMutations = {
         platformTipAmount,
       };
 
-      const userAgent = req.header('user-agent');
-      const result = await createOrderLegacy(legacyOrderObj, req.loaders, req.remoteUser, req.ip, userAgent, req.mask);
+      const result = await createOrderLegacy(legacyOrderObj, req);
       return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
     },
   },
@@ -190,6 +189,7 @@ const orderMutations = {
         type: activities.SUBSCRIPTION_CANCELED,
         CollectiveId: order.CollectiveId,
         UserId: order.CreatedByUserId,
+        UserTokenId: req.userToken?.id,
         data: {
           subscription: order.Subscription,
           collective: order.collective.minimal,

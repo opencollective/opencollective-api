@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 
 import models from '../models';
+import UserToken from '../models/UserToken';
 
 declare global {
   namespace Express {
@@ -19,6 +20,7 @@ declare global {
         description?: string;
         CollectiveId: number;
       };
+      userToken?: UserToken;
       loaders: Record<string, DataLoader>;
     }
   }
