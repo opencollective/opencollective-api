@@ -1243,6 +1243,9 @@ const CollectiveFields = () => {
         if (has(collective.settings, 'hostCollective.id')) {
           return req.loaders.Collective.byId.load(get(collective.settings, 'hostCollective.id'));
         }
+        if (collective.id === collective.HostCollectiveId) {
+          return collective;
+        }
         return null;
       },
     },
