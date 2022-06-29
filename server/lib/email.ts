@@ -257,6 +257,9 @@ const getNotificationLabel = (template, recipients): string => {
     'user.monthlyreport': 'monthly reports for backers',
     'user.yearlyreport': 'yearly reports',
     thankyou: 'thank you for your donation',
+    'conversation.comment.created': 'notifications of new comments submitted to this conversation',
+    'update.comment.created': 'notifications of new comments submitted to this update',
+    'expense.comment.created': 'notifications of new comments submitted to this expense',
   };
 
   return notificationTypeLabels[template];

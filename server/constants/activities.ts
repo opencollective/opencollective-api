@@ -71,6 +71,9 @@ enum ActivityTypes {
   PAYMENT_FAILED = 'payment.failed',
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
   TAXFORM_REQUEST = 'taxform.request',
+  CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
+  UPDATE_COMMENT_CREATED = 'update.comment.created',
+  EXPENSE_COMMENT_CREATED = 'expense.comment.created',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
@@ -159,6 +162,9 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.CONVERSATIONS]: [
     ActivityTypes.COLLECTIVE_COMMENT_CREATED,
     ActivityTypes.COLLECTIVE_CONVERSATION_CREATED,
+    ActivityTypes.CONVERSATION_COMMENT_CREATED,
+    ActivityTypes.UPDATE_COMMENT_CREATED,
+    ActivityTypes.EXPENSE_COMMENT_CREATED,
   ],
   [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY],
 };

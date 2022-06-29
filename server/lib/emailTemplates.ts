@@ -101,6 +101,9 @@ export const templateNames = [
   'contribution.rejected',
   'virtualcard.charge.declined',
   'virtualcard.requested',
+  'conversation.comment.created',
+  'update.comment.created',
+  'expense.comment.created',
 ] as const;
 
 export type EmailTemplates = typeof templateNames[number];
