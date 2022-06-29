@@ -9,7 +9,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { round } from 'lodash';
+import { isNil, round } from 'lodash';
 
 import orderStatus from '../../../constants/order_status';
 import roles from '../../../constants/roles';
@@ -206,6 +206,10 @@ const transactionFieldsDefinition = () => ({
   merchantId: {
     type: GraphQLString,
     description: 'Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)',
+  },
+  balanceInHostCurrency: {
+    type: Amount,
+    description: 'The balance after the Transaction has run. Only for financially active accounts.',
   },
 });
 
@@ -545,6 +549,15 @@ export const TransactionFields = () => {
           const privacyId = transaction.data?.token;
 
           return wiseId || paypalPayoutId || privacyId;
+        }
+      },
+    },
+    balanceInHostCurrency: {
+      type: Amount,
+      async resolve(transaction, _, req) {
+        const result = await req.loaders.Transaction.balanceById.load(transaction.id);
+        if (!isNil(result?.balance)) {
+          return { value: result.balance, currency: transaction.hostCurrency };
         }
       },
     },

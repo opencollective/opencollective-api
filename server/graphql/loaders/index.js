@@ -15,7 +15,7 @@ import commentsLoader from './comments';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
-import { createDataLoaderWithOptions, sortResults } from './helpers';
+import { createDataLoaderWithOptions, sortResults, sortResultsSimple } from './helpers';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
@@ -661,6 +661,19 @@ export const loaders = req => {
     ),
     hostFeeAmountForTransaction: transactionLoaders.generateHostFeeAmountForTransactionLoader(),
     relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
+    balanceById: new DataLoader(async transactionIds => {
+      const transactionBalances = await sequelize.query(
+        ` SELECT      id, balance
+          FROM        "TransactionBalances"
+          WHERE       id in (:transactionIds)`,
+        {
+          type: sequelize.QueryTypes.SELECT,
+          replacements: { transactionIds },
+        },
+      );
+
+      return sortResultsSimple(transactionIds, transactionBalances);
+    }),
   };
 
   return context.loaders;
