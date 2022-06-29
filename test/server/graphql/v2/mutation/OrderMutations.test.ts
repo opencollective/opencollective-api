@@ -1294,5 +1294,47 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(tip).to.have.property('amount').equal(100);
       });
     });
+
+    it('should be able to remove platform tips', async () => {
+      order = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        status: 'PENDING',
+        frequency: 'ONETIME',
+        totalAmount: 10100,
+        currency: 'USD',
+        data: { platformTip: 100, platformFee: 100 },
+      });
+
+      const result = await graphqlQueryV2(
+        processPendingOrderMutation,
+        {
+          action: 'MARK_AS_PAID',
+          order: {
+            id: idEncode(order.id, 'order'),
+            platformTip: { valueInCents: 0, currency: order.currency },
+            amount: { valueInCents: 10000, currency: order.currency },
+          },
+        },
+        hostAdminUser,
+      );
+
+      result.errors && console.log(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+      await order.reload();
+      expect(order).to.have.property('totalAmount').equal(10000);
+      expect(order).to.have.nested.property('data.platformTip').equal(0);
+
+      const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
+      const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
+      expect(contribution).to.have.property('amount').equal(10000);
+      expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(10000);
+
+      const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
+      expect(tip).to.be.undefined;
+    });
   });
 });
