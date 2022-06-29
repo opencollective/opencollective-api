@@ -504,6 +504,7 @@ describe('server/lib/payments', () => {
 
     it('should include account information', async () => {
       await payments.sendOrderProcessingEmail(order);
+      await utils.waitForCondition(() => emailSendSpy.callCount > 0);
 
       expect(emailSendSpy.lastCall.args[2]).to.have.property('account');
       expect(emailSendSpy.lastCall.args[2].instructions).to.include('IBAN: DE893219828398123');

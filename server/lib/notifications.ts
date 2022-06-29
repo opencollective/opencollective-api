@@ -156,7 +156,7 @@ async function notifySubscribers(users, activity: Partial<Activity>, options: No
 async function notifyUserId(
   UserId: number,
   activity: Partial<Activity>,
-  options: NotifySubscribersOptions & { attachments?: any[] } = {},
+  options: NotifySubscribersOptions & { attachments?: any[]; to?: string } = {},
 ) {
   const user = await models.User.findByPk(UserId);
   debug('notifyUserId', UserId, user && user.email, activity.type);
@@ -205,7 +205,7 @@ async function notifyUserId(
     options.from = `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`;
   }
 
-  return emailLib.send(activity.type, user.email, activity.data, options);
+  return emailLib.send(activity.type, options.to || user.email, activity.data, options);
 }
 
 export async function notifyAdminsOfCollective(
@@ -363,10 +363,60 @@ function parseServiceLink(videoLink: string) {
   return {};
 }
 
+const populateCommentActivity = async activity => {
+  const collective = await models.Collective.findByPk(activity.CollectiveId);
+  activity.data.collective = collective.info;
+  const fromCollective = await models.Collective.findByPk(activity.data.FromCollectiveId);
+  activity.data.fromCollective = fromCollective.info;
+
+  return { collective, fromCollective };
+};
+
 async function notifyByEmail(activity: Activity) {
   debug('notifyByEmail', activity.type);
-  let collective, conversation;
   switch (activity.type) {
+    case ActivityTypes.ORDER_PROCESSING:
+      notifyUserId(activity.UserId, activity, {
+        from: `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`,
+      });
+      break;
+
+    case ActivityTypes.ORDER_PROCESSING_CRYPTO:
+      notifyUserId(activity.UserId, activity, {
+        from: `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`,
+      });
+      break;
+
+    case ActivityTypes.USER_CARD_CLAIMED:
+      notifyUserId(activity.UserId, activity);
+      break;
+
+    case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:
+      notifyAdminsOfCollective(activity.data.CollectiveId, activity);
+      break;
+
+    case ActivityTypes.USER_CARD_INVITED:
+      emailLib.send(activity.type, activity.data.email, activity.data);
+      break;
+
+    case ActivityTypes.COLLECTIVE_MEMBER_INVITED:
+      notifyAdminsOfCollective(activity.data.memberCollective.id, activity, {
+        template: 'member.invitation',
+      });
+      break;
+
+    case ActivityTypes.VIRTUAL_CARD_CHARGE_DECLINED:
+      if (activity.UserId) {
+        notifyUserId(activity.UserId, activity);
+      } else {
+        notifyAdminsOfCollective(activity.CollectiveId, activity);
+      }
+      break;
+
+    case ActivityTypes.TAXFORM_REQUEST:
+      notifyUserId(activity.UserId, activity);
+      break;
+
     case ActivityTypes.TICKET_CONFIRMED:
       notifyUserId(activity.data.UserId, activity);
       break;
@@ -412,63 +462,66 @@ async function notifyByEmail(activity: Activity) {
       activity.data.rootComment = activity.data.rootComment?.info;
       notifyAdminsOfCollective(activity.data.conversation.CollectiveId, activity, { exclude: [activity.UserId] });
       break;
-    case ActivityTypes.COLLECTIVE_COMMENT_CREATED:
-      collective = await models.Collective.findByPk(activity.CollectiveId);
-      activity.data.collective = collective.info;
-      activity.data.fromCollective = await models.Collective.findByPk(activity.data.FromCollectiveId);
-      activity.data.fromCollective = activity.data.fromCollective.info;
 
-      if (activity.data.ConversationId) {
-        conversation = await models.Conversation.findByPk(activity.data.ConversationId);
-        activity.data.conversation = conversation.info;
-        activity.data.UserId = get(activity.data.conversation, 'CreatedByUserId');
-        activity.data.path = `/${activity.data.collective.slug}/conversations/${activity.data.conversation.slug}-${activity.data.conversation.hashId}`;
+    case ActivityTypes.CONVERSATION_COMMENT_CREATED: {
+      await populateCommentActivity(activity);
+      const conversation = await models.Conversation.findByPk(activity.data.ConversationId);
+      activity.data.conversation = conversation.info;
+      activity.data.UserId = get(activity.data.conversation, 'CreatedByUserId');
+      activity.data.path = `/${activity.data.collective.slug}/conversations/${activity.data.conversation.slug}-${activity.data.conversation.hashId}`;
 
-        notifyConversationFollowers(conversation, activity, {
-          from: NO_REPLY_EMAIL,
-          exclude: [activity.UserId], // Don't notify the person who commented
-        });
-      } else if (activity.data.ExpenseId) {
-        activity.data.expense = await models.Expense.findByPk(activity.data.ExpenseId);
-        activity.data.expense = activity.data.expense.info;
-        activity.data.UserId = activity.data.expense.UserId;
-        activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
+      notifyConversationFollowers(conversation, activity, {
+        from: NO_REPLY_EMAIL,
+        exclude: [activity.UserId], // Don't notify the person who commented
+      });
+      break;
+    }
 
-        // Notify the admins of the collective
-        notifyAdminsOfCollective(activity.CollectiveId, activity, {
+    case ActivityTypes.UPDATE_COMMENT_CREATED: {
+      await populateCommentActivity(activity);
+      activity.data.update = await models.Update.findByPk(activity.data.UpdateId);
+      activity.data.update = activity.data.update.info;
+      activity.data.UserId = activity.data.update.CreatedByUserId;
+      activity.data.path = `/${activity.data.collective.slug}/updates/${activity.data.update.slug}`;
+
+      // Notify the admins of the collective
+      notifyAdminsOfCollective(activity.CollectiveId, activity, {
+        from: NO_REPLY_EMAIL,
+        exclude: [activity.UserId], // Don't notify the person who commented
+      });
+      break;
+    }
+
+    case ActivityTypes.EXPENSE_COMMENT_CREATED: {
+      const { collective } = await populateCommentActivity(activity);
+      activity.data.expense = await models.Expense.findByPk(activity.data.ExpenseId);
+      activity.data.expense = activity.data.expense.info;
+      activity.data.UserId = activity.data.expense.UserId;
+      activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
+
+      // Notify the admins of the collective
+      notifyAdminsOfCollective(activity.CollectiveId, activity, {
+        from: NO_REPLY_EMAIL,
+        exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
+      });
+
+      // Notify the admins of the host (if any)
+      const HostCollectiveId = await collective.getHostCollectiveId();
+      if (HostCollectiveId) {
+        notifyAdminsOfCollective(HostCollectiveId, activity, {
           from: NO_REPLY_EMAIL,
           exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
         });
-
-        // Notify the admins of the host (if any)
-        const HostCollectiveId = await collective.getHostCollectiveId();
-        if (HostCollectiveId) {
-          notifyAdminsOfCollective(HostCollectiveId, activity, {
-            from: NO_REPLY_EMAIL,
-            exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
-          });
-        }
-
-        // Notify the author of the expense
-        if (activity.UserId !== activity.data.UserId) {
-          notifyUserId(activity.data.UserId, activity, {
-            from: NO_REPLY_EMAIL,
-          });
-        }
-      } else if (activity.data.UpdateId) {
-        activity.data.update = await models.Update.findByPk(activity.data.UpdateId);
-        activity.data.update = activity.data.update.info;
-        activity.data.UserId = activity.data.update.CreatedByUserId;
-        activity.data.path = `/${activity.data.collective.slug}/updates/${activity.data.update.slug}`;
-
-        // Notify the admins of the collective
-        notifyAdminsOfCollective(activity.CollectiveId, activity, {
-          from: NO_REPLY_EMAIL,
-          exclude: [activity.UserId], // Don't notify the person who commented
-        });
       }
 
+      // Notify the author of the expense
+      if (activity.UserId !== activity.data.UserId) {
+        notifyUserId(activity.data.UserId, activity, {
+          from: NO_REPLY_EMAIL,
+        });
+      }
       break;
+    }
 
     case ActivityTypes.COLLECTIVE_EXPENSE_APPROVED:
       activity.data.actions = {
@@ -594,6 +647,9 @@ async function notifyByEmail(activity: Activity) {
       notifyAdminsOfCollective(activity.data.collective.id, activity, {
         template: 'collective.created.opensource',
       });
+      notifyUserId(activity.UserId, activity, {
+        template: 'github.signup',
+      });
       break;
 
     case ActivityTypes.BACKYOURSTACK_DISPATCH_CONFIRMED:
@@ -671,6 +727,9 @@ async function notifyByEmail(activity: Activity) {
       notifyAdminsOfCollective(activity.CollectiveId, activity, {
         sendEvenIfNotProduction: true,
       });
+      break;
+
+    default:
       break;
   }
 }

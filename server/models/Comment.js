@@ -149,8 +149,17 @@ function defineModel() {
           }
         },
         afterCreate: instance => {
+          let type = activities.COLLECTIVE_COMMENT_CREATED;
+          if (instance.ConversationId) {
+            type = activities.CONVERSATION_COMMENT_CREATED;
+          } else if (instance.ExpenseId) {
+            type = activities.EXPENSE_COMMENT_CREATED;
+          } else if (instance.UpdateId) {
+            type = activities.UPDATE_COMMENT_CREATED;
+          }
+
           models.Activity.create({
-            type: activities.COLLECTIVE_COMMENT_CREATED,
+            type,
             UserId: instance.CreatedByUserId,
             CollectiveId: instance.CollectiveId,
             data: {

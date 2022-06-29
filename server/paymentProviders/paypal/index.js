@@ -3,6 +3,7 @@ import debug from 'debug';
 import { get } from 'lodash';
 import moment from 'moment';
 
+import ActivityTypes from '../../constants/activities';
 import { convertToCurrency } from '../../lib/currency';
 import errors from '../../lib/errors';
 import { formatCurrency } from '../../lib/utils';
@@ -150,7 +151,7 @@ export default {
               .then(pm => {
                 newPmName = pm.info.name;
                 return models.Activity.create({
-                  type: 'user.paymentMethod.created',
+                  type: ActivityTypes.USER_PAYMENT_METHOD_CREATED,
                   UserId: paymentMethod.CreatedByUserId,
                   CollectiveId: paymentMethod.CollectiveId,
                   data: {

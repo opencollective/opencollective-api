@@ -2,9 +2,9 @@ import { URLSearchParams } from 'url';
 
 import { pick } from 'lodash';
 
+import { activities } from '../../../constants';
 import ORDER_STATUS from '../../../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
-import emailLib from '../../../lib/email';
 import logger from '../../../lib/logger';
 import models, { Op } from '../../../models';
 import GiftCard from '../../../paymentProviders/opencollective/giftcard';
@@ -138,13 +138,17 @@ export async function claimPaymentMethod(args, remoteUser) {
   // It will be redirected to the /redeemed page
   // See: https://github.com/opencollective/opencollective-frontend/blob/08323de06714c20ce33e93bfebcbbeb0af587413/src/pages/redeem.js#L143
   if (!remoteUser) {
-    emailLib.send('user.card.claimed', user.email, {
-      loginLink: user.generateLoginLink(`/redeemed?${qs}`),
-      initialBalance: amount,
-      name,
-      currency,
-      expiryDate,
-      emitter: emitter.info,
+    await models.Activity.create({
+      type: activities.USER_CARD_CLAIMED,
+      UserId: user.id,
+      data: {
+        loginLink: user.generateLoginLink(`/redeemed?${qs}`),
+        initialBalance: amount,
+        name,
+        currency,
+        expiryDate,
+        emitter: emitter.info,
+      },
     });
   }
 

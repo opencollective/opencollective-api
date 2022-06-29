@@ -73,13 +73,13 @@ export const templateNames = [
   'payment.creditcard.confirmation',
   'payment.creditcard.expiring',
   'order.processing',
-  'order.crypto.processing',
+  'order.processing.crypto',
   'order.new.pendingFinancialContribution',
   'order.reminder.pendingFinancialContribution',
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',
-  'tax-form-request',
+  'taxform.request',
   'ticket.confirmed',
   'ticket.confirmed.fearlesscitiesbrussels',
   'ticket.confirmed.open-2020',
@@ -99,9 +99,14 @@ export const templateNames = [
   'activated.collective.as.independent',
   'deactivated.collective.as.host',
   'contribution.rejected',
+  'virtualcard.charge.declined',
   'virtualcard.requested',
-  'authorization.declined',
-];
+  'conversation.comment.created',
+  'update.comment.created',
+  'expense.comment.created',
+] as const;
+
+export type EmailTemplates = typeof templateNames[number];
 
 const templatesPath = `${__dirname}/../../templates`;
 
@@ -133,4 +138,4 @@ templateNames.forEach(template => {
   templates[template] = handlebars.compile(source);
 });
 
-export default templates;
+export default templates as Record<EmailTemplates, handlebars.TemplateDelegate>;

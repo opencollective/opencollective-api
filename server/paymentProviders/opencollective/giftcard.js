@@ -4,11 +4,11 @@ import moment from 'moment';
 import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
+import { activities } from '../../constants';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { ValidationFailed } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import * as currency from '../../lib/currency';
-import emailLib from '../../lib/email';
 import * as libpayments from '../../lib/payments';
 import { formatCurrency, isValidEmail } from '../../lib/utils';
 import models, { Op, sequelize } from '../../models';
@@ -518,15 +518,19 @@ async function sendGiftCardCreatedEmail(giftCard, emitterCollective) {
     return false;
   }
 
-  return emailLib.send('user.card.invited', email, {
-    email,
-    redeemCode: code,
-    initialBalance: giftCard.initialBalance,
-    expiryDate: giftCard.expiryDate,
-    name: giftCard.name,
-    currency: giftCard.currency,
-    emitter: emitterCollective,
-    customMessage: get(giftCard, 'data.customMessage', ''),
+  await models.Activity.create({
+    type: activities.USER_CARD_INVITED,
+    CollectiveId: emitterCollective.id,
+    data: {
+      email,
+      redeemCode: code,
+      initialBalance: giftCard.initialBalance,
+      expiryDate: giftCard.expiryDate,
+      name: giftCard.name,
+      currency: giftCard.currency,
+      emitter: emitterCollective,
+      customMessage: get(giftCard, 'data.customMessage', ''),
+    },
   });
 }
 

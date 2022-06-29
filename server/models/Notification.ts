@@ -5,7 +5,7 @@ import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
 
-import ActivityTypes from '../constants/activities';
+import ActivityTypes, { ActivitiesPerClass, ActivityClasses, TransactionalActivities } from '../constants/activities';
 import channels from '../constants/channels';
 import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
@@ -15,36 +15,10 @@ import models from '.';
 
 const debug = debugLib('models:Notification');
 
-/** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
-export const TransactionalNotifications = [
-  ActivityTypes.ADDED_FUND_TO_ORG,
-  ActivityTypes.COLLECTIVE_APPLY,
-  ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
-  ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
-  ActivityTypes.COLLECTIVE_EXPENSE_ERROR,
-  ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
-  ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT,
-  ActivityTypes.COLLECTIVE_EXPENSE_PAID,
-  ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
-  ActivityTypes.COLLECTIVE_EXPENSE_REJECTED,
-  ActivityTypes.COLLECTIVE_FROZEN,
-  ActivityTypes.COLLECTIVE_MEMBER_CREATED,
-  ActivityTypes.COLLECTIVE_REJECTED,
-  ActivityTypes.COLLECTIVE_UNFROZEN,
-  ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
-  ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
-  ActivityTypes.CONTRIBUTION_REJECTED,
-  ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
-  ActivityTypes.PAYMENT_FAILED,
-  ActivityTypes.TICKET_CONFIRMED,
-  ActivityTypes.USER_CREATED,
-  ActivityTypes.VIRTUAL_CARD_REQUESTED,
-];
-
 export class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
   public declare readonly id: CreationOptional<number>;
   public declare channel: channels;
-  public declare type: ActivityTypes | string;
+  public declare type: ActivityTypes | ActivityClasses | string;
   public declare active: boolean;
   public declare createdAt: CreationOptional<Date>;
   public declare CollectiveId: CreationOptional<number>;
@@ -60,6 +34,63 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     defaultValues?: InferCreationAttributes<Notification>,
   ): Notification[] {
     return Promise.map(notifications, u => Notification.create(defaults({}, u, defaultValues))).catch(console.error);
+  }
+
+  static async unsubscribe(
+    type: ActivityTypes | ActivityClasses,
+    channel: channels,
+    UserId: number = null,
+    CollectiveId: number = null,
+  ) {
+    const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
+    if (TransactionalActivities.includes(type as ActivityTypes)) {
+      throw new Error(`Cannot remove transactional activity ${type}`);
+    }
+
+    return sequelize.transaction(async transaction => {
+      let notification = await Notification.findOne({
+        where: { UserId, CollectiveId, type, channel },
+        transaction,
+      });
+
+      if (!notification) {
+        notification = await Notification.create(
+          { UserId, CollectiveId, type, channel, active: false },
+          { transaction },
+        );
+      } else if (notification.active === true) {
+        await notification.update({ active: false }, { transaction });
+      }
+
+      // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
+      if (isClass && UserId) {
+        await Notification.destroy({
+          where: { UserId, CollectiveId, type: { [Op.in]: ActivitiesPerClass[type] }, channel },
+          transaction,
+        });
+      }
+      return notification;
+    });
+  }
+
+  static async subscribe(
+    type: ActivityTypes | ActivityClasses,
+    channel: channels,
+    UserId: number = null,
+    CollectiveId: number = null,
+  ) {
+    const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
+    return sequelize.transaction(async transaction => {
+      await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
+
+      // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
+      if (isClass && UserId) {
+        await Notification.destroy({
+          where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+          transaction,
+        });
+      }
+    });
   }
 
   /**

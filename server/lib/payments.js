@@ -18,7 +18,6 @@ import TransactionSettlement, { TransactionSettlementStatus } from '../models/Tr
 import paymentProviders from '../paymentProviders';
 
 import { getFxRate } from './currency';
-import emailLib from './email';
 import logger from './logger';
 import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
@@ -617,6 +616,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
+      UserId: user.id,
       data: {
         EventCollectiveId: collective.id,
         UserId: user.id,
@@ -699,8 +699,11 @@ const sendCryptoOrderProcessingEmail = async order => {
       pledgeCurrency: order.data.thegivingblock.pledgeCurrency,
     };
 
-    return emailLib.send('order.crypto.processing', user.email, data, {
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+    await models.Activity.create({
+      type: activities.ORDER_PROCESSING_CRYPTO,
+      CollectiveId: collective.id,
+      UserId: user.id,
+      data,
     });
   }
 };
@@ -743,8 +746,10 @@ export const sendOrderProcessingEmail = async order => {
       }
     });
   }
-  return emailLib.send('order.processing', user.email, data, {
-    from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+  await models.Activity.create({
+    type: activities.ORDER_PROCESSING,
+    UserId: user.id,
+    data,
   });
 };
 
@@ -802,8 +807,11 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
     ...data,
     updateDetailsLink: `${config.host.website}/paymentmethod/${data.id}/update`,
   };
-
-  return emailLib.send('payment.creditcard.expiring', data.email, data);
+  await models.Activity.create({
+    type: activities.PAYMENT_CREDITCARD_EXPIRING,
+    CollectiveId: data.CollectiveId,
+    data,
+  });
 };
 
 export const getApplicationFee = async (order, host = null) => {

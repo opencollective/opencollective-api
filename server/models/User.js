@@ -243,23 +243,6 @@ function defineModel() {
     return models.Member.findAll(query);
   };
 
-  User.prototype.unsubscribe = function (CollectiveId, type, channel = 'email') {
-    const notification = {
-      UserId: this.id,
-      CollectiveId,
-      type,
-      channel,
-    };
-    return models.Notification.findOne({ where: notification }).then(result => {
-      if (result) {
-        return result.update({ active: false });
-      } else {
-        notification.active = false;
-        return models.Notification.create(notification);
-      }
-    });
-  };
-
   User.prototype.getIncognitoProfile = async function () {
     const collective = this.collective || (await this.getCollective());
     return collective.getIncognitoProfile();

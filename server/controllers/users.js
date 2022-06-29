@@ -1,5 +1,6 @@
 import config from 'config';
 
+import { activities } from '../constants';
 import { BadRequest } from '../graphql/errors';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
@@ -84,7 +85,18 @@ export const signin = async (req, res, next) => {
     if (config.env === 'development') {
       logger.info(`Login Link: ${loginLink}`);
     }
-    await emailLib.send('user.new.token', user.email, { loginLink, clientIP }, { sendEvenIfNotProduction: true });
+
+    await emailLib.send(
+      activities.USER_NEW_TOKEN,
+      user.email,
+      { loginLink, clientIP },
+      { sendEvenIfNotProduction: true },
+    );
+    await models.Activity.create({
+      type: activities.USER_NEW_TOKEN,
+      UserId: user.id,
+      data: { notify: false },
+    });
     const response = { success: true };
     // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
     if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
