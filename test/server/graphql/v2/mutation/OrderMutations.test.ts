@@ -1296,8 +1296,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    it.skip('should be able to remove platform tips', async () => {
-      order = await fakeOrder({
+    it('should be able to remove platform tips', async () => {
+      const orderWithPlatformTip = await fakeOrder({
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
@@ -1305,7 +1305,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         frequency: 'ONETIME',
         totalAmount: 10100,
         currency: 'USD',
-        data: { platformTip: 100, platformFee: 100 },
+        platformTipAmount: 100,
       });
 
       const result = await graphqlQueryV2(
@@ -1313,9 +1313,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         {
           action: 'MARK_AS_PAID',
           order: {
-            id: idEncode(order.id, 'order'),
-            platformTip: { valueInCents: 0, currency: order.currency },
-            amount: { valueInCents: 10000, currency: order.currency },
+            id: idEncode(orderWithPlatformTip.id, 'order'),
+            platformTip: { valueInCents: 0, currency: orderWithPlatformTip.currency },
+            amount: { valueInCents: 10000, currency: orderWithPlatformTip.currency },
           },
         },
         hostAdminUser,
@@ -1325,11 +1325,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
 
-      await order.reload();
-      expect(order).to.have.property('totalAmount').equal(10000);
-      expect(order).to.have.nested.property('data.platformTip').equal(0);
+      await orderWithPlatformTip.reload();
+      expect(orderWithPlatformTip).to.have.property('totalAmount').equal(10000);
+      expect(orderWithPlatformTip).to.have.nested.property('platformTipAmount').equal(0);
 
-      const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
+      const transactions = await orderWithPlatformTip.getTransactions({ where: { type: 'CREDIT' } });
       const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
       expect(contribution).to.have.property('amount').equal(10000);
       expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(10000);
