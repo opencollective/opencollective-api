@@ -940,6 +940,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           user,
         );
 
+        result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.cancelOrder.status).to.eq('CANCELLED');
       });
