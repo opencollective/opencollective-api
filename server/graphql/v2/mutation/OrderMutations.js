@@ -277,8 +277,8 @@ const orderMutations = {
         const expectedCurrency = order.currency;
         let newTotalAmount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency });
         // We add the current Platform Tip to the totalAmount
-        if (order.data?.isFeesOnTop && order.data.platformFee) {
-          newTotalAmount = newTotalAmount + order.data.platformFee;
+        if (order.platformTipAmount) {
+          newTotalAmount = newTotalAmount + order.platformTipAmount;
         }
         // interval, amount, tierId, paymentMethodId
         ({ previousOrderValues, previousSubscriptionValues } = await updateSubscriptionDetails(

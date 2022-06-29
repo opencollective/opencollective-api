@@ -227,15 +227,9 @@ function defineModel() {
           return {
             id: this.id,
             // totalAmount should not be changed, it's confusing
-            totalAmount:
-              this.data?.isFeesOnTop && this.data?.platformFee
-                ? this.totalAmount - this.data.platformFee
-                : this.totalAmount - this.platformTipAmount,
+            totalAmount: this.totalAmount - this.platformTipAmount,
             // introducing 3 new values to clarify
-            netAmount:
-              this.data?.isFeesOnTop && this.data?.platformFee
-                ? this.totalAmount - this.data.platformFee
-                : this.totalAmount - this.platformTipAmount,
+            netAmount: this.totalAmount - this.platformTipAmount,
             platformTipAmount: this.platformTipAmount,
             chargeAmount: this.totalAmount,
             currency: this.currency,
@@ -335,7 +329,7 @@ function defineModel() {
 
     // Register user as backer of Open Collective
     let platformTipMember;
-    if (this.data?.isFeesOnTop && this.data?.platformFee) {
+    if (this.platformTipAmount) {
       const platform = await models.Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
       platformTipMember = await platform.findOrAddUserWithRole(
         { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },

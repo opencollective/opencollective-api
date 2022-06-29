@@ -1281,15 +1281,13 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         await order.reload();
         expect(order).to.have.property('totalAmount').equal(10100);
-        expect(order).to.have.nested.property('data.platformTip').equal(100);
-        expect(order).to.have.nested.property('data.platformFee').equal(100);
+        expect(order).to.have.property('platformTipAmount').equal(100);
 
         const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
         const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
         expect(contribution).to.have.property('amount').equal(10000);
         expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(9950);
         expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-50);
-        expect(contribution).to.have.nested.property('data.platformTip').equal(100);
 
         const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
         expect(tip).to.have.property('amount').equal(100);
@@ -1327,7 +1325,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       await orderWithPlatformTip.reload();
       expect(orderWithPlatformTip).to.have.property('totalAmount').equal(10000);
-      expect(orderWithPlatformTip).to.have.nested.property('platformTipAmount').equal(0);
+      expect(orderWithPlatformTip).to.have.property('platformTipAmount').equal(0);
 
       const transactions = await orderWithPlatformTip.getTransactions({ where: { type: 'CREDIT' } });
       const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');

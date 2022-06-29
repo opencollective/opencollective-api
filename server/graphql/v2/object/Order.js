@@ -45,13 +45,8 @@ export const Order = new GraphQLObjectType({
         type: new GraphQLNonNull(Amount),
         description: 'Base order amount (without platform tip)',
         resolve(order) {
-          let value = order.totalAmount;
           // We remove Platform Tip from totalAmount
-          if (order.platformTipAmount) {
-            value = value - order.platformTipAmount;
-          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
-            value = value - order.data.platformFee;
-          }
+          const value = order.totalAmount - order.platformTipAmount;
           return { value, currency: order.currency };
         },
       },
@@ -158,13 +153,7 @@ export const Order = new GraphQLObjectType({
         type: Amount,
         description: 'Platform Tip attached to the Order.',
         resolve(order) {
-          if (order.platformTipAmount > 0) {
-            return { value: order.platformTipAmount, currency: order.currency };
-          } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
-            return { value: order.data.platformFee, currency: order.currency };
-          } else {
-            return { value: 0, currency: order.currency };
-          }
+          return { value: order.platformTipAmount, currency: order.currency };
         },
       },
       platformTipEligible: {
