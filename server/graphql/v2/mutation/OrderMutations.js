@@ -383,13 +383,6 @@ const orderMutations = {
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             order.set('platformTipAmount', platformTipInCents);
-            // Some parts of the order flow may still uses data.platformTip or data.platformFee
-            // TODO: we should be in a position to remove it
-            if (!order.data) {
-              order.set('data', {});
-            }
-            order.set('data.platformTip', platformTipInCents);
-            order.set('data.platformFee', platformTipInCents);
           }
           if (!isNil(hostFeePercent)) {
             order.set('data.hostFeePercent', hostFeePercent);
