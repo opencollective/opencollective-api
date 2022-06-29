@@ -136,7 +136,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
         const { order } = await createOrderWithPaymentMethod('name', {
           totalAmount: 1100,
-          data: { isFeesOnTop: true, platformFee: 100 },
+          platformTipAmount: 100,
         });
 
         await creditcard.processOrder(order);
@@ -163,7 +163,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         const { order } = await createOrderWithPaymentMethod('name', {
           totalAmount: 25000,
           currency: 'jpy',
-          data: { isFeesOnTop: true, platformFee: 5000 },
+          platformTipAmount: 5000,
         });
 
         await creditcard.processOrder(order);
@@ -220,7 +220,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
         const { order, host, collective } = await createOrderWithPaymentMethod('name', {
           totalAmount: 1100,
-          data: { isFeesOnTop: true, platformFee: 100 },
+          platformTipAmount: 100,
         });
         await collective.update({ hostFeePercent: 10 });
         await host.update({ plan: 'grow-plan-2021' });
@@ -243,8 +243,8 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         });
         const { order, host, collective } = await createOrderWithPaymentMethod('name', {
           totalAmount: 1100,
+          platformTipAmount: 100,
           currency: 'BRL',
-          data: { isFeesOnTop: true, platformFee: 100 },
         });
         await collective.update({ hostFeePercent: 10 });
         await host.update({ currency: 'BRL', plan: 'grow-plan-2021' });
