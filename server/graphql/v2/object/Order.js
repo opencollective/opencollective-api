@@ -163,7 +163,7 @@ export const Order = new GraphQLObjectType({
           } else if (order.data?.isFeesOnTop && order.data?.platformFee) {
             return { value: order.data.platformFee, currency: order.currency };
           } else {
-            return null;
+            return { value: 0, currency: order.currency };
           }
         },
       },
