@@ -4,6 +4,7 @@ import {
   flatten,
   get,
   isEmpty,
+  isNil,
   isNull,
   isUndefined,
   keyBy,
@@ -360,18 +361,18 @@ const orderMutations = {
 
           // Ensure amounts are provided with the right currency
           ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
-            if (order[field]) {
+            if (!isNil(order[field])) {
               assertAmountInputCurrency(order[field], order.currency, { name: field });
             }
           });
 
-          if (amount) {
+          if (!isNil(amount)) {
             const amountInCents = getValueInCentsFromAmountInput(amount);
             const platformTipInCents = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
             const totalAmount = amountInCents + platformTipInCents;
             order.set('totalAmount', totalAmount);
           }
-          if (paymentProcessorFee) {
+          if (!isNil(paymentProcessorFee)) {
             if (!order.data) {
               order.set('data', {});
             }
@@ -379,7 +380,7 @@ const orderMutations = {
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
             order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
           }
-          if (platformTip) {
+          if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
             if (!order.data) {
               order.set('data', {});
@@ -388,7 +389,7 @@ const orderMutations = {
             // Some parts of the order flow still uses data.platformFee
             order.set('data.platformFee', platformTipInCents);
           }
-          if (hostFeePercent) {
+          if (!isNil(hostFeePercent)) {
             order.set('data.hostFeePercent', hostFeePercent);
           }
           await order.save();
