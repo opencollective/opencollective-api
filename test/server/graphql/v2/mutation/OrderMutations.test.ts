@@ -1296,7 +1296,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
     });
 
-    it('should be able to remove platform tips', async () => {
+    it.skip('should be able to remove platform tips', async () => {
       order = await fakeOrder({
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
