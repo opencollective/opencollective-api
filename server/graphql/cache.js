@@ -44,6 +44,7 @@ function getCacheKeyForBudgetOrTransactionsSections(req, queryHash) {
       TransactionKind.CONTRIBUTION,
       TransactionKind.EXPENSE,
       TransactionKind.PLATFORM_TIP,
+      TransactionKind.HOST_FEE,
     ])
   ) {
     return;
