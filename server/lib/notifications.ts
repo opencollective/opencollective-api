@@ -375,17 +375,6 @@ const populateCommentActivity = async activity => {
 async function notifyByEmail(activity: Activity) {
   debug('notifyByEmail', activity.type);
   switch (activity.type) {
-    case ActivityTypes.USER_NEW_TOKEN:
-      notifyUserId(activity.UserId, activity, { sendEvenIfNotProduction: true });
-      break;
-
-    case ActivityTypes.USER_CHANGE_EMAIL:
-      notifyUserId(activity.UserId, activity, {
-        to: activity.data.emailWaitingForValidation,
-        sendEvenIfNotProduction: true,
-      });
-      break;
-
     case ActivityTypes.ORDER_PROCESSING:
       notifyUserId(activity.UserId, activity, {
         from: `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`,
@@ -738,6 +727,9 @@ async function notifyByEmail(activity: Activity) {
       notifyAdminsOfCollective(activity.CollectiveId, activity, {
         sendEvenIfNotProduction: true,
       });
+      break;
+
+    default:
       break;
   }
 }

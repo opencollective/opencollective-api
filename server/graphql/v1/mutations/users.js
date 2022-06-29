@@ -4,6 +4,7 @@ import config from 'config';
 
 import { activities } from '../../../constants';
 import cache from '../../../lib/cache';
+import emailLib from '../../../lib/email';
 import models from '../../../models';
 import { InvalidToken, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
@@ -62,10 +63,13 @@ export const updateUserEmail = async (user, newEmail) => {
   };
 
   // Send the email and return updated user
+  await emailLib.send(activities.USER_CHANGE_EMAIL, data.user.emailWaitingForValidation, data, {
+    sendEvenIfNotProduction: true,
+  });
   await models.Activity.create({
     type: activities.USER_CHANGE_EMAIL,
     UserId: user.id,
-    data,
+    data: { notify: false },
   });
 
   // Update the cache
