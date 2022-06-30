@@ -81,7 +81,6 @@ async function processOrder(order) {
     description: order.description,
     paymentProcessorFeeInHostCurrency,
     data: {
-      isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
       platformTipEligible,

@@ -345,7 +345,7 @@ function defineModel() {
 
   Transaction.prototype.hasPlatformTip = function () {
     return Boolean(
-      this.data?.isFeesOnTop &&
+      (this.data?.hasPlatformTip || this.data?.isFeesOnTop) &&
         this.kind !== TransactionKind.PLATFORM_TIP &&
         this.kind !== TransactionKind.PLATFORM_TIP_DEBT,
     );

@@ -233,7 +233,6 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   const data = {
     charge,
     balanceTransaction,
-    isFeesOnTop: order.data?.isFeesOnTop,
     hasPlatformTip: platformTip ? true : false,
     isSharedRevenue,
     platformTipEligible,

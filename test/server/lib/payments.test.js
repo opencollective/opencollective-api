@@ -328,7 +328,7 @@ describe('server/lib/payments', () => {
     });
   });
 
-  describe('createRefundTransaction', () => {
+  describe.only('createRefundTransaction', () => {
     it('should allow collective to start a refund', async () => {
       // Given the following pair of transactions created
       const transaction = await models.Transaction.createFromContributionPayload({
@@ -411,10 +411,9 @@ describe('server/lib/payments', () => {
         amountInHostCurrency: 5000,
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 250,
-        platformFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
+        data: { charge: { id: 'ch_refunded_charge' }, platformTip: 500 },
       });
 
       // Should have 6 transactions:

@@ -196,7 +196,6 @@ export const confirmOrder = async order => {
     description: order.description,
     paymentProcessorFeeInHostCurrency,
     data: {
-      isFeesOnTop: false,
       hasPlatformTip: !!platformTip,
       isSharedRevenue,
       platformTipEligible,

@@ -87,7 +87,6 @@ paymentMethodProvider.processOrder = async order => {
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
-      isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: !!platformTip,
       isSharedRevenue,
       platformTip,

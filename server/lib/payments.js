@@ -160,7 +160,8 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'hostFeeInHostCurrency',
     'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
-    'data.isFeesOnTop',
+    'data.hasPlatformTip',
+    'data.isFeesOnTop', // deprecated form, replaced by hasPlatformTip
     'data.tax',
     'kind',
     'isDebt',
@@ -831,7 +832,7 @@ export const getPlatformTip = object => {
   if (!isNil(object.platformTipAmount)) {
     return object.platformTipAmount;
   }
-  // Legacy form, but still being used when extracting platformTip from transactionData
+  // Legacy form, but still being used sometime when extracting platformTip from transactionData
   if (!isNil(object.data?.platformTip)) {
     return object.data?.platformTip;
   }
