@@ -160,7 +160,8 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'hostFeeInHostCurrency',
     'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
-    'data.isFeesOnTop',
+    'data.hasPlatformTip',
+    'data.isFeesOnTop', // deprecated form, replaced by hasPlatformTip
     'data.tax',
     'kind',
     'isDebt',
@@ -828,17 +829,12 @@ export const getApplicationFee = async (order, host = null) => {
 };
 
 export const getPlatformTip = object => {
-  if (object.platformTipAmount > 0) {
+  if (!isNil(object.platformTipAmount)) {
     return object.platformTipAmount;
-  } else if (object.data?.platformTip) {
-    return object.data?.platformTip;
-  } else if (object.data?.platformFee) {
-    return object.data?.platformFee;
   }
-  // Compatibility with some older tests
-  // TODO: doesn't seem accurate in multi currency
-  if (object.data?.isFeesOnTop && !isNil(object.platformFeeInHostCurrency)) {
-    return Math.abs(object.platformFeeInHostCurrency);
+  // Legacy form, but still being used sometime when extracting platformTip from transactionData
+  if (!isNil(object.data?.platformTip)) {
+    return object.data?.platformTip;
   }
   return 0;
 };

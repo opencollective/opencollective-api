@@ -124,7 +124,6 @@ const confirmOrder = async (req: Request, res: Response, next: NextFunction): Pr
       const data = {
         charge,
         balanceTransaction,
-        isFeesOnTop: order.data?.isFeesOnTop,
         hasPlatformTip: platformTip ? true : false,
         isSharedRevenue,
         platformTipEligible,

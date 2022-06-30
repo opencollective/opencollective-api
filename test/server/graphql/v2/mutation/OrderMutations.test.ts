@@ -940,6 +940,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           user,
         );
 
+        result.errors && console.error(result.errors);
         expect(result.errors).to.not.exist;
         expect(result.data.cancelOrder.status).to.eq('CANCELLED');
       });
@@ -1280,19 +1281,59 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
         await order.reload();
         expect(order).to.have.property('totalAmount').equal(10100);
-        expect(order).to.have.nested.property('data.platformTip').equal(100);
-        expect(order).to.have.nested.property('data.platformFee').equal(100);
+        expect(order).to.have.property('platformTipAmount').equal(100);
 
         const transactions = await order.getTransactions({ where: { type: 'CREDIT' } });
         const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
         expect(contribution).to.have.property('amount').equal(10000);
         expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(9950);
         expect(contribution).to.have.property('paymentProcessorFeeInHostCurrency').equal(-50);
-        expect(contribution).to.have.nested.property('data.platformTip').equal(100);
 
         const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
         expect(tip).to.have.property('amount').equal(100);
       });
+    });
+
+    it('should be able to remove platform tips', async () => {
+      const orderWithPlatformTip = await fakeOrder({
+        CreatedByUserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: collective.id,
+        status: 'PENDING',
+        frequency: 'ONETIME',
+        totalAmount: 10100,
+        currency: 'USD',
+        platformTipAmount: 100,
+      });
+
+      const result = await graphqlQueryV2(
+        processPendingOrderMutation,
+        {
+          action: 'MARK_AS_PAID',
+          order: {
+            id: idEncode(orderWithPlatformTip.id, 'order'),
+            platformTip: { valueInCents: 0, currency: orderWithPlatformTip.currency },
+            amount: { valueInCents: 10000, currency: orderWithPlatformTip.currency },
+          },
+        },
+        hostAdminUser,
+      );
+
+      result.errors && console.log(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data).to.have.nested.property('processPendingOrder.status').equal('PAID');
+
+      await orderWithPlatformTip.reload();
+      expect(orderWithPlatformTip).to.have.property('totalAmount').equal(10000);
+      expect(orderWithPlatformTip).to.have.property('platformTipAmount').equal(0);
+
+      const transactions = await orderWithPlatformTip.getTransactions({ where: { type: 'CREDIT' } });
+      const contribution = transactions.find(t => t.kind === 'CONTRIBUTION');
+      expect(contribution).to.have.property('amount').equal(10000);
+      expect(contribution).to.have.property('netAmountInCollectiveCurrency').equal(10000);
+
+      const tip = transactions.find(t => t.kind === 'PLATFORM_TIP');
+      expect(tip).to.be.undefined;
     });
   });
 });

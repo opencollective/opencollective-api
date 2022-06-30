@@ -56,7 +56,6 @@ paymentMethodProvider.processOrder = async order => {
     hostFeeInHostCurrency,
     description: order.description,
     data: {
-      isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
       platformTipEligible,

@@ -124,7 +124,6 @@ async function processOrder(order) {
     taxAmount: order.taxAmount,
     description: order.description,
     data: {
-      isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
       platformTipEligible,

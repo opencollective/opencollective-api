@@ -60,7 +60,6 @@ const transactionMutations = {
         FromCollectiveId: transaction.HostCollectiveId,
         data: {
           ...transaction.dataValues.data,
-          isFeesOnTop: true,
           hasPlatformTip: true,
           platformTip: platformTipInCents,
         },

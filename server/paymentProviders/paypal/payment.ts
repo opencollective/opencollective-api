@@ -62,7 +62,6 @@ const recordTransaction = async (
     description: order.description,
     data: {
       ...data,
-      isFeesOnTop: order.data?.isFeesOnTop,
       hasPlatformTip: platformTip ? true : false,
       isSharedRevenue,
       platformTipEligible,

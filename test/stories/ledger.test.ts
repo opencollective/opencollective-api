@@ -168,7 +168,7 @@ describe('test/stories/ledger', () => {
     });
 
     it('3. Simple contribution with 5% host fees and indirect platform tip (unsettled)', async () => {
-      const order = await fakeOrder({ ...baseOrderData, data: { isFeesOnTop: true, platformFee: 1000 } });
+      const order = await fakeOrder({ ...baseOrderData, platformTipAmount: 1000 });
       order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await executeOrder(contributorUser, order);
 
@@ -183,7 +183,7 @@ describe('test/stories/ledger', () => {
 
     it('4. Simple contribution with 5% host fees and indirect platform tip (settled)', async () => {
       // Create initial order
-      const order = await fakeOrder({ ...baseOrderData, data: { isFeesOnTop: true, platformFee: 1000 } });
+      const order = await fakeOrder({ ...baseOrderData, platformTipAmount: 1000 });
       order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await executeOrder(contributorUser, order);
 
@@ -204,7 +204,8 @@ describe('test/stories/ledger', () => {
       // Create initial order
       const order = await fakeOrder({
         ...baseOrderData,
-        data: { isFeesOnTop: true, platformFee: 1000, paymentProcessorFeeInHostCurrency: 200 },
+        platformTipAmount: 1000,
+        data: { paymentProcessorFeeInHostCurrency: 200 },
       });
       order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await executeOrder(contributorUser, order);
@@ -305,7 +306,8 @@ describe('test/stories/ledger', () => {
       // Create initial order
       const order = await fakeOrder({
         ...baseOrderData,
-        data: { isFeesOnTop: true, platformFee: 1000, paymentProcessorFeeInHostCurrency: 200 },
+        platformTipAmount: 1000,
+        data: { paymentProcessorFeeInHostCurrency: 200 },
       });
       order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await executeOrder(contributorUser, order);
@@ -402,9 +404,8 @@ describe('test/stories/ledger', () => {
       const order = await fakeOrder({
         ...baseOrderData,
         totalAmount: orderAmountInCollectiveCurrency, // JPY has a lower value, we need to set a higher amount to trigger the settlement
+        platformTipAmount: platformTipInCollectiveCurrency,
         data: {
-          isFeesOnTop: true,
-          platformFee: platformTipInCollectiveCurrency,
           paymentProcessorFeeInHostCurrency: processorFeeInHostCurrency,
         },
       });

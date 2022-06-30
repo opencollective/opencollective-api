@@ -411,10 +411,10 @@ describe('server/lib/payments', () => {
         amountInHostCurrency: 5000,
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 250,
-        platformFeeInHostCurrency: 500,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
-        data: { charge: { id: 'ch_refunded_charge' }, isFeesOnTop: true },
+        platformTipAmount: 500,
+        data: { charge: { id: 'ch_refunded_charge' } },
       });
 
       // Should have 6 transactions:
