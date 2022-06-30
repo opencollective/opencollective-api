@@ -55,10 +55,8 @@ export const Application = new GraphQLObjectType({
     },
     clientId: {
       type: GraphQLString,
-      resolve(application, args, req) {
-        if (req.remoteUser.isAdmin(application.CollectiveId)) {
-          return application.clientId;
-        }
+      resolve(application) {
+        return application.clientId;
       },
     },
     clientSecret: {
@@ -71,10 +69,8 @@ export const Application = new GraphQLObjectType({
     },
     redirectUri: {
       type: URL,
-      resolve(application, args, req) {
-        if (req.remoteUser.isAdmin(application.CollectiveId)) {
-          return application.callbackUrl;
-        }
+      resolve(application) {
+        return application.callbackUrl;
       },
     },
     account: {
