@@ -1010,7 +1010,7 @@ describe('server/graphql/v1/collective', () => {
       pubnubCollective = collectiveWithHost.collective;
       pubnubHostCollective = collectiveWithHost.hostCollective;
       sandbox = createSandbox();
-      cacheDelSpy = sandbox.spy(cache, 'del');
+      cacheDelSpy = sandbox.spy(cache, 'delete');
     });
     afterEach(() => sandbox.restore());
     it('edits public message', async () => {

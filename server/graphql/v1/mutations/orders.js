@@ -143,7 +143,7 @@ async function cleanOrdersLimit(order, reqIp, reqMask) {
   const limits = getOrdersLimit(order, reqIp, reqMask);
 
   for (const limit of limits) {
-    cache.del(limit.key);
+    cache.delete(limit.key);
   }
 }
 
