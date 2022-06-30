@@ -828,17 +828,12 @@ export const getApplicationFee = async (order, host = null) => {
 };
 
 export const getPlatformTip = object => {
-  if (object.platformTipAmount > 0) {
+  if (!isNil(object.platformTipAmount)) {
     return object.platformTipAmount;
   }
   // Legacy form, but still being used when extracting platformTip from transactionData
-  if (object.data?.platformTip) {
+  if (!isNil(object.data?.platformTip)) {
     return object.data?.platformTip;
-  }
-  // Compatibility with some older tests
-  // TODO: doesn't seem accurate in multi currency
-  if (object.data?.isFeesOnTop && !isNil(object.platformFeeInHostCurrency)) {
-    return Math.abs(object.platformFeeInHostCurrency);
   }
   return 0;
 };
