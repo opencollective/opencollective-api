@@ -328,7 +328,7 @@ describe('server/lib/payments', () => {
     });
   });
 
-  describe.only('createRefundTransaction', () => {
+  describe('createRefundTransaction', () => {
     it('should allow collective to start a refund', async () => {
       // Given the following pair of transactions created
       const transaction = await models.Transaction.createFromContributionPayload({
