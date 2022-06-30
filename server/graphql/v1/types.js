@@ -1506,6 +1506,12 @@ export const TierType = new GraphQLObjectType({
           return tier.data;
         },
       },
+      invoiceTemplate: {
+        type: InvoiceTemplateType,
+        resolve(tier) {
+          return tier.data?.invoiceTemplate;
+        },
+      },
     };
   },
 });
@@ -2137,4 +2143,19 @@ export const StripeErrorType = new GraphQLObjectType({
       },
     };
   },
+});
+
+export const InvoiceTemplateType = new GraphQLObjectType({
+  name: 'InvoiceTemplate',
+  description: 'Represents a receipt template.',
+  fields: () => ({
+    title: {
+      type: GraphQLString,
+      description: 'The title of the template.',
+    },
+    info: {
+      type: GraphQLString,
+      description: 'Information about the particular template.',
+    },
+  }),
 });

@@ -7,6 +7,7 @@ import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { InvoiceTemplateInput } from '../input/InvoiceTemplateInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 
@@ -20,6 +21,7 @@ export const addFundsMutation = {
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: GraphQLFloat },
+    invoiceTemplate: { type: InvoiceTemplateInput },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     checkRemoteUserCanUseHost(req);
@@ -47,6 +49,7 @@ export const addFundsMutation = {
         description: args.description,
         hostFeePercent: args.hostFeePercent,
         tier,
+        invoiceTemplate: args.invoiceTemplate,
       },
       req.remoteUser,
     );

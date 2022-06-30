@@ -14,6 +14,7 @@ import { Kind } from 'graphql/language';
 import { GraphQLJSON } from 'graphql-type-json';
 
 import { CaptchaInput } from '../v2/input/CaptchaInput';
+import { InvoiceTemplateInput } from '../v2/input/InvoiceTemplateInput';
 
 import { DateString } from './types';
 
@@ -297,6 +298,10 @@ export const TierInputType = new GraphQLInputObjectType({
     endsAt: {
       type: GraphQLString,
       description: 'End of the campaign',
+    },
+    invoiceTemplate: {
+      type: InvoiceTemplateInput,
+      description: 'Invoice receipt template',
     },
   }),
 });

@@ -91,7 +91,7 @@ export async function addFunds(order, remoteUser) {
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  await libPayments.executeOrder(remoteUser || user, orderCreated);
+  await libPayments.executeOrder(remoteUser || user, orderCreated, { invoiceTemplate: order.invoiceTemplate });
 
   // Invalidate Cloudflare cache for the collective pages
   purgeCacheForCollective(collective.slug);

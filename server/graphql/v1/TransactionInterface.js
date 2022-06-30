@@ -13,7 +13,15 @@ import { getContextPermission, PERMISSION_TYPE } from '../common/context-permiss
 import { TaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
+import {
+  DateString,
+  ExpenseType,
+  InvoiceTemplateType,
+  OrderType,
+  PaymentMethodType,
+  SubscriptionType,
+  UserType,
+} from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -78,6 +86,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
       refundTransaction: { type: TransactionInterfaceType },
+      invoiceTemplate: { type: InvoiceTemplateType },
     };
   },
 });
@@ -337,6 +346,16 @@ const TransactionFields = () => {
         }
         // TODO: put behind a login check
         return req.loaders.PaymentMethod.byId.load(paymentMethodId);
+      },
+    },
+    invoiceTemplate: {
+      type: InvoiceTemplateType,
+      async resolve(transaction, args, req) {
+        const hostCollective = await req.loaders.Collective.byId.load(transaction.HostCollectiveId);
+        return {
+          title: hostCollective.settings?.invoice?.template?.title,
+          info: hostCollective.settings?.invoice?.template?.info,
+        };
       },
     },
   };

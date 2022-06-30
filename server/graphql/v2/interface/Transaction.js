@@ -23,6 +23,7 @@ import { TransactionType } from '../enum/TransactionType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
+import { InvoiceTemplate } from '../object/InvoiceTemplate';
 import { Order } from '../object/Order';
 import { PaymentMethod } from '../object/PaymentMethod';
 import { TaxInfo } from '../object/TaxInfo';
@@ -559,6 +560,16 @@ export const TransactionFields = () => {
         if (!isNil(result?.balance)) {
           return { value: result.balance, currency: transaction.hostCurrency };
         }
+      },
+    },
+    invoiceTemplate: {
+      type: new GraphQLNonNull(InvoiceTemplate),
+      async resolve(transaction, _, req) {
+        const hostCollective = await req.loaders.Collective.byId.load(transaction.HostCollectiveId);
+        return {
+          title: hostCollective.settings?.invoice?.template?.title,
+          info: hostCollective.settings?.invoice?.template?.info,
+        };
       },
     },
   };
