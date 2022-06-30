@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaults, isNil } from 'lodash';
+import { defaults, flatten, isNil, keys, pickBy, reject } from 'lodash';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
@@ -24,6 +24,8 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare CollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
   public declare webhookUrl: CreationOptional<string>;
+  public declare User?: typeof models.User;
+  public declare Collective?: typeof models.Collective;
 
   getUser() {
     return models.User.findByPk(this.UserId);
@@ -180,6 +182,36 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     });
 
     return notifications.map(us => us.UserId);
+  }
+
+  static async getUnsubscribers(_where: { type?: ActivityClasses | ActivityTypes; CollectiveId?: number | number[] }) {
+    debug('getUnsubscribers', { _where });
+    const getUsers = notifications => notifications.map(notification => notification.User);
+
+    const include = [{ model: models.User }] as any;
+    const where = { ..._where, active: false } as any;
+
+    const collective = where.CollectiveId && (await models.Collective.findByPk(where.CollectiveId));
+    if (collective) {
+      where.CollectiveId = flatten([where.CollectiveId, collective.ParentCollectiveId, collective.HostCollectiveId]);
+    }
+
+    const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(where.type)));
+    where.type = flatten([where.type, `${where.type}.for.host`, ...classes]);
+
+    const unsubs = await Notification.findAll({
+      where,
+      include,
+    }).then(getUsers);
+
+    const subs = collective
+      ? await Notification.findAll({
+          where: { ...where, active: true, CollectiveId: [collective.id, collective.ParentCollectiveId] },
+          include,
+        }).then(getUsers)
+      : [];
+
+    return reject(unsubs, unsub => subs.some(user => unsub.id === user.id));
   }
 
   /**

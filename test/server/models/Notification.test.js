@@ -2,11 +2,11 @@ import Promise from 'bluebird';
 import { expect } from 'chai';
 import { createSandbox } from 'sinon';
 
-import ActivityTypes, { ActivityClasses } from '../../../server/constants/activities';
+import ActivityTypes, { ActivitiesPerClass, ActivityClasses } from '../../../server/constants/activities';
 import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
 import models from '../../../server/models';
-import { fakeNotification, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeNotification, fakeUser, multiple } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const { User, Collective, Notification, Tier, Order } = models;
@@ -179,6 +179,125 @@ describe('server/models/Notification', () => {
       await Notification.unsubscribe(`mailinglist.${event.slug}`, 'email', users[0].id, event.id);
       const subscribers2 = await Notification.getSubscribers(event.slug, event.slug);
       expect(subscribers2.length).to.equal(1);
+    });
+  });
+
+  describe('getUnsubscribers', () => {
+    before(async () => {
+      await multiple(fakeNotification, 10);
+    });
+
+    it('should return user who unsubscribed for activity type', async () => {
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: null,
+        active: false,
+      });
+      const unsubscribers = await models.Notification.getUnsubscribers({ type: notification.type });
+
+      expect(unsubscribers).to.containSubset([{ id: notification.UserId }]);
+    });
+
+    it('should return user who unsubscribed for activity class that contains the type', async () => {
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: null,
+        type: ActivityClasses.CONTRIBUTIONS,
+        active: false,
+      });
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: ActivitiesPerClass[ActivityClasses.CONTRIBUTIONS][0],
+      });
+
+      expect(unsubscribers).to.containSubset([{ id: notification.UserId }]);
+    });
+
+    it('should return user who unsubscribed for activity type in the collective', async () => {
+      const collective = await fakeCollective();
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: collective.id,
+        UserId: collective.CreatedByUserId,
+        active: false,
+      });
+
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: notification.type,
+        CollectiveId: collective.id,
+      });
+
+      expect(unsubscribers).to.have.length(1);
+      expect(unsubscribers).to.containSubset([{ id: collective.CreatedByUserId }]);
+    });
+
+    it('should return user who unsubscribed for activity type from the parent collective', async () => {
+      const parentCollective = await fakeCollective();
+      const collective = await fakeCollective({ ParentCollectiveId: parentCollective.id });
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: parentCollective.id,
+        UserId: parentCollective.CreatedByUserId,
+        active: false,
+      });
+
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: notification.type,
+        CollectiveId: collective.id,
+      });
+
+      expect(unsubscribers).to.have.length(1);
+      expect(unsubscribers).to.containSubset([{ id: parentCollective.CreatedByUserId }]);
+    });
+
+    it('should return user who unsubscribed for activity type from the host collective', async () => {
+      const host = await fakeCollective();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: host.id,
+        UserId: host.CreatedByUserId,
+        active: false,
+      });
+
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: notification.type,
+        CollectiveId: collective.id,
+      });
+
+      expect(unsubscribers).to.have.length(1);
+      expect(unsubscribers).to.containSubset([{ id: host.CreatedByUserId }]);
+    });
+
+    it('should omit a user who unsubscribed for activity type from the host collective but explicitly subscribed at the collective level', async () => {
+      const host = await fakeCollective();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: host.id,
+        UserId: host.CreatedByUserId,
+        active: false,
+      });
+      await fakeNotification({
+        channel: 'email',
+        type: notification.type,
+        CollectiveId: collective.id,
+        UserId: host.CreatedByUserId,
+        active: true,
+      });
+      const otherNotification = await fakeNotification({
+        channel: 'email',
+        type: notification.type,
+        CollectiveId: collective.id,
+        active: false,
+      });
+
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: notification.type,
+        CollectiveId: collective.id,
+      });
+
+      expect(unsubscribers).to.not.containSubset([{ id: host.CreatedByUserId }]);
+      expect(unsubscribers).to.containSubset([{ id: otherNotification.UserId }]);
     });
   });
 
