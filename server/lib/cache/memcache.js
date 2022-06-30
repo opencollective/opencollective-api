@@ -7,7 +7,7 @@ const makeMemcacheProvider = ({ servers, username, password }) => {
   const client = memjs.Client.create(servers, { username, password });
   return {
     clear: async () => client.flush(),
-    del: async key => client.delete(key),
+    delete: async key => client.delete(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
       const data = await client.get(key);
       if (data.value) {

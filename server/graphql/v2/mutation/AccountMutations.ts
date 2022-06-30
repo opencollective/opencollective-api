@@ -350,7 +350,7 @@ const accountMutations = {
         await account.activateBudget();
       }
 
-      await cache.del(`plan_${account.id}`);
+      await cache.delete(`plan_${account.id}`);
 
       return account;
     },

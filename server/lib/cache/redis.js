@@ -14,7 +14,7 @@ const makeRedisProvider = ({ serverUrl }) => {
   const client = asyncRedis.createClient(serverUrl, redisOptions);
   return {
     clear: async () => client.flushallAsync(),
-    del: async key => client.delAsync(key),
+    delete: async key => client.delAsync(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
       const value = await client.getAsync(key);
       if (value) {
