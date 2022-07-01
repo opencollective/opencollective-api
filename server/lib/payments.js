@@ -17,9 +17,9 @@ import models, { Op } from '../models';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import paymentProviders from '../paymentProviders';
 
+import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications/email';
 import { getFxRate } from './currency';
 import logger from './logger';
-import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';

@@ -6,10 +6,11 @@ import { assert, createSandbox } from 'sinon';
 import { activities } from '../../../server/constants';
 import channels from '../../../server/constants/channels';
 import emailLib from '../../../server/lib/email';
-import notify, {
+import notify from '../../../server/lib/notifications';
+import {
   notifyAdminsAndAccountantsOfCollective,
   notifyAdminsOfCollective,
-} from '../../../server/lib/notifications';
+} from '../../../server/lib/notifications/email';
 import slackLib from '../../../server/lib/slack';
 import {
   fakeActivity,

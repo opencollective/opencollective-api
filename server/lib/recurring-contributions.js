@@ -9,9 +9,9 @@ import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import models from '../models';
 
+import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications/email';
 import { FEATURE } from './allowed-features';
 import logger from './logger';
-import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
 import { reportErrorToSentry } from './sentry';

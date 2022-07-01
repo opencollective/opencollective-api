@@ -5,7 +5,7 @@ import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order_status';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import { notifyAdminsOfCollective } from '../../../lib/notifications';
+import { notifyAdminsOfCollective } from '../../../lib/notifications/email';
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject } from '../../common/transactions';

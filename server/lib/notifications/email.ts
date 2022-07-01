@@ -1,107 +1,23 @@
-import axios from 'axios';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, remove } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
-import { activities, channels, roles } from '../constants';
-import ActivityTypes from '../constants/activities';
-import { types as CollectiveType } from '../constants/collectives';
-import { TransactionKind } from '../constants/transaction-kind';
-import { TransactionTypes } from '../constants/transactions';
-import models from '../models';
-import Activity from '../models/Activity';
-import { sanitizerOptions as updateSanitizerOptions } from '../models/Update';
-
-import activitiesLib from './activities';
-import emailLib, { NO_REPLY_EMAIL } from './email';
-import { getTransactionPdf } from './pdf';
-import { reportErrorToSentry } from './sentry';
-import slackLib from './slack';
-import twitter from './twitter';
-import { parseToBoolean, toIsoDateStr } from './utils';
-import { enrichActivity, sanitizeActivity } from './webhooks';
+import { roles } from '../../constants';
+import ActivityTypes from '../../constants/activities';
+import { types as CollectiveType } from '../../constants/collectives';
+import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
+import models from '../../models';
+import Activity from '../../models/Activity';
+import { sanitizerOptions as updateSanitizerOptions } from '../../models/Update';
+import emailLib, { NO_REPLY_EMAIL } from '../email';
+import { getTransactionPdf } from '../pdf';
+import twitter from '../twitter';
+import { toIsoDateStr } from '../utils';
 
 const debug = debugLib('notifications');
-
-const notify = async (activity: Activity) => {
-  notifyByEmail(activity).catch(console.log);
-
-  // process notification entries for slack, twitter, gitter
-  if (!activity.CollectiveId || !activity.type) {
-    return;
-  }
-
-  if (shouldSkipActivity(activity)) {
-    return;
-  }
-
-  // Some activities involve multiple collectives (eg. collective applying to a host)
-  const collectiveIdsToNotify = [activity.CollectiveId];
-  if (activity.type === activities.COLLECTIVE_APPLY) {
-    collectiveIdsToNotify.push(activity.data.host.id);
-  }
-
-  const where = {
-    CollectiveId: collectiveIdsToNotify,
-    type: [ActivityTypes.ACTIVITY_ALL, activity.type],
-    active: true,
-  };
-
-  const notificationChannels = await models.Notification.findAll({ where });
-  return Promise.map(notificationChannels, async notifConfig => {
-    if (notifConfig.channel === channels.GITTER) {
-      return publishToGitter(activity, notifConfig);
-    } else if (notifConfig.channel === channels.SLACK) {
-      return slackLib.postActivityOnPublicChannel(activity, notifConfig.webhookUrl);
-    } else if (notifConfig.channel === channels.TWITTER) {
-      return twitter.tweetActivity(activity);
-    } else if (notifConfig.channel === channels.WEBHOOK) {
-      return publishToWebhook(activity, notifConfig.webhookUrl);
-    }
-  }).catch(err => {
-    reportErrorToSentry(err);
-    console.error(
-      `Error while publishing activity type ${activity.type} for collective ${activity.CollectiveId}`,
-      activity,
-      'error: ',
-      err,
-    );
-  });
-};
-
-function shouldSkipActivity(activity: Activity) {
-  if (activity.type === ActivityTypes.COLLECTIVE_TRANSACTION_CREATED) {
-    if (parseToBoolean(config.activities?.skipTransactions)) {
-      return true;
-    } else if (!['CONTRIBUTION', 'ADDED_FUNDS'].includes(activity.data?.transaction?.kind)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function publishToGitter(activity: Activity, notifConfig) {
-  const { message } = activitiesLib.formatMessageForPublicChannel(activity, 'markdown');
-  if (message && config.env === 'production') {
-    return axios.post(notifConfig.webhookUrl, { message }, { maxRedirects: 0 });
-  } else {
-    Promise.resolve();
-  }
-}
-
-function publishToWebhook(activity: Activity, webhookUrl: string) {
-  if (slackLib.isSlackWebhookUrl(webhookUrl)) {
-    return slackLib.postActivityOnPublicChannel(activity, webhookUrl);
-  } else {
-    const sanitizedActivity = sanitizeActivity(activity);
-    const enrichedActivity = enrichActivity(sanitizedActivity);
-    return axios.post(webhookUrl, enrichedActivity, { maxRedirects: 0 });
-  }
-}
-
 type NotifySubscribersOptions = {
   template?: string;
   from?: string;
@@ -120,7 +36,7 @@ type NotifySubscribersOptions = {
  * @param {*} users: [ { id, email }]
  * @param {*} activity [ { type, CollectiveId }]
  */
-async function notifySubscribers(users, activity: Partial<Activity>, options: NotifySubscribersOptions = {}) {
+const notifySubscribers = async (users, activity: Partial<Activity>, options: NotifySubscribersOptions = {}) => {
   const { data } = activity;
   if (!users || users.length === 0) {
     debug('notifySubscribers: no user to notify for activity', activity.type);
@@ -152,19 +68,19 @@ async function notifySubscribers(users, activity: Partial<Activity>, options: No
       }
     }),
   );
-}
+};
 
-async function notifyUserId(UserId: number, activity: Partial<Activity>, options: NotifySubscribersOptions = {}) {
+const notifyUserId = async (UserId: number, activity: Partial<Activity>, options: NotifySubscribersOptions = {}) => {
   const user = await models.User.findByPk(UserId);
   debug('notifyUserId', UserId, user && user.email, activity.type);
   return emailLib.send(activity.type, options.to || user.email, activity.data, options);
-}
+};
 
-export async function notifyAdminsOfCollective(
+export const notifyAdminsOfCollective = async (
   CollectiveId: number,
   activity: Partial<Activity>,
   options: NotifySubscribersOptions = {},
-) {
+) => {
   debug('notify admins of CollectiveId', CollectiveId);
   const collective = await models.Collective.findByPk(CollectiveId);
   if (!collective) {
@@ -179,13 +95,13 @@ export async function notifyAdminsOfCollective(
   debug('Total users to notify:', adminUsers.length);
   activity['CollectiveId'] = collective.id;
   return notifySubscribers(adminUsers, activity, options);
-}
+};
 
-export async function notifyAdminsAndAccountantsOfCollective(
+export const notifyAdminsAndAccountantsOfCollective = async (
   CollectiveId: number,
   activity: Partial<Activity>,
   options: NotifySubscribersOptions = {},
-) {
+) => {
   debug('notify admins and accountants of CollectiveId', CollectiveId);
   const collective = await models.Collective.findByPk(CollectiveId);
   if (!collective) {
@@ -209,16 +125,16 @@ export async function notifyAdminsAndAccountantsOfCollective(
   debug('Total users to notify:', usersToNotify.length);
   activity.CollectiveId = collective.id;
   return notifySubscribers(usersToNotify, activity, options);
-}
+};
 
 /**
  * Notify all the followers of the conversation.
  */
-export async function notifyConversationFollowers(
+const notifyConversationFollowers = async (
   conversation,
   activity: Partial<Activity>,
   options: NotifySubscribersOptions = {},
-) {
+) => {
   // Skip root comment as the notification is covered by the "New conversation" email
   if (conversation.RootCommentId === activity.data.comment.id) {
     return;
@@ -230,7 +146,7 @@ export async function notifyConversationFollowers(
   }
 
   return notifySubscribers(toNotify, activity, options);
-}
+};
 
 const notifyUpdateSubscribers = async (activity: Partial<Activity>) => {
   if (activity.data.update?.isChangelog) {
@@ -249,7 +165,7 @@ const notifyUpdateSubscribers = async (activity: Partial<Activity>) => {
   return notifySubscribers(allUsers, modifiedActivity, emailOpts);
 };
 
-function replaceVideosByImagePreviews(activity: Partial<Activity>) {
+const replaceVideosByImagePreviews = (activity: Partial<Activity>) => {
   const sanitizerOptions = {
     ...updateSanitizerOptions,
     transformTags: {
@@ -276,9 +192,9 @@ function replaceVideosByImagePreviews(activity: Partial<Activity>) {
   };
   activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizerOptions);
   return activity;
-}
+};
 
-function constructPreviewImageURL(service: string, id: string) {
+const constructPreviewImageURL = (service: string, id: string) => {
   if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {
     return `https://img.youtube.com/vi/${id}/0.jpg`;
   } else if (service === 'anchorFm') {
@@ -286,9 +202,9 @@ function constructPreviewImageURL(service: string, id: string) {
   } else {
     return null;
   }
-}
+};
 
-function parseServiceLink(videoLink: string) {
+const parseServiceLink = (videoLink: string) => {
   const regexps = {
     youtube: new RegExp(
       '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
@@ -311,7 +227,7 @@ function parseServiceLink(videoLink: string) {
     }
   }
   return {};
-}
+};
 
 const populateCommentActivity = async activity => {
   const collective = await models.Collective.findByPk(activity.CollectiveId);
@@ -322,7 +238,7 @@ const populateCommentActivity = async activity => {
   return { collective, fromCollective };
 };
 
-async function notifyByEmail(activity: Activity) {
+export const notifyByEmail = async (activity: Activity) => {
   debug('notifyByEmail', activity.type);
   switch (activity.type) {
     case ActivityTypes.COLLECTIVE_EXPENSE_CREATED:
@@ -709,6 +625,4 @@ async function notifyByEmail(activity: Activity) {
     default:
       break;
   }
-}
-
-export default notify;
+};
