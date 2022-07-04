@@ -30,9 +30,9 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       const result = await graphqlQueryV2(applicationQuery, { legacyId: application.id }, user);
       expect(result.data.application.id).to.exist;
       expect(result.data.application.type).to.eq('OAUTH');
-      expect(result.data.application.clientId).to.be.null;
+      expect(result.data.application.clientId).to.not.be.null;
       expect(result.data.application.clientSecret).to.be.null;
-      expect(result.data.application.redirectUri).to.be.null;
+      expect(result.data.application.redirectUri).to.not.be.null;
       expect(result.data.application.apiKey).to.be.null;
     }
   });
