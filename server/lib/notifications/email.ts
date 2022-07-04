@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { get, remove } from 'lodash';
+import { compact, get, remove } from 'lodash';
 
 import { roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -36,9 +36,13 @@ type NotifySubscribersOptions = {
  * @param {*} users: [ { id, email }]
  * @param {*} activity [ { type, CollectiveId }]
  */
-const notifySubscribers = async (users, activity: Partial<Activity>, options: NotifySubscribersOptions = {}) => {
-  const { data } = activity;
-  if (!users || users.length === 0) {
+const notifySubscribers = async (
+  _users: Array<{ id: number; email: string }>,
+  activity: Partial<Activity>,
+  options: NotifySubscribersOptions = {},
+) => {
+  const users = compact(_users);
+  if (users.length === 0) {
     debug('notifySubscribers: no user to notify for activity', activity.type);
     return;
   }
@@ -47,26 +51,23 @@ const notifySubscribers = async (users, activity: Partial<Activity>, options: No
     users.length,
     users.map(u => u && u.email, activity.type),
   );
-  const unsubscribedUserIds = await models.Notification.getUnsubscribersUserIds(
-    get(options, 'template', activity.type),
-    get(options, 'collective.id', activity.CollectiveId),
-  );
-  debug('unsubscribedUserIds', unsubscribedUserIds);
+
+  const { data, type, CollectiveId } = activity;
+  const unsubscribed = await models.Notification.getUnsubscribers({ type, CollectiveId });
+  debug('unsubscribedUsers', unsubscribed.map(user => `${user.slug} (${user.id})`).join(', '));
+
   if (process.env.ONLY) {
     debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
     return emailLib.send(options.template || activity.type, process.env.ONLY, data, options);
   }
   return Promise.all(
-    users.map(u => {
-      if (!u) {
-        return;
-      }
-      // skip users that have unsubscribed
-      if (unsubscribedUserIds.indexOf(u.id) === -1) {
-        debug('sendMessageFromActivity', activity.type, 'UserId', u.id);
-        return emailLib.send(options.template || activity.type, u.email, data, options);
-      }
-    }),
+    users
+      // Filter out unsubscribed users
+      .filter(user => !unsubscribed.includes(unsubscribedUser => unsubscribedUser.id === user.id))
+      .map(user => {
+        debug('sendMessageFromActivity', activity.type, 'UserId', user.id);
+        return emailLib.send(options.template || activity.type, user.email, data, options);
+      }),
   );
 };
 
@@ -140,7 +141,7 @@ const notifyConversationFollowers = async (
     return;
   }
 
-  const toNotify: { id: number }[] = await conversation.getUsersFollowing();
+  const toNotify: Array<{ id: number; email: string }> = await conversation.getUsersFollowing();
   if (options.exclude) {
     remove(toNotify, user => options.exclude.indexOf(user.id) !== -1);
   }
