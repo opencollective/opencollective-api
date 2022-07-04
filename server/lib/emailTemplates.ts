@@ -9,7 +9,6 @@ import handlebars from './handlebars';
 const templates = {};
 
 export const templateNames = [
-  'announcement',
   'archived.collective',
   'github.signup',
   'collective.apply',
