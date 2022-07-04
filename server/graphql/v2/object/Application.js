@@ -48,7 +48,7 @@ export const Application = new GraphQLObjectType({
       deprecationReason:
         '2022-06-16: This Application object will only be used for OAuth tokens. Use PersonalToken for user tokens',
       resolve(application, args, req) {
-        if (req.remoteUser.isAdmin(application.CollectiveId)) {
+        if (req.remoteUser?.isAdmin(application.CollectiveId)) {
           return application.apiKey;
         }
       },
@@ -62,7 +62,7 @@ export const Application = new GraphQLObjectType({
     clientSecret: {
       type: GraphQLString,
       resolve(application, args, req) {
-        if (req.remoteUser.isAdmin(application.CollectiveId)) {
+        if (req.remoteUser?.isAdmin(application.CollectiveId)) {
           return application.clientSecret;
         }
       },
