@@ -7,6 +7,7 @@ import {
   fakeHost,
   fakeMember,
   fakeOrganization,
+  fakeProject,
   fakeUpdate,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
@@ -17,6 +18,7 @@ const updateQuery = gqlV2/* GraphQL */ `
     update(account: { slug: $accountSlug }, slug: $slug) {
       id
       publishedAt
+      userCanSeeUpdate
       audienceStats(audience: $audience) {
         total
         individuals
@@ -28,14 +30,14 @@ const updateQuery = gqlV2/* GraphQL */ `
   }
 `;
 
+const addFakeUserMember = async (collective, role, collectiveData = undefined) => {
+  const user = await fakeUser(undefined, collectiveData);
+  await collective.addUserWithRole(user, role);
+  return user;
+};
+
 const addRandomMemberUsers = (collective, count, role) => {
-  return Promise.all(
-    times(count, async () => {
-      const user = await fakeUser();
-      await collective.addUserWithRole(user, role);
-      return user;
-    }),
-  );
+  return Promise.all(times(count, async () => addFakeUserMember(collective, role)));
 };
 
 describe('server/graphql/v2/query/UpdateQuery', () => {
@@ -157,6 +159,71 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       expect(audienceStats.coreContributors).to.eq(1);
       expect(audienceStats.individuals).to.eq(hostBackers.length);
       expect(audienceStats.hosted).to.eq(0);
+    });
+  });
+
+  describe('userCanSeeUpdate', () => {
+    let project, parentCollective, host, allUsers, allowedUsers, notAllowedUsers;
+
+    before(async () => {
+      host = await fakeHost();
+      parentCollective = await fakeCollective({ HostCollectiveId: host.id });
+      project = await fakeProject({ ParentCollectiveId: parentCollective.id });
+      allowedUsers = await Promise.all([
+        addFakeUserMember(project, 'ADMIN', { name: 'Project admin' }),
+        addFakeUserMember(project, 'BACKER', { name: 'Project backer' }),
+        addFakeUserMember(parentCollective, 'ADMIN', { name: 'Parent Collective admin' }),
+        addFakeUserMember(parentCollective, 'BACKER', { name: 'Parent Collective admin' }),
+        addFakeUserMember(host, 'ADMIN', { name: 'Host admin' }),
+      ]);
+      notAllowedUsers = await Promise.all([
+        addFakeUserMember(project, 'FOLLOWER', { name: 'Project follower' }),
+        addFakeUserMember(parentCollective, 'FOLLOWER', { name: 'Parent Collective follower' }),
+        addFakeUserMember(host, 'FOLLOWER', { name: 'Host follower' }),
+        fakeUser({ name: 'Random user' }), // Random user
+        null, // Unauthenticated
+      ]);
+      allUsers = [...allowedUsers, ...notAllowedUsers];
+    });
+
+    it('always returns true for published public updates', async () => {
+      const update = await fakeUpdate({ CollectiveId: project.id, publishedAt: new Date(), isPrivate: false });
+      const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
+
+      for (const user of allUsers) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.true;
+      }
+    });
+
+    it('returns false for unpublished updates if not allowed', async () => {
+      const update = await fakeUpdate({ CollectiveId: project.id, publishedAt: null, isPrivate: false });
+      const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
+
+      for (const user of allowedUsers) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.true;
+      }
+
+      for (const user of notAllowedUsers) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.false;
+      }
+    });
+
+    it('returns false for published private updates if not allowed', async () => {
+      const update = await fakeUpdate({ CollectiveId: project.id, publishedAt: new Date(), isPrivate: true });
+      const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
+
+      for (const user of allowedUsers) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.true;
+      }
+
+      for (const user of notAllowedUsers) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.false;
+      }
     });
   });
 });
