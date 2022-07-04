@@ -2,7 +2,6 @@ import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, remove } from 'lodash';
-import sanitizeHtml from 'sanitize-html';
 
 import { roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -11,11 +10,12 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
 import Activity from '../../models/Activity';
-import { sanitizerOptions as updateSanitizerOptions } from '../../models/Update';
 import emailLib, { NO_REPLY_EMAIL } from '../email';
 import { getTransactionPdf } from '../pdf';
 import twitter from '../twitter';
 import { toIsoDateStr } from '../utils';
+
+import { replaceVideosByImagePreviews } from './utils';
 
 const debug = debugLib('notifications');
 type NotifySubscribersOptions = {
@@ -161,72 +161,8 @@ const notifyUpdateSubscribers = async (activity: Partial<Activity>) => {
   const emailOpts = { from: activity.data.fromEmail };
   const update = await models.Update.findByPk(activity.data.update.id);
   const allUsers = await update.getUsersToNotify();
-  const modifiedActivity = replaceVideosByImagePreviews(activity);
-  return notifySubscribers(allUsers, modifiedActivity, emailOpts);
-};
-
-const replaceVideosByImagePreviews = (activity: Partial<Activity>) => {
-  const sanitizerOptions = {
-    ...updateSanitizerOptions,
-    transformTags: {
-      ...updateSanitizerOptions.transformTags,
-      iframe: (tagName, attribs) => {
-        if (!attribs.src) {
-          return '';
-        }
-        const { service, id } = parseServiceLink(attribs.src);
-        const imgSrc = constructPreviewImageURL(service, id);
-        if (imgSrc) {
-          return {
-            tagName: 'img',
-            attribs: {
-              src: imgSrc,
-              alt: `${service} content`,
-            },
-          };
-        } else {
-          return '';
-        }
-      },
-    },
-  };
-  activity.data.update.html = sanitizeHtml(activity.data.update.html, sanitizerOptions);
-  return activity;
-};
-
-const constructPreviewImageURL = (service: string, id: string) => {
-  if (service === 'youtube' && id.match('[a-zA-Z0-9_-]{11}')) {
-    return `https://img.youtube.com/vi/${id}/0.jpg`;
-  } else if (service === 'anchorFm') {
-    return `https://opencollective.com/static/images/anchor-fm-logo.png`;
-  } else {
-    return null;
-  }
-};
-
-const parseServiceLink = (videoLink: string) => {
-  const regexps = {
-    youtube: new RegExp(
-      '(?:https?://)?(?:www\\.)?youtu(?:\\.be/|be(-nocookie)?\\.com/\\S*(?:watch|embed)(?:(?:(?=/[^&\\s?]+(?!\\S))/)|(?:\\S*v=|v/)))([^&\\s?]+)',
-      'i',
-    ),
-    anchorFm: /^(http|https)?:\/\/(www\.)?anchor\.fm\/([^/]+)(\/embed)?(\/episodes\/)?([^/]+)?\/?$/,
-  };
-  for (const service in regexps) {
-    videoLink = videoLink.replace('/?showinfo=0', '');
-    const matches = regexps[service].exec(videoLink);
-    if (matches) {
-      if (service === 'anchorFm') {
-        const podcastName = matches[3];
-        const episodeId = matches[6];
-        const podcastUrl = `${podcastName}/embed`;
-        return { service, id: episodeId ? `${podcastUrl}/episodes/${episodeId}` : podcastUrl };
-      } else {
-        return { service, id: matches[matches.length - 1] };
-      }
-    }
-  }
-  return {};
+  activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
+  return notifySubscribers(allUsers, activity, emailOpts);
 };
 
 const populateCommentActivity = async activity => {
