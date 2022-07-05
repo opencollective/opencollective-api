@@ -227,7 +227,7 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.event = event.info;
       activity.data.isOffline = activity.data.event.locationName !== 'Online';
       activity.data.collective = parentCollective.info;
-      await notify.user(activity, { userId: user.id });
+      await notify.user(activity, { ...options, userId: user.id });
       break;
     }
 
