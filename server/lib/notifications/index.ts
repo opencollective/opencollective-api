@@ -46,7 +46,7 @@ const publishToWebhook = (activity: Activity, webhookUrl: string) => {
   }
 };
 
-const notify = async (activity: Activity) => {
+const dispatch = async (activity: Activity) => {
   notifyByEmail(activity).catch(console.log);
 
   // process notification entries for slack, twitter, gitter
@@ -92,4 +92,4 @@ const notify = async (activity: Activity) => {
   });
 };
 
-export default notify;
+export default dispatch;

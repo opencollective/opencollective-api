@@ -1,7 +1,7 @@
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
-import notify from '../lib/notifications';
+import dispatch from '../lib/notifications';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
@@ -79,7 +79,7 @@ function setupModel() {
       hooks: {
         afterCreate(activity) {
           if (activity.data?.notify !== false) {
-            notify(activity); // intentionally no return statement, needs to be async
+            dispatch(activity); // intentionally no return statement, needs to be async
           }
           return Promise.resolve();
         },
