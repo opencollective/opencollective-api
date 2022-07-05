@@ -9,7 +9,7 @@ import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation
 import orderStatus from '../../server/constants/order_status';
 import { purgeCacheForCollective } from '../../server/lib/cache';
 import logger from '../../server/lib/logger';
-import { notifyAdminsOfCollective } from '../../server/lib/notifications';
+import { notifyAdminsOfCollective } from '../../server/lib/notifications/email';
 import * as libPayments from '../../server/lib/payments';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';

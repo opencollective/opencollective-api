@@ -9,7 +9,7 @@ import moment from 'moment';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
 import { getCollectiveTransactionsCsv } from '../../server/lib/csv';
-import { notifyAdminsOfCollective } from '../../server/lib/notifications';
+import { notifyAdminsOfCollective } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';

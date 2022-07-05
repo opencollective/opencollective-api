@@ -184,7 +184,11 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     return notifications.map(us => us.UserId);
   }
 
-  static async getUnsubscribers(_where: { type?: ActivityClasses | ActivityTypes; CollectiveId?: number | number[] }) {
+  static async getUnsubscribers(_where: {
+    type?: ActivityClasses | ActivityTypes;
+    CollectiveId?: number | number[];
+    UserId?: number | number[];
+  }) {
     debug('getUnsubscribers', { _where });
     const getUsers = notifications => notifications.map(notification => notification.User);
 
