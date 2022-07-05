@@ -113,6 +113,18 @@ const isHostAdmin = async (req: express.Request, expense: typeof models.Expense)
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
+export const checkRemoteUserCanUseExpenses = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage expenses');
+  }
+  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    throw new FeatureNotAllowedForUser();
+  }
+  if (req.userToken && !req.userToken.getScope().includes('expenses')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "expenses".');
+  }
+};
+
 export type ExpensePermissionEvaluator = (
   req: express.Request,
   expense: typeof models.Expense,

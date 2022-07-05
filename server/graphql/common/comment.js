@@ -4,7 +4,9 @@ import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
-import { canComment } from './expenses';
+import { checkRemoteUserCanUseConversations } from './conversations';
+import { canComment, checkRemoteUserCanUseExpenses } from './expenses';
+import { checkRemoteUserCanUseUpdates } from './update';
 
 /**
  * Return the collective ID for the given comment based on it's association (conversation,
@@ -23,21 +25,33 @@ const getCollectiveIdForCommentEntity = async commentValues => {
   }
 };
 
+function checkRemoteUserCanUseComment(comment, req) {
+  if (comment.ConversationId) {
+    checkRemoteUserCanUseConversations(req);
+  } else if (comment.UpdateId) {
+    checkRemoteUserCanUseUpdates(req);
+  } else if (comment.ExpenseId) {
+    checkRemoteUserCanUseExpenses(req);
+  }
+}
+
 /**
  *  Edits a comment
  * @param {object} comment - comment to edit
  * @param {object} remoteUser - logged user
  */
-async function editComment(commentData, remoteUser) {
-  mustBeLoggedInTo(remoteUser, 'edit this comment');
+async function editComment(commentData, req) {
+  mustBeLoggedInTo(req.remoteUser, 'edit this comment');
 
   const comment = await models.Comment.findByPk(commentData.id);
   if (!comment) {
     throw new NotFound(`This comment does not exist or has been deleted.`);
   }
 
+  checkRemoteUserCanUseComment(comment, req);
+
   // Check permissions
-  if (remoteUser.id !== comment.CreatedByUserId && !remoteUser.isAdmin(comment.CollectiveId)) {
+  if (req.remoteUser.id !== comment.CreatedByUserId && !req.remoteUser.isAdmin(comment.CollectiveId)) {
     throw new Unauthorized('You must be the author or an admin of this collective to edit this comment');
   }
 
@@ -51,24 +65,29 @@ async function editComment(commentData, remoteUser) {
  * @param {number} id - comment identifier
  * @param {object} remoteUser - logged user
  */
-async function deleteComment(id, remoteUser) {
-  mustBeLoggedInTo(remoteUser, 'delete this comment');
+async function deleteComment(id, req) {
+  mustBeLoggedInTo(req.remoteUser, 'delete this comment');
+
   const comment = await models.Comment.findByPk(id);
   if (!comment) {
     throw new NotFound(`This comment does not exist or has been deleted.`);
   }
 
+  checkRemoteUserCanUseComment(comment, req);
+
   // Check permissions
-  if (remoteUser.id !== comment.CreatedByUserId && !remoteUser.isAdmin(comment.CollectiveId)) {
+  if (req.remoteUser.id !== comment.CreatedByUserId && !req.remoteUser.isAdmin(comment.CollectiveId)) {
     throw new Unauthorized('You need to be logged in as a core contributor or as a host to delete this comment');
   }
 
   return comment.destroy();
 }
 
-async function createCommentResolver(_, { comment: commentData }, req) {
+async function createComment(commentData, req) {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
+
+  checkRemoteUserCanUseComment(commentData, req);
 
   if (!commentData.html) {
     throw new ValidationFailed('Comment is empty');
@@ -120,4 +139,4 @@ function fromCollectiveResolver({ FromCollectiveId }, _, { loaders }) {
   return loaders.Collective.byId.load(FromCollectiveId);
 }
 
-export { editComment, deleteComment, createCommentResolver, collectiveResolver, fromCollectiveResolver };
+export { editComment, deleteComment, createComment, collectiveResolver, fromCollectiveResolver };

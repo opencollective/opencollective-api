@@ -14,10 +14,20 @@ import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInpu
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
 
+const checkRemoteUserCanUseTransactions = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage transactions.');
+  }
+  if (req.userToken && !req.userToken.getScope().includes('transactions')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "transactions".');
+  }
+};
+
 const transactionMutations = {
   addPlatformTipToTransaction: {
     type: new GraphQLNonNull(Transaction),
     description: 'Add platform tips to a transaction',
+    deprecationReason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.",
     args: {
       transaction: {
         type: new GraphQLNonNull(TransactionReferenceInput),
@@ -29,9 +39,7 @@ const transactionMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to add a platform tip');
-      }
+      checkRemoteUserCanUseTransactions(req);
 
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
 
@@ -82,9 +90,8 @@ const transactionMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseTransactions(req);
+
       const transaction = await fetchTransactionWithReference(args.transaction);
       return legacyRefundTransaction(undefined, { id: transaction.id }, req);
     },
@@ -103,9 +110,7 @@ const transactionMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseTransactions(req);
 
       // get transaction info
       const transaction = await fetchTransactionWithReference(args.transaction);

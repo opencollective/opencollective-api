@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import { pick } from 'lodash';
 
 import FEATURE from '../../constants/feature';
@@ -14,21 +15,29 @@ interface CreateConversationParams {
   tags?: string[] | null;
 }
 
+export const checkRemoteUserCanUseConversations = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage conversations');
+  }
+  if (!canUseFeature(req.remoteUser, FEATURE.CONVERSATIONS)) {
+    throw new FeatureNotAllowedForUser();
+  }
+  if (req.userToken && !req.userToken.getScope().includes('conversations')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "conversations".');
+  }
+};
+
 /**
  * Create a conversation started by the given `remoteUser`.
  *
  * @returns the conversation
  */
 export const createConversation = async (
-  remoteUser: typeof models.User,
+  req: Request,
   params: CreateConversationParams,
 ): Promise<typeof models.Conversation> => {
   // For now any authenticated user can create a conversation to any collective
-  if (!remoteUser) {
-    throw new Unauthorized();
-  } else if (!canUseFeature(remoteUser, FEATURE.CONVERSATIONS)) {
-    throw new FeatureNotAllowedForUser();
-  }
+  checkRemoteUserCanUseConversations(req);
 
   const { CollectiveId, title, html, tags } = params;
 
@@ -40,7 +49,7 @@ export const createConversation = async (
     throw new FeatureNotSupportedForCollective();
   }
 
-  return models.Conversation.createWithComment(remoteUser, collective, title, html, tags);
+  return models.Conversation.createWithComment(req.remoteUser, collective, title, html, tags);
 };
 
 interface EditConversationParams {
@@ -54,20 +63,19 @@ interface EditConversationParams {
  * @returns the conversation
  */
 export const editConversation = async (
-  remoteUser: typeof models.User,
+  req: Request,
   params: EditConversationParams,
 ): Promise<typeof models.Conversation> => {
-  if (!remoteUser) {
-    throw new Unauthorized();
-  } else if (!canUseFeature(remoteUser, FEATURE.CONVERSATIONS)) {
-    throw new FeatureNotAllowedForUser();
-  }
+  checkRemoteUserCanUseConversations(req);
 
   // Collective must exist and use be author or collective admin
   const conversation = await models.Conversation.findByPk(params.id);
   if (!conversation) {
     throw new NotFound();
-  } else if (!remoteUser.isAdmin(conversation.FromCollectiveId) && !remoteUser.isAdmin(conversation.CollectiveId)) {
+  } else if (
+    !req.remoteUser.isAdmin(conversation.FromCollectiveId) &&
+    !req.remoteUser.isAdmin(conversation.CollectiveId)
+  ) {
     throw new Unauthorized();
   }
 

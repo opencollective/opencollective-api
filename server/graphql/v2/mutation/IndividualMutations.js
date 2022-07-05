@@ -1,8 +1,9 @@
 import { GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { Unauthorized } from '../../errors';
 import { Individual } from '../object/Individual';
+
+import { checkRemoteUserCanUseAccount } from './AccountMutations';
 
 const individualMutations = {
   setChangelogViewDate: {
@@ -13,11 +14,10 @@ const individualMutations = {
         type: new GraphQLNonNull(GraphQLDateTime),
       },
     },
-    resolve: async (_, { changelogViewDate }, { remoteUser }) => {
-      if (!remoteUser) {
-        throw new Unauthorized();
-      }
-      const user = await remoteUser.update({ changelogViewDate: changelogViewDate });
+    resolve: async (_, { changelogViewDate }, req) => {
+      checkRemoteUserCanUseAccount(req);
+
+      const user = await req.remoteUser.update({ changelogViewDate: changelogViewDate });
       return user.getCollective();
     },
   },

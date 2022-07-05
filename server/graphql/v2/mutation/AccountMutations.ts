@@ -19,6 +19,7 @@ import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { idDecode } from '../identifiers';
@@ -80,6 +81,12 @@ const accountMutations = {
           throw new Forbidden();
         }
 
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          checkRemoteUserCanUseHost(req);
+        } else {
+          checkRemoteUserCanUseAccount(req);
+        }
+
         if (
           args.key === 'collectivePage' &&
           ![AccountTypeToModelMapping.FUND, AccountTypeToModelMapping.PROJECT].includes(account.type)
@@ -114,6 +121,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanUseHost(req);
+
       return sequelize.transaction(async dbTransaction => {
         const account = await fetchAccountWithReference(args.account, {
           throwIfMissing: true,
@@ -174,9 +183,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<void> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       account.host = await account.getHostCollective();
@@ -213,9 +220,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
 
@@ -273,9 +278,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
 
@@ -307,6 +310,7 @@ const accountMutations = {
   editHostPlan: {
     type: new GraphQLNonNull(Host),
     description: 'Update the plan',
+    deprecationReason: '2022-07-06: Host Plans are deprecated.',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -318,9 +322,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
       if (!req.remoteUser.isAdminOfCollective(account)) {
@@ -365,9 +367,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const id = idDecode(args.account.id, 'account');
       const account = await req.loaders.Collective.byId.load(id);
@@ -404,9 +404,7 @@ const accountMutations = {
     },
 
     async resolve(_: void, args, req: express.Request): Promise<void> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const id = args.account.legacyId || idDecode(args.account.id, 'account');
       const account = await req.loaders.Collective.byId.load(id);
@@ -431,9 +429,7 @@ const accountMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const id = args.account.legacyId || idDecode(args.account.id, 'account');
       const account = await req.loaders.Collective.byId.load(id);

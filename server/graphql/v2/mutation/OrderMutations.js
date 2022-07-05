@@ -17,6 +17,7 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
+import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
@@ -28,6 +29,7 @@ import {
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
@@ -74,6 +76,11 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      // Ok for non-authenticated users, we only check scope
+      if (!checkScope('orders')) {
+        throw new Unauthorized('The User Token is not allowed for mutations in scope "orders".');
+      }
+
       if (args.order.taxes?.length > 1) {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
@@ -151,12 +158,10 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
       const decodedId = getDecodedId(args.order.id);
       const { reason, reasonCode } = args;
-
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to cancel a recurring contribution');
-      }
 
       const query = {
         where: { id: decodedId },
@@ -230,13 +235,11 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
       const decodedId = getDecodedId(args.order.id);
       const haveDetailsChanged = !isUndefined(args.amount) && !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod);
-
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to update a order');
-      }
 
       const order = await models.Order.findOne({
         where: { id: decodedId },
@@ -322,6 +325,11 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      // Ok for non-authenticated users, we only check scope
+      if (!checkScope('orders')) {
+        throw new Unauthorized('The User Token is not allowed for mutations in scope "orders".');
+      }
+
       const baseOrder = await fetchOrderWithReference(args.order);
       const updatedOrder = await confirmOrderLegacy(baseOrder, req.remoteUser, args.guestToken);
       return {
@@ -343,6 +351,8 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
+      checkRemoteUserCanUseOrders(req);
+
       const order = await fetchOrderWithReference(args.order);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
 
@@ -404,7 +414,7 @@ const orderMutations = {
   },
   moveOrders: {
     type: new GraphQLNonNull(new GraphQLList(Order)),
-    description: 'A mutation for root users to move orders from one account to another',
+    description: '[Root only] A mutation to move orders from one account to another',
     args: {
       orders: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(OrderReferenceInput))),
@@ -425,9 +435,9 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Unauthorized('Only root admins can move orders at the moment');
-      } else if (!args.orders.length) {
+      checkRemoteUserCanRoot(req);
+
+      if (!args.orders.length) {
         return [];
       } else if (!args.fromAccount && !args.tier) {
         throw new ValidationFailed('You must specify a "fromAccount" or a "tier" for the update');

@@ -32,6 +32,10 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
 
     return this.scope;
   }
+
+  hasScope(scope) {
+    return this.getScope().includes(scope);
+  }
 }
 
 UserToken.init(

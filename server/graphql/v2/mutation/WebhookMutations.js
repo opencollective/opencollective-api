@@ -8,6 +8,15 @@ import { fetchWebhookWithReference, WebhookReferenceInput } from '../input/Webho
 import { WebhookUpdateInput } from '../input/WebhookUpdateInput';
 import { Webhook } from '../object/Webhook';
 
+const checkRemoteUserCanUseWebhooks = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage webhooks');
+  }
+  if (req.userToken && !req.userToken.getScope().includes('webhooks')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "webhooks".');
+  }
+};
+
 const createWebhook = {
   type: Webhook,
   args: {
@@ -16,13 +25,7 @@ const createWebhook = {
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to create a webhook.');
-    }
-
-    if (!req.remoteUser) {
-      throw new Unauthorized();
-    }
+    checkRemoteUserCanUseWebhooks(req);
 
     const account = await fetchAccountWithReference(args.webhook.account);
     if (!account) {
@@ -53,9 +56,7 @@ const updateWebhook = {
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to update a webhook.');
-    }
+    checkRemoteUserCanUseWebhooks(req);
 
     const notification = await fetchWebhookWithReference(args.webhook);
     if (!notification) {
@@ -89,9 +90,7 @@ const deleteWebhook = {
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to delete a webhook.');
-    }
+    checkRemoteUserCanUseWebhooks(req);
 
     const notification = await fetchWebhookWithReference(args.webhook);
     if (!notification) {

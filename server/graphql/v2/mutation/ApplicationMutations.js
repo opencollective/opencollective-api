@@ -3,6 +3,7 @@ import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import models from '../../../models';
+import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded, Unauthorized } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
 import { ApplicationCreateInput } from '../input/ApplicationCreateInput';
@@ -18,9 +19,7 @@ const createApplication = {
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to create an application.');
-    }
+    checkRemoteUserCanUseApplications(req);
 
     const collective = args.application.account
       ? await fetchAccountWithReference(args.application.account, { throwIfMissing: true })
@@ -54,9 +53,7 @@ const updateApplication = {
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to update an application.');
-    }
+    checkRemoteUserCanUseApplications(req);
 
     const application = await fetchApplicationWithReference(args.application, {
       include: [{ association: 'collective', required: true }],
@@ -86,9 +83,7 @@ const deleteApplication = {
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to delete an application.');
-    }
+    checkRemoteUserCanUseApplications(req);
 
     const application = await fetchApplicationWithReference(args.application, {
       include: [{ association: 'collective', required: true }],

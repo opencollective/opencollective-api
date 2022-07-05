@@ -1,0 +1,64 @@
+import FEATURE from '../../constants/feature';
+import { canUseFeature } from '../../lib/user-permissions';
+import { FeatureNotAllowedForUser, Unauthorized } from '../errors';
+
+export const checkRemoteUserCanUseVirtualCards = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage virtual cards.');
+  }
+  if (!checkScope('virtualCards')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "virtualCards".');
+  }
+};
+
+export const checkRemoteUserCanUsePayoutMethods = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage payout methods.');
+  }
+  if (!checkScope('payoutMethods')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "payoutMethods".');
+  }
+};
+
+export const checkRemoteUserCanUseAccount = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage account.');
+  }
+  if (!checkScope('account')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "account".');
+  }
+};
+
+export const checkRemoteUserCanUseHost = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage hosted accounts.');
+  }
+  if (!checkScope('host')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "host".');
+  }
+};
+
+export const checkRemoteUserCanUseOrders = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage orders');
+  }
+  if (!canUseFeature(req.remoteUser, FEATURE.ORDER)) {
+    return new FeatureNotAllowedForUser();
+  }
+  if (!checkScope('orders')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "orders".');
+  }
+};
+
+export const checkRemoteUserCanUseApplications = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage applications.');
+  }
+  if (!checkScope('applications')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "applications".');
+  }
+};
+
+export const checkScope = (req, scope) => {
+  return !req.userToken || req.userToken.hasScope(scope);
+};

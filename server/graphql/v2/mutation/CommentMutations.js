@@ -1,6 +1,6 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { createCommentResolver, deleteComment, editComment } from '../../common/comment';
+import { createComment, deleteComment, editComment } from '../../common/comment';
 import { Unauthorized } from '../../errors';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
@@ -17,9 +17,9 @@ const commentMutations = {
         type: new GraphQLNonNull(CommentUpdateInput),
       },
     },
-    resolve(_, { comment }, { remoteUser }) {
+    resolve(_, { comment }, req) {
       const commentToEdit = { ...comment, id: getDecodedId(comment.id) };
-      return editComment(commentToEdit, remoteUser);
+      return editComment(commentToEdit, req);
     },
   },
   deleteComment: {
@@ -29,9 +29,9 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve(_, { id }, { remoteUser }) {
+    resolve(_, { id }, req) {
       const decodedId = getDecodedId(id);
-      return deleteComment(decodedId, remoteUser);
+      return deleteComment(decodedId, req);
     },
   },
   createComment: {
@@ -41,7 +41,7 @@ const commentMutations = {
         type: new GraphQLNonNull(CommentCreateInput),
       },
     },
-    resolve: async (entity, args, req) => {
+    resolve: async (_, args, req) => {
       if (args.comment.ConversationId) {
         args.comment.ConversationId = idDecode(args.comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
       }
@@ -68,7 +68,7 @@ const commentMutations = {
         args.comment.ExpenseId = expense.id;
       }
 
-      return createCommentResolver(entity, args, req);
+      return createComment(args, req);
     },
   },
 };

@@ -11,6 +11,7 @@ import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkScope } from '../../common/scope-check';
 import { BadRequest, Unauthorized } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
@@ -75,6 +76,7 @@ const accountFieldsDefinition = () => ({
     type: GraphQLString,
     description: 'Private, legal name. Used for expense receipts, taxes, etc.',
     resolve: async (account, _, req) => {
+      // TODO: scope for legalName?
       if (
         !canSeeLegalName(req.remoteUser, account) &&
         !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, account.id)
@@ -325,6 +327,10 @@ const accountFieldsDefinition = () => ({
       ...CollectionArgs,
     },
     async resolve(collective, args, req) {
+      if (!checkScope(req, 'applications')) {
+        return null;
+      }
+
       if (!req.remoteUser?.isAdminOfCollective(collective)) {
         return null;
       }
@@ -371,7 +377,7 @@ const accountFieldsDefinition = () => ({
         CollectiveId: collective.id,
         [Op.and]: [],
       };
-      if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective)) {
+      if (onlyPublishedUpdates || !req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'updates')) {
         where = assign(where, { publishedAt: { [Op.ne]: null } });
       }
       if (onlyChangelogUpdates) {
@@ -427,6 +433,10 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(account, args, req) {
+      if (!checkScope(req, 'virtualCards')) {
+        return null;
+      }
+
       if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
       }
@@ -491,6 +501,10 @@ const accountFieldsDefinition = () => ({
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     },
     async resolve(account, args, req) {
+      if (!checkScope(req, 'virtualCards')) {
+        return null;
+      }
+
       if (!req.remoteUser?.isAdminOfCollective(account)) {
         throw new Unauthorized(
           'You need to be logged in as an admin of the collective to see its virtual card merchants',
@@ -571,7 +585,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(Policies),
     async resolve(account, _, req) {
       const policies = account.data?.policies || {};
-      if (req.remoteUser?.isAdminOfCollective(account)) {
+      if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
         return policies;
       }
 
@@ -747,9 +761,19 @@ export const AccountFields = {
     type: new GraphQLList(PayoutMethod),
     description: 'The list of payout methods that this collective can use to get paid',
     async resolve(collective, _, req) {
-      if (req.remoteUser && req.remoteUser.isAdminOfCollective(collective)) {
+      // Scope check is a a bit more complex because we have to accomodate the case where payoutMethods are public
+      if (
+        req.remoteUser?.isAdminOfCollective(collective) &&
+        !collective.isHostAccount &&
+        !checkScope(req, 'payoutMethods')
+      ) {
+        return null;
+      }
+
+      if (req.remoteUser?.isAdminOfCollective(collective)) {
         return req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
       }
+
       // Exception for Fiscal Hosts so people can post Expense accross hosts
       if (collective.isHostAccount) {
         const payoutMethods = await req.loaders.PayoutMethod.byCollectiveId.load(collective.id);
@@ -760,6 +784,7 @@ export const AccountFields = {
           pm => pm.isSaved && [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(pm.type),
         );
       }
+
       return null;
     },
   },
@@ -782,7 +807,12 @@ export const AccountFields = {
     },
     description: 'The list of payment methods that this collective can use to pay for Orders',
     async resolve(collective, args, req) {
+      if (!checkScope(req, 'paymentMethods')) {
+        return null;
+      }
+
       if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        // TODO: return null instead of empty array
         return [];
       }
 
@@ -816,11 +846,15 @@ export const AccountFields = {
     description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
     // Only for admins, no pagination
     async resolve(collective, _, req) {
-      if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
+      if (!checkScope(req, 'connectedAccounts')) {
         return null;
-      } else {
-        return req.loaders.Collective.connectedAccounts.load(collective.id);
       }
+
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      }
+
+      return req.loaders.Collective.connectedAccounts.load(collective.id);
     },
   },
   categories: {

@@ -13,7 +13,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
-import { Forbidden } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
   AccountReferenceInput,
@@ -22,6 +22,15 @@ import {
 } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
+
+const checkRemoteUserCanRoot = req => {
+  if (!req.remoteUser?.isRoot()) {
+    throw new Unauthorized('You need to be logged in with root capabilities.');
+  }
+  if (req.userToken && !req.userToken.getScope().includes('root')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "root".');
+  }
+};
 
 const BanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
@@ -60,9 +69,7 @@ export default {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Forbidden('Only root users can perform this action');
-      }
+      checkRemoteUserCanRoot(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
@@ -98,9 +105,7 @@ export default {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Forbidden('Only root users can perform this action');
-      }
+      checkRemoteUserCanRoot(req);
 
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
@@ -136,9 +141,7 @@ export default {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Forbidden('Only root users can perform this action');
-      }
+      checkRemoteUserCanRoot(req);
 
       const baseAccounts = await fetchAccountsWithReferences(args.account);
       const allAccounts = !args.includeAssociatedAccounts ? baseAccounts : await getAccountsNetwork(baseAccounts);
