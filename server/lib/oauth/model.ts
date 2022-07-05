@@ -44,6 +44,7 @@ export const dbOAuthAuthorizationCodeToAuthorizationCode = (
   redirectUri: authorization.redirectUri,
   client: dbApplicationToClient(authorization.application),
   user: authorization.user,
+  scope: authorization.scope,
 });
 
 /**
@@ -79,6 +80,7 @@ const model: OauthModel = {
         refreshTokenExpiresAt: token.refreshTokenExpiresAt,
         ApplicationId: application.id,
         UserId: user.id,
+        scope: token.scope,
       });
       oauthToken.user = user;
       oauthToken.client = client;
@@ -150,6 +152,7 @@ const model: OauthModel = {
       code: code.authorizationCode,
       expiresAt: code.expiresAt,
       redirectUri: code.redirectUri,
+      scope: code.scope,
     });
 
     authorization.application = application;
@@ -179,7 +182,14 @@ const model: OauthModel = {
   // -- Scope --
 
   async verifyScope(token: Token, scope: string | string[]): Promise<boolean> {
+    debug('model.verifyScope', token, scope);
     return true; // Scope verification is not implemented yet, but it's required by the library
+  },
+
+  async validateScope(user: typeof models.User, client: Client, scope: string | string[]): Promise<string | string[]> {
+    debug('model.validateScope', user, client, scope);
+
+    return scope; // Scope validation is not implemented yet, and is not required by the library
   },
 };
 

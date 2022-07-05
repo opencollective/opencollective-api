@@ -18,6 +18,7 @@ class OAuthAuthorizationCode extends Model<
   public declare deletedAt: CreationOptional<Date>;
   public declare ApplicationId: number;
   public declare UserId: number;
+  public declare scope: string;
 
   public declare application?: NonAttribute<typeof models.Application>;
   public declare user?: NonAttribute<typeof models.User>;
@@ -72,6 +73,10 @@ OAuthAuthorizationCode.init(
     },
     deletedAt: {
       type: DataTypes.DATE,
+    },
+    scope: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
   },
   {

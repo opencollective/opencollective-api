@@ -17,6 +17,7 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare ApplicationId: number;
   public declare UserId: number;
   public declare data: Record<string, unknown>;
+  public declare scope: string;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
@@ -69,6 +70,10 @@ UserToken.init(
     },
     data: {
       type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    scope: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
     // Standard temporal fields
