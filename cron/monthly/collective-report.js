@@ -6,10 +6,11 @@ import config from 'config';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
 
+import ActivityTypes from '../../server/constants/activities';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
 import { getCollectiveTransactionsCsv } from '../../server/lib/csv';
-import { notifyAdminsOfCollective } from '../../server/lib/notifications/email';
+import { notify } from '../../server/lib/notifications/email';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { getTiersStats, parseToBoolean } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
@@ -210,11 +211,12 @@ const processCollective = async collective => {
       return collective;
     })
     .then(async collective => {
-      const activity = {
-        type: 'collective.monthlyreport',
-        data: emailData,
-      };
-      return notifyAdminsOfCollective(collective.id, activity, options);
+      const activity = await models.Activity.create({
+        type: ActivityTypes.COLLECTIVE_MONTHLY_REPORT,
+        CollectiveId: collective.id,
+        data: { ...emailData, notify: false },
+      });
+      return notify.collective(activity, options);
     })
     .catch(e => {
       console.error('Error in processing collective', collective.slug, e);

@@ -109,20 +109,6 @@ export const notify = {
   },
 };
 
-/** Backward compatible shim */
-export const notifyAdminsOfCollective = async (
-  collectiveId: number,
-  activity: Partial<Activity>,
-  options: NotifySubscribersOptions = {},
-) => notify.collective(activity, { ...options, collectiveId });
-
-/** Backward compatible shim */
-export const notifyAdminsAndAccountantsOfCollective = async (
-  collectiveId: number,
-  activity: Partial<Activity>,
-  options: NotifySubscribersOptions = {},
-) => notify.collective(activity, { ...options, collectiveId, role: [roles.ACCOUNTANT, roles.ADMIN] });
-
 const populateCommentActivity = async activity => {
   const collective = await models.Collective.findByPk(activity.CollectiveId);
   activity.data.collective = collective.info;
@@ -561,7 +547,46 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       break;
 
+    case ActivityTypes.CONTRIBUTION_REJECTED:
+      await notify.collective(activity, {
+        collectiveId: activity.data.fromCollective.id,
+      });
+      break;
+
+    case ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW:
+    case ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER:
+      await notify.collective(activity, {
+        collectiveId: activity.data.host.id,
+        replyTo: activity.data.replyTo,
+      });
+      break;
+
+    case ActivityTypes.PAYMENT_FAILED:
+    case ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION:
+    case ActivityTypes.ORDER_CANCELED_ARCHIVED_COLLECTIVE: {
+      const { fromCollective, collective } = activity.data;
+      await notify.collective(activity, {
+        collectiveId: fromCollective.id,
+        from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+      });
+      break;
+    }
+
     default:
       break;
   }
 };
+
+/** Backward compatible shim */
+export const notifyAdminsOfCollective = async (
+  collectiveId: number,
+  activity: Partial<Activity>,
+  options: NotifySubscribersOptions = {},
+) => notify.collective(activity, { ...options, collectiveId });
+
+/** Backward compatible shim */
+export const notifyAdminsAndAccountantsOfCollective = async (
+  collectiveId: number,
+  activity: Partial<Activity>,
+  options: NotifySubscribersOptions = {},
+) => notify.collective(activity, { ...options, collectiveId, role: [roles.ACCOUNTANT, roles.ADMIN] });

@@ -17,7 +17,7 @@ import models, { Op } from '../models';
 import TransactionSettlement, { TransactionSettlementStatus } from '../models/TransactionSettlement';
 import paymentProviders from '../paymentProviders';
 
-import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications/email';
+import { notify } from './notifications/email';
 import { getFxRate } from './currency';
 import logger from './logger';
 import { getTransactionPdf } from './pdf';
@@ -674,13 +674,12 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       }
     }
 
-    const emailOptions = {
+    const activity = { type: activities.THANKYOU, data };
+    return notify.collective(activity, {
+      collectiveId: data.fromCollective.id,
       from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
       attachments,
-    };
-
-    const activity = { type: 'thankyou', data };
-    return notifyAdminsAndAccountantsOfCollective(data.fromCollective.id, activity, emailOptions);
+    });
   }
 };
 
@@ -778,9 +777,9 @@ const sendManualPendingOrderEmail = async order => {
     host: host.info,
     fromCollective: fromCollective.activity,
     pendingOrderLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
+    replyTo,
   };
-
-  return notifyAdminsOfCollective(host.id, { type: 'order.new.pendingFinancialContribution', data }, { replyTo });
+  return await models.Activity.create({ type: activities.ORDER_PENDING_CONTRIBUTION_NEW, data });
 };
 
 export const sendReminderPendingOrderEmail = async order => {
@@ -801,8 +800,7 @@ export const sendReminderPendingOrderEmail = async order => {
     fromCollective: fromCollective.activity,
     viewDetailsLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
   };
-
-  return notifyAdminsOfCollective(host.id, { type: 'order.reminder.pendingFinancialContribution', data });
+  return await models.Activity.create({ type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER, data });
 };
 
 export const sendExpiringCreditCardUpdateEmail = async data => {

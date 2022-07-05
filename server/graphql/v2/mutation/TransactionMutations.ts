@@ -5,7 +5,6 @@ import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order_status';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import { notifyAdminsOfCollective } from '../../../lib/notifications/email';
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject } from '../../common/transactions';
@@ -166,18 +165,15 @@ const transactionMutations = {
       purgeCacheForCollective(toAccount.slug);
 
       // email contributor(s) to let them know their transaction has been rejected
-      const collective = {
-        name: toAccount.name,
-      };
-
-      const data = { collective, rejectionReason };
-
       const activity = {
         type: activities.CONTRIBUTION_REJECTED,
-        data,
+        data: {
+          rejectionReason,
+          collective: toAccount.info,
+          fromCollective: fromAccount.info,
+        },
       };
-
-      await notifyAdminsOfCollective(fromAccount.id, activity);
+      await models.Activity.create(activity);
 
       return transaction;
     },
