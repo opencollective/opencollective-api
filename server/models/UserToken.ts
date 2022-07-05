@@ -24,6 +24,14 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
 
   public declare user?: NonAttribute<typeof models.User>;
   public declare client?: NonAttribute<typeof models.Application>;
+
+  getScope() {
+    if (typeof this.scope === 'string') {
+      return this.scope.split(',');
+    }
+
+    return this.scope;
+  }
 }
 
 UserToken.init(

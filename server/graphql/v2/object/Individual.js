@@ -23,14 +23,20 @@ export const Individual = new GraphQLObjectType({
         async resolve(userCollective, args, req) {
           if (!req.remoteUser) {
             return null;
-          } else {
-            const user = await (userCollective.isIncognito
-              ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
-              : req.loaders.User.byCollectiveId.load(userCollective.id));
+          }
 
-            if (user && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
-              return user.email;
+          if (req.userToken) {
+            if (!req.userToken.getScope().includes('email')) {
+              return null;
             }
+          }
+
+          const user = await (userCollective.isIncognito
+            ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
+            : req.loaders.User.byCollectiveId.load(userCollective.id));
+
+          if (user && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            return user.email;
           }
         },
       },
