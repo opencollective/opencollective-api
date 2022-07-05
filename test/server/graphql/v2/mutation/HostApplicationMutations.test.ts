@@ -202,6 +202,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         expect(application.status).to.eq('APPROVED');
 
         // Test email
+        await waitForCondition(() => sendEmailSpy.callCount === 1);
         expect(sendEmailSpy.callCount).to.eq(1);
         const [emailTo, subject, body, { bcc }] = sendEmailSpy.getCall(0).args;
         expect(emailTo).to.eq(collectiveAdmin.email);

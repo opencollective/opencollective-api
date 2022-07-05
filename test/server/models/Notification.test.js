@@ -357,12 +357,11 @@ describe('server/models/Notification', () => {
       });
 
       await expense.createActivity('collective.expense.paid');
-      await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0, {
-        tag: '$100.00 from webpack for pizza',
-      });
+      await utils.waitForCondition(() => emailSendMessageSpy.callCount > 0);
 
-      expect(emailSendMessageSpy.callCount).to.equal(1);
-      expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user.email);
+      const callArgs = emailSendMessageSpy.getCalls().map(calls => calls.args);
+      const emails = callArgs.map(args => args[0]);
+      expect(emails).to.not.include(hostAdmin.email);
     });
   });
 

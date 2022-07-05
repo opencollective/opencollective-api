@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import config from 'config';
-import { mock, spy, stub, useFakeTimers } from 'sinon';
+import { createSandbox, mock, spy, stub, useFakeTimers } from 'sinon';
 
 import status from '../../../server/constants/order_status';
 import emailLib from '../../../server/lib/email';
@@ -16,6 +16,7 @@ import {
 } from '../../../server/lib/recurring-contributions';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import { fakeOrder } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
@@ -215,107 +216,73 @@ describe('server/lib/recurring-contributions', () => {
   });
 
   describe('#handleRetryStatus', () => {
-    let emailMock;
-    beforeEach(() => (emailMock = mock(emailLib)));
-    afterEach(() => emailMock.restore());
+    let emailMock, sandbox, sendSpy;
+
+    beforeEach(() => {
+      emailMock = mock(emailLib);
+      sandbox = createSandbox();
+      sendSpy = sandbox.spy(emailLib, 'send');
+    });
+
+    afterEach(() => {
+      emailMock.restore();
+      sandbox.restore();
+    });
+
     it('should send confirmation email when processing is successful', async () => {
-      // Given the following order with fields required by the email
-      // template
-      const order = {
-        Subscription: { chargeRetryCount: 0 },
-        collective: {
-          getRelatedCollectives: () => Promise.resolve(null),
-          getHostCollective: () => Promise.resolve(null),
-          getParentCollective: () => Promise.resolve(null),
-        },
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'user3@opencollective.com' },
-        getUserForActivity: () => Promise.resolve({ email: 'user3@opencollective.com' }),
-      };
+      const order = await fakeOrder(
+        { subscription: { chargeRetryCount: 0 } },
+        { withSubscription: true, withBackerMember: true },
+      );
 
-      // And given that we expect the method send from the mock to be
-      // called
-      emailMock.expects('send').once().withArgs('thankyou', 'user3@opencollective.com');
-
-      // When the status of the order is handled
       await handleRetryStatus(order);
+      await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      // Then the email mock should be verified
-      emailMock.verify();
+      expect(sendSpy.args[0]).to.containSubset(['thankyou', order.createdByUser.email]);
     });
 
     it('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
-      // Given an order
-      const order = {
-        Subscription: { chargeRetryCount: 1 },
-        collective: { name: 'test', slug: 'testslug' },
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'user3@opencollective.com' },
-      };
+      const order = await fakeOrder(
+        { subscription: { chargeRetryCount: 1 } },
+        { withSubscription: true, withBackerMember: true },
+      );
 
-      // And given that we expect the method send from the mock to be
-      // called
-      emailMock
-        .expects('send')
-        .once()
-        .withArgs(
-          'payment.failed',
-          'user3@opencollective.com',
-          {
-            lastAttempt: false,
-            order: order.info,
-            collective: order.collective.info,
-            fromCollective: order.fromCollective.minimal,
-            subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
-            errorMessage: undefined,
-          },
-          {
-            from: 'test <no-reply@testslug.opencollective.com>',
-          },
-        );
-
-      // When the status of the order is handled
       await handleRetryStatus(order);
+      await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      // Then the email mock should be verified
-      emailMock.verify();
+      expect(sendSpy.args[0]).to.containSubset([
+        'payment.failed',
+        order.createdByUser.email,
+        {
+          lastAttempt: false,
+          subscriptionsLink: `${config.host.website}/recurring-contributions`,
+        },
+        {
+          from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+        },
+      ]);
     });
 
     it('should send a cancelation email if retries are >= MAX_RETRIES', async () => {
-      // Given an order
-      const order = {
-        Subscription: { chargeRetryCount: MAX_RETRIES },
-        collective: { name: 'test', slug: 'testslug' },
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'user3@opencollective.com' },
-      };
+      const order = await fakeOrder(
+        { subscription: { chargeRetryCount: MAX_RETRIES } },
+        { withSubscription: true, withBackerMember: true },
+      );
 
-      // And given that we expect the method send from the mock to be
-      // called
-      emailMock
-        .expects('send')
-        .once()
-        .withArgs(
-          'payment.failed',
-          'user3@opencollective.com',
-          {
-            lastAttempt: true,
-            order: order.info,
-            collective: order.collective.info,
-            fromCollective: order.fromCollective.minimal,
-            subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
-            errorMessage: undefined,
-          },
-          {
-            from: 'test <no-reply@testslug.opencollective.com>',
-          },
-        );
-
-      // When the status of the order is handled
       await handleRetryStatus(order);
+      await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      // Then the email mock should be verified
-      emailMock.verify();
+      expect(sendSpy.args[0]).to.containSubset([
+        'payment.failed',
+        order.createdByUser.email,
+        {
+          lastAttempt: true,
+          subscriptionsLink: `${config.host.website}/recurring-contributions`,
+        },
+        {
+          from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+        },
+      ]);
     });
   });
 
