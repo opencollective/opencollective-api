@@ -19,7 +19,7 @@ import {
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseHost,
 } from '../../common/scope-check';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { InviteMemberInput } from '../input/InviteMemberInput';
