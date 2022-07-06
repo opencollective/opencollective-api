@@ -1,7 +1,8 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models from '../../../models';
-import { checkRemoteUserCanUseConversations, createConversation, editConversation } from '../../common/conversations';
+import { createConversation, editConversation } from '../../common/conversations';
+import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import Conversation from '../object/Conversation';
 

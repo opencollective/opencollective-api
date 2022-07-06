@@ -1,9 +1,8 @@
 import { GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Individual } from '../object/Individual';
-
-import { checkRemoteUserCanUseAccount } from './AccountMutations';
 
 const individualMutations = {
   setChangelogViewDate: {

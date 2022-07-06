@@ -3,9 +3,10 @@ import { pick } from 'lodash';
 
 import FEATURE from '../../constants/feature';
 import { hasFeature } from '../../lib/allowed-features';
-import { canUseFeature } from '../../lib/user-permissions';
 import models from '../../models';
-import { FeatureNotAllowedForUser, FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
+import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
+
+import { checkRemoteUserCanUseConversations } from './scope-check';
 
 /** Params given to create a new conversation */
 interface CreateConversationParams {
@@ -14,18 +15,6 @@ interface CreateConversationParams {
   CollectiveId: number;
   tags?: string[] | null;
 }
-
-export const checkRemoteUserCanUseConversations = req => {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage conversations');
-  }
-  if (!canUseFeature(req.remoteUser, FEATURE.CONVERSATIONS)) {
-    throw new FeatureNotAllowedForUser();
-  }
-  if (req.userToken && !req.userToken.getScope().includes('conversations')) {
-    throw new Unauthorized('The User Token is not allowed for mutations in scope "conversations".');
-  }
-};
 
 /**
  * Create a conversation started by the given `remoteUser`.

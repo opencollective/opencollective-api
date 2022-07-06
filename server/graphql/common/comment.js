@@ -4,9 +4,12 @@ import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
-import { checkRemoteUserCanUseConversations } from './conversations';
-import { canComment, checkRemoteUserCanUseExpenses } from './expenses';
-import { checkRemoteUserCanUseUpdates } from './update';
+import { canComment } from './expenses';
+import {
+  checkRemoteUserCanUseConversations,
+  checkRemoteUserCanUseExpenses,
+  checkRemoteUserCanUseUpdates,
+} from './scope-check';
 
 /**
  * Return the collective ID for the given comment based on it's association (conversation,

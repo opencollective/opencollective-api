@@ -2,18 +2,11 @@ import { get } from 'lodash';
 
 import cache, { purgeCacheForCollective } from '../../lib/cache';
 import models from '../../models';
-import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../errors';
+import { Forbidden, NotFound, ValidationFailed } from '../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
-export const checkRemoteUserCanUseUpdates = req => {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage updates.');
-  }
-  if (req.userToken && !req.userToken.getScope().includes('updates')) {
-    throw new Unauthorized('The User Token is not allowed for mutations in scope "updates".');
-  }
-};
+import { checkRemoteUserCanUseUpdates } from './scope-check';
 
 export async function createUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);

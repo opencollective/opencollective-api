@@ -15,7 +15,6 @@ import {
   approveExpense,
   canDeleteExpense,
   canVerifyDraftExpense,
-  checkRemoteUserCanUseExpenses,
   createExpense,
   editExpense,
   markExpenseAsIncomplete,
@@ -27,6 +26,7 @@ import {
   unapproveExpense,
   unscheduleExpensePayment,
 } from '../../common/expenses';
+import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { createUser } from '../../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';

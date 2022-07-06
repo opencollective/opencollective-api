@@ -59,6 +59,39 @@ export const checkRemoteUserCanUseApplications = req => {
   }
 };
 
+export const checkRemoteUserCanUseConversations = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage conversations');
+  }
+  if (!canUseFeature(req.remoteUser, FEATURE.CONVERSATIONS)) {
+    throw new FeatureNotAllowedForUser();
+  }
+  if (!checkScope('conversations')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "conversations".');
+  }
+};
+
+export const checkRemoteUserCanUseExpenses = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage expenses');
+  }
+  if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
+    throw new FeatureNotAllowedForUser();
+  }
+  if (req.userToken && !req.userToken.getScope().includes('expenses')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "expenses".');
+  }
+};
+
+export const checkRemoteUserCanUseUpdates = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage updates.');
+  }
+  if (req.userToken && !req.userToken.getScope().includes('updates')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "updates".');
+  }
+};
+
 export const checkRemoteUserCanRoot = req => {
   if (!req.remoteUser?.isRoot()) {
     throw new Unauthorized('You need to be logged in.');
