@@ -1506,12 +1506,6 @@ export const TierType = new GraphQLObjectType({
           return tier.data;
         },
       },
-      invoiceTemplate: {
-        type: InvoiceTemplateType,
-        resolve(tier) {
-          return tier.data?.invoiceTemplate;
-        },
-      },
     };
   },
 });

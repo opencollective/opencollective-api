@@ -350,12 +350,8 @@ const TransactionFields = () => {
     },
     invoiceTemplate: {
       type: InvoiceTemplateType,
-      async resolve(transaction, args, req) {
-        const hostCollective = await req.loaders.Collective.byId.load(transaction.HostCollectiveId);
-        return {
-          title: hostCollective.settings?.invoice?.template?.title,
-          info: hostCollective.settings?.invoice?.template?.info,
-        };
+      async resolve(transaction) {
+        return transaction.data?.invoiceTemplate;
       },
     },
   };
