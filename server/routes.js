@@ -22,6 +22,7 @@ import { getGraphqlCacheKey } from './graphql/cache';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
+import { Unauthorized } from '../lib/errors';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
@@ -156,6 +157,16 @@ export default async app => {
         return;
       }
       req.cacheKey = cacheKey;
+    }
+    next();
+  });
+
+  /**
+   * GraphQL scope
+   */
+  app.use('/graphql/v1', async (req, res, next) => {
+    if (req.userToken && req.userToken.type === 'OAUTH') {
+      throw new Unauthorized('OAuth access tokens are not accepted on GraphQL v1.');
     }
     next();
   });
