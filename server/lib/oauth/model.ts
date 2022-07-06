@@ -183,14 +183,17 @@ const model: OauthModel = {
 
   async verifyScope(token: Token, scope: string | string[]): Promise<boolean> {
     debug('model.verifyScope', token, scope);
+
     return true; // Scope verification is not implemented yet, but it's required by the library
   },
 
+  /*
   async validateScope(user: typeof models.User, client: Client, scope: string | string[]): Promise<string | string[]> {
     debug('model.validateScope', user, client, scope);
 
-    return scope; // Scope validation is not implemented yet, and is not required by the library
+    return scope) // Scope validation is not implemented yet, and is not required by the library
   },
+  */
 };
 
 export default model;
