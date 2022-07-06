@@ -6,6 +6,7 @@ import { v4 as uuid } from 'uuid';
 import roles from '../../../constants/roles';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { EventCreateInput } from '../input/EventCreateInput';
@@ -14,11 +15,7 @@ import { Event } from '../object/Event';
 const DEFAULT_EVENT_SETTINGS = {};
 
 async function createEvent(_, args, req) {
-  const { remoteUser } = req;
-
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to create an Event');
-  }
+  checkRemoteUserCanUseAccount(req);
 
   const parent = await fetchAccountWithReference(args.account);
   if (!parent) {
@@ -41,7 +38,7 @@ async function createEvent(_, args, req) {
     endsAt: args.event.endsAt,
     timezone: args.event.timezone,
     ParentCollectiveId: parent.id,
-    CreatedByUserId: remoteUser.id,
+    CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_EVENT_SETTINGS, ...args.event.settings },
   };
 
@@ -58,6 +55,7 @@ async function createEvent(_, args, req) {
 
 const createEventMutation = {
   type: Event,
+  description: 'Create an Event. Scope: "account".',
   args: {
     event: {
       description: 'Information about the Event to create (name, slug, description, tags, settings)',

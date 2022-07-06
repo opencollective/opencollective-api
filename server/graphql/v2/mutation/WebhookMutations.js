@@ -1,24 +1,17 @@
 import { GraphQLNonNull } from 'graphql';
 
 import models from '../../../models';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
+import { Forbidden, NotFound } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { WebhookCreateInput } from '../input/WebhookCreateInput';
 import { fetchWebhookWithReference, WebhookReferenceInput } from '../input/WebhookReferenceInput';
 import { WebhookUpdateInput } from '../input/WebhookUpdateInput';
 import { Webhook } from '../object/Webhook';
 
-const checkRemoteUserCanUseWebhooks = req => {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage webhooks');
-  }
-  if (req.userToken && !req.userToken.getScope().includes('webhooks')) {
-    throw new Unauthorized('The User Token is not allowed for mutations in scope "webhooks".');
-  }
-};
-
 const createWebhook = {
   type: Webhook,
+  description: 'Create webhook. Scope: "webhooks".',
   args: {
     webhook: {
       type: new GraphQLNonNull(WebhookCreateInput),
@@ -50,6 +43,7 @@ const createWebhook = {
 
 const updateWebhook = {
   type: Webhook,
+  description: 'Update webhook. Scope: "webhooks".',
   args: {
     webhook: {
       type: new GraphQLNonNull(WebhookUpdateInput),
@@ -84,6 +78,7 @@ const updateWebhook = {
 
 const deleteWebhook = {
   type: Webhook,
+  description: 'Delete webhook. Scope: "webhooks".',
   args: {
     webhook: {
       type: new GraphQLNonNull(WebhookReferenceInput),

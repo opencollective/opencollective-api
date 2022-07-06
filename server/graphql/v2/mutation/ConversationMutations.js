@@ -9,7 +9,7 @@ import Conversation from '../object/Conversation';
 const conversationMutations = {
   createConversation: {
     type: Conversation,
-    description: 'Create a conversation',
+    description: 'Create a conversation. Scope: "conversations".',
     args: {
       title: {
         type: new GraphQLNonNull(GraphQLString),
@@ -35,6 +35,7 @@ const conversationMutations = {
   },
   editConversation: {
     type: Conversation,
+    description: 'Edit a conversation. Scope: "conversations".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -56,7 +57,7 @@ const conversationMutations = {
   },
   followConversation: {
     type: GraphQLBoolean,
-    description: 'Returns true if user is following, false otherwise. Must be authenticated.',
+    description: 'Returns true if user is following, false otherwise. Must be authenticated. Scope: "conversations".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),

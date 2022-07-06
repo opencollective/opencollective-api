@@ -20,6 +20,15 @@ export const checkRemoteUserCanUsePayoutMethods = req => {
   }
 };
 
+export const checkRemoteUserCanUsePaymentMethods = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage payment methods.');
+  }
+  if (!checkScope('paymentMethods')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "paymentMethods".');
+  }
+};
+
 export const checkRemoteUserCanUseAccount = req => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage account.');
@@ -78,7 +87,7 @@ export const checkRemoteUserCanUseExpenses = req => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     throw new FeatureNotAllowedForUser();
   }
-  if (req.userToken && !req.userToken.getScope().includes('expenses')) {
+  if (!checkScope('expenses')) {
     throw new Unauthorized('The User Token is not allowed for mutations in scope "expenses".');
   }
 };
@@ -87,13 +96,41 @@ export const checkRemoteUserCanUseUpdates = req => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage updates.');
   }
-  if (req.userToken && !req.userToken.getScope().includes('updates')) {
+  if (!checkScope('updates')) {
     throw new Unauthorized('The User Token is not allowed for mutations in scope "updates".');
   }
 };
 
+export const checkRemoteUserCanUseConnectedAccounts = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage connected accounts.');
+  }
+  if (!checkScope('connectedAccounts')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "connectedAccounts".');
+  }
+};
+
+export const checkRemoteUserCanUseWebhooks = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage webhooks');
+  }
+  if (req.userToken && !req.userToken.getScope().includes('webhooks')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "webhooks".');
+  }
+};
+
+export const checkRemoteUserCanUseComment = (comment, req) => {
+  if (comment.ConversationId) {
+    checkRemoteUserCanUseConversations(req);
+  } else if (comment.UpdateId) {
+    checkRemoteUserCanUseUpdates(req);
+  } else if (comment.ExpenseId) {
+    checkRemoteUserCanUseExpenses(req);
+  }
+};
+
 export const checkRemoteUserCanRoot = req => {
-  if (!req.remoteUser?.isRoot()) {
+  if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in.');
   }
   if (!req.remoteUser?.isRoot()) {

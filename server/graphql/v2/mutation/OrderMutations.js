@@ -68,7 +68,7 @@ const OrderWithPayment = new GraphQLObjectType({
 const orderMutations = {
   createOrder: {
     type: new GraphQLNonNull(OrderWithPayment),
-    description: 'To submit a new order',
+    description: 'To submit a new order. Scope: "orders".',
     args: {
       order: {
         type: new GraphQLNonNull(OrderCreateInput),
@@ -141,7 +141,7 @@ const orderMutations = {
   },
   cancelOrder: {
     type: Order,
-    description: 'Cancel an order',
+    description: 'Cancel an order. Scope: "orders".',
     args: {
       order: {
         type: new GraphQLNonNull(OrderReferenceInput),
@@ -210,7 +210,7 @@ const orderMutations = {
   },
   updateOrder: {
     type: Order,
-    description: "Update an Order's amount, tier, or payment method",
+    description: `Update an Order's amount, tier, or payment method. Scope: "orders".`,
     args: {
       order: {
         type: new GraphQLNonNull(OrderReferenceInput),
@@ -314,6 +314,7 @@ const orderMutations = {
   },
   confirmOrder: {
     type: new GraphQLNonNull(OrderWithPayment),
+    description: 'Confirm an order (strong customer authentication). Scope: "orders".',
     args: {
       order: {
         type: new GraphQLNonNull(OrderReferenceInput),
@@ -340,7 +341,7 @@ const orderMutations = {
   },
   processPendingOrder: {
     type: new GraphQLNonNull(Order),
-    description: 'A mutation for the host to approve or reject an order',
+    description: 'A mutation for the host to approve or reject an order. Scope: "orders".',
     args: {
       order: {
         type: new GraphQLNonNull(OrderUpdateInput),

@@ -47,7 +47,7 @@ import { Expense } from '../object/Expense';
 const expenseMutations = {
   createExpense: {
     type: new GraphQLNonNull(Expense),
-    description: 'Submit an expense to a collective',
+    description: 'Submit an expense to a collective. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseCreateInput),
@@ -109,7 +109,7 @@ const expenseMutations = {
       },
       draftKey: {
         type: GraphQLString,
-        description: 'Expense draft key if invited to submit expense',
+        description: 'Expense draft key if invited to submit expense. Scope: "expenses".',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
@@ -207,7 +207,7 @@ const expenseMutations = {
   },
   deleteExpense: {
     type: new GraphQLNonNull(Expense),
-    description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete.`,
+    description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -242,7 +242,7 @@ const expenseMutations = {
   },
   processExpense: {
     type: new GraphQLNonNull(Expense),
-    description: 'Process the expense with the given action',
+    description: 'Process the expense with the given action. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -330,7 +330,7 @@ const expenseMutations = {
   },
   draftExpenseAndInviteUser: {
     type: new GraphQLNonNull(Expense),
-    description: 'Persist an Expense as a draft and invite someone to edit and submit it.',
+    description: 'Persist an Expense as a draft and invite someone to edit and submit it. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseInviteDraftInput),
@@ -420,7 +420,7 @@ const expenseMutations = {
   },
   resendDraftExpenseInvite: {
     type: new GraphQLNonNull(Expense),
-    description: 'To re-send the invitation to complete a draft expense',
+    description: 'To re-send the invitation to complete a draft expense. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -459,7 +459,7 @@ const expenseMutations = {
   },
   verifyExpense: {
     type: new GraphQLNonNull(Expense),
-    description: 'To verify and unverified expense.',
+    description: 'To verify and unverified expense. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),

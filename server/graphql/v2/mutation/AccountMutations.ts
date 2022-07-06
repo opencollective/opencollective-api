@@ -48,7 +48,7 @@ const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
 const accountMutations = {
   editAccountSetting: {
     type: new GraphQLNonNull(Account),
-    description: 'Edit the settings for the given account',
+    description: 'Edit the settings for the given account. Scope: "account" or "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -105,7 +105,7 @@ const accountMutations = {
   },
   editAccountFeeStructure: {
     type: new GraphQLNonNull(Account),
-    description: 'An endpoint for hosts to edit the fees structure of their hosted accounts',
+    description: 'An endpoint for hosts to edit the fees structure of their hosted accounts. Scope: "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -166,7 +166,7 @@ const accountMutations = {
   },
   editAccountFreezeStatus: {
     type: new GraphQLNonNull(Account),
-    description: 'An endpoint for hosts to edit the freeze status of their hosted accounts',
+    description: 'An endpoint for hosts to edit the freeze status of their hosted accounts. Scope: "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -208,7 +208,7 @@ const accountMutations = {
   },
   addTwoFactorAuthTokenToIndividual: {
     type: new GraphQLNonNull(AddTwoFactorAuthTokenToIndividualResponse),
-    description: 'Add 2FA to the Individual if it does not have it',
+    description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -266,7 +266,7 @@ const accountMutations = {
   },
   removeTwoFactorAuthTokenFromIndividual: {
     type: new GraphQLNonNull(Individual),
-    description: 'Remove 2FA from the Individual if it has been enabled',
+    description: 'Remove 2FA from the Individual if it has been enabled. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -309,7 +309,7 @@ const accountMutations = {
   },
   editHostPlan: {
     type: new GraphQLNonNull(Host),
-    description: 'Update the plan',
+    description: 'Update the plan. Scope: "account".',
     deprecationReason: '2022-07-06: Host Plans are deprecated.',
     args: {
       account: {
@@ -359,7 +359,7 @@ const accountMutations = {
   },
   editAccount: {
     type: new GraphQLNonNull(Host),
-    description: 'Edit key properties of an account.',
+    description: 'Edit key properties of an account. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountUpdateInput),
@@ -391,7 +391,7 @@ const accountMutations = {
   },
   setPolicies: {
     type: new GraphQLNonNull(Account),
-    description: 'Adds or removes a policy on a given account',
+    description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -422,6 +422,7 @@ const accountMutations = {
   },
   deleteAccount: {
     type: Account,
+    description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
         description: 'Reference to the Account to be deleted.',

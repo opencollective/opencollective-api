@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 import roles from '../../../constants/roles';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
-import { Unauthorized } from '../../errors';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { OrganizationCreateInput } from '../input/OrganizationCreateInput';
 import { Organization } from '../object/Organization';
 
@@ -13,18 +13,14 @@ const DEFAULT_ORGANIZATION_SETTINGS = {
 };
 
 async function createOrganization(_, args, req) {
-  const { remoteUser } = req;
-
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to create an organization');
-  }
+  checkRemoteUserCanUseAccount(req);
 
   const organizationData = {
     type: 'ORGANIZATION',
     slug: args.organization.slug.toLowerCase(),
     ...pick(args.organization, ['name', 'legalName', 'description', 'website']),
     isActive: false,
-    CreatedByUserId: remoteUser.id,
+    CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_ORGANIZATION_SETTINGS, ...args.organization.settings },
   };
 
@@ -39,13 +35,14 @@ async function createOrganization(_, args, req) {
   const organization = await models.Collective.create(organizationData);
 
   // Add authenticated user as an admin
-  await organization.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id });
+  await organization.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });
 
   return organization;
 }
 
 const createOrganizationMutation = {
   type: Organization,
+  description: 'Create an Organization. Scope: "account".',
   args: {
     organization: {
       description: 'Information about the organization to create (name, slug, description, website, ...)',

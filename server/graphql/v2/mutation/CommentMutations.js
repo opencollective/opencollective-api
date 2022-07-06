@@ -12,6 +12,7 @@ import { Comment } from '../object/Comment';
 const commentMutations = {
   editComment: {
     type: Comment,
+    description: 'Edit a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentUpdateInput),
@@ -36,6 +37,7 @@ const commentMutations = {
   },
   createComment: {
     type: Comment,
+    description: 'Create a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentCreateInput),

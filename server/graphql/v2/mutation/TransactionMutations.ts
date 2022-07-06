@@ -26,7 +26,7 @@ const checkRemoteUserCanUseTransactions = req => {
 const transactionMutations = {
   addPlatformTipToTransaction: {
     type: new GraphQLNonNull(Transaction),
-    description: 'Add platform tips to a transaction',
+    description: 'Add platform tips to a transaction. Scope: "transactions".',
     deprecationReason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.",
     args: {
       transaction: {
@@ -82,7 +82,7 @@ const transactionMutations = {
   },
   refundTransaction: {
     type: Transaction,
-    description: 'Refunds transaction',
+    description: 'Refunds a transaction. Scope: "transactions".',
     args: {
       transaction: {
         type: new GraphQLNonNull(TransactionReferenceInput),
@@ -98,7 +98,8 @@ const transactionMutations = {
   },
   rejectTransaction: {
     type: new GraphQLNonNull(Transaction),
-    description: 'Rejects transaction, removes member from Collective, and sends a message to the contributor',
+    description:
+      'Rejects transaction, removes member from Collective, and sends a message to the contributor. Scope: "transactions".',
     args: {
       transaction: {
         type: new GraphQLNonNull(TransactionReferenceInput),

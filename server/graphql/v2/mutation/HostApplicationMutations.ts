@@ -14,6 +14,11 @@ import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
+import {
+  checkRemoteUserCanRoot,
+  checkRemoteUserCanUseAccount,
+  checkRemoteUserCanUseHost,
+} from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -38,7 +43,7 @@ const ProcessHostApplicationResponse = new GraphQLObjectType({
 const HostApplicationMutations = {
   applyToHost: {
     type: new GraphQLNonNull(Account),
-    description: 'Apply to an host with a collective',
+    description: 'Apply to an host with a collective. Scope: "account".',
     args: {
       collective: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -62,9 +67,7 @@ const HostApplicationMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in');
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const collective = await fetchAccountWithReference(args.collective);
       if (!collective) {
@@ -74,7 +77,7 @@ const HostApplicationMutations = {
         throw new Error('Account must be a collective or a fund');
       }
       if (!req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Unauthorized('You need to be an Admin of the account');
+        throw new Forbidden('You need to be an Admin of the account');
       }
 
       const host = await fetchAccountWithReference(args.host);
@@ -101,7 +104,7 @@ const HostApplicationMutations = {
   },
   processHostApplication: {
     type: new GraphQLNonNull(ProcessHostApplicationResponse),
-    description: 'Reply to a host application',
+    description: 'Reply to a host application. Scope: "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -121,11 +124,13 @@ const HostApplicationMutations = {
       },
     },
     resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
+      checkRemoteUserCanUseHost(req);
+
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
 
-      if (!req.remoteUser?.isAdmin(host.id)) {
-        throw new Unauthorized('You need to be authenticated as a host admin to perform this action');
+      if (!req.remoteUser.isAdmin(host.id)) {
+        throw new Forbidden('You need to be authenticated as a host admin to perform this action');
       } else if (account.HostCollectiveId !== host.id) {
         throw new NotFound(`No application found for ${account.slug} in ${host.slug}`);
       } else if (account.approvedAt) {
@@ -160,9 +165,7 @@ const HostApplicationMutations = {
       },
     },
     resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Unauthorized('You need to be a root user to unhost an account');
-      }
+      checkRemoteUserCanRoot(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       const host = await req.loaders.Collective.host.load(account.id);

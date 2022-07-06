@@ -5,11 +5,7 @@ import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment } from './expenses';
-import {
-  checkRemoteUserCanUseConversations,
-  checkRemoteUserCanUseExpenses,
-  checkRemoteUserCanUseUpdates,
-} from './scope-check';
+import { checkRemoteUserCanUseComment } from './scope-check';
 
 /**
  * Return the collective ID for the given comment based on it's association (conversation,
@@ -27,16 +23,6 @@ const getCollectiveIdForCommentEntity = async commentValues => {
     return update && update.CollectiveId;
   }
 };
-
-function checkRemoteUserCanUseComment(comment, req) {
-  if (comment.ConversationId) {
-    checkRemoteUserCanUseConversations(req);
-  } else if (comment.UpdateId) {
-    checkRemoteUserCanUseUpdates(req);
-  } else if (comment.ExpenseId) {
-    checkRemoteUserCanUseExpenses(req);
-  }
-}
 
 /**
  *  Edits a comment

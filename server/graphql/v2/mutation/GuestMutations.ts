@@ -36,6 +36,8 @@ const guestMutations = {
       },
     },
     async resolve(_: void, args: Record<string, unknown>, req: Record<string, unknown>): Promise<boolean> {
+      // NOTE(oauth-scope): No scope needed
+
       // Only for unauthenticated users
       if (req.remoteUser) {
         throw new BadRequest(
@@ -114,6 +116,8 @@ const guestMutations = {
       args: Record<string, unknown>,
       req: Record<string, unknown>,
     ): Promise<typeof models.Collective> {
+      // NOTE(oauth-scope): No scope needed
+
       // Adding a rate limite here to prevent attackers from guessing email addresses
       const rateLimitOnIP = new RateLimit(
         `confirm_guest_account_${req.ip}}`,

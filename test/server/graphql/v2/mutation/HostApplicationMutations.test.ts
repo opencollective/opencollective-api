@@ -141,9 +141,11 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
             const result = await callProcessAction({ action }, unauthorizedUser);
             expect(result.errors).to.exist;
             expect(result.errors[0]).to.exist;
-            expect(result.errors[0].message).to.eq(
-              'You need to be authenticated as a host admin to perform this action',
-            );
+            if (unauthorizedUser) {
+              expect(result.errors[0].extensions.code).to.equal('Forbidden');
+            } else {
+              expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+            }
           }
         }
       });
@@ -254,12 +256,14 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const mutationParams = { host: { slug: host.slug }, collective: { slug: collective.slug } };
       const resultUnauthenticated = await graphqlQueryV2(APPLY_TO_HOST_MUTATION, mutationParams);
       expect(resultUnauthenticated.errors).to.exist;
-      expect(resultUnauthenticated.errors[0].message).to.eq('You need to be logged in');
+      // expect(resultUnauthenticated.errors[0].message).to.eq('You need to be logged in');
+      expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
       const randomUser = await fakeUser();
       const resultUnauthorized = await graphqlQueryV2(APPLY_TO_HOST_MUTATION, mutationParams, randomUser);
       expect(resultUnauthorized.errors).to.exist;
       expect(resultUnauthorized.errors[0].message).to.eq('You need to be an Admin of the account');
+      expect(resultUnauthorized.errors[0].extensions.code).to.equal('Forbidden');
     });
 
     it('applies to host and invite other admins', async () => {

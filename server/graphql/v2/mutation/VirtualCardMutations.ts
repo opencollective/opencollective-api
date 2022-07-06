@@ -22,7 +22,7 @@ const MAXIMUM_MONTHLY_LIMIT = 5000;
 
 const virtualCardMutations = {
   assignNewVirtualCard: {
-    description: 'Assign Virtual Card information to existing hosted collective',
+    description: 'Assign Virtual Card information to existing hosted collective. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -97,7 +97,7 @@ const virtualCardMutations = {
     },
   },
   createVirtualCard: {
-    description: 'Create new Stripe Virtual Card for existing hosted collective',
+    description: 'Create new Stripe Virtual Card for existing hosted collective. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       name: {
@@ -169,7 +169,7 @@ const virtualCardMutations = {
     },
   },
   editVirtualCard: {
-    description: 'Edit existing Virtual Card information',
+    description: 'Edit existing Virtual Card information. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -251,7 +251,7 @@ const virtualCardMutations = {
     },
   },
   requestVirtualCard: {
-    description: 'Request Virtual Card to host',
+    description: 'Request Virtual Card to host. Scope: "virtualCards".',
     type: GraphQLBoolean,
     args: {
       notes: {
@@ -302,7 +302,7 @@ const virtualCardMutations = {
     },
   },
   pauseVirtualCard: {
-    description: 'Pause active Virtual Card',
+    description: 'Pause active Virtual Card. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -351,7 +351,7 @@ const virtualCardMutations = {
     },
   },
   resumeVirtualCard: {
-    description: 'Resume paused Virtual Card',
+    description: 'Resume paused Virtual Card. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -375,7 +375,7 @@ const virtualCardMutations = {
     },
   },
   deleteVirtualCard: {
-    description: 'Delete Virtual Card',
+    description: 'Delete Virtual Card. Scope: "virtualCards".',
     type: GraphQLBoolean,
     args: {
       virtualCard: {

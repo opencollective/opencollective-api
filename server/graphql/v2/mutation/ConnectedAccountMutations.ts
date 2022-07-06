@@ -8,6 +8,7 @@ import * as paypal from '../../../lib/paypal';
 import * as privacy from '../../../lib/privacy';
 import * as transferwise from '../../../lib/transferwise';
 import models from '../../../models';
+import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ConnectedAccountCreateInput } from '../input/ConnectedAccountCreateInput';
@@ -20,7 +21,7 @@ import { ConnectedAccount } from '../object/ConnectedAccount';
 const connectedAccountMutations = {
   createConnectedAccount: {
     type: ConnectedAccount,
-    description: 'Connect external account to Open Collective Account',
+    description: 'Connect external account to Open Collective Account. Scope: "connectedAccounts".',
     args: {
       connectedAccount: {
         type: new GraphQLNonNull(ConnectedAccountCreateInput),
@@ -32,9 +33,7 @@ const connectedAccountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to create a connected account');
-      }
+      checkRemoteUserCanUseConnectedAccounts(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
@@ -97,7 +96,7 @@ const connectedAccountMutations = {
   },
   deleteConnectedAccount: {
     type: ConnectedAccount,
-    description: 'Delete ConnectedAccount',
+    description: 'Delete ConnectedAccount. Scope: "connectedAccounts".',
     args: {
       connectedAccount: {
         type: new GraphQLNonNull(ConnectedAccountReferenceInput),
@@ -105,9 +104,7 @@ const connectedAccountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to delete a connected account');
-      }
+      checkRemoteUserCanUseConnectedAccounts(req);
 
       const connectedAccount = await fetchConnectedAccountWithReference(args.connectedAccount, {
         throwIfMissing: true,

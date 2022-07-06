@@ -9,6 +9,7 @@ import Update from '../object/Update';
 const updateMutations = {
   createUpdate: {
     type: new GraphQLNonNull(Update),
+    description: 'Create update. Scope: "updates".',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateCreateInput),
@@ -20,6 +21,7 @@ const updateMutations = {
   },
   editUpdate: {
     type: new GraphQLNonNull(Update),
+    description: 'Edit update. Scope: "updates".',
     args: {
       update: {
         type: new GraphQLNonNull(UpdateUpdateInput),
@@ -31,6 +33,7 @@ const updateMutations = {
   },
   publishUpdate: {
     type: new GraphQLNonNull(Update),
+    description: 'Publish update. Scope: "updates".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -45,6 +48,7 @@ const updateMutations = {
   },
   unpublishUpdate: {
     type: new GraphQLNonNull(Update),
+    description: 'Unpublish update. Scope: "updates".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -56,6 +60,7 @@ const updateMutations = {
   },
   deleteUpdate: {
     type: new GraphQLNonNull(Update),
+    description: 'Delete update. Scope: "updates".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),

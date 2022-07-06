@@ -12,7 +12,7 @@ import { Order } from '../object/Order';
 
 export const addFundsMutation = {
   type: new GraphQLNonNull(Order),
-  description: 'Add funds to the given account',
+  description: 'Add funds to the given account. Scope: "account".',
   args: {
     fromAccount: { type: new GraphQLNonNull(AccountReferenceInput) },
     account: { type: new GraphQLNonNull(AccountReferenceInput) },
@@ -22,7 +22,7 @@ export const addFundsMutation = {
     hostFeePercent: { type: GraphQLFloat },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
-    // NOTE: maybe the scope should be "host" and not "orders"?
+    // NOTE(oauth-scope): maybe the scope should be "host" and not "orders"?
     checkRemoteUserCanUseOrders(req);
 
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });

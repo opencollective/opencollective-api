@@ -6,7 +6,8 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
-import { Unauthorized, ValidationFailed } from '../../errors';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { FundCreateInput } from '../input/FundCreateInput';
 import { Fund } from '../object/Fund';
@@ -38,18 +39,14 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 };
 
 async function createFund(_, args, req) {
-  const { remoteUser, loaders } = req;
-
-  if (!remoteUser) {
-    throw new Unauthorized('You need to be logged in to create a Fund');
-  }
+  checkRemoteUserCanUseAccount(req);
 
   const fundData = {
     type: 'FUND',
     slug: args.fund.slug.toLowerCase(),
     ...pick(args.fund, ['name', 'description', 'tags']),
     isActive: false,
-    CreatedByUserId: remoteUser.id,
+    CreatedByUserId: req.remoteUser.id,
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.fund.settings },
   };
 
@@ -63,7 +60,7 @@ async function createFund(_, args, req) {
 
   let host;
   if (args.host) {
-    host = await fetchAccountWithReference(args.host, { loaders });
+    host = await fetchAccountWithReference(args.host, { loaders: req.loaders });
     if (!host) {
       throw new ValidationFailed('Host Not Found');
     }
@@ -75,11 +72,11 @@ async function createFund(_, args, req) {
   const fund = await models.Collective.create(fundData);
 
   // Add authenticated user as an admin
-  await fund.addUserWithRole(remoteUser, roles.ADMIN, { CreatedByUserId: remoteUser.id });
+  await fund.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });
 
   // Add the host if any
   if (host) {
-    await fund.addHost(host, remoteUser);
+    await fund.addHost(host, req.remoteUser);
     purgeCacheForCollective(host.slug);
   }
 
@@ -87,10 +84,10 @@ async function createFund(_, args, req) {
   // - tell them that their fund was successfully created
   // - tell them which fiscal host they picked, if any
   // - tell them the status of their host application
-  const remoteUserCollective = await loaders.Collective.byId.load(remoteUser.CollectiveId);
+  const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
   models.Activity.create({
     type: activities.COLLECTIVE_CREATED,
-    UserId: remoteUser.id,
+    UserId: req.remoteUser.id,
     UserTokenId: req.userToken?.id,
     CollectiveId: get(host, 'id'),
     data: {
@@ -99,7 +96,7 @@ async function createFund(_, args, req) {
       hostPending: fund.approvedAt ? false : true,
       accountType: 'fund',
       user: {
-        email: remoteUser.email,
+        email: req.remoteUser.email,
         collective: remoteUserCollective.info,
       },
     },
@@ -110,6 +107,7 @@ async function createFund(_, args, req) {
 
 const createFundMutation = {
   type: Fund,
+  description: 'Create a Fund. Scope: "account".',
   args: {
     fund: {
       description: 'Information about the collective to create (name, slug, description, tags, ...)',

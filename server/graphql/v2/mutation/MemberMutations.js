@@ -9,6 +9,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { getPolicy } from '../../../lib/policies';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, Forbidden, Unauthorized, ValidationFailed } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -28,7 +29,7 @@ const isLastAdmin = async (account, memberAccount) => {
 const memberMutations = {
   editPublicMessage: {
     type: new GraphQLNonNull(Member),
-    description: 'Edit the public message for the given Member of a Collective',
+    description: 'Edit the public message for the given Member of a Collective. Scope: "account".',
     args: {
       fromAccount: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -85,9 +86,9 @@ const memberMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Unauthorized('Only root users can create member entries directly');
-      } else if (args.role !== MemberRoles.CONNECTED_COLLECTIVE) {
+      checkRemoteUserCanRoot(req);
+
+      if (args.role !== MemberRoles.CONNECTED_COLLECTIVE) {
         throw new BadRequest('This mutation only supports the CONNECTED_ACCOUNT role');
       }
 
@@ -102,7 +103,7 @@ const memberMutations = {
   },
   editMember: {
     type: new GraphQLNonNull(Member),
-    description: 'Edit an existing member of the Collective',
+    description: 'Edit an existing member of the Collective. Scope: "account".',
     args: {
       memberAccount: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -124,9 +125,7 @@ const memberMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to invite a member.');
-      }
+      checkRemoteUserCanUseAccount(req);
 
       let { memberAccount, account } = args;
 
@@ -184,7 +183,7 @@ const memberMutations = {
   },
   removeMember: {
     type: GraphQLBoolean,
-    description: 'Remove a member from the Collective',
+    description: 'Remove a member from the Collective. Scope: "account".',
     args: {
       memberAccount: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -203,9 +202,7 @@ const memberMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to remove a member.');
-      }
+      checkRemoteUserCanUseAccount(req);
 
       let { memberAccount, account } = args;
 

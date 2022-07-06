@@ -1,5 +1,6 @@
 import { GraphQLNonNull } from 'graphql';
 
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound } from '../../errors';
 import {
   fetchOAuthAuthorizationWithReference,
@@ -10,6 +11,7 @@ import { OAuthAuthorization } from '../object/OAuthAuthorization';
 const oAuthAuthorizationMutations = {
   revokeOAuthAuthorization: {
     type: new GraphQLNonNull(OAuthAuthorization),
+    description: 'Revoke an OAuth authorization. Scope: "account".',
     args: {
       oAuthAuthorization: {
         type: new GraphQLNonNull(OAuthAuthorizationReferenceInput),
@@ -17,9 +19,7 @@ const oAuthAuthorizationMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        return null;
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const userToken = await fetchOAuthAuthorizationWithReference(args.oAuthAuthorization);
       if (!userToken || userToken.user.id !== req.remoteUser.id) {

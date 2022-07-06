@@ -3,6 +3,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import models from '../../../models';
 import { canComment } from '../../common/expenses';
+import { checkRemoteUserCanUseComment, checkRemoteUserCanUseUpdates } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentReferenceInput } from '../input/CommentReferenceInput';
@@ -30,6 +31,7 @@ const EmojiReactionsResponse = new GraphQLObjectType({
 const emojiReactionMutations = {
   addEmojiReaction: {
     type: new GraphQLNonNull(EmojiReactionsResponse),
+    description: 'Add an emoji reaction. Scope: "conversations", "expenses" or "updates".',
     args: {
       emoji: {
         type: new GraphQLNonNull(GraphQLString),
@@ -62,6 +64,7 @@ const emojiReactionMutations = {
   },
   removeEmojiReaction: {
     type: new GraphQLNonNull(EmojiReactionsResponse),
+    description: 'Remove an emoji reaction. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
         type: CommentReferenceInput,
@@ -73,17 +76,20 @@ const emojiReactionMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve: async (_, { comment, update, emoji }, { remoteUser }) => {
-      mustBeLoggedInTo(remoteUser, 'remove this comment reaction');
+    resolve: async (_, { comment, update, emoji }, req) => {
+      mustBeLoggedInTo(req.remoteUser, 'remove this comment reaction');
 
       if (!comment && !update) {
         throw new Error('A comment or update must be provided');
       }
 
       if (comment) {
-        return removeReactionFromCommentOrUpdate(comment.id, remoteUser, emoji, IDENTIFIER_TYPES.COMMENT);
+        // TODO(scope): fetch comment and then check scope with checkRemoteUserCanUseComment
+        // checkRemoteUserCanUseComment(comment, req);
+        return removeReactionFromCommentOrUpdate(comment.id, req.remoteUser, emoji, IDENTIFIER_TYPES.COMMENT);
       } else if (update) {
-        return removeReactionFromCommentOrUpdate(update.id, remoteUser, emoji, IDENTIFIER_TYPES.UPDATE);
+        checkRemoteUserCanUseUpdates(req);
+        return removeReactionFromCommentOrUpdate(update.id, req.remoteUser, emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },
@@ -95,8 +101,10 @@ const addReactionToCommentOrUpdate = async (id, req, emoji, identifierType) => {
   let commentOrUpdate;
   if (identifierType === IDENTIFIER_TYPES.COMMENT) {
     commentOrUpdate = await models.Comment.findByPk(commentOrUpdateId);
+    checkRemoteUserCanUseComment(commentOrUpdate, req);
   } else {
     commentOrUpdate = await models.Update.findByPk(commentOrUpdateId);
+    checkRemoteUserCanUseUpdates(req);
   }
 
   if (!commentOrUpdate) {
