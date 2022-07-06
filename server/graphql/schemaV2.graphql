@@ -10950,7 +10950,7 @@ This is the root mutation
 """
 type Mutation {
   """
-  Add funds to the given account
+  Add funds to the given account. Scope: "account".
   """
   addFunds(
     fromAccount: AccountReferenceInput!
@@ -10960,6 +10960,10 @@ type Mutation {
     description: String!
     hostFeePercent: Float
   ): Order!
+
+  """
+  Create a Collective. Scope: "account".
+  """
   createCollective(
     """
     Information about the collective to create (name, slug, description, tags, ...)
@@ -11006,6 +11010,10 @@ type Mutation {
     """
     inviteMembers: [InviteMemberInput]
   ): Collective
+
+  """
+  Create an Event. Scope: "account".
+  """
   createEvent(
     """
     Information about the Event to create (name, slug, description, tags, settings)
@@ -11017,6 +11025,10 @@ type Mutation {
     """
     account: AccountReferenceInput!
   ): Event
+
+  """
+  Create a Fund. Scope: "account".
+  """
   createFund(
     """
     Information about the collective to create (name, slug, description, tags, ...)
@@ -11028,12 +11040,20 @@ type Mutation {
     """
     host: AccountReferenceInput
   ): Fund
+
+  """
+  Create an Organization. Scope: "account".
+  """
   createOrganization(
     """
     Information about the organization to create (name, slug, description, website, ...)
     """
     organization: OrganizationCreateInput!
   ): Organization
+
+  """
+  Create a Project. Scope: "account".
+  """
   createProject(
     """
     Information about the Project to create (name, slug, description, tags, settings)
@@ -11047,7 +11067,7 @@ type Mutation {
   ): Project
 
   """
-  Edit the settings for the given account
+  Edit the settings for the given account. Scope: "account" or "host".
   """
   editAccountSetting(
     """
@@ -11067,7 +11087,7 @@ type Mutation {
   ): Account!
 
   """
-  An endpoint for hosts to edit the fees structure of their hosted accounts
+  An endpoint for hosts to edit the fees structure of their hosted accounts. Scope: "host".
   """
   editAccountFeeStructure(
     """
@@ -11087,7 +11107,7 @@ type Mutation {
   ): Account!
 
   """
-  An endpoint for hosts to edit the freeze status of their hosted accounts
+  An endpoint for hosts to edit the freeze status of their hosted accounts. Scope: "host".
   """
   editAccountFreezeStatus(
     """
@@ -11103,7 +11123,7 @@ type Mutation {
   ): Account!
 
   """
-  Add 2FA to the Individual if it does not have it
+  Add 2FA to the Individual if it does not have it. Scope: "account".
   """
   addTwoFactorAuthTokenToIndividual(
     """
@@ -11118,7 +11138,7 @@ type Mutation {
   ): AddTwoFactorAuthTokenToIndividualResponse!
 
   """
-  Remove 2FA from the Individual if it has been enabled
+  Remove 2FA from the Individual if it has been enabled. Scope: "account".
   """
   removeTwoFactorAuthTokenFromIndividual(
     """
@@ -11133,7 +11153,7 @@ type Mutation {
   ): Individual!
 
   """
-  Update the plan
+  Update the plan. Scope: "account".
   """
   editHostPlan(
     """
@@ -11145,10 +11165,10 @@ type Mutation {
     The name of the plan to subscribe to.
     """
     plan: String!
-  ): Host!
+  ): Host! @deprecated(reason: "2022-07-06: Host Plans are deprecated.")
 
   """
-  Edit key properties of an account.
+  Edit key properties of an account. Scope: "account".
   """
   editAccount(
     """
@@ -11158,7 +11178,7 @@ type Mutation {
   ): Host!
 
   """
-  Adds or removes a policy on a given account
+  Adds or removes a policy on a given account. Scope: "account".
   """
   setPolicies(
     """
@@ -11171,6 +11191,10 @@ type Mutation {
     """
     policies: JSON!
   ): Account!
+
+  """
+  Adds or removes a policy on a given account. Scope: "account".
+  """
   deleteAccount(
     """
     Reference to the Account to be deleted.
@@ -11180,12 +11204,20 @@ type Mutation {
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
   deleteApplication(application: ApplicationReferenceInput!): Application
+
+  """
+  Edit a comment. Scope: "conversations", "expenses" or "updates".
+  """
   editComment(comment: CommentUpdateInput!): Comment
   deleteComment(id: String!): Comment
+
+  """
+  Create a comment. Scope: "conversations", "expenses" or "updates".
+  """
   createComment(comment: CommentCreateInput!): Comment
 
   """
-  Connect external account to Open Collective Account
+  Connect external account to Open Collective Account. Scope: "connectedAccounts".
   """
   createConnectedAccount(
     """
@@ -11200,7 +11232,7 @@ type Mutation {
   ): ConnectedAccount
 
   """
-  Delete ConnectedAccount
+  Delete ConnectedAccount. Scope: "connectedAccounts".
   """
   deleteConnectedAccount(
     """
@@ -11210,7 +11242,7 @@ type Mutation {
   ): ConnectedAccount
 
   """
-  Create a conversation
+  Create a conversation. Scope: "conversations".
   """
   createConversation(
     """
@@ -11233,6 +11265,10 @@ type Mutation {
     """
     tags: [String]
   ): Conversation
+
+  """
+  Edit a conversation. Scope: "conversations".
+  """
   editConversation(
     """
     Conversation's id
@@ -11251,7 +11287,7 @@ type Mutation {
   ): Conversation
 
   """
-  Returns true if user is following, false otherwise. Must be authenticated.
+  Returns true if user is following, false otherwise. Must be authenticated. Scope: "conversations".
   """
   followConversation(
     """
@@ -11264,6 +11300,10 @@ type Mutation {
     """
     isActive: Boolean = true
   ): Boolean
+
+  """
+  Add an emoji reaction. Scope: "conversations", "expenses" or "updates".
+  """
   addEmojiReaction(
     """
     The emoji associated with the reaction
@@ -11280,6 +11320,10 @@ type Mutation {
     """
     update: UpdateReferenceInput
   ): EmojiReactionResponse!
+
+  """
+  Remove an emoji reaction. Scope: "conversations", "expenses" or "updates".
+  """
   removeEmojiReaction(
     comment: CommentReferenceInput
     update: UpdateReferenceInput
@@ -11287,7 +11331,7 @@ type Mutation {
   ): EmojiReactionResponse!
 
   """
-  Submit an expense to a collective
+  Submit an expense to a collective. Scope: "expenses".
   """
   createExpense(
     """
@@ -11316,13 +11360,13 @@ type Mutation {
     expense: ExpenseUpdateInput!
 
     """
-    Expense draft key if invited to submit expense
+    Expense draft key if invited to submit expense. Scope: "expenses".
     """
     draftKey: String
   ): Expense!
 
   """
-  Delete an expense. Only work if the expense is rejected - please check permissions.canDelete.
+  Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".
   """
   deleteExpense(
     """
@@ -11332,7 +11376,7 @@ type Mutation {
   ): Expense!
 
   """
-  Process the expense with the given action
+  Process the expense with the given action. Scope: "expenses".
   """
   processExpense(
     """
@@ -11357,7 +11401,7 @@ type Mutation {
   ): Expense!
 
   """
-  Persist an Expense as a draft and invite someone to edit and submit it.
+  Persist an Expense as a draft and invite someone to edit and submit it. Scope: "expenses".
   """
   draftExpenseAndInviteUser(
     """
@@ -11372,7 +11416,7 @@ type Mutation {
   ): Expense!
 
   """
-  To re-send the invitation to complete a draft expense
+  To re-send the invitation to complete a draft expense. Scope: "expenses".
   """
   resendDraftExpenseInvite(
     """
@@ -11382,7 +11426,7 @@ type Mutation {
   ): Expense!
 
   """
-  To verify and unverified expense.
+  To verify and unverified expense. Scope: "expenses".
   """
   verifyExpense(
     """
@@ -11422,7 +11466,7 @@ type Mutation {
   ): ConfirmGuestAccountResponse!
 
   """
-  Apply to an host with a collective
+  Apply to an host with a collective. Scope: "account".
   """
   applyToHost(
     """
@@ -11452,7 +11496,7 @@ type Mutation {
   ): Account!
 
   """
-  Reply to a host application
+  Reply to a host application. Scope: "host".
   """
   processHostApplication(
     """
@@ -11487,12 +11531,12 @@ type Mutation {
   ): Account!
 
   """
-  Update the time which the user viewed the changelog updates
+  Update the time which the user viewed the changelog updates. Scope: "account".
   """
   setChangelogViewDate(changelogViewDate: DateTime!): Individual!
 
   """
-  Invite a new member to the Collective
+  Invite a new member to the Collective. Scope: "account".
   """
   inviteMember(
     """
@@ -11514,7 +11558,7 @@ type Mutation {
   ): MemberInvitation!
 
   """
-  Edit an existing member invitation of the Collective
+  Edit an existing member invitation of the Collective. Scope: "account".
   """
   editMemberInvitation(
     """
@@ -11536,7 +11580,7 @@ type Mutation {
   ): MemberInvitation
 
   """
-  Endpoint to accept or reject an invitation to become a member
+  Endpoint to accept or reject an invitation to become a member. Scope: "account".
   """
   replyToMemberInvitation(
     """
@@ -11551,7 +11595,7 @@ type Mutation {
   ): Boolean!
 
   """
-  Edit the public message for the given Member of a Collective
+  Edit the public message for the given Member of a Collective. Scope: "account".
   """
   editPublicMessage(
     """
@@ -11593,7 +11637,7 @@ type Mutation {
   ): Member!
 
   """
-  Edit an existing member of the Collective
+  Edit an existing member of the Collective. Scope: "account".
   """
   editMember(
     """
@@ -11615,7 +11659,7 @@ type Mutation {
   ): Member!
 
   """
-  Remove a member from the Collective
+  Remove a member from the Collective. Scope: "account".
   """
   removeMember(
     """
@@ -11634,6 +11678,10 @@ type Mutation {
     role: MemberRole!
     isInvitation: Boolean
   ): Boolean
+
+  """
+  Revoke an OAuth authorization. Scope: "account".
+  """
   revokeOAuthAuthorization(
     """
     Reference of the OAuth Authorization
@@ -11642,12 +11690,12 @@ type Mutation {
   ): OAuthAuthorization!
 
   """
-  To submit a new order
+  To submit a new order. Scope: "orders".
   """
   createOrder(order: OrderCreateInput!): OrderWithPayment!
 
   """
-  Cancel an order
+  Cancel an order. Scope: "orders".
   """
   cancelOrder(
     """
@@ -11667,7 +11715,7 @@ type Mutation {
   ): Order
 
   """
-  Update an Order's amount, tier, or payment method
+  Update an Order's amount, tier, or payment method. Scope: "orders".
   """
   updateOrder(
     """
@@ -11695,6 +11743,10 @@ type Mutation {
     """
     amount: AmountInput
   ): Order
+
+  """
+  Confirm an order (strong customer authentication). Scope: "orders".
+  """
   confirmOrder(
     order: OrderReferenceInput!
 
@@ -11705,12 +11757,12 @@ type Mutation {
   ): OrderWithPayment!
 
   """
-  A mutation for the host to approve or reject an order
+  A mutation for the host to approve or reject an order. Scope: "orders".
   """
   processPendingOrder(order: OrderUpdateInput!, action: ProcessOrderAction!): Order!
 
   """
-  A mutation for root users to move orders from one account to another
+  [Root only] A mutation to move orders from one account to another
   """
   moveOrders(
     """
@@ -11735,7 +11787,7 @@ type Mutation {
   ): [Order]!
 
   """
-  Add a new payment method to be used with an Order
+  Add a new payment method to be used with an Order. Scope: "paymentMethods".
   """
   addCreditCard(
     """
@@ -11760,12 +11812,12 @@ type Mutation {
   ): CreditCardWithStripeError!
 
   """
-  Confirm a credit card is ready for use after strong customer authentication
+  Confirm a credit card is ready for use after strong customer authentication. Scope: "paymentMethods".
   """
   confirmCreditCard(paymentMethod: PaymentMethodReferenceInput!): CreditCardWithStripeError!
 
   """
-  Create a new Payout Method to get paid through the platform
+  Create a new Payout Method to get paid through the platform. Scope: "payoutMethods".
   """
   createPayoutMethod(
     """
@@ -11780,7 +11832,7 @@ type Mutation {
   ): PayoutMethod
 
   """
-  Remove the given payout method
+  Remove the given payout method. Scope: "payoutMethods".
   """
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
 
@@ -11840,7 +11892,7 @@ type Mutation {
   ): BanAccountResponse!
 
   """
-  Add platform tips to a transaction
+  Add platform tips to a transaction. Scope: "transactions".
   """
   addPlatformTipToTransaction(
     """
@@ -11853,9 +11905,10 @@ type Mutation {
     """
     amount: AmountInput!
   ): Transaction!
+    @deprecated(reason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.")
 
   """
-  Refunds transaction
+  Refunds a transaction. Scope: "transactions".
   """
   refundTransaction(
     """
@@ -11865,7 +11918,7 @@ type Mutation {
   ): Transaction
 
   """
-  Rejects transaction, removes member from Collective, and sends a message to the contributor
+  Rejects transaction, removes member from Collective, and sends a message to the contributor. Scope: "transactions".
   """
   rejectTransaction(
     """
@@ -11878,14 +11931,34 @@ type Mutation {
     """
     message: String
   ): Transaction!
+
+  """
+  Create update. Scope: "updates".
+  """
   createUpdate(update: UpdateCreateInput!): Update!
+
+  """
+  Edit update. Scope: "updates".
+  """
   editUpdate(update: UpdateUpdateInput!): Update!
+
+  """
+  Publish update. Scope: "updates".
+  """
   publishUpdate(id: String!, notificationAudience: UpdateAudience): Update!
+
+  """
+  Unpublish update. Scope: "updates".
+  """
   unpublishUpdate(id: String!): Update!
+
+  """
+  Delete update. Scope: "updates".
+  """
   deleteUpdate(id: String!): Update!
 
   """
-  Assign Virtual Card information to existing hosted collective
+  Assign Virtual Card information to existing hosted collective. Scope: "virtualCards".
   """
   assignNewVirtualCard(
     """
@@ -11905,7 +11978,7 @@ type Mutation {
   ): VirtualCard!
 
   """
-  Create new Stripe Virtual Card for existing hosted collective
+  Create new Stripe Virtual Card for existing hosted collective. Scope: "virtualCards".
   """
   createVirtualCard(
     """
@@ -11930,7 +12003,7 @@ type Mutation {
   ): VirtualCard!
 
   """
-  Edit existing Virtual Card information
+  Edit existing Virtual Card information. Scope: "virtualCards".
   """
   editVirtualCard(
     """
@@ -11955,7 +12028,7 @@ type Mutation {
   ): VirtualCard!
 
   """
-  Request Virtual Card to host
+  Request Virtual Card to host. Scope: "virtualCards".
   """
   requestVirtualCard(
     """
@@ -11980,7 +12053,7 @@ type Mutation {
   ): Boolean
 
   """
-  Pause active Virtual Card
+  Pause active Virtual Card. Scope: "virtualCards".
   """
   pauseVirtualCard(
     """
@@ -11990,7 +12063,7 @@ type Mutation {
   ): VirtualCard!
 
   """
-  Resume paused Virtual Card
+  Resume paused Virtual Card. Scope: "virtualCards".
   """
   resumeVirtualCard(
     """
@@ -12000,7 +12073,7 @@ type Mutation {
   ): VirtualCard!
 
   """
-  Delete Virtual Card
+  Delete Virtual Card. Scope: "virtualCards".
   """
   deleteVirtualCard(
     """
@@ -12008,8 +12081,20 @@ type Mutation {
     """
     virtualCard: VirtualCardReferenceInput!
   ): Boolean
+
+  """
+  Create webhook. Scope: "webhooks".
+  """
   createWebhook(webhook: WebhookCreateInput!): Webhook
+
+  """
+  Update webhook. Scope: "webhooks".
+  """
   updateWebhook(webhook: WebhookUpdateInput!): Webhook
+
+  """
+  Delete webhook. Scope: "webhooks".
+  """
   deleteWebhook(webhook: WebhookReferenceInput!): Webhook
 }
 
