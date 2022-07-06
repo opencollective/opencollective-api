@@ -17,7 +17,6 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
-import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';

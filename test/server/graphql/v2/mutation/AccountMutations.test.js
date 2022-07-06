@@ -221,7 +221,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         token: secret.base32,
       });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/You need to be authenticated to perform this action/);
+      // expect(result.errors[0].message).to.match(/You need to be authenticated to perform this action/);
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
     it('must be admin', async () => {
@@ -267,24 +268,28 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
   describe('editAccountFeeStructure', () => {
     it('must be a host admin', async () => {
-      const expectedError =
-        'You need to be logged in as an host admin to change the fees structure of the hosted accounts';
+      // const expectedError =
+      //   'You need to be logged in as an host admin to change the fees structure of the hosted accounts';
       const mutationParams = { account: { legacyId: collective.id }, hostFeePercent: 8.88, isCustomFee: true };
       const resultUnauthenticated = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams);
       expect(resultUnauthenticated.errors).to.exist;
-      expect(resultUnauthenticated.errors[0].message).to.eq(expectedError);
+      // expect(resultUnauthenticated.errors[0].message).to.eq(expectedError);
+      expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
       const resultRandomUser = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, randomUser);
       expect(resultRandomUser.errors).to.exist;
-      expect(resultRandomUser.errors[0].message).to.eq(expectedError);
+      // expect(resultRandomUser.errors[0].message).to.eq(expectedError);
+      expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
       const resultBacker = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, backerUser);
       expect(resultBacker.errors).to.exist;
-      expect(resultBacker.errors[0].message).to.eq(expectedError);
+      // expect(resultBacker.errors[0].message).to.eq(expectedError);
+      expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
       const resultCollectiveAdmin = await graphqlQueryV2(editAccountFeeStructureMutation, mutationParams, adminUser);
       expect(resultCollectiveAdmin.errors).to.exist;
-      expect(resultCollectiveAdmin.errors[0].message).to.eq(expectedError);
+      // expect(resultCollectiveAdmin.errors[0].message).to.eq(expectedError);
+      expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
     it('updates the main account and all its children', async () => {

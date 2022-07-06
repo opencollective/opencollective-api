@@ -4,7 +4,7 @@ import { pick } from 'lodash';
 
 import models from '../../../models';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
-import { Forbidden, NotFound, RateLimitExceeded, Unauthorized } from '../../errors';
+import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
 import { ApplicationCreateInput } from '../input/ApplicationCreateInput';
 import { ApplicationReferenceInput, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';

@@ -1,6 +1,6 @@
 import FEATURE from '../../constants/feature';
 import { canUseFeature } from '../../lib/user-permissions';
-import { FeatureNotAllowedForUser, Unauthorized } from '../errors';
+import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
 export const checkRemoteUserCanUseVirtualCards = req => {
   if (!req.remoteUser) {
@@ -56,6 +56,18 @@ export const checkRemoteUserCanUseApplications = req => {
   }
   if (!checkScope('applications')) {
     throw new Unauthorized('The User Token is not allowed for mutations in scope "applications".');
+  }
+};
+
+export const checkRemoteUserCanRoot = req => {
+  if (!req.remoteUser?.isRoot()) {
+    throw new Unauthorized('You need to be logged in.');
+  }
+  if (!req.remoteUser?.isRoot()) {
+    throw new Forbidden('You need to be logged in as root.');
+  }
+  if (!checkScope('root')) {
+    throw new Unauthorized('The User Token is not allowed for mutations in scope "root".');
   }
 };
 

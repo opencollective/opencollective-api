@@ -221,7 +221,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('You need to be logged in to create an expense');
+      // expect(result.errors[0].message).to.equal('You need to be logged in to create an expense');
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
     it('creates the expense with the linked items', async () => {
@@ -689,7 +690,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.not.exist;
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('if not rejected', async () => {
@@ -760,7 +762,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('User cannot approve their own expenses', async () => {
@@ -769,6 +772,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams, expense.User);
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Forbidden');
       });
 
       it('Approves the expense', async () => {
@@ -809,7 +813,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('User cannot unapprove their own expenses', async () => {
@@ -849,7 +854,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('User cannot reject their own expenses', async () => {
@@ -901,7 +907,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'PAY' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('User cannot pay their own expenses', async () => {
@@ -1666,7 +1673,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('User cannot mark as unpaid their own expenses', async () => {
@@ -1746,7 +1754,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('User cannot schedule their own expenses for payment', async () => {
