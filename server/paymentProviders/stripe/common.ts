@@ -48,7 +48,7 @@ export const refundTransaction = async (
     {
       ...transaction.data,
       refund,
-      balanceTransaction: refundBalance,
+      balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
       charge,
     },
     user,
