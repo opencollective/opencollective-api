@@ -13,15 +13,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../common/context-permiss
 import { TaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
-import {
-  DateString,
-  ExpenseType,
-  InvoiceTemplateType,
-  OrderType,
-  PaymentMethodType,
-  SubscriptionType,
-  UserType,
-} from './types';
+import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
 
 export const TransactionInterfaceType = new GraphQLInterfaceType({
   name: 'Transaction',
@@ -86,7 +78,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
       refundTransaction: { type: TransactionInterfaceType },
-      invoiceTemplate: { type: InvoiceTemplateType },
+      invoiceTemplate: { type: GraphQLString },
     };
   },
 });
@@ -349,7 +341,7 @@ const TransactionFields = () => {
       },
     },
     invoiceTemplate: {
-      type: InvoiceTemplateType,
+      type: GraphQLString,
       async resolve(transaction) {
         return transaction.data?.invoiceTemplate;
       },

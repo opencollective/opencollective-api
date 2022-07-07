@@ -3,9 +3,7 @@
 module.exports = {
   up: async queryInterface => {
     await queryInterface.sequelize.query(`
-      UPDATE "Collectives" SET settings = jsonb_set("settings", '{invoice, templates}', '{}') WHERE ("settings" -> 'invoiceTitle') IS NOT NULL;
-
-      UPDATE "Collectives" SET settings = jsonb_set("settings", '{invoice, templates, default}', '{}') WHERE ("settings" -> 'invoiceTitle') IS NOT NULL;
+      UPDATE "Collectives" SET settings = jsonb_set("settings", '{invoice, templates}', '{"default": {}}') WHERE ("settings" -> 'invoiceTitle') IS NOT NULL;
 
       UPDATE "Collectives" SET settings = jsonb_set("settings", '{invoice, templates, default, title}', "settings" -> 'invoiceTitle') WHERE ("settings" -> 'invoiceTitle') IS NOT NULL;
 

@@ -9,7 +9,6 @@ import { getTierFrequencyFromInterval, TierFrequency } from '../enum/TierFrequen
 import { idEncode } from '../identifiers';
 
 import { Amount } from './Amount';
-import { InvoiceTemplate } from './InvoiceTemplate';
 
 export const Tier = new GraphQLObjectType({
   name: 'Tier',
@@ -114,14 +113,9 @@ export const Tier = new GraphQLObjectType({
         type: GraphQLDateTime,
       },
       invoiceTemplate: {
-        type: new GraphQLNonNull(InvoiceTemplate),
-        async resolve(tier, _, req) {
-          const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
-          const hostCollective = collective.getHostCollective();
-          return {
-            title: hostCollective.settings?.invoice?.template?.title,
-            info: hostCollective.settings?.invoice?.template?.info,
-          };
+        type: new GraphQLNonNull(GraphQLString),
+        async resolve(tier) {
+          return tier.data?.invoiceTemplate;
         },
       },
     };
