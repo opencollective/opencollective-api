@@ -84,8 +84,9 @@ export const sanitizeActivity = activity => {
 
   // Filter data based on activity type
   if (type === activities.COLLECTIVE_TRANSACTION_CREATED) {
-    cleanActivity.data = pick(activity.data, ['transaction.amount', 'transaction.currency']);
+    cleanActivity.data = pick(activity.data, ['transaction']); // It's safe to pick the entire transaction as it's added there through `transaction.info`, which only contains public fields
     cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
+    cleanActivity.data.collective = getCollectiveInfo(activity.data.collective);
   } else if (type === activities.COLLECTIVE_UPDATE_PUBLISHED) {
     cleanActivity.data = pick(activity.data, [
       'update.html',
