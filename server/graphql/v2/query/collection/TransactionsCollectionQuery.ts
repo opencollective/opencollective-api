@@ -108,6 +108,10 @@ export const TransactionsCollectionArgs = {
     type: new GraphQLList(TransactionKind),
     description: 'To filter by transaction kind',
   },
+  group: {
+    type: GraphQLString,
+    description: 'The transactions group to filter by',
+  },
 };
 
 export const TransactionsCollectionResolver = async (args, req: express.Request) => {
@@ -237,6 +241,9 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
 
   if (args.type) {
     where.push({ type: args.type });
+  }
+  if (args.group) {
+    where.push({ TransactionGroup: args.group });
   }
   if (args.minAmount) {
     where.push({ amount: sequelize.where(sequelize.fn('abs', sequelize.col('amount')), Op.gte, args.minAmount) });

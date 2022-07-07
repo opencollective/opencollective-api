@@ -304,6 +304,11 @@ interface Account {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -805,6 +810,11 @@ interface Transaction {
   Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)
   """
   merchantId: String
+
+  """
+  The balance after the Transaction has run. Only for financially active accounts.
+  """
+  balanceInHostCurrency: Amount
 }
 
 """
@@ -2619,6 +2629,11 @@ type Host implements Account & AccountWithContributions {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -4557,6 +4572,11 @@ type Bot implements Account {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -5017,6 +5037,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -5434,6 +5459,7 @@ type Credit implements Transaction {
   Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)
   """
   merchantId: String
+  balanceInHostCurrency: Amount
 }
 
 """
@@ -5537,6 +5563,7 @@ type Debit implements Transaction {
   Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)
   """
   merchantId: String
+  balanceInHostCurrency: Amount
 }
 
 """
@@ -5801,6 +5828,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -6374,6 +6406,11 @@ type Individual implements Account {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -6919,6 +6956,11 @@ type Organization implements Account & AccountWithContributions {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -7499,6 +7541,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -8408,6 +8455,11 @@ type Query {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   update(
     """
@@ -9988,6 +10040,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
@@ -10548,6 +10605,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     To filter by transaction kind
     """
     kind: [TransactionKind]
+
+    """
+    The transactions group to filter by
+    """
+    group: String
   ): TransactionCollection!
   orders(
     """
