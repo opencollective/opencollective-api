@@ -211,11 +211,11 @@ const processCollective = async collective => {
       return collective;
     })
     .then(async collective => {
-      const activity = await models.Activity.create({
+      const activity = {
         type: ActivityTypes.COLLECTIVE_MONTHLY_REPORT,
         CollectiveId: collective.id,
-        data: { ...emailData, notify: false },
-      });
+        data: emailData,
+      };
       return notify.collective(activity, options);
     })
     .catch(e => {
