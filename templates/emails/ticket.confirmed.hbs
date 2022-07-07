@@ -26,9 +26,7 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 
 {{#if event.data.privateInstructions}}
 <h2>Private Instructions</h2>
-<p>
-  {{event.data.privateInstructions}}
-</p>
+<pre>{{event.data.privateInstructions}}</pre>
 {{/if}}
 
 {{#if transactionPdf}}
