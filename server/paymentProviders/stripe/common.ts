@@ -1,4 +1,4 @@
-import { result } from 'lodash';
+import { get, result } from 'lodash';
 
 import { createRefundTransaction } from '../../lib/payments';
 import stripe, { extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
@@ -23,8 +23,10 @@ export const refundTransaction = async (
   const hostStripeAccount = await collective.getHostStripeAccount();
 
   /* Refund both charge & application fee */
+  const fees = get(transaction.data, 'balanceTransaction.fee_details', []);
+  const hasApplicationFees = fees.some(fee => fee.type === 'application_fee' && fee.amount > 0);
   const refund = await stripe.refunds.create(
-    { charge: chargeId, refund_application_fee: true }, // eslint-disable-line camelcase
+    { charge: chargeId, refund_application_fee: hasApplicationFees }, // eslint-disable-line camelcase
     { stripeAccount: hostStripeAccount.username },
   );
 
@@ -37,16 +39,16 @@ export const refundTransaction = async (
   const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
     stripeAccount: hostStripeAccount.username,
   });
-  const fees = extractFees(refundBalance, refundBalance.currency);
+  const refundedFees = extractFees(refundBalance, refundBalance.currency);
 
   /* Create negative transactions for the received transaction */
   return await createRefundTransaction(
     transaction,
-    fees.stripeFee, // TODO: Ignoring `other` fees here could be a problem
+    refundedFees.stripeFee, // TODO: Ignoring `other` fees here could be a problem
     {
       ...transaction.data,
       refund,
-      balanceTransaction: refundBalance,
+      balanceTransaction: refundBalance, // TODO: This is overwriting the original balanceTransaction with the refund balance transaction, which remove important info
       charge,
     },
     user,
