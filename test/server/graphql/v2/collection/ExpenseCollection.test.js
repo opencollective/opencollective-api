@@ -12,8 +12,9 @@ import {
   fakeLegalDocument,
   fakePayoutMethod,
   fakeTransaction,
+  fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const expensesQuery = gqlV2/* GraphQL */ `
   query Expenses(
@@ -21,16 +22,22 @@ const expensesQuery = gqlV2/* GraphQL */ `
     $account: AccountReferenceInput
     $host: AccountReferenceInput
     $status: ExpenseStatusFilter
+    $searchTerm: String
   ) {
-    expenses(fromAccount: $fromAccount, account: $account, host: $host, status: $status) {
+    expenses(fromAccount: $fromAccount, account: $account, host: $host, status: $status, searchTerm: $searchTerm) {
       totalCount
       nodes {
         id
         legacyId
         status
         type
-        description
         amount
+        description
+        tags
+        payee {
+          name
+          slug
+        }
       }
     }
   }
@@ -44,7 +51,7 @@ const fakeHostWithRequiredLegalDocument = async (hostData = {}) => {
   return host;
 };
 
-describe('server/graphql/v2/query/ExpensesQuery', () => {
+describe('server/graphql/v2/collection/ExpenseCollection', () => {
   describe('Filter on basic status', () => {
     let expenses, collective;
 
@@ -155,6 +162,58 @@ describe('server/graphql/v2/query/ExpensesQuery', () => {
       if (missingExpenses.length) {
         throw new Error(`Missing expenses: ${missingExpenses.map(e => JSON.stringify(e.info))}`);
       }
+    });
+  });
+
+  describe('Search Expenses', () => {
+    let hostAdminUser, ownerUser, expenseOne, expenseTwo;
+
+    before(async () => {
+      await resetTestDB();
+
+      // Create data
+      ownerUser = await fakeUser();
+      hostAdminUser = await fakeUser();
+      const collectiveAdminUser = await fakeUser();
+      const host = await fakeCollective({ admin: hostAdminUser.collective });
+      const collective = await fakeCollective({ admin: collectiveAdminUser.collective, HostCollectiveId: host.id });
+      expenseOne = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: collective.id,
+        description: 'This is an expense by OpenCollective',
+        tags: ['invoice', 'expense', 'opencollective'],
+      });
+      expenseTwo = await fakeExpense({
+        FromCollectiveId: hostAdminUser.collective.id,
+        CollectiveId: collective.id,
+        description: 'This is another expense by engineering',
+        tags: ['engineering', 'software', 'payout'],
+      });
+    });
+
+    it('searches in description', async () => {
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: 'OpenCollective' });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseOne.id);
+    });
+
+    it('searches in tags', async () => {
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: 'payout' });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseTwo.id);
+    });
+
+    it('searches in payee name', async () => {
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: ownerUser.collective.name });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseOne.id);
+    });
+
+    it('searches in payee slug', async () => {
+      const slug = hostAdminUser.collective.slug;
+      const result = await graphqlQueryV2(expensesQuery, { searchTerm: slug });
+      expect(result.data.expenses.totalCount).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenseTwo.id);
     });
   });
 });

@@ -54,7 +54,7 @@ const transactionsQuery = gqlV2/* GraphQL */ `
   }
 `;
 
-describe('server/graphql/v2/query/TransactionsQuery', () => {
+describe('server/graphql/v2/collection/TransactionCollection', () => {
   let transactions, collective, collectiveAdmin, fromCollectiveAdmin, hostAdmin;
 
   before(async () => {
