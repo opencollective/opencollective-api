@@ -95,8 +95,8 @@ export const notify = {
       throw new Error(`notify.collective can't notify ${activity.type}: no collective found with id ${collectiveId}`);
     }
 
-    const isIncognitoUser = collective.type === CollectiveType.USER && !collective.isIncognito;
-    const users = isIncognitoUser
+    const isNonIncognitoUser = collective.type === CollectiveType.USER && !collective.isIncognito;
+    const users = isNonIncognitoUser
       ? [await collective.getUser()]
       : await collective.getMembersUsers({
           CollectiveId: collective.ParentCollectiveId ? [collective.ParentCollectiveId, collective.id] : collective.id,

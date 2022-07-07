@@ -155,12 +155,12 @@ export async function processOrderWithSubscription(order, options) {
   if (!options.dryRun) {
     try {
       if (collectiveIsArchived) {
-        await sendArchivedCollectiveEmail(order);
+        await createOrderCanceledArchivedCollectiveActivity(order);
       } else if (creditCardNeedsConfirmation) {
         if (order.Subscription.chargeRetryCount >= MAX_RETRIES) {
           await cancelSubscriptionAndNotifyUser(order);
         } else {
-          await sendCreditCardConfirmationEmail(order);
+          await createPaymentCreditCardConfirmationActivity(order);
         }
       } else {
         await handleRetryStatus(order, transaction);
@@ -211,11 +211,11 @@ export async function handleRetryStatus(order, transaction) {
           return Promise.resolve();
         }
       }
-      return sendFailedEmail(order, false);
+      return createPaymentFailedActivity(order, false);
     case MAX_RETRIES:
       return cancelSubscriptionAndNotifyUser(order);
     default:
-      return sendFailedEmail(order, false);
+      return createPaymentFailedActivity(order, false);
   }
 }
 
@@ -333,11 +333,11 @@ export function groupProcessedOrders(orders) {
 /** Call cancelation function and then send confirmation email */
 export async function cancelSubscriptionAndNotifyUser(order) {
   cancelSubscription(order);
-  return sendFailedEmail(order, true);
+  return createPaymentFailedActivity(order, true);
 }
 
-/** Send `archived.collective` email */
-export async function sendArchivedCollectiveEmail(order) {
+/** Send `order.cancelled.archived.collective` email */
+export async function createOrderCanceledArchivedCollectiveActivity(order) {
   return models.Activity.create({
     type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
     data: {
@@ -349,7 +349,7 @@ export async function sendArchivedCollectiveEmail(order) {
 }
 
 /** Send `payment.failed` email */
-export async function sendFailedEmail(order, lastAttempt) {
+export async function createPaymentFailedActivity(order, lastAttempt) {
   const errorMessage = get(order, 'data.error.message');
 
   return models.Activity.create({
@@ -426,7 +426,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   });
 }
 
-export async function sendCreditCardConfirmationEmail(order) {
+export async function createPaymentCreditCardConfirmationActivity(order) {
   return models.Activity.create({
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
     data: {
