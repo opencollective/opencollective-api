@@ -233,10 +233,12 @@ function defineModel() {
         },
 
         // Info.
+        // Warning: Only add public fields in there, as the raw object is shared through webhooks
         info() {
           return {
             id: this.id,
             uuid: this.uuid,
+            group: this.TransactionGroup,
             type: this.type,
             kind: this.kind,
             description: this.description,
