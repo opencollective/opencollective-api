@@ -3,6 +3,7 @@ import config from 'config';
 import moment from 'moment';
 import { createSandbox, stub, useFakeTimers } from 'sinon';
 
+import activities from '../../../server/constants/activities';
 import status from '../../../server/constants/order_status';
 import emailLib from '../../../server/lib/email';
 import * as paymentsLib from '../../../server/lib/payments';
@@ -237,7 +238,7 @@ describe('server/lib/recurring-contributions', () => {
       await handleRetryStatus(order);
       await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      expect(sendSpy.args[0]).to.containSubset(['thankyou', order.createdByUser.email]);
+      expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
     });
 
     it('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
@@ -333,7 +334,7 @@ describe('server/lib/recurring-contributions', () => {
 
         await utils.waitForCondition(() => sendSpy.callCount > 0);
         // And given that an email should be sent afterwards
-        expect(sendSpy.args[0]).to.containSubset(['thankyou', order.createdByUser.email]);
+        expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
 
         // Expect the processOrder function was called
         expect(paymentsStub.called).to.be.true;
@@ -358,7 +359,7 @@ describe('server/lib/recurring-contributions', () => {
         const entry = await processOrderWithSubscription(order, { dryRun: false });
         await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-        expect(sendSpy.args[0]).to.containSubset(['thankyou', order.createdByUser.email]);
+        expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
         // Expect the processOrder function was called
         expect(paymentsStub.called).to.be.true;
 

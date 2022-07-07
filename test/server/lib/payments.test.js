@@ -4,6 +4,7 @@ import config from 'config';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
+import { activities } from '../../../server/constants';
 import status from '../../../server/constants/order_status';
 import { PLANS_COLLECTIVE_SLUG } from '../../../server/constants/plans';
 import roles from '../../../server/constants/roles';
@@ -237,7 +238,7 @@ describe('server/lib/payments', () => {
 
             it('successfully sends out an email to donor1', async () => {
               await utils.waitForCondition(() => emailSendSpy.callCount > 0);
-              expect(emailSendSpy.lastCall.args[0]).to.equal('thankyou');
+              expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
               expect(emailSendSpy.lastCall.args[1]).to.equal(user.email);
               expect(emailSendSpy.lastCall.args[2].relatedCollectives).to.have.length(1);
               expect(emailSendSpy.lastCall.args[2].relatedCollectives[0]).to.have.property('settings');
@@ -318,7 +319,7 @@ describe('server/lib/payments', () => {
 
           it('successfully sends out an email to donor', done => {
             setTimeout(() => {
-              expect(emailSendSpy.lastCall.args[0]).to.equal('thankyou');
+              expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
               expect(emailSendSpy.lastCall.args[1]).to.equal(user2.email);
               done();
             }, 80);

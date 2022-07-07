@@ -65,6 +65,7 @@ enum ActivityTypes {
   ORDER_PROCESSING_CRYPTO = 'order.processing.crypto',
   ORDER_PENDING_CONTRIBUTION_NEW = 'order.new.pendingFinancialContribution',
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
+  ORDER_THANKYOU = 'order.thankyou',
   ORDERS_SUSPICIOUS = 'orders.suspicious',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
@@ -79,7 +80,6 @@ enum ActivityTypes {
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
   UPDATE_COMMENT_CREATED = 'update.comment.created',
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
-  THANKYOU = 'thankyou',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
