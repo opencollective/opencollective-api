@@ -42,15 +42,13 @@ export const notify = {
     },
   ) {
     const user = options?.user || (await models.User.findByPk(options?.userId || activity.UserId));
-    const unsubscribed =
-      options?.unsubscribed ||
-      (await models.Notification.getUnsubscribers({
-        type: activity.type,
-        CollectiveId: activity.CollectiveId,
-        UserId: user.id,
-      }));
+    const unsubscribed = await models.Notification.getUnsubscribers({
+      type: activity.type,
+      UserId: user.id,
+      CollectiveId: options?.collective?.id || activity.CollectiveId,
+    });
 
-    if (!unsubscribed.some(unsubscribedUser => unsubscribedUser.id === user.id)) {
+    if (unsubscribed.length === 0) {
       debug('notifying.user', user.id, user && user.email, activity.type);
       return emailLib.send(options?.template || activity.type, options?.to || user.email, activity.data, options);
     }

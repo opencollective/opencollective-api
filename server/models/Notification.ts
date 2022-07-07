@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaults, flatten, isNil, keys, pickBy, reject } from 'lodash';
+import { compact, defaults, isNil, keys, pickBy, reject } from 'lodash';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
@@ -186,7 +186,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
 
   static async getUnsubscribers(_where: {
     type?: ActivityClasses | ActivityTypes;
-    CollectiveId?: number | number[];
+    CollectiveId?: number;
     UserId?: number | number[];
   }) {
     debug('getUnsubscribers', { _where });
@@ -195,13 +195,17 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     const include = [{ model: models.User }] as any;
     const where = { ..._where, active: false } as any;
 
-    const collective = where.CollectiveId && (await models.Collective.findByPk(where.CollectiveId));
+    const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
     if (collective) {
-      where.CollectiveId = flatten([where.CollectiveId, collective.ParentCollectiveId, collective.HostCollectiveId]);
+      where.CollectiveId = compact([collective.id, collective.ParentCollectiveId, collective.HostCollectiveId]);
+      // If user is informed, also fetch global settings
+      if (where.UserId) {
+        where.CollectiveId.push(null);
+      }
     }
 
-    const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(where.type)));
-    where.type = flatten([where.type, `${where.type}.for.host`, ...classes]);
+    const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
+    where.type = compact([_where.type, `${_where.type}.for.host`, ...classes]);
 
     const unsubs = await Notification.findAll({
       where,
