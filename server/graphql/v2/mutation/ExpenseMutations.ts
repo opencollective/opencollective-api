@@ -26,7 +26,7 @@ import {
   unapproveExpense,
   unscheduleExpensePayment,
 } from '../../common/expenses';
-import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
+import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
 import { createUser } from '../../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
@@ -113,7 +113,8 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      checkRemoteUserCanUseExpenses(req);
+      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
+      enforceScope(req, 'expenses');
 
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
@@ -428,7 +429,8 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      checkRemoteUserCanUseExpenses(req);
+      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
+      enforceScope(req, 'expenses');
 
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
 
@@ -471,7 +473,8 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      checkRemoteUserCanUseExpenses(req);
+      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
+      enforceScope(req, 'expenses');
 
       const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
       if (expense.status !== expenseStatus.UNVERIFIED) {
