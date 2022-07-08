@@ -264,8 +264,8 @@ describe('server/lib/notification', () => {
       // Checks
       await notifyAdminsAndAccountantsOfCollective(collective.id, activity);
       expect(sendEmailSpy.callCount).to.equal(2);
-      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
-      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', adminUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', accountantUser.email);
     });
 
     it('notifies only admins and accountants of parent', async () => {
@@ -300,8 +300,8 @@ describe('server/lib/notification', () => {
       // Checks
       await notifyAdminsAndAccountantsOfCollective(event.id, activity);
       expect(sendEmailSpy.callCount).to.equal(2);
-      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
-      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', adminUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', accountantUser.email);
     });
   });
 });

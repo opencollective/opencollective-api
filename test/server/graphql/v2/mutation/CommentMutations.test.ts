@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import { createSandbox } from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
@@ -63,10 +63,8 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2);
       expect(sendEmailSpy.callCount).to.equal(2);
       const expectedTitle = `${collective.name}: New comment on expense ${expense.description} by ${expenseSubmitter.collective.name}`;
-      expect(sendEmailSpy.firstCall.args[1]).to.contain(expectedTitle);
-      expect(sendEmailSpy.secondCall.args[1]).to.contain(expectedTitle);
-      expect(sendEmailSpy.args[0][0]).to.be.oneOf([admin.email, hostAdmin.email]);
-      expect(sendEmailSpy.args[1][0]).to.be.oneOf([admin.email, hostAdmin.email]);
+      assert.calledWithMatch(sendEmailSpy, admin.email, expectedTitle);
+      assert.calledWithMatch(sendEmailSpy, hostAdmin.email, expectedTitle);
     });
   });
 
