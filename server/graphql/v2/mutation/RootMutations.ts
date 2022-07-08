@@ -13,6 +13,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden, Unauthorized } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
@@ -22,15 +23,6 @@ import {
 } from '../input/AccountReferenceInput';
 import { Account } from '../interface/Account';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
-
-const checkRemoteUserCanRoot = req => {
-  if (!req.remoteUser?.isRoot()) {
-    throw new Unauthorized('You need to be logged in with root capabilities.');
-  }
-  if (req.userToken && !req.userToken.getScope().includes('root')) {
-    throw new Unauthorized('The User Token is not allowed for mutations in scope "root".');
-  }
-};
 
 const BanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',

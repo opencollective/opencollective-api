@@ -3,7 +3,7 @@ import { omit, pick } from 'lodash';
 
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
-import { checkRemoteUserCanUsePaymentMethods } from '../../common/scope-check';
+import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CreditCardCreateInput } from '../input/CreditCardCreateInput';
@@ -27,7 +27,7 @@ const CreditCardWithStripeError = new GraphQLObjectType({
 
 const addCreditCard = {
   type: new GraphQLNonNull(CreditCardWithStripeError),
-  description: 'Add a new payment method to be used with an Order. Scope: "paymentMethods".',
+  description: 'Add a new payment method to be used with an Order. Scope: "orders".',
   args: {
     creditCardInfo: {
       type: new GraphQLNonNull(CreditCardCreateInput),
@@ -48,7 +48,7 @@ const addCreditCard = {
     },
   },
   async resolve(_, args, req) {
-    checkRemoteUserCanUsePaymentMethods(req);
+    checkRemoteUserCanUseOrders(req);
 
     const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     if (!req.remoteUser?.isAdminOfCollective(collective)) {
@@ -103,14 +103,14 @@ const addCreditCard = {
 
 const confirmCreditCard = {
   type: new GraphQLNonNull(CreditCardWithStripeError),
-  description: 'Confirm a credit card is ready for use after strong customer authentication. Scope: "paymentMethods".',
+  description: 'Confirm a credit card is ready for use after strong customer authentication. Scope: "orders".',
   args: {
     paymentMethod: {
       type: new GraphQLNonNull(PaymentMethodReferenceInput),
     },
   },
   async resolve(_, args, req) {
-    checkRemoteUserCanUsePaymentMethods(req);
+    checkRemoteUserCanUseOrders(req);
 
     const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod);
 

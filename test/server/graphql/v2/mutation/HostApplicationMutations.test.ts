@@ -256,7 +256,6 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const mutationParams = { host: { slug: host.slug }, collective: { slug: collective.slug } };
       const resultUnauthenticated = await graphqlQueryV2(APPLY_TO_HOST_MUTATION, mutationParams);
       expect(resultUnauthenticated.errors).to.exist;
-      // expect(resultUnauthenticated.errors[0].message).to.eq('You need to be logged in');
       expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
       const randomUser = await fakeUser();

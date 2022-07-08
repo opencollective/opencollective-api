@@ -137,7 +137,6 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
     it('Must be authenticated', async () => {
       const result = await graphqlQueryV2(removePayoutMethodMutation, mutationArgs, null);
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 

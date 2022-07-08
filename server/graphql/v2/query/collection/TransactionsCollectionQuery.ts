@@ -5,6 +5,7 @@ import { cloneDeep, flatten, uniq } from 'lodash';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
+import { checkScope } from '../../../common/scope-check';
 import { TransactionCollection } from '../../collection/TransactionCollection';
 import { TransactionKind } from '../../enum/TransactionKind';
 import { TransactionType } from '../../enum/TransactionType';
@@ -153,7 +154,8 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     if (
       args.includeIncognitoTransactions &&
       req.remoteUser?.isAdminOfCollective(fromAccount) &&
-      req.remoteUser.CollectiveId === fromAccount.id
+      req.remoteUser.CollectiveId === fromAccount.id &&
+      checkScope('incognito')
     ) {
       const incognitoProfile = await fromAccount.getIncognitoProfile();
       if (incognitoProfile) {
@@ -197,7 +199,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     accountCondition.push(...accountsIds);
 
     // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
-    if (req.remoteUser && args.includeIncognitoTransactions) {
+    if (req.remoteUser && args.includeIncognitoTransactions && checkScope('incognito')) {
       if (accountCondition.includes(req.remoteUser.CollectiveId)) {
         const incognitoProfile = await req.remoteUser.getIncognitoProfile();
         if (incognitoProfile) {

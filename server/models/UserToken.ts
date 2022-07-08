@@ -17,7 +17,7 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare ApplicationId: number;
   public declare UserId: number;
   public declare data: Record<string, unknown>;
-  public declare scope: string;
+  public declare scope: string[];
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
@@ -26,9 +26,9 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare client?: NonAttribute<typeof models.Application>;
 
   getScope() {
-    if (typeof this.scope === 'string') {
-      return this.scope.split(',');
-    }
+    // if (typeof this.scope === 'string') {
+    //   return this.scope.split(',');
+    // }
 
     return this.scope;
   }
@@ -85,7 +85,25 @@ UserToken.init(
       allowNull: true,
     },
     scope: {
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(
+        DataTypes.ENUM(
+          'email',
+          'account',
+          'expenses',
+          'orders',
+          'transactions',
+          'virtualCards',
+          'payoutMethods',
+          'paymentMethods',
+          'host',
+          'root',
+          'conversations',
+          'updates',
+          'webhooks',
+          'applications',
+          'connectedAccounts',
+        ),
+      ),
       allowNull: true,
     },
     // Standard temporal fields

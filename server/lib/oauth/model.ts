@@ -80,7 +80,7 @@ const model: OauthModel = {
         refreshTokenExpiresAt: token.refreshTokenExpiresAt,
         ApplicationId: application.id,
         UserId: user.id,
-        scope: Array.isArray(token.scope) ? token.scope.join(',') : token.scope,
+        scope: Array.isArray(token.scope) ? token.scope : token.scope.split(','),
       });
       oauthToken.user = user;
       oauthToken.client = client;
@@ -152,7 +152,7 @@ const model: OauthModel = {
       code: code.authorizationCode,
       expiresAt: code.expiresAt,
       redirectUri: code.redirectUri,
-      scope: Array.isArray(code.scope) ? code.scope.join(',') : code.scope,
+      scope: Array.isArray(code.scope) ? code.scope : code.scope.split(','),
     });
 
     authorization.application = application;

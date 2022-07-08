@@ -76,13 +76,18 @@ const accountFieldsDefinition = () => ({
     type: GraphQLString,
     description: 'Private, legal name. Used for expense receipts, taxes, etc.',
     resolve: async (account, _, req) => {
-      // TODO: scope for legalName?
+      if (!checkScope('account')) {
+        return null;
+      }
       if (
         !canSeeLegalName(req.remoteUser, account) &&
         !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, account.id)
       ) {
         return null;
       } else if (account.isIncognito) {
+        if (!checkScope('incognito')) {
+          return null;
+        }
         const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);
         if (mainProfile) {
           return mainProfile.legalName || mainProfile.name;
@@ -765,7 +770,7 @@ export const AccountFields = {
       if (
         req.remoteUser?.isAdminOfCollective(collective) &&
         !collective.isHostAccount &&
-        !checkScope(req, 'payoutMethods')
+        !checkScope(req, 'expenses')
       ) {
         return null;
       }

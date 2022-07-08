@@ -36,7 +36,6 @@ describe('server/graphql/v2/mutation/CreateProjectMutation', () => {
     // Unauthenticated
     const resultUnauthenticated = await utils.graphqlQueryV2(createProjectMutation, mutationArgs);
     expect(resultUnauthenticated.errors).to.exist;
-    // expect(resultUnauthenticated.errors[0].message).to.equal('You need to be logged in to create a Project');
     expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
     // Random user

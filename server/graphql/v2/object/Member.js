@@ -1,6 +1,7 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { checkScope } from '../../common/scope-check';
 import { MemberRole } from '../enum/MemberRole';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -90,7 +91,7 @@ const getMemberAccountResolver = field => async (member, args, req) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
   const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
 
-  if (!account?.isIncognito || req.remoteUser?.isAdmin(memberAccount.id)) {
+  if (!account?.isIncognito || (req.remoteUser?.isAdmin(memberAccount.id) && checkScope('incognito'))) {
     return field === 'collective' ? account : memberAccount;
   }
 };

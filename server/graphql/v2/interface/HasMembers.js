@@ -4,6 +4,7 @@ import { intersection } from 'lodash';
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
 import models, { Op } from '../../../models';
+import { checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
 import { MemberCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
@@ -32,7 +33,8 @@ export const HasMembersFields = {
       },
     },
     async resolve(collective, args, req) {
-      if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
+      // TODO: isn't it a better practice to return null?
+      if (collective.isIncognito && (!req.remoteUser?.isAdmin(collective.id) || !checkScope('incognito'))) {
         return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
       }
 

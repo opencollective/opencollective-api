@@ -966,7 +966,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           order: { id: idEncode(order2.id, 'order') },
         });
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.match(/You need to be logged in to update a order/);
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 

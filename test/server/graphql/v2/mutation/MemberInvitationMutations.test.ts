@@ -348,7 +348,6 @@ describe('MemberInvitationMutations', () => {
       });
 
       expect(resultUnauthenticated.errors).to.have.length(1);
-      // expect(resultUnauthenticated.errors[0].message).to.equal('You need to be authenticated to perform this action');
       expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
       // Must be invited user

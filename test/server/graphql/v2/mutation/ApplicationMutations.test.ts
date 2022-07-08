@@ -62,7 +62,6 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS });
 
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You need to be authenticated to create an application.');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -110,7 +109,6 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       });
 
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You need to be authenticated to update an application.');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -166,7 +164,6 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       });
 
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You need to be authenticated to delete an application.');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 

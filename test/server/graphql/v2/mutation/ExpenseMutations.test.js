@@ -221,7 +221,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You need to be logged in to create an expense');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -690,7 +689,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         await expense.reload({ paranoid: false });
         expect(expense.deletedAt).to.not.exist;
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
@@ -762,7 +760,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'APPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
@@ -813,7 +810,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'UNAPPROVE' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
@@ -907,7 +903,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'PAY' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 

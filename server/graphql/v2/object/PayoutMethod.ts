@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { GraphQLJSON } from 'graphql-type-json';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkScope } from '../../common/scope-check';
 import PayoutMethodType from '../enum/PayoutMethodType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -27,7 +28,9 @@ const PayoutMethod = new GraphQLObjectType({
           req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
-          return payoutMethod.name;
+          if (checkScope('expenses')) {
+            return payoutMethod.name;
+          }
         }
       },
     },
@@ -39,7 +42,9 @@ const PayoutMethod = new GraphQLObjectType({
           req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
-          return payoutMethod.isSaved;
+          if (checkScope('expenses')) {
+            return payoutMethod.isSaved;
+          }
         }
       },
     },
@@ -51,7 +56,9 @@ const PayoutMethod = new GraphQLObjectType({
           req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
-          return payoutMethod.data;
+          if (checkScope('expenses')) {
+            return payoutMethod.data;
+          }
         }
       },
     },

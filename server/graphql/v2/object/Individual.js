@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 
 import { types as collectiveTypes } from '../../../constants/collectives';
 import models from '../../../models';
+import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -21,14 +22,8 @@ export const Individual = new GraphQLObjectType({
       email: {
         type: GraphQLString,
         async resolve(userCollective, args, req) {
-          if (!req.remoteUser) {
+          if (!req.remoteUser || !checkScope('email')) {
             return null;
-          }
-
-          if (req.userToken) {
-            if (!req.userToken.getScope().includes('email')) {
-              return null;
-            }
           }
 
           const user = await (userCollective.isIncognito
@@ -72,10 +67,14 @@ export const Individual = new GraphQLObjectType({
             - Hosts can see the address of users submitting expenses to their collectives
         `,
         async resolve(individual, _, req) {
-          const canSeeLocation = req.remoteUser?.isAdmin(individual.id) || (await individual.isHost());
+          const isHost = await individual.isHost();
+          const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope('account'));
           if (canSeeLocation) {
             // For incognito profiles, we retrieve the location from the main user profile
             if (individual.isIncognito) {
+              if (!checkScope('incognito')) {
+                return null;
+              }
               const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
               if (mainProfile) {
                 return mainProfile.location;
@@ -119,14 +118,11 @@ export const Individual = new GraphQLObjectType({
           ...CollectionArgs,
         },
         async resolve(collective, { limit, offset }, req) {
-          if (!req.remoteUser) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || checkScope('account')) {
             return null;
           }
 
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (!user || user.id !== req.remoteUser.id) {
-            return null;
-          }
 
           const query = { where: { UserId: user.id } };
 

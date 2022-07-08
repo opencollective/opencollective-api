@@ -7,21 +7,13 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
+import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
-
-const checkRemoteUserCanUseTransactions = req => {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage transactions.');
-  }
-  if (req.userToken && !req.userToken.getScope().includes('transactions')) {
-    throw new Unauthorized('The User Token is not allowed for mutations in scope "transactions".');
-  }
-};
 
 const transactionMutations = {
   addPlatformTipToTransaction: {

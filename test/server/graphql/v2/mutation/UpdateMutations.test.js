@@ -92,7 +92,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     it('fails if not authenticated', async () => {
       const result = await utils.graphqlQueryV2(createUpdateMutation, { update });
       expect(result.errors).to.have.length(1);
-      // expect(result.errors[0].message).to.equal('You must be logged in to create an update');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -139,7 +138,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
     it('fails if not authenticated', async () => {
       const result = await utils.graphqlQueryV2(createUpdateMutation, { update: changelogUpdate });
       expect(result.errors).to.have.length(1);
-      // expect(result.errors[0].message).to.equal('You must be logged in to create an update');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -180,7 +178,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         notificationAudience: update1.notificationAudience,
       });
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You must be logged in to edit this update');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -311,7 +308,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         update: { id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE) },
       });
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You must be logged in to edit this update');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
@@ -375,7 +371,6 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
         id: idEncode(update1.id, IDENTIFIER_TYPES.UPDATE),
       });
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.equal('You must be logged in to edit this update');
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       return models.Update.findByPk(update1.id).then(updateFound => {
         expect(updateFound).to.not.be.null;

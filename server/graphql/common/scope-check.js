@@ -9,20 +9,6 @@ export const checkRemoteUserCanUseVirtualCards = req => {
   enforceScope(req, 'virtualCards');
 };
 
-export const checkRemoteUserCanUsePayoutMethods = req => {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage payout methods.');
-  }
-  enforceScope(req, 'payoutMethods');
-};
-
-export const checkRemoteUserCanUsePaymentMethods = req => {
-  if (!req.remoteUser) {
-    throw new Unauthorized('You need to be logged in to manage payment methods.');
-  }
-  enforceScope(req, 'paymentMethods');
-};
-
 export const checkRemoteUserCanUseAccount = req => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage account.');
@@ -35,6 +21,13 @@ export const checkRemoteUserCanUseHost = req => {
     throw new Unauthorized('You need to be logged in to manage hosted accounts.');
   }
   enforceScope(req, 'host');
+};
+
+export const checkRemoteUserCanUseTransactions = req => {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to manage transactions.');
+  }
+  enforceScope(req, 'transactions');
 };
 
 export const checkRemoteUserCanUseOrders = req => {

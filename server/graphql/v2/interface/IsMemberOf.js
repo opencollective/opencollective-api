@@ -4,6 +4,7 @@ import { cloneDeep, invert, isNil } from 'lodash';
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { buildSearchConditions } from '../../../lib/search';
 import models, { Op, sequelize } from '../../../models';
+import { checkScope } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { MemberOfCollection } from '../collection/MemberCollection';
 import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
@@ -84,7 +85,7 @@ export const IsMemberOfFields = {
         const account = await fetchAccountWithReference(args.account, { loaders: req.loaders });
         where.CollectiveId = account.id;
       }
-      if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id)) {
+      if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id) || !checkScope('incognito')) {
         collectiveConditions.isIncognito = false;
       }
       if (!isNil(args.isHostAccount)) {

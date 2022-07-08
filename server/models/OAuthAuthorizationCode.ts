@@ -18,7 +18,7 @@ class OAuthAuthorizationCode extends Model<
   public declare deletedAt: CreationOptional<Date>;
   public declare ApplicationId: number;
   public declare UserId: number;
-  public declare scope: string;
+  public declare scope: string[];
 
   public declare application?: NonAttribute<typeof models.Application>;
   public declare user?: NonAttribute<typeof models.User>;
@@ -75,7 +75,25 @@ OAuthAuthorizationCode.init(
       type: DataTypes.DATE,
     },
     scope: {
-      type: DataTypes.STRING,
+      type: DataTypes.ARRAY(
+        DataTypes.ENUM(
+          'email',
+          'account',
+          'expenses',
+          'orders',
+          'transactions',
+          'virtualCards',
+          'payoutMethods',
+          'paymentMethods',
+          'host',
+          'root',
+          'conversations',
+          'updates',
+          'webhooks',
+          'applications',
+          'connectedAccounts',
+        ),
+      ),
       allowNull: true,
     },
   },
