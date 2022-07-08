@@ -192,20 +192,23 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     debug('getUnsubscribers', { _where });
     const getUsers = notifications => notifications.map(notification => notification.User);
 
-    const include = [{ model: models.User }] as any;
-    const where = { ..._where, active: false } as any;
+    const include = [{ model: models.User }];
+    const where = { active: false };
+    if (_where.UserId) {
+      where['UserId'] = _where.UserId;
+    }
 
     const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
     if (collective) {
-      where.CollectiveId = compact([collective.id, collective.ParentCollectiveId, collective.HostCollectiveId]);
+      where['CollectiveId'] = compact([collective.id, collective.ParentCollectiveId, collective.HostCollectiveId]);
       // If user is informed, also fetch global settings
-      if (where.UserId) {
-        where.CollectiveId.push(null);
+      if (where['UserId']) {
+        where['CollectiveId'].push(null);
       }
     }
 
     const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
-    where.type = compact([_where.type, `${_where.type}.for.host`, ...classes]);
+    where['type'] = { [Op.in]: compact([_where.type, `${_where.type}.for.host`, ...classes]) };
 
     const unsubs = await Notification.findAll({
       where,
