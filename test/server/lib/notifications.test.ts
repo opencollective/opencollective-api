@@ -131,7 +131,7 @@ describe('server/lib/notification', () => {
     });
 
     beforeEach(async () => {
-      sendEmailSpy = sandbox.spy(emailLib, 'send');
+      sendEmailSpy = sandbox.stub(emailLib, 'send');
     });
 
     describe('check update published notifications', async () => {
@@ -196,7 +196,7 @@ describe('server/lib/notification', () => {
       notify.collective(activity, { ...options, collectiveId });
 
     beforeEach(async () => {
-      sendEmailSpy = sandbox.spy(emailLib, 'send');
+      sendEmailSpy = sandbox.stub(emailLib, 'send').resolves();
     });
 
     it('notifies only admins', async () => {
@@ -235,7 +235,7 @@ describe('server/lib/notification', () => {
       notify.collective(activity, { ...options, collectiveId, role: [roles.ACCOUNTANT, roles.ADMIN] });
 
     beforeEach(async () => {
-      sendEmailSpy = sandbox.spy(emailLib, 'send');
+      sendEmailSpy = sandbox.stub(emailLib, 'send');
     });
 
     it('notifies only admins and accountants', async () => {
