@@ -850,7 +850,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'REJECT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
@@ -1668,7 +1667,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
@@ -1749,7 +1747,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         const mutationParams = { expenseId: expense.id, action: 'SCHEDULE_FOR_PAYMENT' };
         const result = await graphqlQueryV2(processExpenseMutation, mutationParams);
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 

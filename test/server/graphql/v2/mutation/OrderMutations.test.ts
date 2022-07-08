@@ -915,7 +915,6 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           order: { id: idEncode(order.id, 'order') },
         });
         expect(result.errors).to.exist;
-        // expect(result.errors[0].message).to.match(/You need to be logged in to cancel a recurring contribution/);
         expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 

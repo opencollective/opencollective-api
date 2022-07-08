@@ -14,7 +14,7 @@ import {
   stringifyBanSummary,
 } from '../../../lib/moderation';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
-import { Forbidden, Unauthorized } from '../../errors';
+import { Forbidden } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
   AccountReferenceInput,

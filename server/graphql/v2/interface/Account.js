@@ -12,7 +12,7 @@ import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
-import { BadRequest, Unauthorized } from '../../errors';
+import { BadRequest } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
@@ -74,7 +74,7 @@ const accountFieldsDefinition = () => ({
   },
   legalName: {
     type: GraphQLString,
-    description: 'Private, legal name. Used for expense receipts, taxes, etc.',
+    description: 'Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".',
     resolve: async (account, _, req) => {
       if (!checkScope('account')) {
         return null;
@@ -327,16 +327,12 @@ const accountFieldsDefinition = () => ({
   },
   oAuthApplications: {
     type: OAuthApplicationCollection,
-    description: '(Authenticated) The list of applications created by this account',
+    description: 'The list of applications created by this account. Admin only. Scope: "applications".',
     args: {
       ...CollectionArgs,
     },
     async resolve(collective, args, req) {
-      if (!checkScope(req, 'applications')) {
-        return null;
-      }
-
-      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
         return null;
       }
 
@@ -363,12 +359,14 @@ const accountFieldsDefinition = () => ({
   },
   updates: {
     type: new GraphQLNonNull(UpdateCollection),
+    description:
+      'Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".',
     args: {
       ...CollectionArgs,
       onlyPublishedUpdates: {
         type: GraphQLBoolean,
         defaultValue: false,
-        description: 'Only return published updates. You must be an admin of the account to see unpublished updates.',
+        description: 'Only return published updates.',
       },
       onlyChangelogUpdates: { type: GraphQLBoolean },
       orderBy: {
@@ -417,6 +415,7 @@ const accountFieldsDefinition = () => ({
   },
   virtualCards: {
     type: new GraphQLNonNull(VirtualCardCollection),
+    description: 'Virtual Cards attached to the account. Admin only. Scope: "virtualCards".',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -438,12 +437,8 @@ const accountFieldsDefinition = () => ({
       },
     },
     async resolve(account, args, req) {
-      if (!checkScope(req, 'virtualCards')) {
+      if (!req.remoteUser?.isAdminOfCollective(account) || !checkScope(req, 'virtualCards')) {
         return null;
-      }
-
-      if (!req.remoteUser?.isAdminOfCollective(account)) {
-        throw new Unauthorized('You need to be logged in as an admin of the collective to see its virtual cards');
       }
 
       let merchantId;
@@ -501,19 +496,14 @@ const accountFieldsDefinition = () => ({
   },
   virtualCardMerchants: {
     type: new GraphQLNonNull(AccountCollection),
+    description: 'Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
     },
     async resolve(account, args, req) {
-      if (!checkScope(req, 'virtualCards')) {
+      if (!req.remoteUser?.isAdminOfCollective(account) || !checkScope(req, 'virtualCards')) {
         return null;
-      }
-
-      if (!req.remoteUser?.isAdminOfCollective(account)) {
-        throw new Unauthorized(
-          'You need to be logged in as an admin of the collective to see its virtual card merchants',
-        );
       }
 
       const result = await models.Collective.findAndCountAll({
@@ -588,6 +578,8 @@ const accountFieldsDefinition = () => ({
   },
   policies: {
     type: new GraphQLNonNull(Policies),
+    description:
+      'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
     async resolve(account, _, req) {
       const policies = account.data?.policies || {};
       if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
@@ -764,7 +756,8 @@ export const AccountFields = {
   },
   payoutMethods: {
     type: new GraphQLList(PayoutMethod),
-    description: 'The list of payout methods that this collective can use to get paid',
+    description:
+      'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
     async resolve(collective, _, req) {
       // Scope check is a a bit more complex because we have to accomodate the case where payoutMethods are public
       if (
@@ -810,15 +803,11 @@ export const AccountFields = {
           'Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
       },
     },
-    description: 'The list of payment methods that this collective can use to pay for Orders',
+    description:
+      'The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".',
     async resolve(collective, args, req) {
-      if (!checkScope(req, 'paymentMethods')) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'paymentMethods')) {
         return null;
-      }
-
-      if (!req.remoteUser?.isAdminOfCollective(collective)) {
-        // TODO: return null instead of empty array
-        return [];
       }
 
       const now = new Date();
@@ -848,14 +837,10 @@ export const AccountFields = {
   },
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
-    description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
+    description: 'The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
     async resolve(collective, _, req) {
-      if (!checkScope(req, 'connectedAccounts')) {
-        return null;
-      }
-
-      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'connectedAccounts')) {
         return null;
       }
 

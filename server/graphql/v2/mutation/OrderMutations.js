@@ -77,7 +77,7 @@ const orderMutations = {
     async resolve(_, args, req) {
       // Ok for non-authenticated users, we only check scope
       if (!checkScope('orders')) {
-        throw new Unauthorized('The User Token is not allowed for mutations in scope "orders".');
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
       }
 
       if (args.order.taxes?.length > 1) {
@@ -327,7 +327,7 @@ const orderMutations = {
     async resolve(_, args, req) {
       // Ok for non-authenticated users, we only check scope
       if (!checkScope('orders')) {
-        throw new Unauthorized('The User Token is not allowed for mutations in scope "orders".');
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
       }
 
       const baseOrder = await fetchOrderWithReference(args.order);

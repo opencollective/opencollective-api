@@ -21,8 +21,12 @@ export const Individual = new GraphQLObjectType({
       ...AccountFields,
       email: {
         type: GraphQLString,
+        description: 'Email for the account. For authenticated user: scope: "email".',
         async resolve(userCollective, args, req) {
-          if (!req.remoteUser || !checkScope('email')) {
+          if (!req.remoteUser) {
+            return null;
+          }
+          if (req.remoteUser.CollectiveId === userCollective.id && !checkScope('email')) {
             return null;
           }
 
@@ -118,7 +122,7 @@ export const Individual = new GraphQLObjectType({
           ...CollectionArgs,
         },
         async resolve(collective, { limit, offset }, req) {
-          if (!req.remoteUser?.isAdminOfCollective(collective) || checkScope('account')) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope('account')) {
             return null;
           }
 

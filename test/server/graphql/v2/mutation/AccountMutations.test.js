@@ -221,7 +221,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         token: secret.base32,
       });
       expect(result.errors).to.exist;
-      // expect(result.errors[0].message).to.match(/You need to be authenticated to perform this action/);
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
