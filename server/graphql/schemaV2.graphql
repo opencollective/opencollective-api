@@ -56,12 +56,92 @@ type OAuthAuthorization {
   The time of expiration
   """
   expiresAt: DateTime!
+
+  """
+  The attached scopes.
+  """
+  scope: [OAuthScope]
 }
 
 """
 A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
 """
 scalar DateTime
+
+"""
+All supported OAuth scopes
+"""
+enum OAuthScope {
+  """
+  email: Access your email address.
+  """
+  email
+
+  """
+  incognito: Access your incognito account.
+  """
+  incognito
+
+  """
+  account: Manage your account, collectives and organizations.
+  """
+  account
+
+  """
+  expenses: Create and manage expenses, payout methods.
+  """
+  expenses
+
+  """
+  orders: Create and manage contributions, payment methods.
+  """
+  orders
+
+  """
+  transactions: Refund and reject recorded transactions.
+  """
+  transactions
+
+  """
+  virtualCards: Create and manage virtual cards.
+  """
+  virtualCards
+
+  """
+  updates: Create and manage updates.
+  """
+  updates
+
+  """
+  conversations: Create and manage conversations.
+  """
+  conversations
+
+  """
+  webhooks: Create and manage webhooks
+  """
+  webhooks
+
+  """
+  host: Administrate fiscal hosts.
+  """
+  host
+
+  """
+  applications: Create and manage OAuth applications.
+  """
+  applications
+
+  """
+  connectedAccounts: Create and manage connected accounts.
+  """
+  connectedAccounts
+
+  """
+  root: Perform critical administrative operations.
+  """
+  root
+}
 
 """
 Account interface shared by all kind of accounts (Bot, Collective, Event, User, Organization)
@@ -93,7 +173,7 @@ interface Account {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -440,7 +520,7 @@ interface Account {
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -464,6 +544,10 @@ interface Account {
   """
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -476,7 +560,7 @@ interface Account {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -488,6 +572,10 @@ interface Account {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -505,8 +593,16 @@ interface Account {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
 }
 
@@ -2386,7 +2482,7 @@ type Host implements Account & AccountWithContributions {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -2730,12 +2826,12 @@ type Host implements Account & AccountWithContributions {
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -2749,12 +2845,12 @@ type Host implements Account & AccountWithContributions {
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -2774,6 +2870,10 @@ type Host implements Account & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -2786,7 +2886,7 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -2798,6 +2898,10 @@ type Host implements Account & AccountWithContributions {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -2815,8 +2919,16 @@ type Host implements Account & AccountWithContributions {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -4329,7 +4441,7 @@ type Bot implements Account {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -4673,12 +4785,12 @@ type Bot implements Account {
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -4692,12 +4804,12 @@ type Bot implements Account {
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -4717,6 +4829,10 @@ type Bot implements Account {
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -4729,7 +4845,7 @@ type Bot implements Account {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -4741,6 +4857,10 @@ type Bot implements Account {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -4758,8 +4878,16 @@ type Bot implements Account {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -4794,7 +4922,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -5138,12 +5266,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -5157,12 +5285,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -5182,6 +5310,10 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -5194,7 +5326,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -5206,6 +5338,10 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -5223,8 +5359,16 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -5585,7 +5729,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -5929,12 +6073,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -5948,12 +6092,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -5973,6 +6117,10 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -5985,7 +6133,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -5997,6 +6145,10 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -6014,8 +6166,16 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -6163,7 +6323,7 @@ type Individual implements Account {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -6507,12 +6667,12 @@ type Individual implements Account {
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -6526,12 +6686,12 @@ type Individual implements Account {
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -6549,6 +6709,10 @@ type Individual implements Account {
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -6561,7 +6725,7 @@ type Individual implements Account {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -6573,6 +6737,10 @@ type Individual implements Account {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -6590,8 +6758,16 @@ type Individual implements Account {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -6605,6 +6781,10 @@ type Individual implements Account {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Email for the account. For authenticated user: scope: "email".
+  """
   email: String
   isGuest: Boolean!
   isFollowingConversation(id: String!): Boolean!
@@ -6713,7 +6893,7 @@ type Organization implements Account & AccountWithContributions {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -7057,12 +7237,12 @@ type Organization implements Account & AccountWithContributions {
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -7076,12 +7256,12 @@ type Organization implements Account & AccountWithContributions {
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -7099,6 +7279,10 @@ type Organization implements Account & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -7111,7 +7295,7 @@ type Organization implements Account & AccountWithContributions {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -7123,6 +7307,10 @@ type Organization implements Account & AccountWithContributions {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -7140,8 +7328,16 @@ type Organization implements Account & AccountWithContributions {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -7298,7 +7494,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -7642,12 +7838,12 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -7661,12 +7857,12 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -7686,6 +7882,10 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -7698,7 +7898,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -7710,6 +7910,10 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -7727,8 +7931,16 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -7823,7 +8035,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
 }
 
 """
-VirtualCard related properties.
+A Virtual Card used to pay expenses
 """
 type VirtualCard {
   id: String
@@ -9797,7 +10009,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -10141,12 +10353,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -10160,12 +10372,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -10185,6 +10397,10 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -10197,7 +10413,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -10209,6 +10425,10 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -10226,8 +10446,16 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -10362,7 +10590,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   name: String
 
   """
-  Private, legal name. Used for expense receipts, taxes, etc.
+  Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".
   """
   legalName: String
   description: String
@@ -10706,12 +10934,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   transferwise: TransferWise
 
   """
-  The list of payout methods that this collective can use to get paid
+  The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".
   """
   payoutMethods: [PayoutMethod]
 
   """
-  The list of payment methods that this collective can use to pay for Orders
+  The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".
   """
   paymentMethods(
     type: [PaymentMethodType]
@@ -10725,12 +10953,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   ): [PaymentMethod]!
 
   """
-  The list of connected accounts (Stripe, Twitter, etc ...)
+  The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
 
   """
-  (Authenticated) The list of applications created by this account
+  The list of applications created by this account. Admin only. Scope: "applications".
   """
   oAuthApplications(
     """
@@ -10750,6 +10978,10 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   location: Location
   categories: [String]!
   stats: AccountStats
+
+  """
+  Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".
+  """
   updates(
     """
     The number of results to fetch (default 10, max 1000)
@@ -10762,7 +10994,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     offset: Int! = 0
 
     """
-    Only return published updates. You must be an admin of the account to see unpublished updates.
+    Only return published updates.
     """
     onlyPublishedUpdates: Boolean = false
     onlyChangelogUpdates: Boolean
@@ -10774,6 +11006,10 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Describes the features enabled and available for this account
   """
   features: CollectiveFeatures!
+
+  """
+  Virtual Cards attached to the account. Admin only. Scope: "virtualCards".
+  """
   virtualCards(
     limit: Int! = 100
     offset: Int! = 0
@@ -10791,8 +11027,16 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
   ): VirtualCardCollection!
+
+  """
+  Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
+  """
   virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
+
+  """
+  Policies for the account. To see non-public policies you need to be admin and have the scope: "account".
+  """
   policies: Policies!
   webhooks(
     """
@@ -11787,7 +12031,7 @@ type Mutation {
   ): [Order]!
 
   """
-  Add a new payment method to be used with an Order. Scope: "paymentMethods".
+  Add a new payment method to be used with an Order. Scope: "orders".
   """
   addCreditCard(
     """
@@ -11812,12 +12056,12 @@ type Mutation {
   ): CreditCardWithStripeError!
 
   """
-  Confirm a credit card is ready for use after strong customer authentication. Scope: "paymentMethods".
+  Confirm a credit card is ready for use after strong customer authentication. Scope: "orders".
   """
   confirmCreditCard(paymentMethod: PaymentMethodReferenceInput!): CreditCardWithStripeError!
 
   """
-  Create a new Payout Method to get paid through the platform. Scope: "payoutMethods".
+  Create a new Payout Method to get paid through the platform. Scope: "expenses".
   """
   createPayoutMethod(
     """
@@ -11832,7 +12076,7 @@ type Mutation {
   ): PayoutMethod
 
   """
-  Remove the given payout method. Scope: "payoutMethods".
+  Remove the given payout method. Scope: "expenses".
   """
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
 

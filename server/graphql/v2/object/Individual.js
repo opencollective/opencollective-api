@@ -146,6 +146,7 @@ export const Individual = new GraphQLObjectType({
               expiresAt: row.accessTokenExpiresAt,
               createdAt: row.createdAt,
               updatedAt: row.updatedAt,
+              scope: row.scope,
             };
           });
 
