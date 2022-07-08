@@ -104,15 +104,7 @@ const TransactionFields = () => {
     },
     uuid: {
       type: GraphQLString,
-      resolve(transaction, args, req) {
-        if (!req.remoteUser) {
-          return null;
-        }
-        // If it's a sequelize model transaction, it means it has the method getDetailsForUser
-        // otherwise we return transaction.uuid
-        if (transaction && transaction.getDetailsForUser) {
-          return transaction.getDetailsForUser(req.remoteUser);
-        }
+      resolve(transaction) {
         return transaction.uuid;
       },
     },
