@@ -26,7 +26,15 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 
 {{#if event.data.privateInstructions}}
 <h2>Private Instructions</h2>
-<pre>{{event.data.privateInstructions}}</pre>
+<table style="width: 100%; margin-bottom: 30px;">
+  <tbody>
+    <tr>
+      <td style="border: 1px solid #e8edee; border-radius: 6px; padding: 2em 1em;">
+        <blockquote style="color: #798088;font-size: 13px;text-align: left;padding: 0px 1em;margin: 0em 0;white-space: pre-line;">{{event.data.privateInstructions}}</blockquote>
+      </td>
+    </tr>
+  </tbody>
+</table>
 {{/if}}
 
 {{#if transactionPdf}}
