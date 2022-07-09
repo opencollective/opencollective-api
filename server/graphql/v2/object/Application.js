@@ -1,8 +1,8 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import models from '../../../models';
-import { ApplicationType } from '../enum';
 import { checkScope } from '../../common/scope-check';
+import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { OAuthAuthorization } from '../object/OAuthAuthorization';
