@@ -13,6 +13,7 @@ import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { processInviteMembersInput } from '../../common/members';
+import { checkScope } from '../../common/scope-check';
 import { RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CollectiveCreateInput } from '../input/CollectiveCreateInput';
@@ -25,6 +26,11 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 };
 
 async function createCollective(_, args, req) {
+  // Ok for non-authenticated users, we only check scope
+  if (!checkScope('account')) {
+    throw new Unauthorized('The User Token is not allowed for operations in scope "account".');
+  }
+
   let shouldAutomaticallyApprove = false;
   const isProd = config.env === 'production';
   const { remoteUser, loaders } = req;
@@ -189,6 +195,7 @@ async function createCollective(_, args, req) {
 
 const createCollectiveMutation = {
   type: Collective,
+  description: 'Create a Collective. Scope: "account".',
   args: {
     collective: {
       description: 'Information about the collective to create (name, slug, description, tags, ...)',

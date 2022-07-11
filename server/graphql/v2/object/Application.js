@@ -1,6 +1,7 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import models from '../../../models';
+import { checkScope } from '../../common/scope-check';
 import { ApplicationType } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
@@ -82,7 +83,7 @@ export const Application = new GraphQLObjectType({
     oAuthAuthorization: {
       type: OAuthAuthorization,
       async resolve(application, args, req) {
-        if (!req.remoteUser) {
+        if (!req.remoteUser || !checkScope('account')) {
           return null;
         }
         const userToken = await models.UserToken.findOne({
@@ -91,10 +92,12 @@ export const Application = new GraphQLObjectType({
         if (userToken) {
           return {
             account: () => req.loaders.Collective.byId.load(userToken.user.CollectiveId),
+            id: userToken.id,
             application: userToken.client,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,
             updatedAt: userToken.updatedAt,
+            scope: userToken.scope,
           };
         }
       },

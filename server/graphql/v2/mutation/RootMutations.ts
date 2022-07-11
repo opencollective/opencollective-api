@@ -13,6 +13,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
@@ -60,9 +61,7 @@ export default {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Forbidden('Only root users can perform this action');
-      }
+      checkRemoteUserCanRoot(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
@@ -98,9 +97,7 @@ export default {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Forbidden('Only root users can perform this action');
-      }
+      checkRemoteUserCanRoot(req);
 
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
@@ -136,9 +133,7 @@ export default {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser?.isRoot()) {
-        throw new Forbidden('Only root users can perform this action');
-      }
+      checkRemoteUserCanRoot(req);
 
       const baseAccounts = await fetchAccountsWithReferences(args.account);
       const allAccounts = !args.includeAssociatedAccounts ? baseAccounts : await getAccountsNetwork(baseAccounts);

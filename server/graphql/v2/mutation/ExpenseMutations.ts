@@ -7,11 +7,9 @@ import { v4 as uuid } from 'uuid';
 import activities from '../../../constants/activities';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import expenseStatus from '../../../constants/expense_status';
-import FEATURE from '../../../constants/feature';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
-import { canUseFeature } from '../../../lib/user-permissions';
 import models from '../../../models';
 import {
   approveExpense,
@@ -28,8 +26,9 @@ import {
   unapproveExpense,
   unscheduleExpensePayment,
 } from '../../common/expenses';
+import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
 import { createUser } from '../../common/user';
-import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { FeesPayer } from '../enum/FeesPayer';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -48,7 +47,7 @@ import { Expense } from '../object/Expense';
 const expenseMutations = {
   createExpense: {
     type: new GraphQLNonNull(Expense),
-    description: 'Submit an expense to a collective',
+    description: 'Submit an expense to a collective. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseCreateInput),
@@ -64,6 +63,8 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanUseExpenses(req);
+
       const payoutMethod = args.expense.payoutMethod;
       if (payoutMethod.id) {
         payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
@@ -108,10 +109,13 @@ const expenseMutations = {
       },
       draftKey: {
         type: GraphQLString,
-        description: 'Expense draft key if invited to submit expense',
+        description: 'Expense draft key if invited to submit expense. Scope: "expenses".',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
+      enforceScope(req, 'expenses');
+
       // Support deprecated `attachments` field
       const items = args.expense.items || args.expense.attachments;
       const expense = args.expense;
@@ -204,7 +208,7 @@ const expenseMutations = {
   },
   deleteExpense: {
     type: new GraphQLNonNull(Expense),
-    description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete.`,
+    description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -212,9 +216,7 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseExpenses(req);
 
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
@@ -241,7 +243,7 @@ const expenseMutations = {
   },
   processExpense: {
     type: new GraphQLNonNull(Expense),
-    description: 'Process the expense with the given action',
+    description: 'Process the expense with the given action. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -287,9 +289,7 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseExpenses(req);
 
       const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       switch (args.action) {
@@ -331,7 +331,7 @@ const expenseMutations = {
   },
   draftExpenseAndInviteUser: {
     type: new GraphQLNonNull(Expense),
-    description: 'Persist an Expense as a draft and invite someone to edit and submit it.',
+    description: 'Persist an Expense as a draft and invite someone to edit and submit it. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseInviteDraftInput),
@@ -343,14 +343,10 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanUseExpenses(req);
+
       const remoteUser = req.remoteUser;
       const expenseData = args.expense;
-
-      if (!remoteUser) {
-        throw new Unauthorized('You need to be logged in to create an expense');
-      } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
-        throw new FeatureNotAllowedForUser();
-      }
 
       const rateLimit = new RateLimit(`draft_expense_${remoteUser.id}`, 1, 10, true);
       if (!(await rateLimit.registerCall())) {
@@ -425,7 +421,7 @@ const expenseMutations = {
   },
   resendDraftExpenseInvite: {
     type: new GraphQLNonNull(Expense),
-    description: 'To re-send the invitation to complete a draft expense',
+    description: 'To re-send the invitation to complete a draft expense. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -433,6 +429,9 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
+      enforceScope(req, 'expenses');
+
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
 
       const rateLimit = new RateLimit(`resend_draft_invite_${expenseId}`, 2, 10);
@@ -462,7 +461,7 @@ const expenseMutations = {
   },
   verifyExpense: {
     type: new GraphQLNonNull(Expense),
-    description: 'To verify and unverified expense.',
+    description: 'To verify and unverified expense. Scope: "expenses".',
     args: {
       expense: {
         type: new GraphQLNonNull(ExpenseReferenceInput),
@@ -474,6 +473,9 @@ const expenseMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
+      enforceScope(req, 'expenses');
+
       const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
       if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');

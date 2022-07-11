@@ -5,8 +5,12 @@ import models from '../../models';
 import { Forbidden, NotFound, Unauthorized } from '../errors';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
+import { checkRemoteUserCanUseAccount } from './scope-check';
+
 /** A mutation to edit the public message of all matching members. */
 export async function editPublicMessage(_, { fromAccount, toAccount, FromCollectiveId, CollectiveId, message }, req) {
+  checkRemoteUserCanUseAccount(req);
+
   if (!fromAccount && FromCollectiveId) {
     fromAccount = await req.loaders.Collective.byId.load(FromCollectiveId);
   }
@@ -14,7 +18,7 @@ export async function editPublicMessage(_, { fromAccount, toAccount, FromCollect
     toAccount = await req.loaders.Collective.byId.load(CollectiveId);
   }
 
-  if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(fromAccount)) {
+  if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
     throw new Unauthorized("You don't have the permission to edit member public message");
   }
   const [quantityUpdated, updatedMembers] = await models.Member.update(

@@ -1,7 +1,8 @@
 import { GraphQLNonNull } from 'graphql';
 
 import models from '../../../models';
-import { Forbidden, NotFound, Unauthorized } from '../../errors';
+import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
+import { Forbidden, NotFound } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { WebhookCreateInput } from '../input/WebhookCreateInput';
 import { fetchWebhookWithReference, WebhookReferenceInput } from '../input/WebhookReferenceInput';
@@ -10,19 +11,14 @@ import { Webhook } from '../object/Webhook';
 
 const createWebhook = {
   type: Webhook,
+  description: 'Create webhook. Scope: "webhooks".',
   args: {
     webhook: {
       type: new GraphQLNonNull(WebhookCreateInput),
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to create a webhook.');
-    }
-
-    if (!req.remoteUser) {
-      throw new Unauthorized();
-    }
+    checkRemoteUserCanUseWebhooks(req);
 
     const account = await fetchAccountWithReference(args.webhook.account);
     if (!account) {
@@ -47,15 +43,14 @@ const createWebhook = {
 
 const updateWebhook = {
   type: Webhook,
+  description: 'Update webhook. Scope: "webhooks".',
   args: {
     webhook: {
       type: new GraphQLNonNull(WebhookUpdateInput),
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to update a webhook.');
-    }
+    checkRemoteUserCanUseWebhooks(req);
 
     const notification = await fetchWebhookWithReference(args.webhook);
     if (!notification) {
@@ -83,15 +78,14 @@ const updateWebhook = {
 
 const deleteWebhook = {
   type: Webhook,
+  description: 'Delete webhook. Scope: "webhooks".',
   args: {
     webhook: {
       type: new GraphQLNonNull(WebhookReferenceInput),
     },
   },
   async resolve(_, args, req) {
-    if (!req.remoteUser) {
-      throw new Unauthorized('You need to be authenticated to delete a webhook.');
-    }
+    checkRemoteUserCanUseWebhooks(req);
 
     const notification = await fetchWebhookWithReference(args.webhook);
     if (!notification) {

@@ -1,6 +1,7 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import { OAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Application } from '../object/Application';
 import { Individual } from '../object/Individual';
@@ -36,6 +37,10 @@ export const OAuthAuthorization = new GraphQLObjectType({
     expiresAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The time of expiration',
+    },
+    scope: {
+      type: new GraphQLList(OAuthScope),
+      description: 'The attached scopes.',
     },
   }),
 });

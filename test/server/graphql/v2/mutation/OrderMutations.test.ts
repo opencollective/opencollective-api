@@ -534,16 +534,16 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       await order.collective.addUserWithRole(collectiveAdminUser, 'ADMIN');
       await order.collective.host.addUserWithRole(hostAdminUser, 'ADMIN');
 
-      const allResults = await Promise.all([
-        callMoveOrders([order], null, { fromAccount: order.fromCollective }),
-        callMoveOrders([order], collectiveAdminUser, { fromAccount: order.fromCollective }),
-        callMoveOrders([order], hostAdminUser, { fromAccount: order.fromCollective }),
-      ]);
-
-      allResults.forEach(result => {
+      for (const unauthorizedUser of [null, collectiveAdminUser, hostAdminUser]) {
+        const result = await callMoveOrders([order], unauthorizedUser, { fromAccount: order.fromCollective });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.equal('Only root admins can move orders at the moment');
-      });
+        expect(result.errors[0]).to.exist;
+        if (unauthorizedUser) {
+          expect(result.errors[0].extensions.code).to.equal('Forbidden');
+        } else {
+          expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+        }
+      }
     });
 
     describe('prevents moving order if payment methods can be moved because...', () => {
@@ -915,7 +915,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           order: { id: idEncode(order.id, 'order') },
         });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.match(/You need to be logged in to cancel a recurring contribution/);
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('must be user who created the order', async () => {
@@ -965,7 +965,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           order: { id: idEncode(order2.id, 'order') },
         });
         expect(result.errors).to.exist;
-        expect(result.errors[0].message).to.match(/You need to be logged in to update a order/);
+        expect(result.errors[0].extensions.code).to.equal('Unauthorized');
       });
 
       it('must be user who created the order', async () => {

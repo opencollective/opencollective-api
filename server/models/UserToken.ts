@@ -1,5 +1,6 @@
 import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
+import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
@@ -17,12 +18,21 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare ApplicationId: number;
   public declare UserId: number;
   public declare data: Record<string, unknown>;
+  public declare scope: string[];
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
   public declare user?: NonAttribute<typeof models.User>;
   public declare client?: NonAttribute<typeof models.Application>;
+
+  getScope() {
+    return this.scope;
+  }
+
+  hasScope(scope) {
+    return this.getScope().includes(scope);
+  }
 }
 
 UserToken.init(
@@ -69,6 +79,10 @@ UserToken.init(
     },
     data: {
       type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    scope: {
+      type: DataTypes.ARRAY(DataTypes.ENUM(...Object.values(oAuthScopes))),
       allowNull: true,
     },
     // Standard temporal fields

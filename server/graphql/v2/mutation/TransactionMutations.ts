@@ -7,6 +7,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { notifyAdminsOfCollective } from '../../../lib/notifications';
 import models from '../../../models';
+import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
@@ -17,7 +18,8 @@ import { Transaction } from '../interface/Transaction';
 const transactionMutations = {
   addPlatformTipToTransaction: {
     type: new GraphQLNonNull(Transaction),
-    description: 'Add platform tips to a transaction',
+    description: 'Add platform tips to a transaction. Scope: "transactions".',
+    deprecationReason: "2022-07-06: This feature will not be supported in the future. Please don't rely on it.",
     args: {
       transaction: {
         type: new GraphQLNonNull(TransactionReferenceInput),
@@ -29,9 +31,7 @@ const transactionMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to add a platform tip');
-      }
+      checkRemoteUserCanUseTransactions(req);
 
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
 
@@ -74,7 +74,7 @@ const transactionMutations = {
   },
   refundTransaction: {
     type: Transaction,
-    description: 'Refunds transaction',
+    description: 'Refunds a transaction. Scope: "transactions".',
     args: {
       transaction: {
         type: new GraphQLNonNull(TransactionReferenceInput),
@@ -82,16 +82,16 @@ const transactionMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseTransactions(req);
+
       const transaction = await fetchTransactionWithReference(args.transaction);
       return legacyRefundTransaction(undefined, { id: transaction.id }, req);
     },
   },
   rejectTransaction: {
     type: new GraphQLNonNull(Transaction),
-    description: 'Rejects transaction, removes member from Collective, and sends a message to the contributor',
+    description:
+      'Rejects transaction, removes member from Collective, and sends a message to the contributor. Scope: "transactions".',
     args: {
       transaction: {
         type: new GraphQLNonNull(TransactionReferenceInput),
@@ -103,9 +103,7 @@ const transactionMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseTransactions(req);
 
       // get transaction info
       const transaction = await fetchTransactionWithReference(args.transaction);

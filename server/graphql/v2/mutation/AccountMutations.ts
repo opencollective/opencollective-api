@@ -19,6 +19,7 @@ import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { idDecode } from '../identifiers';
@@ -47,7 +48,7 @@ const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
 const accountMutations = {
   editAccountSetting: {
     type: new GraphQLNonNull(Account),
-    description: 'Edit the settings for the given account',
+    description: 'Edit the settings for the given account. Scope: "account" or "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -80,6 +81,13 @@ const accountMutations = {
           throw new Forbidden();
         }
 
+        // If the user is not admin and was not Forbidden, it means it's the Host and we check "host" scope
+        if (!req.remoteUser.isAdminOfCollective(account)) {
+          checkRemoteUserCanUseHost(req);
+        } else {
+          checkRemoteUserCanUseAccount(req);
+        }
+
         if (
           args.key === 'collectivePage' &&
           ![AccountTypeToModelMapping.FUND, AccountTypeToModelMapping.PROJECT].includes(account.type)
@@ -98,7 +106,7 @@ const accountMutations = {
   },
   editAccountFeeStructure: {
     type: new GraphQLNonNull(Account),
-    description: 'An endpoint for hosts to edit the fees structure of their hosted accounts',
+    description: 'An endpoint for hosts to edit the fees structure of their hosted accounts. Scope: "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -114,6 +122,8 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanUseHost(req);
+
       return sequelize.transaction(async dbTransaction => {
         const account = await fetchAccountWithReference(args.account, {
           throwIfMissing: true,
@@ -157,7 +167,7 @@ const accountMutations = {
   },
   editAccountFreezeStatus: {
     type: new GraphQLNonNull(Account),
-    description: 'An endpoint for hosts to edit the freeze status of their hosted accounts',
+    description: 'An endpoint for hosts to edit the freeze status of their hosted accounts. Scope: "host".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -174,9 +184,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<void> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       account.host = await account.getHostCollective();
@@ -201,7 +209,7 @@ const accountMutations = {
   },
   addTwoFactorAuthTokenToIndividual: {
     type: new GraphQLNonNull(AddTwoFactorAuthTokenToIndividualResponse),
-    description: 'Add 2FA to the Individual if it does not have it',
+    description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -213,9 +221,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
 
@@ -261,7 +267,7 @@ const accountMutations = {
   },
   removeTwoFactorAuthTokenFromIndividual: {
     type: new GraphQLNonNull(Individual),
-    description: 'Remove 2FA from the Individual if it has been enabled',
+    description: 'Remove 2FA from the Individual if it has been enabled. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -273,9 +279,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
 
@@ -306,7 +310,8 @@ const accountMutations = {
   },
   editHostPlan: {
     type: new GraphQLNonNull(Host),
-    description: 'Update the plan',
+    description: 'Update the plan. Scope: "account".',
+    deprecationReason: '2022-07-06: Host Plans are deprecated.',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -318,9 +323,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
       if (!req.remoteUser.isAdminOfCollective(account)) {
@@ -357,7 +360,7 @@ const accountMutations = {
   },
   editAccount: {
     type: new GraphQLNonNull(Host),
-    description: 'Edit key properties of an account.',
+    description: 'Edit key properties of an account. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountUpdateInput),
@@ -365,9 +368,7 @@ const accountMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const id = idDecode(args.account.id, 'account');
       const account = await req.loaders.Collective.byId.load(id);
@@ -391,7 +392,7 @@ const accountMutations = {
   },
   setPolicies: {
     type: new GraphQLNonNull(Account),
-    description: 'Adds or removes a policy on a given account',
+    description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -404,9 +405,7 @@ const accountMutations = {
     },
 
     async resolve(_: void, args, req: express.Request): Promise<void> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const id = args.account.legacyId || idDecode(args.account.id, 'account');
       const account = await req.loaders.Collective.byId.load(id);
@@ -424,6 +423,7 @@ const accountMutations = {
   },
   deleteAccount: {
     type: Account,
+    description: 'Adds or removes a policy on a given account. Scope: "account".',
     args: {
       account: {
         description: 'Reference to the Account to be deleted.',
@@ -431,9 +431,7 @@ const accountMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const id = args.account.legacyId || idDecode(args.account.id, 'account');
       const account = await req.loaders.Collective.byId.load(id);

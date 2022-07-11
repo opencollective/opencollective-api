@@ -6,6 +6,7 @@ import logger from '../../../lib/logger';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import models from '../../../models';
 import PayoutMethodModel from '../../../models/PayoutMethod';
+import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -15,7 +16,7 @@ import PayoutMethod from '../object/PayoutMethod';
 const payoutMethodMutations = {
   createPayoutMethod: {
     type: PayoutMethod,
-    description: 'Create a new Payout Method to get paid through the platform',
+    description: 'Create a new Payout Method to get paid through the platform. Scope: "expenses".',
     args: {
       payoutMethod: {
         type: new GraphQLNonNull(PayoutMethodInput),
@@ -27,9 +28,7 @@ const payoutMethodMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<PayoutMethodModel> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to create a payout method');
-      }
+      checkRemoteUserCanUseExpenses(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
@@ -64,7 +63,7 @@ const payoutMethodMutations = {
     },
   },
   removePayoutMethod: {
-    description: 'Remove the given payout method',
+    description: 'Remove the given payout method. Scope: "expenses".',
     type: new GraphQLNonNull(PayoutMethod),
     args: {
       payoutMethodId: {
@@ -72,9 +71,7 @@ const payoutMethodMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseExpenses(req);
 
       const pmId = idDecode(args.payoutMethodId, IDENTIFIER_TYPES.PAYOUT_METHOD);
       const payoutMethod = await req.loaders.PayoutMethod.byId.load(pmId);

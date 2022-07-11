@@ -137,13 +137,14 @@ describe('server/graphql/v2/mutation/PayoutMethodMutations', () => {
     it('Must be authenticated', async () => {
       const result = await graphqlQueryV2(removePayoutMethodMutation, mutationArgs, null);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.eq('You need to be authenticated to perform this action');
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
     it("Must be admin of the payout method's collective", async () => {
       const result = await graphqlQueryV2(removePayoutMethodMutation, mutationArgs, randomUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.eq('You are authenticated but forbidden to perform this action');
+      expect(result.errors[0].extensions.code).to.equal('Forbidden');
     });
 
     it('Removes the payout method', async () => {

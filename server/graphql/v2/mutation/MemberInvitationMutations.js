@@ -8,6 +8,7 @@ import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
+import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, Unauthorized } from '../../errors';
 import { MemberRole } from '../enum';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -20,7 +21,7 @@ import { MemberInvitation } from '../object/MemberInvitation';
 const memberInvitationMutations = {
   inviteMember: {
     type: new GraphQLNonNull(MemberInvitation),
-    description: 'Invite a new member to the Collective',
+    description: 'Invite a new member to the Collective. Scope: "account".',
     args: {
       memberAccount: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -42,9 +43,7 @@ const memberInvitationMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to invite a member.');
-      }
+      checkRemoteUserCanUseAccount(req);
 
       let { memberAccount, account } = args;
 
@@ -71,7 +70,7 @@ const memberInvitationMutations = {
   },
   editMemberInvitation: {
     type: MemberInvitation,
-    description: 'Edit an existing member invitation of the Collective',
+    description: 'Edit an existing member invitation of the Collective. Scope: "account".',
     args: {
       memberAccount: {
         type: new GraphQLNonNull(AccountReferenceInput),
@@ -93,9 +92,7 @@ const memberInvitationMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to invite a member.');
-      }
+      checkRemoteUserCanUseAccount(req);
 
       let { memberAccount, account } = args;
 
@@ -126,7 +123,7 @@ const memberInvitationMutations = {
   },
   replyToMemberInvitation: {
     type: new GraphQLNonNull(GraphQLBoolean),
-    description: 'Endpoint to accept or reject an invitation to become a member',
+    description: 'Endpoint to accept or reject an invitation to become a member. Scope: "account".',
     args: {
       invitation: {
         type: new GraphQLNonNull(MemberInvitationReferenceInput),
@@ -138,9 +135,7 @@ const memberInvitationMutations = {
       },
     },
     async resolve(_, args, req) {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
+      checkRemoteUserCanUseAccount(req);
 
       const invitation = await fetchMemberInvitationWithReference(args.invitation, { throwIfMissing: true });
 

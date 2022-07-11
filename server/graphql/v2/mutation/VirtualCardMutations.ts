@@ -10,6 +10,7 @@ import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
 import * as stripe from '../../../paymentProviders/stripe/virtual-cards';
+import { checkRemoteUserCanUseVirtualCards } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
@@ -21,7 +22,7 @@ const MAXIMUM_MONTHLY_LIMIT = 5000;
 
 const virtualCardMutations = {
   assignNewVirtualCard: {
-    description: 'Assign Virtual Card information to existing hosted collective',
+    description: 'Assign Virtual Card information to existing hosted collective. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -38,9 +39,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to assign a virtual card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       const host = await collective.getHostCollective();
@@ -98,7 +97,7 @@ const virtualCardMutations = {
     },
   },
   createVirtualCard: {
-    description: 'Create new Stripe Virtual Card for existing hosted collective',
+    description: 'Create new Stripe Virtual Card for existing hosted collective. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       name: {
@@ -119,9 +118,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to create a virtual card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       const host = await collective.getHostCollective();
@@ -172,7 +169,7 @@ const virtualCardMutations = {
     },
   },
   editVirtualCard: {
-    description: 'Edit existing Virtual Card information',
+    description: 'Edit existing Virtual Card information. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -193,9 +190,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to assign a virtual card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
         where: { id: args.virtualCard.id },
@@ -256,7 +251,7 @@ const virtualCardMutations = {
     },
   },
   requestVirtualCard: {
-    description: 'Request Virtual Card to host',
+    description: 'Request Virtual Card to host. Scope: "virtualCards".',
     type: GraphQLBoolean,
     args: {
       notes: {
@@ -277,9 +272,8 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<boolean> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to request a virtual card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
+
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to request a virtual card for this collective");
@@ -308,7 +302,7 @@ const virtualCardMutations = {
     },
   },
   pauseVirtualCard: {
-    description: 'Pause active Virtual Card',
+    description: 'Pause active Virtual Card. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -317,9 +311,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to assign a Virtual Card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({
         where: { id: args.virtualCard.id },
@@ -359,7 +351,7 @@ const virtualCardMutations = {
     },
   },
   resumeVirtualCard: {
-    description: 'Resume paused Virtual Card',
+    description: 'Resume paused Virtual Card. Scope: "virtualCards".',
     type: new GraphQLNonNull(VirtualCard),
     args: {
       virtualCard: {
@@ -368,9 +360,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to assign a Virtual Card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
       if (!virtualCard) {
@@ -385,7 +375,7 @@ const virtualCardMutations = {
     },
   },
   deleteVirtualCard: {
-    description: 'Delete Virtual Card',
+    description: 'Delete Virtual Card. Scope: "virtualCards".',
     type: GraphQLBoolean,
     args: {
       virtualCard: {
@@ -394,9 +384,7 @@ const virtualCardMutations = {
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<boolean> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to assign a Virtual Card');
-      }
+      checkRemoteUserCanUseVirtualCards(req);
 
       const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
       if (!virtualCard) {

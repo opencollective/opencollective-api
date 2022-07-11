@@ -2,14 +2,14 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 
 import models from '../../../models';
 import { createConversation, editConversation } from '../../common/conversations';
-import { Unauthorized } from '../../errors';
+import { checkRemoteUserCanUseConversations } from '../../common/scope-check';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import Conversation from '../object/Conversation';
 
 const conversationMutations = {
   createConversation: {
     type: Conversation,
-    description: 'Create a conversation',
+    description: 'Create a conversation. Scope: "conversations".',
     args: {
       title: {
         type: new GraphQLNonNull(GraphQLString),
@@ -30,11 +30,12 @@ const conversationMutations = {
     },
     resolve(_, args, req) {
       args.CollectiveId = parseInt(idDecode(args.CollectiveId, 'collective'));
-      return createConversation(req.remoteUser, args);
+      return createConversation(req, args);
     },
   },
   editConversation: {
     type: Conversation,
+    description: 'Edit a conversation. Scope: "conversations".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -51,12 +52,12 @@ const conversationMutations = {
     },
     resolve(_, args, req) {
       args.id = parseInt(idDecode(args.id, IDENTIFIER_TYPES.CONVERSATION));
-      return editConversation(req.remoteUser, args);
+      return editConversation(req, args);
     },
   },
   followConversation: {
     type: GraphQLBoolean,
-    description: 'Returns true if user is following, false otherwise. Must be authenticated.',
+    description: 'Returns true if user is following, false otherwise. Must be authenticated. Scope: "conversations".',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -69,11 +70,11 @@ const conversationMutations = {
       },
     },
     async resolve(_, { id, isActive }, req) {
+      checkRemoteUserCanUseConversations(req);
+
       const conversationId = parseInt(idDecode(id, IDENTIFIER_TYPES.CONVERSATION));
 
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      } else if (isActive) {
+      if (isActive) {
         await models.ConversationFollower.follow(req.remoteUser.id, conversationId);
         return true;
       } else {

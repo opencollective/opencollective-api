@@ -3,6 +3,7 @@ import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
 import { addFunds } from '../../common/orders';
+import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
@@ -11,7 +12,7 @@ import { Order } from '../object/Order';
 
 export const addFundsMutation = {
   type: new GraphQLNonNull(Order),
-  description: 'Add funds to the given account',
+  description: 'Add funds to the given account. Scope: "account".',
   args: {
     fromAccount: { type: new GraphQLNonNull(AccountReferenceInput) },
     account: { type: new GraphQLNonNull(AccountReferenceInput) },
@@ -21,6 +22,8 @@ export const addFundsMutation = {
     hostFeePercent: { type: GraphQLFloat },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
+    checkRemoteUserCanUseHost(req);
+
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
     const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));

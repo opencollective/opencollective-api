@@ -1,6 +1,6 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
-import { createCommentResolver, deleteComment, editComment } from '../../common/comment';
+import { createComment, deleteComment, editComment } from '../../common/comment';
 import { Unauthorized } from '../../errors';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
@@ -12,14 +12,15 @@ import { Comment } from '../object/Comment';
 const commentMutations = {
   editComment: {
     type: Comment,
+    description: 'Edit a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentUpdateInput),
       },
     },
-    resolve(_, { comment }, { remoteUser }) {
+    resolve(_, { comment }, req) {
       const commentToEdit = { ...comment, id: getDecodedId(comment.id) };
-      return editComment(commentToEdit, remoteUser);
+      return editComment(commentToEdit, req);
     },
   },
   deleteComment: {
@@ -29,25 +30,26 @@ const commentMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve(_, { id }, { remoteUser }) {
+    resolve(_, { id }, req) {
       const decodedId = getDecodedId(id);
-      return deleteComment(decodedId, remoteUser);
+      return deleteComment(decodedId, req);
     },
   },
   createComment: {
     type: Comment,
+    description: 'Create a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
         type: new GraphQLNonNull(CommentCreateInput),
       },
     },
-    resolve: async (entity, args, req) => {
-      if (args.comment.ConversationId) {
-        args.comment.ConversationId = idDecode(args.comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
+    resolve: async (_, { comment }, req) => {
+      if (comment.ConversationId) {
+        comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
       }
 
-      if (args.comment.update) {
-        const update = await fetchUpdateWithReference(args.comment.update, {
+      if (comment.update) {
+        const update = await fetchUpdateWithReference(comment.update, {
           loaders: req.loaders,
           throwIfMissing: true,
         });
@@ -57,18 +59,18 @@ const commentMutations = {
             throw new Unauthorized('You do not have the permission to post comments on this update');
           }
         }
-        args.comment.UpdateId = update.id;
+        comment.UpdateId = update.id;
       }
 
-      if (args.comment.expense) {
-        const expense = await fetchExpenseWithReference(args.comment.expense, req);
+      if (comment.expense) {
+        const expense = await fetchExpenseWithReference(comment.expense, req);
         if (!expense) {
           throw new Error('This expense does not exist');
         }
-        args.comment.ExpenseId = expense.id;
+        comment.ExpenseId = expense.id;
       }
 
-      return createCommentResolver(entity, args, req);
+      return createComment(comment, req);
     },
   },
 };

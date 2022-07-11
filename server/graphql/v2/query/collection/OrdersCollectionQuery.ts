@@ -5,6 +5,7 @@ import { Includeable } from 'sequelize';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
+import { checkScope } from '../../../common/scope-check';
 import { NotFound } from '../../../errors';
 import { OrderCollection } from '../../collection/OrderCollection';
 import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
@@ -130,7 +131,10 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       accountConditions.push(getJoinCondition(account, 'fromCollective', args.includeHostedAccounts));
       if (args.includeIncognito) {
         // Needs to be root or admin of the profile to see incognito orders
-        if (req.remoteUser?.isAdminOfCollective(account) || req.remoteUser?.isRoot()) {
+        if (
+          (req.remoteUser?.isAdminOfCollective(account) && checkScope('incognito')) ||
+          (req.remoteUser?.isRoot() && checkScope('root'))
+        ) {
           const incognitoProfile = await account.getIncognitoProfile();
           if (incognitoProfile) {
             accountConditions.push(getJoinCondition(incognitoProfile, 'fromCollective'));

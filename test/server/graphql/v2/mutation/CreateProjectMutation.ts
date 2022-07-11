@@ -36,13 +36,14 @@ describe('server/graphql/v2/mutation/CreateProjectMutation', () => {
     // Unauthenticated
     const resultUnauthenticated = await utils.graphqlQueryV2(createProjectMutation, mutationArgs);
     expect(resultUnauthenticated.errors).to.exist;
-    expect(resultUnauthenticated.errors[0].message).to.equal('You need to be logged in to create a Project');
+    expect(resultUnauthenticated.errors[0].extensions.code).to.equal('Unauthorized');
 
     // Random user
     const expectedMessage = `You must be logged in as a member of the ${parentCollective.slug} collective to create a Project`;
     const resultRandomUser = await utils.graphqlQueryV2(createProjectMutation, mutationArgs, await fakeUser());
     expect(resultRandomUser.errors).to.exist;
     expect(resultRandomUser.errors[0].message).to.equal(expectedMessage);
+    expect(resultRandomUser.errors[0].extensions.code).to.equal('Forbidden');
 
     // Non-admin
     const backer = await fakeUser();
@@ -50,6 +51,7 @@ describe('server/graphql/v2/mutation/CreateProjectMutation', () => {
     const resultBacker = await utils.graphqlQueryV2(createProjectMutation, mutationArgs, backer);
     expect(resultBacker.errors).to.exist;
     expect(resultBacker.errors[0].message).to.equal(expectedMessage);
+    expect(resultBacker.errors[0].extensions.code).to.equal('Forbidden');
   });
 
   it('is set to default fee if the parent has a default fee', async () => {
