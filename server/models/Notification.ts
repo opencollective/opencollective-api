@@ -15,6 +15,14 @@ import models from '.';
 
 const debug = debugLib('models:Notification');
 
+const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
+  [channels.EMAIL]: true,
+  [channels.GITTER]: false,
+  [channels.SLACK]: false,
+  [channels.TWITTER]: false,
+  [channels.WEBHOOK]: false,
+};
+
 export class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
   public declare readonly id: CreationOptional<number>;
   public declare channel: channels;
@@ -43,34 +51,45 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     channel: channels,
     UserId: number = null,
     CollectiveId: number = null,
+    webhookUrl: string = null,
   ) {
     const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
     if (TransactionalActivities.includes(type as ActivityTypes)) {
       throw new Error(`Cannot remove transactional activity ${type}`);
+    } else if (channel === channels.EMAIL && !UserId) {
+      throw new Error(`You need to pass UserId if unsubscribing from email`);
     }
 
     return sequelize.transaction(async transaction => {
       let notification = await Notification.findOne({
-        where: { UserId, CollectiveId, type, channel },
+        where: { UserId, CollectiveId, type, channel, webhookUrl },
         transaction,
       });
 
-      if (!notification) {
-        notification = await Notification.create(
-          { UserId, CollectiveId, type, channel, active: false },
-          { transaction },
-        );
-      } else if (notification.active === true) {
-        await notification.update({ active: false }, { transaction });
-      }
+      if (DEFAULT_ACTIVE_STATE_BY_CHANNEL[channel] === true) {
+        if (!notification) {
+          notification = await Notification.create(
+            { UserId, CollectiveId, type, channel, active: false, webhookUrl },
+            { transaction },
+          );
+        } else if (notification.active === true) {
+          await notification.update({ active: false }, { transaction });
+        }
 
-      // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
-      if (isClass && UserId) {
+        // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
+        if (isClass && UserId) {
+          await Notification.destroy({
+            where: { UserId, CollectiveId, type: { [Op.in]: ActivitiesPerClass[type] }, channel },
+            transaction,
+          });
+        }
+      } else {
         await Notification.destroy({
-          where: { UserId, CollectiveId, type: { [Op.in]: ActivitiesPerClass[type] }, channel },
+          where: { type, channel, UserId, CollectiveId, active: true, webhookUrl },
           transaction,
         });
       }
+
       return notification;
     });
   }
@@ -80,17 +99,37 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     channel: channels,
     UserId: number = null,
     CollectiveId: number = null,
+    webhookUrl: string = null,
   ) {
+    if (channel === channels.EMAIL && !UserId) {
+      throw new Error(`You need to pass UserId if subscribing to email`);
+    }
+
     const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
     return sequelize.transaction(async transaction => {
-      await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
+      if (DEFAULT_ACTIVE_STATE_BY_CHANNEL[channel] === true) {
+        await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
 
-      // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
-      if (isClass && UserId) {
-        await Notification.destroy({
-          where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+        // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
+        if (isClass && UserId) {
+          await Notification.destroy({
+            where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+            transaction,
+          });
+        }
+      } else {
+        let notification = await Notification.findOne({
+          where: { UserId, CollectiveId, type, channel, webhookUrl },
           transaction,
         });
+        if (!notification) {
+          notification = await Notification.create(
+            { UserId, CollectiveId, type, channel, active: true, webhookUrl },
+            { transaction },
+          );
+        } else if (notification.active === false) {
+          await notification.update({ active: true }, { transaction });
+        }
       }
     });
   }
