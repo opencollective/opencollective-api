@@ -643,7 +643,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
-      customMessage: collective.settings?.thankYouEmailMessage || parentCollective?.settings?.thankYouEmailMessage,
+      customMessage: collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage,
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)

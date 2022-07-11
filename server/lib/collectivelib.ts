@@ -95,7 +95,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'W9',
   'virtualcards',
   'transferwise',
-  'thankYouEmailMessage',
+  'customEmailMessage',
   'expenseTypes',
 ];
 
@@ -149,11 +149,11 @@ export function validateSettings(settings: any): string | boolean {
   }
 
   /*
-   * Validate thankYouEmailMessage length. We are using 511 characters to account
+   * Validate customEmailMessage length. We are using 511 characters to account
    * for the "div" tags that enclose the content <div>..<div/>. These divs are auto
    * added by the RichTextEditor.js
    */
-  if (settings.thankYouEmailMessage && settings.thankYouEmailMessage.length > 511) {
+  if (settings.customEmailMessage && settings.customEmailMessage.length > 511) {
     return 'Message should be less than 500 characters';
   }
 
