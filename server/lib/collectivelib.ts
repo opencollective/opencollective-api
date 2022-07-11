@@ -95,6 +95,7 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'W9',
   'virtualcards',
   'transferwise',
+  'customEmailMessage',
   'expenseTypes',
 ];
 
@@ -145,6 +146,15 @@ export function validateSettings(settings: any): string | boolean {
     } else if (settings.VAT.type && settings.VAT.type !== VAT_OPTIONS.HOST && settings.VAT.type !== VAT_OPTIONS.OWN) {
       return 'Invalid VAT configuration';
     }
+  }
+
+  /*
+   * Validate customEmailMessage length. We are using 511 characters to account
+   * for the "div" tags that enclose the content <div>..<div/>. These divs are auto
+   * added by the RichTextEditor.js
+   */
+  if (settings.customEmailMessage && settings.customEmailMessage.length > 511) {
+    return 'Message should be less than 500 characters';
   }
 
   if (settings.moderation?.rejectedCategories) {

@@ -73,72 +73,72 @@ All supported OAuth scopes
 """
 enum OAuthScope {
   """
-  email: Access your email address.
+  Access your email address.
   """
   email
 
   """
-  incognito: Access your incognito account.
+  Access your incognito account.
   """
   incognito
 
   """
-  account: Manage your account, collectives and organizations.
+  Manage your account, collectives and organizations.
   """
   account
 
   """
-  expenses: Create and manage expenses, payout methods.
+  Create and manage expenses, payout methods.
   """
   expenses
 
   """
-  orders: Create and manage contributions, payment methods.
+  Create and manage contributions, payment methods.
   """
   orders
 
   """
-  transactions: Refund and reject recorded transactions.
+  Refund and reject recorded transactions.
   """
   transactions
 
   """
-  virtualCards: Create and manage virtual cards.
+  Create and manage virtual cards.
   """
   virtualCards
 
   """
-  updates: Create and manage updates.
+  Create and manage updates.
   """
   updates
 
   """
-  conversations: Create and manage conversations.
+  Create and manage conversations.
   """
   conversations
 
   """
-  webhooks: Create and manage webhooks
+  Create and manage webhooks
   """
   webhooks
 
   """
-  host: Administrate fiscal hosts.
+  Administrate fiscal hosts.
   """
   host
 
   """
-  applications: Create and manage OAuth applications.
+  Create and manage OAuth applications.
   """
   applications
 
   """
-  connectedAccounts: Create and manage connected accounts.
+  Create and manage connected accounts.
   """
   connectedAccounts
 
   """
-  root: Perform critical administrative operations.
+  Perform critical administrative operations.
   """
   root
 }
@@ -592,12 +592,12 @@ interface Account {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -2842,7 +2842,7 @@ type Host implements Account & AccountWithContributions {
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -2918,12 +2918,12 @@ type Host implements Account & AccountWithContributions {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -4801,7 +4801,7 @@ type Bot implements Account {
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -4877,12 +4877,12 @@ type Bot implements Account {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -5282,7 +5282,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -5358,12 +5358,12 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -6089,7 +6089,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -6165,12 +6165,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -6683,7 +6683,7 @@ type Individual implements Account {
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -6757,12 +6757,12 @@ type Individual implements Account {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -7253,7 +7253,7 @@ type Organization implements Account & AccountWithContributions {
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -7327,12 +7327,12 @@ type Organization implements Account & AccountWithContributions {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -7854,7 +7854,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -7930,12 +7930,12 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -10369,7 +10369,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -10445,12 +10445,12 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """
@@ -10950,7 +10950,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.
     """
     includeExpired: Boolean
-  ): [PaymentMethod]!
+  ): [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -11026,12 +11026,12 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     dateTo: DateTime = null
     orderBy: ChronologicalOrderInput = { field: CREATED_AT, direction: DESC }
-  ): VirtualCardCollection!
+  ): VirtualCardCollection
 
   """
   Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".
   """
-  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection!
+  virtualCardMerchants(limit: Int! = 100, offset: Int! = 0): AccountCollection
   childrenAccounts(limit: Int! = 100, offset: Int! = 0, accountType: [AccountType]): AccountCollection!
 
   """

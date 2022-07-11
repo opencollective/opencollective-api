@@ -226,6 +226,7 @@ describe('server/lib/recurring-contributions', () => {
         collective: {
           getRelatedCollectives: () => Promise.resolve(null),
           getHostCollective: () => Promise.resolve(null),
+          getParentCollective: () => Promise.resolve(null),
         },
         fromCollective: { slug: 'cslug', minimal: { id: 1 } },
         createdByUser: { email: 'user3@opencollective.com' },
