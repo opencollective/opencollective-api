@@ -239,8 +239,16 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
 
     const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
     if (collective) {
+      // When looking for Notifications about specific Collective, we're also including the Collective parent and
+      // it's host because:
+      //   1. A user who unsubscribes from a Collective activity should not receive activities from its events or
+      //      projects either;
+      //   2. A Host admin can unsubscribe from their host related activities, including hosted collectives' activities
+      //      by unsubscribing straight to the Host;
       where['CollectiveId'] = compact([collective.id, collective.ParentCollectiveId, collective.HostCollectiveId]);
-      // If user is informed, also fetch global settings
+
+      // If a User provided, we also want to include "global Notifications settings" in the search. A user can
+      // set their global setting by creating a Notification that has no specific Collective attached.
       if (where['UserId']) {
         where['CollectiveId'].push(null);
       }
@@ -254,6 +262,9 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
       include,
     }).then(getUsers);
 
+    // Here we find all the exceptions related to the specific collective. These are users that may have
+    // unsubscribed to this activity through a global setting or a host wide rule but explicitly created
+    // a notification rule for this collective or parent collective.
     const subs = collective
       ? await Notification.findAll({
           where: { ...where, active: true, CollectiveId: [collective.id, collective.ParentCollectiveId] },
