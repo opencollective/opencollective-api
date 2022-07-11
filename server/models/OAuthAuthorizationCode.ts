@@ -1,5 +1,6 @@
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
+import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import models from '.';
@@ -75,25 +76,7 @@ OAuthAuthorizationCode.init(
       type: DataTypes.DATE,
     },
     scope: {
-      type: DataTypes.ARRAY(
-        DataTypes.ENUM(
-          'email',
-          'account',
-          'expenses',
-          'orders',
-          'transactions',
-          'virtualCards',
-          'payoutMethods',
-          'paymentMethods',
-          'host',
-          'root',
-          'conversations',
-          'updates',
-          'webhooks',
-          'applications',
-          'connectedAccounts',
-        ),
-      ),
+      type: DataTypes.ARRAY(DataTypes.ENUM(...Object.values(oAuthScopes))),
       allowNull: true,
     },
   },

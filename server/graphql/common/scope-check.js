@@ -102,7 +102,7 @@ export const checkRemoteUserCanRoot = req => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in.');
   }
-  if (!req.remoteUser?.isRoot()) {
+  if (!req.remoteUser.isRoot()) {
     throw new Forbidden('You need to be logged in as root.');
   }
   enforceScope(req, 'root');

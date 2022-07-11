@@ -81,6 +81,7 @@ const accountMutations = {
           throw new Forbidden();
         }
 
+        // If the user is not admin and was not Forbidden, it means it's the Host and we check "host" scope
         if (!req.remoteUser.isAdminOfCollective(account)) {
           checkRemoteUserCanUseHost(req);
         } else {

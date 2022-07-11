@@ -76,20 +76,24 @@ const emojiReactionMutations = {
         type: new GraphQLNonNull(GraphQLString),
       },
     },
-    resolve: async (_, { comment, update, emoji }, req) => {
+    resolve: async (_, args, req) => {
       mustBeLoggedInTo(req.remoteUser, 'remove this comment reaction');
 
-      if (!comment && !update) {
+      if (!args.comment && !args.update) {
         throw new Error('A comment or update must be provided');
       }
 
-      if (comment) {
-        // TODO(scope): fetch comment and then check scope with checkRemoteUserCanUseComment
-        // checkRemoteUserCanUseComment(comment, req);
-        return removeReactionFromCommentOrUpdate(comment.id, req.remoteUser, emoji, IDENTIFIER_TYPES.COMMENT);
-      } else if (update) {
+      if (args.comment) {
+        // TODO: replace with a fetchCommentWithReference utility
+        const commentId = idDecode(args.comment.id, IDENTIFIER_TYPES.COMMENT);
+        const comment = await models.Comment.findByPk(commentId);
+        if (comment) {
+          checkRemoteUserCanUseComment(comment, req);
+        }
+        return removeReactionFromCommentOrUpdate(args.comment.id, req.remoteUser, args.emoji, IDENTIFIER_TYPES.COMMENT);
+      } else if (args.update) {
         checkRemoteUserCanUseUpdates(req);
-        return removeReactionFromCommentOrUpdate(update.id, req.remoteUser, emoji, IDENTIFIER_TYPES.UPDATE);
+        return removeReactionFromCommentOrUpdate(args.update.id, req.remoteUser, args.emoji, IDENTIFIER_TYPES.UPDATE);
       }
     },
   },

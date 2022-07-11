@@ -414,7 +414,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCards: {
-    type: new GraphQLNonNull(VirtualCardCollection),
+    type: VirtualCardCollection,
     description: 'Virtual Cards attached to the account. Admin only. Scope: "virtualCards".',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
@@ -495,7 +495,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCardMerchants: {
-    type: new GraphQLNonNull(AccountCollection),
+    type: AccountCollection,
     description: 'Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
@@ -787,7 +787,7 @@ export const AccountFields = {
     },
   },
   paymentMethods: {
-    type: new GraphQLNonNull(new GraphQLList(PaymentMethod)),
+    type: new GraphQLList(PaymentMethod),
     args: {
       type: {
         type: new GraphQLList(PaymentMethodType),

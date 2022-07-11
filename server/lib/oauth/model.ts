@@ -187,6 +187,8 @@ const model: OauthModel = {
     return true; // Scope verification is not implemented yet, but it's required by the library
   },
 
+  // We're not validating scope at this point, because due to internal library implementation
+  // that would disallow any connection attempt without scope
   /*
   async validateScope(user: typeof models.User, client: Client, scope: string | string[]): Promise<string | string[]> {
     debug('model.validateScope', user, client, scope);
