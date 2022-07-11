@@ -2571,10 +2571,7 @@ function defineModel() {
             tier.minimumAmount = null;
           }
           if (tier.invoiceTemplate) {
-            if (!tier.data) {
-              tier.data = {};
-            }
-            tier.data.invoiceTemplate = tier.invoiceTemplate;
+            tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
           }
           if (tier.id) {
             return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
