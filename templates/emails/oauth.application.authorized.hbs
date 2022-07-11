@@ -1,0 +1,25 @@
+Subject: Open Collective: A third-party OAuth application has been added to your account
+
+{{> header}}
+
+<br />
+Hi,
+<br />
+<br />
+A third-party OAuth application ({{application.name}}) was recently authorized to access your account.
+
+{{#if scope.length}}
+<br />
+<br />
+Scopes:
+<br />
+<ul>
+    {{#each scope}}
+    <li>{{this}}</li>
+    {{/each}}
+</ul>
+{{/if}}
+<br />
+<br />
+
+{{> footer}}
