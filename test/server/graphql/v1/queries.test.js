@@ -35,6 +35,8 @@ describe('server/graphql/v1/queries', () => {
     const transactionInvoiceQuery = gql`
       query TransactionInvoice($transactionUuid: String!) {
         TransactionInvoice(transactionUuid: $transactionUuid) {
+          title
+          extraInfo
           slug
           dateFrom
           dateTo
