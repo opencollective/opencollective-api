@@ -17,6 +17,7 @@ import FundQuery from './FundQuery';
 import HostQuery from './HostQuery';
 import IndividualQuery from './IndividualQuery';
 import MemberInvitationsQuery from './MemberInvitationsQuery';
+import NotificationsQuery from './NotificationsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
@@ -38,6 +39,7 @@ const query = {
   hosts: HostsCollectionQuery,
   individual: IndividualQuery,
   memberInvitations: MemberInvitationsQuery,
+  notifications: NotificationsQuery,
   order: OrderQuery,
   orders: OrdersCollectionQuery,
   organization: OrganizationQuery,
