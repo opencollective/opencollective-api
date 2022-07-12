@@ -202,6 +202,7 @@
     "deploy:production": "./scripts/pre-deploy.sh production && git push production main",
     "deploy:staging": "./scripts/pre-deploy.sh staging && git push -f staging main",
     "dev": "nodemon server/index.js -x \"babel-node --extensions .js,.ts\" . -e js,hbs,ts",
+    "docs:generate:oauth": "babel-node --extensions .js,.ts ./scripts/docs/oauth.ts",
     "export:csv": "babel-node --extensions .js,.ts cron/monthly/data-export.js",
     "forestadmin-schema:update": "npm run script scripts/forestadmin-schema-update && prettier .forestadmin-schema.json --write",
     "git:clean": "./scripts/git_clean.sh",
