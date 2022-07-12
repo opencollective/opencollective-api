@@ -91,7 +91,7 @@ const getMemberAccountResolver = field => async (member, args, req) => {
   const memberAccount = member.memberCollective || (await req.loaders.Collective.byId.load(member.MemberCollectiveId));
   const account = member.collective || (await req.loaders.Collective.byId.load(member.CollectiveId));
 
-  if (!account?.isIncognito || (req.remoteUser?.isAdmin(memberAccount.id) && checkScope('incognito'))) {
+  if (!account?.isIncognito || (req.remoteUser?.isAdmin(memberAccount.id) && checkScope(req, 'incognito'))) {
     return field === 'collective' ? account : memberAccount;
   }
 };

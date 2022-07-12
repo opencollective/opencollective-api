@@ -132,8 +132,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       if (args.includeIncognito) {
         // Needs to be root or admin of the profile to see incognito orders
         if (
-          (req.remoteUser?.isAdminOfCollective(account) && checkScope('incognito')) ||
-          (req.remoteUser?.isRoot() && checkScope('root'))
+          (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'incognito')) ||
+          (req.remoteUser?.isRoot() && checkScope(req, 'root'))
         ) {
           const incognitoProfile = await account.getIncognitoProfile();
           if (incognitoProfile) {

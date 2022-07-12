@@ -27,7 +27,7 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 
 async function createCollective(_, args, req) {
   // Ok for non-authenticated users, we only check scope
-  if (!checkScope('account')) {
+  if (!checkScope(req, 'account')) {
     throw new Unauthorized('The User Token is not allowed for operations in scope "account".');
   }
 
