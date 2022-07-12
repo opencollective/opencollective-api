@@ -76,7 +76,7 @@ const accountFieldsDefinition = () => ({
     type: GraphQLString,
     description: 'Private, legal name. Used for expense receipts, taxes, etc. Scope: "account".',
     resolve: async (account, _, req) => {
-      if (!checkScope('account')) {
+      if (!checkScope(req, 'account')) {
         return null;
       }
       if (
@@ -85,7 +85,7 @@ const accountFieldsDefinition = () => ({
       ) {
         return null;
       } else if (account.isIncognito) {
-        if (!checkScope('incognito')) {
+        if (!checkScope(req, 'incognito')) {
           return null;
         }
         const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(account.id);

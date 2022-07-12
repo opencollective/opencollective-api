@@ -85,7 +85,7 @@ export const IsMemberOfFields = {
         const account = await fetchAccountWithReference(args.account, { loaders: req.loaders });
         where.CollectiveId = account.id;
       }
-      if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id) || !checkScope('incognito')) {
+      if (!args.includeIncognito || !req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito')) {
         collectiveConditions.isIncognito = false;
       }
       if (!isNil(args.isHostAccount)) {

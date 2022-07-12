@@ -83,7 +83,7 @@ export const Application = new GraphQLObjectType({
     oAuthAuthorization: {
       type: OAuthAuthorization,
       async resolve(application, args, req) {
-        if (!req.remoteUser || !checkScope('account')) {
+        if (!req.remoteUser || !checkScope(req, 'account')) {
           return null;
         }
         const userToken = await models.UserToken.findOne({

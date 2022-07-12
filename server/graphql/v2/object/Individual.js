@@ -26,7 +26,7 @@ export const Individual = new GraphQLObjectType({
           if (!req.remoteUser) {
             return null;
           }
-          if (req.remoteUser.CollectiveId === userCollective.id && !checkScope('email')) {
+          if (req.remoteUser.CollectiveId === userCollective.id && !checkScope(req, 'email')) {
             return null;
           }
 
@@ -72,11 +72,11 @@ export const Individual = new GraphQLObjectType({
         `,
         async resolve(individual, _, req) {
           const isHost = await individual.isHost();
-          const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope('account'));
+          const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope(req, 'account'));
           if (canSeeLocation) {
             // For incognito profiles, we retrieve the location from the main user profile
             if (individual.isIncognito) {
-              if (!checkScope('incognito')) {
+              if (!checkScope(req, 'incognito')) {
                 return null;
               }
               const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
@@ -122,7 +122,7 @@ export const Individual = new GraphQLObjectType({
           ...CollectionArgs,
         },
         async resolve(collective, { limit, offset }, req) {
-          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope('account')) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
             return null;
           }
 

@@ -1,53 +1,57 @@
+import express from 'express';
+
 import FEATURE from '../../constants/feature';
+import OAuthScopes from '../../constants/oauth-scopes';
 import { canUseFeature } from '../../lib/user-permissions';
+import models from '../../models';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
-export const checkRemoteUserCanUseVirtualCards = req => {
+export const checkRemoteUserCanUseVirtualCards = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage virtual cards.');
   }
   enforceScope(req, 'virtualCards');
 };
 
-export const checkRemoteUserCanUseAccount = req => {
+export const checkRemoteUserCanUseAccount = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage account.');
   }
   enforceScope(req, 'account');
 };
 
-export const checkRemoteUserCanUseHost = req => {
+export const checkRemoteUserCanUseHost = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage hosted accounts.');
   }
   enforceScope(req, 'host');
 };
 
-export const checkRemoteUserCanUseTransactions = req => {
+export const checkRemoteUserCanUseTransactions = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage transactions.');
   }
   enforceScope(req, 'transactions');
 };
 
-export const checkRemoteUserCanUseOrders = req => {
+export const checkRemoteUserCanUseOrders = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage orders');
   }
   if (!canUseFeature(req.remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
+    throw new FeatureNotAllowedForUser();
   }
   enforceScope(req, 'orders');
 };
 
-export const checkRemoteUserCanUseApplications = req => {
+export const checkRemoteUserCanUseApplications = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage applications.');
   }
   enforceScope(req, 'applications');
 };
 
-export const checkRemoteUserCanUseConversations = req => {
+export const checkRemoteUserCanUseConversations = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage conversations');
   }
@@ -57,7 +61,7 @@ export const checkRemoteUserCanUseConversations = req => {
   enforceScope(req, 'conversations');
 };
 
-export const checkRemoteUserCanUseExpenses = req => {
+export const checkRemoteUserCanUseExpenses = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage expenses');
   }
@@ -67,28 +71,28 @@ export const checkRemoteUserCanUseExpenses = req => {
   enforceScope(req, 'expenses');
 };
 
-export const checkRemoteUserCanUseUpdates = req => {
+export const checkRemoteUserCanUseUpdates = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage updates.');
   }
   enforceScope(req, 'updates');
 };
 
-export const checkRemoteUserCanUseConnectedAccounts = req => {
+export const checkRemoteUserCanUseConnectedAccounts = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage connected accounts.');
   }
   enforceScope(req, 'connectedAccounts');
 };
 
-export const checkRemoteUserCanUseWebhooks = req => {
+export const checkRemoteUserCanUseWebhooks = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to manage webhooks');
   }
   enforceScope(req, 'webhooks');
 };
 
-export const checkRemoteUserCanUseComment = (comment, req) => {
+export const checkRemoteUserCanUseComment = (comment: typeof models.Comment, req: express.Request): void => {
   if (comment.ConversationId) {
     checkRemoteUserCanUseConversations(req);
   } else if (comment.UpdateId) {
@@ -98,7 +102,7 @@ export const checkRemoteUserCanUseComment = (comment, req) => {
   }
 };
 
-export const checkRemoteUserCanRoot = req => {
+export const checkRemoteUserCanRoot = (req: express.Request): void => {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in.');
   }
@@ -108,11 +112,14 @@ export const checkRemoteUserCanRoot = req => {
   enforceScope(req, 'root');
 };
 
-export const checkScope = (req, scope) => {
+// In many places we check the scope using a direct string. This type will ensure we still use values from the enum.
+type OAuthScope = keyof typeof OAuthScopes;
+
+export const checkScope = (req: express.Request, scope: OAuthScope): boolean => {
   return !req.userToken || req.userToken.hasScope(scope);
 };
 
-export const enforceScope = (req, scope) => {
+export const enforceScope = (req: express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
     throw new Forbidden(`The User Token is not allowed for operations in scope "${scope}".`);
   }

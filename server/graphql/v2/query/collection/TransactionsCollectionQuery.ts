@@ -155,7 +155,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
       args.includeIncognitoTransactions &&
       req.remoteUser?.isAdminOfCollective(fromAccount) &&
       req.remoteUser.CollectiveId === fromAccount.id &&
-      checkScope('incognito')
+      checkScope(req, 'incognito')
     ) {
       const incognitoProfile = await fromAccount.getIncognitoProfile();
       if (incognitoProfile) {
@@ -199,7 +199,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     accountCondition.push(...accountsIds);
 
     // When the remote user is part of the fetched profiles, also fetch the linked incognito contributions
-    if (req.remoteUser && args.includeIncognitoTransactions && checkScope('incognito')) {
+    if (req.remoteUser && args.includeIncognitoTransactions && checkScope(req, 'incognito')) {
       if (accountCondition.includes(req.remoteUser.CollectiveId)) {
         const incognitoProfile = await req.remoteUser.getIncognitoProfile();
         if (incognitoProfile) {

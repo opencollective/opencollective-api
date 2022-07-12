@@ -34,7 +34,7 @@ export const HasMembersFields = {
     },
     async resolve(collective, args, req) {
       // TODO: isn't it a better practice to return null?
-      if (collective.isIncognito && (!req.remoteUser?.isAdmin(collective.id) || !checkScope('incognito'))) {
+      if (collective.isIncognito && (!req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito'))) {
         return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };
       }
 

@@ -41,7 +41,9 @@ export const PaymentMethod = new GraphQLObjectType({
 
           const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
           if (
-            (paymentMethod.CollectiveId && req.remoteUser?.isAdminOfCollective(collective) && checkScope('orders')) ||
+            (paymentMethod.CollectiveId &&
+              req.remoteUser?.isAdminOfCollective(collective) &&
+              checkScope(req, 'orders')) ||
             publicProviders.some(([service, type]) => paymentMethod.service === service && paymentMethod.type === type)
           ) {
             return paymentMethod.name;
@@ -86,7 +88,7 @@ export const PaymentMethod = new GraphQLObjectType({
           if (
             paymentMethod.SourcePaymentMethodId &&
             req.remoteUser?.isAdminOfCollective(collective) &&
-            checkScope('orders')
+            checkScope(req, 'orders')
           ) {
             return req.loaders.PaymentMethod.byId.load(paymentMethod.SourcePaymentMethodId);
           }
@@ -97,7 +99,7 @@ export const PaymentMethod = new GraphQLObjectType({
         async resolve(paymentMethod, _, req) {
           if (paymentMethod.type !== PAYMENT_METHOD_TYPE.CRYPTO) {
             const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
-            if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope('orders')) {
+            if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
               return null;
             }
           }
@@ -138,7 +140,7 @@ export const PaymentMethod = new GraphQLObjectType({
         type: GraphQLDateTime,
         async resolve(paymentMethod, _, req) {
           const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
-          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope('orders')) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
             return null;
           } else {
             return paymentMethod.expiryDate;

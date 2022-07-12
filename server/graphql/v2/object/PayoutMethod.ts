@@ -28,7 +28,7 @@ const PayoutMethod = new GraphQLObjectType({
           req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
-          if (checkScope('expenses')) {
+          if (checkScope(req, 'expenses')) {
             return payoutMethod.name;
           }
         }
@@ -42,7 +42,7 @@ const PayoutMethod = new GraphQLObjectType({
           req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
-          if (checkScope('expenses')) {
+          if (checkScope(req, 'expenses')) {
             return payoutMethod.isSaved;
           }
         }
@@ -56,7 +56,7 @@ const PayoutMethod = new GraphQLObjectType({
           req.remoteUser?.isAdmin(payoutMethod.CollectiveId) ||
           getContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, payoutMethod.id)
         ) {
-          if (checkScope('expenses')) {
+          if (checkScope(req, 'expenses')) {
             return payoutMethod.data;
           }
         }
