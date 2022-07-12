@@ -30,6 +30,7 @@ import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
+import AccountPermissions from '../object/AccountPermissions';
 import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
@@ -854,6 +855,11 @@ export const AccountFields = {
     },
   },
   webhooks: accountWebhooks,
+  permissions: {
+    type: new GraphQLNonNull(AccountPermissions),
+    description: 'Logged-in user permissions on an account',
+    resolve: collective => collective, // Individual resolvers in `AccountPermissions`
+  },
 };
 
 export default Account;

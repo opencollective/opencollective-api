@@ -11,9 +11,11 @@ export const Permission = new GraphQLObjectType({
   }),
 });
 
+export type PermissionFields = { allowed: boolean; reason?: string };
+
 export const parsePermissionFromEvaluator =
   (fn: ExpenseLib.ExpensePermissionEvaluator) =>
-  (expense, _, req: express.Request): Promise<{ allowed: boolean; reason?: string }> => {
+  (expense, _, req: express.Request): Promise<PermissionFields> => {
     return fn(req, expense, { throw: true })
       .then(allowed => ({ allowed }))
       .catch(error => ({ allowed: false, reason: error?.extensions?.code }));

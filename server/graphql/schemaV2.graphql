@@ -2944,6 +2944,11 @@ type Host implements Account & AccountWithContributions {
   ): WebhookCollection!
 
   """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
+
+  """
   Number of unique financial contributors.
   """
   totalFinancialContributors(
@@ -3878,6 +3883,18 @@ type Webhook {
   activityType: ActivityType
   webhookUrl: URL
   account: Account!
+}
+
+"""
+Fields for the user permissions on an account
+"""
+type AccountPermissions {
+  id: String!
+
+  """
+  Whether the current user can mark this order as expired
+  """
+  addFunds: Permission!
 }
 
 """
@@ -4901,6 +4918,11 @@ type Bot implements Account {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
 }
 
 """
@@ -5382,6 +5404,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -6191,6 +6218,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): WebhookCollection!
 
   """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
+
+  """
   Returns the Fiscal Host
   """
   host: Host
@@ -6783,6 +6815,11 @@ type Individual implements Account {
   ): WebhookCollection!
 
   """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
+
+  """
   Email for the account. For authenticated user: scope: "email".
   """
   email: String
@@ -7351,6 +7388,11 @@ type Organization implements Account & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
 
   """
   Number of unique financial contributors.
@@ -7954,6 +7996,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -10471,6 +10518,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): WebhookCollection!
 
   """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
+
+  """
   Returns the Fiscal Host
   """
   host: Host
@@ -11050,6 +11102,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
