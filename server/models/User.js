@@ -254,7 +254,6 @@ function defineModel() {
       return Promise.resolve(this);
     }
     const rolesByCollectiveId = {};
-    const adminOf = [];
     const where = { MemberCollectiveId: this.CollectiveId };
     const incognitoProfile = await this.getIncognitoProfile();
     if (incognitoProfile) {
@@ -264,13 +263,22 @@ function defineModel() {
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);
-      if (m.role === roles.ADMIN) {
-        adminOf.push(m.CollectiveId);
-      }
     });
     this.rolesByCollectiveId = rolesByCollectiveId;
     debug('populateRoles', this.rolesByCollectiveId);
     return this;
+  };
+
+  User.prototype.getAdministratedCollectiveIds = function () {
+    if (!this.rolesByCollectiveId) {
+      logger.info("User.rolesByCollectiveId hasn't been populated.");
+      logger.debug(new Error().stack);
+      return false;
+    }
+
+    return Object.keys(this.rolesByCollectiveId).filter(id => {
+      return this.rolesByCollectiveId[id].includes(roles.ADMIN);
+    });
   };
 
   User.prototype.hasRole = function (roles, CollectiveId) {

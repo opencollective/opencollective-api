@@ -2,7 +2,7 @@ import DataLoader from 'dataloader';
 import express from 'express';
 import { uniq } from 'lodash';
 
-import models, { Op } from '../../models';
+import models, { sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
 
@@ -19,8 +19,6 @@ export const generateCanSeeAccountPrivateInfoLoader = (req: express.Request): Da
       return collectiveIds.map(() => false);
     }
 
-    let administratedMembers = [];
-
     // Aggregates all the profiles linked to users
     const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
     const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
@@ -29,34 +27,61 @@ export const generateCanSeeAccountPrivateInfoLoader = (req: express.Request): Da
 
     // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
     // that are linked to users`
-    if (otherAccountsCollectiveIds.length) {
-      await remoteUser.populateRoles();
-      const adminOfCollectiveIds = Object.keys(remoteUser.rolesByCollectiveId).filter(id => remoteUser.isAdmin(id));
-      administratedMembers = await models.Member.findAll({
-        attributes: ['MemberCollectiveId'],
-        group: ['MemberCollectiveId'],
-        raw: true,
-        mapToModel: false,
-        where: { MemberCollectiveId: otherAccountsCollectiveIds },
-        include: {
-          association: 'collective',
-          required: true,
-          attributes: [],
-          where: {
-            [Op.or]: [
-              { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
-              { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
-              { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
-            ],
+    let authorizedCollectiveIds = new Set();
+    await remoteUser.populateRoles();
+    const adminOfCollectiveIds = req.remoteUser.getAdministratedCollectiveIds();
+    if (otherAccountsCollectiveIds.length && adminOfCollectiveIds.length) {
+      const result = await sequelize.query(
+        `
+        SELECT
+          ARRAY_AGG(DISTINCT member_collective.id) AS authorized_accounts,
+          ARRAY_AGG(DISTINCT member_collective_admins."MemberCollectiveId") AS authorized_admins
+        FROM "Members" AS "Member"
+        INNER JOIN "Collectives" AS collective
+          ON "Member"."CollectiveId" = collective."id"
+          AND collective."deletedAt" IS NULL
+        INNER JOIN "Collectives" AS member_collective
+          ON "Member"."MemberCollectiveId" = member_collective.id
+          AND member_collective."deletedAt" IS NULL
+        LEFT JOIN "Members" member_collective_admins
+          ON member_collective.type != 'USER'
+          AND member_collective_admins."CollectiveId" = member_collective.id
+          AND member_collective_admins.role = 'ADMIN'
+          AND member_collective_admins."deletedAt" IS NULL
+        WHERE "Member"."deletedAt" IS NULL
+        -- Only requested accounts
+        AND (
+          member_collective.id IN (:collectiveIds)
+          OR member_collective_admins."MemberCollectiveId" IN (:collectiveIds)
+        )
+        -- Only for administrated accounts
+        AND (
+          collective."id" IN (:adminOfCollectiveIds)
+          OR collective."ParentCollectiveId" IN (:adminOfCollectiveIds)
+          OR collective."HostCollectiveId" IN (:adminOfCollectiveIds)
+        )
+      `,
+        {
+          raw: true,
+          mapToModel: false,
+          type: sequelize.QueryTypes.SELECT,
+          plain: true,
+          replacements: {
+            adminOfCollectiveIds,
+            collectiveIds: otherAccountsCollectiveIds,
           },
         },
-      });
+      );
+
+      authorizedCollectiveIds = new Set([
+        ...(result['authorized_accounts'] || []),
+        ...(result['authorized_admins'] || []),
+      ]);
     }
 
     // User must be self or directly administered by remoteUser
-    const administratedCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
     return collectiveIds.map(collectiveId => {
-      return collectiveId === remoteUser.CollectiveId || administratedCollectiveIds.has(collectiveId);
+      return collectiveId === remoteUser.CollectiveId || authorizedCollectiveIds.has(collectiveId);
     });
   });
 };

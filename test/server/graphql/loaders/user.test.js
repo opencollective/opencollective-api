@@ -1,13 +1,14 @@
 import { expect } from 'chai';
+import { times } from 'lodash';
 
 import { generateCanSeeAccountPrivateInfoLoader } from '../../../../server/graphql/loaders/user.ts';
-import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeMember, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
 describe('server/graphql/loaders/user', () => {
-  before(async () => {
-    await resetTestDB();
-  });
+  // before(async () => {
+  //   await resetTestDB();
+  // });
 
   describe('canSeeAccountPrivateInfoLoader', () => {
     describe('User info', () => {
@@ -109,6 +110,41 @@ describe('server/graphql/loaders/user', () => {
         const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: hostAdmin });
         const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
+      });
+    });
+
+    describe('Account admins private info', () => {
+      let organization, collective, orgAdminUsers, collectiveAdmin, hostAdmin;
+
+      before(async () => {
+        collective = await fakeCollective();
+        organization = await fakeOrganization({ name: 'Organization' });
+        orgAdminUsers = await Promise.all(times(3, fakeUser));
+        collectiveAdmin = await fakeUser({ name: 'Collective Admin' });
+        hostAdmin = await fakeUser({ name: 'Host Admin' });
+
+        await fakeMember({ role: 'BACKER', MemberCollectiveId: organization.id, CollectiveId: collective.id });
+        await Promise.all(orgAdminUsers.map(user => organization.addUserWithRole(user, 'ADMIN')));
+        await collective.addUserWithRole(collectiveAdmin, 'ADMIN');
+        await collective.host.addUserWithRole(hostAdmin, 'ADMIN');
+      });
+
+      it('returns true for the org itself', async () => {
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: collectiveAdmin });
+        const result = await loader.load(organization.id);
+        expect(result).to.be.true;
+      });
+
+      it('can see admin infos as host admin if the organization is a contributor', async () => {
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: hostAdmin });
+        const result = await loader.loadMany(orgAdminUsers.map(u => u.CollectiveId));
+        expect(result).to.deep.eq([true, true, true]);
+      });
+
+      it('can see host admin infos as a collective admin', async () => {
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: collectiveAdmin });
+        const result = await loader.load(collective.host.id);
+        expect(result).to.be.true;
       });
     });
   });
