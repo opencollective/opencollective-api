@@ -12,6 +12,7 @@ const accountQuery = gqlV2/* GraphQL */ `
     account(slug: $slug) {
       id
       legalName
+      emails
       location {
         address
       }
@@ -293,6 +294,36 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     it('can filter by account type', async () => {
       const result = await graphqlQueryV2(childrenAccounts, { slug: collective.slug, accountType: ['EVENT'] }, user);
       expect(result).to.have.nested.property('data.account.childrenAccounts.totalCount').eq(4);
+    });
+  });
+
+  describe('emails', () => {
+    it('returns the list of emails for an individual if allowed', async () => {
+      const user = await fakeUser();
+      const slug = user.collective.slug;
+      const randomUser = await fakeUser();
+      const resultRandomUser = await graphqlQueryV2(accountQuery, { slug }, randomUser);
+      const resultSelf = await graphqlQueryV2(accountQuery, { slug }, user);
+      const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug });
+      expect(resultUnauthenticated.data.account.emails).to.be.null;
+      expect(resultRandomUser.data.account.emails).to.be.null;
+      expect(resultSelf.data.account.emails).to.deep.eq([user.email]);
+    });
+
+    it('returns the list of emails for an organization if allowed', async () => {
+      const adminUser = await fakeUser();
+      const adminUser2 = await fakeUser();
+      const randomUser = await fakeUser();
+      const organization = await fakeOrganization();
+      await organization.addUserWithRole(adminUser, 'ADMIN');
+      await organization.addUserWithRole(adminUser2, 'ADMIN');
+      const slug = organization.slug;
+      const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug });
+      const resultRandomUser = await graphqlQueryV2(accountQuery, { slug }, randomUser);
+      const resultAdmin = await graphqlQueryV2(accountQuery, { slug }, adminUser);
+      expect(resultUnauthenticated.data.account.emails).to.be.null;
+      expect(resultRandomUser.data.account.emails).to.be.null;
+      expect(resultAdmin.data.account.emails).to.deep.eq([adminUser.email, adminUser2.email]);
     });
   });
 });

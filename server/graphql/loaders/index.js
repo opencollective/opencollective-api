@@ -16,6 +16,7 @@ import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults, sortResultsSimple } from './helpers';
+import { generateAdminUsersEmailsForCollectiveLoader } from './members';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
@@ -578,6 +579,8 @@ export const loaders = req => {
       order: [['createdAt', 'DESC']],
     }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', [])),
   );
+
+  context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
 
   /** *** Transaction *****/
   context.loaders.Transaction = {
