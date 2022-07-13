@@ -7,11 +7,12 @@ import activities from '../constants/activities';
 import intervals from '../constants/intervals';
 import status from '../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
+import roles from '../constants/roles';
 import models from '../models';
 
+import { notify } from './notifications/email';
 import { FEATURE } from './allowed-features';
 import logger from './logger';
-import { notifyAdminsAndAccountantsOfCollective, notifyAdminsOfCollective } from './notifications';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
 import { reportErrorToSentry } from './sentry';
@@ -154,12 +155,12 @@ export async function processOrderWithSubscription(order, options) {
   if (!options.dryRun) {
     try {
       if (collectiveIsArchived) {
-        await sendArchivedCollectiveEmail(order);
+        await createOrderCanceledArchivedCollectiveActivity(order);
       } else if (creditCardNeedsConfirmation) {
         if (order.Subscription.chargeRetryCount >= MAX_RETRIES) {
           await cancelSubscriptionAndNotifyUser(order);
         } else {
-          await sendCreditCardConfirmationEmail(order);
+          await createPaymentCreditCardConfirmationActivity(order);
         }
       } else {
         await handleRetryStatus(order, transaction);
@@ -210,11 +211,11 @@ export async function handleRetryStatus(order, transaction) {
           return Promise.resolve();
         }
       }
-      return sendFailedEmail(order, false);
+      return createPaymentFailedActivity(order, false);
     case MAX_RETRIES:
       return cancelSubscriptionAndNotifyUser(order);
     default:
-      return sendFailedEmail(order, false);
+      return createPaymentFailedActivity(order, false);
   }
 }
 
@@ -332,52 +333,36 @@ export function groupProcessedOrders(orders) {
 /** Call cancelation function and then send confirmation email */
 export async function cancelSubscriptionAndNotifyUser(order) {
   cancelSubscription(order);
-  return sendFailedEmail(order, true);
+  return createPaymentFailedActivity(order, true);
 }
 
-/** Send `archived.collective` email */
-export async function sendArchivedCollectiveEmail(order) {
-  const data = {
-    order: order.info,
-    collective: order.collective.info,
-    fromCollective: order.fromCollective.minimal,
-  };
-
-  const emailOptions = {
-    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-  };
-
-  const activity = {
-    type: 'archived.collective',
-    data,
-  };
-
-  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
+/** Send `order.cancelled.archived.collective` email */
+export async function createOrderCanceledArchivedCollectiveActivity(order) {
+  return models.Activity.create({
+    type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
+    data: {
+      order: order.info,
+      collective: order.collective.info,
+      fromCollective: order.fromCollective.minimal,
+    },
+  });
 }
 
 /** Send `payment.failed` email */
-export async function sendFailedEmail(order, lastAttempt) {
+export async function createPaymentFailedActivity(order, lastAttempt) {
   const errorMessage = get(order, 'data.error.message');
 
-  const data = {
-    lastAttempt,
-    order: order.info,
-    collective: order.collective.info,
-    fromCollective: order.fromCollective.minimal,
-    subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
-    errorMessage: errorMessage,
-  };
-
-  const activity = {
+  return models.Activity.create({
     type: activities.PAYMENT_FAILED,
-    data,
-  };
-
-  const emailOptions = {
-    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-  };
-
-  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
+    data: {
+      lastAttempt,
+      order: order.info,
+      collective: order.collective.info,
+      fromCollective: order.fromCollective.minimal,
+      subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
+      errorMessage: errorMessage,
+    },
+  });
 }
 
 /** Send `thankyou` email */
@@ -432,31 +417,23 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     }
   }
 
-  const emailOptions = {
+  const activity = { type: activities.ORDER_THANKYOU, data };
+  return notify.collective(activity, {
+    collectiveId: data.fromCollective.id,
+    role: [roles.ACCOUNTANT, roles.ADMIN],
     from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
     attachments,
-  };
-
-  const activity = { type: 'thankyou', data };
-  return notifyAdminsAndAccountantsOfCollective(data.fromCollective.id, activity, emailOptions);
+  });
 }
 
-export async function sendCreditCardConfirmationEmail(order) {
-  const data = {
-    order: order.info,
-    collective: order.collective.info,
-    fromCollective: order.fromCollective.minimal,
-    confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
-  };
-
-  const activity = {
-    type: 'payment.creditcard.confirmation',
-    data,
-  };
-
-  const emailOptions = {
-    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
-  };
-
-  return notifyAdminsOfCollective(data.fromCollective.id, activity, emailOptions);
+export async function createPaymentCreditCardConfirmationActivity(order) {
+  return models.Activity.create({
+    type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
+    data: {
+      order: order.info,
+      collective: order.collective.info,
+      fromCollective: order.fromCollective.minimal,
+      confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
+    },
+  });
 }

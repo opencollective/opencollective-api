@@ -407,6 +407,7 @@ describe('server/lib/tax-forms', () => {
       replace(client.workflowInstances, 'getAuthenticatedLinkForStep', fake.resolves(documentLink));
 
       await sendHelloWorksUsTaxForm(client, user.collective, year, callbackUrl, workflowId, user);
+      await utils.waitForCondition(() => sendMessageSpy.callCount > 0);
 
       await doc.reload();
       expect(client.workflowInstances.createInstance.called).to.be.true;

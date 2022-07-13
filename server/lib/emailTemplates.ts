@@ -9,8 +9,7 @@ import handlebars from './handlebars';
 const templates = {};
 
 export const templateNames = [
-  'announcement',
-  'archived.collective',
+  'order.canceled.archived.collective',
   'github.signup',
   'collective.apply',
   'collective.apply.for.host',
@@ -83,11 +82,11 @@ export const templateNames = [
   'ticket.confirmed',
   'ticket.confirmed.fearlesscitiesbrussels',
   'ticket.confirmed.open-2020',
-  'thankyou',
-  'thankyou.wwcode',
-  'thankyou.fr',
-  'thankyou.foundation',
-  'thankyou.opensource',
+  'order.thankyou',
+  'order.thankyou.wwcode',
+  'order.thankyou.fr',
+  'order.thankyou.foundation',
+  'order.thankyou.opensource',
   'user.card.claimed',
   'user.card.invited',
   'user.changeEmail',

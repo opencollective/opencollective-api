@@ -1,7 +1,9 @@
 import { expect } from 'chai';
 import config from 'config';
-import { mock, spy, stub, useFakeTimers } from 'sinon';
+import moment from 'moment';
+import { createSandbox, stub, useFakeTimers } from 'sinon';
 
+import activities from '../../../server/constants/activities';
 import status from '../../../server/constants/order_status';
 import emailLib from '../../../server/lib/email';
 import * as paymentsLib from '../../../server/lib/payments';
@@ -16,6 +18,7 @@ import {
 } from '../../../server/lib/recurring-contributions';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import { fakeOrder } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 async function createOrderWithSubscription(interval, date, quantity = 1) {
@@ -215,151 +218,109 @@ describe('server/lib/recurring-contributions', () => {
   });
 
   describe('#handleRetryStatus', () => {
-    let emailMock;
-    beforeEach(() => (emailMock = mock(emailLib)));
-    afterEach(() => emailMock.restore());
+    let sandbox, sendSpy;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      sendSpy = sandbox.spy(emailLib, 'send');
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
+
     it('should send confirmation email when processing is successful', async () => {
-      // Given the following order with fields required by the email
-      // template
-      const order = {
-        Subscription: { chargeRetryCount: 0 },
-        collective: {
-          getRelatedCollectives: () => Promise.resolve(null),
-          getHostCollective: () => Promise.resolve(null),
-          getParentCollective: () => Promise.resolve(null),
-        },
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'user3@opencollective.com' },
-        getUserForActivity: () => Promise.resolve({ email: 'user3@opencollective.com' }),
-      };
+      const order = await fakeOrder(
+        { subscription: { chargeRetryCount: 0 } },
+        { withSubscription: true, withBackerMember: true },
+      );
 
-      // And given that we expect the method send from the mock to be
-      // called
-      emailMock.expects('send').once().withArgs('thankyou', 'user3@opencollective.com');
-
-      // When the status of the order is handled
       await handleRetryStatus(order);
+      await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      // Then the email mock should be verified
-      emailMock.verify();
+      expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
     });
 
     it('should send a failure email if retries are > 0 & < MAX_RETRIES', async () => {
-      // Given an order
-      const order = {
-        Subscription: { chargeRetryCount: 1 },
-        collective: { name: 'test', slug: 'testslug' },
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'user3@opencollective.com' },
-      };
+      const order = await fakeOrder(
+        { subscription: { chargeRetryCount: 1 } },
+        { withSubscription: true, withBackerMember: true },
+      );
 
-      // And given that we expect the method send from the mock to be
-      // called
-      emailMock
-        .expects('send')
-        .once()
-        .withArgs(
-          'payment.failed',
-          'user3@opencollective.com',
-          {
-            lastAttempt: false,
-            order: order.info,
-            collective: order.collective.info,
-            fromCollective: order.fromCollective.minimal,
-            subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
-            errorMessage: undefined,
-          },
-          {
-            from: 'test <no-reply@testslug.opencollective.com>',
-          },
-        );
-
-      // When the status of the order is handled
       await handleRetryStatus(order);
+      await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      // Then the email mock should be verified
-      emailMock.verify();
+      expect(sendSpy.args[0]).to.containSubset([
+        'payment.failed',
+        order.createdByUser.email,
+        {
+          lastAttempt: false,
+          subscriptionsLink: `${config.host.website}/recurring-contributions`,
+        },
+        {
+          from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+        },
+      ]);
     });
 
     it('should send a cancelation email if retries are >= MAX_RETRIES', async () => {
-      // Given an order
-      const order = {
-        Subscription: { chargeRetryCount: MAX_RETRIES },
-        collective: { name: 'test', slug: 'testslug' },
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'user3@opencollective.com' },
-      };
+      const order = await fakeOrder(
+        { subscription: { chargeRetryCount: MAX_RETRIES } },
+        { withSubscription: true, withBackerMember: true },
+      );
 
-      // And given that we expect the method send from the mock to be
-      // called
-      emailMock
-        .expects('send')
-        .once()
-        .withArgs(
-          'payment.failed',
-          'user3@opencollective.com',
-          {
-            lastAttempt: true,
-            order: order.info,
-            collective: order.collective.info,
-            fromCollective: order.fromCollective.minimal,
-            subscriptionsLink: `${config.host.website}/cslug/recurring-contributions`,
-            errorMessage: undefined,
-          },
-          {
-            from: 'test <no-reply@testslug.opencollective.com>',
-          },
-        );
-
-      // When the status of the order is handled
       await handleRetryStatus(order);
+      await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-      // Then the email mock should be verified
-      emailMock.verify();
+      expect(sendSpy.args[0]).to.containSubset([
+        'payment.failed',
+        order.createdByUser.email,
+        {
+          lastAttempt: true,
+          subscriptionsLink: `${config.host.website}/recurring-contributions`,
+        },
+        {
+          from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+        },
+      ]);
     });
   });
 
   describe('#processOrderWithSubscription', () => {
-    let emailMock;
-    beforeEach(() => (emailMock = mock(emailLib)));
-    afterEach(() => emailMock.restore());
+    let sandbox, sendSpy;
+
+    beforeEach(() => {
+      sandbox = createSandbox();
+      sendSpy = sandbox.spy(emailLib, 'send');
+    });
+
+    afterEach(() => {
+      sandbox.restore();
+    });
 
     it('not do anything if dryRun is true', async () => {
-      // Given the following order
-      const order = {
-        Subscription: { id: 1, save: spy() },
-        collective: {},
-        fromCollective: { slug: 'cslug', minimal: { id: 1 } },
-        createdByUser: { email: 'test@oc.com', generateLoginLink: () => '/' },
-      };
+      const order = await fakeOrder({}, { withSubscription: true, withBackerMember: true });
+      sandbox.spy(order.Subscription, 'save');
 
-      // And given that we don't want send to be called at all
-      emailMock.expects('send').never();
-
-      // When the order above is processed
       const entry = await processOrderWithSubscription(order, { dryRun: true });
+      // Wait for potential emails
+      await utils.sleep(200);
 
       // Then nothing was attempted
       expect(entry.status).to.equal('unattempted');
-      expect(order.Subscription.save.getCalls()).to.be.empty;
-
-      // And then the email mock should be verified
-      emailMock.verify();
+      expect(order.Subscription.save.called).to.equal(false);
+      expect(sendSpy.called).to.equal(false);
     });
 
     describe('Update dates after processing an order @database', () => {
-      let paymentsStub, emailMock, clock;
+      let paymentsStub;
 
       beforeEach(async () => {
-        clock = useFakeTimers(new Date('2018-01-28 0:0').getTime());
-        emailMock = mock(emailLib);
         paymentsStub = stub(paymentsLib, 'processOrder');
         await utils.resetTestDB();
       });
 
       afterEach(() => {
-        clock.restore();
-        emailMock.restore();
         paymentsStub.restore();
       });
 
@@ -367,19 +328,14 @@ describe('server/lib/recurring-contributions', () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('month', '2018-01-27');
 
-        // And given that an email should be sent afterwards
-        emailMock.expects('send').once().withArgs('thankyou');
-
-        // And that the payments library will return a transaction (to
-        // be included in the email)
         paymentsStub.resolves(null);
 
-        // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });
 
-        // Expect the mock expectations to be verified. The right
-        // email was sent.
-        emailMock.verify();
+        await utils.waitForCondition(() => sendSpy.callCount > 0);
+        // And given that an email should be sent afterwards
+        expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
+
         // Expect the processOrder function was called
         expect(paymentsStub.called).to.be.true;
 
@@ -391,12 +347,9 @@ describe('server/lib/recurring-contributions', () => {
         expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2018-02-27 0:0').getTime());
       });
 
-      it('should update dates after successfully processing yearly ', async () => {
+      it('should update dates after successfully processing yearly', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
-
-        // And given that an email should be sent afterwards
-        emailMock.expects('send').once().withArgs('thankyou');
 
         // And that the payments library will return a transaction (to
         // be included in the email)
@@ -404,10 +357,9 @@ describe('server/lib/recurring-contributions', () => {
 
         // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });
+        await utils.waitForCondition(() => sendSpy.callCount > 0);
 
-        // Expect the mock expectations to be verified. The right
-        // email was sent.
-        emailMock.verify();
+        expect(sendSpy.args[0]).to.containSubset([activities.ORDER_THANKYOU, order.createdByUser.email]);
         // Expect the processOrder function was called
         expect(paymentsStub.called).to.be.true;
 
@@ -419,22 +371,16 @@ describe('server/lib/recurring-contributions', () => {
         expect(order.Subscription.nextPeriodStart.getTime()).to.equal(new Date('2019-01-27 0:0').getTime());
       });
 
-      it('should update nextChargeDate after failed processing yearly ', async () => {
+      it('should update nextChargeDate after failed processing yearly', async () => {
         // Given an order with a subscription
         const { order } = await createOrderWithSubscription('year', '2018-01-27');
-
-        // And given that an email should be sent afterwards
-        emailMock.expects('send').once().withArgs('payment.failed');
 
         // And that the payments library will throw an error
         paymentsStub.rejects('TypeError -- Whatever');
 
         // When the order is processed
         const entry = await processOrderWithSubscription(order, { dryRun: false });
-
-        // Expect the mock expectations to be verified. The right
-        // email was sent.
-        emailMock.verify();
+        await utils.waitForCondition(() => sendSpy.callCount > 0);
 
         // Expect the processOrder function was called
         expect(paymentsStub.called).to.be.true;
@@ -443,7 +389,7 @@ describe('server/lib/recurring-contributions', () => {
         expect(entry.status).to.equal('failure');
 
         // And then the nextChargeDate is ajusted for two days later
-        expect(order.Subscription.nextChargeDate.getTime()).to.equal(new Date('2018-01-30 0:0').getTime());
+        expect(order.Subscription.nextChargeDate.getTime()).to.equal(moment().startOf('day').add(2, 'days').valueOf());
 
         // And the nextPeriodStart doesn't change for a failed
         // processing

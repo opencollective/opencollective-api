@@ -5,11 +5,10 @@ import { assert, createSandbox } from 'sinon';
 
 import { activities } from '../../../server/constants';
 import channels from '../../../server/constants/channels';
+import roles from '../../../server/constants/roles';
 import emailLib from '../../../server/lib/email';
-import notify, {
-  notifyAdminsAndAccountantsOfCollective,
-  notifyAdminsOfCollective,
-} from '../../../server/lib/notifications';
+import notifyLib from '../../../server/lib/notifications';
+import { notify } from '../../../server/lib/notifications/email';
 import slackLib from '../../../server/lib/slack';
 import {
   fakeActivity,
@@ -69,7 +68,7 @@ describe('server/lib/notification', () => {
         });
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
-        await notify(activity);
+        await notifyLib(activity);
         assert.calledWithMatch(axiosPostStub, notification.webhookUrl, { type: 'collective.apply' });
       });
 
@@ -83,7 +82,7 @@ describe('server/lib/notification', () => {
         });
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
-        await notify(activity);
+        await notifyLib(activity);
         assert.notCalled(axiosPostStub);
         assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
@@ -98,7 +97,7 @@ describe('server/lib/notification', () => {
         });
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
-        await notify(activity);
+        await notifyLib(activity);
         assert.notCalled(axiosPostStub);
         assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
@@ -113,7 +112,7 @@ describe('server/lib/notification', () => {
         });
 
         const activity = await generateCollectiveActivity(collective, activities.COLLECTIVE_APPLY);
-        await notify(activity);
+        await notifyLib(activity);
         assert.notCalled(axiosPostStub);
         assert.calledWith(slackPostActivityOnPublicChannelStub, activity, notification.webhookUrl);
       });
@@ -132,13 +131,13 @@ describe('server/lib/notification', () => {
     });
 
     beforeEach(async () => {
-      sendEmailSpy = sandbox.spy(emailLib, 'send');
+      sendEmailSpy = sandbox.stub(emailLib, 'send');
     });
 
     describe('check update published notifications', async () => {
       it('notifies the subscribers', async () => {
         activity.data.update = await fakeUpdate({ CollectiveId: collective.id });
-        await notify(activity);
+        await notifyLib(activity);
         await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
         expect(sendEmailSpy.callCount).to.equal(1);
       });
@@ -146,7 +145,7 @@ describe('server/lib/notification', () => {
       it('has valid html content for notification email', async () => {
         const html = '<div>Testing valid html content for notification email</div>';
         activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
-        await notify(activity);
+        await notifyLib(activity);
         await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
         expect(sendEmailSpy.firstCall.args[2].update.html).to.equal(html);
       });
@@ -156,7 +155,7 @@ describe('server/lib/notification', () => {
           const html =
             '<div>Testing valid html content for notification email<iframe src="https://www.youtube.com/watch?v=JODaYjDyjyQ&ab_channel=NPRMusic"></iframe></div>';
           activity.data.update = await fakeUpdate({ CollectiveId: collective.id, html });
-          await notify(activity);
+          await notifyLib(activity);
           const modifiedHtml =
             '<div>Testing valid html content for notification email<img src="https://img.youtube.com/vi/JODaYjDyjyQ/0.jpg" /></div>';
           await utils.waitForCondition(() => sendEmailSpy.callCount === 1);
@@ -176,7 +175,7 @@ describe('server/lib/notification', () => {
             const activityType = activities.COLLECTIVE_UPDATE_PUBLISHED;
             const activity = await generateCollectiveActivity(collective, activityType, fromCollective);
             activity.data.update = update;
-            await notify(activity);
+            await notifyLib(activity);
           }
 
           await utils.waitForCondition(() => sendEmailSpy.callCount === tests.length);
@@ -193,9 +192,11 @@ describe('server/lib/notification', () => {
 
   describe('notifyAdminsOfCollective', () => {
     let sendEmailSpy;
+    const notifyAdminsOfCollective = async (collectiveId, activity, options = {}) =>
+      notify.collective(activity, { ...options, collectiveId });
 
     beforeEach(async () => {
-      sendEmailSpy = sandbox.spy(emailLib, 'send');
+      sendEmailSpy = sandbox.stub(emailLib, 'send').resolves();
     });
 
     it('notifies only admins', async () => {
@@ -230,9 +231,11 @@ describe('server/lib/notification', () => {
 
   describe('notifyAdminsAndAccountantsOfCollective', () => {
     let sendEmailSpy;
+    const notifyAdminsAndAccountantsOfCollective = async (collectiveId, activity, options = {}) =>
+      notify.collective(activity, { ...options, collectiveId, role: [roles.ACCOUNTANT, roles.ADMIN] });
 
     beforeEach(async () => {
-      sendEmailSpy = sandbox.spy(emailLib, 'send');
+      sendEmailSpy = sandbox.stub(emailLib, 'send');
     });
 
     it('notifies only admins and accountants', async () => {
@@ -261,8 +264,8 @@ describe('server/lib/notification', () => {
       // Checks
       await notifyAdminsAndAccountantsOfCollective(collective.id, activity);
       expect(sendEmailSpy.callCount).to.equal(2);
-      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
-      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', adminUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', accountantUser.email);
     });
 
     it('notifies only admins and accountants of parent', async () => {
@@ -297,8 +300,8 @@ describe('server/lib/notification', () => {
       // Checks
       await notifyAdminsAndAccountantsOfCollective(event.id, activity);
       expect(sendEmailSpy.callCount).to.equal(2);
-      expect(sendEmailSpy.firstCall.args[1]).to.equal(adminUser.email);
-      expect(sendEmailSpy.secondCall.args[1]).to.equal(accountantUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', adminUser.email);
+      assert.calledWithMatch(sendEmailSpy, 'all', accountantUser.email);
     });
   });
 });

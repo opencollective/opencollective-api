@@ -9,6 +9,7 @@ import juice from 'juice';
 import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
 
+import { activities } from '../constants';
 import models from '../models';
 
 import templates, { EmailTemplates } from './emailTemplates';
@@ -256,7 +257,7 @@ const getNotificationLabel = (template, recipients): string => {
     onboarding: 'onboarding emails',
     'user.monthlyreport': 'monthly reports for backers',
     'user.yearlyreport': 'yearly reports',
-    thankyou: 'thank you for your donation',
+    [activities.ORDER_THANKYOU]: 'thank you for your donation',
     'conversation.comment.created': 'notifications of new comments submitted to this conversation',
     'update.comment.created': 'notifications of new comments submitted to this update',
     'expense.comment.created': 'notifications of new comments submitted to this expense',
@@ -320,13 +321,13 @@ const generateEmailFromTemplate = (
     template = 'host.report';
   }
 
-  if (template === 'thankyou') {
+  if (template === activities.ORDER_THANKYOU) {
     if (slug.match(/wwcode/)) {
-      template = 'thankyou.wwcode';
+      template = `${activities.ORDER_THANKYOU}.wwcode`;
     } else if (['foundation', 'opensource'].includes(hostSlug)) {
-      template = `thankyou.${hostSlug}`;
+      template = `${activities.ORDER_THANKYOU}.${hostSlug}`;
     } else if (includes(['laprimaire', 'lesbarbares', 'enmarchebe', 'monnaie-libre'], slug)) {
-      template = 'thankyou.fr';
+      template = `${activities.ORDER_THANKYOU}.fr`;
 
       // xdamman: hack
       switch (data.interval) {

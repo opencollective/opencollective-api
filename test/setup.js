@@ -1,6 +1,7 @@
 import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import chaiJestSnapshot from 'chai-jest-snapshot';
+import chaiSubset from 'chai-subset';
 import { mapValues } from 'lodash';
 import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
@@ -12,6 +13,7 @@ if (!process.env.NODE_ENV) {
 
 chai.use(chaiAsPromised);
 chai.use(chaiJestSnapshot);
+chai.use(chaiSubset);
 
 before(() => {
   chaiJestSnapshot.resetSnapshotRegistry();

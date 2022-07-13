@@ -143,6 +143,11 @@ export const inspectSpy = (spy, argsCount) => {
   }
 };
 
+export const sleep = async (timeout = 200) =>
+  new Promise(resolve => {
+    setTimeout(resolve, timeout);
+  });
+
 /**
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)

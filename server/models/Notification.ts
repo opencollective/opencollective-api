@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { defaults, isNil } from 'lodash';
+import { compact, defaults, isNil, keys, pickBy, reject } from 'lodash';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
@@ -15,6 +15,14 @@ import models from '.';
 
 const debug = debugLib('models:Notification');
 
+const DEFAULT_ACTIVE_STATE_BY_CHANNEL = {
+  [channels.EMAIL]: true,
+  [channels.GITTER]: false,
+  [channels.SLACK]: false,
+  [channels.TWITTER]: false,
+  [channels.WEBHOOK]: false,
+};
+
 export class Notification extends Model<InferAttributes<Notification>, InferCreationAttributes<Notification>> {
   public declare readonly id: CreationOptional<number>;
   public declare channel: channels;
@@ -24,6 +32,8 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare CollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
   public declare webhookUrl: CreationOptional<string>;
+  public declare User?: typeof models.User;
+  public declare Collective?: typeof models.Collective;
 
   getUser() {
     return models.User.findByPk(this.UserId);
@@ -41,34 +51,45 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     channel: channels,
     UserId: number = null,
     CollectiveId: number = null,
+    webhookUrl: string = null,
   ) {
     const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
     if (TransactionalActivities.includes(type as ActivityTypes)) {
       throw new Error(`Cannot remove transactional activity ${type}`);
+    } else if (channel === channels.EMAIL && !UserId) {
+      throw new Error(`You need to pass UserId if unsubscribing from email`);
     }
 
     return sequelize.transaction(async transaction => {
       let notification = await Notification.findOne({
-        where: { UserId, CollectiveId, type, channel },
+        where: { UserId, CollectiveId, type, channel, webhookUrl },
         transaction,
       });
 
-      if (!notification) {
-        notification = await Notification.create(
-          { UserId, CollectiveId, type, channel, active: false },
-          { transaction },
-        );
-      } else if (notification.active === true) {
-        await notification.update({ active: false }, { transaction });
-      }
+      if (DEFAULT_ACTIVE_STATE_BY_CHANNEL[channel] === true) {
+        if (!notification) {
+          notification = await Notification.create(
+            { UserId, CollectiveId, type, channel, active: false, webhookUrl },
+            { transaction },
+          );
+        } else if (notification.active === true) {
+          await notification.update({ active: false }, { transaction });
+        }
 
-      // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
-      if (isClass && UserId) {
+        // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
+        if (isClass && UserId) {
+          await Notification.destroy({
+            where: { UserId, CollectiveId, type: { [Op.in]: ActivitiesPerClass[type] }, channel },
+            transaction,
+          });
+        }
+      } else {
         await Notification.destroy({
-          where: { UserId, CollectiveId, type: { [Op.in]: ActivitiesPerClass[type] }, channel },
+          where: { type, channel, UserId, CollectiveId, active: true, webhookUrl },
           transaction,
         });
       }
+
       return notification;
     });
   }
@@ -78,17 +99,37 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     channel: channels,
     UserId: number = null,
     CollectiveId: number = null,
+    webhookUrl: string = null,
   ) {
+    if (channel === channels.EMAIL && !UserId) {
+      throw new Error(`You need to pass UserId if subscribing to email`);
+    }
+
     const isClass = Object.values(ActivityClasses).includes(type as ActivityClasses);
     return sequelize.transaction(async transaction => {
-      await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
+      if (DEFAULT_ACTIVE_STATE_BY_CHANNEL[channel] === true) {
+        await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
 
-      // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
-      if (isClass && UserId) {
-        await Notification.destroy({
-          where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+        // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
+        if (isClass && UserId) {
+          await Notification.destroy({
+            where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+            transaction,
+          });
+        }
+      } else {
+        let notification = await Notification.findOne({
+          where: { UserId, CollectiveId, type, channel, webhookUrl },
           transaction,
         });
+        if (!notification) {
+          notification = await Notification.create(
+            { UserId, CollectiveId, type, channel, active: true, webhookUrl },
+            { transaction },
+          );
+        } else if (notification.active === false) {
+          await notification.update({ active: true }, { transaction });
+        }
       }
     });
   }
@@ -180,6 +221,58 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     });
 
     return notifications.map(us => us.UserId);
+  }
+
+  static async getUnsubscribers(_where: {
+    type?: ActivityClasses | ActivityTypes;
+    CollectiveId?: number;
+    UserId?: number | number[];
+  }) {
+    debug('getUnsubscribers', { _where });
+    const getUsers = notifications => notifications.map(notification => notification.User);
+
+    const include = [{ model: models.User }];
+    const where = { active: false };
+    if (_where.UserId) {
+      where['UserId'] = _where.UserId;
+    }
+
+    const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
+    if (collective) {
+      // When looking for Notifications about specific Collective, we're also including the Collective parent and
+      // it's host because:
+      //   1. A user who unsubscribes from a Collective activity should not receive activities from its events or
+      //      projects either;
+      //   2. A Host admin can unsubscribe from their host related activities, including hosted collectives' activities
+      //      by unsubscribing straight to the Host;
+      where['CollectiveId'] = compact([collective.id, collective.ParentCollectiveId, collective.HostCollectiveId]);
+
+      // If a User provided, we also want to include "global Notifications settings" in the search. A user can
+      // set their global setting by creating a Notification that has no specific Collective attached.
+      if (where['UserId']) {
+        where['CollectiveId'].push(null);
+      }
+    }
+
+    const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
+    where['type'] = { [Op.in]: compact([_where.type, `${_where.type}.for.host`, ...classes]) };
+
+    const unsubs = await Notification.findAll({
+      where,
+      include,
+    }).then(getUsers);
+
+    // Here we find all the exceptions related to the specific collective. These are users that may have
+    // unsubscribed to this activity through a global setting or a host wide rule but explicitly created
+    // a notification rule for this collective or parent collective.
+    const subs = collective
+      ? await Notification.findAll({
+          where: { ...where, active: true, CollectiveId: [collective.id, collective.ParentCollectiveId] },
+          include,
+        }).then(getUsers)
+      : [];
+
+    return reject(unsubs, unsub => subs.some(user => unsub.id === user.id));
   }
 
   /**

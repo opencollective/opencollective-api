@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gql from 'fake-tag';
 import { describe, it } from 'mocha';
-import { createSandbox } from 'sinon';
+import { assert, createSandbox, match } from 'sinon';
 
 import roles from '../../../../server/constants/roles';
 import emailLib from '../../../../server/lib/email';
@@ -570,17 +570,21 @@ describe('server/graphql/v1/mutation', () => {
               role: roles.BACKER,
             },
           });
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount > 1);
+          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 3);
           // utils.inspectSpy(emailSendMessageSpy, 2);
           expect(members).to.have.length(1);
 
           // Make sure we send the collective.member.created email notification to core contributor of collective1
           expect(emailSendMessageSpy.callCount).to.equal(3);
           // utils.inspectSpy(emailSendMessageSpy, 2);
-          expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user2@opencollective.com');
-          expect(emailSendMessageSpy.firstCall.args[1]).to.equal('Your Organization on Open Collective');
-          expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal(
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            'user2@opencollective.com',
+            'Your Organization on Open Collective',
+          );
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            'user1@opencollective.com',
             "New financial contributor to Scouts d'Arlon: Google ($20.00/m)",
           );
           expect(emailSendMessageSpy.secondCall.args[2]).to.contain('Looking forward!'); // publicMessage
@@ -655,8 +659,8 @@ describe('server/graphql/v1/mutation', () => {
           expect(activityData.order.subscription.interval).to.equal('month');
           expect(activityData.collective.slug).to.equal(collective1.slug);
           expect(activityData.member.memberCollective.slug).to.equal('slack');
-          expect(emailSendSpy.lastCall.args[0]).to.equal('collective.member.created');
-          expect(emailSendMessageSpy.lastCall.args[0]).to.equal(user2.email);
+          assert.calledWithMatch(emailSendSpy, 'collective.member.created');
+          assert.calledWithMatch(emailSendMessageSpy, user2.email);
         });
       });
 
@@ -737,28 +741,34 @@ describe('server/graphql/v1/mutation', () => {
           });
           expect(members).to.have.length(1);
           // 2 for the collective admins, 1 for the contributor
-          await utils.waitForCondition(() => emailSendMessageSpy.callCount === 3);
+          await utils.waitForCondition(() => emailSendSpy.callCount === 3);
           expect(emailSendSpy.callCount).to.equal(3);
-          const activityData = emailSendSpy.firstCall.args[2];
+          const activityData = emailSendSpy.args.find(arg => arg[0] === 'collective.member.created')[2];
           expect(activityData.member.role).to.equal('ATTENDEE');
           expect(activityData.collective.type).to.equal('EVENT');
           expect(activityData.order.publicMessage).to.equal('Looking forward!');
           expect(activityData.collective.slug).to.equal(event1.slug);
           expect(activityData.member.memberCollective.slug).to.equal(user2.collective.slug);
-          expect(emailSendSpy.firstCall.args[0]).to.equal('collective.member.created');
-          expect(emailSendSpy.secondCall.args[0]).to.equal('collective.member.created');
-          expect(emailSendSpy.thirdCall.args[0]).to.equal('ticket.confirmed');
+
+          assert.calledWithMatch(emailSendSpy, 'collective.member.created');
+          assert.calledWithMatch(emailSendSpy, 'collective.member.created');
+          assert.calledWithMatch(emailSendSpy, 'ticket.confirmed');
           expect(emailSendMessageSpy.callCount).to.equal(3);
-          expect(emailSendMessageSpy.firstCall.args[0]).to.equal('user1@opencollective.com');
-          expect(emailSendMessageSpy.firstCall.args[1]).to.equal(
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            'user1@opencollective.com',
             'New financial contributor to January meetup: Anish Bas',
           );
-          expect(emailSendMessageSpy.secondCall.args[0]).to.equal('user2@opencollective.com');
-          expect(emailSendMessageSpy.secondCall.args[1]).to.equal(
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            'user2@opencollective.com',
             'New financial contributor to January meetup: Anish Bas',
           );
-          expect(emailSendMessageSpy.thirdCall.args[0]).to.equal('user2@opencollective.com');
-          expect(emailSendMessageSpy.thirdCall.args[1]).to.equal('2 tickets confirmed for January meetup');
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            'user2@opencollective.com',
+            '2 tickets confirmed for January meetup',
+          );
         });
 
         it('from a new user', async () => {
@@ -902,11 +912,17 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');
           await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
           expect(emailSendMessageSpy.callCount).to.equal(2);
-          expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
-          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            user1.email,
             `New financial contributor to ${event1.name}: Anish Bas ($40.00)`,
           );
-          expect(emailSendMessageSpy.firstCall.args[2]).to.contain('/scouts/events/jan-meetup');
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            user2.email,
+            'New financial contributor to January meetup: Anish Bas ($40.00)',
+            match('/scouts/events/jan-meetup'),
+          );
         });
 
         describe('from an existing but logged out user', async () => {
@@ -1084,8 +1100,14 @@ describe('server/graphql/v1/mutation', () => {
           expect(executeOrderArgument[1].paymentMethod.token).to.equal('tok_123456781234567812345678');
           await utils.waitForCondition(() => emailSendMessageSpy.callCount === 2);
           expect(emailSendMessageSpy.callCount).to.equal(2);
-          expect(emailSendMessageSpy.firstCall.args[0]).to.equal(user1.email);
-          expect(emailSendMessageSpy.firstCall.args[1]).to.contain(
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            user1.email,
+            'New financial contributor to January meetup: incognito ($40.00)',
+          );
+          assert.calledWithMatch(
+            emailSendMessageSpy,
+            user2.email,
             'New financial contributor to January meetup: incognito ($40.00)',
           );
         });

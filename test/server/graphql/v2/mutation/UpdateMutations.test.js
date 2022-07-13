@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { describe, it } from 'mocha';
-import { createSandbox } from 'sinon';
+import { assert, createSandbox } from 'sinon';
 
 import roles from '../../../../../server/constants/roles';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -253,12 +253,9 @@ describe('server/graphql/v2/mutation/UpdateMutations', () => {
           tag: 'first update & "love"',
         });
         expect(sendEmailSpy.callCount).to.equal(3);
-        expect(sendEmailSpy.args[0][0]).to.equal(user1.email);
-        expect(sendEmailSpy.args[0][1]).to.equal('first update & "love"');
-        expect(sendEmailSpy.args[1][0]).to.equal(user2.email);
-        expect(sendEmailSpy.args[1][1]).to.equal('first update & "love"');
-        expect(sendEmailSpy.args[2][0]).to.equal(user4.email);
-        expect(sendEmailSpy.args[2][1]).to.equal('first update & "love"');
+        assert.calledWithMatch(sendEmailSpy, user1.email, 'first update & "love"');
+        assert.calledWithMatch(sendEmailSpy, user2.email, 'first update & "love"');
+        assert.calledWithMatch(sendEmailSpy, user4.email, 'first update & "love"');
       });
 
       it('sends a tweet', async () => {

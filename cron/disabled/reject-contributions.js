@@ -9,7 +9,6 @@ import { MODERATION_CATEGORIES_ALIASES } from '../../server/constants/moderation
 import orderStatus from '../../server/constants/order_status';
 import { purgeCacheForCollective } from '../../server/lib/cache';
 import logger from '../../server/lib/logger';
-import { notifyAdminsOfCollective } from '../../server/lib/notifications';
 import * as libPayments from '../../server/lib/payments';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
@@ -193,13 +192,14 @@ async function run({ dryRun, limit, force } = {}) {
       const activity = {
         type: activities.CONTRIBUTION_REJECTED,
         data: {
-          collective: { name: collective.name },
+          collective: collective.info,
+          fromCollective: fromCollective.info,
           rejectionReason: `${collective.name} banned some specific categories of contributors and there was a match with your profile.`,
         },
       };
       logger.info(`  - Notifying admins of ${fromCollective.slug}`);
       if (!dryRun) {
-        await notifyAdminsOfCollective(fromCollective.id, activity);
+        await models.Activity.create(activity);
       }
     }
   }
