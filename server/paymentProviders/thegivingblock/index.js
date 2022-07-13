@@ -30,7 +30,7 @@ async function apiRequest(path, options = {}, account) {
 
 /*
  * Whenever and api request is made we check if access token is expired and if so we login again.
- * Refer: https://app.gitbook.com/@the-giving-block/s/public-api-documentation/#authentication-flow.
+ * Refer: https://the-giving-block.gitbook.io/public-api-documentation/#authentication-flow.
  * Access tokens are only valid for 2 hours.
  */
 async function handleErrorsAndRetry(result, path, options = {}, account = null) {
