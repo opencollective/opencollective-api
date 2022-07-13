@@ -16,7 +16,7 @@ describe('server/graphql/v1/queries', () => {
       await utils.resetTestDB();
       collectiveAdmin = await fakeUser();
       hostAdmin = await fakeUser();
-      const hostSettings = { invoiceTitle: 'Hello', invoice: { extraInfo: 'Not tax deductible' } };
+      const hostSettings = { invoice: { templates: { default: { title: 'Hello', info: 'Not tax deductible' } } } };
       host = await fakeHost({ admin: hostAdmin, settings: hostSettings });
       collective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin });
       fromCollective = (await fakeUser()).collective;
@@ -35,8 +35,6 @@ describe('server/graphql/v1/queries', () => {
     const transactionInvoiceQuery = gql`
       query TransactionInvoice($transactionUuid: String!) {
         TransactionInvoice(transactionUuid: $transactionUuid) {
-          title
-          extraInfo
           slug
           dateFrom
           dateTo
@@ -45,6 +43,7 @@ describe('server/graphql/v1/queries', () => {
           day
           host {
             id
+            settings
           }
           fromCollective {
             id
@@ -132,8 +131,8 @@ describe('server/graphql/v1/queries', () => {
       const variables = { transactionUuid: transaction.uuid };
       const result = await utils.graphqlQuery(transactionInvoiceQuery, variables, hostAdmin);
       const invoice = result.data.TransactionInvoice;
-      expect(invoice.title).to.eq('Hello');
-      expect(invoice.extraInfo).to.eq('Not tax deductible');
+      expect(invoice.host.settings.invoice.templates.default.title).to.eq('Hello');
+      expect(invoice.host.settings.invoice.templates.default.info).to.eq('Not tax deductible');
       const dateStr = transaction.createdAt.toISOString().split('T')[0];
       expect(invoice.slug).to.eq(`${host.name}_${dateStr}_${transaction.uuid}`);
       expect(invoice.year).to.eq(transaction.createdAt.getFullYear());
