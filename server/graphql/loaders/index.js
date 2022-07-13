@@ -19,7 +19,7 @@ import { createDataLoaderWithOptions, sortResults, sortResultsSimple } from './h
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
-import { generateCanSeeUserPrivateInfoLoader, generateUserByCollectiveIdLoader } from './user';
+import { generateCanSeeAccountPrivateInfoLoader, generateUserByCollectiveIdLoader } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
@@ -66,7 +66,7 @@ export const loaders = req => {
   context.loaders.VirtualCard.byHostCollectiveId = generateHostCollectiveVirtualCardLoader(req, cache);
 
   // User
-  context.loaders.User.canSeeUserPrivateInfo = generateCanSeeUserPrivateInfoLoader(req, cache);
+  context.loaders.User.canSeeAccountPrivateInfo = generateCanSeeAccountPrivateInfoLoader(req, cache);
   context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
 
   /** *** Collective *****/

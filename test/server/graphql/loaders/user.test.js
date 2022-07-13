@@ -1,10 +1,15 @@
 import { expect } from 'chai';
 
-import { generateCanSeeUserPrivateInfoLoader } from '../../../../server/graphql/loaders/user.ts';
+import { generateCanSeeAccountPrivateInfoLoader } from '../../../../server/graphql/loaders/user.ts';
 import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data';
+import { resetTestDB } from '../../../utils';
 
 describe('server/graphql/loaders/user', () => {
-  describe('canSeeUserPrivateInfoLoader', () => {
+  before(async () => {
+    await resetTestDB();
+  });
+
+  describe('canSeeAccountPrivateInfoLoader', () => {
     describe('User info', () => {
       let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin;
 
@@ -21,32 +26,32 @@ describe('server/graphql/loaders/user', () => {
       });
 
       it('Cannot see infos as unauthenticated', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: null });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: null });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Cannot see infos as a random user', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: randomUser });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: randomUser });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Can see infos if self', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: userWithPrivateInfo });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: userWithPrivateInfo });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
       it('Can see infos if collective admin', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: collectiveAdmin });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: collectiveAdmin });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
       it('Can see infos if host admin', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: hostAdmin });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: hostAdmin });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
     });
@@ -77,32 +82,32 @@ describe('server/graphql/loaders/user', () => {
       });
 
       it('Cannot see infos as unauthenticated', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: null });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: null });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Cannot see infos as a random user', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: randomUser });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: randomUser });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Can see infos if self', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: userWithPrivateInfo });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: userWithPrivateInfo });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.true;
       });
 
       it('Cannot see infos if collective admin', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: collectiveAdmin });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: collectiveAdmin });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
 
       it('Cannot see infos if host admin', async () => {
-        const loader = generateCanSeeUserPrivateInfoLoader({ remoteUser: hostAdmin });
-        const result = await loader.load(userWithPrivateInfo);
+        const loader = generateCanSeeAccountPrivateInfoLoader({ remoteUser: hostAdmin });
+        const result = await loader.load(userWithPrivateInfo.CollectiveId);
         expect(result).to.be.false;
       });
     });

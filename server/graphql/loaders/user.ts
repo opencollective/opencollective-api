@@ -1,34 +1,35 @@
 import DataLoader from 'dataloader';
 import express from 'express';
-import { uniqBy } from 'lodash';
+import { uniq } from 'lodash';
 
 import models, { Op } from '../../models';
 
 import { sortResultsSimple } from './helpers';
 
 /**
- * To check if remoteUser has access to user's private info. `remoteUser` must either:
+ * To check if remoteUser has access to user's private info (email, legal name, etc). `remoteUser` must either:
  * - be the user himself
  * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)
  * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
  */
-export const generateCanSeeUserPrivateInfoLoader = (req: express.Request): DataLoader<number, boolean> => {
-  return new DataLoader(async (users: typeof models.User[]) => {
+export const generateCanSeeAccountPrivateInfoLoader = (req: express.Request): DataLoader<number, boolean> => {
+  return new DataLoader(async (collectiveIds: number[]) => {
     const remoteUser = req.remoteUser;
     if (!remoteUser) {
-      return users.map(() => false);
+      return collectiveIds.map(() => false);
     }
 
     let administratedMembers = [];
 
     // Aggregates all the profiles linked to users
-    const uniqueUsers = uniqBy(users.filter(Boolean), 'id');
-    const otherUsers = uniqueUsers.filter(user => user.id !== remoteUser.id);
-    const otherUsersCollectiveIds = otherUsers.map(user => user.CollectiveId);
+    const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
+    const otherAccountsCollectiveIds = uniqueCollectiveIds.filter(
+      collectiveId => collectiveId !== remoteUser.CollectiveId,
+    );
 
     // Fetch all the admin memberships of `remoteUser` to collectives or collective's hosts
     // that are linked to users`
-    if (otherUsersCollectiveIds.length) {
+    if (otherAccountsCollectiveIds.length) {
       await remoteUser.populateRoles();
       const adminOfCollectiveIds = Object.keys(remoteUser.rolesByCollectiveId).filter(id => remoteUser.isAdmin(id));
       administratedMembers = await models.Member.findAll({
@@ -36,7 +37,7 @@ export const generateCanSeeUserPrivateInfoLoader = (req: express.Request): DataL
         group: ['MemberCollectiveId'],
         raw: true,
         mapToModel: false,
-        where: { MemberCollectiveId: otherUsersCollectiveIds },
+        where: { MemberCollectiveId: otherAccountsCollectiveIds },
         include: {
           association: 'collective',
           required: true,
@@ -54,8 +55,8 @@ export const generateCanSeeUserPrivateInfoLoader = (req: express.Request): DataL
 
     // User must be self or directly administered by remoteUser
     const administratedCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
-    return users.map(user => {
-      return Boolean(user && (user.id === remoteUser.id || administratedCollectiveIds.has(user.CollectiveId)));
+    return collectiveIds.map(collectiveId => {
+      return collectiveId === remoteUser.CollectiveId || administratedCollectiveIds.has(collectiveId);
     });
   });
 };

@@ -34,7 +34,7 @@ export const Individual = new GraphQLObjectType({
             ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
             : req.loaders.User.byCollectiveId.load(userCollective.id));
 
-          if (user && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+          if (user && (await req.loaders.User.canSeeAccountPrivateInfo.load(user.CollectiveId))) {
             return user.email;
           }
         },
