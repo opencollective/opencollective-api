@@ -298,6 +298,10 @@ export const TierInputType = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'End of the campaign',
     },
+    invoiceTemplate: {
+      type: GraphQLString,
+      description: 'Invoice receipt template',
+    },
   }),
 });
 

@@ -112,6 +112,12 @@ export const Tier = new GraphQLObjectType({
       endsAt: {
         type: GraphQLDateTime,
       },
+      invoiceTemplate: {
+        type: new GraphQLNonNull(GraphQLString),
+        async resolve(tier) {
+          return tier.data?.invoiceTemplate;
+        },
+      },
     };
   },
 });

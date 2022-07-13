@@ -20,6 +20,7 @@ export const addFundsMutation = {
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     hostFeePercent: { type: GraphQLFloat },
+    invoiceTemplate: { type: GraphQLString },
   },
   resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
     checkRemoteUserCanUseHost(req);
@@ -47,6 +48,7 @@ export const addFundsMutation = {
         description: args.description,
         hostFeePercent: args.hostFeePercent,
         tier,
+        invoiceTemplate: args.invoiceTemplate,
       },
       req.remoteUser,
     );

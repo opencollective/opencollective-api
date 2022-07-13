@@ -561,5 +561,11 @@ export const TransactionFields = () => {
         }
       },
     },
+    invoiceTemplate: {
+      type: new GraphQLNonNull(GraphQLString),
+      async resolve(transaction) {
+        return transaction.data?.invoiceTemplate;
+      },
+    },
   };
 };

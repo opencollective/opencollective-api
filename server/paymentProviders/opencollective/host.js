@@ -46,7 +46,7 @@ paymentMethodProvider.getBalance = () => {
   return Promise.resolve(maxInteger);
 };
 
-paymentMethodProvider.processOrder = async order => {
+paymentMethodProvider.processOrder = async (order, options) => {
   const host = await order.collective.getHostCollective();
 
   if (order.paymentMethod.CollectiveId !== order.collective.HostCollectiveId) {
@@ -85,6 +85,7 @@ paymentMethodProvider.processOrder = async order => {
       isSharedRevenue,
       hostFeeSharePercent,
       tax: order.data?.tax,
+      invoiceTemplate: options.invoiceTemplate,
     },
   };
 

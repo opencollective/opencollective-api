@@ -78,6 +78,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
       refundTransaction: { type: TransactionInterfaceType },
+      invoiceTemplate: { type: GraphQLString },
     };
   },
 });
@@ -337,6 +338,12 @@ const TransactionFields = () => {
         }
         // TODO: put behind a login check
         return req.loaders.PaymentMethod.byId.load(paymentMethodId);
+      },
+    },
+    invoiceTemplate: {
+      type: GraphQLString,
+      async resolve(transaction) {
+        return transaction.data?.invoiceTemplate;
       },
     },
   };

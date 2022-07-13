@@ -630,6 +630,7 @@ export const InvoiceType = new GraphQLObjectType({
       },
       title: {
         type: GraphQLString,
+        deprecationReason: 'Replaced by host.settings.invoice.templates.[templateName].title',
         description:
           'Title for the invoice. Depending on the type of legal entity, a host should issue an Invoice or a Receipt.',
         resolve(invoice) {
@@ -638,6 +639,7 @@ export const InvoiceType = new GraphQLObjectType({
       },
       extraInfo: {
         type: GraphQLString,
+        deprecationReason: 'Replaced by host.settings.invoice.templates.[templateName].info',
         description:
           'more info about the invoice, which is then printed on receipts that go to financial contributors.',
         resolve(invoice) {
