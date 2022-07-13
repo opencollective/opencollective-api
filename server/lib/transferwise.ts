@@ -498,9 +498,10 @@ export const fundBatchGroup = async (
       if (status === 403 && headers['x-2fa-approval']) {
         return { headers, status };
       } else {
-        logger.error(e);
+        const error = parseError(e, 'There was an error while funding the batch group');
+        logger.error(error);
         reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
-        throw new Error('There was an error while funding the batch group');
+        throw error;
       }
     });
 };
