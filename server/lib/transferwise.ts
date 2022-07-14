@@ -357,7 +357,7 @@ export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencie
     {
       headers: { Authorization: `Bearer ${token}` },
     },
-    'There was an error while fetching account requirements for Wise',
+    'There was an error while fetching currency pairs for Wise',
   );
 };
 
