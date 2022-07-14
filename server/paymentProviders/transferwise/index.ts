@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import config from 'config';
 import express from 'express';
-import { compact, difference, find, has, omit, pick, split, toNumber } from 'lodash';
+import { compact, difference, find, has, isNil, omit, pick, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -40,7 +40,7 @@ export const currenciesThatRequireReference = ['RUB'];
 async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
   // Old token, does not expires
   // eslint-disable-next-line camelcase
-  if (!connectedAccount.data?.expires_in) {
+  if (isNil(connectedAccount.data?.expires_in)) {
     return connectedAccount.token;
   }
   // OAuth token, require us to refresh every 12 hours
