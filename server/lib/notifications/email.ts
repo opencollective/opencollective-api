@@ -60,12 +60,15 @@ export const notify = {
       CollectiveId: options?.collective?.id || activity.CollectiveId,
     });
 
+    // Remove any possible null or empty user in the array
+    const cleanUsersArray = compact(users);
+
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
       return emailLib.send(options?.template || activity.type, process.env.ONLY, activity.data, options);
-    } else if (compact(users).length > 0) {
+    } else if (cleanUsersArray.length > 0) {
       return Promise.all(
-        users
+        cleanUsersArray
           // Filter out unsubscribed users
           .filter(user => {
             const isUnsubscribed = unsubscribed.some(unsubscribedUser => unsubscribedUser.id === user.id);
