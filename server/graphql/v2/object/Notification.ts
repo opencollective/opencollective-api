@@ -37,7 +37,7 @@ export const Notification = new GraphQLObjectType({
       description: 'If channel supports, this is the webhook URL we submit the notification to',
     },
     account: {
-      type: new GraphQLNonNull(Account),
+      type: Account,
       description: 'The account which this notification setting is applied to',
       resolve(notification, args, req) {
         return req.loaders.Collective.byId.load(notification.CollectiveId);
