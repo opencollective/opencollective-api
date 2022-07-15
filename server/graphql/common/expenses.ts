@@ -956,9 +956,10 @@ export const changesRequireStatusUpdate = (
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
-  const isPaidCreditCardCharge = expense.type === EXPENSE_TYPE.CHARGE && expense.status === expenseStatus.PAID;
+  const isPaidOrProcessingCharge =
+    expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status);
 
-  if (isPaidCreditCardCharge && !hasAmountChanges) {
+  if (isPaidOrProcessingCharge && !hasAmountChanges) {
     return false;
   }
   return hasItemsChanges || hasAmountChanges || hasPayoutChanges;
