@@ -347,6 +347,7 @@ function defineModel() {
         fromCollective: fromCollective.minimal,
         expense: this.info,
         transaction: transaction?.info,
+        amountInHostCurrency: Math.abs(transaction?.info?.amountInHostCurrency),
         payoutMethod: payoutMethod && pick(payoutMethod.dataValues, ['id', 'type', 'data']),
         items:
           !isEmpty(items) &&
