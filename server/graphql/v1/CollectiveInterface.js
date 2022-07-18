@@ -910,7 +910,10 @@ const CollectiveFields = () => {
 
         // If the profile is incognito, remoteUser must be allowed to see its `createdByUser`
         const user = await req.loaders.User.byId.load(collective.CreatedByUserId);
-        if (user && (!collective.isIncognito || (await req.loaders.User.canSeeUserPrivateInfo.load(user)))) {
+        if (
+          user &&
+          (!collective.isIncognito || (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId)))
+        ) {
           return user;
         } else {
           return {};
@@ -1965,7 +1968,7 @@ export const UserCollectiveType = new GraphQLObjectType({
               ? req.loaders.User.byId.load(userCollective.CreatedByUserId) // TODO: Should rely on Member
               : req.loaders.User.byCollectiveId.load(userCollective.id));
 
-            if (user && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+            if (user && (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))) {
               return user.email;
             }
           }

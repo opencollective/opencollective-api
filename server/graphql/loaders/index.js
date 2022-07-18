@@ -16,10 +16,11 @@ import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { createDataLoaderWithOptions, sortResults, sortResultsSimple } from './helpers';
+import { generateAdminUsersEmailsForCollectiveLoader } from './members';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
-import { generateCanSeeUserPrivateInfoLoader, generateUserByCollectiveIdLoader } from './user';
+import { generateUserByCollectiveIdLoader } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
@@ -66,7 +67,6 @@ export const loaders = req => {
   context.loaders.VirtualCard.byHostCollectiveId = generateHostCollectiveVirtualCardLoader(req, cache);
 
   // User
-  context.loaders.User.canSeeUserPrivateInfo = generateCanSeeUserPrivateInfoLoader(req, cache);
   context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
 
   /** *** Collective *****/
@@ -105,13 +105,18 @@ export const loaders = req => {
     }).then(results => sortResults(ids, results, 'CollectiveId', [])),
   );
 
-  /** Returns the collective if remote user has access to private infos or an empty object otherwise */
+  /**
+   * @deprecated
+   * Returns the collective if remote user has access to private infos or an empty object otherwise
+   */
   context.loaders.Collective.privateInfos = new DataLoader(async collectives => {
     const allCollectiveIds = collectives.map(c => c.id);
     const accessibleCollectiveIdsList = await getListOfAccessibleMembers(req.remoteUser, allCollectiveIds);
     const accessibleCollectiveIdsSet = new Set(accessibleCollectiveIdsList);
     return collectives.map(collective => (accessibleCollectiveIdsSet.has(collective.id) ? collective : {}));
   });
+
+  context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo(req, cache);
 
   // Collective - Stats
   context.loaders.Collective.stats = {
@@ -574,6 +579,8 @@ export const loaders = req => {
       order: [['createdAt', 'DESC']],
     }).then(results => sortResults(combinedKeys, results, 'CollectiveId:FromCollectiveId', [])),
   );
+
+  context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
 
   /** *** Transaction *****/
   context.loaders.Transaction = {

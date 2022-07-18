@@ -182,7 +182,11 @@ export const UserType = new GraphQLObjectType({
       email: {
         type: GraphQLString,
         async resolve(user, args, req) {
-          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+          if (
+            req.remoteUser &&
+            user.CollectiveId && // We sometimes pass an empty object as `user`
+            (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))
+          ) {
             return user.email;
           }
         },
@@ -190,7 +194,11 @@ export const UserType = new GraphQLObjectType({
       emailWaitingForValidation: {
         type: GraphQLString,
         async resolve(user, args, req) {
-          if (req.remoteUser && (await req.loaders.User.canSeeUserPrivateInfo.load(user))) {
+          if (
+            req.remoteUser &&
+            user.CollectiveId && // We sometimes pass an empty object as `user`
+            (await req.loaders.Collective.canSeePrivateInfo.load(user.CollectiveId))
+          ) {
             return user.emailWaitingForValidation;
           }
         },

@@ -279,6 +279,11 @@ interface Account {
     """
     orderByRoles: Boolean
   ): MemberOfCollection
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -2621,6 +2626,11 @@ type Host implements Account & AccountWithContributions {
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -4597,6 +4607,11 @@ type Bot implements Account {
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -5083,6 +5098,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -5897,6 +5917,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -6496,6 +6521,11 @@ type Individual implements Account {
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -7071,6 +7101,11 @@ type Organization implements Account & AccountWithContributions {
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -7677,6 +7712,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -10197,6 +10237,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)
@@ -10783,6 +10828,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     orderByRoles: Boolean
   ): MemberOfCollection!
+
+  """
+  Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.
+  """
+  emails: [EmailAddress!]
   transactions(
     """
     The number of results to fetch (default 10, max 1000)

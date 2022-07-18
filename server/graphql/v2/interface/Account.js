@@ -241,6 +241,11 @@ const accountFieldsDefinition = () => ({
       },
     },
   },
+  emails: {
+    type: new GraphQLList(new GraphQLNonNull(EmailAddress)),
+    description:
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+  },
   transactions: {
     type: new GraphQLNonNull(TransactionCollection),
     args: {
@@ -708,6 +713,16 @@ export const AccountFields = {
   },
   ...HasMembersFields,
   ...IsMemberOfFields,
+  emails: {
+    type: new GraphQLList(new GraphQLNonNull(EmailAddress)),
+    description:
+      'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
+    async resolve(collective, _, req) {
+      if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
+        return req.loaders.Member.adminUserEmailsForCollective.load(collective);
+      }
+    },
+  },
   transactions: accountTransactions,
   orders: accountOrders,
   conversations: {
