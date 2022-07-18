@@ -1,4 +1,3 @@
-import DataLoader from 'dataloader';
 import { get } from 'lodash';
 
 /** A default getter that returns item's id */
@@ -107,20 +106,4 @@ export const sortResults = (
     }
   });
   return keys.map(id => resultsById[id] || defaultValue);
-};
-
-type TBatchFunction = (values: readonly any[], options: any) => any;
-
-/**
- * Add some caching to a dataloader
- */
-export const createDataLoaderWithOptions = (
-  batchFunction: TBatchFunction,
-  cache: any,
-  options = {},
-  cacheKeyPrefix = '',
-) => {
-  const cacheKey = `${cacheKeyPrefix}:${JSON.stringify(options)}`;
-  cache[cacheKey] = cache[cacheKey] || new DataLoader(keys => batchFunction(keys, options));
-  return cache[cacheKey];
 };

@@ -7490,7 +7490,7 @@ type Organization implements Account & AccountWithContributions {
   """
   balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
-  email: String
+  email: String @deprecated(reason: "2022-07-18: This field is deprecated and will return null")
 
   """
   If the organization if a host account, this will return the matching Host object

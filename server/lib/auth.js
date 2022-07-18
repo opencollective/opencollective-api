@@ -1,10 +1,8 @@
-import Promise from 'bluebird';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import moment from 'moment';
 
 import * as errors from '../graphql/errors';
-import models, { Op } from '../models';
 
 import { crypto, generateKey } from './encryption';
 
@@ -40,30 +38,6 @@ export function verifyJwt(token) {
   return jwt.verify(token, config.keys.opencollective.jwtSecret, {
     algorithms: [ALGORITHM],
   });
-}
-
-/**
- * Returns the subset of [User|Organization]CollectiveIds that the remoteUser has access to
- */
-export function getListOfAccessibleMembers(remoteUser, CollectiveIds) {
-  if (!remoteUser) {
-    return Promise.resolve([]);
-  }
-  if (!remoteUser.rolesByCollectiveId) {
-    return Promise.resolve([]);
-  }
-  // all the CollectiveIds that the remoteUser is admin of.
-  const adminOfCollectives = Object.keys(remoteUser.rolesByCollectiveId).filter(CollectiveId =>
-    remoteUser.isAdmin(CollectiveId),
-  );
-  return models.Member.findAll({
-    attributes: ['MemberCollectiveId'],
-    where: {
-      MemberCollectiveId: { [Op.in]: CollectiveIds },
-      CollectiveId: { [Op.in]: adminOfCollectives },
-    },
-    group: ['MemberCollectiveId'],
-  }).then(results => results.map(r => r.MemberCollectiveId));
 }
 
 export function mustBeLoggedInTo(remoteUser, action = 'do this') {

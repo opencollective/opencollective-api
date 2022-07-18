@@ -1017,8 +1017,8 @@ const CollectiveFields = () => {
           }
 
           return collective.location;
-        } else {
-          return req.loaders.Collective.privateInfos.load(collective).then(c => c.location);
+        } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
+          return collective.location;
         }
       },
     },
@@ -1997,14 +1997,8 @@ export const OrganizationCollectiveType = new GraphQLObjectType({
       ...CollectiveFields(),
       email: {
         type: GraphQLString,
-        async resolve(orgCollective, args, req) {
-          if (!req.remoteUser) {
-            return null;
-          }
-          return (
-            orgCollective && req.loaders.getOrgDetailsByCollectiveId.load(orgCollective.id).then(user => user.email)
-          );
-        },
+        deprecationReason: '2022-07-18: This field is deprecated and will return null',
+        resolve: () => null,
       },
     };
   },
