@@ -1,8 +1,9 @@
 import express from 'express';
 import { GraphQLNonNull } from 'graphql';
 
+import Channels from '../../../constants/channels';
 import models from '../../../models';
-import { Unauthorized } from '../../errors';
+import { Forbidden, Unauthorized } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { NotificationCreateInput } from '../input/NotificationCreateInput';
 import { Notification } from '../object/Notification';
@@ -26,6 +27,10 @@ const notificationMutations = {
         args.notification.account &&
         (await fetchAccountWithReference(args.notification.account, { loaders: req.loaders, throwIfMissing: true }));
 
+      if (args.notification.channel !== Channels.EMAIL && !req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Forbidden('Only Collective admins can set up Notifications');
+      }
+
       return await models.Notification.subscribe(
         args.notification.type,
         args.notification.channel,
@@ -47,9 +52,14 @@ const notificationMutations = {
       if (!req.remoteUser) {
         throw new Unauthorized('You need to be logged in to delete a connected account');
       }
+
       const collective =
         args.notification.account &&
         (await fetchAccountWithReference(args.notification.account, { loaders: req.loaders, throwIfMissing: true }));
+
+      if (args.notification.channel !== Channels.EMAIL && !req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Forbidden('Only Collective admins can set up Notifications');
+      }
 
       return await models.Notification.unsubscribe(
         args.notification.type,
