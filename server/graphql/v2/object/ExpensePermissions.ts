@@ -108,51 +108,51 @@ const ExpensePermissions = new GraphQLObjectType({
     },
     // Extended permissions
     edit: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpense),
     },
     editTags: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpenseTags),
     },
     delete: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canDeleteExpense),
     },
     seeInvoiceInfo: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canSeeExpenseInvoiceInfo),
     },
     pay: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canPayExpense),
     },
     approve: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canApprove),
     },
     unapprove: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canUnapprove),
     },
     reject: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canReject),
     },
     markAsSpam: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsSpam),
     },
     markAsUnpaid: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsUnpaid),
     },
     comment: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canComment),
     },
     unschedulePayment: {
-      type: Permission,
+      type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canUnschedulePayment),
     },
   }),
