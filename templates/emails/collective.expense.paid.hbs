@@ -21,7 +21,7 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
       The money can take a few days to arrive, depending on the payment processor.
     {{/if}}
   </p>
-  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}}</a></h2>
+  <h2><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{currency expense.amount currency=expense.currency}} {{#ifCond transaction.hostCurrency '!==' expense.currency}}({{currency amountInHostCurrency currency=transaction.hostCurrency}}){{/ifCond}}</a></h2>
   <div><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{transaction.description}}</a></div>
   <table>
     <tr>
