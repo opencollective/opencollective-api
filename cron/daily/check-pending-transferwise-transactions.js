@@ -29,7 +29,7 @@ async function processExpense(expense) {
     throw new Error(`Could not find any transactions associated with expense.`);
   }
   const token = await transferwise.getToken(connectedAccount);
-  const transfer = await transferwiseLib.getTransfer(token, transaction.data.transfer.id);
+  const transfer = await transferwiseLib.getTransfer(token, expense.data.transfer.id);
   if (transfer.status === 'processing') {
     console.warn(`Transfer is still being processed, nothing to do but wait.`);
   } else if (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') {

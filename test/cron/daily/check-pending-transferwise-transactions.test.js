@@ -59,6 +59,9 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
       category: 'Engineering',
       type: 'INVOICE',
       description: 'January Invoice',
+      data: {
+        transfer: { id: 1234 },
+      },
     });
     await fakeTransaction({
       type: 'DEBIT',
