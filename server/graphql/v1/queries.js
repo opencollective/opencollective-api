@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { get, uniq } from 'lodash';
+import { uniq } from 'lodash';
 import { isEmail } from 'validator';
 
 import { roles } from '../../constants';
@@ -179,8 +179,6 @@ const queries = {
 
       // Generate invoice
       const invoice = {
-        title: get(host, 'settings.invoiceTitle'),
-        extraInfo: get(host, 'settings.invoice.extraInfo'),
         HostCollectiveId: host.id,
         FromCollectiveId: fromCollectiveId,
         slug: `${host.name}_${createdAtString}_${args.transactionUuid}`,

@@ -76,7 +76,6 @@ export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'hostFeePercent',
   'HostId',
   'invoice',
-  'invoiceTitle',
   'isHostCollective',
   'lang',
   'matchingFund',
