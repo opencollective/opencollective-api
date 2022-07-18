@@ -231,8 +231,9 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     debug('getUnsubscribers', { _where });
     const getUsers = notifications => notifications.map(notification => notification.User);
 
-    const include = [{ model: models.User }];
+    const include = [{ model: models.User, required: true }];
     const where = { active: false };
+
     if (_where.UserId) {
       where['UserId'] = _where.UserId;
     }
