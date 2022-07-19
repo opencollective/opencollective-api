@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import config from 'config';
 import { get } from 'lodash';
-import { assert, spy, stub } from 'sinon';
+import { assert, createSandbox, spy } from 'sinon';
 
 import helloworksController from '../../../server/controllers/helloworks';
-import s3 from '../../../server/lib/awsS3';
+import * as awsS3Lib from '../../../server/lib/awsS3';
 import models from '../../../server/models';
 import { randEmail, randUrl } from '../../stores';
 import { fakeCollective, fakeExpense, fakeHost, fakeLegalDocument, fakeUser } from '../../test-helpers/fake-data';
@@ -60,6 +60,7 @@ const getMockedRes = () => ({
 
 describe('server/controllers/helloworks', () => {
   let collective, host, s3Stub, expectedDocLocation;
+  const sandbox = createSandbox();
 
   before(async () => {
     host = await fakeHost();
@@ -67,16 +68,15 @@ describe('server/controllers/helloworks', () => {
     const requiredDoc = { HostCollectiveId: host.id, documentType: 'US_TAX_FORM' };
     await models.RequiredLegalDocument.create(requiredDoc);
     expectedDocLocation = randUrl();
-    s3Stub = stub(s3, 'upload');
+    s3Stub = sandbox.stub(awsS3Lib, 'uploadToS3').resolves({ Location: expectedDocLocation });
   });
 
   after(() => {
-    s3Stub.restore();
+    sandbox.restore();
   });
 
   beforeEach(() => {
-    s3Stub.reset();
-    s3Stub.callsFake((_, callback) => callback(null, { Location: expectedDocLocation }));
+    sandbox.resetHistory();
   });
 
   it('works with individuals', async () => {
