@@ -100,6 +100,20 @@ export const Individual = new GraphQLObjectType({
           }
         },
       },
+      newsletterOptIn: {
+        type: GraphQLBoolean,
+        async resolve(collective, args, req) {
+          if (!checkScope(req, 'account')) {
+            return null;
+          }
+          const user = await req.loaders.User.byCollectiveId.load(collective.id);
+          if (user.newsletterOptIn) {
+            return true;
+          } else {
+            return false;
+          }
+        },
+      },
       host: {
         type: Host,
         description: 'If the individual is a host account, this will return the matching Host object',
