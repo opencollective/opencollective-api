@@ -228,7 +228,11 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     CollectiveId?: number;
     UserId?: number | number[];
   }) {
-    debug('getUnsubscribers', { _where });
+    debug('getUnsubscribers', _where);
+    if (TransactionalActivities.includes(_where.type as ActivityTypes)) {
+      return [];
+    }
+
     const getUsers = notifications => notifications.map(notification => notification.User);
 
     const include = [{ model: models.User, required: true }];
