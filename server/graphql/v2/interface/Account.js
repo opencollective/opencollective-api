@@ -24,6 +24,7 @@ import { UpdateCollection } from '../collection/UpdateCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { WebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection';
 import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from '../enum';
+import { ActivityChannel } from '../enum/ActivityChannel';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
@@ -32,6 +33,7 @@ import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 import AccountPermissions from '../object/AccountPermissions';
 import { AccountStats } from '../object/AccountStats';
+import { ActivitySubscriptions } from '../object/ActivitySubscriptions';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
 import { MemberInvitation } from '../object/MemberInvitation';
@@ -593,6 +595,26 @@ const accountFieldsDefinition = () => ({
       }
 
       return pick(policies, PUBLIC_POLICIES);
+    },
+  },
+  activitySubscriptions: {
+    type: new GraphQLNonNull(new GraphQLList(ActivitySubscriptions)),
+    description: 'List of activities that the logged-in user is subscribed for this collective',
+    args: {
+      channel: {
+        type: ActivityChannel,
+      },
+    },
+    async resolve(collective, args, req) {
+      if (!req.remoteUser) {
+        return [];
+      }
+      const where = { UserId: req.remoteUser.id, CollectiveId: collective.id };
+      if (args.channel) {
+        where['channel'] = args.channel;
+      }
+
+      return models.Notification.findAll({ where });
     },
   },
 });
