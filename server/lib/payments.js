@@ -613,6 +613,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   const user = await order.getUserForActivity();
   const host = await collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
+  const customMessage = collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage;
 
   if (tier && tier.type === tiers.TICKET) {
     return models.Activity.create({
@@ -626,6 +627,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
         order: order.activity,
         tier: tier && tier.info,
         host: host ? host.info : {},
+        customMessage,
       },
     });
   } else {
@@ -643,7 +645,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
-      customMessage: collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage,
+      customMessage,
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
