@@ -3,70 +3,40 @@ import { GraphQLNonNull } from 'graphql';
 
 import Channels from '../../../constants/channels';
 import models from '../../../models';
-import { Forbidden, Unauthorized } from '../../errors';
-import { fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { NotificationCreateInput } from '../input/NotificationCreateInput';
+import { Unauthorized } from '../../errors';
+import { NotificationType } from '../enum/NotificationType';
+import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { Notification } from '../object/Notification';
 
 const notificationMutations = {
-  subscribeToNotification: {
+  toggleEmailNotification: {
     type: Notification,
-    description: 'Subscribe to specific notifications',
+    description: 'Toggle email notification subscription for requesting logged-in user',
     args: {
-      notification: {
-        type: new GraphQLNonNull(NotificationCreateInput),
-        description: 'Connected Account data',
+      type: { type: new GraphQLNonNull(NotificationType) },
+      account: {
+        type: AccountReferenceInput,
+        description: 'Scope account which this notification preference is applied to',
       },
     },
     async resolve(_: void, args, req: express.Request) {
       if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to create a notification setting');
+        throw new Unauthorized('You need to be logged in to toggle email notification subscription');
       }
 
       const collective =
-        args.notification.account &&
-        (await fetchAccountWithReference(args.notification.account, { loaders: req.loaders, throwIfMissing: true }));
+        args.account && (await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true }));
 
-      if (args.notification.channel !== Channels.EMAIL && !req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Forbidden('Only Collective admins can set up Notifications');
+      const where = { UserId: req.remoteUser.id, type: args.type };
+      if (collective) {
+        where['CollectiveId'] = collective.id;
       }
 
-      return await models.Notification.subscribe(
-        args.notification.type,
-        args.notification.channel,
-        req.remoteUser.id,
-        collective?.id || null,
-      );
-    },
-  },
-  unsubscribeToNotification: {
-    type: Notification,
-    description: 'Unsubscribe from specific notifications',
-    args: {
-      notification: {
-        type: new GraphQLNonNull(NotificationCreateInput),
-        description: 'Connected Account data',
-      },
-    },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      if (!req.remoteUser) {
-        throw new Unauthorized('You need to be logged in to delete a connected account');
-      }
+      const existing = await models.Notification.findOne({ where });
 
-      const collective =
-        args.notification.account &&
-        (await fetchAccountWithReference(args.notification.account, { loaders: req.loaders, throwIfMissing: true }));
-
-      if (args.notification.channel !== Channels.EMAIL && !req.remoteUser.isAdminOfCollective(collective)) {
-        throw new Forbidden('Only Collective admins can set up Notifications');
-      }
-
-      return await models.Notification.unsubscribe(
-        args.notification.type,
-        args.notification.channel,
-        req.remoteUser.id,
-        collective?.id || null,
-      );
+      const method =
+        existing && existing.active === false ? models.Notification.subscribe : models.Notification.unsubscribe;
+      return await method(args.type, Channels.EMAIL, req.remoteUser.id, collective?.id || null);
     },
   },
 };

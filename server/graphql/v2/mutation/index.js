@@ -16,6 +16,7 @@ import hostApplicationMutations from './HostApplicationMutations';
 import individualMutations from './IndividualMutations';
 import memberInvitationMutations from './MemberInvitationMutations';
 import memberMutations from './MemberMutations';
+import notificationMutations from './NotificationMutations';
 import oAuthAuthorizationMutations from './OAuthAuthorizationMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
@@ -54,6 +55,7 @@ const mutation = {
   ...updateMutations,
   ...virtualCardMutations,
   ...webhookMutations,
+  ...notificationMutations,
 };
 
 export default mutation;

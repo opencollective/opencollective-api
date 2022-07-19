@@ -24,6 +24,7 @@ import { UpdateCollection } from '../collection/UpdateCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { WebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection';
 import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from '../enum';
+import { NotificationChannel } from '../enum/NotificationChannel';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
@@ -35,6 +36,7 @@ import { AccountStats } from '../object/AccountStats';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
 import { MemberInvitation } from '../object/MemberInvitation';
+import { Notification } from '../object/Notification';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
@@ -593,6 +595,26 @@ const accountFieldsDefinition = () => ({
       }
 
       return pick(policies, PUBLIC_POLICIES);
+    },
+  },
+  notifications: {
+    type: new GraphQLNonNull(new GraphQLList(Notification)),
+    description: 'Logged-in user notifications on an account',
+    args: {
+      channel: {
+        type: NotificationChannel,
+      },
+    },
+    async resolve(collective, args, req) {
+      if (!req.remoteUser) {
+        return [];
+      }
+      const where = { UserId: req.remoteUser.id, CollectiveId: collective.id };
+      if (args.channel) {
+        where['channel'] = args.channel;
+      }
+
+      return models.Notification.findAll({ where });
     },
   },
 });

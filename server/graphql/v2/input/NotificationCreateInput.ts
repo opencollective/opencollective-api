@@ -23,7 +23,7 @@ export const NotificationCreateInput = new GraphQLInputObjectType({
         'Wheter the user wants to be notified or not: True wants to be notified, False does not want to be notified',
     },
     account: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: AccountReferenceInput,
       description: 'Scope account which this notification preference is applied to',
     },
   }),
