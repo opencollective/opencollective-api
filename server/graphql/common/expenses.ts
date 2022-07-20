@@ -1,7 +1,7 @@
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
-import { cloneDeep, flatten, get, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
+import {cloneDeep, flatten, get, isBoolean, isEqual, isNil, omitBy, pick, set, size, sumBy} from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
@@ -48,6 +48,8 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+import expenseType from "../../constants/expense_type";
+import account from "../v2/interface/Account";
 
 const debug = debugLib('expenses');
 
@@ -869,6 +871,49 @@ export async function createExpense(
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
     throw new ValidationFailed('This account cannot be used for payouts');
+  }
+
+  // Check if expensesType hasn't been disabled by the collective or the host
+  switch (expenseData.type) {
+    case EXPENSE_TYPE.INVOICE:
+        // Check if host allow expense of type invoice
+        if (
+            fromCollective.settings?.expensesType?.allowInvoice === false
+        ) {
+          throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the collective');
+        } else if (
+            !isBoolean(fromCollective.settings?.expensesType?.allowInvoice)
+            && fromCollective.host.settings?.expensesType?.allowInvoice === false
+        ) {
+          throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the host');
+        }
+      break
+    case EXPENSE_TYPE.GRANT:
+      // Check if host allow expense of type invoice
+      if (
+          fromCollective.settings?.expensesType?.allowGrant === false
+      ) {
+        throw new FeatureNotSupportedForCollective('Expense of type grant has been disabled by the collective');
+      } else if (
+          !isBoolean(fromCollective.settings?.expensesType?.allowGrant)
+          && fromCollective.host.settings?.expensesType?.allowGrant === false
+      ) {
+        throw new FeatureNotSupportedForCollective('Expense of type grant has been disabled by the host');
+      }
+      break
+    case EXPENSE_TYPE.RECEIPT:
+      // Check if host allow expense of type receipt
+      if (
+          fromCollective.settings?.expensesType?.allowReceipt === false
+      ) {
+        throw new FeatureNotSupportedForCollective('Expense of type receipt has been disabled by the collective');
+      } else if (
+          !isBoolean(fromCollective.settings?.expensesType?.allowReceipt)
+          && fromCollective.host.settings?.expensesType?.allowReceipt === false
+      ) {
+        throw new FeatureNotSupportedForCollective('Expense of type receipt has been disabled by the host');
+      }
+      break
   }
 
   // Update payee's location
