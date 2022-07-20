@@ -4,7 +4,14 @@ import { pick } from 'lodash';
 import { expenseStatus, expenseTypes } from '../../../server/constants';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
-import { fakeCollective, fakeExpense, fakeExpenseItem, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeExpense,
+  fakeExpenseItem,
+  fakeHost,
+  fakeTransaction,
+  fakeUser,
+} from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('test/server/models/Expense', () => {
@@ -29,25 +36,27 @@ describe('test/server/models/Expense', () => {
     });
 
     it(`Should not create a non-valid expense type`, async () => {
+      const host = await fakeHost({
+        settings: {
+          expenseTypes: {
+            hasGrant: false,
+            hasInvoice: false,
+            hasReceipt: false,
+          },
+        },
+      });
+
       const user = await fakeUser(
         null,
         fakeCollective({
-          settings: {
-            expenseTypes: {
-              hasGrant: false,
-              hasInvoice: false,
-              hasReceipt: false,
-            },
-          },
+          HostCollectiveId: host.id,
         }),
       );
 
-      console.log('Collective', user.collective.settings);
-
       const expenseData = {
-        description: 'A non-valid receipt',
-        FromCollectiveId: user.CollectiveId,
-        CollectiveId: user.collective.id,
+        description: 'A non-valid invoice',
+        FromCollectiveId: host.id,
+        CollectiveId: host.id,
         type: 'INVOICE',
         amount: 4200,
         currency: 'EUR',
