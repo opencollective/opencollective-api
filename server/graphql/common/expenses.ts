@@ -867,6 +867,7 @@ export async function createExpense(
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
+
   if (!remoteUser.isAdminOfCollective(fromCollective)) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
@@ -878,12 +879,12 @@ export async function createExpense(
     case EXPENSE_TYPE.INVOICE:
         // Check if host allow expense of type invoice
         if (
-            fromCollective.settings?.expensesType?.allowInvoice === false
+            collective?.settings?.expensesTypes?.hasInvoice === false
         ) {
           throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the collective');
         } else if (
-            !isBoolean(fromCollective.settings?.expensesType?.allowInvoice)
-            && fromCollective.host.settings?.expensesType?.allowInvoice === false
+            !isBoolean(collective.settings?.expensesTypes?.hasInvoice)
+            && collective.host?.settings.expensesTypes.hasInvoice === false
         ) {
           throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the host');
         }
@@ -891,25 +892,25 @@ export async function createExpense(
     case EXPENSE_TYPE.GRANT:
       // Check if host allow expense of type invoice
       if (
-          fromCollective.settings?.expensesType?.allowGrant === false
+          collective.settings?.expensesTypes?.hasGrant === false
       ) {
         throw new FeatureNotSupportedForCollective('Expense of type grant has been disabled by the collective');
       } else if (
-          !isBoolean(fromCollective.settings?.expensesType?.allowGrant)
-          && fromCollective.host.settings?.expensesType?.allowGrant === false
+          !isBoolean(collective.settings?.expensesTypes?.hasGrant)
+          && collective.host.settings?.expensesTypes?.hasGrant === false
       ) {
         throw new FeatureNotSupportedForCollective('Expense of type grant has been disabled by the host');
       }
       break
     case EXPENSE_TYPE.RECEIPT:
-      // Check if host allow expense of type receipt
+      // Check if host has expense of type receipt
       if (
-          fromCollective.settings?.expensesType?.allowReceipt === false
+          collective.settings?.expensesTypes?.hasReceipt === false
       ) {
         throw new FeatureNotSupportedForCollective('Expense of type receipt has been disabled by the collective');
       } else if (
-          !isBoolean(fromCollective.settings?.expensesType?.allowReceipt)
-          && fromCollective.host.settings?.expensesType?.allowReceipt === false
+          !isBoolean(collective.settings?.expensesTypes?.hasReceipt)
+          && collective.host.settings?.expensesTypes?.hasReceipt === false
       ) {
         throw new FeatureNotSupportedForCollective('Expense of type receipt has been disabled by the host');
       }
