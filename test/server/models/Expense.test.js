@@ -34,45 +34,6 @@ describe('test/server/models/Expense', () => {
       const expense = await models.Expense.create(expenseData);
       expect(pick(expense.dataValues, Object.keys(expenseData))).to.deep.eq(expenseData);
     });
-
-    it(`Should not create a non-valid expense type`, async () => {
-      const host = await fakeHost({
-        settings: {
-          expenseTypes: {
-            hasGrant: false,
-            hasInvoice: false,
-            hasReceipt: false,
-          },
-        },
-      });
-
-      const user = await fakeUser(
-        null,
-        fakeCollective({
-          HostCollectiveId: host.id,
-        }),
-      );
-
-      const expenseData = {
-        description: 'A non-valid invoice',
-        FromCollectiveId: host.id,
-        CollectiveId: host.id,
-        type: 'INVOICE',
-        amount: 4200,
-        currency: 'EUR',
-        UserId: user.id,
-        lastEditedById: user.id,
-        incurredAt: new Date(),
-        invoiceInfo: 'This will be printed on your invoice',
-      };
-
-      try {
-        await models.Expense.create(expenseData);
-        throw new Error("Didn't throw expected error!");
-      } catch (e) {
-        expect(e.message).to.contain('Expense of type');
-      }
-    });
   });
 
   describe('Delete', () => {

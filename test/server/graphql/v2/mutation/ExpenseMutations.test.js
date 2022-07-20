@@ -224,6 +224,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
 
+    it(`fails if it's not a valid expense type`, async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ settings: { expenseTypes: { hasGrant: false } } });
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: { ...expenseData, type: 'GRANT' }, account: { legacyId: collective.id } },
+        user,
+      );
+      expect(result.errors).to.exist;
+    });
+
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
