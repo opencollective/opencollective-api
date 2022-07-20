@@ -276,23 +276,21 @@ export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], curren
  */
 export async function getExchangeRate(fromCurrency: string, toCurrency: string): Promise<string> {
   try {
-    if (SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency) && !SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency)) {
-      const { rate: cryptoToUSDRate } = await getCryptoToUSDRate(fromCurrency);
-      const USDtoCurrencyRate = await getFxRate('USD', toCurrency);
-      return cryptoToUSDRate * USDtoCurrencyRate;
-    } else if (
-      SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency) &&
-      !SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency)
-    ) {
-      const { rate: cryptoToUSDRate } = await getCryptoToUSDRate(toCurrency);
-      const fromCurrencyUSDRate = await getFxRate(fromCurrency, 'USD');
-      return fromCurrencyUSDRate / cryptoToUSDRate;
-    } else if (SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency) && SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency)) {
-      const cryptoFromCurrencyToUSD = await getCryptoToUSDRate(fromCurrency);
-      const cryptoToCurrencyToUSD = await getCryptoToUSDRate(toCurrency);
-      return cryptoFromCurrencyToUSD / cryptoToCurrencyToUSD;
-    } else {
+    const isFromCurrencyCrypto = SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency);
+    const isToCurrencyCrypto = SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency);
+    const cryptoFromCurrencyToUSD = isFromCurrencyCrypto ? await getCryptoToUSDRate(fromCurrency) : undefined;
+    const cryptoToCurrencyToUSD = isToCurrencyCrypto ? await getCryptoToUSDRate(toCurrency) : undefined;
+
+    if (!isFromCurrencyCrypto && !isToCurrencyCrypto) {
       return getFxRate(fromCurrency, toCurrency);
+    } else if (isFromCurrencyCrypto && !isToCurrencyCrypto) {
+      const toCurrencyUSDRate = await getFxRate(toCurrency, 'USD');
+      return cryptoFromCurrencyToUSD / toCurrencyUSDRate;
+    } else if (isToCurrencyCrypto && !isFromCurrencyCrypto) {
+      const fromCurrencyUSDRate = await getFxRate(fromCurrency, 'USD');
+      return fromCurrencyUSDRate / cryptoToCurrencyToUSD;
+    } else if (isFromCurrencyCrypto && isToCurrencyCrypto) {
+      return cryptoFromCurrencyToUSD / cryptoToCurrencyToUSD;
     }
   } catch (error) {
     logger.error(error);

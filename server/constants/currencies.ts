@@ -169,6 +169,9 @@ const IBANCurrencies = {
   ZAR: 'Rand',
   ZMW: 'Zambian Kwacha',
   ZWL: 'Zimbabwe Dollar',
+};
+
+const cryptoCurrencies = {
   BTC: 'Bitcoin',
   ETH: 'Ethereum',
   BCH: 'Bitcoin Cash',
@@ -405,7 +408,10 @@ export const SUPPORTED_CRYPTO_CURRENCIES = [
   'REN',
 ];
 
-export const SupportedCurrencies = pick(IBANCurrencies, [...SUPPORTED_CURRENCIES, ...SUPPORTED_CRYPTO_CURRENCIES]);
+export const SupportedCurrencies = pick(Object.assign(IBANCurrencies, cryptoCurrencies), [
+  ...SUPPORTED_CURRENCIES,
+  ...SUPPORTED_CRYPTO_CURRENCIES,
+]);
 
 export const TransferWiseCurrencies = pick(IBANCurrencies, [
   'EUR',

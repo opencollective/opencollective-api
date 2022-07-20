@@ -1,10 +1,10 @@
-import { GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLFloat, GraphQLNonNull } from 'graphql';
 
 import { getExchangeRate } from '../../../lib/currency';
 import { Currency } from '../enum';
 
 const ExchangeRateQuery = {
-  type: GraphQLString,
+  type: GraphQLFloat,
   args: {
     fromCurrency: {
       type: new GraphQLNonNull(Currency),

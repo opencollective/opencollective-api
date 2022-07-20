@@ -216,7 +216,8 @@ export async function getCryptoToUSDRate(cryptoCurrency) {
     Authorization: `Bearer ${account.data.accessToken}`,
   };
 
-  return apiRequest(`/crypto-to-usd-rate?currency=${cryptoCurrency}`, { headers }, account);
+  const { rate } = await apiRequest(`/crypto-to-usd-rate?currency=${cryptoCurrency}`, { headers }, account);
+  return rate;
 }
 
 function hexToBuffer(str) {
