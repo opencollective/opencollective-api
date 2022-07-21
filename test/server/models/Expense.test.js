@@ -4,14 +4,7 @@ import { pick } from 'lodash';
 import { expenseStatus, expenseTypes } from '../../../server/constants';
 import models from '../../../server/models';
 import Expense from '../../../server/models/Expense';
-import {
-  fakeCollective,
-  fakeExpense,
-  fakeExpenseItem,
-  fakeHost,
-  fakeTransaction,
-  fakeUser,
-} from '../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeExpenseItem, fakeTransaction, fakeUser } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('test/server/models/Expense', () => {
