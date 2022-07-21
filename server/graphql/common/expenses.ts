@@ -880,7 +880,7 @@ export async function createExpense(
         throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the collective');
       } else if (
         !isBoolean(collective.settings?.expenseTypes?.hasInvoice) &&
-        collective.host?.settings.expenseTypes.hasInvoice === false
+        collective.host?.settings.expenseTypes?.hasInvoice === false
       ) {
         throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the host');
       }
