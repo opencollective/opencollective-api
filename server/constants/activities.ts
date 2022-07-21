@@ -95,8 +95,14 @@ export const TransactionalActivities = [
   ActivityTypes.USER_CHANGE_EMAIL,
   ActivityTypes.ORDER_PROCESSING,
   ActivityTypes.ORDER_PROCESSING_CRYPTO,
+  ActivityTypes.ORDER_THANKYOU,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
+  ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
+  ActivityTypes.PAYMENT_FAILED,
   ActivityTypes.TAXFORM_REQUEST,
+  ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
+  ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
+  ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
 ];
 
 export enum ActivityClasses {
