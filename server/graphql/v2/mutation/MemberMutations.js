@@ -229,7 +229,7 @@ const memberMutations = {
           });
 
           const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-          if (policy?.numberOfAdmins <= adminCount) {
+          if (policy?.numberOfAdmins && adminCount <= policy.numberOfAdmins) {
             throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
           }
         }
