@@ -6,6 +6,7 @@ import config from 'config';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
 
+import { roles } from '../../server/constants';
 import ActivityTypes from '../../server/constants/activities';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { generateHostFeeAmountForTransactionLoader } from '../../server/graphql/loaders/transactions';
@@ -142,7 +143,7 @@ const processCollective = async collective => {
   ];
 
   let emailData = {};
-  const options = { attachments: [] };
+  const options = { attachments: [], role: [roles.ADMIN, roles.ACCOUNTANT] };
   const csvFilename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
 
   return Promise.all(promises)
