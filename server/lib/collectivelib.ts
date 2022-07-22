@@ -148,11 +148,14 @@ export function validateSettings(settings: any): string | boolean {
   }
 
   /*
-   * Validate customEmailMessage length. We are using 511 characters to account
+   * Validate the custom email message length. We are using 511 characters to account
    * for the "div" tags that enclose the content <div>..<div/>. These divs are auto
    * added by the RichTextEditor.js
    */
-  if (settings.customEmailMessage && settings.customEmailMessage.length > 511) {
+  if (
+    (settings.customEmailMessage && settings.customEmailMessage.length > 511) ||
+    (settings.customEmailMessage?.thankYou && settings.customEmailMessage.thankYou.length > 511)
+  ) {
     return 'Message should be less than 500 characters';
   }
 
