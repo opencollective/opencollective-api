@@ -95,18 +95,6 @@ function defineModel() {
         allowNull: false,
       },
 
-      // Keeps a reference to the paymethod
-      PaymentMethodId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'PaymentMethods',
-          key: 'id',
-        },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-
       // Keeps a reference to the host because this is where the bank account is
       // Note that the host can also change over time (that's why just keeping CollectiveId is not enough)
       HostCollectiveId: {
