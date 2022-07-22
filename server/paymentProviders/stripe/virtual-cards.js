@@ -57,7 +57,7 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
 
   const stripe = getStripeClient(host.slug, connectedAccount.token);
 
-  const cardholders = await stripe.issuing.cardholders.list();
+  const cardholders = await stripe.issuing.cardholders.list({ type: 'company', status: 'active' });
 
   if (cardholders.data.length === 0) {
     throw new Error(`No cardholder for account ${host.slug}`);
