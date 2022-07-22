@@ -210,6 +210,7 @@ describe('server/models/Notification', () => {
         CollectiveId: collective.id,
         UserId: collective.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_APPLY,
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
@@ -249,6 +250,7 @@ describe('server/models/Notification', () => {
         CollectiveId: host.id,
         UserId: host.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_COMMENT_CREATED,
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
@@ -268,6 +270,7 @@ describe('server/models/Notification', () => {
         CollectiveId: host.id,
         UserId: host.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_COMMENT_CREATED,
       });
       await fakeNotification({
         channel: 'email',
