@@ -49,6 +49,7 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.ALIPAY]: 'settings.features.alipay',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
   [FEATURE.MULTI_CURRENCY_EXPENSES]: 'settings.features.multiCurrencyExpenses',
+  [FEATURE.EMAIL_NOTIFICATIONS_PANEL]: 'settings.features.emailNotificationsPanel',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([
