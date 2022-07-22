@@ -17,6 +17,7 @@ import plans from '../../../constants/plans';
 import cache from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
+import { buildSanitizerOptions, sanitizeHTML } from '../../../lib/sanitize-html';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -44,6 +45,21 @@ const AddTwoFactorAuthTokenToIndividualResponse = new GraphQLObjectType({
     },
   }),
 });
+
+const sanitizeSettingsValue = (key, value) => {
+  if (key === 'customEmailMessage') {
+    const customMessageSanitizeOptions = buildSanitizerOptions({
+      titles: true,
+      basicTextFormatting: true,
+      multilineTextFormatting: true,
+      images: true,
+      links: true,
+    });
+    return sanitizeHTML(value, customMessageSanitizeOptions);
+  } else {
+    return value;
+  }
+};
 
 const accountMutations = {
   editAccountSetting: {
@@ -99,7 +115,8 @@ const accountMutations = {
         }
 
         const settings = account.settings ? cloneDeep(account.settings) : {};
-        set(settings, args.key, args.value);
+        const value = sanitizeSettingsValue(args.key, args.value);
+        set(settings, args.key, value);
         return account.update({ settings }, { transaction });
       });
     },
