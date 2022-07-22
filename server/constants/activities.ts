@@ -80,6 +80,7 @@ enum ActivityTypes {
   CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
   UPDATE_COMMENT_CREATED = 'update.comment.created',
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
+  HOST_APPLICATION_CONTACT = 'host.application.contact',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',
@@ -103,14 +104,16 @@ export const TransactionalActivities = [
   ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
   ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
   ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
+  ActivityTypes.HOST_APPLICATION_CONTACT,
 ];
 
 export enum ActivityClasses {
   COLLECTIVE = 'collectives',
   EXPENSES = 'expenses',
   CONTRIBUTIONS = 'contributions',
-  CONVERSATIONS = 'conversations',
+  ACTIVITIES_UPDATES = 'activitiesUpdates',
   VIRTUAL_CARDS = 'virtualCards',
+  FUND_EVENTS = 'fundsEvents',
   REPORTS = 'reports',
 }
 
@@ -118,10 +121,14 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
   [ActivityClasses.COLLECTIVE]: [
     ActivityTypes.COLLECTIVE_APPLY,
     ActivityTypes.COLLECTIVE_APPROVED,
+    ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
+    ActivityTypes.COLLECTIVE_CREATED_GITHUB,
+    ActivityTypes.COLLECTIVE_CREATED,
     ActivityTypes.COLLECTIVE_FROZEN,
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.COLLECTIVE_REJECTED,
     ActivityTypes.COLLECTIVE_UNFROZEN,
+    ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST,
   ],
   [ActivityClasses.EXPENSES]: [
     ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,
@@ -141,6 +148,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_EXPENSE_UNAPPROVED,
     ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
     ActivityTypes.EXPENSE_COMMENT_CREATED,
+    ActivityTypes.TAXFORM_REQUEST,
   ],
   [ActivityClasses.CONTRIBUTIONS]: [
     ActivityTypes.CONTRIBUTION_REJECTED,
@@ -156,15 +164,23 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.SUBSCRIPTION_ACTIVATED,
     ActivityTypes.SUBSCRIPTION_CANCELED,
     ActivityTypes.SUBSCRIPTION_CONFIRMED,
-    ActivityTypes.TAXFORM_REQUEST,
   ],
-  [ActivityClasses.CONVERSATIONS]: [
+  [ActivityClasses.ACTIVITIES_UPDATES]: [
+    ActivityTypes.HOST_APPLICATION_CONTACT,
     ActivityTypes.COLLECTIVE_COMMENT_CREATED,
     ActivityTypes.COLLECTIVE_CONVERSATION_CREATED,
     ActivityTypes.COLLECTIVE_UPDATE_PUBLISHED,
+    ActivityTypes.COLLECTIVE_UPDATE_CREATED,
+    ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST,
+    ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
     ActivityTypes.CONVERSATION_COMMENT_CREATED,
     ActivityTypes.UPDATE_COMMENT_CREATED,
+    ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED,
+    ActivityTypes.COLLECTIVE_MEMBER_INVITED,
+    ActivityTypes.USER_CARD_INVITED,
+    ActivityTypes.USER_CARD_CLAIMED,
   ],
+  [ActivityClasses.FUND_EVENTS]: [ActivityTypes.TICKET_CONFIRMED],
   [ActivityClasses.VIRTUAL_CARDS]: [
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_ADDED,
     ActivityTypes.COLLECTIVE_VIRTUAL_CARD_ASSIGNED,
