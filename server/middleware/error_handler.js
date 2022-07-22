@@ -5,7 +5,13 @@ import logger from '../lib/logger';
 import { HandlerType, reportErrorToSentry } from '../lib/sentry';
 
 const isKnownError = error => {
-  return Object.keys(errors).some(errorClass => error instanceof errors[errorClass]);
+  return (
+    Boolean(error) &&
+    Object.keys(errors).some(errorClassName => {
+      const ErrorClass = errors[errorClassName];
+      return typeof ErrorClass === 'function' && error instanceof ErrorClass;
+    })
+  );
 };
 
 /**
