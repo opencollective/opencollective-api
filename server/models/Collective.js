@@ -129,6 +129,21 @@ const longDescriptionSanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
+const customMessageSanitizeOptions = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+});
+
+const sanitizeSettingsValue = value => {
+  if (value.customEmailMessage) {
+    value.customEmailMessage = sanitizeHTML(value.customEmailMessage, customMessageSanitizeOptions);
+  }
+  return value;
+};
+
 function defineModel() {
   const { models } = sequelize;
 
@@ -390,6 +405,7 @@ function defineModel() {
           return this.getDataValue('settings') || {};
         },
         set(value) {
+          sanitizeSettingsValue(value);
           this.setDataValue('settings', filterCollectiveSettings(value));
         },
         validate: {

@@ -178,7 +178,7 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    searchedTags = `{${tags.map(tag => `"${tag.toLowerCase()}"`).join(',')}}`;
+    searchedTags = `{${tags.map(tag => `"${tag}"`).join(',')}}`;
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
