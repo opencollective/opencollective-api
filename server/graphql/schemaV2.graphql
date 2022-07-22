@@ -301,6 +301,11 @@ interface Account {
     type: TransactionType
 
     """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
+
+    """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
     """
     fromAccount: AccountReferenceInput
@@ -2654,6 +2659,11 @@ type Host implements Account & AccountWithContributions {
     type: TransactionType
 
     """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
+
+    """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
     """
     fromAccount: AccountReferenceInput
@@ -3441,6 +3451,11 @@ type TransactionCollection implements Collection {
   totalCount: Int
   nodes: [Transaction]
   kinds: [TransactionKind]
+
+  """
+  The types of payment methods used in this collection, regardless of the pagination
+  """
+  paymentMethodTypes: [PaymentMethodType]!
 }
 
 """
@@ -4635,6 +4650,11 @@ type Bot implements Account {
     type: TransactionType
 
     """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
+
+    """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
     """
     fromAccount: AccountReferenceInput
@@ -5124,6 +5144,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     The transaction type (DEBIT or CREDIT)
     """
     type: TransactionType
+
+    """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
 
     """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
@@ -5945,6 +5970,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     type: TransactionType
 
     """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
+
+    """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
     """
     fromAccount: AccountReferenceInput
@@ -6549,6 +6579,11 @@ type Individual implements Account {
     type: TransactionType
 
     """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
+
+    """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
     """
     fromAccount: AccountReferenceInput
@@ -7127,6 +7162,11 @@ type Organization implements Account & AccountWithContributions {
     The transaction type (DEBIT or CREDIT)
     """
     type: TransactionType
+
+    """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
 
     """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
@@ -7738,6 +7778,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     The transaction type (DEBIT or CREDIT)
     """
     type: TransactionType
+
+    """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
 
     """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
@@ -8673,6 +8718,11 @@ type Query {
     The transaction type (DEBIT or CREDIT)
     """
     type: TransactionType
+
+    """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
 
     """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
@@ -10265,6 +10315,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     type: TransactionType
 
     """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
+
+    """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.
     """
     fromAccount: AccountReferenceInput
@@ -10854,6 +10909,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     The transaction type (DEBIT or CREDIT)
     """
     type: TransactionType
+
+    """
+    The payment method types
+    """
+    paymentMethodType: [PaymentMethodType]
 
     """
     Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.

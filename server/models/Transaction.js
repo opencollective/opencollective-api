@@ -310,15 +310,6 @@ function defineModel() {
     }
   };
 
-  Transaction.prototype.getSource = function () {
-    if (this.OrderId) {
-      return this.getOrder({ paranoid: false });
-    }
-    if (this.ExpenseId) {
-      return this.getExpense({ paranoid: false });
-    }
-  };
-
   /**
    * Returns the transaction payment method provider collective ID, which is
    * either the gift card provider if using a gift card or
