@@ -102,8 +102,8 @@ export const Individual = new GraphQLObjectType({
       },
       newsletterOptIn: {
         type: GraphQLBoolean,
-        async resolve(collective, args, req) {
-          if (!checkScope(req, 'account')) {
+        async resolve(collective, _, req) {
+          if (!req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'account')) {
             return null;
           }
           const user = await req.loaders.User.byCollectiveId.load(collective.id);

@@ -11,7 +11,7 @@ import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { checkScope } from '../../common/scope-check';
+import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
@@ -609,6 +609,8 @@ const accountFieldsDefinition = () => ({
       if (!req.remoteUser) {
         return [];
       }
+      checkRemoteUserCanUseAccount(req);
+
       const where = { UserId: req.remoteUser.id, CollectiveId: collective.id };
       if (args.channel) {
         where['channel'] = args.channel;

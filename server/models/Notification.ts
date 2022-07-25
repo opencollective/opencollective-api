@@ -229,6 +229,8 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     UserId?: number | number[];
   }) {
     debug('getUnsubscribers', _where);
+    // Enforce that there are no unsubscribers for transactional activities.
+    // These are the activities we're required to notify users about.
     if (TransactionalActivities.includes(_where.type as ActivityTypes)) {
       return [];
     }
