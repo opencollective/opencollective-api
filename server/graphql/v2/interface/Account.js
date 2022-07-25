@@ -33,7 +33,7 @@ import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
 import AccountPermissions from '../object/AccountPermissions';
 import { AccountStats } from '../object/AccountStats';
-import { ActivitySubscriptions } from '../object/ActivitySubscriptions';
+import { ActivitySubscription } from '../object/ActivitySubscription';
 import { ConnectedAccount } from '../object/ConnectedAccount';
 import { Location } from '../object/Location';
 import { MemberInvitation } from '../object/MemberInvitation';
@@ -598,7 +598,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   activitySubscriptions: {
-    type: new GraphQLNonNull(new GraphQLList(ActivitySubscriptions)),
+    type: new GraphQLNonNull(new GraphQLList(ActivitySubscription)),
     description: 'List of activities that the logged-in user is subscribed for this collective',
     args: {
       channel: {

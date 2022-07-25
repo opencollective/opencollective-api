@@ -8,8 +8,8 @@ import { Account } from '../interface/Account';
 
 import { Individual } from './Individual';
 
-export const ActivitySubscriptions = new GraphQLObjectType({
-  name: 'ActivitySubscriptions',
+export const ActivitySubscription = new GraphQLObjectType({
+  name: 'ActivitySubscription',
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),

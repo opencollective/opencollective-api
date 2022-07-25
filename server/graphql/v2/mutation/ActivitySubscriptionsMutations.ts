@@ -6,11 +6,11 @@ import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { ActivityAndClassesType } from '../enum/ActivityType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ActivitySubscriptions } from '../object/ActivitySubscriptions';
+import { ActivitySubscription } from '../object/ActivitySubscription';
 
 const notificationMutations = {
   toggleEmailNotification: {
-    type: ActivitySubscriptions,
+    type: ActivitySubscription,
     description: 'Toggle email notification subscription for requesting logged-in user',
     args: {
       type: { type: new GraphQLNonNull(ActivityAndClassesType) },
