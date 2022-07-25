@@ -4,25 +4,8 @@ import { set } from 'lodash';
 
 import models, { Op, sequelize } from '../../models';
 
-import { createDataLoaderWithOptions, sortResults } from './helpers';
+import { sortResults } from './helpers';
 export default {
-  findAllByAttribute:
-    (_: express.Request, cache) =>
-    (attribute: string): DataLoader<string | number, typeof models.Comment> => {
-      return createDataLoaderWithOptions(
-        (values, attribute) => {
-          return models.Comment.findAll({
-            where: {
-              [attribute]: { [Op.in]: values },
-            },
-            order: [['createdAt', 'DESC']],
-          }).then(results => sortResults(values, results, attribute, []));
-        },
-        cache,
-        attribute,
-        'comments',
-      );
-    },
   countByExpenseId: (): DataLoader<number, number> =>
     new DataLoader(ExpenseIds =>
       models.Comment.count({
