@@ -138,7 +138,7 @@ const customMessageSanitizeOptions = buildSanitizerOptions({
 });
 
 const sanitizeSettingsValue = value => {
-  if (value.customEmailMessage) {
+  if (value?.customEmailMessage) {
     value.customEmailMessage = sanitizeHTML(value.customEmailMessage, customMessageSanitizeOptions);
   }
   return value;
