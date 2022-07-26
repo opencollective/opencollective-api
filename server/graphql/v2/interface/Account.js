@@ -598,7 +598,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   activitySubscriptions: {
-    type: new GraphQLNonNull(new GraphQLList(ActivitySubscription)),
+    type: new GraphQLList(ActivitySubscription),
     description: 'List of activities that the logged-in user is subscribed for this collective',
     args: {
       channel: {
@@ -607,7 +607,7 @@ const accountFieldsDefinition = () => ({
     },
     async resolve(collective, args, req) {
       if (!req.remoteUser) {
-        return [];
+        return null;
       }
       checkRemoteUserCanUseAccount(req);
 
