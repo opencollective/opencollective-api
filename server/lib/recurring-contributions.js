@@ -421,7 +421,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   return notify.collective(activity, {
     collectiveId: data.fromCollective.id,
     role: [roles.ACCOUNTANT, roles.ADMIN],
-    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+    from: `${order.collective.name} <no-reply@opencollective.com>`,
     attachments,
   });
 }

@@ -144,7 +144,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.ORDER_PROCESSING_CRYPTO:
     case ActivityTypes.ORDER_PROCESSING:
       await notify.user(activity, {
-        from: `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`,
+        from: `${activity.data.collective.name} <no-reply@opencollective.com>`,
       });
       break;
 
@@ -164,9 +164,7 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.SUBSCRIPTION_CANCELED:
-      await notify.user(activity, {
-        bcc: `no-reply@${activity.data.collective.slug}.opencollective.com`,
-      });
+      await notify.user(activity);
       break;
 
     case ActivityTypes.COLLECTIVE_MEMBER_CREATED:
@@ -190,7 +188,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const ics = await event.getICS();
       const options = {
         attachments: [{ filename: `${event.slug}.ics`, content: ics }],
-        from: `${parentCollective.name} <no-reply@${parentCollective.slug}.opencollective.com>`,
+        from: `${parentCollective.name} <no-reply@opencollective.com>`,
       };
 
       const transaction = await models.Transaction.findOne({
@@ -240,7 +238,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const collective = await models.Collective.findByPk(activity.data.collective.id);
       activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
       activity.data.collective = collective.info;
-      activity.data.fromEmail = `${activity.data.collective.name} <no-reply@${activity.data.collective.slug}.opencollective.com>`;
+      activity.data.fromEmail = `${activity.data.collective.name} <no-reply@opencollective.com>`;
       activity.CollectiveId = collective.id;
 
       const emailOpts = { from: activity.data.fromEmail };
@@ -416,7 +414,7 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
         template: 'collective.rejected',
-        replyTo: `no-reply@${activity.data.host.slug}.opencollective.com`,
+        replyTo: `no-reply@opencollective.com`,
       });
       break;
 
@@ -434,7 +432,7 @@ export const notifyByEmail = async (activity: Activity) => {
 
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        from: `no-reply@${activity.data.host.slug}.opencollective.com`,
+        from: `no-reply@opencollective.com`,
       });
       break;
 
@@ -568,7 +566,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const { fromCollective, collective } = activity.data;
       await notify.collective(activity, {
         collectiveId: fromCollective.id,
-        from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+        from: `${collective.name} <no-reply@opencollective.com>`,
       });
       break;
     }

@@ -65,7 +65,7 @@ describe('server/lib/email', () => {
         collective,
       };
       const options = {
-        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
+        from: `${collective.name} <hello@opencollective.com>`,
       };
       await emailLib.send(template, data.user.email, data, options);
       let amountStr = 50;
