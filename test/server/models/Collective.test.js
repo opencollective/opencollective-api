@@ -1293,24 +1293,26 @@ describe('server/models/Collective', () => {
       it('sanitizes the HTML', async () => {
         const collective = await fakeCollective({
           settings: {
-            customEmailMessage:
-              '<div>Some content with an iframe <iframe></iframe> and an <img src="/test.jpg"></img></div>',
+            customEmailMessage: {
+              thankYou: '<div>Some content with an iframe <iframe></iframe> and an <img src="/test.jpg"></img></div>',
+            },
           },
         });
 
-        expect(collective.settings.customEmailMessage).to.equal(
+        expect(collective.settings.customEmailMessage.thankYou).to.equal(
           '<div>Some content with an iframe  and an <img src="/test.jpg" /></div>',
         );
       });
 
       it('checks the length ', async () => {
-        await expect(fakeCollective({ settings: { customEmailMessage: repeat('x', 600) } })).to.be.rejectedWith(
-          'Validation error: Custom "Thank you" email message should be less than 500 characters',
-        );
+        await expect(
+          fakeCollective({ settings: { customEmailMessage: { thankYou: repeat('x', 600) } } }),
+        ).to.be.rejectedWith('Validation error: Custom "Thank you" email message should be less than 500 characters');
       });
 
       it('checks the length (ignoring the HTML)', async () => {
-        await expect(fakeCollective({ settings: { customEmailMessage: repeat('<div>x</div>', 499) } })).to.be.fulfilled;
+        await expect(fakeCollective({ settings: { customEmailMessage: { thankYou: repeat('<div>x</div>', 499) } } })).to
+          .be.fulfilled;
       });
     });
   });

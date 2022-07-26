@@ -387,10 +387,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     interval: order.Subscription?.interval || order.interval,
     subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
     customMessage:
-      collective.settings?.customEmailMessage ||
-      parentCollective?.settings?.customEmailMessage ||
-      collective.settings?.customEmailMessage?.thankYou ||
-      parentCollective?.settings?.customEmailMessage?.thankYou,
+      collective.settings?.customEmailMessage?.thankYou || parentCollective?.settings?.customEmailMessage?.thankYou,
   };
 
   // hit PDF service and get PDF (unless payment method type is gift card)
