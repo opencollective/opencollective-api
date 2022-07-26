@@ -85,8 +85,21 @@ const HostApplicationMutations = {
         throw new NotFound('Host not found');
       }
 
-      // No need to check the balance, this is being handled in changeHost, along with most other checks
+      const where = {
+        CollectiveId: collective.id,
+        role: MemberRoles.ADMIN,
+      };
+      const [adminCount, adminInvitationCount] = await Promise.all([
+        models.Member.count({ where }),
+        models.MemberInvitation.count({ where }),
+      ]);
+      const requiredAdmins = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins || 0;
+      const validAdminsCount = adminCount + adminInvitationCount + (args.inviteMembers?.length || 0);
+      if (requiredAdmins > validAdminsCount) {
+        throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
+      }
 
+      // No need to check the balance, this is being handled in changeHost, along with most other checks
       const response = await collective.changeHost(host.id, req.remoteUser, {
         message: args.message,
         applicationData: args.applicationData,
@@ -275,7 +288,7 @@ const rejectApplication = async (host, collective, req, reason: string) => {
 const sendPrivateMessage = async (host, collective, message: string): Promise<void> => {
   const adminUsers = await collective.getAdminUsers();
   await emailLib.send(
-    'host.application.contact',
+    activities.HOST_APPLICATION_CONTACT,
     NO_REPLY_EMAIL,
     {
       host: host.info,

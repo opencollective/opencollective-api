@@ -680,7 +680,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     const activity = { type: activities.ORDER_THANKYOU, data };
     return notify.collective(activity, {
       collectiveId: data.fromCollective.id,
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+      from: `${collective.name} <no-reply@opencollective.com>`,
       attachments,
     });
   }
