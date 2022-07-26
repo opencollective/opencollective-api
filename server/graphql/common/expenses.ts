@@ -1,7 +1,7 @@
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
-import { cloneDeep, flatten, get, isBoolean, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
+import { cloneDeep, flatten, get, invert, isBoolean, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
 import { types as collectiveTypes } from '../../constants/collectives';
@@ -687,11 +687,13 @@ const checkExpenseItems = (expenseData, items, taxes) => {
   }
 };
 
-const ExpenseTypeSettingsFlag = {
+export const ExpenseTypeSettingsFlag = {
   [EXPENSE_TYPE.INVOICE]: 'hasInvoice',
   [EXPENSE_TYPE.RECEIPT]: 'hasReceipt',
   [EXPENSE_TYPE.GRANT]: 'hasGrant',
 };
+
+export const ExpenseSettingsFlagToType = invert(ExpenseTypeSettingsFlag);
 
 const checkExpenseType = (
   type: EXPENSE_TYPE,

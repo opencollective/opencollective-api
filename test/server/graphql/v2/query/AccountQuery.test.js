@@ -4,7 +4,14 @@ import { times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
 import { randEmail } from '../../../../stores';
-import { fakeCollective, fakeHost, fakeOrganization, fakeUser, multiple } from '../../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrganization,
+  fakeProject,
+  fakeUser,
+  multiple,
+} from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const accountQuery = gqlV2/* GraphQL */ `
@@ -13,6 +20,7 @@ const accountQuery = gqlV2/* GraphQL */ `
       id
       legalName
       emails
+      supportedExpenseTypes
       location {
         address
       }
@@ -324,6 +332,54 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(resultUnauthenticated.data.account.emails).to.be.null;
       expect(resultRandomUser.data.account.emails).to.be.null;
       expect(resultAdmin.data.account.emails).to.deep.eq([adminUser.email, adminUser2.email]);
+    });
+  });
+
+  describe('supportedExpenseTypes', () => {
+    it('returns default types if no settings', async () => {
+      const collective = await fakeCollective();
+      const result = await graphqlQueryV2(accountQuery, { slug: collective.slug });
+      expect(result.data.account.supportedExpenseTypes).to.deep.eq(['GRANT', 'INVOICE', 'RECEIPT']);
+    });
+
+    it('applies the right priority order', async () => {
+      const host = await fakeHost({
+        settings: {
+          expenseTypes: {
+            hasGrant: true,
+            hasReceipt: true,
+            hasInvoice: true,
+          },
+        },
+      });
+      const parent = await fakeCollective({
+        HostCollectiveId: host.id,
+        settings: {
+          expenseTypes: {
+            hasGrant: false,
+            hasReceipt: false,
+          },
+        },
+      });
+      const project = await fakeProject({
+        ParentCollectiveId: parent.id,
+        HostCollectiveId: host.id,
+        settings: {
+          expenseTypes: {
+            hasGrant: false,
+            hasReceipt: true,
+          },
+        },
+      });
+
+      const resultHost = await graphqlQueryV2(accountQuery, { slug: host.slug });
+      expect(resultHost.data.account.supportedExpenseTypes).to.deep.eq(['GRANT', 'INVOICE', 'RECEIPT']);
+
+      const resultParent = await graphqlQueryV2(accountQuery, { slug: parent.slug });
+      expect(resultParent.data.account.supportedExpenseTypes).to.deep.eq(['INVOICE']);
+
+      const resultProject = await graphqlQueryV2(accountQuery, { slug: project.slug });
+      expect(resultProject.data.account.supportedExpenseTypes).to.deep.eq(['INVOICE', 'RECEIPT']);
     });
   });
 });
