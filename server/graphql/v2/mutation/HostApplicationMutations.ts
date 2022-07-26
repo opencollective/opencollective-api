@@ -94,7 +94,7 @@ const HostApplicationMutations = {
         models.MemberInvitation.count({ where }),
       ]);
       const requiredAdmins = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins || 0;
-      const validAdminsCount = adminCount + adminInvitationCount + (args.invitedMembers?.length || 0);
+      const validAdminsCount = adminCount + adminInvitationCount + (args.inviteMembers?.length || 0);
       if (requiredAdmins > validAdminsCount) {
         throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
