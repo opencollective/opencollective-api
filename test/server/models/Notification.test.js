@@ -49,14 +49,9 @@ describe('server/models/Notification', () => {
 
     it('should unsubscribe from ActivityClass', async () => {
       const user = await fakeUser();
-      const notification = await Notification.unsubscribe(
-        ActivityClasses.TRANSACTIONS,
-        'email',
-        user.id,
-        collective.id,
-      );
+      const notification = await Notification.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
 
-      expect(notification).to.have.property('type').equal(ActivityClasses.TRANSACTIONS);
+      expect(notification).to.have.property('type').equal(ActivityClasses.EXPENSES);
       expect(notification).to.have.property('channel').equal('email');
       expect(notification).to.have.property('UserId').equal(user.id);
       expect(notification).to.have.property('CollectiveId').equal(collective.id);
@@ -73,10 +68,10 @@ describe('server/models/Notification', () => {
       expect(userNotifications[0]).to.have.property('UserId').equal(user.id);
       expect(userNotifications[0]).to.have.property('CollectiveId').equal(collective.id);
 
-      await Notification.unsubscribe(ActivityClasses.TRANSACTIONS, 'email', user.id, collective.id);
+      await Notification.unsubscribe(ActivityClasses.EXPENSES, 'email', user.id, collective.id);
       userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
-      expect(userNotifications[0]).to.have.property('type').equal(ActivityClasses.TRANSACTIONS);
+      expect(userNotifications[0]).to.have.property('type').equal(ActivityClasses.EXPENSES);
       expect(userNotifications[0]).to.have.property('channel').equal('email');
       expect(userNotifications[0]).to.have.property('UserId').equal(user.id);
       expect(userNotifications[0]).to.have.property('CollectiveId').equal(collective.id);
@@ -114,12 +109,7 @@ describe('server/models/Notification', () => {
       let userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(1);
 
-      await Notification.subscribe(
-        ActivityClasses.TRANSACTIONS,
-        notification.channel,
-        user.id,
-        notification.CollectiveId,
-      );
+      await Notification.subscribe(ActivityClasses.EXPENSES, notification.channel, user.id, notification.CollectiveId);
 
       userNotifications = await Notification.findAll({ where: { UserId: user.id } });
       expect(userNotifications).to.have.length(0);
@@ -192,6 +182,7 @@ describe('server/models/Notification', () => {
         channel: 'email',
         CollectiveId: null,
         active: false,
+        type: ActivityTypes.COLLECTIVE_APPLY,
       });
       const unsubscribers = await models.Notification.getUnsubscribers({ type: notification.type });
 
@@ -219,6 +210,7 @@ describe('server/models/Notification', () => {
         CollectiveId: collective.id,
         UserId: collective.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_APPLY,
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
@@ -238,6 +230,7 @@ describe('server/models/Notification', () => {
         CollectiveId: parentCollective.id,
         UserId: parentCollective.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_APPLY,
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
@@ -257,6 +250,7 @@ describe('server/models/Notification', () => {
         CollectiveId: host.id,
         UserId: host.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_COMMENT_CREATED,
       });
 
       const unsubscribers = await models.Notification.getUnsubscribers({
@@ -276,6 +270,7 @@ describe('server/models/Notification', () => {
         CollectiveId: host.id,
         UserId: host.CreatedByUserId,
         active: false,
+        type: ActivityTypes.COLLECTIVE_COMMENT_CREATED,
       });
       await fakeNotification({
         channel: 'email',

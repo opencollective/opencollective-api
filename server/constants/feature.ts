@@ -71,6 +71,9 @@ enum FEATURE {
   /** Whether an account can emit gift cards */
   EMIT_GIFT_CARDS = 'EMIT_GIFT_CARDS',
 
+  /** Whether an account tweak email notifications or not */
+  EMAIL_NOTIFICATIONS_PANEL = 'EMAIL_NOTIFICATIONS_PANEL',
+
   /** Virtual Cards */
   // Whether this profile can assign virtual cards
   VIRTUAL_CARDS = 'VIRTUAL_CARDS',

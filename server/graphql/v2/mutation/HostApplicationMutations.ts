@@ -275,7 +275,7 @@ const rejectApplication = async (host, collective, req, reason: string) => {
 const sendPrivateMessage = async (host, collective, message: string): Promise<void> => {
   const adminUsers = await collective.getAdminUsers();
   await emailLib.send(
-    'host.application.contact',
+    activities.HOST_APPLICATION_CONTACT,
     NO_REPLY_EMAIL,
     {
       host: host.info,
