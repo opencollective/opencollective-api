@@ -258,7 +258,7 @@ describe('server/lib/recurring-contributions', () => {
           subscriptionsLink: `${config.host.website}/recurring-contributions`,
         },
         {
-          from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+          from: `${order.collective.name} <no-reply@opencollective.com>`,
         },
       ]);
     });
@@ -280,7 +280,7 @@ describe('server/lib/recurring-contributions', () => {
           subscriptionsLink: `${config.host.website}/recurring-contributions`,
         },
         {
-          from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+          from: `${order.collective.name} <no-reply@opencollective.com>`,
         },
       ]);
     });
