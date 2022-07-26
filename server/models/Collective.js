@@ -138,8 +138,8 @@ const customMessageSanitizeOptions = buildSanitizerOptions({
 });
 
 const sanitizeSettingsValue = value => {
-  if (value?.customEmailMessage) {
-    value.customEmailMessage = sanitizeHTML(value.customEmailMessage, customMessageSanitizeOptions);
+  if (value?.customEmailMessage?.thankYou) {
+    value.customEmailMessage.thankYou = sanitizeHTML(value.customEmailMessage.thankYou, customMessageSanitizeOptions);
   }
   return value;
 };
