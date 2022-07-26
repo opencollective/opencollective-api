@@ -10,6 +10,7 @@ import { VAT_OPTIONS } from '../constants/vat';
 import models, { Op } from '../models';
 
 import logger from './logger';
+import { stripHTML } from './sanitize-html';
 import { md5 } from './utils';
 
 const { EVENT, PROJECT, USER } = CollectiveTypes;
@@ -148,12 +149,10 @@ export function validateSettings(settings: any): string | boolean {
   }
 
   /*
-   * Validate the custom email message length. We are using 511 characters to account
-   * for the "div" tags that enclose the content <div>..<div/>. These divs are auto
-   * added by the RichTextEditor.js
+   * Validate customEmailMessage length.
    */
-  if (settings.customEmailMessage?.thankYou && settings.customEmailMessage.thankYou.length > 511) {
-    return 'Message should be less than 500 characters';
+  if (settings.customEmailMessage?.thankYou && stripHTML(settings.customEmailMessage.thankYou).length > 500) {
+    return 'Custom "Thank you" email message should be less than 500 characters';
   }
 
   if (settings.moderation?.rejectedCategories) {

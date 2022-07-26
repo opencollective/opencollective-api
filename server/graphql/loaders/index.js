@@ -5,9 +5,7 @@ import moment from 'moment';
 
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
-import { getListOfAccessibleMembers } from '../../lib/auth';
 import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
-import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
@@ -15,7 +13,7 @@ import commentsLoader from './comments';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
-import { createDataLoaderWithOptions, sortResults, sortResultsSimple } from './helpers';
+import { sortResults, sortResultsSimple } from './helpers';
 import { generateAdminUsersEmailsForCollectiveLoader } from './members';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
@@ -105,31 +103,10 @@ export const loaders = req => {
     }).then(results => sortResults(ids, results, 'CollectiveId', [])),
   );
 
-  /**
-   * @deprecated
-   * Returns the collective if remote user has access to private infos or an empty object otherwise
-   */
-  context.loaders.Collective.privateInfos = new DataLoader(async collectives => {
-    const allCollectiveIds = collectives.map(c => c.id);
-    const accessibleCollectiveIdsList = await getListOfAccessibleMembers(req.remoteUser, allCollectiveIds);
-    const accessibleCollectiveIdsSet = new Set(accessibleCollectiveIdsList);
-    return collectives.map(collective => (accessibleCollectiveIdsSet.has(collective.id) ? collective : {}));
-  });
-
   context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo(req, cache);
 
   // Collective - Stats
   context.loaders.Collective.stats = {
-    collectives: new DataLoader(ids =>
-      models.Collective.findAll({
-        attributes: [
-          'HostCollectiveId',
-          [sequelize.fn('COALESCE', sequelize.fn('COUNT', sequelize.col('id')), 0), 'count'],
-        ],
-        where: { HostCollectiveId: { [Op.in]: ids } },
-        group: ['HostCollectiveId'],
-      }).then(results => sortResults(ids, results, 'TierId').map(result => get(result, 'dataValues.count') || 0)),
-    ),
     backers: new DataLoader(ids => {
       return models.Member.findAll({
         attributes: [
@@ -238,43 +215,6 @@ export const loaders = req => {
       }),
     ),
   };
-
-  // @deprecated Getting orgs emails by `CreatedByUserId` is unreliable. See https://github.com/opencollective/opencollective/issues/3415
-  context.loaders.getOrgDetailsByCollectiveId = new DataLoader(OrgCollectiveIds =>
-    getListOfAccessibleMembers(req.remoteUser, OrgCollectiveIds)
-      .then(accessibleOrgCollectiveIds =>
-        models.Collective.findAll({
-          attributes: ['id', 'CreatedByUserId'],
-          where: { id: { [Op.in]: accessibleOrgCollectiveIds } },
-        }),
-      )
-      .then(accessibleOrgCollectives => {
-        const accessibleOrgCreators = {};
-        accessibleOrgCollectives.map(c => {
-          if (c.CreatedByUserId) {
-            accessibleOrgCreators[c.CreatedByUserId] = c.id;
-          }
-        });
-        return accessibleOrgCreators;
-      })
-      .then(accessibleOrgCreators => {
-        return models.User.findAll({
-          attributes: ['id', 'CollectiveId', 'email'],
-          where: { id: { [Op.in]: Object.keys(accessibleOrgCreators) } },
-        }).then(users => {
-          return users.map(u => {
-            u.dataValues.OrgCollectiveId = accessibleOrgCreators[u.id];
-            return u;
-          });
-        });
-      })
-      .catch(e => {
-        console.error(e);
-        reportErrorToSentry(e);
-        return [];
-      })
-      .then(results => sortResults(OrgCollectiveIds, results, 'OrgCollectiveId', {})),
-  );
 
   /** *** Tier *****/
   // Tier - availableQuantity
@@ -561,12 +501,6 @@ export const loaders = req => {
   };
 
   /** *** Member *****/
-  /* context.loaders.Member.findByTierId = new DataLoader(tiersIds =>
-    models.Member.findAll({
-      where: { TierId: { [Op.in]: tiersIds } },
-      order: [['createdAt', 'DESC']],
-    }).then(results => sortResults(tiersIds, results, 'TierId', []))
-  ); */
 
   context.loaders.Member.transactions = new DataLoader(combinedKeys =>
     models.Transaction.findAll({
@@ -591,21 +525,6 @@ export const loaders = req => {
       const transactions = await models.Transaction.findAll({ where, order });
       return sortResults(keys, transactions, 'OrderId', []);
     }),
-    findByOrderId: options =>
-      createDataLoaderWithOptions(
-        (OrderIds, options) => {
-          return models.Transaction.findAll({
-            where: {
-              OrderId: { [Op.in]: OrderIds },
-              ...options.where,
-            },
-            order: [['createdAt', 'DESC']],
-          }).then(results => sortResults(OrderIds, results, 'OrderId', []));
-        },
-        cache,
-        options,
-        'transactions',
-      ),
     directDonationsFromTo: new DataLoader(keys =>
       models.Transaction.findAll({
         attributes: ['FromCollectiveId', 'CollectiveId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],

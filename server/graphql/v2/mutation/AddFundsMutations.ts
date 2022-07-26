@@ -29,9 +29,26 @@ export const addFundsMutation = {
     const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
     const tier = args.tier && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
 
-    const allowedTypes = ['ORGANIZATION', 'COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
-    if (!allowedTypes.includes(account.type)) {
-      throw new ValidationFailed(`Adding funds is only possible for the following types: ${allowedTypes.join(',')}`);
+    const accountAllowedTypes = ['ORGANIZATION', 'COLLECTIVE', 'EVENT', 'FUND', 'PROJECT'];
+    if (!accountAllowedTypes.includes(account.type)) {
+      throw new ValidationFailed(
+        `Adding funds is only possible to the following types: ${accountAllowedTypes.join(',')}`,
+      );
+    }
+
+    // For now, we'll tolerate internal Added Funds whatever the type
+    // because we found it was a practice for Independent Collectives especially
+    const isInternal =
+      account.id === fromAccount.id ||
+      (account.parentCollectiveid && account.parentCollectiveid === fromAccount.id) ||
+      (fromAccount.parentCollectiveid && account.id === fromAccount.parentCollectiveid);
+    if (!isInternal) {
+      const fromAccountAllowedTypes = ['USER', 'ORGANIZATION'];
+      if (!fromAccountAllowedTypes.includes(fromAccount.type)) {
+        throw new ValidationFailed(
+          `Adding funds is only possible from the following types: ${fromAccountAllowedTypes.join(',')}`,
+        );
+      }
     }
 
     if (!isNil(args.hostFeePercent)) {

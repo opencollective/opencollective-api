@@ -24,14 +24,8 @@ export const Organization = new GraphQLObjectType({
       },
       email: {
         type: GraphQLString,
-        resolve(orgCollective, args, req) {
-          if (!req.remoteUser) {
-            return null;
-          }
-          return (
-            orgCollective && req.loaders.getOrgDetailsByCollectiveId.load(orgCollective.id).then(user => user.email)
-          );
-        },
+        deprecationReason: '2022-07-18: This field is deprecated and will return null',
+        resolve: () => null,
       },
       location: {
         ...AccountFields.location,

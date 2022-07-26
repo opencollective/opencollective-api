@@ -1677,16 +1677,11 @@ export const OrderType = new GraphQLObjectType({
             description: 'type of transaction (DEBIT/CREDIT)',
           },
         },
-        resolve(order, args, req) {
-          const query = {
-            where: {},
-            limit: args.limit || 10,
-            offset: args.offset || 0,
-          };
-          if (args.type) {
-            query.where.type = args.type;
-          }
-          return req.loaders.Transaction.findByOrderId(query).load(order.id);
+        async resolve(order, args, req) {
+          const transactions = await req.loaders.Transaction.byOrderId.load(order.id);
+          const offset = args.offset || 0;
+          const filteredTransactions = !args.type ? transactions : transactions.filter(t => t.type === args.type);
+          return filteredTransactions.slice(offset, offset + (args.limit || Infinity));
         },
       },
       currency: {
