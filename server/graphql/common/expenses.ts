@@ -687,6 +687,43 @@ const checkExpenseItems = (expenseData, items, taxes) => {
   }
 };
 
+const ExpenseTypeSettingsFlag = {
+  [EXPENSE_TYPE.INVOICE]: 'hasInvoice',
+  [EXPENSE_TYPE.RECEIPT]: 'hasReceipt',
+  [EXPENSE_TYPE.GRANT]: 'hasGrant',
+};
+
+const checkExpenseType = (
+  type: EXPENSE_TYPE,
+  account: typeof models.Collective,
+  parent: typeof models.Collective | null,
+  host: typeof models.Collective | null,
+): void => {
+  // Check flag in settings in the priority order of collective > parent > host
+  const flag = ExpenseTypeSettingsFlag[type];
+  if (!flag) {
+    return; // Ignore newly introduced expense types
+  }
+
+  const accounts = { account, parent, host };
+  for (const level of ['account', 'parent', 'host']) {
+    const account = accounts[level];
+    const value = account?.settings?.expenseTypes?.[flag];
+    if (isBoolean(value)) {
+      if (value) {
+        return; // Flag is explicitly set to true, we're good
+      } else {
+        throw new ValidationFailed(`Expenses of type ${type.toLowerCase()} are not allowed by the ${level}`);
+      }
+    }
+  }
+
+  // Fallback on default values
+  if (type === EXPENSE_TYPE.GRANT) {
+    // TODO: enforce this to resolve https://github.com/opencollective/opencollective/issues/5395
+  }
+};
+
 const EXPENSE_EDITABLE_FIELDS = [
   'amount',
   'currency',
@@ -773,7 +810,7 @@ type ExpenseData = {
   fromCollective?: Record<string, unknown>;
   tags?: string[];
   incurredAt?: Date;
-  type?: string;
+  type?: EXPENSE_TYPE;
   description?: string;
   currency?: string;
   tax?: TaxDefinition[];
@@ -814,7 +851,10 @@ export async function createExpense(
   }
 
   const collective = await models.Collective.findByPk(expenseData.collective.id, {
-    include: [{ association: 'host', required: false }],
+    include: [
+      { association: 'host', required: false },
+      { association: 'parent', required: false },
+    ],
   });
   if (!collective) {
     throw new ValidationFailed('Collective not found');
@@ -835,6 +875,7 @@ export async function createExpense(
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
   checkExpenseItems(expenseData, itemsData, taxes);
+  checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -870,43 +911,6 @@ export async function createExpense(
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
     throw new ValidationFailed('This account cannot be used for payouts');
-  }
-
-  // Check if expensesType hasn't been disabled by the collective or the host
-  switch (expenseData.type) {
-    case EXPENSE_TYPE.INVOICE:
-      // Check if host allow expense of type invoice
-      if (collective?.settings?.expenseTypes?.hasInvoice === false) {
-        throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the collective');
-      } else if (
-        !isBoolean(collective.settings?.expenseTypes?.hasInvoice) &&
-        collective.host?.settings.expenseTypes?.hasInvoice === false
-      ) {
-        throw new FeatureNotSupportedForCollective('Expense of type invoice has been disabled by the host');
-      }
-      break;
-    case EXPENSE_TYPE.GRANT:
-      // Check if host allow expense of type invoice
-      if (collective.settings?.expenseTypes?.hasGrant === false) {
-        throw new FeatureNotSupportedForCollective('Expense of type grant has been disabled by the collective');
-      } else if (
-        !isBoolean(collective.settings?.expenseTypes?.hasGrant) &&
-        collective.host.settings?.expenseTypes?.hasGrant === false
-      ) {
-        throw new FeatureNotSupportedForCollective('Expense of type grant has been disabled by the host');
-      }
-      break;
-    case EXPENSE_TYPE.RECEIPT:
-      // Check if host has expense of type receipt
-      if (collective.settings?.expenseTypes?.hasReceipt === false) {
-        throw new FeatureNotSupportedForCollective('Expense of type receipt has been disabled by the collective');
-      } else if (
-        !isBoolean(collective.settings?.expenseTypes?.hasReceipt) &&
-        collective.host.settings?.expenseTypes?.hasReceipt === false
-      ) {
-        throw new FeatureNotSupportedForCollective('Expense of type receipt has been disabled by the host');
-      }
-      break;
   }
 
   // Update payee's location
@@ -1065,7 +1069,15 @@ export async function editExpense(
 
   const expense = await models.Expense.findByPk(expenseData.id, {
     include: [
-      { model: models.Collective, as: 'collective', include: [{ association: 'host', required: false }] },
+      {
+        model: models.Collective,
+        as: 'collective',
+        required: true,
+        include: [
+          { association: 'host', required: false },
+          { association: 'parent', required: false },
+        ],
+      },
       { model: models.Collective, as: 'fromCollective' },
       { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
       { model: models.PayoutMethod },
@@ -1073,14 +1085,22 @@ export async function editExpense(
     ],
   });
 
+  if (!expense) {
+    throw new NotFound('Expense not found');
+  }
+
+  const { collective } = expense;
+  const { host } = collective;
+
+  // When changing the type, we must make sure that the new type is allowed
+  if (expenseData.type && expenseData.type !== expense.type) {
+    checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
+  }
+
   const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense.items, expenseData);
   const taxes = expenseData.tax || expense.data?.taxes || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
-
-  if (!expense) {
-    throw new NotFound('Expense not found');
-  }
 
   const modifiedFields = Object.keys(omitBy(expenseData, (value, key) => key === 'id' || isNil(value)));
   if (isEqual(modifiedFields, ['tags'])) {
@@ -1135,8 +1155,6 @@ export async function editExpense(
   );
 
   // Let submitter customize the currency
-  const { collective } = expense;
-  const host = await collective.getHostCollective();
   const isChangingCurrency = expenseData.currency && expenseData.currency !== expense.currency;
   if (isChangingCurrency && expenseData.currency !== collective.currency && !hasMultiCurrency(collective, host)) {
     throw new FeatureNotSupportedForCollective('Multi-currency expenses are not enabled for this account');
