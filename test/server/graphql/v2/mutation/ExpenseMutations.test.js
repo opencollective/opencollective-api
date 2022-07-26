@@ -2131,7 +2131,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       expect(recipient).to.eq(invoice.payee.email);
       expect(subject).to.include(collective.name);
-      expect(subject).to.include('wants you to pay you');
+      expect(subject).to.include('wants to pay you');
       expect(body).to.include(
         `href="http://localhost:3000/${collective.slug}/expenses/${expense.id}?key&#x3D;${expense.data.draftKey}"`,
       );
