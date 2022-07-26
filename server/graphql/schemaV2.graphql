@@ -301,7 +301,7 @@ interface Account {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -2659,7 +2659,7 @@ type Host implements Account & AccountWithContributions {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -4650,7 +4650,7 @@ type Bot implements Account {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -5146,7 +5146,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -5970,7 +5970,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -6579,7 +6579,7 @@ type Individual implements Account {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -7164,7 +7164,7 @@ type Organization implements Account & AccountWithContributions {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -7780,7 +7780,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -8720,7 +8720,7 @@ type Query {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -10315,7 +10315,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 
@@ -10911,7 +10911,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     type: TransactionType
 
     """
-    The payment method types
+    The payment method types. Can include `null` for transactions without a payment method
     """
     paymentMethodType: [PaymentMethodType]
 

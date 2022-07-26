@@ -27,7 +27,7 @@ export const TransactionsCollectionArgs = {
   },
   paymentMethodType: {
     type: new GraphQLList(PaymentMethodType),
-    description: 'The payment method types',
+    description: 'The payment method types. Can include `null` for transactions without a payment method',
   },
   fromAccount: {
     type: AccountReferenceInput,
@@ -281,14 +281,10 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     where.push({ kind: args.kind || args.kinds });
   }
   if (args.paymentMethodType) {
-    const uniquePaymentMethodTypes: string[] = uniq(args.paymentMethodType.filter(Boolean));
-    const paymentMethodConditions: Record<string, string | null>[] = uniquePaymentMethodTypes.map(type => ({
-      '$PaymentMethod.type$': type,
-    }));
-
-    if (args.paymentMethodType.includes(null)) {
-      paymentMethodConditions.push({ PaymentMethodId: null });
-    }
+    const uniquePaymentMethods: string[] = uniq(args.paymentMethodType);
+    const paymentMethodConditions = uniquePaymentMethods.map(type => {
+      return type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null };
+    });
 
     if (paymentMethodConditions.length) {
       include.push({ model: models.PaymentMethod });
@@ -332,7 +328,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
         group: ['PaymentMethod.type'],
         raw: true,
       }).then(results => {
-        return results.map(result => result.type);
+        return results.map(result => result.type || null);
       });
     },
   };
