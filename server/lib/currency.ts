@@ -278,19 +278,19 @@ export async function getExchangeRate(fromCurrency: string, toCurrency: string):
   try {
     const isFromCurrencyCrypto = SUPPORTED_CRYPTO_CURRENCIES.includes(fromCurrency);
     const isToCurrencyCrypto = SUPPORTED_CRYPTO_CURRENCIES.includes(toCurrency);
-    const cryptoFromCurrencyToUSD = isFromCurrencyCrypto ? await getCryptoToUSDRate(fromCurrency) : undefined;
-    const cryptoToCurrencyToUSD = isToCurrencyCrypto ? await getCryptoToUSDRate(toCurrency) : undefined;
+    const cryptoFromCurrencyToUSDRate = isFromCurrencyCrypto ? await getCryptoToUSDRate(fromCurrency) : undefined;
+    const cryptoToCurrencyToUSDRate = isToCurrencyCrypto ? await getCryptoToUSDRate(toCurrency) : undefined;
 
     if (!isFromCurrencyCrypto && !isToCurrencyCrypto) {
       return getFxRate(fromCurrency, toCurrency);
     } else if (isFromCurrencyCrypto && !isToCurrencyCrypto) {
       const toCurrencyUSDRate = await getFxRate(toCurrency, 'USD');
-      return cryptoFromCurrencyToUSD / toCurrencyUSDRate;
+      return cryptoFromCurrencyToUSDRate / toCurrencyUSDRate;
     } else if (isToCurrencyCrypto && !isFromCurrencyCrypto) {
       const fromCurrencyUSDRate = await getFxRate(fromCurrency, 'USD');
-      return fromCurrencyUSDRate / cryptoToCurrencyToUSD;
+      return fromCurrencyUSDRate / cryptoToCurrencyToUSDRate;
     } else if (isFromCurrencyCrypto && isToCurrencyCrypto) {
-      return cryptoFromCurrencyToUSD / cryptoToCurrencyToUSD;
+      return cryptoFromCurrencyToUSDRate / cryptoToCurrencyToUSDRate;
     }
   } catch (error) {
     logger.error(error);

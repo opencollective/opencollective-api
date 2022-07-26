@@ -2,8 +2,10 @@ import { expect } from 'chai';
 import config from 'config';
 import moment from 'moment';
 import nock from 'nock';
+import { createSandbox } from 'sinon';
 
 import * as CurrencyLib from '../../../server/lib/currency';
+import * as TheGivingBlock from '../../../server/paymentProviders/thegivingblock';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -126,5 +128,36 @@ describe('server/lib/currency', () => {
       CurrencyLib.convertToCurrency(1, 'INR', 'USD', new Date(endDate)).then(amount =>
         expect(amount).to.equal(0.014962),
       ));
+  });
+
+  describe('getExchangeRate', () => {
+    let sandbox;
+    const fxrate = 1.1;
+    before(() => (sandbox = createSandbox()));
+    before(() => {
+      sandbox.stub(TheGivingBlock, 'getCryptoToUSDRate').callsFake(cryptoCurrency => {
+        let rate;
+        if (cryptoCurrency === 'BTC') {
+          rate = 20000;
+        } else if (cryptoCurrency === 'ETH') {
+          rate = 1400;
+        } else {
+          rate = fxrate;
+        }
+        return Promise.resolve(rate);
+      });
+    });
+
+    it('both currencies fiat', () =>
+      CurrencyLib.getExchangeRate('EUR', 'USD').then(rate => expect(rate).to.equal(1.1)));
+
+    it('both currencies crypto', () =>
+      CurrencyLib.getExchangeRate('BTC', 'ETH').then(rate => expect(rate).to.equal(20000 / 1400)));
+
+    it('crypto to fiat', () =>
+      CurrencyLib.getExchangeRate('BTC', 'EUR').then(rate => expect(rate).to.equal(20000 / 1.1)));
+
+    it('fiat to crypto', () =>
+      CurrencyLib.getExchangeRate('EUR', 'BTC').then(rate => expect(rate).to.equal(1.1 / 20000)));
   });
 });
