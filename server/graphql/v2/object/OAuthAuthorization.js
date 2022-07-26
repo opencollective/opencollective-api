@@ -1,6 +1,7 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
+import models from '../../../models';
 import { OAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Application } from '../object/Application';
@@ -37,6 +38,22 @@ export const OAuthAuthorization = new GraphQLObjectType({
     expiresAt: {
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The time of expiration',
+    },
+    lastUsedAt: {
+      type: GraphQLDateTime,
+      description: 'The last time of token was used',
+      async resolve(authorization, _, req) {
+        if (req.remoteUser?.isAdmin(authorization.account.id)) {
+          const activity = await models.Activity.findOne({
+            attributes: ['createdAt'],
+            where: {
+              UserTokenId: authorization.id,
+            },
+            order: [['createdAt', 'DESC']],
+          });
+          return activity?.createdAt ?? null;
+        }
+      },
     },
     scope: {
       type: new GraphQLList(OAuthScope),
