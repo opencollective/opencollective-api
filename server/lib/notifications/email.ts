@@ -10,7 +10,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
 import Activity from '../../models/Activity';
-import emailLib, { NO_REPLY_EMAIL } from '../email';
+import emailLib from '../email';
 import { getTransactionPdf } from '../pdf';
 import twitter from '../twitter';
 import { toIsoDateStr } from '../utils';
@@ -273,7 +273,7 @@ export const notifyByEmail = async (activity: Activity) => {
 
       const usersToNotify: Array<{ id: number; email: string }> = await conversation.getUsersFollowing();
       notify.users(usersToNotify, activity, {
-        from: NO_REPLY_EMAIL,
+        from: config.email.noReply,
         exclude: [activity.UserId], // Don't notify the person who commented
       });
       break;
@@ -288,7 +288,7 @@ export const notifyByEmail = async (activity: Activity) => {
 
       // Notify the admins of the collective
       await notify.collective(activity, {
-        from: NO_REPLY_EMAIL,
+        from: config.email.noReply,
         exclude: [activity.UserId], // Don't notify the person who commented
       });
       break;
@@ -303,7 +303,7 @@ export const notifyByEmail = async (activity: Activity) => {
 
       // Notify the admins of the collective
       await notify.collective(activity, {
-        from: NO_REPLY_EMAIL,
+        from: config.email.noReply,
         exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
       });
 
@@ -311,7 +311,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const HostCollectiveId = await collective.getHostCollectiveId();
       if (HostCollectiveId) {
         await notify.collective(activity, {
-          from: NO_REPLY_EMAIL,
+          from: config.email.noReply,
           collectiveId: HostCollectiveId,
           exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
         });
@@ -321,7 +321,7 @@ export const notifyByEmail = async (activity: Activity) => {
       if (activity.UserId !== activity.data.UserId) {
         await notify.user(activity, {
           userId: activity.data.UserId,
-          from: NO_REPLY_EMAIL,
+          from: config.email.noReply,
         });
       }
       break;
@@ -332,7 +332,7 @@ export const notifyByEmail = async (activity: Activity) => {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
-      await notify.user(activity, { from: NO_REPLY_EMAIL, userId: activity.data.expense.UserId });
+      await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       // We only notify the admins of the host if the collective is active (ie. has been approved by the host)
       if (get(activity, 'data.host.id') && get(activity, 'data.collective.isActive')) {
         await notify.collective(activity, {
@@ -347,7 +347,7 @@ export const notifyByEmail = async (activity: Activity) => {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       await notify.user(activity, {
-        from: NO_REPLY_EMAIL,
+        from: config.email.noReply,
         userId: activity.data.expense.UserId,
       });
       break;
@@ -358,7 +358,7 @@ export const notifyByEmail = async (activity: Activity) => {
       };
       activity.data.expense.payoutMethodLabel = models.PayoutMethod.getLabel(activity.data.payoutMethod);
       await notify.user(activity, {
-        from: NO_REPLY_EMAIL,
+        from: config.email.noReply,
         userId: activity.data.expense.UserId,
       });
       if (get(activity, 'data.host.id')) {
@@ -374,7 +374,7 @@ export const notifyByEmail = async (activity: Activity) => {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
       await notify.user(activity, {
-        from: NO_REPLY_EMAIL,
+        from: config.email.noReply,
         userId: activity.data.expense.UserId,
       });
       if (get(activity, 'data.host.id')) {
@@ -389,7 +389,7 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.actions = {
         viewLatestExpenses: `${config.host.website}/${activity.data.collective.slug}/expenses#expense${activity.data.expense.id}`,
       };
-      await notify.user(activity, { from: NO_REPLY_EMAIL, userId: activity.data.expense.UserId });
+      await notify.user(activity, { from: config.email.noReply, userId: activity.data.expense.UserId });
       break;
 
     case ActivityTypes.COLLECTIVE_APPROVED:

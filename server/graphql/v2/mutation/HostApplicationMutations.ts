@@ -1,3 +1,4 @@
+import config from 'config';
 import express from 'express';
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
@@ -8,7 +9,7 @@ import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
-import emailLib, { NO_REPLY_EMAIL } from '../../../lib/email';
+import emailLib from '../../../lib/email';
 import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
@@ -289,7 +290,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
   const adminUsers = await collective.getAdminUsers();
   await emailLib.send(
     activities.HOST_APPLICATION_CONTACT,
-    NO_REPLY_EMAIL,
+    config.email.noReply,
     {
       host: host.info,
       collective: collective.info,

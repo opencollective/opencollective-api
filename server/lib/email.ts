@@ -38,8 +38,6 @@ type SendMessageData = {
   config?;
 } & Record<string, any>;
 
-export const NO_REPLY_EMAIL = 'Open Collective <no-reply@opencollective.com>';
-
 export const getMailer = () => {
   if (config.maildev.client) {
     return nodemailer.createTransport({
