@@ -73,7 +73,8 @@
     "maxCoreContributorsPerAccount": 60
   },
   "email": {
-    "from": "Open Collective <info@opencollective.com>"
+    "from": "Open Collective <info@opencollective.com>",
+    "noReply": "Open Collective <no-reply@opencollective.com>"
   },
   "log": {
     "level": "info",

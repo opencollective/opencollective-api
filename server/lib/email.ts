@@ -38,8 +38,6 @@ type SendMessageData = {
   config?;
 } & Record<string, any>;
 
-export const NO_REPLY_EMAIL = 'Open Collective <no-reply@opencollective.com>';
-
 export const getMailer = () => {
   if (config.maildev.client) {
     return nodemailer.createTransport({
@@ -413,6 +411,12 @@ const generateEmailFromTemplateAndSend = async (
     });
 };
 
+const generateFromEmailHeader = (name, email = 'no-reply@opencollective.com') => {
+  // Remove extra spaces/newlines and replace `"` by another quote character to avoid errors
+  const sanitizedName = name.replace(/\s+/g, ' ').trim().replaceAll('"', '“');
+  return `"${sanitizedName}" <${email}>`;
+};
+
 const emailLib = {
   render,
   sendMessage,
@@ -421,6 +425,7 @@ const emailLib = {
   generateEmailFromTemplate,
   send: generateEmailFromTemplateAndSend,
   isWhitelistedDomain,
+  generateFromEmailHeader,
 };
 
 export default emailLib;

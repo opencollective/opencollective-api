@@ -19,6 +19,7 @@ import paymentProviders from '../paymentProviders';
 
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
+import emailLib from './email';
 import logger from './logger';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
@@ -679,7 +680,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     const activity = { type: activities.ORDER_THANKYOU, data };
     return notify.collective(activity, {
       collectiveId: data.fromCollective.id,
-      from: `${collective.name} <no-reply@opencollective.com>`,
+      from: emailLib.generateFromEmailHeader(collective.name),
       attachments,
     });
   }
