@@ -490,6 +490,8 @@ export const cleanTags = tags => {
   }
 
   const cleanTagsList = tags
+    .filter(t => Boolean(t)) // Remove null values
+    .map(t => t.trim()) // Trim tags
     .map(t => t.replace(/^#+/g, '')) // Remove # prefixes
     .map(t => t.trim()) // Trim again for empty tags with a # prefix
     .filter(t => t.length > 0); // Remove empty tags
