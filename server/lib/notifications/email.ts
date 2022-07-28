@@ -144,7 +144,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.ORDER_PROCESSING_CRYPTO:
     case ActivityTypes.ORDER_PROCESSING:
       await notify.user(activity, {
-        from: `${activity.data.collective.name} <no-reply@opencollective.com>`,
+        from: emailLib.generateFromEmailHeader(activity.data.collective.name),
       });
       break;
 
@@ -188,7 +188,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const ics = await event.getICS();
       const options = {
         attachments: [{ filename: `${event.slug}.ics`, content: ics }],
-        from: `${parentCollective.name} <no-reply@opencollective.com>`,
+        from: emailLib.generateFromEmailHeader(parentCollective.name),
       };
 
       const transaction = await models.Transaction.findOne({
@@ -238,7 +238,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const collective = await models.Collective.findByPk(activity.data.collective.id);
       activity.data.fromCollective = (await models.Collective.findByPk(activity.data.fromCollective.id))?.info;
       activity.data.collective = collective.info;
-      activity.data.fromEmail = `${activity.data.collective.name} <no-reply@opencollective.com>`;
+      activity.data.fromEmail = emailLib.generateFromEmailHeader(activity.data.collective.name);
       activity.CollectiveId = collective.id;
 
       const emailOpts = { from: activity.data.fromEmail };
@@ -566,7 +566,7 @@ export const notifyByEmail = async (activity: Activity) => {
       const { fromCollective, collective } = activity.data;
       await notify.collective(activity, {
         collectiveId: fromCollective.id,
-        from: `${collective.name} <no-reply@opencollective.com>`,
+        from: emailLib.generateFromEmailHeader(collective.name),
       });
       break;
     }

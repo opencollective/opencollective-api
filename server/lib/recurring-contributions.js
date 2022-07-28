@@ -12,6 +12,7 @@ import models from '../models';
 
 import { notify } from './notifications/email';
 import { FEATURE } from './allowed-features';
+import emailLib from './email';
 import logger from './logger';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
@@ -421,7 +422,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   return notify.collective(activity, {
     collectiveId: data.fromCollective.id,
     role: [roles.ACCOUNTANT, roles.ADMIN],
-    from: `${order.collective.name} <no-reply@opencollective.com>`,
+    from: emailLib.generateFromEmailHeader(order.collective.name),
     attachments,
   });
 }
