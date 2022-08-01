@@ -48,4 +48,22 @@ const fetchExpenseWithReference = async (
   return expense;
 };
 
-export { ExpenseReferenceInput, fetchExpenseWithReference, getDatabaseIdFromExpenseReference };
+/**
+ * Retrieve expenses from a list of expense reference inputs.
+ *
+ * This does not use a graphql loader, careful to use for a list
+ * @param inputs
+ * @returns
+ */
+const fetchExpensesWithReferences = async (inputs: Record<string, unknown>[]): Promise<typeof models.Expense[]> => {
+  return await models.Expense.findAll({
+    where: { id: inputs.map(getDatabaseIdFromExpenseReference) },
+  });
+};
+
+export {
+  ExpenseReferenceInput,
+  fetchExpenseWithReference,
+  fetchExpensesWithReferences,
+  getDatabaseIdFromExpenseReference,
+};

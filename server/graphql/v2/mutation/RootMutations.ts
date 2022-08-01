@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { uniqBy } from 'lodash';
+import { keyBy, mapValues, pick, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -13,15 +13,20 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import models, { Op, sequelize } from '../../../models';
+import { MigrationLogType } from '../../../models/MigrationLog';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
-import { Forbidden } from '../../errors';
+import { Forbidden, ValidationFailed } from '../../errors';
+import { AccountTypeToModelMapping } from '../enum';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
   AccountReferenceInput,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
 } from '../input/AccountReferenceInput';
+import { ExpenseReferenceInput, fetchExpensesWithReferences } from '../input/ExpenseReferenceInput';
 import { Account } from '../interface/Account';
+import { Expense } from '../object/Expense';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
 
 const BanAccountResponse = new GraphQLObjectType({
@@ -156,6 +161,69 @@ export default {
         const result = await banAccounts(accounts, req.remoteUser.id);
         return { isAllowed, accounts, message: stringifyBanResult(result) };
       }
+    },
+  },
+  moveExpenses: {
+    type: new GraphQLNonNull(new GraphQLList(Expense)),
+    description: '[Root only] A mutation to move expenses from one account to another',
+    args: {
+      expenses: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExpenseReferenceInput))),
+        description: 'The orders to move',
+      },
+      destinationAccount: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'The account to move the expenses to. This must be a non USER account.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanRoot(req);
+
+      if (!args.expenses.length) {
+        return [];
+      } else if (!args.destinationAccount) {
+        throw new ValidationFailed('You must specify a "destinationAccount" for the update');
+      }
+
+      const destinationAccount = await fetchAccountWithReference(args.destinationAccount, { throwIfMissing: true });
+
+      if (destinationAccount.type === AccountTypeToModelMapping.INDIVIDUAL) {
+        throw new ValidationFailed('The "destinationAccount" must not be an USER account');
+      }
+
+      const expenses = await fetchExpensesWithReferences(args.expenses);
+
+      // -- Move expenses --
+      const result = await sequelize.transaction(async dbTransaction => {
+        const [, updatedExpenses] = await models.Expense.update(
+          { CollectiveId: destinationAccount.id },
+          {
+            transaction: dbTransaction,
+            returning: true,
+            where: {
+              [Op.or]: expenses.map(expense => ({ id: expense.id })),
+            },
+          },
+        );
+
+        await models.MigrationLog.create(
+          {
+            type: MigrationLogType.MOVE_EXPENSES,
+            description: `Moved ${expenses.length} expenses`,
+            CreatedByUserId: req.remoteUser.id,
+            data: {
+              expenses: expenses.map(o => o.id),
+              destinationAccount: destinationAccount.id,
+              previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
+            },
+          },
+          { transaction: dbTransaction },
+        );
+
+        return updatedExpenses;
+      });
+
+      return result;
     },
   },
 };
