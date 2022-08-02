@@ -43,6 +43,15 @@ npm run dev
 ```
 
 - API is started on http://localhost:3060
+Request can now be posted to http://localhost:3060/graphql/v2 like 
+
+`curl --request POST \
+  --header 'content-type: application/json' \
+  --url 'http://localhost:3060/graphql/v2' \
+  --data '{"query":"query { __typename }"}'``
+
+```
+
 - A local email inbox is started on http://localhost:1080
 
 #### Troubleshooting
