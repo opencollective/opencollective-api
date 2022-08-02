@@ -82,7 +82,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(testCollectiveExpenses.length).to.equal(0);
     });
 
-    it('moves expenses', async () => {
+    it('moves expenses and summarize the changes in MigrationLogs', async () => {
       const testCollective = await fakeCollective();
       const testExpense = await fakeExpense();
 
@@ -101,6 +101,19 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       });
 
       expect(testCollectiveExpenses.length).to.equal(1);
+
+      // Check migration logs
+      const migrationLog = await models.MigrationLog.findOne({
+        where: { type: 'MOVE_EXPENSES', CreatedByUserId: rootUser.id },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(migrationLog).to.exist;
+      expect(migrationLog.data).to.deep.equal({
+        expenses: [testExpense.id],
+        destinationAccount: testCollective.id,
+        previousExpenseValues: { [testExpense.id]: { CollectiveId: testExpense.CollectiveId } },
+      });
     });
   });
 });

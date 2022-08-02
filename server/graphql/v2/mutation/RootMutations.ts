@@ -212,7 +212,7 @@ export default {
             description: `Moved ${expenses.length} expenses`,
             CreatedByUserId: req.remoteUser.id,
             data: {
-              expenses: expenses.map(o => o.id),
+              expenses: updatedExpenses.map(o => o.id),
               destinationAccount: destinationAccount.id,
               previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
             },
