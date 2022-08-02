@@ -2422,9 +2422,12 @@ function defineModel() {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
         throw new Error('Host not found');
-      }
-      if (!newHostCollective.isHostAccount) {
-        await newHostCollective.becomeHost();
+      } else if (!newHostCollective.isHostAccount) {
+        if (remoteUser.isAdminOfCollective(newHostCollective)) {
+          await newHostCollective.becomeHost();
+        } else {
+          throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
+        }
       }
       return this.addHost(newHostCollective, remoteUser, {
         message: options?.message,
