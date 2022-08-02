@@ -211,6 +211,12 @@ const transactionFieldsDefinition = () => ({
     type: Amount,
     description: 'The balance after the Transaction has run. Only for financially active accounts.',
   },
+  invoiceTemplate: {
+    type: GraphQLString,
+    async resolve(transaction) {
+      return transaction.data?.invoiceTemplate;
+    },
+  },
 });
 
 export const Transaction = new GraphQLInterfaceType({
@@ -559,12 +565,6 @@ export const TransactionFields = () => {
         if (!isNil(result?.balance)) {
           return { value: result.balance, currency: transaction.hostCurrency };
         }
-      },
-    },
-    invoiceTemplate: {
-      type: new GraphQLNonNull(GraphQLString),
-      async resolve(transaction) {
-        return transaction.data?.invoiceTemplate;
       },
     },
   };
