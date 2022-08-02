@@ -192,17 +192,25 @@ export default {
       }
 
       const expenses = await fetchExpensesWithReferences(args.expenses);
+      const expenseIds = expenses.map(expense => expense.id);
 
       // -- Move expenses --
       const result = await sequelize.transaction(async dbTransaction => {
+        const associatedTransactionsCount = await models.Transaction.count({
+          where: { ExpenseId: expenseIds },
+          transaction: dbTransaction,
+        });
+
+        if (associatedTransactionsCount > 0) {
+          throw new ValidationFailed('Cannot move expenses with associated transactions');
+        }
+
         const [, updatedExpenses] = await models.Expense.update(
           { CollectiveId: destinationAccount.id },
           {
             transaction: dbTransaction,
             returning: true,
-            where: {
-              [Op.or]: expenses.map(expense => ({ id: expense.id })),
-            },
+            where: { id: expenseIds },
           },
         );
 

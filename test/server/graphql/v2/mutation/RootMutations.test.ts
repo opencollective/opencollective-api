@@ -3,7 +3,7 @@ import gqlV2 from 'fake-tag';
 
 import roles from '../../../../../server/constants/roles';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeExpense, fakeMember, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeExpense, fakeMember, fakeTransaction, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
@@ -114,6 +114,20 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         destinationAccount: testCollective.id,
         previousExpenseValues: { [testExpense.id]: { CollectiveId: testExpense.CollectiveId } },
       });
+    });
+
+    it('does not work yet with expenses that have transactions attached', async () => {
+      const collective = await fakeCollective();
+      const expense = await fakeExpense();
+      await fakeTransaction({ ExpenseId: expense.id });
+      const result = await graphqlQueryV2(
+        MOVE_EXPENSES_MUTATION,
+        { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Cannot move expenses with associated transactions');
     });
   });
 });
