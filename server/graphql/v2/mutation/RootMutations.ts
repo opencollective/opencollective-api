@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { keyBy, mapValues, pick, uniqBy } from 'lodash';
+import { uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -13,11 +13,9 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
-import models, { Op, sequelize } from '../../../models';
-import { MigrationLogType } from '../../../models/MigrationLog';
+import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
-import { Forbidden, ValidationFailed } from '../../errors';
-import { AccountTypeToModelMapping } from '../enum';
+import { Forbidden } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
   AccountReferenceInput,
@@ -178,60 +176,13 @@ export default {
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
-
-      if (!args.expenses.length) {
-        return [];
-      } else if (!args.destinationAccount) {
-        throw new ValidationFailed('You must specify a "destinationAccount" for the update');
-      }
-
       const destinationAccount = await fetchAccountWithReference(args.destinationAccount, { throwIfMissing: true });
-
-      if (destinationAccount.type === AccountTypeToModelMapping.INDIVIDUAL) {
-        throw new ValidationFailed('The "destinationAccount" must not be an USER account');
-      }
-
-      const expenses = await fetchExpensesWithReferences(args.expenses);
-      const expenseIds = expenses.map(expense => expense.id);
-
-      // -- Move expenses --
-      const result = await sequelize.transaction(async dbTransaction => {
-        const associatedTransactionsCount = await models.Transaction.count({
-          where: { ExpenseId: expenseIds },
-          transaction: dbTransaction,
-        });
-
-        if (associatedTransactionsCount > 0) {
-          throw new ValidationFailed('Cannot move expenses with associated transactions');
-        }
-
-        const [, updatedExpenses] = await models.Expense.update(
-          { CollectiveId: destinationAccount.id },
-          {
-            transaction: dbTransaction,
-            returning: true,
-            where: { id: expenseIds },
-          },
-        );
-
-        await models.MigrationLog.create(
-          {
-            type: MigrationLogType.MOVE_EXPENSES,
-            description: `Moved ${expenses.length} expenses`,
-            CreatedByUserId: req.remoteUser.id,
-            data: {
-              expenses: updatedExpenses.map(o => o.id),
-              destinationAccount: destinationAccount.id,
-              previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
-            },
-          },
-          { transaction: dbTransaction },
-        );
-
-        return updatedExpenses;
+      const expenses = await fetchExpensesWithReferences(args.expenses, {
+        include: { association: 'collective', required: true },
+        throwIfMissing: true,
       });
 
-      return result;
+      return moveExpenses(req, expenses, destinationAccount);
     },
   },
 };

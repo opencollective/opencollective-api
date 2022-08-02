@@ -1,4 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { uniq } from 'lodash';
+import { Includeable } from 'sequelize';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';
@@ -55,10 +57,24 @@ const fetchExpenseWithReference = async (
  * @param inputs
  * @returns
  */
-const fetchExpensesWithReferences = async (inputs: Record<string, unknown>[]): Promise<typeof models.Expense[]> => {
-  return await models.Expense.findAll({
-    where: { id: inputs.map(getDatabaseIdFromExpenseReference) },
-  });
+const fetchExpensesWithReferences = async (
+  inputs: Record<string, unknown>[],
+  opts: { throwIfMissing?: boolean; include?: Includeable } = {},
+): Promise<typeof models.Expense[]> => {
+  if (inputs.length === 0) {
+    return [];
+  }
+
+  const ids = uniq(inputs.map(getDatabaseIdFromExpenseReference));
+  const expenses = await models.Expense.findAll({ where: { id: ids }, include: opts.include });
+
+  // Check if all expenses were found
+  if (opts.throwIfMissing && ids.length !== expenses.length) {
+    const missingExpenseIds = ids.filter(id => !expenses.find(expense => expense.id === id));
+    throw new NotFound(`Could not find expenses with ids: ${missingExpenseIds.join(', ')}`);
+  }
+
+  return expenses;
 };
 
 export {
