@@ -20,6 +20,16 @@ Then to enable the CLI tools, follow the steps from: https://postgresapp.com/doc
 
 ### On Linux
 
+#### Ubuntu /Mint
+
+```
+sudo apt install postgresql
+ export PGHOST=localhost
+ export PGUSER=postgres
+ npm install
+
+```
+
 #### Fedora / RedHat
 
 ```bash
