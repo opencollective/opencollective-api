@@ -69,7 +69,7 @@ export const fetchOrdersWithReferences = async (inputs, { include }) => {
     include,
   });
 
-  // Check if all accounts were found
+  // Check if all orders were found
   const inputHasMatchingOrder = input => {
     return orders.some(order => {
       if (input.id) {

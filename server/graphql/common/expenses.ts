@@ -1,9 +1,25 @@
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
-import { cloneDeep, flatten, get, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
+import {
+  cloneDeep,
+  find,
+  flatten,
+  get,
+  isEqual,
+  isNil,
+  keyBy,
+  mapValues,
+  omitBy,
+  pick,
+  set,
+  size,
+  sumBy,
+  uniq,
+} from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
+import ActivityTypes from '../../constants/activities';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
@@ -30,6 +46,7 @@ import { formatCurrency } from '../../lib/utils';
 import models, { sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
+import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
 import {
@@ -48,6 +65,8 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+
+import { checkRemoteUserCanRoot } from './scope-check';
 
 const debug = debugLib('expenses');
 
@@ -1953,4 +1972,122 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   // Fallback on internal system
   const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({ fromCurrency: expense.currency, toCurrency });
   return buildAmount(fxRate, OPENCOLLECTIVE, true);
+};
+
+/**
+ * Move expenses to destination account
+ * @param expenses the list of models.Expense, with the collective association preloaded
+ */
+export const moveExpenses = async (
+  req: express.Request,
+  expenses: typeof models.Expense[],
+  destinationAccount: typeof models.Collective,
+) => {
+  // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere
+  checkRemoteUserCanRoot(req);
+  if (!expenses.length) {
+    return [];
+  } else if (destinationAccount.type === collectiveTypes.USER) {
+    throw new ValidationFailed('The "destinationAccount" must not be an USER account');
+  }
+
+  // -- Move expenses --
+  const expenseIds: number[] = uniq(expenses.map(expense => expense.id));
+  const recurringExpenseIds: number[] = uniq(expenses.map(expense => expense.RecurringExpenseId).filter(Boolean));
+  const result = await sequelize.transaction(async dbTransaction => {
+    const associatedTransactionsCount = await models.Transaction.count({
+      where: { ExpenseId: expenseIds },
+      transaction: dbTransaction,
+    });
+
+    if (associatedTransactionsCount > 0) {
+      throw new ValidationFailed('Cannot move expenses with associated transactions');
+    }
+
+    // Moving associated models
+    const [, updatedExpenses] = await models.Expense.update(
+      { CollectiveId: destinationAccount.id },
+      {
+        transaction: dbTransaction,
+        returning: true,
+        where: { id: expenseIds },
+        hooks: false,
+      },
+    );
+
+    const [, updatedComments] = await models.Comment.update(
+      { CollectiveId: destinationAccount.id },
+      {
+        transaction: dbTransaction,
+        returning: ['id'],
+        where: { ExpenseId: expenseIds },
+        hooks: false,
+      },
+    );
+
+    const [, updatedActivities] = await models.Activity.update(
+      { CollectiveId: destinationAccount.id },
+      {
+        transaction: dbTransaction,
+        returning: ['id'],
+        where: { ExpenseId: expenseIds },
+        hooks: false,
+      },
+    );
+
+    let updatedRecurringExpenses = [];
+    if (recurringExpenseIds.length) {
+      [, updatedRecurringExpenses] = await models.RecurringExpense.update(
+        { CollectiveId: destinationAccount.id },
+        {
+          transaction: dbTransaction,
+          returning: ['id'],
+          where: { id: recurringExpenseIds },
+          hooks: false,
+        },
+      );
+    }
+
+    // Record the individual activities for moving the expenses
+    await models.Activity.bulkCreate(
+      updatedExpenses.map(expense => ({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_MOVED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: destinationAccount.id,
+        ExpenseId: expense.id,
+        data: {
+          expense: expense.info,
+          movedFromCollective: find(expenses, { id: expense.id }).collective.info,
+          collective: destinationAccount.info,
+        },
+      })),
+      {
+        transaction: dbTransaction,
+        hooks: false, // Hooks are not playing well with `bulkCreate`, and we don't need to send any email here anyway
+      },
+    );
+
+    // Record the migration log
+    await models.MigrationLog.create(
+      {
+        type: MigrationLogType.MOVE_EXPENSES,
+        description: `Moved ${updatedExpenses.length} expenses`,
+        CreatedByUserId: req.remoteUser.id,
+        data: {
+          expenses: updatedExpenses.map(o => o.id),
+          recurringExpenses: updatedRecurringExpenses.map(o => o.id),
+          comments: updatedComments.map(c => c.id),
+          activities: updatedActivities.map(a => a.id),
+          destinationAccount: destinationAccount.id,
+          previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
+        },
+      },
+      { transaction: dbTransaction },
+    );
+
+    return updatedExpenses;
+  });
+
+  return result;
 };

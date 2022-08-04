@@ -57,19 +57,20 @@ export const Activity = new GraphQLObjectType({
         const toPick = [];
         if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
           toPick.push('isManualPayout');
-        }
-        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
+        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
           const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
           if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
             toPick.push('error');
           }
-        }
-        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
+        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
           const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
           if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
             toPick.push('message');
           }
+        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MOVED) {
+          toPick.push('movedFromCollective');
         }
+
         return pick(activity.data, toPick);
       },
     },

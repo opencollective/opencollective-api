@@ -18,6 +18,7 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_REJECTED = 'collective.expense.rejected',
   COLLECTIVE_EXPENSE_APPROVED = 'collective.expense.approved',
   COLLECTIVE_EXPENSE_UNAPPROVED = 'collective.expense.unapproved',
+  COLLECTIVE_EXPENSE_MOVED = 'collective.expense.moved',
   COLLECTIVE_EXPENSE_PAID = 'collective.expense.paid',
   COLLECTIVE_EXPENSE_MARKED_AS_UNPAID = 'collective.expense.unpaid',
   COLLECTIVE_EXPENSE_MARKED_AS_SPAM = 'collective.expense.spam',

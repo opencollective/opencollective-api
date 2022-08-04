@@ -13,6 +13,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import { AccountCacheType } from '../enum/AccountCacheType';
@@ -21,7 +22,9 @@ import {
   fetchAccountsWithReferences,
   fetchAccountWithReference,
 } from '../input/AccountReferenceInput';
+import { ExpenseReferenceInput, fetchExpensesWithReferences } from '../input/ExpenseReferenceInput';
 import { Account } from '../interface/Account';
+import { Expense } from '../object/Expense';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
 
 const BanAccountResponse = new GraphQLObjectType({
@@ -156,6 +159,30 @@ export default {
         const result = await banAccounts(accounts, req.remoteUser.id);
         return { isAllowed, accounts, message: stringifyBanResult(result) };
       }
+    },
+  },
+  moveExpenses: {
+    type: new GraphQLNonNull(new GraphQLList(Expense)),
+    description: '[Root only] A mutation to move expenses from one account to another',
+    args: {
+      expenses: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExpenseReferenceInput))),
+        description: 'The orders to move',
+      },
+      destinationAccount: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'The account to move the expenses to. This must be a non USER account.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanRoot(req);
+      const destinationAccount = await fetchAccountWithReference(args.destinationAccount, { throwIfMissing: true });
+      const expenses = await fetchExpensesWithReferences(args.expenses, {
+        include: { association: 'collective', required: true },
+        throwIfMissing: true,
+      });
+
+      return moveExpenses(req, expenses, destinationAccount);
     },
   },
 };
