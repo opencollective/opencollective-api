@@ -8347,7 +8347,7 @@ type Query {
     """
     The account associated with the Activity
     """
-    account: AccountReferenceInput
+    account: AccountReferenceInput!
   ): ActivityCollection!
   application(
     """
@@ -10158,7 +10158,7 @@ type ActivityCollection implements Collection {
   offset: Int
   limit: Int
   totalCount: Int
-  nodes: [Activity]
+  nodes: [Activity!]
 }
 
 input ExpenseReferenceInput {

@@ -551,7 +551,7 @@ export const fakeNotification = async (data: Record<string, unknown> = {}) => {
  */
 export const fakeActivity = async (
   data: Record<string, unknown> = {},
-  sequelizeParams: Record<string, unknown> = {},
+  sequelizeParams: Record<string, unknown> = { hooks: false },
 ) => {
   return models.Activity.create(
     {
