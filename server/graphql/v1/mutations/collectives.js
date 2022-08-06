@@ -314,6 +314,8 @@ export function editCollective(_, args, req) {
       type: 'Point',
       coordinates: [location.lat, location.long],
     };
+  } else if (location.lat === null) {
+    newCollectiveData.geoLocationLatLong = null;
   }
   if (location.name !== undefined) {
     newCollectiveData.locationName = location.name;
