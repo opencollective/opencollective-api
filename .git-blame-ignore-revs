@@ -1,3 +1,5 @@
 # .git-blame-ignore-revs
 # style: eslint --fix and prettier
 bd115f4eed74484ab4cee076711c027eab7b1a05
+# Remove `setupModel` calls
+2630abeb6c5b540c6d13b7c8afcc74a57ec58fcf
