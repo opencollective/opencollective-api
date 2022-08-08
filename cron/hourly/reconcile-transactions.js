@@ -6,7 +6,9 @@ import { omit } from 'lodash';
 import moment from 'moment';
 import Stripe from 'stripe';
 
+import { activities } from '../../server/constants';
 import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
+import emailLib from '../../server/lib/email';
 import logger from '../../server/lib/logger';
 import * as privacyLib from '../../server/lib/privacy';
 import { reportErrorToSentry } from '../../server/lib/sentry';
@@ -47,6 +49,32 @@ async function reconcileConnectedAccount(connectedAccount) {
           },
           'approvals',
         );
+
+        const collectiveId = card.collectiveId;
+        const collective = models.Collective.findOne({
+          where: {
+            id: collectiveId,
+          },
+        });
+        const user = models.User.findOne({ where: { id: user.id } });
+
+        const adminUsers = await collective.getAdminUsers();
+
+        transactions.forEach(transaction => {
+          const expense = models.Expense.findOne({ where: { id: transaction.ExpenseId } });
+          emailLib.send(
+            activities.HOST_APPLICATION_CONTACT,
+            config.email.noReply,
+            {
+              user,
+              collective,
+              expense,
+            },
+            {
+              bcc: adminUsers.map(u => u.email),
+            },
+          );
+        });
 
         if (DRY) {
           logger.info(`Found ${transactions.length} pending transactions...`);
