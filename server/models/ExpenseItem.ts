@@ -86,92 +86,86 @@ const descriptionSanitizerOptions = buildSanitizerOptions({
   links: true,
 });
 
-function setupModel(ExpenseItem) {
-  // Link the model to database fields
-  ExpenseItem.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
+// Link the model to database fields
+ExpenseItem.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    amount: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: {
+        min: 1,
       },
-      amount: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        validate: {
-          min: 1,
-        },
+    },
+    url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      set(value: string | null): void {
+        // Make sure empty strings are converted to null
+        this.setDataValue('url', value || null);
       },
-      url: {
-        type: DataTypes.STRING,
-        allowNull: true,
-        set(value: string | null): void {
-          // Make sure empty strings are converted to null
-          this.setDataValue('url', value || null);
-        },
-        validate: {
-          isUrl: true,
-          isValidImage(url: string): void {
-            if (url && !isValidUploadedImage(url)) {
-              throw new Error('The attached file URL is not valid');
-            }
-          },
-        },
-      },
-      description: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        set(value) {
-          if (value) {
-            this.setDataValue('description', sanitizeHTML(value, descriptionSanitizerOptions));
-          } else {
-            this.setDataValue('description', null);
+      validate: {
+        isUrl: true,
+        isValidImage(url: string): void {
+          if (url && !isValidUploadedImage(url)) {
+            throw new Error('The attached file URL is not valid');
           }
         },
       },
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      deletedAt: {
-        type: DataTypes.DATE,
-      },
-      incurredAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      ExpenseId: {
-        type: DataTypes.INTEGER,
-        references: { model: 'Expenses', key: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-      CreatedByUserId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Users' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: false,
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      set(value: string | null) {
+        if (value) {
+          this.setDataValue('description', sanitizeHTML(value, descriptionSanitizerOptions));
+        } else {
+          this.setDataValue('description', null);
+        }
       },
     },
-    {
-      sequelize,
-      paranoid: true,
-      tableName: 'ExpenseItems',
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
     },
-  );
-}
-
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel(ExpenseItem);
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
+    },
+    incurredAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    ExpenseId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'Expenses', key: 'id' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+  },
+  {
+    sequelize,
+    paranoid: true,
+    tableName: 'ExpenseItems',
+  },
+);
 
 export default ExpenseItem;

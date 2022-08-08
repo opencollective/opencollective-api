@@ -313,112 +313,106 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   }
 }
 
-function setupModel() {
-  Notification.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
+Notification.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
 
-      channel: {
-        defaultValue: 'email',
-        type: DataTypes.STRING,
-        validate: {
-          isIn: {
-            args: [Object.values(channels)],
-            msg: `Must be one of ${Object.values(channels).join(', ')}`,
-          },
-        },
-      },
-
-      type: {
-        type: DataTypes.STRING,
-        // Can't do what's bellow because of the `mailinglist.___` thing
-        // See https://github.com/opencollective/opencollective-api/blob/f8ac13a1b8176a69d4ea380bcfcca1bd789889b0/server/controllers/services/email.js#L155
-        // validate: {
-        //   isIn: {
-        //     args: [Object.values(activities)],
-        //     msg: `Must be one of ${Object.values(activities).join(', ')}`,
-        //   },
-        // },
-      },
-
-      active: {
-        defaultValue: true,
-        type: DataTypes.BOOLEAN,
-      },
-
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-
-      CollectiveId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Collectives' },
-      },
-
-      UserId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Users' },
-      },
-
-      webhookUrl: {
-        type: DataTypes.STRING,
-        validate: {
-          isUrl: {
-            msg: 'Webhook URL must be a valid URL',
-          },
-          notAnInternalUrl: (url: string) => {
-            const rootDomain = getRootDomain(url);
-            if (rootDomain === 'opencollective.com') {
-              throw new Error('Open Collective URLs cannot be used as webhooks');
-            }
-          },
-          notAnIPAddress: (url: string) => {
-            const parsedURL = new URL(url);
-            if (isIP(parsedURL.hostname)) {
-              throw new Error('IP addresses cannot be used as webhooks');
-            }
-          },
-        },
-        set(url: string) {
-          const cleanUrl = url?.trim();
-          if (!cleanUrl) {
-            this.setDataValue('webhookUrl', null);
-          } else {
-            this.setDataValue('webhookUrl', prependHttp(cleanUrl, { https: true }));
-          }
+    channel: {
+      defaultValue: 'email',
+      type: DataTypes.STRING,
+      validate: {
+        isIn: {
+          args: [Object.values(channels)],
+          msg: `Must be one of ${Object.values(channels).join(', ')}`,
         },
       },
     },
-    {
-      sequelize,
-      indexes: [
-        {
-          fields: ['CollectiveId', 'type', 'channel'],
-          unique: false,
+
+    type: {
+      type: DataTypes.STRING,
+      // Can't do what's bellow because of the `mailinglist.___` thing
+      // See https://github.com/opencollective/opencollective-api/blob/f8ac13a1b8176a69d4ea380bcfcca1bd789889b0/server/controllers/services/email.js#L155
+      // validate: {
+      //   isIn: {
+      //     args: [Object.values(activities)],
+      //     msg: `Must be one of ${Object.values(activities).join(', ')}`,
+      //   },
+      // },
+    },
+
+    active: {
+      defaultValue: true,
+      type: DataTypes.BOOLEAN,
+    },
+
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+
+    CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Collectives' },
+    },
+
+    UserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+    },
+
+    webhookUrl: {
+      type: DataTypes.STRING,
+      validate: {
+        isUrl: {
+          msg: 'Webhook URL must be a valid URL',
         },
-        {
-          fields: ['channel', 'type', 'webhookUrl', 'CollectiveId'],
-          unique: true,
+        notAnInternalUrl: (url: string) => {
+          const rootDomain = getRootDomain(url);
+          if (rootDomain === 'opencollective.com') {
+            throw new Error('Open Collective URLs cannot be used as webhooks');
+          }
         },
-      ],
-      hooks: {
-        beforeCreate(instance) {
-          if (instance.channel === channels.WEBHOOK && isNil(instance.webhookUrl)) {
-            throw new ValidationFailed('Webhook URL can not be undefined');
+        notAnIPAddress: (url: string) => {
+          const parsedURL = new URL(url);
+          if (isIP(parsedURL.hostname)) {
+            throw new Error('IP addresses cannot be used as webhooks');
           }
         },
       },
+      set(url: string) {
+        const cleanUrl = url?.trim();
+        if (!cleanUrl) {
+          this.setDataValue('webhookUrl', null);
+        } else {
+          this.setDataValue('webhookUrl', prependHttp(cleanUrl, { https: true }));
+        }
+      },
     },
-  );
-}
-
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel();
+  },
+  {
+    sequelize,
+    indexes: [
+      {
+        fields: ['CollectiveId', 'type', 'channel'],
+        unique: false,
+      },
+      {
+        fields: ['channel', 'type', 'webhookUrl', 'CollectiveId'],
+        unique: true,
+      },
+    ],
+    hooks: {
+      beforeCreate(instance) {
+        if (instance.channel === channels.WEBHOOK && isNil(instance.webhookUrl)) {
+          throw new ValidationFailed('Webhook URL can not be undefined');
+        }
+      },
+    },
+  },
+);
 
 export default Notification;
