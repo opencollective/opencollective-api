@@ -28,7 +28,6 @@ import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { hasFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
@@ -768,12 +767,8 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   }
 };
 
-const hasMultiCurrency = (collective, host) => {
-  if (collective.currency !== host?.currency) {
-    return false; // Only support multi-currency when collective/host have the same currency
-  } else {
-    return hasFeature(collective, FEATURE.MULTI_CURRENCY_EXPENSES) || hasFeature(host, FEATURE.MULTI_CURRENCY_EXPENSES);
-  }
+const hasMultiCurrency = (collective, host): boolean => {
+  return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
 type TaxDefinition = {
