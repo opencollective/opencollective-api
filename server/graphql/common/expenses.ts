@@ -767,7 +767,7 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   }
 };
 
-const hasMultiCurrency = (collective, host): boolean => {
+export const hasMultiCurrency = (collective, host): boolean => {
   return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
