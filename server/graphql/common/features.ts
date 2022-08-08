@@ -8,6 +8,8 @@ import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed
 import { isPastEvent } from '../../lib/collectivelib';
 import models, { Op } from '../../models';
 
+import { hasMultiCurrency } from './expenses';
+
 const checkIsActive = async (
   promise: Promise<number | boolean>,
   fallback = FEATURE_STATUS.AVAILABLE,
@@ -108,6 +110,19 @@ const checkCanEmitGiftCards = async collective => {
   }
 };
 
+const checkMultiCurrencyExpense = async (collective, req): Promise<FEATURE_STATUS> => {
+  if (!collective.HostCollectiveId) {
+    return FEATURE_STATUS.UNSUPPORTED;
+  }
+
+  const host = collective.host || (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+  if (!hasMultiCurrency(collective, host)) {
+    return FEATURE_STATUS.UNSUPPORTED;
+  }
+
+  return FEATURE_STATUS.AVAILABLE;
+};
+
 /**
  * Returns a resolved that will give the `FEATURE_STATUS` for the given collective/feature.
  */
@@ -131,6 +146,8 @@ export const getFeatureStatusResolver =
         return checkReceiveFinancialContributions(collective, req.remoteUser);
       case FEATURE.RECEIVE_EXPENSES:
         return checkIsActive(models.Expense.count({ where: { CollectiveId: collective.id }, limit: 1 }));
+      case FEATURE.MULTI_CURRENCY_EXPENSES:
+        return checkMultiCurrencyExpense(collective, req);
       case FEATURE.UPDATES:
         return checkIsActive(
           models.Update.count({
