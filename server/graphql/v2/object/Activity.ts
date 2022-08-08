@@ -58,14 +58,18 @@ export const Activity = new GraphQLObjectType({
         if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
           toPick.push('isManualPayout');
         } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
-          const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
-          if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
-            toPick.push('error');
+          if (activity.CollectiveId) {
+            const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+            if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
+              toPick.push('error');
+            }
           }
         } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
-          const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
-            toPick.push('message');
+          if (activity.ExpenseId) {
+            const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+            if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+              toPick.push('message');
+            }
           }
         } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MOVED) {
           toPick.push('movedFromCollective');

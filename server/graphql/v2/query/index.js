@@ -2,6 +2,7 @@ import models from '../../../models';
 import { Individual } from '../object/Individual';
 
 import AccountsQuery from './collection/AccountsQuery';
+import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
@@ -27,6 +28,7 @@ import UpdateQuery from './UpdateQuery';
 const query = {
   account: AccountQuery,
   accounts: AccountsQuery,
+  activities: ActivitiesCollectionQuery,
   application: ApplicationQuery,
   collective: CollectiveQuery,
   conversation: ConversationQuery,

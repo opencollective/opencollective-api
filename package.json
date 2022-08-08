@@ -142,6 +142,7 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "chai-jest-snapshot": "^2.0.0",
+    "chai-sorted": "^0.2.0",
     "chai-subset": "^1.6.0",
     "codecov": "^3.8.2",
     "commitizen": "^4.2.4",
