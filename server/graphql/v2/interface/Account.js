@@ -31,6 +31,10 @@ import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
+import {
+  UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  UpdateChronologicalOrderInput,
+} from '../input/UpdateChronologicalOrderInput';
 import AccountPermissions from '../object/AccountPermissions';
 import { AccountStats } from '../object/AccountStats';
 import { ActivitySubscription } from '../object/ActivitySubscription';
@@ -378,8 +382,8 @@ const accountFieldsDefinition = () => ({
       },
       onlyChangelogUpdates: { type: GraphQLBoolean },
       orderBy: {
-        type: new GraphQLNonNull(ChronologicalOrderInput),
-        defaultValue: ChronologicalOrderInput.defaultValue,
+        type: new GraphQLNonNull(UpdateChronologicalOrderInput),
+        defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
       },
       searchTerm: { type: GraphQLString },
     },
@@ -394,7 +398,12 @@ const accountFieldsDefinition = () => ({
       if (onlyChangelogUpdates) {
         where = assign(where, { isChangelog: true });
       }
-      const orderByFilter = [orderBy.field, orderBy.direction];
+
+      // Order by
+      const order = [[orderBy.field, orderBy.direction]];
+      if (order[0][0] === 'publishedAt') {
+        order.push(['createdAt', 'DESC']); // publishedAt is nullable so we need to fallback on createdAt
+      }
 
       // Add search filter
       const include = [];
@@ -409,7 +418,7 @@ const accountFieldsDefinition = () => ({
         where[Op.and].push({ [Op.or]: searchTermConditions });
       }
 
-      const query = { where, include, order: [orderByFilter], limit, offset };
+      const query = { where, include, order, limit, offset };
       const result = await models.Update.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
