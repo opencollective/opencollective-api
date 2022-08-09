@@ -787,6 +787,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       website: { type: GraphQLString },
       updates: {
         type: new GraphQLList(UpdateType),
+        deprecationReason: '2022-09-09: Updates moved to GQLV2',
         args: {
           limit: { type: GraphQLInt },
           offset: { type: GraphQLInt },
@@ -1635,6 +1636,7 @@ const CollectiveFields = () => {
     },
     updates: {
       type: new GraphQLList(UpdateType),
+      deprecationReason: '2022-09-09: Updates moved to GQLV2',
       args: {
         limit: { type: GraphQLInt },
         offset: { type: GraphQLInt },

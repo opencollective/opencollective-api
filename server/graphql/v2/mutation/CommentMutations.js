@@ -1,5 +1,6 @@
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { mustBeLoggedInTo } from '../../../lib/auth';
 import { createComment, deleteComment, editComment } from '../../common/comment';
 import { Unauthorized } from '../../errors';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -44,6 +45,8 @@ const commentMutations = {
       },
     },
     resolve: async (_, { comment }, req) => {
+      mustBeLoggedInTo(req.remoteUser, 'create a comment');
+
       if (comment.ConversationId) {
         comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
       }
@@ -53,12 +56,11 @@ const commentMutations = {
           loaders: req.loaders,
           throwIfMissing: true,
         });
-        if (update.isPrivate || !update.publishedAt) {
-          update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-          if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
-            throw new Unauthorized('You do not have the permission to post comments on this update');
-          }
+
+        if (!(await update.isVisibleToUser(req.remoteUser))) {
+          throw new Unauthorized('You do not have the permission to post comments on this update');
         }
+
         comment.UpdateId = update.id;
       }
 

@@ -348,16 +348,6 @@ function defineModel() {
     }
   };
 
-  // Determines whether a user can see updates for a collective based on their roles.
-  User.prototype.canSeePrivateUpdatesForCollective = function (collective) {
-    const allowedNonAdminRoles = [roles.MEMBER, roles.CONTRIBUTOR, roles.BACKER];
-    return (
-      this.isAdminOfCollectiveOrHost(collective) ||
-      this.hasRole(allowedNonAdminRoles, collective.id) ||
-      this.hasRole(allowedNonAdminRoles, collective.ParentCollectiveId)
-    );
-  };
-
   /**
    * Limit the user account, preventing most actions on the platoform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.

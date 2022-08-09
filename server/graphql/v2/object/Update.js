@@ -11,15 +11,6 @@ import { Account } from '../interface/Account';
 
 import { UpdateAudienceStats } from './UpdateAudienceStats';
 
-const canSeeUpdateDetails = async (req, update) => {
-  if (!update.publishedAt || update.isPrivate) {
-    update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-    return Boolean(req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective));
-  } else {
-    return true;
-  }
-};
-
 const Update = new GraphQLObjectType({
   name: 'Update',
   description: 'This represents an Update',
@@ -40,7 +31,7 @@ const Update = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(update, _, req) {
-          return canSeeUpdateDetails(req, update);
+          return update.isVisibleToUser(req.remoteUser);
         },
       },
       userCanPublishUpdate: {
@@ -121,7 +112,7 @@ const Update = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await canSeeUpdateDetails(req, update))) {
+          if (!(await update.isVisibleToUser(req.remoteUser))) {
             return null;
           } else {
             return update.summary || '';
@@ -131,7 +122,7 @@ const Update = new GraphQLObjectType({
       html: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await canSeeUpdateDetails(req, update))) {
+          if (!(await update.isVisibleToUser(req.remoteUser))) {
             return null;
           } else {
             return update.html;
@@ -175,7 +166,7 @@ const Update = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(update, args, req) {
-          if (!(await canSeeUpdateDetails(req, update))) {
+          if (!(await update.isVisibleToUser(req.remoteUser))) {
             return null;
           }
 

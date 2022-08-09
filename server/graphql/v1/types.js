@@ -915,6 +915,7 @@ export const ExpenseType = new GraphQLObjectType({
 export const UpdateType = new GraphQLObjectType({
   name: 'UpdateType',
   description: 'This represents an Update',
+  deprecationReason: '2022-09-09: Updates moved to GQLV2',
   fields: () => {
     return {
       id: {
@@ -969,12 +970,7 @@ export const UpdateType = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: GraphQLBoolean,
         async resolve(update, _, req) {
-          if (!update.publishedAt || update.isPrivate) {
-            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-            return Boolean(req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective));
-          } else {
-            return true;
-          }
+          return update.isVisibleToUser(req.remoteUser);
         },
       },
       title: {
@@ -1004,27 +1000,21 @@ export const UpdateType = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (update.isPrivate) {
-            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-            if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
-              return null;
-            }
+          if (!(await update.isVisibleToUser(req.remoteUser))) {
+            return null;
+          } else {
+            return update.summary || '';
           }
-
-          return update.summary || '';
         },
       },
       html: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (update.isPrivate) {
-            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-            if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
-              return null;
-            }
+          if (!(await update.isVisibleToUser(req.remoteUser))) {
+            return null;
+          } else {
+            return update.html;
           }
-
-          return update.html;
         },
       },
       tags: {
