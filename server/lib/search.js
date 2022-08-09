@@ -178,7 +178,8 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    searchedTags = `{${tags.map(tag => `"${tag.toLowerCase()}"`).join(',')}}`;
+    searchedTags = tags.map(tag => tag.toLowerCase());
+    dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
   }
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
@@ -215,10 +216,6 @@ export const searchCollectivesInDB = async (
 
   if (countryCodes) {
     dynamicConditions += `AND (c."countryISO" IN (:countryCodes) OR parentCollective."countryISO" IN (:countryCodes)) `;
-  }
-
-  if (tags?.length) {
-    dynamicConditions += `AND c."tags" @> (:searchedTags) `;
   }
 
   const searchTermConditions = getSearchTermSQLConditions(term, 'c');
