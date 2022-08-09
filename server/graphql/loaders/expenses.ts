@@ -20,6 +20,7 @@ export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> 
   return new DataLoader(async (expenseIds: number[]) => {
     const items = await models.ExpenseItem.findAll({
       where: { ExpenseId: { [Op.in]: expenseIds } },
+      order: [['id', 'ASC']],
     });
 
     return sortResultsArray(expenseIds, items, item => item.ExpenseId);
