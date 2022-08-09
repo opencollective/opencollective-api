@@ -40,11 +40,26 @@ describe('server/lib/search', () => {
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
-    it('By tag', async () => {
-      const tags = ['open source', 'stuff', 'potatoes'];
-      const collective = await fakeCollective({ tags });
-      const [results] = await searchCollectivesInDB('potatoes');
-      expect(results.find(c => c.id === collective.id)).to.exist;
+    describe('By tag', () => {
+      it('works with the basics', async () => {
+        const tags = ['open source', 'stuff', 'potatoes'];
+        const collective = await fakeCollective({ tags });
+        const [results] = await searchCollectivesInDB('potatoes');
+        expect(results.find(c => c.id === collective.id)).to.exist;
+      });
+
+      it('does not break with special characters', async () => {
+        await fakeCollective({ tags: ['something with "double" quotes'] });
+        await fakeCollective({ tags: ["something with 'simple' quotes"] });
+
+        const [results1] = await searchCollectivesInDB('"double');
+        expect(results1).to.have.length(1);
+        expect(results1[0].tags).to.include('something with "double" quotes');
+
+        const [results2] = await searchCollectivesInDB("'simple");
+        expect(results2).to.have.length(1);
+        expect(results2[0].tags).to.include("something with 'simple' quotes");
+      });
     });
 
     it("Doesn't return items with the wrong type", async () => {

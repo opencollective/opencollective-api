@@ -177,10 +177,6 @@ export const searchCollectivesInDB = async (
     countryCodes = `${countries.join(',')}`;
   }
 
-  if (tags?.length) {
-    searchedTags = `{${tags.map(tag => `"${tag}"`).join(',')}}`;
-  }
-
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
   }
@@ -218,7 +214,8 @@ export const searchCollectivesInDB = async (
   }
 
   if (tags?.length) {
-    dynamicConditions += `AND c."tags" @> (:searchedTags) `;
+    searchedTags = tags.map(tag => tag.toLowerCase());
+    dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
   }
 
   const searchTermConditions = getSearchTermSQLConditions(term, 'c');
