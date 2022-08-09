@@ -50,23 +50,20 @@ async function reconcileConnectedAccount(connectedAccount) {
           'approvals',
         );
 
-        const collectiveId = card.collectiveId;
-        const collective = models.Collective.findOne({
-          where: {
-            id: collectiveId,
-          },
-        });
-        const user = models.User.findOne({ where: { id: user.id } });
+        const collectiveId = card.CollectiveId;
+        const collective = await models.Collective.findByPk(collectiveId);
+        const user = await models.User.findByPk(card.UserId);
+        const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
 
         const adminUsers = await collective.getAdminUsers();
 
-        transactions.forEach(transaction => {
-          const expense = models.Expense.findOne({ where: { id: transaction.ExpenseId } });
+        for (const transaction of transactions) {
+          const expense = await models.Expense.findByPk(transaction.ExpenseId);
           emailLib.send(
             activities.HOST_APPLICATION_CONTACT,
             config.email.noReply,
             {
-              user,
+              responsibleAdmin,
               collective,
               expense,
             },
@@ -74,7 +71,7 @@ async function reconcileConnectedAccount(connectedAccount) {
               bcc: adminUsers.map(u => u.email),
             },
           );
-        });
+        }
 
         if (DRY) {
           logger.info(`Found ${transactions.length} pending transactions...`);
