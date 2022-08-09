@@ -140,14 +140,6 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
   });
 };
 
-setTimeout(async () => {
-  try {
-    await axios.post('http://localhost:3060/graphql');
-  } catch (e) {
-    reportErrorToSentry(e);
-  }
-}, 3000);
-
 /**
  * Publish a message directly to Sentry
  */
