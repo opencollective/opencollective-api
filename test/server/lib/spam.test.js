@@ -6,6 +6,15 @@ import slackLib from '../../../server/lib/slack';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective, resolveRedirect } from '../../../server/lib/spam';
 import { fakeCollective } from '../../test-helpers/fake-data';
 
+// To prevent false positives with random values, we initialize all collectives with safe values
+const LEGIT_VALUES = {
+  name: 'Legit Collective',
+  website: 'https://github.com/opencollective/opencollective-api',
+  description: 'Open-source project',
+  longDescription: '<p>Find us on Github!</p>',
+  tags: ['ok'],
+};
+
 describe('server/lib/spam', () => {
   let clock;
 
@@ -20,7 +29,7 @@ describe('server/lib/spam', () => {
   describe('collectiveSpamCheck', () => {
     it('detects bad keywords', async () => {
       // Description
-      const collectiveWithBadDescription = await fakeCollective({ description: 'Some keto stuff' });
+      const collectiveWithBadDescription = await fakeCollective({ ...LEGIT_VALUES, description: 'Some keto stuff' });
       expect(await collectiveSpamCheck(collectiveWithBadDescription, 'test')).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
@@ -32,7 +41,10 @@ describe('server/lib/spam', () => {
       });
 
       // Long description
-      const collectiveWithBadLongDescription = await fakeCollective({ longDescription: 'Some PORN stuff' });
+      const collectiveWithBadLongDescription = await fakeCollective({
+        ...LEGIT_VALUES,
+        longDescription: 'Some PORN stuff',
+      });
       expect(await collectiveSpamCheck(collectiveWithBadLongDescription)).to.deep.eq({
         score: 0.2,
         keywords: ['porn'],
@@ -44,7 +56,7 @@ describe('server/lib/spam', () => {
       });
 
       // Website
-      const collectiveWithBadWebsite = await fakeCollective({ website: 'https://maxketo.com' });
+      const collectiveWithBadWebsite = await fakeCollective({ ...LEGIT_VALUES, website: 'https://maxketo.com' });
       expect(await collectiveSpamCheck(collectiveWithBadWebsite)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
@@ -56,7 +68,7 @@ describe('server/lib/spam', () => {
       });
 
       // Name
-      const collectiveWithBadName = await fakeCollective({ name: 'BEST KeTo!!!' });
+      const collectiveWithBadName = await fakeCollective({ ...LEGIT_VALUES, name: 'BEST KeTo!!!' });
       expect(await collectiveSpamCheck(collectiveWithBadName)).to.deep.eq({
         score: 0.3,
         keywords: ['keto'],
@@ -70,7 +82,10 @@ describe('server/lib/spam', () => {
 
     it('detects blocked websites', async () => {
       // Website
-      const collectiveWithBlockedWebsite = await fakeCollective({ website: 'https://supplementslove.com/promotion' });
+      const collectiveWithBlockedWebsite = await fakeCollective({
+        ...LEGIT_VALUES,
+        website: 'https://supplementslove.com/promotion',
+      });
       expect(await collectiveSpamCheck(collectiveWithBlockedWebsite)).to.deep.eq({
         score: 1,
         keywords: [],
@@ -84,6 +99,7 @@ describe('server/lib/spam', () => {
 
     it('detects bad domains in the URL', async () => {
       const collective = await fakeCollective({
+        ...LEGIT_VALUES,
         longDescription: 'Come and buy stuff on <a href="https://dasilex.co.uk/test">our website</a>!',
       });
 
@@ -100,6 +116,7 @@ describe('server/lib/spam', () => {
 
     it('is ok with legit domains', async () => {
       const collective = await fakeCollective({
+        ...LEGIT_VALUES,
         longDescription: 'Come and buy stuff on <a href="https://google.fr">our website</a>!',
       });
 
