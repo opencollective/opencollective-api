@@ -9,8 +9,9 @@ import '../env';
 
 import * as Sentry from '@sentry/node';
 import type { SeverityLevel } from '@sentry/types';
+import axios, { AxiosError } from 'axios';
 import config from 'config';
-import { isEmpty, isEqual } from 'lodash';
+import { isEmpty, isEqual, pick } from 'lodash';
 
 import FEATURE from '../constants/feature';
 
@@ -69,6 +70,25 @@ const stringifyExtra = (value: unknown) => {
   }
 };
 
+const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError) => {
+  scope.setTag('lib_axios', 'true');
+  if (err.request) {
+    scope.setExtra('axios_request', JSON.stringify(pick(err.request, ['method', 'url', 'path']), null, 2));
+    scope.setTransactionName(`Axios query: ${err.request.method} ${err.request.path}`);
+    const fingerPrint = ['axios', err.request.method, err.request.path];
+    if (err.response) {
+      fingerPrint.push(String(err.response.status));
+    }
+
+    scope.setFingerprint(fingerPrint);
+  }
+  if (err.response) {
+    scope.setExtra('axios_response_status', err.response.status);
+    scope.setExtra('axios_response_body', JSON.stringify(err.response.data, null, 2) || 'undefined');
+    scope.setExtra('axios_response_headers', JSON.stringify(err.response.headers, null, 2) || 'undefined');
+  }
+};
+
 const withScopeFromCaptureErrorParams = (
   { severity = 'error', tags, handler, extra, user, breadcrumbs, feature }: CaptureErrorParams = {},
   callback: (scope: Sentry.Scope) => void,
@@ -110,10 +130,23 @@ const withScopeFromCaptureErrorParams = (
  * Helper to capture an error on Sentry
  */
 export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {}): void => {
-  withScopeFromCaptureErrorParams(params, () => {
+  withScopeFromCaptureErrorParams(params, (scope: Sentry.Scope) => {
+    // Add some more data if the error is an Axios error
+    if (axios.isAxiosError(err)) {
+      enhanceScopeWithAxiosError(scope, err);
+    }
+
     Sentry.captureException(err);
   });
 };
+
+setTimeout(async () => {
+  try {
+    await axios.post('http://localhost:3060/graphql');
+  } catch (e) {
+    reportErrorToSentry(e);
+  }
+}, 3000);
 
 /**
  * Publish a message directly to Sentry
