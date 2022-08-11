@@ -215,7 +215,7 @@ export const searchCollectivesInDB = async (
 
   if (tags?.length) {
     searchedTags = tags.map(tag => tag.toLowerCase());
-    dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
+    dynamicConditions += `AND LOWER(c."tags"::varchar)::varchar[] @> Array[:searchedTags]::varchar[] `;
   }
 
   const searchTermConditions = getSearchTermSQLConditions(term, 'c');
