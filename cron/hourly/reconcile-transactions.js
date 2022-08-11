@@ -26,14 +26,16 @@ async function sendPurchaseNotifyEmails(card, transactions) {
   const adminUsers = await collective.getAdminUsers();
 
   for (const transaction of transactions) {
-    const expense = await models.Expense.findByPk(transaction.ExpenseId);
-    emailLib.send(
+    const amount = transaction.amount;
+    const currency = transaction.currency || 'USD';
+    await emailLib.send(
       activities.VIRTUAL_CARD_PURCHASE,
       adminUsers.map(u => u.dataValues.email),
       {
-        responsibleAdmin,
-        collective,
-        expense,
+        responsibleAdmin: responsibleAdmin.dataValues,
+        collective: collective.dataValues,
+        amount,
+        currency,
       },
     );
   }
@@ -81,7 +83,8 @@ async function reconcileConnectedAccount(connectedAccount) {
           await Promise.all(transactions.map(transaction => privacy.processTransaction(transaction)));
 
           logger.info(`Refreshing card details'...`);
-          const [privacyCard] = await privacyLib.listCards(connectedAccount.token, card.id);
+          const privacyCardArray = await privacyLib.listCards(connectedAccount.token, card.id);
+          const privacyCard = privacyCardArray?.data?.[0];
           if (!privacyCard) {
             throw new Error(`Could not find card ${card.id}`);
           }
