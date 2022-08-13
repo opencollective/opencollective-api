@@ -308,7 +308,19 @@ export function editCollective(_, args, req) {
   }
 
   // Set location values
-  const location = args.collective.location || {};
+  let location;
+  if (args.collective.location === null) {
+    location = {
+      name: null,
+      address: null,
+      lat: null,
+      long: null,
+      country: null,
+    };
+  } else {
+    location = args.collective.location || {};
+  }
+
   if (location.lat) {
     newCollectiveData.geoLocationLatLong = {
       type: 'Point',
