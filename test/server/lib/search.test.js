@@ -33,11 +33,27 @@ describe('server/lib/search', () => {
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
-    it('By name', async () => {
-      const name = 'AVeryUniqueName ThatNoOneElseHas';
-      const { userCollective } = await newUser(name);
-      const [results] = await searchCollectivesInDB(name);
-      expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+    describe('By name', () => {
+      it('matches with the exact search term', async () => {
+        const name = 'AVeryUniqueName ThatNoOneElseHas';
+        const { userCollective } = await newUser(name);
+        const [results] = await searchCollectivesInDB(name);
+        expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+      });
+
+      it('matches when spaces are included in search term and not in name', async () => {
+        const name = 'SomethingNew';
+        const { userCollective } = await newUser(name);
+        const [results] = await searchCollectivesInDB('Something New');
+        expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+      });
+
+      it('does not match when spaces are not included in search term and are in name', async () => {
+        const name = 'Something New';
+        const { userCollective } = await newUser(name);
+        const [results] = await searchCollectivesInDB('SomethingNew');
+        expect(results.find(collective => collective.id === userCollective.id)).to.not.exist;
+      });
     });
 
     describe('By tag', () => {

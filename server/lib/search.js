@@ -96,6 +96,7 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
   let tsQueryFunc, tsQueryArg;
   let sqlConditions = '';
   let sanitizedTerm = '';
+  let sanitizedTermNoWhitespaces = '';
   const trimmedTerm = trimSearchTerm(term);
   if (trimmedTerm?.length > 0) {
     // Cleanup term
@@ -106,17 +107,41 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
       sqlConditions = `AND ${collectiveTable ? `${collectiveTable}.` : ''}"slug" ILIKE :sanitizedTerm || '%' `;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
+      sanitizedTermNoWhitespaces = sanitizedTerm.replace(/ /g, '');
+      // Only search for existing term
       if (sanitizedTerm) {
-        tsQueryFunc = splitTerm.length === 1 ? 'to_tsquery' : ' websearch_to_tsquery';
-        tsQueryArg = tsQueryFunc === 'to_tsquery' ? `concat(:sanitizedTerm, ':*')` : ':sanitizedTerm';
-        sqlConditions = `
-        AND (${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('english', ${tsQueryArg})
-        OR ${collectiveTable ? `${collectiveTable}.` : ''}"searchTsVector" @@ ${tsQueryFunc}('simple', ${tsQueryArg}))`;
+        if (splitTerm.length === 1) {
+          sqlConditions = `
+          AND (${
+            collectiveTable ? `${collectiveTable}.` : ''
+          }"searchTsVector" @@ to_tsquery('english', concat(:sanitizedTerm, ':*'))
+          OR ${
+            collectiveTable ? `${collectiveTable}.` : ''
+          }"searchTsVector" @@ to_tsquery('simple', concat(:sanitizedTerm, ':*')))`;
+        } else {
+          // Search terms with more than word (seperated by spaces) should be searched for
+          // both with and without the spaces.
+          // Eg. The collective named BossaNova should be able to be found by searching
+          // either "BossaNova" OR "Bossa Nova"
+          sqlConditions = `
+          AND (${
+            collectiveTable ? `${collectiveTable}.` : ''
+          }"searchTsVector" @@ websearch_to_tsquery('english', :sanitizedTerm)
+          OR ${
+            collectiveTable ? `${collectiveTable}.` : ''
+          }"searchTsVector" @@ websearch_to_tsquery('simple', :sanitizedTerm)
+          OR ${
+            collectiveTable ? `${collectiveTable}.` : ''
+          }"searchTsVector" @@ websearch_to_tsquery('english', :sanitizedTermNoWhitespaces)
+          OR ${
+            collectiveTable ? `${collectiveTable}.` : ''
+          }"searchTsVector" @@ websearch_to_tsquery('simple', :sanitizedTermNoWhitespaces))`;
+        }
       }
     }
   }
 
-  return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm };
+  return { sqlConditions, tsQueryArg, tsQueryFunc, sanitizedTerm, sanitizedTermNoWhitespaces };
 };
 
 const getSortSubQuery = (searchTermConditions, orderBy = null) => {
@@ -252,6 +277,7 @@ export const searchCollectivesInDB = async (
         term: term,
         slugifiedTerm: term ? slugify(term) : '',
         sanitizedTerm: searchTermConditions.sanitizedTerm,
+        sanitizedTermNoWhitespaces: searchTermConditions.sanitizedTermNoWhitespaces,
         searchedTags,
         countryCodes,
         offset,
@@ -374,6 +400,7 @@ export const getTagFrequencies = async args => {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
         sanitizedTerm: searchConditions.sanitizedTerm,
+        sanitizedTermNoWhitespaces: searchConditions.sanitizedTermNoWhitespaces,
         limit: args.limit,
         offset: args.offset,
       },
