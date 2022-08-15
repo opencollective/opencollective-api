@@ -481,15 +481,26 @@ function defineModel() {
   };
 
   Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
+    const noTag = 'no tag';
     return sequelize.query(
       `
-      SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
-      FROM "Expenses"
-      WHERE "CollectiveId" = $collectiveId
-      AND "deletedAt" IS NULL
-      AND "status" NOT IN ('SPAM', 'DRAFT', 'UNVERIFIED')
-      GROUP BY UNNEST(tags)
-      ORDER BY count DESC
+      SELECT TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS id,
+      TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS tag,
+      COUNT(e."id") as "count",
+      ABS(SUM(t."amountInHostCurrency")) as "amount",
+      t."hostCurrency" as "currency"
+      FROM "Expenses" e
+      INNER JOIN "Transactions" t ON t."ExpenseId" = e."id"
+      WHERE e."CollectiveId" = $collectiveId
+      AND e."deletedAt" IS NULL
+      AND e."status" = 'PAID'
+      AND t."CollectiveId" = $collectiveId
+      AND t."RefundTransactionId" IS NULL
+      AND t."type" = 'DEBIT'
+      AND t."deletedAt" IS NULL
+      GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
+      HAVING SUM(t."amountInHostCurrency") IS NOT NULL
+      ORDER BY ABS(SUM(t."amountInHostCurrency")) DESC
       LIMIT $limit
     `,
       {
