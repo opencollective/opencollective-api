@@ -463,11 +463,19 @@ const accountFieldsDefinition = () => ({
         merchantId = (await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true })).id;
       }
 
+      let where;
+      if (account.type === CollectiveTypes.USER) {
+        const user = await models.User.findOne({
+          where: { CollectiveId: account.id },
+        });
+        where = { UserId: user.id };
+      } else {
+        where = { CollectiveId: account.id };
+      }
+
       const query = {
         group: 'VirtualCard.id',
-        where: {
-          CollectiveId: account.id,
-        },
+        where,
         limit: args.limit,
         offset: args.offset,
         order: [[args.orderBy.field, args.orderBy.direction]],

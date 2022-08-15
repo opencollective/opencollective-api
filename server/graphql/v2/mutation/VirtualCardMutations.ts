@@ -333,7 +333,7 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && req.remoteUser.id !== virtualCard.UserId) {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 
