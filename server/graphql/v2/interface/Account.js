@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { assign, get, invert, isEmpty, pick } from 'lodash';
+import moment from 'moment';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
@@ -27,6 +28,7 @@ import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from 
 import { ActivityChannel } from '../enum/ActivityChannel';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
+import { TimeUnit } from '../enum/TimeUnit';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -45,6 +47,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
+import { TimeSeriesAmount } from '../object/TimeSeriesAmount';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
@@ -56,6 +59,33 @@ import EmailAddress from '../scalar/EmailAddress';
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
+
+// TODO: to move elsewhere
+const resultsToAmountWithLabelNode = results => {
+  return results.map(result => ({
+    date: result.date,
+    amount: { value: result.amount, currency: result.currency },
+    label: result.label,
+  }));
+};
+
+// TODO: to move in a shared library
+const getNumberOfDays = (startDate, endDate, host) => {
+  return Math.abs(moment(startDate || host.createdAt).diff(moment(endDate), 'days'));
+};
+
+// TODO: to move in a shared library
+const getTimeUnit = numberOfDays => {
+  if (numberOfDays < 21) {
+    return 'DAY'; // Up to 3 weeks
+  } else if (numberOfDays < 90) {
+    return 'WEEK'; // Up to 3 months
+  } else if (numberOfDays < 365 * 3) {
+    return 'MONTH'; // Up to 3 years
+  } else {
+    return 'YEAR';
+  }
+};
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -291,6 +321,25 @@ const accountFieldsDefinition = () => ({
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
+  },
+  expensesTagsTimeSeries: {
+    type: new GraphQLNonNull(TimeSeriesAmount),
+    args: {
+      dateFrom: {
+        type: GraphQLDateTime,
+        description: 'The start date of the time series',
+      },
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'The end date of the time series',
+      },
+      timeUnit: {
+        type: TimeUnit,
+        description:
+          'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
+      },
+    },
+    description: 'History of the expense tags used by this collective.',
   },
   transferwise: {
     type: TransferWise,
@@ -800,7 +849,38 @@ export const AccountFields = {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
     async resolve(collective, _, { limit }) {
-      return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
+      return models.Expense.getCollectiveExpensesTags(collective.id, limit);
+    },
+  },
+  expensesTagsTimeSeries: {
+    type: new GraphQLNonNull(TimeSeriesAmount),
+    args: {
+      dateFrom: {
+        type: GraphQLDateTime,
+        description: 'The start date of the time series',
+      },
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'The end date of the time series',
+      },
+      timeUnit: {
+        type: TimeUnit,
+        description:
+          'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
+      },
+    },
+    description: 'History of the expense tags used by this collective.',
+    resolve: async (collective, args) => {
+      const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+      const dateTo = args.dateTo ? moment(args.dateTo) : null;
+      const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+      // const timeSeriesParams = { dateFrom, dateTo, timeUnit };
+      // console.log(timeSeriesParams);
+      const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective.id, timeUnit, {
+        dateFrom,
+        dateTo,
+      });
+      return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithLabelNode(results) };
     },
   },
   payoutMethods: {

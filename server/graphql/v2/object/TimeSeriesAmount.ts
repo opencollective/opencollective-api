@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
@@ -10,6 +10,7 @@ const TimeSeriesAmountNodes = new GraphQLObjectType({
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
     amount: { type: new GraphQLNonNull(Amount) },
+    label: { type: GraphQLString },
   }),
 });
 

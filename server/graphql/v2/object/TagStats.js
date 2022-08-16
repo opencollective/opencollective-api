@@ -22,7 +22,9 @@ export const TagStats = new GraphQLObjectType({
       type: new GraphQLNonNull(Amount),
       description: 'Total amount for this tag',
       resolve(entry) {
-        return { value: entry.amount / 100, currency: entry.currency };
+        if (entry.amount) {
+          return { value: entry.amount / 100, currency: entry.currency };
+        }
       },
     },
   }),
