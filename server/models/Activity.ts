@@ -9,10 +9,13 @@ export class Activity extends Model<InferAttributes<Activity>, InferCreationAttr
   public declare type: ActivityTypes;
   public declare data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   public declare CollectiveId: CreationOptional<number>;
+  public declare FromCollectiveId: CreationOptional<number>;
+  public declare HostCollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
   public declare UserTokenId: CreationOptional<number>;
   public declare TransactionId: CreationOptional<number>;
   public declare ExpenseId: CreationOptional<number>;
+  public declare OrderId: CreationOptional<number>;
   public declare createdAt: CreationOptional<Date>;
 }
 
@@ -28,6 +31,22 @@ Activity.init(
     data: DataTypes.JSONB,
 
     CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+    },
+
+    FromCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+    },
+
+    HostCollectiveId: {
       type: DataTypes.INTEGER,
       references: {
         model: 'Collectives',
@@ -63,6 +82,14 @@ Activity.init(
       type: DataTypes.INTEGER,
       references: {
         model: 'Expenses',
+        key: 'id',
+      },
+    },
+
+    OrderId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Orders',
         key: 'id',
       },
     },

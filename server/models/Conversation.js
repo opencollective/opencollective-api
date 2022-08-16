@@ -160,6 +160,8 @@ function defineModel() {
       type: activities.COLLECTIVE_CONVERSATION_CREATED,
       UserId: conversation.CreatedByUserId,
       CollectiveId: conversation.CollectiveId,
+      FromCollectiveId: conversation.FromCollectiveId,
+      HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
       data: {
         conversation: {
           id: conversation.id,

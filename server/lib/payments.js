@@ -620,6 +620,9 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
+      FromCollectiveId: fromCollective.id,
+      OrderId: order.id,
+      HostCollectiveId: host?.id,
       UserId: user.id,
       data: {
         EventCollectiveId: collective.id,
@@ -707,6 +710,9 @@ const sendCryptoOrderProcessingEmail = async order => {
     await models.Activity.create({
       type: activities.ORDER_PROCESSING_CRYPTO,
       CollectiveId: collective.id,
+      FromCollectiveId: fromCollective.id,
+      OrderId: order.id,
+      HostCollectiveId: host?.id,
       UserId: user.id,
       data,
     });
@@ -754,6 +760,10 @@ export const sendOrderProcessingEmail = async order => {
   await models.Activity.create({
     type: activities.ORDER_PROCESSING,
     UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
     data,
   });
 };
@@ -782,7 +792,14 @@ const sendManualPendingOrderEmail = async order => {
     pendingOrderLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
     replyTo,
   };
-  return await models.Activity.create({ type: activities.ORDER_PENDING_CONTRIBUTION_NEW, data });
+  return models.Activity.create({
+    type: activities.ORDER_PENDING_CONTRIBUTION_NEW,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+    OrderId: order.id,
+    data,
+  });
 };
 
 export const sendReminderPendingOrderEmail = async order => {
@@ -803,7 +820,14 @@ export const sendReminderPendingOrderEmail = async order => {
     fromCollective: fromCollective.activity,
     viewDetailsLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
   };
-  return await models.Activity.create({ type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER, data });
+  return await models.Activity.create({
+    type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+    OrderId: order.id,
+    data,
+  });
 };
 
 export const sendExpiringCreditCardUpdateEmail = async data => {

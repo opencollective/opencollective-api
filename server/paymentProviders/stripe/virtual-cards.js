@@ -231,6 +231,7 @@ export const processDeclinedAuthorization = async (stripeAuthorization, stripeEv
   await models.Activity.create({
     type: activities.VIRTUAL_CARD_CHARGE_DECLINED,
     CollectiveId: virtualCard.CollectiveId,
+    HostCollectiveId: host.id,
     UserId: virtualCard.UserId,
     data: { reason, cardName: virtualCard.name },
   });

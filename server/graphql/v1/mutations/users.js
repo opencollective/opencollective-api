@@ -69,6 +69,8 @@ export const updateUserEmail = async (user, newEmail) => {
   await models.Activity.create({
     type: activities.USER_CHANGE_EMAIL,
     UserId: user.id,
+    CollectiveId: user.CollectiveId,
+    FromCollectiveId: user.CollectiveId,
     data: { notify: false },
   });
 

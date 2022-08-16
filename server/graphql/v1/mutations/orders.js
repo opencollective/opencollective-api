@@ -684,6 +684,8 @@ export async function createOrder(order, req) {
       await models.Activity.create({
         type: activities.TICKET_CONFIRMED,
         CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
         UserId: remoteUser.id,
         UserTokenId: req.userToken?.id,
         data: {

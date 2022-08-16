@@ -341,6 +341,10 @@ export async function cancelSubscriptionAndNotifyUser(order) {
 export async function createOrderCanceledArchivedCollectiveActivity(order) {
   return models.Activity.create({
     type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    OrderId: order.id,
     data: {
       order: order.info,
       collective: order.collective.info,
@@ -355,6 +359,10 @@ export async function createPaymentFailedActivity(order, lastAttempt) {
 
   return models.Activity.create({
     type: activities.PAYMENT_FAILED,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    OrderId: order.id,
     data: {
       lastAttempt,
       order: order.info,
@@ -430,6 +438,10 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
 export async function createPaymentCreditCardConfirmationActivity(order) {
   return models.Activity.create({
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    OrderId: order.id,
     data: {
       order: order.info,
       collective: order.collective.info,

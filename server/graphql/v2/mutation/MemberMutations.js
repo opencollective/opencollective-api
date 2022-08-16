@@ -167,6 +167,8 @@ const memberMutations = {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
           CollectiveId: account.id,
+          FromCollectiveId: memberAccount.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
           UserId: req.remoteUser.id,
           UserTokenId: req.userToken?.id,
           data: {
@@ -249,6 +251,8 @@ const memberMutations = {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
           CollectiveId: account.id,
+          FromCollectiveId: memberAccount.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
           UserId: req.remoteUser.id,
           UserTokenId: req.userToken?.id,
           data: {

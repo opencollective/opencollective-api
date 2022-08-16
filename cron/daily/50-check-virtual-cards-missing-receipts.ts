@@ -34,6 +34,7 @@ const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
     await models.Activity.create({
       type: activityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS,
       CollectiveId: collective.id,
+      HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
       UserId: virtualCard.UserId,
       data,
     });
@@ -48,6 +49,7 @@ const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
     await models.Activity.create({
       type: activityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
       CollectiveId: collective.id,
+      HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
       UserId: virtualCard.UserId,
       data,
     });

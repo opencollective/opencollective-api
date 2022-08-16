@@ -83,6 +83,8 @@ export const createUser = (
         {
           type: activities.USER_NEW_TOKEN,
           UserId: user.id,
+          CollectiveId: user.CollectiveId,
+          FromCollectiveId: user.CollectiveId,
           data: { notify: false },
         },
         { transaction },

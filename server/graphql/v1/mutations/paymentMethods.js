@@ -141,6 +141,8 @@ export async function claimPaymentMethod(args, remoteUser) {
     await models.Activity.create({
       type: activities.USER_CARD_CLAIMED,
       UserId: user.id,
+      CollectiveId: user.CollectiveId,
+      FromCollectiveId: emitter.id,
       data: {
         loginLink: user.generateLoginLink(`/redeemed?${qs}`),
         initialBalance: amount,
