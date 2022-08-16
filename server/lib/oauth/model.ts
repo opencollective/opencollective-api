@@ -147,7 +147,7 @@ const model: OauthModel = {
   ): Promise<AuthorizationCode> {
     debug('model.saveAuthorizationCode', code, client);
     const application = await models.Application.findOne({ where: { clientId: client.id } });
-
+    const collective = await user.getCollective();
     const scope = Array.isArray(code.scope) ? code.scope : code.scope?.split(',');
 
     const authorization = await models.OAuthAuthorizationCode.create({
@@ -162,8 +162,10 @@ const model: OauthModel = {
     await models.Activity.create({
       type: activities.OAUTH_APPLICATION_AUTHORIZED,
       UserId: user.id,
+      CollectiveId: user.CollectiveId,
       data: {
         application: application.publicInfo,
+        collective: collective.minimal,
         scope,
       },
     });
