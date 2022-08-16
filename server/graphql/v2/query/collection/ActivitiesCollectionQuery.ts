@@ -1,7 +1,8 @@
 import { GraphQLNonNull } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { Order } from 'sequelize';
 
-import models from '../../../../models';
+import models, { Op } from '../../../../models';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
 import { ActivityCollection } from '../../collection/ActivityCollection';
 import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
@@ -13,6 +14,16 @@ const ActivitiesCollectionArgs = {
   account: {
     type: new GraphQLNonNull(AccountReferenceInput),
     description: 'The account associated with the Activity',
+  },
+  dateFrom: {
+    type: GraphQLDateTime,
+    defaultValue: null,
+    description: 'Only return expenses that were created after this date',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    defaultValue: null,
+    description: 'Only return expenses that were created before this date',
   },
 };
 
@@ -30,6 +41,14 @@ const ActivitiesCollectionQuery = {
     }
 
     const where = { CollectiveId: account.id };
+
+    if (args.dateFrom) {
+      where['createdAt'] = { [Op.gte]: args.dateFrom };
+    }
+    if (args.dateTo) {
+      where['createdAt'] = Object.assign({}, where['createdAt'], { [Op.lte]: args.dateTo });
+    }
+
     const order: Order = [['createdAt', 'DESC']];
     const result = await models.Activity.findAndCountAll({ where, order, offset, limit });
     return {
