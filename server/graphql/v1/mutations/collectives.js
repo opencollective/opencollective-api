@@ -308,12 +308,26 @@ export function editCollective(_, args, req) {
   }
 
   // Set location values
-  const location = args.collective.location || {};
+  let location;
+  if (args.collective.location === null) {
+    location = {
+      name: null,
+      address: null,
+      lat: null,
+      long: null,
+      country: null,
+    };
+  } else {
+    location = args.collective.location || {};
+  }
+
   if (location.lat) {
     newCollectiveData.geoLocationLatLong = {
       type: 'Point',
       coordinates: [location.lat, location.long],
     };
+  } else if (location.lat === null) {
+    newCollectiveData.geoLocationLatLong = null;
   }
   if (location.name !== undefined) {
     newCollectiveData.locationName = location.name;
