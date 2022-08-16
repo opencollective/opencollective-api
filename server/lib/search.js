@@ -107,10 +107,12 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
       sqlConditions = `AND ${collectiveTable ? `${collectiveTable}.` : ''}"slug" ILIKE :sanitizedTerm || '%' `;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
-      sanitizedTermNoWhitespaces = sanitizedTerm.replace(/ /g, '');
+      sanitizedTermNoWhitespaces = sanitizedTerm.replace(/\s/g, '');
       // Only search for existing term
       if (sanitizedTerm) {
         if (splitTerm.length === 1) {
+          tsQueryFunc = 'to_tsquery';
+          tsQueryArg = `concat(:sanitizedTerm, ':*')`;
           sqlConditions = `
           AND (${
             collectiveTable ? `${collectiveTable}.` : ''
@@ -123,6 +125,8 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
           // both with and without the spaces.
           // Eg. The collective named BossaNova should be able to be found by searching
           // either "BossaNova" OR "Bossa Nova"
+          tsQueryFunc = 'websearch_to_tsquery';
+          tsQueryArg = ':sanitizedTerm';
           sqlConditions = `
           AND (${
             collectiveTable ? `${collectiveTable}.` : ''
