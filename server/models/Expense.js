@@ -12,6 +12,7 @@ import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
+import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -480,7 +481,7 @@ function defineModel() {
     return legacyPayoutMethod === 'paypal' ? PayoutMethodTypes.PAYPAL : PayoutMethodTypes.OTHER;
   };
 
-  Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
+  Expense.getCollectiveExpensesTags = async function (collectiveId, limit = 100) {
     const noTag = 'no tag';
     return sequelize.query(
       `
@@ -499,13 +500,50 @@ function defineModel() {
       AND t."type" = 'DEBIT'
       AND t."deletedAt" IS NULL
       GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
-      HAVING SUM(t."amountInHostCurrency") IS NOT NULL
       ORDER BY ABS(SUM(t."amountInHostCurrency")) DESC
       LIMIT $limit
     `,
       {
         type: QueryTypes.SELECT,
         bind: { collectiveId, limit },
+      },
+    );
+  };
+
+  Expense.getCollectiveExpensesTagsTimeSeries = async function (
+    collectiveId,
+    timeUnit,
+    { dateFrom = null, dateTo = null } = {},
+  ) {
+    const noTag = 'no tag';
+    return sequelize.query(
+      `
+      SELECT DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+      TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
+      COUNT(e."id") as "count",
+      ABS(SUM(t."amountInHostCurrency")) as "amount",
+      t."hostCurrency" as "currency"
+      FROM "Expenses" e
+      INNER JOIN "Transactions" t ON t."ExpenseId" = e."id"
+      AND t."deletedAt" IS NULL
+      WHERE e."CollectiveId" = $collectiveId
+      AND e."deletedAt" IS NULL
+      AND e."status" = 'PAID'
+      AND t."CollectiveId" = $collectiveId
+      AND t."RefundTransactionId" IS NULL
+      AND t."type" = 'DEBIT'
+      ${dateFrom ? `AND "createdAt" >= $startDate` : ``}
+      ${dateTo ? `AND "createdAt" <= $endDate` : ``}
+      GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
+      ORDER BY DATE_TRUNC($timeUnit, t."createdAt") DESC, ABS(SUM(t."amountInHostCurrency")) DESC
+    `,
+      {
+        type: QueryTypes.SELECT,
+        bind: {
+          collectiveId,
+          timeUnit,
+          ...computeDatesAsISOStrings(dateFrom, dateTo),
+        },
       },
     );
   };
