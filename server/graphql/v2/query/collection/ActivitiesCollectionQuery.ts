@@ -1,10 +1,12 @@
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { Order } from 'sequelize';
 
+import { ActivitiesPerClass } from '../../../../constants/activities';
 import models, { Op } from '../../../../models';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
 import { ActivityCollection } from '../../collection/ActivityCollection';
+import { ActivityAndClassesType } from '../../enum/ActivityType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -18,12 +20,17 @@ const ActivitiesCollectionArgs = {
   dateFrom: {
     type: GraphQLDateTime,
     defaultValue: null,
-    description: 'Only return expenses that were created after this date',
+    description: 'Only return activities that were created after this date',
   },
   dateTo: {
     type: GraphQLDateTime,
     defaultValue: null,
-    description: 'Only return expenses that were created before this date',
+    description: 'Only return activities that were created before this date',
+  },
+  activityType: {
+    type: new GraphQLList(ActivityAndClassesType),
+    defaultValue: null,
+    description: 'Only return activities that are of this type',
   },
 };
 
@@ -47,6 +54,9 @@ const ActivitiesCollectionQuery = {
     }
     if (args.dateTo) {
       where['createdAt'] = Object.assign({}, where['createdAt'], { [Op.lte]: args.dateTo });
+    }
+    if (args.activityType) {
+      where['type'] = { [Op.in]: ActivitiesPerClass[args.activityType] };
     }
 
     const order: Order = [['createdAt', 'DESC']];
