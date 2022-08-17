@@ -43,17 +43,9 @@ npm run dev
 ```
 
 - API is started on http://localhost:3060
-Request can now be posted to http://localhost:3060/graphql/v2 like 
-
-`curl --request POST \
-  --header 'content-type: application/json' \
-  --url 'http://localhost:3060/graphql/v2' \
-  --data '{"query":"query { __typename }"}'``
-
-```
-
 - A local email inbox is started on http://localhost:1080
 
+See the [dev docs](docs/dev.md) for querying basics.
 #### Troubleshooting
 
 - If you're running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `npm rebuild`
