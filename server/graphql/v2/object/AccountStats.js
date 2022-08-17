@@ -5,11 +5,14 @@ import { get, has, isNil } from 'lodash';
 import moment from 'moment';
 
 import queries from '../../../lib/queries';
+import sequelize, { QueryTypes } from '../../../lib/sequelize';
+import { computeDatesAsISOStrings } from '../../../lib/utils';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
+import { AmountStats } from '../object/AmountStats';
 
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
@@ -206,6 +209,51 @@ export const AccountStats = new GraphQLObjectType({
         type: GraphQLJSON,
         resolve(collective, args, req) {
           return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
+        },
+      },
+      contributionsAmountStats: {
+        type: new GraphQLList(AmountStats),
+        description: 'Return amount stats for contributions (default: one-time vs recurring)',
+        args: {
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'The start date of the time series',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'The end date of the time series',
+          },
+        },
+        async resolve(collective, args) {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          return sequelize.query(
+            `
+            SELECT
+            (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+            ABS(SUM(t."amount")) as "amount",
+            t."currency"
+            FROM "Transactions" t
+            LEFT JOIN "Orders" o
+            ON t."OrderId" = o."id"
+            WHERE t."type" = 'CREDIT'
+            AND t."kind" = 'CONTRIBUTION'
+            AND t."CollectiveId" = $collectiveId
+            AND t."RefundTransactionId" IS NULL
+            AND t."deletedAt" IS NULL
+            ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+            ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+            GROUP BY (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
+            ORDER BY ABS(SUM(t."amount")) DESC
+            `,
+            {
+              type: QueryTypes.SELECT,
+              bind: {
+                collectiveId: collective.id,
+                ...computeDatesAsISOStrings(dateFrom, dateTo),
+              },
+            },
+          );
         },
       },
     };
