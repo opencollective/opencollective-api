@@ -20,7 +20,7 @@ Then to enable the CLI tools, follow the steps from: https://postgresapp.com/doc
 
 ### On Linux
 
-#### Ubuntu /Mint
+#### Ubuntu / Mint
 
 ```
 sudo apt install postgresql
