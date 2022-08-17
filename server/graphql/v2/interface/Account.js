@@ -320,6 +320,14 @@ const accountFieldsDefinition = () => ({
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
+      dateFrom: {
+        type: GraphQLDateTime,
+        description: 'The start date of the time series',
+      },
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'The end date of the time series',
+      },
     },
   },
   expensesTagsTimeSeries: {
@@ -847,9 +855,20 @@ export const AccountFields = {
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
+      dateFrom: {
+        type: GraphQLDateTime,
+        description: 'The start date of the time series',
+      },
+      dateTo: {
+        type: GraphQLDateTime,
+        description: 'The end date of the time series',
+      },
     },
-    async resolve(collective, _, { limit }) {
-      return models.Expense.getCollectiveExpensesTags(collective.id, limit);
+    async resolve(collective, args) {
+      const limit = args.limit;
+      const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+      const dateTo = args.dateTo ? moment(args.dateTo) : null;
+      return models.Expense.getCollectiveExpensesTags(collective.id, { limit, dateFrom, dateTo });
     },
   },
   expensesTagsTimeSeries: {

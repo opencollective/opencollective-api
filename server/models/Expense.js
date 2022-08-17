@@ -481,7 +481,10 @@ function defineModel() {
     return legacyPayoutMethod === 'paypal' ? PayoutMethodTypes.PAYPAL : PayoutMethodTypes.OTHER;
   };
 
-  Expense.getCollectiveExpensesTags = async function (collectiveId, limit = 100) {
+  Expense.getCollectiveExpensesTags = async function (
+    collectiveId,
+    { dateFrom = null, dateTo = null, limit = 100 } = {},
+  ) {
     const noTag = 'no tag';
     return sequelize.query(
       `
@@ -499,13 +502,19 @@ function defineModel() {
       AND t."RefundTransactionId" IS NULL
       AND t."type" = 'DEBIT'
       AND t."deletedAt" IS NULL
+      ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+      ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
       GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
       ORDER BY ABS(SUM(t."amountInHostCurrency")) DESC
       LIMIT $limit
     `,
       {
         type: QueryTypes.SELECT,
-        bind: { collectiveId, limit },
+        bind: {
+          collectiveId,
+          limit,
+          ...computeDatesAsISOStrings(dateFrom, dateTo),
+        },
       },
     );
   };
@@ -532,8 +541,8 @@ function defineModel() {
       AND t."CollectiveId" = $collectiveId
       AND t."RefundTransactionId" IS NULL
       AND t."type" = 'DEBIT'
-      ${dateFrom ? `AND "createdAt" >= $startDate` : ``}
-      ${dateTo ? `AND "createdAt" <= $endDate` : ``}
+      ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+      ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
       GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
       ORDER BY DATE_TRUNC($timeUnit, t."createdAt") DESC, ABS(SUM(t."amountInHostCurrency")) DESC
     `,
