@@ -98,13 +98,14 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
   let sanitizedTerm = '';
   let sanitizedTermNoWhitespaces = '';
   const trimmedTerm = trimSearchTerm(term);
+  const getField = field => (collectiveTable ? `${collectiveTable}."${field}"` : `"${field}"`);
   if (trimmedTerm?.length > 0) {
     // Cleanup term
     const splitTerm = trimmedTerm.split(' ');
     if (term[0] === '@' && splitTerm.length === 1) {
       // When the search starts with a `@`, we search by slug only
       sanitizedTerm = sanitizeSearchTermForILike(removeDiacritics(trimmedTerm).replace(/^@+/, ''));
-      sqlConditions = `AND ${collectiveTable ? `${collectiveTable}.` : ''}"slug" ILIKE :sanitizedTerm || '%' `;
+      sqlConditions = `AND ${getField('slug')} ILIKE :sanitizedTerm || '%' `;
     } else {
       sanitizedTerm = splitTerm.length === 1 ? sanitizeSearchTermForTSQuery(trimmedTerm) : trimmedTerm;
       sanitizedTermNoWhitespaces = sanitizedTerm.replace(/\s/g, '');
@@ -114,12 +115,8 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
           tsQueryFunc = 'to_tsquery';
           tsQueryArg = `concat(:sanitizedTerm, ':*')`;
           sqlConditions = `
-          AND (${
-            collectiveTable ? `${collectiveTable}.` : ''
-          }"searchTsVector" @@ to_tsquery('english', concat(:sanitizedTerm, ':*'))
-          OR ${
-            collectiveTable ? `${collectiveTable}.` : ''
-          }"searchTsVector" @@ to_tsquery('simple', concat(:sanitizedTerm, ':*')))`;
+          AND (${getField('searchTsVector')} @@ to_tsquery('english', concat(:sanitizedTerm, ':*'))
+          OR ${getField('searchTsVector')} @@ to_tsquery('simple', concat(:sanitizedTerm, ':*')))`;
         } else {
           // Search terms with more than word (seperated by spaces) should be searched for
           // both with and without the spaces.
@@ -128,18 +125,10 @@ const getSearchTermSQLConditions = (term, collectiveTable) => {
           tsQueryFunc = 'websearch_to_tsquery';
           tsQueryArg = ':sanitizedTerm';
           sqlConditions = `
-          AND (${
-            collectiveTable ? `${collectiveTable}.` : ''
-          }"searchTsVector" @@ websearch_to_tsquery('english', :sanitizedTerm)
-          OR ${
-            collectiveTable ? `${collectiveTable}.` : ''
-          }"searchTsVector" @@ websearch_to_tsquery('simple', :sanitizedTerm)
-          OR ${
-            collectiveTable ? `${collectiveTable}.` : ''
-          }"searchTsVector" @@ websearch_to_tsquery('english', :sanitizedTermNoWhitespaces)
-          OR ${
-            collectiveTable ? `${collectiveTable}.` : ''
-          }"searchTsVector" @@ websearch_to_tsquery('simple', :sanitizedTermNoWhitespaces))`;
+          AND (${getField('searchTsVector')} @@ websearch_to_tsquery('english', :sanitizedTerm)
+          OR ${getField('searchTsVector')} @@ websearch_to_tsquery('simple', :sanitizedTerm)
+          OR ${getField('searchTsVector')} @@ websearch_to_tsquery('english', :sanitizedTermNoWhitespaces)
+          OR ${getField('searchTsVector')} @@ websearch_to_tsquery('simple', :sanitizedTermNoWhitespaces))`;
         }
       }
     }
