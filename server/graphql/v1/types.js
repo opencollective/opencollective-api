@@ -28,6 +28,7 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canSeeUpdate } from '../common/update';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -970,7 +971,7 @@ export const UpdateType = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: GraphQLBoolean,
         async resolve(update, _, req) {
-          return update.isVisibleToUser(req.remoteUser);
+          return canSeeUpdate(update, req);
         },
       },
       title: {
@@ -1000,7 +1001,7 @@ export const UpdateType = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await update.isVisibleToUser(req.remoteUser))) {
+          if (!(await canSeeUpdate(update, req))) {
             return null;
           } else {
             return update.summary || '';
@@ -1010,7 +1011,7 @@ export const UpdateType = new GraphQLObjectType({
       html: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await update.isVisibleToUser(req.remoteUser))) {
+          if (!(await canSeeUpdate(update, req))) {
             return null;
           } else {
             return update.html;

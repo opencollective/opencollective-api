@@ -228,5 +228,28 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
         expect(response.data.update.userCanSeeUpdate).to.be.false;
       }
     });
+
+    describe('provides different results based on audience', () => {
+      it('COLLECTIVE_ADMINS', async () => {
+        const update = await fakeUpdate({
+          CollectiveId: host.id,
+          publishedAt: new Date(),
+          isPrivate: true,
+          notificationAudience: 'COLLECTIVE_ADMINS',
+        });
+
+        const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
+
+        for (const user of [...accountAdmins, ...hostAdmins]) {
+          const response = await graphqlQueryV2(updateQuery, queryParams, user);
+          expect(response.data.update.userCanSeeUpdate).to.be.true;
+        }
+
+        for (const user of [...backers, ...notAllowedUsers]) {
+          const response = await graphqlQueryV2(updateQuery, queryParams, user);
+          expect(response.data.update.userCanSeeUpdate).to.be.false;
+        }
+      });
+    });
   });
 });

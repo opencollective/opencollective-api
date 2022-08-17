@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 
 import { types as CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';
+import { canSeeUpdate } from '../../common/update';
 import { CommentCollection } from '../collection/CommentCollection';
 import { UpdateAudienceType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
@@ -31,7 +32,7 @@ const Update = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(update, _, req) {
-          return update.isVisibleToUser(req.remoteUser);
+          return canSeeUpdate(update, req);
         },
       },
       userCanPublishUpdate: {
@@ -112,7 +113,7 @@ const Update = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await update.isVisibleToUser(req.remoteUser))) {
+          if (!(await canSeeUpdate(update, req))) {
             return null;
           } else {
             return update.summary || '';
@@ -122,7 +123,7 @@ const Update = new GraphQLObjectType({
       html: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (!(await update.isVisibleToUser(req.remoteUser))) {
+          if (!(await canSeeUpdate(update, req))) {
             return null;
           } else {
             return update.html;
@@ -166,7 +167,7 @@ const Update = new GraphQLObjectType({
           offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         },
         async resolve(update, args, req) {
-          if (!(await update.isVisibleToUser(req.remoteUser))) {
+          if (!(await canSeeUpdate(update, req))) {
             return null;
           }
 

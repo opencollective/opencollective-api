@@ -396,56 +396,6 @@ function defineModel() {
     return result.count;
   };
 
-  Update.prototype.isVisibleToUser = async function (user) {
-    if (this.publishedAt && !this.isPrivate) {
-      return true; // If the update is published and not private, it's visible to everyone
-    } else if (!user) {
-      return false; // If the update is not published or private, it's not visible to logged out users
-    }
-
-    this.collective = this.collective || (await this.getCollective());
-
-    // Only admins can see drafts
-    if (!this.publishedAt) {
-      return user?.isAdminOfCollective(this.collective);
-    }
-
-    const audience = this.notificationAudience || UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS;
-    if (audience === UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS) {
-      const allowedNonAdminRoles = [MemberRoles.MEMBER, MemberRoles.CONTRIBUTOR, MemberRoles.BACKER];
-      return (
-        user.isAdminOfCollectiveOrHost(this.collective) ||
-        user.hasRole(allowedNonAdminRoles, this.collective.id) ||
-        user.hasRole(allowedNonAdminRoles, this.collective.ParentCollectiveId)
-      );
-    } else if (audience === UPDATE_NOTIFICATION_AUDIENCE.COLLECTIVE_ADMINS) {
-      if (!this.collective.isHostAccount) {
-        return user.isAdminOfCollectiveOrHost(this.collective);
-      }
-
-      return (
-        user.isAdminOfCollectiveOrHost(this.collective) ||
-        // Check if user is an admin of a collective hosted by this account
-        Boolean(
-          await models.Member.count({
-            where: {
-              role: MemberRoles.ADMIN,
-              MemberCollectiveId: user.CollectiveId,
-            },
-            include: {
-              association: 'collective',
-              required: true,
-              where: {
-                HostCollectiveId: this.collective.id,
-                isActive: true,
-              },
-            },
-          }),
-        )
-      );
-    }
-  };
-
   /**
    * Gets a summary of who will be notified about this update
    */

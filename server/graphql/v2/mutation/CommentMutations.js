@@ -2,6 +2,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import { createComment, deleteComment, editComment } from '../../common/comment';
+import { canSeeUpdate } from '../../common/update';
 import { Unauthorized } from '../../errors';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
@@ -57,7 +58,7 @@ const commentMutations = {
           throwIfMissing: true,
         });
 
-        if (!(await update.isVisibleToUser(req.remoteUser))) {
+        if (!(await canSeeUpdate(update, req))) {
           throw new Unauthorized('You do not have the permission to post comments on this update');
         }
 
