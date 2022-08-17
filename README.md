@@ -45,6 +45,8 @@ npm run dev
 - API is started on http://localhost:3060
 - A local email inbox is started on http://localhost:1080
 
+See the [dev docs](docs/dev.md) for querying basics.
+
 #### Troubleshooting
 
 - If you're running into `node-gyp` issues related to Python 3 vs Python 2, you can run: `npm rebuild`
