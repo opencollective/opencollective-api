@@ -1865,6 +1865,99 @@ function defineModel() {
     return member;
   };
 
+  /**
+   * @param {object} options
+   *  - isArchivingFromParent {boolean} If true, the host will be reset even if the account is a project or event
+   * @returns {Promise<{ collective, children }>} The summary archived collectives (including children)
+   */
+  Collective.prototype.archive = async function ({ isArchivingFromParent = false, dbTransaction } = {}) {
+    if (this.isHostAccount) {
+      throw new Error(
+        `You can't archive your account while being a host. Please, Deactivate your collective as Host and try again.`,
+      );
+    } else if (this.isActive) {
+      const balance = await this.getBalance();
+      if (balance > 0) {
+        throw new Error('Cannot archive account with balance > 0');
+      }
+    } else if (this.deactivatedAt) {
+      return { collective: this, children: [] }; // Nothing to do
+    }
+
+    // We only look for children if we are not archiving from the parent. Projects and events are
+    // not supposed to have children, and we don't want to end up with an infinite recursion if the data is inconsistent
+    let children = [];
+    if (!isArchivingFromParent) {
+      children = await this.getChildren();
+    }
+
+    // Main archive function
+    const triggerArchive = async dbTransaction => {
+      const updateValues = {
+        isActive: false,
+        deactivatedAt: Date.now(),
+        data: {
+          ...this.data,
+          wasArchivedFromParent: !this.deactivatedAt, // If the account is already archived, we won't want it to be restored when un-archiving
+        },
+      };
+
+      // Reset host if archiving a root account or archiving form the parent
+      if (![types.PROJECT, types.EVENT].includes(this.type) || isArchivingFromParent) {
+        updateValues.HostCollectiveId = null;
+        updateValues.approvedAt = null;
+        await models.Member.destroy({
+          transaction: dbTransaction,
+          where: {
+            CollectiveId: this.id,
+            MemberCollectiveId: this.HostCollectiveId,
+            role: roles.HOST,
+          },
+        });
+      }
+
+      return {
+        collective: await this.update(updateValues, { transaction: dbTransaction }),
+        children: await Promise.all(
+          children.map(async child => {
+            const result = await child.archive({ dbTransaction, isArchivingFromParent: true });
+            return result.collective;
+          }),
+        ),
+      };
+    };
+
+    // Run archiving in transaction. Creates a new transaction if none is provided
+    if (dbTransaction) {
+      return triggerArchive(dbTransaction);
+    } else {
+      return sequelize.transaction(triggerArchive);
+    }
+  };
+
+  /**
+   * @returns {Promise<{ collective, children }>} The summary un-archived collectives (including children)
+   */
+  Collective.prototype.unArchive = async function () {
+    if (!this.deactivatedAt) {
+      return { collective: this, children: [] }; // Nothing to do
+    }
+
+    const childrenToUnarchive = await this.getChildren({
+      where: { deactivatedAt: { [Op.not]: null }, data: { wasArchivedFromParent: true } },
+    });
+
+    return sequelize.transaction(dbTransaction => {
+      const updateValues = { deactivatedAt: null };
+      return {
+        collective: await this.update(updateValues, { transaction: dbTransaction }),
+        children: await Promise.all(
+          childrenToUnarchive.map(child => child.update(updateValues, { transaction: dbTransaction })),
+        ),
+      };
+    });
+  };
+
   Collective.prototype.createMemberCreatedActivity = async function (member, context, sequelizeParams) {
     // We refetch to preserve historic behavior and make sure it's up to date
     let order;

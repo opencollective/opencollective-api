@@ -449,45 +449,10 @@ export async function archiveCollective(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  if (await collective.isHost()) {
-    throw new Error(
-      `You can't archive your collective while being a host. Please, Desactivate your collective as Host and try again.`,
-    );
-  }
-
-  if (collective.isActive) {
-    const balance = await collective.getBalance();
-    if (balance > 0) {
-      throw new Error('Cannot archive collective with balance > 0');
-    }
-  }
-
-  const membership = await models.Member.findOne({
-    where: {
-      CollectiveId: collective.id,
-      MemberCollectiveId: collective.HostCollectiveId,
-      role: roles.HOST,
-    },
-  });
-
-  if (membership) {
-    membership.destroy();
-  }
-
-  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
-    const updatedCollective = await collective.update({ isActive: false, deactivatedAt: Date.now() });
-    const parent = await updatedCollective.getParentCollective();
-    if (parent) {
-      // purge cache for parent to make sure the card gets updated on the collective page
-      purgeCacheForCollective(parent.slug);
-    }
-
-    return updatedCollective;
-  }
-
-  // TODO: cascade deactivation to EVENTs and PROJECTs?
-
-  return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
+  const { collective: updatedCollective, children } = await collective.archive();
+  children.forEach(child => purgeCacheForCollective(child.slug));
+  purgeCacheForCollective(updatedCollective.slug);
+  return updatedCollective;
 }
 
 export async function unarchiveCollective(_, args, req) {
@@ -504,21 +469,10 @@ export async function unarchiveCollective(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  if (collective.type === types.EVENT || collective.type === types.PROJECT) {
-    const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
-    const updatedCollective = collective.update({
-      deactivatedAt: null,
-      isActive: parentCollective.isActive,
-      HostCollectiveId: parentCollective.HostCollectiveId,
-      approvedAt: collective.approvedAt || Date.now(),
-    });
-
-    // purge cache for parent to make sure the card gets updated on the collective page
-    purgeCacheForCollective(parentCollective.slug);
-    return updatedCollective;
-  }
-
-  return collective.update({ deactivatedAt: null });
+  const { collective: updatedCollective, children } = await collective.unArchive();
+  children.forEach(child => purgeCacheForCollective(child.slug));
+  purgeCacheForCollective(updatedCollective.slug);
+  return updatedCollective;
 }
 
 export async function deleteCollective(_, args, req) {
