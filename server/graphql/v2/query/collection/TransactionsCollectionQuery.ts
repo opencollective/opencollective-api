@@ -7,6 +7,7 @@ import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
 import { TransactionCollection } from '../../collection/TransactionCollection';
+import { PaymentMethodType } from '../../enum/PaymentMethodType';
 import { TransactionKind } from '../../enum/TransactionKind';
 import { TransactionType } from '../../enum/TransactionType';
 import {
@@ -23,6 +24,10 @@ export const TransactionsCollectionArgs = {
   type: {
     type: TransactionType,
     description: 'The transaction type (DEBIT or CREDIT)',
+  },
+  paymentMethodType: {
+    type: new GraphQLList(PaymentMethodType),
+    description: 'The payment method types. Can include `null` for transactions without a payment method',
   },
   fromAccount: {
     type: AccountReferenceInput,
@@ -275,6 +280,17 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
   if (args.kind || args.kinds) {
     where.push({ kind: args.kind || args.kinds });
   }
+  if (args.paymentMethodType) {
+    const uniquePaymentMethods: string[] = uniq(args.paymentMethodType);
+    const paymentMethodConditions = uniquePaymentMethods.map(type => {
+      return type ? { '$PaymentMethod.type$': type } : { PaymentMethodId: null };
+    });
+
+    if (paymentMethodConditions.length) {
+      include.push({ model: models.PaymentMethod });
+      where.push({ [Op.or]: paymentMethodConditions });
+    }
+  }
 
   const order = [
     [args.orderBy.field, args.orderBy.direction],
@@ -303,6 +319,17 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
         group: ['kind'],
         raw: true,
       }).then(results => results.map(m => m.kind).filter(kind => !!kind));
+    },
+    paymentMethodTypes: () => {
+      return models.Transaction.findAll({
+        attributes: ['PaymentMethod.type'],
+        where: whereKinds,
+        include: [{ model: models.PaymentMethod, required: false, attributes: [] }],
+        group: ['PaymentMethod.type'],
+        raw: true,
+      }).then(results => {
+        return results.map(result => result.type || null);
+      });
     },
   };
 };
