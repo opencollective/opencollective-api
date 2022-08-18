@@ -47,7 +47,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
-import { getNumberOfDays, getTimeUnit,TimeSeriesAmount } from '../object/TimeSeriesAmount';
+import { getNumberOfDays, getTimeUnit, TimeSeriesAmount } from '../object/TimeSeriesAmount';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
@@ -293,34 +293,7 @@ const accountFieldsDefinition = () => ({
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
-      dateFrom: {
-        type: GraphQLDateTime,
-        description: 'The start date of the time series',
-      },
-      dateTo: {
-        type: GraphQLDateTime,
-        description: 'The end date of the time series',
-      },
     },
-  },
-  expensesTagsTimeSeries: {
-    type: new GraphQLNonNull(TimeSeriesAmount),
-    args: {
-      dateFrom: {
-        type: GraphQLDateTime,
-        description: 'The start date of the time series',
-      },
-      dateTo: {
-        type: GraphQLDateTime,
-        description: 'The end date of the time series',
-      },
-      timeUnit: {
-        type: TimeUnit,
-        description:
-          'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
-      },
-    },
-    description: 'History of the expense tags used by this collective.',
   },
   transferwise: {
     type: TransferWise,
@@ -828,58 +801,9 @@ export const AccountFields = {
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
-      dateFrom: {
-        type: GraphQLDateTime,
-        description: 'The start date of the time series',
-      },
-      dateTo: {
-        type: GraphQLDateTime,
-        description: 'The end date of the time series',
-      },
     },
-    async resolve(collective, args) {
-      const limit = args.limit;
-      const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-      const dateTo = args.dateTo ? moment(args.dateTo) : null;
-      return models.Expense.getCollectiveExpensesTags(collective.id, { limit, dateFrom, dateTo });
-    },
-  },
-  expensesTagsTimeSeries: {
-    type: new GraphQLNonNull(TimeSeriesAmount),
-    args: {
-      dateFrom: {
-        type: GraphQLDateTime,
-        description: 'The start date of the time series',
-      },
-      dateTo: {
-        type: GraphQLDateTime,
-        description: 'The end date of the time series',
-      },
-      timeUnit: {
-        type: TimeUnit,
-        description:
-          'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
-      },
-    },
-    description: 'History of the expense tags used by this collective.',
-    resolve: async (collective, args) => {
-      const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-      const dateTo = args.dateTo ? moment(args.dateTo) : null;
-      const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
-      const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective.id, timeUnit, {
-        dateFrom,
-        dateTo,
-      });
-      return {
-        dateFrom,
-        dateTo,
-        timeUnit,
-        nodes: results.map(result => ({
-          date: result.date,
-          amount: { value: result.amount, currency: result.currency },
-          label: result.label,
-        })),
-      };
+    async resolve(collective, _, { limit }) {
+      return models.Expense.getMostPopularExpenseTagsForCollective(collective.id, limit);
     },
   },
   payoutMethods: {

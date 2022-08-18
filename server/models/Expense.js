@@ -481,18 +481,38 @@ function defineModel() {
     return legacyPayoutMethod === 'paypal' ? PayoutMethodTypes.PAYPAL : PayoutMethodTypes.OTHER;
   };
 
+  // TODO: can be deprecated and replaced by getCollectiveExpensesTags
+  Expense.getMostPopularExpenseTagsForCollective = async function (collectiveId, limit = 100) {
+    return sequelize.query(
+      `
+      SELECT UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
+      FROM "Expenses"
+      WHERE "CollectiveId" = $collectiveId
+      AND "deletedAt" IS NULL
+      AND "status" NOT IN ('SPAM', 'DRAFT', 'UNVERIFIED')
+      GROUP BY UNNEST(tags)
+      ORDER BY count DESC
+      LIMIT $limit
+    `,
+      {
+        type: QueryTypes.SELECT,
+        bind: { collectiveId, limit },
+      },
+    );
+  };
+
   Expense.getCollectiveExpensesTags = async function (
-    collectiveId,
+    collective,
     { dateFrom = null, dateTo = null, limit = 100 } = {},
   ) {
     const noTag = 'no tag';
     return sequelize.query(
       `
       SELECT TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS id,
-      TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS tag,
+      TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
       COUNT(e."id") as "count",
-      ABS(SUM(t."amountInHostCurrency")) as "amount",
-      t."hostCurrency" as "currency"
+      ABS(SUM(t."amount")) as "amount",
+      t."currency" as "currency"
       FROM "Expenses" e
       INNER JOIN "Transactions" t ON t."ExpenseId" = e."id"
       WHERE e."CollectiveId" = $collectiveId
@@ -504,14 +524,14 @@ function defineModel() {
       AND t."deletedAt" IS NULL
       ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
       ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-      GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
-      ORDER BY ABS(SUM(t."amountInHostCurrency")) DESC
+      GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
+      ORDER BY ABS(SUM(t."amount")) DESC
       LIMIT $limit
     `,
       {
         type: QueryTypes.SELECT,
         bind: {
-          collectiveId,
+          collectiveId: collective.id,
           limit,
           ...computeDatesAsISOStrings(dateFrom, dateTo),
         },
@@ -520,7 +540,7 @@ function defineModel() {
   };
 
   Expense.getCollectiveExpensesTagsTimeSeries = async function (
-    collectiveId,
+    collective,
     timeUnit,
     { dateFrom = null, dateTo = null } = {},
   ) {
@@ -530,8 +550,8 @@ function defineModel() {
       SELECT DATE_TRUNC($timeUnit, t."createdAt") AS "date",
       TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
       COUNT(e."id") as "count",
-      ABS(SUM(t."amountInHostCurrency")) as "amount",
-      t."hostCurrency" as "currency"
+      ABS(SUM(t."amount")) as "amount",
+      t."currency" as "currency"
       FROM "Expenses" e
       INNER JOIN "Transactions" t ON t."ExpenseId" = e."id"
       AND t."deletedAt" IS NULL
@@ -543,13 +563,13 @@ function defineModel() {
       AND t."type" = 'DEBIT'
       ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
       ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-      GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."hostCurrency"
-      ORDER BY DATE_TRUNC($timeUnit, t."createdAt") DESC, ABS(SUM(t."amountInHostCurrency")) DESC
+      GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
+      ORDER BY DATE_TRUNC($timeUnit, t."createdAt") DESC, ABS(SUM(t."amount")) DESC
     `,
       {
         type: QueryTypes.SELECT,
         bind: {
-          collectiveId,
+          collectiveId: collective.id,
           timeUnit,
           ...computeDatesAsISOStrings(dateFrom, dateTo),
         },
