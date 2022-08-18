@@ -418,13 +418,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const updatedExpenseData = {
         id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
         items: [
-          pick(items[0], ['id', 'url', 'amount']), // Don't change the first one (value=2000)
-          { ...pick(items[1], ['id', 'url']), amount: 7000 }, // Update amount for the second one
+          convertExpenseItemId(pick(items[0]['dataValues'], ['id', 'url', 'amount'])), // Don't change the first one (value=2000)
+          convertExpenseItemId({ ...pick(items[1]['dataValues'], ['id', 'url']), amount: 7000 }), // Update amount for the second one
           { amount: 8000, url: randUrl() }, // Remove the third one and create another instead
         ],
       };
 
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const returnedItems = result.data.editExpense.items;
       const sumItems = returnedItems.reduce((total, item) => total + item.amount, 0);

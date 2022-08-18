@@ -29,6 +29,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
+import { simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -682,7 +683,7 @@ const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: T
 };
 
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseData, items, taxes) => {
+const checkExpenseItems = (expenseType, items, taxes) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
@@ -691,13 +692,21 @@ const checkExpenseItems = (expenseData, items, taxes) => {
   }
 
   // Check amounts
+  items.forEach((item, idx) => {
+    if (isNil(item.amount)) {
+      throw new ValidationFailed(
+        `Amount not set for item ${item.description ? `"${item.description}"` : `number ${idx}`}`,
+      );
+    }
+  });
+
   const sumItems = computeTotalAmountForExpense(items, taxes);
   if (!sumItems) {
     throw new ValidationFailed(`The sum of all items must be above 0`);
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
-  if (expenseData.type === EXPENSE_TYPE.RECEIPT) {
+  if (expenseType === EXPENSE_TYPE.RECEIPT) {
     const hasMissingFiles = items.some(a => !a.url);
     if (hasMissingFiles) {
       throw new ValidationFailed('Some items are missing a file');
@@ -848,7 +857,7 @@ export async function createExpense(
   const taxes = expenseData.tax || [];
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
-  checkExpenseItems(expenseData, itemsData, taxes);
+  checkExpenseItems(expenseData.type, itemsData, taxes);
 
   if (size(expenseData.attachedFiles) > 15) {
     throw new ValidationFailed('The number of files that you can attach to an expense is limited to 15');
@@ -983,15 +992,13 @@ export const changesRequireStatusUpdate = (
 export const getItemsChanges = async (
   existingItems: ExpenseItem[],
   expenseData: ExpenseData,
-): Promise<
-  [boolean, Record<string, unknown>[], [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]
-> => {
+): Promise<[boolean, [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]> => {
   if (expenseData.items) {
     const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, expenseData.items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
-    return [hasItemChanges, expenseData.items, itemsDiff];
+    return [hasItemChanges, itemsDiff];
   } else {
-    return [false, [], [[], [], []]];
+    return [false, [[], [], []]];
   }
 };
 
@@ -1049,7 +1056,7 @@ export async function editExpense(
     ],
   });
 
-  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense.items, expenseData);
+  const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, expenseData);
   const taxes = expenseData.tax || expense.data?.taxes || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
@@ -1130,14 +1137,14 @@ export async function editExpense(
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
   }
-  const updatedExpense = await sequelize.transaction(async t => {
+  const updatedExpense = await sequelize.transaction(async transaction => {
     // Update payout method if we get new data from one of the param for it
     if (
       !isPaidCreditCardCharge &&
       expenseData.payoutMethod !== undefined &&
       expenseData.payoutMethod?.id !== expense.PayoutMethodId
     ) {
-      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
+      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, transaction);
 
       // Reset fees payer when changing the payout method and the new one doesn't support it
       if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
@@ -1147,22 +1154,26 @@ export async function editExpense(
 
     // Update items
     if (hasItemChanges) {
-      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData, taxes);
-      const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
+      const simulatedItemsUpdate = simulateDBEntriesDiff(expense.items, itemsDiff);
+      checkExpenseItems(expenseType, simulatedItemsUpdate, taxes);
+      const [newItemsData, itemsToRemove, itemsToUpdate] = itemsDiff;
       await Promise.all(<Promise<void>[]>[
         // Delete
-        ...oldItems.map(item => {
-          return item.destroy({ transaction: t });
+        ...itemsToRemove.map(item => {
+          return item.destroy({ transaction });
         }),
         // Create
         ...newItemsData.map(itemData => {
-          return models.ExpenseItem.createFromData(itemData, remoteUser, expense, t);
+          return models.ExpenseItem.createFromData(itemData, remoteUser, expense, transaction);
         }),
         // Update
         ...itemsToUpdate.map(itemData => {
-          return models.ExpenseItem.updateFromData(itemData, t);
+          return models.ExpenseItem.updateFromData(itemData, transaction);
         }),
       ]);
+
+      // Reload items
+      expense.items = await expense.getItems({ transaction, order: [['id', 'ASC']] });
     }
 
     // Update expense
@@ -1182,7 +1193,7 @@ export async function editExpense(
         expenseData.attachedFiles,
       );
 
-      await createAttachedFiles(expense, newAttachedFiles, remoteUser, t);
+      await createAttachedFiles(expense, newAttachedFiles, remoteUser, transaction);
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
@@ -1201,7 +1212,7 @@ export async function editExpense(
     const updatedExpenseProps = {
       ...cleanExpenseData,
       data: !expense.data ? null : cloneDeep(expense.data),
-      amount: computeTotalAmountForExpense(expenseData.items || expense.items, taxes),
+      amount: computeTotalAmountForExpense(expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
       status,
@@ -1217,7 +1228,7 @@ export async function editExpense(
     if (!isEqual(expense.data?.taxes, taxes)) {
       set(updatedExpenseProps, 'data.taxes', taxes);
     }
-    return expense.update(updatedExpenseProps, { transaction: t });
+    return expense.update(updatedExpenseProps, { transaction });
   });
 
   if (isPaidCreditCardCharge) {
