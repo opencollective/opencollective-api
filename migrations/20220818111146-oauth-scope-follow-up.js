@@ -45,13 +45,13 @@ const formatEnums = values => values.map(value => `'${value}'`).join(', ');
 
 const updateEnums = async (queryInterface, table, column, enumName, values) => {
   // See https://blog.yo1.dog/updating-enum-values-in-postgresql-the-safe-and-easy-way/
-  await executeQuery(queryInterface, `ALTER TYPE ${enumName} RENAME TO ${enumName}_old`);
-  await executeQuery(queryInterface, `CREATE TYPE ${enumName} AS ENUM(${formatEnums(values)})`);
+  await executeQuery(queryInterface, `ALTER TYPE "${enumName}"" RENAME TO "${enumName}_old"`);
+  await executeQuery(queryInterface, `CREATE TYPE "${enumName}"" AS ENUM(${formatEnums(values)})`);
   await executeQuery(
     queryInterface,
-    `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE ${enumName} ARRAY USING ${column}::text::${enumName}[]`,
+    `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}"" ARRAY USING ${column}::text::${enumName}[]`,
   );
-  await executeQuery(queryInterface, `DROP TYPE ${enumName}_old`);
+  await executeQuery(queryInterface, `DROP TYPE "${enumName}_old"`);
 };
 
 module.exports = {
