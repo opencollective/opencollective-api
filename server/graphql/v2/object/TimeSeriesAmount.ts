@@ -2,6 +2,7 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 import { GraphQLDateTime } from 'graphql-scalars';
 import moment from 'moment';
 
+import { TimeUnit } from '../enum/TimeUnit';
 import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
 
 import { Amount } from './Amount';
@@ -20,6 +21,22 @@ export const getTimeUnit = numberOfDays => {
   } else {
     return 'YEAR';
   }
+};
+
+export const TimeSeriesArgs = {
+  dateFrom: {
+    type: GraphQLDateTime,
+    description: 'The start date of the time series',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    description: 'The end date of the time series',
+  },
+  timeUnit: {
+    type: TimeUnit,
+    description:
+      'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
+  },
 };
 
 const TimeSeriesAmountNodes = new GraphQLObjectType({

@@ -7,6 +7,7 @@ import moment from 'moment';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
+import models from '../../../models';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
 import { TimeUnit } from '../enum/TimeUnit';
@@ -14,7 +15,7 @@ import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { AmountStats } from '../object/AmountStats';
-import { getNumberOfDays, getTimeUnit,TimeSeriesAmount } from '../object/TimeSeriesAmount';
+import { getNumberOfDays, getTimeUnit, TimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
 
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
@@ -213,7 +214,54 @@ export const AccountStats = new GraphQLObjectType({
           return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
         },
       },
-      contributionsAmountStats: {
+      expensesTags: {
+        type: new GraphQLList(AmountStats),
+        description: 'Returns expense tags for collective sorted by popularity',
+        args: {
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'The start date of the time series',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'The end date of the time series',
+          },
+        },
+        async resolve(collective, args) {
+          const limit = args.limit;
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          return models.Expense.getCollectiveExpensesTags(collective, { limit, dateFrom, dateTo });
+        },
+      },
+      expensesTagsTimeSeries: {
+        type: new GraphQLNonNull(TimeSeriesAmount),
+        args: {
+          ...TimeSeriesArgs,
+        },
+        description: 'History of the expense tags used by this collective.',
+        resolve: async (collective, args) => {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective, timeUnit, {
+            dateFrom,
+            dateTo,
+          });
+          return {
+            dateFrom,
+            dateTo,
+            timeUnit,
+            nodes: results.map(result => ({
+              date: result.date,
+              amount: { value: result.amount, currency: result.currency },
+              label: result.label,
+            })),
+          };
+        },
+      },
+      contributionsAmount: {
         type: new GraphQLList(AmountStats),
         description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
         args: {
@@ -262,19 +310,7 @@ export const AccountStats = new GraphQLObjectType({
         type: new GraphQLNonNull(TimeSeriesAmount),
         description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
         args: {
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'The start date of the time series',
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'The end date of the time series',
-          },
-          timeUnit: {
-            type: TimeUnit,
-            description:
-              'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
-          },
+          ...TimeSeriesArgs,
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;

@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { Amount } from '../object/Amount';
 
@@ -22,6 +22,10 @@ export const AmountStats = new GraphQLObjectType({
           return { value: entry.amount, currency: entry.currency };
         }
       },
+    },
+    count: {
+      type: GraphQLInt,
+      description: 'Number of entries for this label',
     },
   }),
 });
