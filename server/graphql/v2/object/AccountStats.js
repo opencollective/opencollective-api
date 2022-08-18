@@ -9,10 +9,12 @@ import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
+import { TimeUnit } from '../enum/TimeUnit';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { AmountStats } from '../object/AmountStats';
+import { getNumberOfDays, getTimeUnit,TimeSeriesAmount } from '../object/TimeSeriesAmount';
 
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
@@ -213,7 +215,7 @@ export const AccountStats = new GraphQLObjectType({
       },
       contributionsAmountStats: {
         type: new GraphQLList(AmountStats),
-        description: 'Return amount stats for contributions (default: one-time vs recurring)',
+        description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
         args: {
           dateFrom: {
             type: GraphQLDateTime,
@@ -254,6 +256,69 @@ export const AccountStats = new GraphQLObjectType({
               },
             },
           );
+        },
+      },
+      contributionsAmountTimeSeries: {
+        type: new GraphQLNonNull(TimeSeriesAmount),
+        description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
+        args: {
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'The start date of the time series',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'The end date of the time series',
+          },
+          timeUnit: {
+            type: TimeUnit,
+            description:
+              'The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.',
+          },
+        },
+        async resolve(collective, args) {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const results = await sequelize.query(
+            `
+            SELECT
+            DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+            (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+            ABS(SUM(t."amount")) as "amount",
+            t."currency"
+            FROM "Transactions" t
+            LEFT JOIN "Orders" o
+            ON t."OrderId" = o."id"
+            WHERE t."type" = 'CREDIT'
+            AND t."kind" = 'CONTRIBUTION'
+            AND t."CollectiveId" = $collectiveId
+            AND t."RefundTransactionId" IS NULL
+            AND t."deletedAt" IS NULL
+            ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+            ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+            GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
+            ORDER BY DATE_TRUNC($timeUnit, t."createdAt"), ABS(SUM(t."amount")) DESC
+            `,
+            {
+              type: QueryTypes.SELECT,
+              bind: {
+                collectiveId: collective.id,
+                timeUnit,
+                ...computeDatesAsISOStrings(dateFrom, dateTo),
+              },
+            },
+          );
+          return {
+            dateFrom,
+            dateTo,
+            timeUnit,
+            nodes: results.map(result => ({
+              date: result.date,
+              amount: { value: result.amount, currency: result.currency },
+              label: result.label,
+            })),
+          };
         },
       },
     };
