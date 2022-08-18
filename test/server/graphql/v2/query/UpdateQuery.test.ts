@@ -163,19 +163,21 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
   });
 
   describe('userCanSeeUpdate', () => {
-    let project, parentCollective, host, allUsers, allowedUsers, notAllowedUsers;
+    let project, parentCollective, host, allUsers, backers, accountAdmins, hostAdmins, notAllowedUsers;
 
     before(async () => {
       host = await fakeHost();
       parentCollective = await fakeCollective({ HostCollectiveId: host.id });
       project = await fakeProject({ ParentCollectiveId: parentCollective.id });
-      allowedUsers = await Promise.all([
-        addFakeUserMember(project, 'ADMIN', { name: 'Project admin' }),
+      backers = await Promise.all([
         addFakeUserMember(project, 'BACKER', { name: 'Project backer' }),
-        addFakeUserMember(parentCollective, 'ADMIN', { name: 'Parent Collective admin' }),
         addFakeUserMember(parentCollective, 'BACKER', { name: 'Parent Collective admin' }),
-        addFakeUserMember(host, 'ADMIN', { name: 'Host admin' }),
       ]);
+      accountAdmins = await Promise.all([
+        addFakeUserMember(project, 'ADMIN', { name: 'Project admin' }),
+        addFakeUserMember(parentCollective, 'ADMIN', { name: 'Parent Collective admin' }),
+      ]);
+      hostAdmins = await Promise.all([addFakeUserMember(host, 'ADMIN', { name: 'Host admin' })]);
       notAllowedUsers = await Promise.all([
         addFakeUserMember(project, 'FOLLOWER', { name: 'Project follower' }),
         addFakeUserMember(parentCollective, 'FOLLOWER', { name: 'Parent Collective follower' }),
@@ -183,7 +185,7 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
         fakeUser({ name: 'Random user' }), // Random user
         null, // Unauthenticated
       ]);
-      allUsers = [...allowedUsers, ...notAllowedUsers];
+      allUsers = [...backers, ...accountAdmins, ...hostAdmins, ...notAllowedUsers];
     });
 
     it('always returns true for published public updates', async () => {
@@ -200,7 +202,23 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       const update = await fakeUpdate({ CollectiveId: project.id, publishedAt: null, isPrivate: false });
       const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
 
-      for (const user of allowedUsers) {
+      // Only admins can see unpublished updates
+      for (const user of accountAdmins) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.true;
+      }
+
+      for (const user of [...notAllowedUsers, ...backers, ...hostAdmins]) {
+        const response = await graphqlQueryV2(updateQuery, queryParams, user);
+        expect(response.data.update.userCanSeeUpdate).to.be.false;
+      }
+    });
+
+    it('returns false for published private updates if not allowed', async () => {
+      const update = await fakeUpdate({ CollectiveId: project.id, publishedAt: new Date(), isPrivate: true });
+      const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
+
+      for (const user of [...backers, ...accountAdmins, ...hostAdmins]) {
         const response = await graphqlQueryV2(updateQuery, queryParams, user);
         expect(response.data.update.userCanSeeUpdate).to.be.true;
       }
@@ -211,19 +229,27 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       }
     });
 
-    it('returns false for published private updates if not allowed', async () => {
-      const update = await fakeUpdate({ CollectiveId: project.id, publishedAt: new Date(), isPrivate: true });
-      const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
+    describe('provides different results based on audience', () => {
+      it('COLLECTIVE_ADMINS', async () => {
+        const update = await fakeUpdate({
+          CollectiveId: host.id,
+          publishedAt: new Date(),
+          isPrivate: true,
+          notificationAudience: 'COLLECTIVE_ADMINS',
+        });
 
-      for (const user of allowedUsers) {
-        const response = await graphqlQueryV2(updateQuery, queryParams, user);
-        expect(response.data.update.userCanSeeUpdate).to.be.true;
-      }
+        const queryParams = { accountSlug: update.collective.slug, slug: update.slug };
 
-      for (const user of notAllowedUsers) {
-        const response = await graphqlQueryV2(updateQuery, queryParams, user);
-        expect(response.data.update.userCanSeeUpdate).to.be.false;
-      }
+        for (const user of [...accountAdmins, ...hostAdmins]) {
+          const response = await graphqlQueryV2(updateQuery, queryParams, user);
+          expect(response.data.update.userCanSeeUpdate).to.be.true;
+        }
+
+        for (const user of [...backers, ...notAllowedUsers]) {
+          const response = await graphqlQueryV2(updateQuery, queryParams, user);
+          expect(response.data.update.userCanSeeUpdate).to.be.false;
+        }
+      });
     });
   });
 });

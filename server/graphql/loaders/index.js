@@ -14,7 +14,7 @@ import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { sortResults, sortResultsSimple } from './helpers';
-import { generateAdminUsersEmailsForCollectiveLoader } from './members';
+import { generateAdminUsersEmailsForCollectiveLoader, generateRemoteUserIsAdminOfHostedAccountLoader } from './members';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
@@ -515,6 +515,7 @@ export const loaders = req => {
   );
 
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
+  context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
 
   /** *** Transaction *****/
   context.loaders.Transaction = {

@@ -28,6 +28,7 @@ import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
 import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canSeeUpdate } from '../common/update';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
 
@@ -915,6 +916,7 @@ export const ExpenseType = new GraphQLObjectType({
 export const UpdateType = new GraphQLObjectType({
   name: 'UpdateType',
   description: 'This represents an Update',
+  deprecationReason: '2022-09-09: Updates moved to GQLV2',
   fields: () => {
     return {
       id: {
@@ -969,12 +971,7 @@ export const UpdateType = new GraphQLObjectType({
         description: 'Indicates whether or not the user is allowed to see the content of this update',
         type: GraphQLBoolean,
         async resolve(update, _, req) {
-          if (!update.publishedAt || update.isPrivate) {
-            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-            return Boolean(req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective));
-          } else {
-            return true;
-          }
+          return canSeeUpdate(update, req);
         },
       },
       title: {
@@ -1004,27 +1001,21 @@ export const UpdateType = new GraphQLObjectType({
       summary: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (update.isPrivate) {
-            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-            if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
-              return null;
-            }
+          if (!(await canSeeUpdate(update, req))) {
+            return null;
+          } else {
+            return update.summary || '';
           }
-
-          return update.summary || '';
         },
       },
       html: {
         type: GraphQLString,
         async resolve(update, _, req) {
-          if (update.isPrivate) {
-            update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
-            if (!req.remoteUser?.canSeePrivateUpdatesForCollective(update.collective)) {
-              return null;
-            }
+          if (!(await canSeeUpdate(update, req))) {
+            return null;
+          } else {
+            return update.html;
           }
-
-          return update.html;
         },
       },
       tags: {

@@ -1,7 +1,9 @@
 import { get } from 'lodash';
 
+import MemberRoles from '../../constants/roles';
 import cache, { purgeCacheForCollective } from '../../lib/cache';
 import models from '../../models';
+import { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update';
 import { Forbidden, NotFound, ValidationFailed } from '../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
@@ -93,4 +95,39 @@ export async function deleteUpdate(_, args, req) {
   update = await update.delete(req.remoteUser);
   purgeCacheForCollective(update.collective.slug);
   return update;
+}
+
+export async function canSeeUpdate(update, req) {
+  if (update.publishedAt && !update.isPrivate) {
+    return true; // If the update is published and not private, it's visible to everyone
+  } else if (!req.remoteUser) {
+    return false; // If the update is not published or private, it's not visible to logged out users
+  }
+
+  // Load collective
+  update.collective = update.collective || (await req.loaders.Collective.byId.load(update.CollectiveId));
+
+  // Only admins can see drafts
+  if (!update.publishedAt) {
+    return req.remoteUser.isAdminOfCollective(update.collective);
+  }
+
+  const audience = update.notificationAudience || UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS;
+  if (audience === UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS) {
+    const allowedNonAdminRoles = [MemberRoles.MEMBER, MemberRoles.CONTRIBUTOR, MemberRoles.BACKER];
+    return (
+      req.remoteUser.isAdminOfCollectiveOrHost(update.collective) ||
+      req.remoteUser.hasRole(allowedNonAdminRoles, update.collective.id) ||
+      req.remoteUser.hasRole(allowedNonAdminRoles, update.collective.ParentCollectiveId)
+    );
+  } else if (audience === UPDATE_NOTIFICATION_AUDIENCE.COLLECTIVE_ADMINS) {
+    if (!update.collective.isHostAccount) {
+      return req.remoteUser.isAdminOfCollectiveOrHost(update.collective);
+    }
+
+    return (
+      req.remoteUser.isAdminOfCollectiveOrHost(update.collective) ||
+      (await req.loaders.Member.remoteUserIdAdminOfHostedAccount.load(update.collective.id))
+    );
+  }
 }

@@ -23,6 +23,13 @@ export const sanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
+export const UPDATE_NOTIFICATION_AUDIENCE = {
+  ALL: 'ALL',
+  COLLECTIVE_ADMINS: 'COLLECTIVE_ADMINS',
+  FINANCIAL_CONTRIBUTORS: 'FINANCIAL_CONTRIBUTORS',
+  NO_ONE: 'NO_ONE',
+};
+
 /**
  * Defines the roles targeted by an update notification. Admins of the parent collective are
  * always included, regardless of the values in this array.
