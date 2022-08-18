@@ -6,10 +6,6 @@ export const AmountStats = new GraphQLObjectType({
   name: 'AmountStats',
   description: 'Statistics aith amounts',
   fields: () => ({
-    id: {
-      type: new GraphQLNonNull(GraphQLString),
-      description: 'An unique identifier for the amount',
-    },
     label: {
       type: new GraphQLNonNull(GraphQLString),
       description: 'Name/Label for the amount',

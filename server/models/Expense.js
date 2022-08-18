@@ -508,8 +508,7 @@ function defineModel() {
     const noTag = 'no tag';
     return sequelize.query(
       `
-      SELECT TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS id,
-      TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
+      SELECT TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
       COUNT(e."id") as "count",
       ABS(SUM(t."amount")) as "amount",
       t."currency" as "currency"
