@@ -47,7 +47,7 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
-import { TimeSeriesAmount } from '../object/TimeSeriesAmount';
+import { getNumberOfDays, getTimeUnit,TimeSeriesAmount } from '../object/TimeSeriesAmount';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
@@ -59,33 +59,6 @@ import EmailAddress from '../scalar/EmailAddress';
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
 import { IsMemberOfFields } from './IsMemberOf';
-
-// TODO: to move elsewhere
-const resultsToAmountWithLabelNode = results => {
-  return results.map(result => ({
-    date: result.date,
-    amount: { value: result.amount, currency: result.currency },
-    label: result.label,
-  }));
-};
-
-// TODO: to move in a shared library
-const getNumberOfDays = (startDate, endDate, host) => {
-  return Math.abs(moment(startDate || host.createdAt).diff(moment(endDate), 'days'));
-};
-
-// TODO: to move in a shared library
-const getTimeUnit = numberOfDays => {
-  if (numberOfDays < 21) {
-    return 'DAY'; // Up to 3 weeks
-  } else if (numberOfDays < 90) {
-    return 'WEEK'; // Up to 3 months
-  } else if (numberOfDays < 365 * 3) {
-    return 'MONTH'; // Up to 3 years
-  } else {
-    return 'YEAR';
-  }
-};
 
 const accountFieldsDefinition = () => ({
   id: {
@@ -893,13 +866,20 @@ export const AccountFields = {
       const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
       const dateTo = args.dateTo ? moment(args.dateTo) : null;
       const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
-      // const timeSeriesParams = { dateFrom, dateTo, timeUnit };
-      // console.log(timeSeriesParams);
       const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective.id, timeUnit, {
         dateFrom,
         dateTo,
       });
-      return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithLabelNode(results) };
+      return {
+        dateFrom,
+        dateTo,
+        timeUnit,
+        nodes: results.map(result => ({
+          date: result.date,
+          amount: { value: result.amount, currency: result.currency },
+          label: result.label,
+        })),
+      };
     },
   },
   payoutMethods: {
