@@ -2,7 +2,6 @@ import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLN
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { assign, get, invert, isEmpty, pick } from 'lodash';
-import moment from 'moment';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
@@ -28,7 +27,6 @@ import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from 
 import { ActivityChannel } from '../enum/ActivityChannel';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
-import { TimeUnit } from '../enum/TimeUnit';
 import { idEncode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
@@ -47,7 +45,6 @@ import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
-import { getNumberOfDays, getTimeUnit, TimeSeriesAmount } from '../object/TimeSeriesAmount';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {

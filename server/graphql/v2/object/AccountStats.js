@@ -10,7 +10,6 @@ import { computeDatesAsISOStrings } from '../../../lib/utils';
 import models from '../../../models';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
-import { TimeUnit } from '../enum/TimeUnit';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
