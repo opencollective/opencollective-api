@@ -97,7 +97,27 @@ export async function deleteUpdate(_, args, req) {
   return update;
 }
 
-export async function canSeeUpdate(update, req) {
+const canSeeUpdateForFinancialContributors = (req, collective): boolean => {
+  const allowedNonAdminRoles = [MemberRoles.MEMBER, MemberRoles.CONTRIBUTOR, MemberRoles.BACKER];
+  return (
+    req.remoteUser.isAdminOfCollectiveOrHost(collective) ||
+    req.remoteUser.hasRole(allowedNonAdminRoles, collective.id) ||
+    req.remoteUser.hasRole(allowedNonAdminRoles, collective.ParentCollectiveId)
+  );
+};
+
+const canSeeUpdateForCollectiveAdmins = async (req, collective): Promise<boolean> => {
+  if (!collective.isHostAccount) {
+    return req.remoteUser.isAdminOfCollectiveOrHost(collective);
+  }
+
+  return (
+    req.remoteUser.isAdminOfCollectiveOrHost(collective) ||
+    (await req.loaders.Member.remoteUserIdAdminOfHostedAccount.load(collective.id))
+  );
+};
+
+export async function canSeeUpdate(update, req): Promise<boolean> {
   if (update.publishedAt && !update.isPrivate) {
     return true; // If the update is published and not private, it's visible to everyone
   } else if (!req.remoteUser) {
@@ -112,22 +132,19 @@ export async function canSeeUpdate(update, req) {
     return req.remoteUser.isAdminOfCollective(update.collective);
   }
 
+  // If it's a private published update, we need to look at the audience
   const audience = update.notificationAudience || UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS;
-  if (audience === UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS) {
-    const allowedNonAdminRoles = [MemberRoles.MEMBER, MemberRoles.CONTRIBUTOR, MemberRoles.BACKER];
-    return (
-      req.remoteUser.isAdminOfCollectiveOrHost(update.collective) ||
-      req.remoteUser.hasRole(allowedNonAdminRoles, update.collective.id) ||
-      req.remoteUser.hasRole(allowedNonAdminRoles, update.collective.ParentCollectiveId)
-    );
-  } else if (audience === UPDATE_NOTIFICATION_AUDIENCE.COLLECTIVE_ADMINS) {
-    if (!update.collective.isHostAccount) {
-      return req.remoteUser.isAdminOfCollectiveOrHost(update.collective);
-    }
-
-    return (
-      req.remoteUser.isAdminOfCollectiveOrHost(update.collective) ||
-      (await req.loaders.Member.remoteUserIdAdminOfHostedAccount.load(update.collective.id))
-    );
+  switch (audience) {
+    case UPDATE_NOTIFICATION_AUDIENCE.FINANCIAL_CONTRIBUTORS:
+      return canSeeUpdateForFinancialContributors(req, update.collective);
+    case UPDATE_NOTIFICATION_AUDIENCE.COLLECTIVE_ADMINS:
+      return canSeeUpdateForCollectiveAdmins(req, update.collective);
+    case UPDATE_NOTIFICATION_AUDIENCE.ALL:
+      return (
+        canSeeUpdateForFinancialContributors(req, update.collective) ||
+        canSeeUpdateForCollectiveAdmins(req, update.collective)
+      );
+    default:
+      return false; // Audience type is NO_ONE or unknown
   }
 }
