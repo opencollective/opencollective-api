@@ -487,6 +487,7 @@ function defineModel() {
       FROM "Expenses"
       WHERE "CollectiveId" = $collectiveId
       AND "deletedAt" IS NULL
+      AND "status" NOT IN ('SPAM', 'DRAFT', 'UNVERIFIED')
       GROUP BY UNNEST(tags)
       ORDER BY count DESC
       LIMIT $limit
