@@ -280,6 +280,7 @@ export const AccountStats = new GraphQLObjectType({
             `
             SELECT
             (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+            COUNT(o."id") as "count",
             ABS(SUM(t."amount")) as "amount",
             t."currency"
             FROM "Transactions" t
