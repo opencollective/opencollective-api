@@ -148,7 +148,6 @@ async function emailReport(orders, data, attachments) {
 
   // Actual send
   return emailLib.sendMessage(REPORT_EMAIL, subject, '', {
-    bcc: ' ',
     text: result.join('\n'),
     attachments,
   });
