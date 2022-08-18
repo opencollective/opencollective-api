@@ -7,6 +7,10 @@ import { Currency } from '../enum/Currency';
 import { Account } from '../interface/Account';
 import { Individual } from '../object/Individual';
 
+const canSeeVirtualCardPrivateInfo = (req, collective, virtualCard) =>
+  (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
+  checkScope(req, 'virtualCards');
+
 export const VirtualCard = new GraphQLObjectType({
   name: 'VirtualCard',
   description: 'A Virtual Card used to pay expenses',
@@ -48,10 +52,7 @@ export const VirtualCard = new GraphQLObjectType({
       type: GraphQLString,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
-        if (
-          (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
-          checkScope(req, 'virtualCards')
-        ) {
+        if (canSeeVirtualCardPrivateInfo(req, collective, virtualCard)) {
           return virtualCard.name;
         }
       },
@@ -60,10 +61,7 @@ export const VirtualCard = new GraphQLObjectType({
       type: GraphQLString,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
-        if (
-          (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
-          checkScope(req, 'virtualCards')
-        ) {
+        if (canSeeVirtualCardPrivateInfo(req, collective, virtualCard)) {
           return virtualCard.last4;
         }
       },
@@ -72,10 +70,7 @@ export const VirtualCard = new GraphQLObjectType({
       type: GraphQLJSONObject,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
-        if (
-          (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
-          checkScope(req, 'virtualCards')
-        ) {
+        if (canSeeVirtualCardPrivateInfo(req, collective, virtualCard)) {
           return virtualCard.data;
         }
       },
@@ -84,10 +79,7 @@ export const VirtualCard = new GraphQLObjectType({
       type: GraphQLJSONObject,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
-        if (
-          (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
-          checkScope(req, 'virtualCards')
-        ) {
+        if (canSeeVirtualCardPrivateInfo(req, collective, virtualCard)) {
           return virtualCard.get('privateData');
         }
       },
@@ -97,10 +89,7 @@ export const VirtualCard = new GraphQLObjectType({
       type: GraphQLInt,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
-        if (
-          (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
-          checkScope(req, 'virtualCards')
-        ) {
+        if (canSeeVirtualCardPrivateInfo(req, collective, virtualCard)) {
           return virtualCard.spendingLimitAmount;
         }
       },
@@ -109,10 +98,7 @@ export const VirtualCard = new GraphQLObjectType({
       type: GraphQLString,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
-        if (
-          (req.remoteUser?.isAdminOfCollectiveOrHost(collective) || req.remoteUser?.id === virtualCard.UserId) &&
-          checkScope(req, 'virtualCards')
-        ) {
+        if (canSeeVirtualCardPrivateInfo(req, collective, virtualCard)) {
           return virtualCard.spendingLimitInterval;
         }
       },
