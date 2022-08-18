@@ -92,6 +92,19 @@ function defineModel() {
             callbackUrl: this.callbackUrl,
           };
         },
+        publicInfo() {
+          return {
+            id: this.id,
+            name: this.name,
+            description: this.description,
+            type: this.type,
+            CreatedByUserId: this.CreatedByUserId,
+            CollectiveId: this.CollectiveId,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
+            deletedAt: this.deletedAt,
+          };
+        },
       },
     },
   );

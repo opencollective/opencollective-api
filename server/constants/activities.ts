@@ -62,6 +62,7 @@ enum ActivityTypes {
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
   COLLECTIVE_MONTHLY = 'collective.monthly',
   ORDER_CANCELED_ARCHIVED_COLLECTIVE = 'order.canceled.archived.collective',
+  OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   ORDER_PROCESSING = 'order.processing',
   ORDER_PROCESSING_CRYPTO = 'order.processing.crypto',
   ORDER_PENDING_CONTRIBUTION_NEW = 'order.new.pendingFinancialContribution',
@@ -106,6 +107,7 @@ export const TransactionalActivities = [
   ActivityTypes.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
   ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
   ActivityTypes.HOST_APPLICATION_CONTACT,
+  ActivityTypes.OAUTH_APPLICATION_AUTHORIZED,
 ];
 
 export enum ActivityClasses {

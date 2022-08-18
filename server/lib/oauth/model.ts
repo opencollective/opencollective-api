@@ -18,6 +18,7 @@ import {
 import config from 'config';
 import debugLib from 'debug';
 
+import activities from '../../constants/activities';
 import models from '../../models';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import UserToken, { TokenType } from '../../models/UserToken';
@@ -146,13 +147,27 @@ const model: OauthModel = {
   ): Promise<AuthorizationCode> {
     debug('model.saveAuthorizationCode', code, client);
     const application = await models.Application.findOne({ where: { clientId: client.id } });
+    const collective = await user.getCollective();
+    const scope = Array.isArray(code.scope) ? code.scope : code.scope?.split(',');
+
     const authorization = await models.OAuthAuthorizationCode.create({
       ApplicationId: application.id,
       UserId: user.id,
       code: code.authorizationCode,
       expiresAt: code.expiresAt,
       redirectUri: code.redirectUri,
-      scope: Array.isArray(code.scope) ? code.scope : code.scope?.split(','),
+      scope,
+    });
+
+    await models.Activity.create({
+      type: activities.OAUTH_APPLICATION_AUTHORIZED,
+      UserId: user.id,
+      CollectiveId: user.CollectiveId,
+      data: {
+        application: application.publicInfo,
+        collective: collective.minimal,
+        scope,
+      },
     });
 
     authorization.application = application;

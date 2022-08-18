@@ -129,6 +129,7 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity);
       break;
 
+    case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
     case ActivityTypes.ORGANIZATION_COLLECTIVE_CREATED:
     case ActivityTypes.TAXFORM_REQUEST:
     case ActivityTypes.USER_CARD_CLAIMED:

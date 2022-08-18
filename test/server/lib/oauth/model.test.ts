@@ -11,6 +11,7 @@ import config from 'config';
 import moment from 'moment';
 import { stub } from 'sinon';
 
+import { activities } from '../../../../server/constants';
 import OAuthModel, {
   dbApplicationToClient,
   dbOAuthAuthorizationCodeToAuthorizationCode,
@@ -182,6 +183,7 @@ describe('server/lib/oauth/model', () => {
         authorizationCode: randStr(),
         expiresAt: new Date(),
         redirectUri: 'https://test.com',
+        scope: ['email'],
       };
 
       await OAuthModel.saveAuthorizationCode(code, client, application.createdByUser);
@@ -193,6 +195,17 @@ describe('server/lib/oauth/model', () => {
       expect(authorizationFromDb.code).to.eq(code.authorizationCode);
       expect(authorizationFromDb.expiresAt.toISOString()).to.eq(code.expiresAt.toISOString());
       expect(authorizationFromDb.redirectUri).to.eq(code.redirectUri);
+
+      const activity = await models.Activity.findOne({
+        where: { UserId: application.createdByUser.id },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.type).to.eq(activities.OAUTH_APPLICATION_AUTHORIZED);
+      expect(activity.data.application.id).to.eq(application.id);
+      expect(activity.data.application.name).to.eq(application.name);
+      expect(activity.data.application.description).to.eq(application.description);
+      expect(activity.data.scope).deep.to.eq(['email']);
     });
   });
 
