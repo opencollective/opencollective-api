@@ -37,7 +37,7 @@ const updatedScopes = [
 ];
 
 const executeQuery = async (queryInterface, query) => {
-  // console.log(query);
+  console.log(query + '\n');
   await queryInterface.sequelize.query(query);
 };
 
