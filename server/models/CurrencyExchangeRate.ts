@@ -14,6 +14,8 @@ export class CurrencyExchangeRate extends Model<
   public declare from: string;
   public declare to: string;
   public declare createdAt: Date;
+  public declare updatedAt: Date;
+  public declare deletedAt: Date;
 
   static getMany(
     fromCurrency: string,
@@ -43,49 +45,43 @@ export class CurrencyExchangeRate extends Model<
   }
 }
 
-function setupModel(CurrencyExchangeRate) {
-  // Link the model to database fields
-  CurrencyExchangeRate.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      rate: {
-        type: DataTypes.FLOAT,
-        allowNull: false,
-      },
-      from: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      to: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-      deletedAt: {
-        type: DataTypes.DATE,
-      },
+// Link the model to database fields
+CurrencyExchangeRate.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
     },
-    {
-      sequelize,
-      tableName: 'CurrencyExchangeRates',
+    rate: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
     },
-  );
-}
-
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel(CurrencyExchangeRate);
+    from: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    to: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'CurrencyExchangeRates',
+  },
+);
 
 export default CurrencyExchangeRate;

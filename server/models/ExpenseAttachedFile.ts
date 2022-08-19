@@ -48,55 +48,49 @@ export class ExpenseAttachedFile extends Model {
   };
 }
 
-function setupModel(ExpenseAttachedFile) {
-  // Link the model to database fields
-  ExpenseAttachedFile.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      ExpenseId: {
-        type: DataTypes.INTEGER,
-        references: { model: 'Expenses', key: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-      CreatedByUserId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Users' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-      url: {
-        type: DataTypes.STRING,
-        allowNull: false,
-        validate: {
-          isValid(url: string): void {
-            if (url && !isValidUploadedImage(url) && !url.startsWith(config.host.rest)) {
-              throw new Error('The attached file URL is not valid');
-            }
-          },
+// Link the model to database fields
+ExpenseAttachedFile.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    ExpenseId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'Expenses', key: 'id' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+    url: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      validate: {
+        isValid(url: string): void {
+          if (url && !isValidUploadedImage(url) && !url.startsWith(config.host.rest)) {
+            throw new Error('The attached file URL is not valid');
+          }
         },
       },
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
     },
-    {
-      sequelize,
-      tableName: 'ExpenseAttachedFiles',
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
     },
-  );
-}
-
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel(ExpenseAttachedFile);
+  },
+  {
+    sequelize,
+    tableName: 'ExpenseAttachedFiles',
+  },
+);
 
 export default ExpenseAttachedFile;

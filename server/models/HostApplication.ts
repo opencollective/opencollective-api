@@ -82,77 +82,76 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
   }
 }
 
-function setupModel(HostApplication) {
-  // Link the model to database fields
-  HostApplication.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      CollectiveId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Collectives' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-      HostCollectiveId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Collectives' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-      CreatedByUserId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Users' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: true,
-      },
-      status: {
-        type: DataTypes.ENUM(...Object.values(HostApplicationStatus)),
-        allowNull: false,
-        validate: {
-          isIn: {
-            args: [Object.values(HostApplicationStatus)],
-            msg: `Must be one of: ${Object.values(HostApplicationStatus)}`,
-          },
+// Link the model to database fields
+HostApplication.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Collectives' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+    HostCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Collectives' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+    status: {
+      type: DataTypes.ENUM(...Object.values(HostApplicationStatus)),
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [Object.values(HostApplicationStatus)],
+          msg: `Must be one of: ${Object.values(HostApplicationStatus)}`,
         },
       },
-      message: {
-        type: DataTypes.TEXT,
-        allowNull: true,
-        validate: {
-          len: [0, 3000],
-        },
-      },
-      customData: {
-        type: DataTypes.JSONB,
-        allowNull: true,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      deletedAt: {
-        type: DataTypes.DATE,
-        allowNull: true,
+    },
+    message: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      validate: {
+        len: [0, 3000],
       },
     },
-    {
-      sequelize,
-      tableName: 'HostApplications',
-      paranoid: true,
+    customData: {
+      type: DataTypes.JSONB,
+      allowNull: true,
     },
-  );
-}
-
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel(HostApplication);
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    tableName: 'HostApplications',
+    paranoid: true,
+  },
+);
 
 export default HostApplication;
