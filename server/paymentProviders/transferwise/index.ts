@@ -13,7 +13,7 @@ import cache from '../../lib/cache';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
-import models from '../../models';
+import models, { sequelize } from '../../models';
 import PayoutMethod from '../../models/PayoutMethod';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
 import {
@@ -396,6 +396,21 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
       });
 
       batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
+
+      // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
+      await sequelize.query(
+        `
+        UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE "id" IN (:expenseIds) AND "data"#>>'{batchGroup, id}' = :batchGroupId;
+      `,
+        {
+          replacements: {
+            expenseIds: expenses.map(e => e.id),
+            newBatchGroup: JSON.stringify(batchGroup),
+            batchGroupId: batchGroup.id,
+          },
+        },
+      );
+
       const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
       if ('status' in fundResponse && 'headers' in fundResponse) {
         const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;
