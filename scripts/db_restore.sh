@@ -90,6 +90,9 @@ echo "DB restored to postgres://localhost/${LOCALDBNAME}"
   psql "${LOCALDBNAME}" -c "alter type \"enum_MemberInvitations_role\" owner to ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "alter type \"enum_PayoutMethods_type\" owner to ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "alter type \"enum_MigrationLogs_type\" owner to ${LOCALDBUSER};"
+  # TODO: uncomment those lines when we update the dump
+  # psql "${LOCALDBNAME}" -c "alter type \"enum_OAuthAuthorizationCodes_scope\" owner to ${LOCALDBUSER};"
+  # psql "${LOCALDBNAME}" -c "alter type \"enum_UserTokens_scope\" owner to ${LOCALDBUSER};"
 
   psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${LOCALDBUSER};"
