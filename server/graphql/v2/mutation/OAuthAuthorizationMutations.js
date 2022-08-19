@@ -35,6 +35,7 @@ const oAuthAuthorizationMutations = {
         expiresAt: userToken.accessTokenExpiresAt,
         createdAt: userToken.createdAt,
         updatedAt: userToken.updatedAt,
+        user: req.remoteUser,
       };
     },
   },
