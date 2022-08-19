@@ -291,20 +291,21 @@ const getOrCreateActiveBatch = async (
     ],
   });
 
+  const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(providerName));
+  const profileId = connectedAccount.data.id;
+  const token = options?.token || (await getToken(connectedAccount));
+
   if (expense) {
-    return expense.data.batchGroup as BatchGroup;
-  } else {
-    const connectedAccount = await host.getAccountForPaymentProvider(providerName);
-
-    const profileId = connectedAccount.data.id;
-    const token = options?.token || (await getToken(connectedAccount));
-    const batchGroup = await transferwise.createBatchGroup(token, profileId, {
-      name: uuid(),
-      sourceCurrency: connectedAccount.data.currency || host.currency,
-    });
-
-    return batchGroup;
+    const batchGroup = await transferwise.getBatchGroup(token, profileId, expense.data.batchGroup.id);
+    if (batchGroup.status === 'NEW') {
+      return batchGroup;
+    }
   }
+
+  return transferwise.createBatchGroup(token, profileId, {
+    name: uuid(),
+    sourceCurrency: connectedAccount.data.currency || host.currency,
+  });
 };
 
 async function scheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
