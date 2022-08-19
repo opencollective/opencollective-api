@@ -131,6 +131,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.COLLECTIVE_MEMBER_CREATED,
     ActivityTypes.COLLECTIVE_REJECTED,
     ActivityTypes.COLLECTIVE_UNFROZEN,
+    ActivityTypes.COLLECTIVE_TRANSACTION_CREATED,
     ActivityTypes.DEACTIVATED_COLLECTIVE_AS_HOST,
   ],
   [ActivityClasses.EXPENSES]: [
