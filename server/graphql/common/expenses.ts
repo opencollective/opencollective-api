@@ -1423,7 +1423,11 @@ export async function createTransferWiseTransactionsAndUpdateExpense({ host, exp
   }
 
   await createTransactionsFromPaidExpense(host, expense, fees, wiseFxRateInfo?.value || 'auto', data);
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
+    message: expense.data?.paymentOption?.formattedEstimatedDelivery
+      ? `ETA: ${expense.data.paymentOption.formattedEstimatedDelivery}`
+      : undefined,
+  });
   await expense.setProcessing(remoteUser.id);
   return expense;
 }
