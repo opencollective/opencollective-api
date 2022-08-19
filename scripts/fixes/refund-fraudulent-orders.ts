@@ -29,9 +29,9 @@ async function main({ dryRun, totalAmount, reqMask, isGuest, fromCollectiveId })
   if (dryRun) {
     console.info('RUNNING IN DRY MODE!');
   }
-  if (!reqMask && !totalAmount && !isGuest) {
+  if (!reqMask && !totalAmount && !isGuest && !fromCollectiveId) {
     throw new Error('Not enough parameters');
-  } else if (totalAmount && !isGuest && !reqMask) {
+  } else if (totalAmount && !isGuest && !reqMask && !fromCollectiveId) {
     throw new Error('Not enough parameters: totalAmount should be used together with isGuest');
   } else if (isGuest && !totalAmount && !reqMask) {
     throw new Error('Not enough parameters: isGuest should be used together with totalAmount');
