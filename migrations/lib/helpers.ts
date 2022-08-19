@@ -90,3 +90,30 @@ export const removeMigration = async (queryInterface: QueryInterface, migrationN
     { replacements: { migrationName } },
   );
 };
+
+/*
+ * A simple wrapper to help check the queries being executed
+ */
+const executeQuery = async (queryInterface, query) => {
+  // console.log(query);
+  await queryInterface.sequelize.query(query);
+};
+
+/*
+ * Convert an array into a SQL formatted list
+ */
+const formatEnum = values => values.map(value => `'${value}'`).join(', ');
+
+/*
+ * Update an enum list on a given table, column
+ */
+export const updateEnum = async (queryInterface, table, column, enumName, values) => {
+  // See https://blog.yo1.dog/updating-enum-values-in-postgresql-the-safe-and-easy-way/
+  await executeQuery(queryInterface, `ALTER TYPE "${enumName}" RENAME TO "${enumName}_old"`);
+  await executeQuery(queryInterface, `CREATE TYPE "${enumName}" AS ENUM(${formatEnum(values)})`);
+  await executeQuery(
+    queryInterface,
+    `ALTER TABLE "${table}" ALTER COLUMN ${column} TYPE "${enumName}" ARRAY USING ${column}::text::"${enumName}"[]`,
+  );
+  await executeQuery(queryInterface, `DROP TYPE "${enumName}_old"`);
+};
