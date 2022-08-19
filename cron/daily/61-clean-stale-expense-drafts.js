@@ -12,7 +12,7 @@ const cleanStaleExpenseDrafts = async () => {
     SET "deletedAt" = NOW()
     WHERE "deletedAt" IS NULL
     AND ("status" = 'DRAFT' OR "status" = 'UNVERIFIED')
-    AND "updatedAt" <= (NOW() - interval '1 month');
+    AND "updatedAt" <= (NOW() - interval '2 month');
     `,
   );
 
