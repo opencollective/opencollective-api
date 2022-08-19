@@ -66,7 +66,11 @@ async function main({ dryRun, totalAmount, reqMask, isGuest, fromCollectiveId })
 
   for (const order of orders) {
     console.log(`\nProcessing order #${order.id}...`);
-    await refundOrder(order, { dryRun });
+    try {
+      await refundOrder(order, { dryRun });
+    } catch (e) {
+      console.log(e);
+    }
   }
 }
 
