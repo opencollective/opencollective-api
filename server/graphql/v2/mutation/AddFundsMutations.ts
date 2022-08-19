@@ -12,7 +12,7 @@ import { Order } from '../object/Order';
 
 export const addFundsMutation = {
   type: new GraphQLNonNull(Order),
-  description: 'Add funds to the given account. Scope: "account".',
+  description: 'Add funds to the given account. Scope: "host".',
   args: {
     fromAccount: { type: new GraphQLNonNull(AccountReferenceInput) },
     account: { type: new GraphQLNonNull(AccountReferenceInput) },
