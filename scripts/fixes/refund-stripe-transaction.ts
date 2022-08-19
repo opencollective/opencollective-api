@@ -18,9 +18,6 @@ const refund = async transactionId => {
   if (!chargeId) {
     throw new Error(`Transaction #${transaction.id} was not paid through stripe`);
   }
-  if (transaction.data?.refund?.status === 'pending') {
-    throw new Error(`Transaction #${transaction.id} refund was already requested and it is pending`);
-  }
 
   /* From which stripe account it's going to be refunded */
   const collective = await models.Collective.findByPk(
@@ -30,6 +27,16 @@ const refund = async transactionId => {
 
   /* Refund both charge & application fee */
   if (!IS_DRY) {
+    const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
+    if (charge.disputed) {
+      console.log('Charge is already disputed.');
+      return;
+    }
+    if (charge.refunded) {
+      console.log('Charge is already refunded.');
+      return;
+    }
+
     const refund = await stripe.refunds.create(
       { charge: chargeId, refund_application_fee: true }, // eslint-disable-line camelcase
       { stripeAccount: hostStripeAccount.username },
