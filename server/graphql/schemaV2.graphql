@@ -1967,12 +1967,12 @@ input ChronologicalOrderInput {
   """
   Field to chronologically order by.
   """
-  field: DateTimeField = CREATED_AT
+  field: DateTimeField! = CREATED_AT
 
   """
   Ordering direction.
   """
-  direction: OrderDirection = DESC
+  direction: OrderDirection! = DESC
 }
 
 """
