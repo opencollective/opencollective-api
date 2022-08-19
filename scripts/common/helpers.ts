@@ -5,7 +5,7 @@ export const confirm = question => {
 
   return new Promise(resolve => {
     rl.question(`${question}\n> `, input => {
-      if (input.toLowerCase() === 'yes') {
+      if (['y', 'yes', 'sure', 'ok'].includes(input.toLowerCase())) {
         resolve(true);
       } else {
         rl.close();
