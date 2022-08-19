@@ -35,11 +35,11 @@ const refund = async transactionId => {
       { stripeAccount: hostStripeAccount.username },
     );
 
-    if (refund.status === 'succeeded') {
+    if (refund.status === 'succeeded' || refund.status === 'pending') {
       await transaction.update({ data: { ...transaction.data, refund } });
-      console.log('Refunded succeeded!');
+      console.log('Refund succeeded or pending!');
     } else {
-      console.warn(`Could not refund transactio #${transaction.id}`, refund);
+      console.warn(`Could not refund transaction #${transaction.id}`, refund);
     }
   }
 };
