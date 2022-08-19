@@ -26,8 +26,8 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare user?: NonAttribute<typeof models.User>;
   public declare client?: NonAttribute<typeof models.Application>;
 
-  hasScope(scope) {
-    return this.scope && this.scope.includes(scope);
+  hasScope(scope): boolean {
+    return Boolean(this.scope && this.scope.includes(scope));
   }
 }
 
