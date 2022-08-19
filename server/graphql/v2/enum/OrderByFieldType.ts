@@ -6,6 +6,7 @@ export enum ORDER_BY_PSEUDO_FIELDS {
   CREATED_AT = 'CREATED_AT',
 }
 
+// TODO: This should be called "AccountOrderByField", as the fields are only available for accounts
 export const OrderByFieldType = new GraphQLEnumType({
   name: 'OrderByFieldType',
   description: 'Possible fields you can use to order by',
