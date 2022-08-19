@@ -98,6 +98,7 @@ export const Application = new GraphQLObjectType({
             createdAt: userToken.createdAt,
             updatedAt: userToken.updatedAt,
             scope: userToken.scope,
+            user: req.remoteUser,
           };
         }
       },

@@ -161,6 +161,7 @@ export const Individual = new GraphQLObjectType({
               createdAt: row.createdAt,
               updatedAt: row.updatedAt,
               scope: row.scope,
+              user,
             };
           });
 

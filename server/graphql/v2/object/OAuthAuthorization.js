@@ -47,6 +47,7 @@ export const OAuthAuthorization = new GraphQLObjectType({
           const activity = await models.Activity.findOne({
             attributes: ['createdAt'],
             where: {
+              UserId: authorization.user.id,
               UserTokenId: authorization.id,
             },
             order: [['createdAt', 'DESC']],
