@@ -4,10 +4,12 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
 import activities from '../../../constants/activities';
+import POLICIES from '../../../constants/policies';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import { getPolicy } from '../../../lib/policies';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
@@ -104,7 +106,8 @@ async function createCollective(_, args, req) {
             await github.checkGithubAdmin(githubHandle, githubAccount.token);
             await github.checkGithubStars(githubHandle, githubAccount.token);
           }
-          shouldAutomaticallyApprove = true;
+          const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+          shouldAutomaticallyApprove = policy?.numberOfAdmins > 1 ? false : true;
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
