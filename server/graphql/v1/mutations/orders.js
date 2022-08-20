@@ -29,6 +29,7 @@ import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
+  FeatureNotSupportedForCollective,
   Forbidden,
   NotFound,
   Unauthorized,
@@ -477,6 +478,11 @@ export async function createOrder(order, req) {
       fromCollective = await loaders.Collective.byId.load(order.fromCollective.id);
       if (!fromCollective) {
         throw new Error(`From collective id ${order.fromCollective.id} not found`);
+      }
+
+      // Check if the Collective paying for the order is not blocked/frozen
+      if (!canUseFeature(fromCollective, FEATURE.ORDER)) {
+        throw new FeatureNotSupportedForCollective();
       }
 
       const possibleRoles = [];
