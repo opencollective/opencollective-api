@@ -131,11 +131,6 @@ export async function dropDatabaseQuery(client, database) {
   }
 }
 
-/** Create postgres extension POSTGIS. */
-export async function createExtensionsQuery(client) {
-  await client.query('CREATE EXTENSION IF NOT EXISTS POSTGIS;');
-}
-
 /** Optionally Destroy & Create the application database.
  *
  * This function opens two connections to postgres. One executes
@@ -163,6 +158,5 @@ export async function recreateDatabase(destroy = true) {
   /* Operations that require connecting to the application
    * database. */
   const clientApp = await getConnectedClient(getDBUrl('database'));
-  await createExtensionsQuery(clientApp);
   return [client, clientApp];
 }

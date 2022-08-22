@@ -1,8 +1,8 @@
 # PostgreSQL Database
 
-You need to have PostgreSQL 13.x with the Postgis extension.
+You need to have PostgreSQL > 13.x.
 
-In production, we're currently running 13.3.
+In production, we're currently running 13.7.
 
 ## Installation
 
@@ -10,7 +10,7 @@ In production, we're currently running 13.3.
 
 #### With Homebrew
 
-`brew install postgresql postgis`
+`brew install postgresql`
 
 #### With Postgres.app
 
@@ -24,7 +24,7 @@ Then to enable the CLI tools, follow the steps from: https://postgresapp.com/doc
 
 ```bash
 # Install Postgres
-sudo dnf install postgresql-server postgresql-contrib postgis
+sudo dnf install postgresql-server postgresql-contrib
 
 # (Optional) Start postgres at boot time
 sudo systemctl enable postgresql
@@ -53,7 +53,7 @@ If you don't want to run a local instance of PostgreSQL in your computer, you ca
 Create and run the container:
 
 ```
-docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres postgis/postgis:13-3.1
+docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust -d --name opencollective-postgres postgres:13.7
 ```
 
 Set the necessary environment variables:
@@ -103,7 +103,6 @@ Then:
 ```
 createdb opencollective_test
 psql -d opencollective_test -c 'GRANT ALL PRIVILEGES ON DATABASE opencollective_test TO opencollective'
-psql -d opencollective_test -c 'CREATE EXTENSION postgis'
 ```
 
 ## Reset
@@ -149,13 +148,3 @@ npm run db:migrate:undo
 ## Troubleshooting
 
 For development, ensure that local connections do not require a password. Locate your `pg_hba.conf` file by running `SHOW hba_file;` from the psql prompt (`sudo -i -u postgres` + `psql` after clean install). This should look something like `/etc/postgresql/9.5/main/pg_hba.conf`. We'll call the parent directory of `pg_hba.conf` the `$POSTGRES_DATADIR`. `cd` to `$POSTGRES_DATADIR`, and edit `pg_hba.conf` to `trust` local socket connections and local IP connections. Restart `postgres` - on Mac OS X, there may be restart scripts already in place with `brew`, if not use `pg_ctl -D $POSTGRES_DATADIR restart`.
-
-## FAQ
-
-### error: type "geometry" does not exist
-
-Make sure Postgis is available and activated.
-
-### Unhandled rejection error: permission denied to create extension "postgis"
-
-Follow the **Reset** steps and try again.
