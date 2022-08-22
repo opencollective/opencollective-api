@@ -53,9 +53,6 @@ if [ -z "$LOCALDBNAME" ]; then usage; fi;
 dropdb --if-exists $LOCALDBNAME;
 createdb $LOCALDBNAME 2> /dev/null
 
-# Add POSTGIS extension
-psql "${LOCALDBNAME}" -c "CREATE EXTENSION POSTGIS;" 1> /dev/null
-
 # The first time we run it, we will trigger FK constraints errors
 set +e
 pg_restore --no-acl --no-owner -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null

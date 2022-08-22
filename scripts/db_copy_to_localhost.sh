@@ -41,9 +41,6 @@ fi
 echo "Creating ${LOCALDBNAME}"
 createdb "${LOCALDBNAME}"
 
-# Add POSTGIS extension
-psql "${LOCALDBNAME}" -c "CREATE EXTENSION POSTGIS;"
-
 echo Restore...
 
 # The first time we run it, we will trigger FK constraints errors
