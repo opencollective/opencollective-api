@@ -8,7 +8,7 @@ import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
 import { Amount } from './Amount';
 
 export const getNumberOfDays = (startDate, endDate, collective) => {
-  return Math.abs(moment(startDate || collective.createdAt).diff(moment(endDate), 'days'));
+  return Math.abs(moment(startDate || collective.createdAt).diff(moment(endDate || undefined), 'days'));
 };
 
 export const getTimeUnit = numberOfDays => {
