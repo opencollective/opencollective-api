@@ -438,7 +438,6 @@ const accountFieldsDefinition = () => ({
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       state: { type: GraphQLString, defaultValue: null },
       merchantAccount: { type: AccountReferenceInput, defaultValue: null },
-      assignee: { type: AccountReferenceInput, defaultValue: null },
       dateFrom: {
         type: GraphQLDateTime,
         defaultValue: null,
@@ -464,20 +463,11 @@ const accountFieldsDefinition = () => ({
         merchantId = (await fetchAccountWithReference(args.merchantAccount, { throwIfMissing: true })).id;
       }
 
-      let where;
-      if (!isEmpty(args.assignee)) {
-        const CollectiveId = (await fetchAccountWithReference(args.assignee, { throwIfMissing: true })).id;
-        const user = await models.User.findOne({
-          where: { CollectiveId },
-        });
-        where = { UserId: user.id };
-      } else {
-        where = { CollectiveId: account.id };
-      }
-
       const query = {
         group: 'VirtualCard.id',
-        where,
+        where: {
+          CollectiveId: account.id,
+        },
         limit: args.limit,
         offset: args.offset,
         order: [[args.orderBy.field, args.orderBy.direction]],

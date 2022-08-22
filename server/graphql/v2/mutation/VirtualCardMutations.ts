@@ -333,8 +333,8 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && req.remoteUser.id !== virtualCard.UserId) {
-        throw new Unauthorized("You don't have permission to edit this Virtual Card");
+      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && !req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
+        throw new Unauthorized("You don't have permission to pause this Virtual Card");
       }
 
       const card = await virtualCard.pause();
