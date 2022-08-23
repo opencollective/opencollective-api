@@ -3,6 +3,8 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     // -- Create columns --
+    console.time('Creating columns');
+
     await queryInterface.addColumn('Activities', 'OrderId', {
       type: Sequelize.INTEGER,
       references: { key: 'id', model: 'Orders' },
@@ -27,19 +29,10 @@ module.exports = {
       allowNull: true,
     });
 
-    // -- Create indexes --
-    await queryInterface.addIndex('Activities', ['FromCollectiveId'], {
-      concurrently: true,
-      where: { FromCollectiveId: { [Sequelize.Op.ne]: null } },
-    });
-
-    await queryInterface.addIndex('Activities', ['HostCollectiveId'], {
-      concurrently: true,
-      where: { HostCollectiveId: { [Sequelize.Op.ne]: null } },
-    });
+    console.timeEnd('Creating columns');
 
     // -- Fill in columns from existing data --
-    console.log("Migrating User actions where FromCollectiveId/CollectiveId should be user's profile");
+    console.time("Migrating User actions where FromCollectiveId/CollectiveId should be user's profile");
     await queryInterface.sequelize.query(`
       UPDATE "Activities" a
       SET
@@ -51,11 +44,12 @@ module.exports = {
         'user.created',
         'user.new.token',
         'user.changeEmail'
-      )
+        )
     `);
+    console.timeEnd("Migrating User actions where FromCollectiveId/CollectiveId should be user's profile");
 
     // Transactions
-    console.log('Migrating Transaction activities');
+    console.time('Migrating Transaction activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities" a
       SET
@@ -66,18 +60,21 @@ module.exports = {
       FROM "Transactions" t
       WHERE a."TransactionId" IS NOT NULL
       AND t.id = a."TransactionId"
+      AND a."createdAt" >= '2022-06-01' -- This migration is too heavy, we'll run the rest separately
     `);
+    console.timeEnd('Migrating Transaction activities');
 
     // Gift card
-    console.log('Migrating gift cards');
+    console.time('Migrating gift cards');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "FromCollectiveId" = (data -> 'emitter' ->> 'id')::integer
       WHERE "type" IN ('user.card.claimed')
     `);
+    console.timeEnd('Migrating gift cards');
 
     // Members actions
-    console.log('Migrating members');
+    console.time('Migrating members');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "FromCollectiveId" = COALESCE(
@@ -94,10 +91,12 @@ module.exports = {
         'collective.core.member.removed',
         'collective.core.member.edited'
       )
+      AND id NOT IN (136761, 154969) -- This two are broken on staging/api
     `);
+    console.timeEnd('Migrating members');
 
     // HostCollectiveId for Virtual cards + Freeze collective
-    console.log('Migrating Virtual Cards / Freeze collective activities');
+    console.time('Migrating Virtual Cards / Freeze collective activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "HostCollectiveId" = (data -> 'host' ->> 'id')::integer
@@ -110,9 +109,10 @@ module.exports = {
         'collective.unfrozen'
       )
     `);
+    console.timeEnd('Migrating Virtual Cards / Freeze collective activities');
 
     // Subscriptions and CONTRIBUTION_REJECTED
-    console.log('Migrating subscriptions & rejected contributions');
+    console.time('Migrating subscriptions & rejected contributions');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET
@@ -124,10 +124,12 @@ module.exports = {
         'subscription.canceled',
         'contribution.rejected'
       )
+      AND id != 170601 -- This one is corrupted in prod
     `);
+    console.timeEnd('Migrating subscriptions & rejected contributions');
 
     // Expense actions
-    console.log('Migrating expense activities');
+    console.time('Migrating expense activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET
@@ -153,18 +155,20 @@ module.exports = {
         'collective.expense.missing.receipt'
       )
     `);
+    console.timeEnd('Migrating expense activities');
 
     // Expense moved root action
-    console.log('Migrating expense moved root activities');
+    console.time('Migrating expense moved root activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "FromCollectiveId" = ("data" -> 'movedFromCollective' ->> 'id')::integer,
           "HostCollectiveId" = ("data" -> 'movedFromCollective' ->> 'HostCollectiveId')::integer
       WHERE "type" IN ('collective.expense.moved')
     `);
+    console.timeEnd('Migrating expense moved root activities');
 
     // Order actions: from data
-    console.log('Migrating Orders activities from data');
+    console.time('Migrating Orders activities from data');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET
@@ -184,9 +188,10 @@ module.exports = {
         'payment.creditcard.confirmation'
       )
     `);
+    console.timeEnd('Migrating Orders activities from data');
 
     // Order actions: complete data from join
-    console.log('Migrating Orders activities from joins');
+    console.time('Migrating Orders activities from joins');
     await queryInterface.sequelize.query(`
       UPDATE "Activities" a
       SET
@@ -197,19 +202,19 @@ module.exports = {
       AND o.id = a."OrderId"
       AND (a."FromCollectiveId" IS NULL OR a."CollectiveId" IS NULL)
     `);
+    console.timeEnd('Migrating Orders activities from joins');
 
     // Contact
-    console.log('Migrating contact activities');
+    console.time('Migrating contact activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "FromCollectiveId" = ("data" -> 'fromCollective' ->> 'id')::integer
-      WHERE "type" IN (
-        'collective.contact'
-      )
+      WHERE "type" IN ('collective.contact')
     `);
+    console.timeEnd('Migrating contact activities');
 
     // Comments / conversations
-    console.log('Migrating comment/conversation activities');
+    console.time('Migrating comment/conversation activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "FromCollectiveId" = ("data" ->> 'FromCollectiveId')::integer
@@ -221,9 +226,10 @@ module.exports = {
         'expense.comment.created'
       )
     `);
+    console.timeEnd('Migrating comment/conversation activities');
 
     // Updates
-    console.log('Migrating updates activities');
+    console.time('Migrating updates activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "FromCollectiveId" = ("data" -> 'update' ->> 'FromCollectiveId')::integer
@@ -232,9 +238,10 @@ module.exports = {
         'collective.update.published'
       )
     `);
+    console.timeEnd('Migrating updates activities');
 
     // Host actions
-    console.log('Migrating host actions activities');
+    console.time('Migrating host actions activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET "HostCollectiveId" = (data -> 'host' ->> 'id')::integer
@@ -243,9 +250,10 @@ module.exports = {
         'collective.created'
       )
     `);
+    console.timeEnd('Migrating host actions activities');
 
     // Host status
-    console.log('Migrating host status activities');
+    console.time('Migrating host status activities');
     await queryInterface.sequelize.query(`
       UPDATE "Activities"
       SET
@@ -257,10 +265,11 @@ module.exports = {
         'deactivated.collective.as.host'
       )
     `);
+    console.timeEnd('Migrating host status activities');
 
     // Generic linker for HostCollectiveId
     // 'virtualcard.charge.declined' will get its HostCollectiveId set in the generic HostCollectiveId linker below (the data payload doesn't have the host id)
-    console.log('Populating HostCollectiveId for activities using JOIN');
+    console.time('Populating HostCollectiveId for activities using JOIN');
     await queryInterface.sequelize.query(`
       UPDATE "Activities" a
       SET "HostCollectiveId" = c."HostCollectiveId"
@@ -272,6 +281,13 @@ module.exports = {
       AND c."approvedAt" IS NOT NULL
       AND a."createdAt" >= c."approvedAt"
     `);
+    console.timeEnd('Populating HostCollectiveId for activities using JOIN');
+
+    // -- Create indexes (concurrently) --
+    console.time('Creating indexes');
+    await queryInterface.addIndex('Activities', ['FromCollectiveId'], { concurrently: true });
+    await queryInterface.addIndex('Activities', ['HostCollectiveId'], { concurrently: true });
+    console.timeEnd('Creating indexes');
   },
 
   async down(queryInterface) {
