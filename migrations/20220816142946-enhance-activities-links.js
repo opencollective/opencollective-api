@@ -154,6 +154,15 @@ module.exports = {
       )
     `);
 
+    // Expense moved root action
+    console.log('Migrating expense moved root activities');
+    await queryInterface.sequelize.query(`
+      UPDATE "Activities"
+      SET "FromCollectiveId" = ("data" -> 'movedFromCollective' ->> 'id')::integer,
+          "HostCollectiveId" = ("data" -> 'movedFromCollective' ->> 'HostCollectiveId')::integer
+      WHERE "type" IN ('collective.expense.moved')
+    `);
+
     // Order actions: from data
     console.log('Migrating Orders activities from data');
     await queryInterface.sequelize.query(`
