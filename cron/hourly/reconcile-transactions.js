@@ -1,45 +1,20 @@
 #!/usr/bin/env node
 import '../../server/env';
 
+import config from 'config';
 import { omit } from 'lodash';
 import moment from 'moment';
+import Stripe from 'stripe';
 
-import { activities } from '../../server/constants';
 import { Service as ConnectedAccountServices } from '../../server/constants/connected_account';
-import emailLib from '../../server/lib/email';
 import logger from '../../server/lib/logger';
 import * as privacyLib from '../../server/lib/privacy';
 import { reportErrorToSentry } from '../../server/lib/sentry';
-import stripe, { StripeCustomToken } from '../../server/lib/stripe';
 import models, { Op } from '../../server/models';
 import privacy from '../../server/paymentProviders/privacy';
 import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
 
 const DRY = process.env.DRY;
-
-async function sendPurchaseNotifyEmails(card, transactions) {
-  const collectiveId = card.dataValues.CollectiveId;
-  const collective = await models.Collective.findByPk(collectiveId);
-  const user = await models.User.findByPk(card.dataValues.UserId);
-  const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
-
-  const adminUsers = await collective.getAdminUsers();
-
-  for (const transaction of transactions) {
-    const amount = transaction.amount;
-    const currency = transaction.currency || 'USD';
-    await emailLib.send(
-      activities.VIRTUAL_CARD_PURCHASE,
-      adminUsers.map(u => u.dataValues.email),
-      {
-        responsibleAdmin: responsibleAdmin.dataValues,
-        collective: collective.dataValues,
-        amount,
-        currency,
-      },
-    );
-  }
-}
 
 async function reconcileConnectedAccount(connectedAccount) {
   const host = connectedAccount.collective;
@@ -73,8 +48,6 @@ async function reconcileConnectedAccount(connectedAccount) {
           'approvals',
         );
 
-        await sendPurchaseNotifyEmails(card, transactions);
-
         if (DRY) {
           logger.info(`Found ${transactions.length} pending transactions...`);
           logger.debug(JSON.stringify(transactions, null, 2));
@@ -83,8 +56,7 @@ async function reconcileConnectedAccount(connectedAccount) {
           await Promise.all(transactions.map(transaction => privacy.processTransaction(transaction)));
 
           logger.info(`Refreshing card details'...`);
-          const privacyCardArray = await privacyLib.listCards(connectedAccount.token, card.id);
-          const privacyCard = privacyCardArray?.data?.[0];
+          const [privacyCard] = await privacyLib.listCards(connectedAccount.token, card.id);
           if (!privacyCard) {
             throw new Error(`Could not find card ${card.id}`);
           }
@@ -112,15 +84,14 @@ async function reconcileConnectedAccount(connectedAccount) {
           expenses.map(expense => expense.data?.transactionId).filter(transactionId => !!transactionId),
         );
 
-        const stripeObj = host.slug === 'opencollective' ? stripe : StripeCustomToken(connectedAccount.token);
+        const stripe = Stripe(host.slug === 'opencollective' ? config.stripe.secret : connectedAccount.token);
 
-        const result = await stripeObj.issuing.transactions.list({
+        const result = await stripe.issuing.transactions.list({
           card: card.id,
           limit: 100,
         });
 
         const transactions = result.data.filter(transaction => !synchronizedTransactionIds.includes(transaction.id));
-        await sendPurchaseNotifyEmails(card, transactions);
 
         if (DRY) {
           logger.info(`Found ${transactions.length} pending transactions...`);

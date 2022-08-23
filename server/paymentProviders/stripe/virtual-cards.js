@@ -1,13 +1,12 @@
-import config from 'config';
 import { omit, pick } from 'lodash';
-import Stripe from 'stripe';
 
 import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
-import { convertToStripeAmount } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
 import models from '../../models';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
@@ -121,6 +120,26 @@ const setCardStatus = async (virtualCard, status = 'canceled' | 'active' | 'inac
   return data;
 };
 
+const sendPurchaseNotifyEmail = async (virtualCard, amount, currency) => {
+  const collectiveId = virtualCard.collective.id;
+  const collective = await models.Collective.findByPk(collectiveId);
+  const user = await models.User.findByPk(virtualCard.UserId);
+  const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
+
+  const adminUsers = await collective.getAdminUsers();
+
+  await emailLib.send(
+    activities.VIRTUAL_CARD_PURCHASE,
+    adminUsers.map(u => u.dataValues.email),
+    {
+      responsibleAdmin: responsibleAdmin.dataValues,
+      collective: collective.dataValues,
+      amount,
+      currency,
+    },
+  );
+};
+
 export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled');
 
 export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive');
@@ -201,6 +220,8 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       CreatedByUserId: UserId,
       amount,
     });
+
+    await sendPurchaseNotifyEmail(virtualCard, amount, currency);
   } catch (error) {
     if (expense) {
       await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
@@ -360,6 +381,5 @@ const checkStripeEvent = async (host, stripeEvent) => {
 };
 
 const getStripeClient = (slug, token) => {
-  const secretKey = slug === 'opencollective' ? config.stripe.secret : token;
-  return Stripe(secretKey);
+  return slug === 'opencollective' ? stripe : StripeCustomToken(token);
 };
