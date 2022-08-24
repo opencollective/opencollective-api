@@ -16,7 +16,7 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
   public declare readonly id: CreationOptional<number>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
-  public CreatedByUserId: number;
+  public declare CreatedByUserId: number;
   public declare status: HostApplicationStatus;
   public declare customData: Record<string, unknown> | null;
   public declare message: string;

@@ -241,7 +241,7 @@ export const fakeUpdate = async (updateData: Record<string, unknown> = {}, seque
 export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = {}) => {
   return models.ExpenseItem.create({
     amount: randAmount(),
-    url: attachmentData.url || `${randUrl()}.pdf`,
+    url: <string>attachmentData.url || `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
     ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,

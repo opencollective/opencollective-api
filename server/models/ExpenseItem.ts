@@ -1,45 +1,40 @@
 import { pick } from 'lodash';
+import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
-import restoreSequelizeAttributesOnClass from '../lib/restore-sequelize-attributes-on-class';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
 import models from '.';
 
+// Expense items diff as [newEntries, removedEntries, updatedEntries]
+type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]];
+
 /**
  * Sequelize model to represent an ExpenseItem, linked to the `ExpenseItems` table.
  */
-export class ExpenseItem extends Model {
-  public readonly id!: number;
-  public ExpenseId!: number;
-  public CreatedByUserId!: number;
-  public amount!: number;
-  public url!: string;
-  public createdAt!: Date;
-  public updatedAt!: Date;
-  public deletedAt: Date;
-  public incurredAt!: Date;
-  public description: string;
+export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
+  public declare readonly id: CreationOptional<number>;
+  public declare ExpenseId: number;
+  public declare CreatedByUserId: number;
+  public declare amount: number;
+  public declare url: string;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+  public declare deletedAt: CreationOptional<Date>;
+  public declare incurredAt: Date;
+  public declare description: CreationOptional<string>;
 
   private static editableFields = ['amount', 'url', 'description', 'incurredAt'];
-
-  constructor(...args) {
-    super(...args);
-    restoreSequelizeAttributesOnClass(new.target, this);
-  }
 
   /**
    * Based on `diffDBEntries`, diff two items list to know which ones where
    * added, removed or added.
    * @returns [newEntries, removedEntries, updatedEntries]
    */
-  static diffDBEntries = (
-    baseItems: ExpenseItem[],
-    itemsData: Record<string, unknown>[],
-  ): [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]] => {
+  static diffDBEntries = (baseItems: ExpenseItem[], itemsData: Record<string, unknown>[]): ExpenseItemsDiff => {
     return diffDBEntries(baseItems, itemsData, ExpenseItem.editableFields);
   };
 
