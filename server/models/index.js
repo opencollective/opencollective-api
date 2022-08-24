@@ -227,6 +227,8 @@ export function setupModels() {
     as: 'host',
   });
   m.Transaction.belongsTo(m.PaymentMethod);
+  m.Transaction.belongsTo(m.PayoutMethod);
+
   m.PaymentMethod.hasMany(m.Transaction);
 
   // Transaction settlements

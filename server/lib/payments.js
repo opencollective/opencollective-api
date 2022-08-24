@@ -166,6 +166,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'data.tax',
     'kind',
     'isDebt',
+    'PayoutMethodId',
   ]);
 
   refund.CreatedByUserId = user?.id || null;
