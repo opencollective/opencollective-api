@@ -139,7 +139,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.COLLECTIVE_EXPENSE_MISSING_RECEIPT:
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_ADDED:
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS:
-      await notify.collective(activity, { sendEvenIfNotProduction: true });
+      await notify.collective(activity);
       break;
 
     case ActivityTypes.ORDER_PROCESSING_CRYPTO:
@@ -509,7 +509,6 @@ export const notifyByEmail = async (activity: Activity) => {
       } else if (activity.data.payee.id) {
         await notify.collective(activity, {
           collectiveId: activity.data.payee.id,
-          sendEvenIfNotProduction: true,
         });
       }
       break;
@@ -517,25 +516,21 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.COLLECTIVE_EXPENSE_RECURRING_DRAFTED:
       await notify.collective(activity, {
         collectiveId: activity.data.payee.id,
-        sendEvenIfNotProduction: true,
       });
       break;
 
     case ActivityTypes.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE:
       await notify.collective(activity, {
         collectiveId: activity.data.fromCollective.id,
-        sendEvenIfNotProduction: true,
       });
       break;
 
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        sendEvenIfNotProduction: true,
       });
       await notify.collective(activity, {
         collectiveId: activity.data.host.id,
-        sendEvenIfNotProduction: true,
       });
       break;
 
