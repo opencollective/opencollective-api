@@ -255,6 +255,8 @@ function defineModel() {
             type: activities.COLLECTIVE_UPDATE_CREATED,
             UserId: instance.LastEditedByUserId,
             CollectiveId: instance.CollectiveId,
+            FromCollectiveId: instance.FromCollectiveId,
+            // TODO(InconsistentActivities): Should have HostCollectiveId
             data: {
               update: instance.activity,
             },
@@ -299,6 +301,8 @@ function defineModel() {
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
+      FromCollectiveId: this.FromCollectiveId,
+      HostCollectiveId: this.collective.approvedAt ? this.collective.HostCollectiveId : null,
       data: {
         fromCollective: this.fromCollective.activity,
         collective: this.collective.activity,

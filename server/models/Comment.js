@@ -162,6 +162,9 @@ function defineModel() {
             type,
             UserId: instance.CreatedByUserId,
             CollectiveId: instance.CollectiveId,
+            FromCollectiveId: instance.FromCollectiveId,
+            // TODO(InconsistentActivities): HostCollectiveId should be recorded
+            ExpenseId: instance.ExpenseId,
             data: {
               CommentId: instance.id,
               comment: {

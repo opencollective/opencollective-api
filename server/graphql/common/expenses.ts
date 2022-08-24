@@ -2045,18 +2045,23 @@ export const moveExpenses = async (
 
     // Record the individual activities for moving the expenses
     await models.Activity.bulkCreate(
-      updatedExpenses.map(expense => ({
-        type: ActivityTypes.COLLECTIVE_EXPENSE_MOVED,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: destinationAccount.id,
-        ExpenseId: expense.id,
-        data: {
-          expense: expense.info,
-          movedFromCollective: find(expenses, { id: expense.id }).collective.info,
-          collective: destinationAccount.info,
-        },
-      })),
+      updatedExpenses.map(expense => {
+        const originalExpense = find(expenses, { id: expense.id });
+        return {
+          type: ActivityTypes.COLLECTIVE_EXPENSE_MOVED,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          FromCollectiveId: originalExpense.collective.id,
+          CollectiveId: destinationAccount.id,
+          HostCollectiveId: destinationAccount.HostCollectiveId,
+          ExpenseId: expense.id,
+          data: {
+            expense: expense.info,
+            movedFromCollective: originalExpense.collective.info,
+            collective: destinationAccount.info,
+          },
+        };
+      }),
       {
         transaction: dbTransaction,
         hooks: false, // Hooks are not playing well with `bulkCreate`, and we don't need to send any email here anyway

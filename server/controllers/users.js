@@ -95,6 +95,8 @@ export const signin = async (req, res, next) => {
     await models.Activity.create({
       type: activities.USER_NEW_TOKEN,
       UserId: user.id,
+      FromCollectiveId: user.CollectiveId,
+      CollectiveId: user.CollectiveId,
       data: { notify: false },
     });
     const response = { success: true };

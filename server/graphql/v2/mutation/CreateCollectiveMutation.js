@@ -178,7 +178,8 @@ async function createCollective(_, args, req) {
           type: activities.COLLECTIVE_CREATED,
           UserId: user.id,
           UserTokenId: req.userToken?.id,
-          CollectiveId: get(host, 'id'),
+          CollectiveId: get(host, 'id'), // TODO(InconsistentActivities): Should be collective.id
+          HostCollectiveId: get(host, 'id'),
           data: {
             collective: collective.info,
             host: get(host, 'info'),

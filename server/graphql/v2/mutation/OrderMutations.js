@@ -193,6 +193,9 @@ const orderMutations = {
       await models.Activity.create({
         type: activities.SUBSCRIPTION_CANCELED,
         CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        HostCollectiveId: order.HostCollectiveId,
+        OrderId: order.id,
         UserId: order.CreatedByUserId,
         UserTokenId: req.userToken?.id,
         data: {

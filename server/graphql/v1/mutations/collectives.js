@@ -279,6 +279,8 @@ export async function createCollectiveFromGithub(_, args, req) {
     UserId: user.id,
     UserTokenId: req.userToken?.id,
     CollectiveId: collective.id,
+    FromCollectiveId: collective.id,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
     data: {
       collective: collective.info,
       host: host.info,
@@ -597,6 +599,8 @@ export async function sendMessageToCollective(_, args, req) {
     UserId: user.id,
     UserTokenId: req.userToken?.id,
     CollectiveId: collective.id,
+    FromCollectiveId: user.CollectiveId,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
     data: {
       fromCollective,
       collective,

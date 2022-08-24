@@ -191,6 +191,10 @@ async function run({ dryRun, limit, force } = {}) {
     if (shouldNotifyContributor) {
       const activity = {
         type: activities.CONTRIBUTION_REJECTED,
+        OrderId: order.id,
+        FromCollectiveId: fromCollective.id,
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
         data: {
           collective: collective.info,
           fromCollective: fromCollective.info,

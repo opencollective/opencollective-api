@@ -4,8 +4,8 @@
 
 enum ActivityTypes {
   ACTIVITY_ALL = 'all',
-  CONNECTED_ACCOUNT_CREATED = 'connected_account.created',
-  COLLECTIVE_CREATED_GITHUB = 'collective.created.github',
+  CONNECTED_ACCOUNT_CREATED = 'connected_account.created', // Not used yet
+  COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17
   COLLECTIVE_APPLY = 'collective.apply',
   COLLECTIVE_APPROVED = 'collective.approved',
   COLLECTIVE_REJECTED = 'collective.rejected',

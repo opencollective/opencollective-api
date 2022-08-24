@@ -1098,12 +1098,14 @@ function defineModel() {
       await models.Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
         CollectiveId: this.id,
+        FromCollectiveId: this.id,
         data: { collective: this.info },
       });
     } else if (this.type === types.COLLECTIVE) {
       await models.Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
         CollectiveId: this.id,
+        FromCollectiveId: this.id,
         data: { collective: this.info },
       });
     }
@@ -1170,6 +1172,7 @@ function defineModel() {
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
+      FromCollectiveId: this.id,
       data: { collective: this.info },
     });
 
@@ -1210,6 +1213,7 @@ function defineModel() {
         {
           type: activities.COLLECTIVE_FROZEN,
           CollectiveId: this.id,
+          HostCollectiveId: host.id,
           data: { collective: this.info, host: host.info, message },
         },
         { transaction },
@@ -1230,6 +1234,7 @@ function defineModel() {
         {
           type: activities.COLLECTIVE_UNFROZEN,
           CollectiveId: this.id,
+          HostCollectiveId: host.id,
           data: { collective: this.info, host: host.info, message },
         },
         { transaction },
@@ -1903,7 +1908,13 @@ function defineModel() {
     };
 
     return models.Activity.create(
-      { CollectiveId: this.id, type: activities.COLLECTIVE_MEMBER_CREATED, data },
+      {
+        type: activities.COLLECTIVE_MEMBER_CREATED,
+        FromCollectiveId: memberCollective.id,
+        HostCollectiveId: this.approvedAt ? this.HostCollectiveId : null,
+        CollectiveId: this.id,
+        data,
+      },
       sequelizeParams,
     );
   };
@@ -2328,6 +2339,7 @@ function defineModel() {
             models.Activity.create({
               UserId: creatorUser.id,
               CollectiveId: this.id,
+              HostCollectiveId: hostCollective.id,
               type: activities.COLLECTIVE_APPLY,
               data,
             }),

@@ -147,6 +147,8 @@ function defineModel() {
       await models.Activity.create({
         type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
         CollectiveId: this.CollectiveId,
+        FromCollectiveId: this.MemberCollectiveId,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
         data: {
           notify: false,
           memberCollective: member.activity,
@@ -165,6 +167,8 @@ function defineModel() {
     await models.Activity.create({
       type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
       CollectiveId: this.CollectiveId,
+      FromCollectiveId: this.MemberCollectiveId,
+      HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
       data: {
         notify: false,
         memberCollective: memberCollective?.activity,
@@ -193,6 +197,8 @@ function defineModel() {
       {
         type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
         CollectiveId: collective.id,
+        FromCollectiveId: this.MemberCollectiveId,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
         data: {
           role: MemberRoleLabels[this.role] || this.role.toLowerCase(),
           invitation: pick(this, ['id', 'role', 'description', 'since']),
@@ -264,6 +270,8 @@ function defineModel() {
           {
             type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
             CollectiveId: collective.id,
+            FromCollectiveId: this.MemberCollectiveId,
+            HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
             data: {
               notify: false,
               memberCollective: memberCollective.activity,

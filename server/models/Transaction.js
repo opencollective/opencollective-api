@@ -1030,6 +1030,9 @@ function defineModel() {
             TransactionId: transaction.id,
             CollectiveId: transaction.CollectiveId,
             UserId: transaction.CreatedByUserId,
+            FromCollectiveId: transaction.FromCollectiveId,
+            HostCollectiveId: transaction.HostCollectiveId,
+            OrderId: transaction.OrderId,
             data: {
               transaction: transaction.info,
               user: transaction.User && transaction.User.minimal,
