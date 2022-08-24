@@ -1039,7 +1039,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(membership).to.exist;
       });
 
-      it('attaches the PayoutMethod to the transaction itself', async () => {
+      it('attaches the PayoutMethod to the associated Transactions', async () => {
         const paymentProcessorFee = 100;
         const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
         const expense = await fakeExpense({
