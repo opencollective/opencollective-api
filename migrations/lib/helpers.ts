@@ -117,3 +117,12 @@ export const updateEnum = async (queryInterface, table, column, enumName, values
   );
   await executeQuery(queryInterface, `DROP TYPE "${enumName}_old"`);
 };
+
+/**
+ * Helper to check whether a column exists. Useful for migrations that need to be idempotent.
+ * Would be nice to have this in Sequelize: https://github.com/sequelize/sequelize/issues/14928
+ */
+export const doesColumnExist = async (queryInterface, table, column) => {
+  const tableDescription = await queryInterface.describeTable(table);
+  return Boolean(tableDescription[column]);
+};

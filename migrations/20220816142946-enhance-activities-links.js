@@ -1,35 +1,56 @@
 'use strict';
 
+import { doesColumnExist } from './lib/helpers';
+
 module.exports = {
   async up(queryInterface, Sequelize) {
     // -- Create columns --
     console.time('Creating columns');
 
-    await queryInterface.addColumn('Activities', 'OrderId', {
-      type: Sequelize.INTEGER,
-      references: { key: 'id', model: 'Orders' },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    });
+    if (!(await doesColumnExist(queryInterface, 'Activities', 'OrderId'))) {
+      await queryInterface.addColumn('Activities', 'OrderId', {
+        type: Sequelize.INTEGER,
+        references: { key: 'id', model: 'Orders' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      });
+    }
 
-    await queryInterface.addColumn('Activities', 'FromCollectiveId', {
-      type: Sequelize.INTEGER,
-      references: { key: 'id', model: 'Collectives' },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    });
+    if (!(await doesColumnExist(queryInterface, 'Activities', 'FromCollectiveId'))) {
+      await queryInterface.addColumn('Activities', 'FromCollectiveId', {
+        type: Sequelize.INTEGER,
+        references: { key: 'id', model: 'Collectives' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      });
+    }
 
-    await queryInterface.addColumn('Activities', 'HostCollectiveId', {
-      type: Sequelize.INTEGER,
-      references: { key: 'id', model: 'Collectives' },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: true,
-    });
+    if (!(await doesColumnExist(queryInterface, 'Activities', 'HostCollectiveId'))) {
+      await queryInterface.addColumn('Activities', 'HostCollectiveId', {
+        type: Sequelize.INTEGER,
+        references: { key: 'id', model: 'Collectives' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      });
+    }
 
     console.timeEnd('Creating columns');
+
+    // -- Create indexes --
+    console.time('Creating FromCollectiveId index');
+    await queryInterface.sequelize.query(
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS "activities__from_collective_id" ON "Activities" ("FromCollectiveId")`,
+    );
+    console.timeEnd('Creating FromCollectiveId index');
+
+    console.time('Creating HostCollectiveId index');
+    await queryInterface.sequelize.query(
+      `CREATE INDEX CONCURRENTLY IF NOT EXISTS "activities__host_collective_id" ON "Activities" ("HostCollectiveId")`,
+    );
+    console.timeEnd('Creating HostCollectiveId index');
 
     // -- Fill in columns from existing data --
     console.time("Migrating User actions where FromCollectiveId/CollectiveId should be user's profile");
@@ -40,6 +61,7 @@ module.exports = {
         "FromCollectiveId" = u."CollectiveId"
       FROM "Users" u
       WHERE u.id = a."UserId"
+      AND a."FromCollectiveId" IS NULL
       AND a."type" IN (
         'user.created',
         'user.new.token',
@@ -59,6 +81,7 @@ module.exports = {
         "HostCollectiveId" = t."HostCollectiveId"
       FROM "Transactions" t
       WHERE a."TransactionId" IS NOT NULL
+      AND a."FromCollectiveId" IS NULL
       AND t.id = a."TransactionId"
       AND a."createdAt" >= '2022-06-01' -- This migration is too heavy, we'll run the rest separately
     `);
@@ -91,6 +114,7 @@ module.exports = {
         'collective.core.member.removed',
         'collective.core.member.edited'
       )
+      AND "FromCollectiveId" IS NULL
       AND id NOT IN (136761, 154969) -- This two are broken on staging/api
     `);
     console.timeEnd('Migrating members');
@@ -108,6 +132,7 @@ module.exports = {
         'collective.frozen',
         'collective.unfrozen'
       )
+      AND "HostCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating Virtual Cards / Freeze collective activities');
 
@@ -124,6 +149,7 @@ module.exports = {
         'subscription.canceled',
         'contribution.rejected'
       )
+      AND "FromCollectiveId" IS NULL
       AND id != 170601 -- This one is corrupted in prod
     `);
     console.timeEnd('Migrating subscriptions & rejected contributions');
@@ -154,6 +180,8 @@ module.exports = {
         'collective.expense.recurring.drafted',
         'collective.expense.missing.receipt'
       )
+      AND "FromCollectiveId" IS NULL
+      AND "HostCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating expense activities');
 
@@ -164,6 +192,8 @@ module.exports = {
       SET "FromCollectiveId" = ("data" -> 'movedFromCollective' ->> 'id')::integer,
           "HostCollectiveId" = ("data" -> 'movedFromCollective' ->> 'HostCollectiveId')::integer
       WHERE "type" IN ('collective.expense.moved')
+      AND "FromCollectiveId" IS NULL
+      AND "HostCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating expense moved root activities');
 
@@ -187,6 +217,8 @@ module.exports = {
         'payment.failed',
         'payment.creditcard.confirmation'
       )
+      AND "FromCollectiveId" IS NULL
+      AND "OrderId" IS NULL
     `);
     console.timeEnd('Migrating Orders activities from data');
 
@@ -210,6 +242,7 @@ module.exports = {
       UPDATE "Activities"
       SET "FromCollectiveId" = ("data" -> 'fromCollective' ->> 'id')::integer
       WHERE "type" IN ('collective.contact')
+      AND "FromCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating contact activities');
 
@@ -225,6 +258,7 @@ module.exports = {
         'update.comment.created',
         'expense.comment.created'
       )
+      AND "FromCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating comment/conversation activities');
 
@@ -237,6 +271,7 @@ module.exports = {
         'collective.update.created',
         'collective.update.published'
       )
+      AND "FromCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating updates activities');
 
@@ -249,6 +284,7 @@ module.exports = {
         'collective.apply',
         'collective.created'
       )
+      AND "HostCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating host actions activities');
 
@@ -264,6 +300,8 @@ module.exports = {
         'activated.collective.as.independent',
         'deactivated.collective.as.host'
       )
+      AND "HostCollectiveId" IS NULL
+      AND "FromCollectiveId" IS NULL
     `);
     console.timeEnd('Migrating host status activities');
 
@@ -282,12 +320,6 @@ module.exports = {
       AND a."createdAt" >= c."approvedAt"
     `);
     console.timeEnd('Populating HostCollectiveId for activities using JOIN');
-
-    // -- Create indexes (concurrently) --
-    console.time('Creating indexes');
-    await queryInterface.addIndex('Activities', ['FromCollectiveId'], { concurrently: true });
-    await queryInterface.addIndex('Activities', ['HostCollectiveId'], { concurrently: true });
-    console.timeEnd('Creating indexes');
   },
 
   async down(queryInterface) {
