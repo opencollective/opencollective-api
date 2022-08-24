@@ -13,7 +13,7 @@ import cache from '../../lib/cache';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
-import models from '../../models';
+import models, { sequelize } from '../../models';
 import PayoutMethod from '../../models/PayoutMethod';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
 import {
@@ -291,20 +291,21 @@ const getOrCreateActiveBatch = async (
     ],
   });
 
+  const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(providerName));
+  const profileId = connectedAccount.data.id;
+  const token = options?.token || (await getToken(connectedAccount));
+
   if (expense) {
-    return expense.data.batchGroup as BatchGroup;
-  } else {
-    const connectedAccount = await host.getAccountForPaymentProvider(providerName);
-
-    const profileId = connectedAccount.data.id;
-    const token = options?.token || (await getToken(connectedAccount));
-    const batchGroup = await transferwise.createBatchGroup(token, profileId, {
-      name: uuid(),
-      sourceCurrency: connectedAccount.data.currency || host.currency,
-    });
-
-    return batchGroup;
+    const batchGroup = await transferwise.getBatchGroup(token, profileId, expense.data.batchGroup.id);
+    if (batchGroup.status === 'NEW') {
+      return batchGroup;
+    }
   }
+
+  return transferwise.createBatchGroup(token, profileId, {
+    name: uuid(),
+    sourceCurrency: connectedAccount.data.currency || host.currency,
+  });
 };
 
 async function scheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
@@ -396,6 +397,21 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
       });
 
       batchGroup = await transferwise.completeBatchGroup(token, profileId, batchGroup.id, batchGroup.version);
+
+      // Update batchGroup status to make sure we don't try to reuse a completed batchGroup
+      await sequelize.query(
+        `
+        UPDATE "Expenses" SET "data" = JSONB_SET("data", '{batchGroup}', :newBatchGroup::JSONB) WHERE "id" IN (:expenseIds) AND "data"#>>'{batchGroup, id}' = :batchGroupId;
+      `,
+        {
+          replacements: {
+            expenseIds: expenses.map(e => e.id),
+            newBatchGroup: JSON.stringify(batchGroup),
+            batchGroupId: batchGroup.id,
+          },
+        },
+      );
+
       const fundResponse = await transferwise.fundBatchGroup(token, profileId, batchGroup.id);
       if ('status' in fundResponse && 'headers' in fundResponse) {
         const cacheKey = `transferwise_ott_${fundResponse.headers['x-2fa-approval']}`;

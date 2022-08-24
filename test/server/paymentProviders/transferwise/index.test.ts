@@ -191,8 +191,7 @@ describe('server/paymentProviders/transferwise/index', () => {
 
     it('should use existing quote if available', async () => {
       createQuote.resetHistory();
-      const newQuote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
-      console.log(JSON.stringify(newQuote, null, 2));
+      await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
       expect(createQuote.callCount).to.be.equal(0);
     });
   });
@@ -413,7 +412,7 @@ describe('server/paymentProviders/transferwise/index', () => {
       createBatchGroup.resolves({ id: batchGroupId, version: 0, status: 'NEW' });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
       createBatchGroupTransfer.resolves({ id: 800 });
-      completeBatchGroup.resolves({ id: batchGroupId, version: 2 });
+      completeBatchGroup.resolves({ id: batchGroupId, version: 2, status: 'COMPLETED' });
       getBorderlessAccount.resolves({
         balances: [
           {
@@ -431,6 +430,13 @@ describe('server/paymentProviders/transferwise/index', () => {
 
       expect(fundBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.firstCall).to.not.have.nested.property('args[3]');
+    });
+
+    it('should update existing batchGroup information on expenses', async () => {
+      await expense.reload();
+
+      expect(expense.data).to.have.nested.property('batchGroup.status', 'COMPLETED');
+      expect(expense.data).to.have.nested.property('batchGroup.version', 2);
     });
 
     it('should return OTT info if request fails', () => {
