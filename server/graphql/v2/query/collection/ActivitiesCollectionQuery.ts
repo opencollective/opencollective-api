@@ -32,8 +32,7 @@ const ActivitiesCollectionArgs = {
     defaultValue: null,
     description: 'Only return activities that were created before this date',
   },
-  // TODO: No need to repeat "activity" in the name of the field, we should call it "type"
-  activityType: {
+  type: {
     type: new GraphQLList(ActivityAndClassesType),
     defaultValue: null,
     description: 'Only return activities that are of this type',
@@ -81,7 +80,7 @@ const ActivitiesCollectionQuery = {
     if (args.dateTo) {
       where['createdAt'] = Object.assign({}, where['createdAt'], { [Op.lte]: args.dateTo });
     }
-    if (args.activityType) {
+    if (args.type) {
       where['type'] = { [Op.in]: ActivitiesPerClass[args.activityType] };
     }
 
