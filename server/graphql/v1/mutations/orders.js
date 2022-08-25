@@ -356,7 +356,7 @@ export async function createOrder(order, req) {
   let remoteUser = req.remoteUser;
 
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
+    throw new FeatureNotAllowedForUser();
   } else if (!remoteUser) {
     await checkGuestContribution(order, loaders);
   }
@@ -514,6 +514,10 @@ export async function createOrder(order, req) {
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
         captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
+        if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
+          throw new FeatureNotAllowedForUser();
+        }
+
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
         isGuest = true;
