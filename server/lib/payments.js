@@ -107,6 +107,12 @@ export async function processOrder(order, options) {
  * @param {string} message a optional message to explain why the transaction is rejected
  */
 export async function refundTransaction(transaction, user, message) {
+  // Make sure to fetch PaymentMethod
+  // Fetch PaymentMethod even if it's deleted
+  if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
+    transaction.PaymentMethod = await models.PaymentMethod.findByPk(transaction.PaymentMethodId, { paranoid: false });
+  }
+
   // If no payment method was used, it means that we're using a manual payment method
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
@@ -122,7 +128,7 @@ export async function refundTransaction(transaction, user, message) {
     result = await paymentMethodProvider.refundTransaction(transaction, user, message);
   } catch (e) {
     if (
-      e.message.includes('has already been refunded') &&
+      (e.message.includes('has already been refunded') || e.message.includes('has been charged back')) &&
       paymentMethodProvider &&
       paymentMethodProvider.refundTransactionOnlyInDatabase
     ) {
