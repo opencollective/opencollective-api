@@ -77,7 +77,7 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
     await processAuthorization(stripeAuthorization, stripeEvent);
     await testUtils.waitForCondition(() => sendMessage.callCount === 1);
     const [emailTo, subject, body] = sendMessage.getCall(0).args;
-    expect(emailTo[0]).to.equal(collectiveAdmin.email);
+    expect(emailTo).to.equal(collectiveAdmin.email);
     expect(subject).to.equal('Virtual Card Purchase');
     expect(body).to.contain('A card attached to Open Collective was charged $1.00.');
   });

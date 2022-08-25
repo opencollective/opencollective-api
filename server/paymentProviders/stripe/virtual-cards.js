@@ -3,7 +3,6 @@ import { omit, pick } from 'lodash';
 import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
-import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
@@ -120,24 +119,22 @@ const setCardStatus = async (virtualCard, status = 'canceled' | 'active' | 'inac
   return data;
 };
 
-const sendPurchaseNotifyEmail = async (virtualCard, amount, currency) => {
-  const collectiveId = virtualCard.collective.id;
-  const collective = await models.Collective.findByPk(collectiveId);
+const recordInActivityLog = async (virtualCard, amount, currency) => {
+  const CollectiveId = virtualCard.collective.id;
+  const collective = await models.Collective.findByPk(CollectiveId);
   const user = await models.User.findByPk(virtualCard.UserId);
   const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
 
-  const adminUsers = await collective.getAdminUsers();
-
-  await emailLib.send(
-    activities.VIRTUAL_CARD_PURCHASE,
-    adminUsers.map(u => u.dataValues.email),
-    {
+  await models.Activity.create({
+    type: activities.VIRTUAL_CARD_PURCHASE,
+    CollectiveId,
+    data: {
       responsibleAdmin: responsibleAdmin.dataValues,
       collective: collective.dataValues,
       amount,
       currency,
     },
-  );
+  });
 };
 
 export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled');
@@ -221,7 +218,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       amount,
     });
 
-    await sendPurchaseNotifyEmail(virtualCard, amount, currency);
+    await recordInActivityLog(virtualCard, amount, currency);
   } catch (error) {
     if (expense) {
       await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
