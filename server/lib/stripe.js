@@ -76,9 +76,24 @@ export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
   if (!charge) {
     throw Error(`charge id ${chargeId} not found`);
   }
+
+  console.log(charge);
+
+  // if (charge.disputed) {
+  //   console.log('Charge is already disputed.');
+  //   return;
+  // }
+  // if (charge.refunded) {
+  //   console.log('Charge is already refunded.');
+  //   return;
+  // }
+
   const refundId = get(charge, 'refunds.data[0].id');
-  const refund = await stripe.refunds.retrieve(refundId, {
-    stripeAccount: stripeAccount.username,
-  });
+  const refund = refundId
+    ? await stripe.refunds.retrieve(refundId, {
+        stripeAccount: stripeAccount.username,
+      })
+    : null;
+
   return { charge, refund };
 };
