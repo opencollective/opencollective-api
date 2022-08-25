@@ -16,9 +16,6 @@ export const refundTransaction = async (
     throw new Error(`Transaction #${transaction.id} refund was already requested and it is pending`);
   }
 
-  console.log(transaction);
-  console.log({ chargeId });
-
   /* From which stripe account it's going to be refunded */
   const collective = await models.Collective.findByPk(
     transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
@@ -82,12 +79,14 @@ export const refundTransactionOnlyInDatabase = async (
   const refundBalance = await stripe.balanceTransactions.retrieve((refund || dispute).balance_transaction, {
     stripeAccount: hostStripeAccount.username,
   });
+  console.log({ refundBalance });
   const fees = extractFees(refundBalance, refundBalance.currency);
+  console.log({ fees });
 
   /* Create negative transactions for the received transaction */
   return await createRefundTransaction(
     transaction,
-    fees.stripeFee,
+    refund ? fees.stripeFee : 0, // With disputes, we get 1500 as a value but will not handle this
     { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
     user,
   );
