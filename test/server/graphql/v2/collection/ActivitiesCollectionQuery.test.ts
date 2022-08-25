@@ -2,12 +2,17 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 
+import ActivityTypes from '../../../../../server/constants/activities';
 import { fakeActivity, fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const activitiesCollectionQuery = gqlV2/* GraphQL */ `
-  query Activities($account: AccountReferenceInput!, $attribution: ActivityAttribution) {
-    activities(limit: 100, offset: 0, account: $account, attribution: $attribution) {
+  query Activities(
+    $account: AccountReferenceInput!
+    $attribution: ActivityAttribution
+    $type: [ActivityAndClassesType!]
+  ) {
+    activities(limit: 100, offset: 0, account: $account, attribution: $attribution, type: $type) {
       offset
       limit
       totalCount
@@ -49,10 +54,31 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
 
     await Promise.all([
       // Public collective activities
-      fakeActivity({ FromCollectiveId: collective.id, CollectiveId: collective.id, createdAt: getNextDate() }), // self
-      fakeActivity({ FromCollectiveId: collective.id, createdAt: getNextDate() }), // authored
-      fakeActivity({ CollectiveId: collective.id, createdAt: getNextDate() }), // received
-      fakeActivity({ HostCollectiveId: collective.id, createdAt: getNextDate() }), // Hosted
+      // self
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_CREATED,
+        FromCollectiveId: collective.id,
+        CollectiveId: collective.id,
+        createdAt: getNextDate(),
+      }),
+      // authored
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+        FromCollectiveId: collective.id,
+        createdAt: getNextDate(),
+      }),
+      // received
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
+        CollectiveId: collective.id,
+        createdAt: getNextDate(),
+      }),
+      // Hosted
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
+        HostCollectiveId: collective.id,
+        createdAt: getNextDate(),
+      }),
       // Random activities
       ...times(5, () => fakeActivity({ createdAt: getNextDate() })),
     ]);
@@ -124,6 +150,32 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.activities.totalCount).to.eq(1);
       expect(result.data.activities.nodes[0].host.slug).to.eq(collective.slug);
+    });
+  });
+
+  describe('filters activities by class/type', () => {
+    it('Can filter by class', async () => {
+      const variables = { account: { legacyId: collective.id }, type: 'EXPENSES' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(3);
+    });
+
+    it('Can filter by type', async () => {
+      const variables = { account: { legacyId: collective.id }, type: 'COLLECTIVE_EXPENSE_CREATED' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(2);
+    });
+
+    it('Can do both at the same time', async () => {
+      const variables = { account: { legacyId: collective.id }, type: ['COLLECTIVE_EXPENSE_CREATED', 'COLLECTIVE'] };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(3);
     });
   });
 });
