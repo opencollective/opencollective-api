@@ -16,6 +16,9 @@ export const refundTransaction = async (
     throw new Error(`Transaction #${transaction.id} refund was already requested and it is pending`);
   }
 
+  console.log(transaction);
+  console.log({ chargeId });
+
   /* From which stripe account it's going to be refunded */
   const collective = await models.Collective.findByPk(
     transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId,
