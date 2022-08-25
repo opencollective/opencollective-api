@@ -75,11 +75,11 @@ export const refundTransactionOnlyInDatabase = async (
   const hostStripeAccount = await collective.getHostStripeAccount();
 
   /* Refund both charge & application fee */
-  const { charge, refund } = await retrieveChargeWithRefund(chargeId, hostStripeAccount);
-  if (!refund) {
-    throw new Error('No refunds found in stripe.');
+  const { charge, refund, dispute } = await retrieveChargeWithRefund(chargeId, hostStripeAccount);
+  if (!refund && !dispute) {
+    throw new Error('No refund or dispute found in Stripe.');
   }
-  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
+  const refundBalance = await stripe.balanceTransactions.retrieve((refund || dispute).balance_transaction, {
     stripeAccount: hostStripeAccount.username,
   });
   const fees = extractFees(refundBalance, refundBalance.currency);
