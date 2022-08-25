@@ -226,27 +226,40 @@ export const AccountStats = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'The end date of the time series',
           },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
         },
         async resolve(collective, args) {
           const limit = args.limit;
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
-          return models.Expense.getCollectiveExpensesTags(collective, { limit, dateFrom, dateTo });
+          const includeChildren = args.includeChildren;
+          return models.Expense.getCollectiveExpensesTags(collective, { limit, dateFrom, dateTo, includeChildren });
         },
       },
       expensesTagsTimeSeries: {
         type: new GraphQLNonNull(TimeSeriesAmount),
         args: {
           ...TimeSeriesArgs,
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include expense to children (Projects and Events)',
+            defaultValue: false,
+          },
         },
         description: 'History of the expense tags used by this collective.',
         resolve: async (collective, args) => {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const includeChildren = args.includeChildren;
           const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective, timeUnit, {
             dateFrom,
             dateTo,
+            includeChildren,
           });
           return {
             dateFrom,
@@ -272,6 +285,11 @@ export const AccountStats = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'The end date of the time series',
           },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
@@ -279,20 +297,26 @@ export const AccountStats = new GraphQLObjectType({
           return sequelize.query(
             `
             SELECT
-            (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
-            COUNT(o."id") as "count",
-            ABS(SUM(t."amount")) as "amount",
-            t."currency"
+              (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+              COUNT(o."id") as "count",
+              ABS(SUM(t."amount")) as "amount",
+              t."currency"
             FROM "Transactions" t
             LEFT JOIN "Orders" o
-            ON t."OrderId" = o."id"
+              ON t."OrderId" = o."id"
+            INNER JOIN "Collectives" c
+              ON (
+                c."id" = $collectiveId
+                ${args.includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
+              )
+              AND c."deletedAt" IS NULL
             WHERE t."type" = 'CREDIT'
-            AND t."kind" = 'CONTRIBUTION'
-            AND t."CollectiveId" = $collectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t."deletedAt" IS NULL
-            ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-            ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+              AND t."kind" = 'CONTRIBUTION'
+              AND t."CollectiveId" =  c."id"
+              AND t."RefundTransactionId" IS NULL
+              AND t."deletedAt" IS NULL
+              ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
             GROUP BY (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
             ORDER BY ABS(SUM(t."amount")) DESC
             `,
@@ -311,6 +335,11 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
         args: {
           ...TimeSeriesArgs,
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
@@ -319,20 +348,27 @@ export const AccountStats = new GraphQLObjectType({
           const results = await sequelize.query(
             `
             SELECT
-            DATE_TRUNC($timeUnit, t."createdAt") AS "date",
-            (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
-            ABS(SUM(t."amount")) as "amount",
-            t."currency"
+              DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+              (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+              ABS(SUM(t."amount")) as "amount",
+              t."currency"
             FROM "Transactions" t
             LEFT JOIN "Orders" o
-            ON t."OrderId" = o."id"
-            WHERE t."type" = 'CREDIT'
-            AND t."kind" = 'CONTRIBUTION'
-            AND t."CollectiveId" = $collectiveId
-            AND t."RefundTransactionId" IS NULL
-            AND t."deletedAt" IS NULL
-            ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-            ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+              ON t."OrderId" = o."id"
+            INNER JOIN "Collectives" c
+              ON (
+                c."id" = $collectiveId
+                ${args.includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
+              )
+              AND c."deletedAt" IS NULL
+            WHERE
+              t."type" = 'CREDIT'
+              AND t."kind" = 'CONTRIBUTION'
+              AND t."CollectiveId" = c."id"
+              AND t."RefundTransactionId" IS NULL
+              AND t."deletedAt" IS NULL
+              ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
             GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
             ORDER BY DATE_TRUNC($timeUnit, t."createdAt"), ABS(SUM(t."amount")) DESC
             `,

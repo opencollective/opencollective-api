@@ -507,26 +507,34 @@ function defineModel() {
 
   Expense.getCollectiveExpensesTags = async function (
     collective,
-    { dateFrom = null, dateTo = null, limit = 100 } = {},
+    { dateFrom = null, dateTo = null, limit = 100, includeChildren = false } = {},
   ) {
     const noTag = 'no tag';
     return sequelize.query(
       `
-      SELECT TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
-      COUNT(e."id") as "count",
-      ABS(SUM(t."amount")) as "amount",
-      t."currency" as "currency"
+      SELECT
+        TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
+        COUNT(e."id") as "count",
+        ABS(SUM(t."amount")) as "amount",
+        t."currency" as "currency"
       FROM "Expenses" e
-      INNER JOIN "Transactions" t ON t."ExpenseId" = e."id"
-      WHERE e."CollectiveId" = $collectiveId
-      AND e."deletedAt" IS NULL
-      AND e."status" = 'PAID'
-      AND t."CollectiveId" = $collectiveId
-      AND t."RefundTransactionId" IS NULL
-      AND t."type" = 'DEBIT'
-      AND t."deletedAt" IS NULL
-      ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-      ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+      INNER JOIN "Transactions" t
+        ON t."ExpenseId" = e."id"
+      INNER JOIN "Collectives" c
+        ON (
+          c."id" = $collectiveId
+          ${includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
+        )
+        AND c."deletedAt" IS NULL
+      WHERE e."CollectiveId" = c."id"
+        AND e."deletedAt" IS NULL
+        AND e."status" = 'PAID'
+        AND t."CollectiveId" = c."id"
+        AND t."RefundTransactionId" IS NULL
+        AND t."type" = 'DEBIT'
+        AND t."deletedAt" IS NULL
+        ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+        ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
       GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
       ORDER BY ABS(SUM(t."amount")) DESC
       LIMIT $limit
@@ -545,27 +553,35 @@ function defineModel() {
   Expense.getCollectiveExpensesTagsTimeSeries = async function (
     collective,
     timeUnit,
-    { dateFrom = null, dateTo = null } = {},
+    { dateFrom = null, dateTo = null, includeChildren = false } = {},
   ) {
     const noTag = 'no tag';
     return sequelize.query(
       `
-      SELECT DATE_TRUNC($timeUnit, t."createdAt") AS "date",
-      TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
-      COUNT(e."id") as "count",
-      ABS(SUM(t."amount")) as "amount",
-      t."currency" as "currency"
+      SELECT
+        DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+        TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
+        COUNT(e."id") as "count",
+        ABS(SUM(t."amount")) as "amount",
+        t."currency" as "currency"
       FROM "Expenses" e
-      INNER JOIN "Transactions" t ON t."ExpenseId" = e."id"
-      AND t."deletedAt" IS NULL
-      WHERE e."CollectiveId" = $collectiveId
-      AND e."deletedAt" IS NULL
-      AND e."status" = 'PAID'
-      AND t."CollectiveId" = $collectiveId
-      AND t."RefundTransactionId" IS NULL
-      AND t."type" = 'DEBIT'
-      ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-      ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+      INNER JOIN "Transactions" t
+        ON t."ExpenseId" = e."id"
+        AND t."deletedAt" IS NULL
+      INNER JOIN "Collectives" c
+        ON (
+          c."id" = $collectiveId
+          ${includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
+        )
+        AND c."deletedAt" IS NULL
+      WHERE e."CollectiveId" = c."id"
+        AND e."deletedAt" IS NULL
+        AND e."status" = 'PAID'
+        AND t."CollectiveId" = c."id"
+        AND t."RefundTransactionId" IS NULL
+        AND t."type" = 'DEBIT'
+        ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+        ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
       GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
       ORDER BY DATE_TRUNC($timeUnit, t."createdAt") DESC, ABS(SUM(t."amount")) DESC
     `,
