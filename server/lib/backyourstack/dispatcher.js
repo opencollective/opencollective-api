@@ -162,6 +162,7 @@ export async function dispatch(order, subscription) {
       type: activities.BACKYOURSTACK_DISPATCH_CONFIRMED,
       UserId: order.CreatedByUserId,
       CollectiveId: collective.id,
+      OrderId: order.id,
       data: {
         orders: dispatchedOrders,
         collective: collective.info,
