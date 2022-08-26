@@ -12,6 +12,8 @@ import { ActivityAndClassesType } from '../../enum/ActivityType';
 import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
+const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
+
 const ActivitiesCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
@@ -83,8 +85,9 @@ const ActivitiesCollectionQuery = {
     }
     if (args.type) {
       const selectedActivities: string[] = uniq(flatten(args.type.map(type => ActivitiesPerClass[type] || type)));
-      const ignoredActivities: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
-      where['type'] = selectedActivities.filter(type => !ignoredActivities.includes(type));
+      where['type'] = selectedActivities.filter(type => !IGNORED_ACTIVITIES.includes(type));
+    } else {
+      where['type'] = { [Op.not]: IGNORED_ACTIVITIES };
     }
 
     const order: Order = [['createdAt', 'DESC']];
