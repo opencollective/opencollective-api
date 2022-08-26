@@ -1451,28 +1451,14 @@ const getWiseFxRateInfoFromExpenseData = (expense, expectedSourceCurrency: strin
   }
 };
 
-export async function createTransferWiseTransactionsAndUpdateExpense({ host, expense, data, fees, remoteUser }) {
-  if (host.settings?.transferwise?.ignorePaymentProcessorFees) {
-    // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
-    // See https://github.com/opencollective/opencollective/issues/5113
-    fees.paymentProcessorFeeInHostCurrency = 0;
-  } else if (data?.paymentOption?.fee?.total) {
-    fees.paymentProcessorFeeInHostCurrency = Math.round(data.paymentOption.fee.total * 100);
-  }
-
-  // Get FX rate
-  const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, host.currency);
-  if (!wiseFxRateInfo) {
-    logger.warn(`Could not retrieve the FX rate from Wise for expense #${expense.id}. Falling back to 'auto' mode.`);
-  }
-
-  await createTransactionsFromPaidExpense(host, expense, fees, wiseFxRateInfo?.value || 'auto', data);
+export async function setTransferWiseExpenseAsProcessing({ host, expense, data, feesInHostCurrency, remoteUser }) {
+  await expense.update({ HostCollectiveId: host.id, data: { ...expense.data, ...data, feesInHostCurrency } });
+  await expense.setProcessing(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
     message: expense.data?.paymentOption?.formattedEstimatedDelivery
       ? `ETA: ${expense.data.paymentOption.formattedEstimatedDelivery}`
       : undefined,
   });
-  await expense.setProcessing(remoteUser.id);
   return expense;
 }
 
@@ -1838,11 +1824,11 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
 
           // Early return, Webhook will mark expense as Paid when the transaction completes.
-          return createTransferWiseTransactionsAndUpdateExpense({
+          return setTransferWiseExpenseAsProcessing({
             host,
             expense,
             data,
-            fees: feesInHostCurrency,
+            feesInHostCurrency,
             remoteUser,
           });
         }

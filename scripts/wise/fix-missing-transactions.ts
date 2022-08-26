@@ -2,10 +2,7 @@ import '../../server/env';
 
 import { get, toNumber } from 'lodash';
 
-import {
-  checkHasBalanceToPayExpense,
-  createTransferWiseTransactionsAndUpdateExpense,
-} from '../../server/graphql/common/expenses';
+import { checkHasBalanceToPayExpense, setTransferWiseExpenseAsProcessing } from '../../server/graphql/common/expenses';
 import models from '../../server/models';
 
 const IS_DRY = process.env.DRY !== 'false';
@@ -38,11 +35,11 @@ const checkExpense = async expenseId => {
     host,
     expense,
     data: expense.data,
-    fees: feesInHostCurrency,
+    feesInHostCurrency,
     remoteUser: { id: expense.lastEditedById },
   };
   if (!IS_DRY) {
-    return createTransferWiseTransactionsAndUpdateExpense(args);
+    return setTransferWiseExpenseAsProcessing(args);
   } else {
     console.log('createTransferWiseTransactionsAndUpdateExpense(\n', JSON.stringify(args, null, 2));
   }
