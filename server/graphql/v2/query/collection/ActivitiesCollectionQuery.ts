@@ -1,8 +1,9 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
+import { flatten, uniq } from 'lodash';
 import { Order } from 'sequelize';
 
-import { ActivitiesPerClass } from '../../../../constants/activities';
+import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activities';
 import models, { Op } from '../../../../models';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
 import { ActivityCollection } from '../../collection/ActivityCollection';
@@ -32,11 +33,10 @@ const ActivitiesCollectionArgs = {
     defaultValue: null,
     description: 'Only return activities that were created before this date',
   },
-  // TODO: No need to repeat "activity" in the name of the field, we should call it "type"
-  activityType: {
-    type: new GraphQLList(ActivityAndClassesType),
+  type: {
+    type: new GraphQLList(new GraphQLNonNull(ActivityAndClassesType)),
     defaultValue: null,
-    description: 'Only return activities that are of this type',
+    description: 'Only return activities that are of this class/type',
   },
 };
 
@@ -81,8 +81,10 @@ const ActivitiesCollectionQuery = {
     if (args.dateTo) {
       where['createdAt'] = Object.assign({}, where['createdAt'], { [Op.lte]: args.dateTo });
     }
-    if (args.activityType) {
-      where['type'] = { [Op.in]: ActivitiesPerClass[args.activityType] };
+    if (args.type) {
+      const selectedActivities: string[] = uniq(flatten(args.type.map(type => ActivitiesPerClass[type] || type)));
+      const ignoredActivities: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
+      where['type'] = selectedActivities.filter(type => !ignoredActivities.includes(type));
     }
 
     const order: Order = [['createdAt', 'DESC']];
