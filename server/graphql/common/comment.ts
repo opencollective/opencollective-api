@@ -1,27 +1,33 @@
 import { pick } from 'lodash';
 
+import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
+import { canSeeUpdate } from './update';
 
-/**
- * Return the collective ID for the given comment based on it's association (conversation,
- * expense or update).
- */
-const getCollectiveIdForCommentEntity = async commentValues => {
+type CommentableEntity = typeof models.Update | typeof models.Expense | typeof models.Conversation;
+
+const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
+  const include = { association: 'collective', required: true };
+  let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
+  let entity;
+
   if (commentValues.ExpenseId) {
-    const expense = await models.Expense.findByPk(commentValues.ExpenseId);
-    return expense && expense.CollectiveId;
+    entity = await models.Expense.findByPk(commentValues.ExpenseId, { include });
+    activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
   } else if (commentValues.ConversationId) {
-    const conversation = await models.Conversation.findByPk(commentValues.ConversationId);
-    return conversation && conversation.CollectiveId;
+    entity = await models.Conversation.findByPk(commentValues.ConversationId, { include });
+    activityType = ActivityTypes.CONVERSATION_COMMENT_CREATED;
   } else if (commentValues.UpdateId) {
-    const update = await models.Update.findByPk(commentValues.UpdateId);
-    return update && update.CollectiveId;
+    entity = await models.Update.findByPk(commentValues.UpdateId, { include });
+    activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
   }
+
+  return [entity, activityType];
 };
 
 /**
@@ -90,27 +96,48 @@ async function createComment(commentData, req) {
   }
 
   // Load entity and its collective id
-  const CollectiveId = await getCollectiveIdForCommentEntity(commentData);
-  if (!CollectiveId) {
+  const [commentedEntity, activityType] = await loadCommentedEntity(commentData);
+  if (!commentedEntity) {
     throw new ValidationFailed("The item you're trying to comment doesn't exist or has been deleted.");
   }
 
   if (ExpenseId) {
-    const expense = await req.loaders.Expense.byId.load(ExpenseId);
-    if (!expense || !(await canComment(req, expense))) {
+    if (!(await canComment(req, commentedEntity))) {
       throw new ValidationFailed('You are not allowed to comment on this expense');
+    }
+  } else if (UpdateId) {
+    if (!(await canSeeUpdate(commentedEntity, req))) {
+      throw new Unauthorized('You do not have the permission to post comments on this update');
     }
   }
 
   // Create comment
   const comment = await models.Comment.create({
-    CollectiveId,
+    CreatedByUserId: remoteUser.id,
+    FromCollectiveId: remoteUser.CollectiveId,
+    CollectiveId: commentedEntity.collective.id,
     ExpenseId,
     UpdateId,
     ConversationId,
     html, // HTML is sanitized at the model level, no need to do it here
-    CreatedByUserId: remoteUser.id,
-    FromCollectiveId: remoteUser.CollectiveId,
+  });
+
+  // Create activity
+  await models.Activity.create({
+    type: activityType,
+    UserId: comment.CreatedByUserId,
+    CollectiveId: comment.CollectiveId,
+    FromCollectiveId: comment.FromCollectiveId,
+    HostCollectiveId: commentedEntity.collective.approvedAt ? commentedEntity.collective.HostCollectiveId : null,
+    ExpenseId: comment.ExpenseId,
+    data: {
+      CommentId: comment.id,
+      comment: { id: comment.id, html: comment.html },
+      FromCollectiveId: comment.FromCollectiveId,
+      ExpenseId: comment.ExpenseId,
+      UpdateId: comment.UpdateId,
+      ConversationId: comment.ConversationId,
+    },
   });
 
   if (ConversationId) {

@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { ConversationReferenceInput } from './ConversationReferenceInput';
 import { ExpenseReferenceInput } from './ExpenseReferenceInput';
 import { UpdateReferenceInput } from './UpdateReferenceInput';
 
@@ -8,13 +9,15 @@ import { UpdateReferenceInput } from './UpdateReferenceInput';
  */
 export const CommentCreateInput = new GraphQLInputObjectType({
   name: 'CommentCreateInput',
+  description: 'Input to create a comment. You can only specify one entity type: expense, conversation or update',
   fields: () => ({
     html: { type: GraphQLString },
     expense: {
       type: ExpenseReferenceInput,
       description: 'If your comment is linked to an expense, set it here',
     },
-    ConversationId: { type: GraphQLString },
+    ConversationId: { type: GraphQLString, deprecationReason: '2022-08-26: Please use "conversation"' },
+    conversation: { type: ConversationReferenceInput },
     update: { type: UpdateReferenceInput },
   }),
 });

@@ -113,7 +113,7 @@ export const notify = {
 const populateCommentActivity = async activity => {
   const collective = await models.Collective.findByPk(activity.CollectiveId);
   activity.data.collective = collective.info;
-  const fromCollective = await models.Collective.findByPk(activity.data.FromCollectiveId);
+  const fromCollective = await models.Collective.findByPk(activity.FromCollectiveId);
   activity.data.fromCollective = fromCollective.info;
 
   return { collective, fromCollective };
@@ -297,7 +297,7 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.EXPENSE_COMMENT_CREATED: {
       const { collective } = await populateCommentActivity(activity);
-      activity.data.expense = await models.Expense.findByPk(activity.data.ExpenseId);
+      activity.data.expense = await models.Expense.findByPk(activity.ExpenseId);
       activity.data.expense = activity.data.expense.info;
       activity.data.UserId = activity.data.expense.UserId;
       activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
