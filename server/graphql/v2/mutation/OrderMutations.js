@@ -194,7 +194,7 @@ const orderMutations = {
         type: activities.SUBSCRIPTION_CANCELED,
         CollectiveId: order.CollectiveId,
         FromCollectiveId: order.FromCollectiveId,
-        HostCollectiveId: order.HostCollectiveId,
+        HostCollectiveId: order.collective.HostCollectiveId,
         OrderId: order.id,
         UserId: order.CreatedByUserId,
         UserTokenId: req.userToken?.id,

@@ -253,7 +253,7 @@ function defineModel() {
         afterCreate: instance => {
           models.Activity.create({
             type: activities.COLLECTIVE_UPDATE_CREATED,
-            UserId: instance.LastEditedByUserId,
+            UserId: instance.CreatedByUserId,
             CollectiveId: instance.CollectiveId,
             FromCollectiveId: instance.FromCollectiveId,
             // TODO(InconsistentActivities): Should have HostCollectiveId
