@@ -16,7 +16,6 @@ import {
   fakeExpense,
   fakeMember,
   fakePayoutMethod,
-  fakeTransaction,
   fakeUser,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
@@ -85,18 +84,14 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       CollectiveId: collective.id,
       currency: 'USD',
       PayoutMethodId: payoutMethod.id,
+      HostCollectiveId: host.id,
       category: 'Engineering',
       type: 'INVOICE',
       description: 'January Invoice',
-    });
-    await fakeTransaction({
-      type: 'DEBIT',
-      amount: -1 * expense.amount,
-      ExpenseId: expense.id,
       data: {
         transfer: { id: event.data.resource.id },
         quote: { fee: 1, rate: 1 },
-        fees: {
+        feesInHostCurrency: {
           hostFeeInHostCurrency: 1,
           platformFeeInHostCurrency: 1,
         },
@@ -112,14 +107,19 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     expect(args[0]).to.have.property('rawBody');
   });
 
-  it('should complete processing transactions if transfer was sent', async () => {
+  it('should mark expense as paid and create transactions if transfer was sent', async () => {
     await api.post('/webhooks/transferwise').send(event).expect(200);
 
     await expense.reload();
     expect(expense).to.have.property('status', status.PAID);
+    const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+    expect(debitTransaction).to.be.have.property('platformFeeInHostCurrency', -1);
+    expect(debitTransaction).to.be.have.property('hostFeeInHostCurrency', -1);
+    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10002);
+    expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
   });
 
-  it('should set expense as error and clear existing transactions when funds are refunded', async () => {
+  it('should set expense as error when funds are refunded', async () => {
     const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
     verifyEvent.returns(refundEvent);
 
@@ -127,8 +127,6 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
     await expense.reload();
     expect(expense).to.have.property('status', status.ERROR);
-    const transactions = await expense.getTransactions();
-    expect(transactions).to.be.empty;
   });
 
   it('should send a notification email to the payee and the host when funds are refunded', async () => {

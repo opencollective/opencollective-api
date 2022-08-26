@@ -361,7 +361,7 @@ async function sumCollectivesTransactions(
   if (withBlockedFunds) {
     const blockedFundsWhere = {
       CollectiveId: ids,
-      [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING, 'data.payout_batch_id': { [Op.not]: null } }],
+      [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING }],
     };
     if (startDate) {
       blockedFundsWhere.createdAt = blockedFundsWhere.createdAt || {};

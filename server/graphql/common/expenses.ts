@@ -1425,7 +1425,11 @@ const matchFxRateWithCurrency = (
   }
 };
 
-const getWiseFxRateInfoFromExpenseData = (expense, expectedSourceCurrency: string, expectedTargetCurrency: string) => {
+export const getWiseFxRateInfoFromExpenseData = (
+  expense,
+  expectedSourceCurrency: string,
+  expectedTargetCurrency: string,
+) => {
   if (expectedSourceCurrency === expectedTargetCurrency) {
     return { value: 1 };
   }
