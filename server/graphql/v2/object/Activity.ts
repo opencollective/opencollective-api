@@ -116,7 +116,7 @@ export const Activity = new GraphQLObjectType({
           toPick.push('member.role');
         } else if (activity.type === ACTIVITY.COLLECTIVE_EDITED) {
           const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
-          if (req.remoteUser?.isAdmin(collective.id)) {
+          if (req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
             toPick.push('previousData');
             toPick.push('newData');
           }

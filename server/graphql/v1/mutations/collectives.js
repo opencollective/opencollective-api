@@ -444,12 +444,12 @@ export function editCollective(_, args, req) {
         });
       }
     })
-    .then(() => {
+    .then(async () => {
       // Ask cloudflare to refresh the cache for this collective's page
       purgeCacheForCollective(collective.slug);
       const data = getCollectiveDataDiff(originalCollective, collective);
       // Create the activity which will store the data diff
-      models.Activity.create({
+      await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
         UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
