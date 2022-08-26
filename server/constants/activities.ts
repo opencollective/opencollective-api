@@ -5,13 +5,23 @@
 enum ActivityTypes {
   ACTIVITY_ALL = 'all',
   CONNECTED_ACCOUNT_CREATED = 'connected_account.created', // Not used yet
+  // Collective creation & applications
   COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17
   COLLECTIVE_APPLY = 'collective.apply',
   COLLECTIVE_APPROVED = 'collective.approved',
   COLLECTIVE_REJECTED = 'collective.rejected',
   COLLECTIVE_CREATED = 'collective.created',
+  ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
+  // Freezing collectives
+  COLLECTIVE_FROZEN = 'collective.frozen',
+  COLLECTIVE_UNFROZEN = 'collective.unfrozen',
+  // Comments & conversations
   COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   COLLECTIVE_CONVERSATION_CREATED = 'collective.conversation.created',
+  UPDATE_COMMENT_CREATED = 'update.comment.created',
+  EXPENSE_COMMENT_CREATED = 'expense.comment.created',
+  CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
+  // Expenses
   COLLECTIVE_EXPENSE_CREATED = 'collective.expense.created',
   COLLECTIVE_EXPENSE_DELETED = 'collective.expense.deleted',
   COLLECTIVE_EXPENSE_UPDATED = 'collective.expense.updated',
@@ -29,10 +39,14 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_INVITE_DRAFTED = 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
   COLLECTIVE_EXPENSE_MISSING_RECEIPT = 'collective.expense.missing.receipt',
+  TAXFORM_REQUEST = 'taxform.request',
+  // Virtual cards
+  COLLECTIVE_VIRTUAL_CARD_ADDED = 'collective.virtualcard.added',
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS = 'collective.virtualcard.missing.receipts',
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED = 'collective.virtualcard.suspended',
-  COLLECTIVE_FROZEN = 'collective.frozen',
-  COLLECTIVE_UNFROZEN = 'collective.unfrozen',
+  VIRTUAL_CARD_REQUESTED = 'virtual_card.requested',
+  VIRTUAL_CARD_CHARGE_DECLINED = 'virtualcard.charge.declined',
+  // Members
   COLLECTIVE_MEMBER_INVITED = 'collective.member.invited',
   COLLECTIVE_MEMBER_CREATED = 'collective.member.created',
   COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
@@ -41,28 +55,21 @@ enum ActivityTypes {
   COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED = 'collective.core.member.invitation.declined',
   COLLECTIVE_CORE_MEMBER_REMOVED = 'collective.core.member.removed',
   COLLECTIVE_CORE_MEMBER_EDITED = 'collective.core.member.edited',
+  // Transactions
   COLLECTIVE_TRANSACTION_CREATED = 'collective.transaction.created',
+  // Updates
   COLLECTIVE_UPDATE_CREATED = 'collective.update.created',
   COLLECTIVE_UPDATE_PUBLISHED = 'collective.update.published',
+  // Contact
   COLLECTIVE_CONTACT = 'collective.contact',
-  COLLECTIVE_VIRTUAL_CARD_ADDED = 'collective.virtualcard.added',
+  HOST_APPLICATION_CONTACT = 'host.application.contact',
+  // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
-  ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
   SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   TICKET_CONFIRMED = 'ticket.confirmed',
-  USER_CREATED = 'user.created',
-  USER_NEW_TOKEN = 'user.new.token',
-  USER_CHANGE_EMAIL = 'user.changeEmail',
-  USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
-  USER_CARD_CLAIMED = 'user.card.claimed',
-  USER_CARD_INVITED = 'user.card.invited',
-  WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
-  WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
-  COLLECTIVE_MONTHLY = 'collective.monthly',
   ORDER_CANCELED_ARCHIVED_COLLECTIVE = 'order.canceled.archived.collective',
-  OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   ORDER_PROCESSING = 'order.processing',
   ORDER_PROCESSING_CRYPTO = 'order.processing.crypto',
   ORDER_PENDING_CONTRIBUTION_NEW = 'order.new.pendingFinancialContribution',
@@ -70,19 +77,28 @@ enum ActivityTypes {
   ORDER_THANKYOU = 'order.thankyou',
   ORDERS_SUSPICIOUS = 'orders.suspicious',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
-  ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
-  ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
-  DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
-  VIRTUAL_CARD_REQUESTED = 'virtual_card.requested',
-  VIRTUAL_CARD_CHARGE_DECLINED = 'virtualcard.charge.declined',
   PAYMENT_FAILED = 'payment.failed',
   PAYMENT_CREDITCARD_CONFIRMATION = 'payment.creditcard.confirmation',
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
-  TAXFORM_REQUEST = 'taxform.request',
-  CONVERSATION_COMMENT_CREATED = 'conversation.comment.created',
-  UPDATE_COMMENT_CREATED = 'update.comment.created',
-  EXPENSE_COMMENT_CREATED = 'expense.comment.created',
-  HOST_APPLICATION_CONTACT = 'host.application.contact',
+  // User signup/signin
+  USER_CREATED = 'user.created',
+  USER_NEW_TOKEN = 'user.new.token',
+  OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
+  // User edits
+  USER_CHANGE_EMAIL = 'user.changeEmail',
+  USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
+  // Gift cards
+  USER_CARD_CLAIMED = 'user.card.claimed',
+  USER_CARD_INVITED = 'user.card.invited',
+  // Webhooks
+  WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
+  WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
+  // Reports
+  COLLECTIVE_MONTHLY = 'collective.monthly',
+  // Host
+  ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
+  ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
+  DEACTIVATED_COLLECTIVE_AS_HOST = 'deactivated.collective.as.host',
 
   // Not used anymore, leaving for historical reference
   ADDED_FUND_TO_ORG = 'added.fund.to.org',

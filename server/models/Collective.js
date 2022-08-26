@@ -3402,7 +3402,7 @@ function defineModel() {
       UserId: adminUser.id,
       CollectiveId: collective.id,
       data: {
-        collective: pick(collective, ['name', 'slug']),
+        collective: collective.info,
       },
     });
     return collective;
