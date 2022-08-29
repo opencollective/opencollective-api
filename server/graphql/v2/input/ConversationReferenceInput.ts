@@ -12,7 +12,7 @@ export const ConversationReferenceInput = new GraphQLInputObjectType({
   fields: () => ({
     id: {
       type: GraphQLString,
-      description: 'The public id identifying the update',
+      description: 'The public id identifying the conversation',
     },
     legacyId: {
       type: GraphQLInt,
@@ -20,9 +20,9 @@ export const ConversationReferenceInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getConversationDatabaseIdFromUpdateReference = input => {
+export const getConversationDatabaseIdFromReference = input => {
   if (input['id']) {
-    return idDecode(input['id'], IDENTIFIER_TYPES.UPDATE);
+    return idDecode(input['id'], IDENTIFIER_TYPES.CONVERSATION);
   } else if (input['legacyId']) {
     return input['legacyId'];
   } else {
@@ -31,11 +31,11 @@ export const getConversationDatabaseIdFromUpdateReference = input => {
 };
 
 /**
- * Retrieve an expense from an `ExpenseReferenceInput`
+ * Retrieve a conversation from a `ConversationReferenceInput`
  */
 export const fetchConversationWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   let conversation = null;
-  const dbId = getConversationDatabaseIdFromUpdateReference(input);
+  const dbId = getConversationDatabaseIdFromReference(input);
   if (dbId) {
     conversation = await (loaders ? loaders.Conversation.byId.load(dbId) : models.Conversation.findByPk(dbId));
   }

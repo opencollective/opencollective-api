@@ -5,7 +5,7 @@ import { createComment, deleteComment, editComment } from '../../common/comment'
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
 import { CommentUpdateInput } from '../input/CommentUpdateInput';
-import { getConversationDatabaseIdFromUpdateReference } from '../input/ConversationReferenceInput';
+import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
 import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput';
 import { Comment } from '../object/Comment';
@@ -52,7 +52,7 @@ const commentMutations = {
         comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
       }
       if (comment.conversation) {
-        comment.ConversationId = getConversationDatabaseIdFromUpdateReference(comment.conversation);
+        comment.ConversationId = getConversationDatabaseIdFromReference(comment.conversation);
       }
       if (comment.update) {
         comment.UpdateId = getDatabaseIdFromUpdateReference(comment.update);
