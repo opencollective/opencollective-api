@@ -119,24 +119,6 @@ const setCardStatus = async (virtualCard, status = 'canceled' | 'active' | 'inac
   return data;
 };
 
-const recordInActivityLog = async (virtualCard, amount, currency) => {
-  const CollectiveId = virtualCard.collective.id;
-  const collective = await models.Collective.findByPk(CollectiveId);
-  const user = await models.User.findByPk(virtualCard.UserId);
-  const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
-
-  await models.Activity.create({
-    type: activities.VIRTUAL_CARD_PURCHASE,
-    CollectiveId,
-    data: {
-      responsibleAdmin: responsibleAdmin.activity,
-      collective: collective.activity,
-      amount,
-      currency,
-    },
-  });
-};
-
 export const deleteCard = async virtualCard => setCardStatus(virtualCard, 'canceled');
 
 export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inactive');
@@ -218,7 +200,20 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       amount,
     });
 
-    await recordInActivityLog(virtualCard, amount, currency);
+    const user = virtualCard.user;
+    const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
+
+    await models.Activity.create({
+      type: activities.VIRTUAL_CARD_PURCHASE,
+      CollectiveId: collective.id,
+      UserId: user.id,
+      data: {
+        responsibleAdmin: responsibleAdmin.activity,
+        collective: collective.activity,
+        amount,
+        currency,
+      },
+    });
   } catch (error) {
     if (expense) {
       await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
