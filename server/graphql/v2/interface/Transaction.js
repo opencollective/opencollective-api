@@ -25,6 +25,7 @@ import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
 import { Order } from '../object/Order';
 import { PaymentMethod } from '../object/PaymentMethod';
+import PayoutMethod from '../object/PayoutMethod';
 import { TaxInfo } from '../object/TaxInfo';
 
 import { Account } from './Account';
@@ -184,6 +185,9 @@ const transactionFieldsDefinition = () => ({
   },
   paymentMethod: {
     type: PaymentMethod,
+  },
+  payoutMethod: {
+    type: PayoutMethod,
   },
   permissions: {
     type: TransactionPermissions,
@@ -472,6 +476,16 @@ export const TransactionFields = () => {
       resolve(transaction, _, req) {
         if (transaction.PaymentMethodId) {
           return req.loaders.PaymentMethod.byId.load(transaction.PaymentMethodId);
+        } else {
+          return null;
+        }
+      },
+    },
+    payoutMethod: {
+      type: PayoutMethod,
+      resolve(transaction, _, req) {
+        if (transaction.PayoutMethodId) {
+          return req.loaders.PayoutMethod.byId.load(transaction.PayoutMethodId);
         } else {
           return null;
         }

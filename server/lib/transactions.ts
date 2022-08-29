@@ -193,6 +193,7 @@ export async function createTransactionsFromPaidExpense(
     FromCollectiveId: expense.FromCollectiveId,
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
+    PayoutMethodId: expense.PayoutMethodId,
     taxAmount: computeExpenseTaxes(expense),
     data: {
       ...(transactionData || {}),

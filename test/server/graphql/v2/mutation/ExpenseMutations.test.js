@@ -1039,6 +1039,26 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(membership).to.exist;
       });
 
+      it('attaches the PayoutMethod to the associated Transactions', async () => {
+        const paymentProcessorFee = 100;
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 1000,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        const expensePlusFees = expense.amount + paymentProcessorFee;
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: expensePlusFees });
+        const mutationParams = { expenseId: expense.id, action: 'PAY', paymentParams: { paymentProcessorFee } };
+        await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
+        const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+
+        expect(transactions.every(tx => tx.PayoutMethodId === expense.PayoutMethodId)).to.equal(true);
+      });
+
       describe('With PayPal', () => {
         it('fails if not enough funds on the paypal preapproved key', async () => {
           const callPaypal = sandbox.stub(paypalAdaptive, 'callPaypal').callsFake(() => {
@@ -1216,6 +1236,17 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
 
           expect(transaction).to.have.nested.property('paymentProcessorFeeInHostCurrency').to.equal(0);
+        });
+
+        it('attaches the PayoutMethod to the associated Transactions', async () => {
+          await host.update({
+            settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
+          });
+          const mutationParams = { expenseId: expense.id, action: 'PAY' };
+          await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+
+          expect(transactions.every(tx => tx.PayoutMethodId === expense.PayoutMethodId)).to.equal(true);
         });
       });
 
@@ -1803,6 +1834,37 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.exist;
         expect(result.errors[0].message).to.eq('Expense is already scheduled for payment');
       });
+    });
+
+    it('sets the PayoutMethodId on transactions correctly after editing the expense', async () => {
+      // Create a new collective to make sure the balance is empty
+      const testCollective = await fakeCollective({ HostCollectiveId: host.id, admin: collectiveAdmin.collective });
+      const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+      const expense = await fakeExpense({
+        amount: 1000,
+        CollectiveId: testCollective.id,
+        status: 'APPROVED',
+        PayoutMethodId: payoutMethod.id,
+      });
+
+      // Updates the collective balance and pay the expense
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
+      await payExpense(makeRequest(hostAdmin), { id: expense.id });
+
+      const mutationParams = { expenseId: expense.id, action: 'MARK_AS_UNPAID' };
+      await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+
+      const originalTransactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+      expect(originalTransactions.every(tx => tx.PayoutMethodId === payoutMethod.id)).to.equal(true);
+
+      const newPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+      await expense.update({ PayoutMethodId: newPayoutMethod.id });
+
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
+      await payExpense(makeRequest(hostAdmin), { id: expense.id });
+
+      const newTransactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+      expect(newTransactions.slice(-2).every(tx => tx.PayoutMethodId === newPayoutMethod.id)).to.equal(true);
     });
   });
 
