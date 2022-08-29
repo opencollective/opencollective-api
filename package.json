@@ -83,7 +83,7 @@
     "hashids": "2.2.10",
     "hcaptcha": "0.1.1",
     "helloworks-sdk": "1.3.0",
-    "helmet": "5.1.1",
+    "helmet": "6.0.0",
     "html-pdf": "3.0.1",
     "html-to-text": "8.2.1",
     "ics": "2.37.0",
