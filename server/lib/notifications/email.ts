@@ -542,6 +542,10 @@ export const notifyByEmail = async (activity: Activity) => {
       });
       break;
 
+    case ActivityTypes.VIRTUAL_CARD_PURCHASE:
+      await notify.collective(activity);
+      break;
+
     case ActivityTypes.CONTRIBUTION_REJECTED:
       await notify.collective(activity, {
         collectiveId: activity.data.fromCollective.id,

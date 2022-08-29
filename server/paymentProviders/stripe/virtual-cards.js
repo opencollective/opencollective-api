@@ -1,13 +1,11 @@
-import config from 'config';
 import { omit, pick } from 'lodash';
-import Stripe from 'stripe';
 
 import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
-import { convertToStripeAmount } from '../../lib/stripe';
+import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
 import models from '../../models';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
@@ -201,6 +199,21 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       CreatedByUserId: UserId,
       amount,
     });
+
+    const user = virtualCard.user;
+    const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
+
+    await models.Activity.create({
+      type: activities.VIRTUAL_CARD_PURCHASE,
+      CollectiveId: collective.id,
+      UserId: user.id,
+      data: {
+        responsibleAdmin: responsibleAdmin.activity,
+        collective: collective.activity,
+        amount,
+        currency,
+      },
+    });
   } catch (error) {
     if (expense) {
       await models.ExpenseItem.destroy({ where: { ExpenseId: expense.id } });
@@ -360,6 +373,5 @@ const checkStripeEvent = async (host, stripeEvent) => {
 };
 
 const getStripeClient = (slug, token) => {
-  const secretKey = slug === 'opencollective' ? config.stripe.secret : token;
-  return Stripe(secretKey);
+  return slug === 'opencollective' ? stripe : StripeCustomToken(token);
 };

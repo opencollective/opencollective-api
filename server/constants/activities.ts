@@ -46,6 +46,7 @@ enum ActivityTypes {
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED = 'collective.virtualcard.suspended',
   VIRTUAL_CARD_REQUESTED = 'virtual_card.requested',
   VIRTUAL_CARD_CHARGE_DECLINED = 'virtualcard.charge.declined',
+  VIRTUAL_CARD_PURCHASE = 'virtualcard.purchase',
   // Members
   COLLECTIVE_MEMBER_INVITED = 'collective.member.invited',
   COLLECTIVE_MEMBER_CREATED = 'collective.member.created',
