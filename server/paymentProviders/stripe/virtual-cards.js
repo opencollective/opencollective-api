@@ -129,8 +129,8 @@ const recordInActivityLog = async (virtualCard, amount, currency) => {
     type: activities.VIRTUAL_CARD_PURCHASE,
     CollectiveId,
     data: {
-      responsibleAdmin: responsibleAdmin.dataValues,
-      collective: collective.dataValues,
+      responsibleAdmin: responsibleAdmin.activity,
+      collective: collective.activity,
       amount,
       currency,
     },
