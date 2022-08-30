@@ -20,7 +20,7 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === 'v1') {
+  if (loaders && version === 'v1' && !startDate && !endDate) {
     const result = await loaders.Collective.balance.load(collective.id);
     const fxRate = await getFxRate(result.currency, currency);
     return {
