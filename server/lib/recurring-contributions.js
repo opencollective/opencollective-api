@@ -370,6 +370,7 @@ export async function createPaymentFailedActivity(order, lastAttempt) {
       fromCollective: order.fromCollective.minimal,
       subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
       errorMessage: errorMessage,
+      isSystem: true,
     },
   });
 }

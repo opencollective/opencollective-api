@@ -28,6 +28,7 @@ const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
     host: host.info,
     collective: collective.info,
     daysLeft: 31 - maxDaysPending,
+    isSystem: true,
   };
   if (host.settings?.virtualcards?.reminder && (maxDaysPending === 15 || maxDaysPending === 29)) {
     logger.info(`Virtual Card ${virtualCard.id} is being notified about pending expenses...`);

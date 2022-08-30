@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
@@ -118,6 +118,11 @@ export const Activity = new GraphQLObjectType({
 
         return pick(activity.data, toPick);
       },
+    },
+    isSystem: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Specifies whether this is a system generated activity',
+      resolve: activity => Boolean(activity.data?.isSystem),
     },
   }),
 });
