@@ -28,7 +28,7 @@ const getDatabaseIdFromUpdateReference = input => {
 };
 
 /**
- * Retrieve an expense from an `ExpenseReferenceInput`
+ * Retrieve an expense from an `UpdateReferenceInput`
  */
 const fetchUpdateWithReference = async (input, { loaders = null, throwIfMissing = false } = {}) => {
   const dbId = getDatabaseIdFromUpdateReference(input);

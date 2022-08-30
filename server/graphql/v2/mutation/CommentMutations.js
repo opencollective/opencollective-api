@@ -2,13 +2,12 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import { createComment, deleteComment, editComment } from '../../common/comment';
-import { canSeeUpdate } from '../../common/update';
-import { Unauthorized } from '../../errors';
 import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
 import { CommentUpdateInput } from '../input/CommentUpdateInput';
-import { fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
-import { fetchUpdateWithReference } from '../input/UpdateReferenceInput';
+import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
+import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
+import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput';
 import { Comment } from '../object/Comment';
 
 const commentMutations = {
@@ -48,29 +47,18 @@ const commentMutations = {
     resolve: async (_, { comment }, req) => {
       mustBeLoggedInTo(req.remoteUser, 'create a comment');
 
+      // Associate the comment with the correct entity
       if (comment.ConversationId) {
         comment.ConversationId = idDecode(comment.ConversationId, IDENTIFIER_TYPES.CONVERSATION);
       }
-
-      if (comment.update) {
-        const update = await fetchUpdateWithReference(comment.update, {
-          loaders: req.loaders,
-          throwIfMissing: true,
-        });
-
-        if (!(await canSeeUpdate(update, req))) {
-          throw new Unauthorized('You do not have the permission to post comments on this update');
-        }
-
-        comment.UpdateId = update.id;
+      if (comment.conversation) {
+        comment.ConversationId = getConversationDatabaseIdFromReference(comment.conversation);
       }
-
+      if (comment.update) {
+        comment.UpdateId = getDatabaseIdFromUpdateReference(comment.update);
+      }
       if (comment.expense) {
-        const expense = await fetchExpenseWithReference(comment.expense, req);
-        if (!expense) {
-          throw new Error('This expense does not exist');
-        }
-        comment.ExpenseId = expense.id;
+        comment.ExpenseId = getDatabaseIdFromExpenseReference(comment.expense);
       }
 
       return createComment(comment, req);
