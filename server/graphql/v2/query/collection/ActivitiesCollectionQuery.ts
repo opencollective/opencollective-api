@@ -51,7 +51,7 @@ const ActivitiesCollectionQuery = {
 
     // Check permissions
     checkRemoteUserCanUseAccount(req);
-    if (!req.remoteUser.isAdminOfCollective(account)) {
+    if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
       return { nodes: null, totalCount: 0, limit, offset };
     }
 
