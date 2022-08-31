@@ -783,6 +783,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     let collective, host, collectiveAdmin, hostAdmin, hostPaypalPm;
 
     before(async () => {
+      await resetTestDB();
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
       host = await fakeCollective({
@@ -1011,6 +1012,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
               `Expense needs to be approved. Current status of the expense: ${expense.status}.`,
             );
           }
+          // Remove expense so we don't affect next tests
+          await expense.destroy({ force: true });
         }
       });
 
@@ -1267,12 +1270,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
           res.errors && console.error(res.errors);
           expect(res.errors).to.not.exist;
-          const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+          await expense.reload();
 
           expect(getTemporaryQuote.called).to.be.true;
-          expect(transaction)
-            .to.have.nested.property('paymentProcessorFeeInHostCurrency')
-            .to.equal(Math.round(fee * -100));
+          expect(expense)
+            .to.have.nested.property('data.feesInHostCurrency.paymentProcessorFeeInHostCurrency')
+            .to.equal(Math.round(fee * 100));
         });
 
         it('should update expense status to PROCESSING', async () => {
@@ -1295,19 +1298,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(emailSendMessageSpy.args[0][1]).to.contain(
             `Payment being processed: January Invoice for ${collective.name}`,
           );
-        });
-
-        it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
-          await host.update({
-            settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
-          });
-          const mutationParams = { expenseId: expense.id, action: 'PAY' };
-          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
-          res.errors && console.error(res.errors);
-          expect(res.errors).to.not.exist;
-          const [transaction] = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
-
-          expect(transaction).to.have.nested.property('paymentProcessorFeeInHostCurrency').to.equal(0);
         });
 
         it('attaches the PayoutMethod to the associated Transactions', async () => {

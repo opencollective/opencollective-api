@@ -1,6 +1,7 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import { defaultsDeep } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 import request from 'supertest';
 
@@ -95,6 +96,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
           hostFeeInHostCurrency: 1,
           platformFeeInHostCurrency: 1,
         },
+        paymentOption: { fee: { total: 10 } },
       },
     });
   });
@@ -114,9 +116,24 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     expect(expense).to.have.property('status', status.PAID);
     const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
     expect(debitTransaction).to.be.have.property('platformFeeInHostCurrency', -1);
+    expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
     expect(debitTransaction).to.be.have.property('hostFeeInHostCurrency', -1);
-    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10002);
+    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11002);
     expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
+  });
+
+  it('should ignore payment processor fee if host.settings.transferwise.ignorePaymentProcessorFees is true', async () => {
+    await host.update({
+      settings: defaultsDeep(host.settings, { transferwise: { ignorePaymentProcessorFees: true } }),
+    });
+
+    await api.post('/webhooks/transferwise').send(event).expect(200);
+    await expense.reload();
+    expect(expense).to.have.property('status', status.PAID);
+
+    const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+    expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', 0);
+    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10002);
   });
 
   it('should set expense as error when funds are refunded', async () => {
