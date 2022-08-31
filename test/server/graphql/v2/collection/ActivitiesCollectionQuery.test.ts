@@ -7,12 +7,8 @@ import { fakeActivity, fakeCollective, fakeUser } from '../../../../test-helpers
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const activitiesCollectionQuery = gqlV2/* GraphQL */ `
-  query Activities(
-    $account: AccountReferenceInput!
-    $attribution: ActivityAttribution
-    $type: [ActivityAndClassesType!]
-  ) {
-    activities(limit: 100, offset: 0, account: $account, attribution: $attribution, type: $type) {
+  query Activities($account: [AccountReferenceInput!], $type: [ActivityAndClassesType!]) {
+    activities(limit: 100, offset: 0, account: $account, type: $type) {
       offset
       limit
       totalCount
@@ -86,7 +82,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
 
   it('must be logged in', async () => {
     const resultUnauthenticated = await graphqlQueryV2(activitiesCollectionQuery, {
-      account: { legacyId: collective.id },
+      account: [{ legacyId: collective.id }],
     });
 
     expect(resultUnauthenticated.errors).to.exist;
@@ -112,45 +108,6 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     expect(result.data.activities.totalCount).to.eq(4);
     expect(result.data.activities.nodes).to.not.be.null;
     expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: true });
-  });
-
-  describe('filters activities by attribution', () => {
-    it('Self', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'SELF' };
-      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].account.slug).to.eq(collective.slug);
-      expect(result.data.activities.nodes[0].fromAccount.slug).to.eq(collective.slug);
-    });
-
-    it('Authored', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'AUTHORED' };
-      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].fromAccount.slug).to.eq(collective.slug);
-    });
-
-    it('Received', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'RECEIVED' };
-      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].account.slug).to.eq(collective.slug);
-    });
-
-    it('Hosted', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'HOSTED_ACCOUNTS' };
-      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].host.slug).to.eq(collective.slug);
-    });
   });
 
   describe('filters activities by class/type', () => {
