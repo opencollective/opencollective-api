@@ -9,14 +9,14 @@ import models from '../models';
  * Returns true if the given user can use the passed feature. Will always return false
  * if user is not set.
  */
-export const canUseFeature = (user: typeof models.User, feature: FEATURE): boolean => {
+export const canUseFeature = (account: typeof models.User | typeof models.Collective, feature: FEATURE): boolean => {
   // Must be provided
-  if (!user) {
+  if (!account) {
     return false;
   }
 
   // Check if user is limited, globally or for this specific feature
-  const userFeaturesFlags = user.data && user.data.features;
+  const userFeaturesFlags = account.data && account.data.features;
   if (userFeaturesFlags) {
     if (userFeaturesFlags.ALL === false || userFeaturesFlags[feature] === false) {
       return false;

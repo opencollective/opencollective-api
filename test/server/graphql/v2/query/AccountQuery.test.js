@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { times } from 'lodash';
+import { shuffle, times } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
 import { randEmail } from '../../../../stores';
@@ -9,13 +9,14 @@ import {
   fakeHost,
   fakeOrganization,
   fakeProject,
+  fakeUpdate,
   fakeUser,
   multiple,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const accountQuery = gqlV2/* GraphQL */ `
-  query Account($slug: String!) {
+  query Account($slug: String!, $updatesOrder: UpdateChronologicalOrderInput) {
     account(slug: $slug) {
       id
       legalName
@@ -32,6 +33,14 @@ const accountQuery = gqlV2/* GraphQL */ `
             id
             slug
           }
+        }
+      }
+      updates(orderBy: $updatesOrder) {
+        totalCount
+        nodes {
+          id
+          createdAt
+          publishedAt
         }
       }
     }
@@ -380,6 +389,39 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
       const resultProject = await graphqlQueryV2(accountQuery, { slug: project.slug });
       expect(resultProject.data.account.supportedExpenseTypes).to.deep.eq(['INVOICE', 'RECEIPT']);
+    });
+  });
+
+  describe('updates', () => {
+    let collective, admin;
+
+    before(async () => {
+      admin = await fakeUser(); // creating an admins as we need one to fetch unpublished updates
+      collective = await fakeCollective({ admin });
+      const CollectiveId = collective.id;
+      await Promise.all(
+        // Shuffle the array to make sure insertion order doesn't matter
+        shuffle([
+          fakeUpdate({ CollectiveId, createdAt: new Date('2020-01-01'), publishedAt: null }),
+          fakeUpdate({ CollectiveId, createdAt: new Date('2020-07-01'), publishedAt: null }),
+          fakeUpdate({ CollectiveId, createdAt: new Date('2020-01-01'), publishedAt: new Date('2020-01-01') }),
+          fakeUpdate({ CollectiveId, createdAt: new Date('2020-05-01'), publishedAt: new Date('2020-02-01') }),
+          fakeUpdate({ CollectiveId, createdAt: new Date('2020-01-01'), publishedAt: new Date('2020-03-01') }),
+        ]),
+      );
+    });
+
+    it('sort by publishedAt (with a fallback on createdAt)', async () => {
+      const updatesOrder = { field: 'PUBLISHED_AT', direction: 'DESC' };
+      const result = await graphqlQueryV2(accountQuery, { slug: collective.slug, updatesOrder }, admin);
+      const updates = result.data.account.updates.nodes;
+
+      expect(updates.length).to.eq(5);
+      expect(updates[0]).to.containSubset({ publishedAt: null, createdAt: new Date('2020-07-01') });
+      expect(updates[1]).to.containSubset({ publishedAt: null, createdAt: new Date('2020-01-01') });
+      expect(updates[2]).to.containSubset({ publishedAt: new Date('2020-03-01'), createdAt: new Date('2020-01-01') });
+      expect(updates[3]).to.containSubset({ publishedAt: new Date('2020-02-01'), createdAt: new Date('2020-05-01') });
+      expect(updates[4]).to.containSubset({ publishedAt: new Date('2020-01-01'), createdAt: new Date('2020-01-01') });
     });
   });
 });

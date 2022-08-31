@@ -3,7 +3,8 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { assert, createSandbox } from 'sinon';
 
-import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import ActivityTypes from '../../../../../server/constants/activities';
+import { idDecode, idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeComment, fakeExpense, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
@@ -15,6 +16,7 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
   let validCommentData, collective, expense, admin, hostAdmin, expenseSubmitter;
 
   before(async () => {
+    await utils.resetTestDB();
     admin = await fakeUser();
     hostAdmin = await fakeUser();
     expenseSubmitter = await fakeUser();
@@ -54,12 +56,20 @@ describe('test/server/graphql/v2/mutation/CommentMutations', () => {
       expect(result.errors[0].message).to.equal('You must be logged in to create a comment');
     });
 
-    it('creates a comment', async () => {
+    it('creates a comment & sends an email', async () => {
       const result = await utils.graphqlQueryV2(createCommentMutation, { comment: validCommentData }, expenseSubmitter);
       utils.expectNoErrorsFromResult(result);
       const createdComment = result.data.createComment;
       expect(createdComment.html).to.equal('<p>This is the <strong>comment</strong></p>');
 
+      // Creates the activity
+      const activity = await models.Activity.findOne({
+        where: { type: ActivityTypes.EXPENSE_COMMENT_CREATED, ExpenseId: expense.id },
+      });
+      expect(activity).to.exist;
+      expect(activity.data.CommentId).to.equal(idDecode(createdComment.id, 'comment'));
+
+      // Sends an email
       await utils.waitForCondition(() => sendEmailSpy.callCount === 2);
       expect(sendEmailSpy.callCount).to.equal(2);
       const expectedTitle = `${collective.name}: New comment on expense ${expense.description} by ${expenseSubmitter.collective.name}`;

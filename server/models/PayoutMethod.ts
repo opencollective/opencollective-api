@@ -1,5 +1,13 @@
 import { get, pick } from 'lodash';
-import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes, Model, Transaction } from 'sequelize';
+import {
+  CreationOptional,
+  DataTypes,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  NonAttribute,
+  Transaction,
+} from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
 import sequelize from '../lib/sequelize';
@@ -67,7 +75,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   }
 
   /** Returns the raw data for this field. Includes sensitive information that should not be leaked to the user */
-  get unfilteredData(): Record<string, unknown> {
+  get unfilteredData(): NonAttribute<Record<string, unknown>> {
     return <Record<string, unknown>>this.getDataValue('data');
   }
 
@@ -146,112 +154,106 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   }
 }
 
-function setupModel(PayoutMethod) {
-  // Link the model to database fields
-  PayoutMethod.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      type: {
-        // Enum entries must match `PayoutMethodType`
-        type: DataTypes.ENUM(...Object.values(PayoutMethodTypes)),
-        allowNull: false,
-        validate: {
-          isIn: {
-            args: [Object.values(PayoutMethodTypes)],
-            msg: `Must be one of ${Object.values(PayoutMethodTypes)}`,
-          },
+// Link the model to database fields
+PayoutMethod.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    type: {
+      // Enum entries must match `PayoutMethodType`
+      type: DataTypes.ENUM(...Object.values(PayoutMethodTypes)),
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [Object.values(PayoutMethodTypes)],
+          msg: `Must be one of ${Object.values(PayoutMethodTypes)}`,
         },
       },
-      data: {
-        type: DataTypes.JSONB,
-        allowNull: false,
-        validate: {
-          isValidValue(value): void {
-            if (this.type === PayoutMethodTypes.PAYPAL) {
-              if (!value || !value.email || !isEmail(value.email)) {
-                throw new Error('Invalid PayPal email address');
-              } else if (!objHasOnlyKeys(value, ['email'])) {
-                throw new Error('Data for this payout method contains too much information');
-              }
-            } else if (this.type === PayoutMethodTypes.OTHER) {
-              if (!value || !value.content || typeof value.content !== 'string') {
-                throw new Error('Invalid format of custom payout method');
-              } else if (!objHasOnlyKeys(value, ['content'])) {
-                throw new Error('Data for this payout method contains too much information');
-              }
-            } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
-              if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
-                throw new Error('Invalid format of BANK_ACCOUNT payout method data');
-              }
-            } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
-              if (!value || !value.token) {
-                throw new Error('Invalid format of CREDIT_CARD payout method data');
-              }
-            } else if (!value || Object.keys(value).length > 0) {
-              throw new Error('Data for this payout method is not properly formatted');
+    },
+    data: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      validate: {
+        isValidValue(value): void {
+          if (this.type === PayoutMethodTypes.PAYPAL) {
+            if (!value || !value.email || !isEmail(value.email)) {
+              throw new Error('Invalid PayPal email address');
+            } else if (!objHasOnlyKeys(value, ['email'])) {
+              throw new Error('Data for this payout method contains too much information');
             }
-          },
-        },
-      },
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-        allowNull: false,
-      },
-      deletedAt: {
-        type: DataTypes.DATE,
-      },
-      name: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      isSaved: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false,
-        defaultValue: true,
-      },
-      CollectiveId: {
-        type: DataTypes.INTEGER,
-        references: { model: 'Collectives', key: 'id' },
-        onDelete: 'CASCADE',
-        onUpdate: 'CASCADE',
-        allowNull: false,
-      },
-      CreatedByUserId: {
-        type: DataTypes.INTEGER,
-        references: { key: 'id', model: 'Users' },
-        onDelete: 'SET NULL',
-        onUpdate: 'CASCADE',
-        allowNull: true,
-      },
-    },
-    {
-      sequelize,
-      paranoid: true,
-      tableName: 'PayoutMethods',
-      scopes: {
-        saved: {
-          where: { isSaved: true },
-        },
-        paypal: {
-          where: { type: PayoutMethodTypes.PAYPAL },
+          } else if (this.type === PayoutMethodTypes.OTHER) {
+            if (!value || !value.content || typeof value.content !== 'string') {
+              throw new Error('Invalid format of custom payout method');
+            } else if (!objHasOnlyKeys(value, ['content'])) {
+              throw new Error('Data for this payout method contains too much information');
+            }
+          } else if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
+            if (!value || !value.accountHolderName || !value.currency || !value.type || !value.details) {
+              throw new Error('Invalid format of BANK_ACCOUNT payout method data');
+            }
+          } else if (this.type === PayoutMethodTypes.CREDIT_CARD) {
+            if (!value || !value.token) {
+              throw new Error('Invalid format of CREDIT_CARD payout method data');
+            }
+          } else if (!value || Object.keys(value).length > 0) {
+            throw new Error('Data for this payout method is not properly formatted');
+          }
         },
       },
     },
-  );
-}
-
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel(PayoutMethod);
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      allowNull: false,
+    },
+    deletedAt: {
+      type: DataTypes.DATE,
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    isSaved: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+    },
+    CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: { model: 'Collectives', key: 'id' },
+      onDelete: 'CASCADE',
+      onUpdate: 'CASCADE',
+      allowNull: false,
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: { key: 'id', model: 'Users' },
+      onDelete: 'SET NULL',
+      onUpdate: 'CASCADE',
+      allowNull: true,
+    },
+  },
+  {
+    sequelize,
+    paranoid: true,
+    tableName: 'PayoutMethods',
+    scopes: {
+      saved: {
+        where: { isSaved: true },
+      },
+      paypal: {
+        where: { type: PayoutMethodTypes.PAYPAL },
+      },
+    },
+  },
+);
 
 export default PayoutMethod;

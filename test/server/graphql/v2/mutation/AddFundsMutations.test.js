@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
 import { roles } from '../../../../../server/constants';
-import { fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -13,6 +13,7 @@ const addFundsMutation = gqlV2/* GraphQL */ `
     $amount: AmountInput!
     $description: String!
     $hostFeePercent: Float!
+    $tier: TierReferenceInput
   ) {
     addFunds(
       account: $account
@@ -20,8 +21,13 @@ const addFundsMutation = gqlV2/* GraphQL */ `
       amount: $amount
       description: $description
       hostFeePercent: $hostFeePercent
+      tier: $tier
     ) {
       id
+      amount {
+        valueInCents
+        currency
+      }
       toAccount {
         id
         stats {
@@ -29,6 +35,10 @@ const addFundsMutation = gqlV2/* GraphQL */ `
             valueInCents
           }
         }
+      }
+      tier {
+        id
+        legacyId
       }
     }
   }
@@ -61,7 +71,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         addFundsMutation,
         {
           account: { legacyId: collective.id },
-          fromAccount: { legacyId: randomUser.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
           amount: { value: 20, currency: 'USD', valueInCents: 2000 },
           description: 'add funds as non-admin',
           hostFeePercent: 6,
@@ -77,7 +87,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         addFundsMutation,
         {
           account: { legacyId: collective.id },
-          fromAccount: { legacyId: randomUser.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
           amount: { value: 20, currency: 'USD', valueInCents: 2000 },
           description: 'add funds as admin',
           hostFeePercent: 6,
@@ -95,7 +105,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         addFundsMutation,
         {
           account: { legacyId: collective.id },
-          fromAccount: { legacyId: randomUser.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
           amount: { value: 20, currency: 'USD', valueInCents: 2000 },
           description: 'add funds as admin',
           hostFeePercent: 6,
@@ -104,6 +114,54 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       );
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
+      expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+      expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
+    describe('add funds to a specific tier', () => {
+      it('works with valid params', async () => {
+        const tier = await fakeTier({ CollectiveId: collective.id });
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            account: { legacyId: collective.id },
+            tier: { legacyId: tier.id },
+            amount: { value: 20, currency: 'USD', valueInCents: 2000 },
+            description: 'add funds to tier as admin',
+            hostFeePercent: 6,
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.addFunds.tier.legacyId).to.equal(tier.id);
+
+        // Should create a member with the right tier
+        const members = await collective.getMembers({ where: { TierId: tier.id } });
+        expect(members).to.have.length(1);
+        expect(members[0].MemberCollectiveId).to.equal(randomUser.CollectiveId);
+      });
+
+      it('must belong to account', async () => {
+        const tier = await fakeTier(); // Tier outside of collective
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            account: { legacyId: collective.id },
+            tier: { legacyId: tier.id },
+            amount: { value: 20, currency: 'USD', valueInCents: 2000 },
+            description: 'add funds to tier as admin',
+            hostFeePercent: 6,
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(/Tier #\d is not part of collective #\d/);
+      });
     });
   });
 });

@@ -48,7 +48,7 @@ const CollectionArgs = {
 };
 
 export interface CollectionReturnType {
-  nodes: Record<string, unknown>[];
+  nodes: unknown[];
   totalCount: number;
   limit: number;
   offset: number;

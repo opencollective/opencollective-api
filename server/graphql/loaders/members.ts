@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import { groupBy, partition, uniq } from 'lodash';
 
+import MemberRoles from '../../constants/roles';
 import models, { sequelize } from '../../models';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
@@ -51,4 +52,34 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
       cacheKeyFn: (collective: typeof models.Collective) => collective.id,
     },
   );
+};
+
+export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
+  return new DataLoader(async (hostIds: number[]): Promise<boolean[]> => {
+    if (!req.remoteUser) {
+      return hostIds.map(() => false);
+    }
+
+    const results = await models.Member.findAll({
+      attributes: ['collective.HostCollectiveId', [sequelize.fn('COUNT', 'Member.id'), 'MembersCount']],
+      group: ['collective.HostCollectiveId'],
+      raw: true,
+      where: {
+        role: MemberRoles.ADMIN,
+        MemberCollectiveId: req.remoteUser.CollectiveId,
+      },
+      include: {
+        association: 'collective',
+        required: true,
+        attributes: [],
+        where: {
+          HostCollectiveId: hostIds,
+          isActive: true,
+        },
+      },
+    });
+
+    const groupedResults = groupBy(results, 'HostCollectiveId');
+    return hostIds.map(id => Boolean(groupedResults[id] && groupedResults[id][0].MembersCount > 0));
+  });
 };

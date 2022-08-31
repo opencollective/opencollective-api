@@ -28,14 +28,14 @@ const oAuthAuthorizationMutations = {
 
       await userToken.destroy();
 
-      const account = await userToken.user.getCollective();
       return {
         id: userToken.id,
-        account: account,
+        account: req.remoteUser.collective,
         application: userToken.client,
         expiresAt: userToken.accessTokenExpiresAt,
         createdAt: userToken.createdAt,
         updatedAt: userToken.updatedAt,
+        user: req.remoteUser,
       };
     },
   },

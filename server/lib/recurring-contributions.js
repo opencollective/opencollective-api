@@ -12,6 +12,7 @@ import models from '../models';
 
 import { notify } from './notifications/email';
 import { FEATURE } from './allowed-features';
+import emailLib from './email';
 import logger from './logger';
 import * as paymentsLib from './payments';
 import { getTransactionPdf } from './pdf';
@@ -340,6 +341,10 @@ export async function cancelSubscriptionAndNotifyUser(order) {
 export async function createOrderCanceledArchivedCollectiveActivity(order) {
   return models.Activity.create({
     type: activities.ORDER_CANCELED_ARCHIVED_COLLECTIVE,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    OrderId: order.id,
     data: {
       order: order.info,
       collective: order.collective.info,
@@ -354,6 +359,10 @@ export async function createPaymentFailedActivity(order, lastAttempt) {
 
   return models.Activity.create({
     type: activities.PAYMENT_FAILED,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    OrderId: order.id,
     data: {
       lastAttempt,
       order: order.info,
@@ -421,7 +430,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
   return notify.collective(activity, {
     collectiveId: data.fromCollective.id,
     role: [roles.ACCOUNTANT, roles.ADMIN],
-    from: `${order.collective.name} <no-reply@${order.collective.slug}.opencollective.com>`,
+    from: emailLib.generateFromEmailHeader(order.collective.name),
     attachments,
   });
 }
@@ -429,6 +438,10 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
 export async function createPaymentCreditCardConfirmationActivity(order) {
   return models.Activity.create({
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    OrderId: order.id,
     data: {
       order: order.info,
       collective: order.collective.info,

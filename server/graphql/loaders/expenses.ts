@@ -20,6 +20,7 @@ export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> 
   return new DataLoader(async (expenseIds: number[]) => {
     const items = await models.ExpenseItem.findAll({
       where: { ExpenseId: { [Op.in]: expenseIds } },
+      order: [['id', 'ASC']],
     });
 
     return sortResultsArray(expenseIds, items, item => item.ExpenseId);
@@ -52,6 +53,7 @@ export const generateExpenseActivitiesLoader = (req: express.Request): DataLoade
             ACTIVITY.COLLECTIVE_EXPENSE_INVITE_DRAFTED,
             ACTIVITY.COLLECTIVE_EXPENSE_REJECTED,
             ACTIVITY.COLLECTIVE_EXPENSE_APPROVED,
+            ACTIVITY.COLLECTIVE_EXPENSE_MOVED,
             ACTIVITY.COLLECTIVE_EXPENSE_UNAPPROVED,
             ACTIVITY.COLLECTIVE_EXPENSE_PAID,
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID,

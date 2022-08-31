@@ -69,7 +69,10 @@ async function run() {
           await models.Activity.create({
             type: activities.BACKYOURSTACK_DISPATCH_CONFIRMED,
             UserId: order.CreatedByUserId,
-            CollectiveId: order.fromCollective.id,
+            CollectiveId: order.fromCollective.id, // TODO(InconsistentActivities): Should be Order.CollectiveId
+            FromCollectiveId: order.fromCollective.id,
+            HostCollectiveId: order.collective.approvedAt ? order.collective.HostCollectiveId : null,
+            OrderId: order.id,
             data: {
               orders: dispatchedOrders,
               collective: order.fromCollective.info,

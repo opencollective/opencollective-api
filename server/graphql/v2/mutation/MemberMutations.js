@@ -167,6 +167,8 @@ const memberMutations = {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
           CollectiveId: account.id,
+          FromCollectiveId: memberAccount.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
           UserId: req.remoteUser.id,
           UserTokenId: req.userToken?.id,
           data: {
@@ -229,7 +231,7 @@ const memberMutations = {
           });
 
           const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-          if (policy?.numberOfAdmins <= adminCount) {
+          if (policy?.numberOfAdmins && adminCount <= policy.numberOfAdmins) {
             throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
           }
         }
@@ -249,6 +251,8 @@ const memberMutations = {
         await models.Activity.create({
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_REMOVED,
           CollectiveId: account.id,
+          FromCollectiveId: memberAccount.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
           UserId: req.remoteUser.id,
           UserTokenId: req.userToken?.id,
           data: {

@@ -9,87 +9,108 @@ export class Activity extends Model<InferAttributes<Activity>, InferCreationAttr
   public declare type: ActivityTypes;
   public declare data: CreationOptional<Record<string, any> & { notify?: boolean }>;
   public declare CollectiveId: CreationOptional<number>;
+  public declare FromCollectiveId: CreationOptional<number>;
+  public declare HostCollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
   public declare UserTokenId: CreationOptional<number>;
   public declare TransactionId: CreationOptional<number>;
   public declare ExpenseId: CreationOptional<number>;
+  public declare OrderId: CreationOptional<number>;
   public declare createdAt: CreationOptional<Date>;
 }
 
-function setupModel() {
-  Activity.init(
-    {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-      },
-      type: DataTypes.STRING,
+Activity.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
+    type: DataTypes.STRING,
 
-      data: DataTypes.JSONB,
+    data: DataTypes.JSONB,
 
-      CollectiveId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Collectives',
-          key: 'id',
-        },
-      },
-
-      UserId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Users',
-          key: 'id',
-        },
-      },
-
-      UserTokenId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'UserTokens',
-          key: 'id',
-        },
-      },
-
-      TransactionId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Transactions',
-          key: 'id',
-        },
-      },
-
-      ExpenseId: {
-        type: DataTypes.INTEGER,
-        references: {
-          model: 'Expenses',
-          key: 'id',
-        },
-      },
-
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
+    CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
       },
     },
-    {
-      sequelize,
-      updatedAt: false,
-      hooks: {
-        afterCreate(activity) {
-          if (activity.data?.notify !== false) {
-            dispatch(activity); // intentionally no return statement, needs to be async
-          }
-          return Promise.resolve();
-        },
+
+    FromCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
       },
     },
-  );
-}
 
-// We're using the setupModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-setupModel();
+    HostCollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+    },
+
+    UserId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Users',
+        key: 'id',
+      },
+    },
+
+    UserTokenId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'UserTokens',
+        key: 'id',
+      },
+    },
+
+    TransactionId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Transactions',
+        key: 'id',
+      },
+    },
+
+    ExpenseId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Expenses',
+        key: 'id',
+      },
+    },
+
+    OrderId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Orders',
+        key: 'id',
+      },
+    },
+
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    sequelize,
+    updatedAt: false,
+    hooks: {
+      afterCreate(activity) {
+        if (activity.data?.notify !== false) {
+          dispatch(activity); // intentionally no return statement, needs to be async
+        }
+        return Promise.resolve();
+      },
+    },
+  },
+);
 
 export default Activity;

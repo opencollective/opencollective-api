@@ -30,7 +30,6 @@ const done = err => {
   const subject = `${issuesFound ? '❌' : '✅'} Daily ledger health report - ${new Date().toLocaleDateString()}`;
   return emailLib
     .sendMessage('ops@opencollective.com', subject, '', {
-      bcc: ' ',
       text: result,
       attachments,
     })

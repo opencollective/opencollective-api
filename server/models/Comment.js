@@ -1,10 +1,6 @@
-import Promise from 'bluebird';
-import { defaults } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
-import activities from '../constants/activities';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
 // Options for sanitizing comment's body
@@ -57,7 +53,7 @@ function defineModel() {
         },
         onDelete: 'SET NULL',
         onUpdate: 'CASCADE',
-        allowNull: true, // non authenticated users can create a Update
+        allowNull: true,
       },
 
       ExpenseId: {
@@ -148,33 +144,6 @@ function defineModel() {
             throw new Error('Comment must be linked to an expense, an update or a conversation');
           }
         },
-        afterCreate: instance => {
-          let type = activities.COLLECTIVE_COMMENT_CREATED;
-          if (instance.ConversationId) {
-            type = activities.CONVERSATION_COMMENT_CREATED;
-          } else if (instance.ExpenseId) {
-            type = activities.EXPENSE_COMMENT_CREATED;
-          } else if (instance.UpdateId) {
-            type = activities.UPDATE_COMMENT_CREATED;
-          }
-
-          models.Activity.create({
-            type,
-            UserId: instance.CreatedByUserId,
-            CollectiveId: instance.CollectiveId,
-            data: {
-              CommentId: instance.id,
-              comment: {
-                id: instance.id,
-                html: instance.html,
-              },
-              FromCollectiveId: instance.FromCollectiveId,
-              ExpenseId: instance.ExpenseId,
-              UpdateId: instance.UpdateId,
-              ConversationId: instance.ConversationId,
-            },
-          });
-        },
       },
     },
   );
@@ -218,15 +187,6 @@ function defineModel() {
   // Returns the User model of the User that created this Update
   Comment.prototype.getUser = function () {
     return models.User.findByPk(this.CreatedByUserId);
-  };
-
-  Comment.createMany = (comments, defaultValues) => {
-    return Promise.map(comments, u => Comment.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
-      error => {
-        console.error(error);
-        reportErrorToSentry(error);
-      },
-    );
   };
 
   Temporal(Comment, sequelize);

@@ -520,7 +520,8 @@ async function sendGiftCardCreatedEmail(giftCard, emitterCollective) {
 
   await models.Activity.create({
     type: activities.USER_CARD_INVITED,
-    CollectiveId: emitterCollective.id,
+    CollectiveId: emitterCollective.id, // TODO(InconsistentActivities): Should be the FromCollective
+    // TODO(InconsistentActivities): CollectiveId: invitee.id
     data: {
       email,
       redeemCode: code,

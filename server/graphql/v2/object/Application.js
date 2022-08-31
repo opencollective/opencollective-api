@@ -91,13 +91,14 @@ export const Application = new GraphQLObjectType({
         });
         if (userToken) {
           return {
-            account: () => req.loaders.Collective.byId.load(userToken.user.CollectiveId),
             id: userToken.id,
+            account: req.remoteUser.collective,
             application: userToken.client,
             expiresAt: userToken.accessTokenExpiresAt,
             createdAt: userToken.createdAt,
             updatedAt: userToken.updatedAt,
             scope: userToken.scope,
+            user: req.remoteUser,
           };
         }
       },

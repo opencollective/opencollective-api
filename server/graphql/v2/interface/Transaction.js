@@ -25,6 +25,7 @@ import { Amount } from '../object/Amount';
 import { Expense } from '../object/Expense';
 import { Order } from '../object/Order';
 import { PaymentMethod } from '../object/PaymentMethod';
+import PayoutMethod from '../object/PayoutMethod';
 import { TaxInfo } from '../object/TaxInfo';
 
 import { Account } from './Account';
@@ -185,6 +186,9 @@ const transactionFieldsDefinition = () => ({
   paymentMethod: {
     type: PaymentMethod,
   },
+  payoutMethod: {
+    type: PayoutMethod,
+  },
   permissions: {
     type: TransactionPermissions,
   },
@@ -210,6 +214,12 @@ const transactionFieldsDefinition = () => ({
   balanceInHostCurrency: {
     type: Amount,
     description: 'The balance after the Transaction has run. Only for financially active accounts.',
+  },
+  invoiceTemplate: {
+    type: GraphQLString,
+    async resolve(transaction) {
+      return transaction.data?.invoiceTemplate;
+    },
   },
 });
 
@@ -471,6 +481,16 @@ export const TransactionFields = () => {
         }
       },
     },
+    payoutMethod: {
+      type: PayoutMethod,
+      resolve(transaction, _, req) {
+        if (transaction.PayoutMethodId) {
+          return req.loaders.PayoutMethod.byId.load(transaction.PayoutMethodId);
+        } else {
+          return null;
+        }
+      },
+    },
     permissions: {
       type: new GraphQLNonNull(TransactionPermissions),
       description: 'The permissions given to current logged in user for this transaction',
@@ -559,12 +579,6 @@ export const TransactionFields = () => {
         if (!isNil(result?.balance)) {
           return { value: result.balance, currency: transaction.hostCurrency };
         }
-      },
-    },
-    invoiceTemplate: {
-      type: new GraphQLNonNull(GraphQLString),
-      async resolve(transaction) {
-        return transaction.data?.invoiceTemplate;
       },
     },
   };

@@ -18,7 +18,7 @@ const AccountPermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(Permission),
       description: 'Whether the current user can mark this order as expired',
       resolve(collective, _, req: express.Request): PermissionFields {
-        return { allowed: checkScope(req, 'host') && req.remoteUser.isHostAdmin(collective) };
+        return { allowed: (checkScope(req, 'host') && req.remoteUser?.isAdmin(collective.HostCollectiveId)) || false };
       },
     },
   }),

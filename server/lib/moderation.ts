@@ -113,7 +113,7 @@ const getUndeletableTransactionsCount = async collectiveIds => {
       ) WHEN t."ExpenseId" IS NOT NULL THEN (
         -- For expenses, we need to check the payout info
         (e."legacyPayoutMethod" = 'paypal' AND e."PayoutMethodId" IS NULL) -- Legacy paypal transactions with expenses - let's be safe and not delete them
-        OR "PayoutMethodId" IS NULL -- Manual payments
+        OR e."PayoutMethodId" IS NULL -- Manual payments
         OR (
           payout.type NOT IN ('OTHER', 'ACCOUNT_BALANCE')
           AND (

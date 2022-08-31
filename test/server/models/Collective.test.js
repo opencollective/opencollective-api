@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { repeat } from 'lodash';
 import moment from 'moment';
 import { SequelizeValidationError } from 'sequelize';
 import { createSandbox } from 'sinon';
@@ -282,7 +283,7 @@ describe('server/models/Collective', () => {
       const ics = await event.getICS();
       expect(ics).to.contain('STATUS:CONFIRMED');
       expect(ics).to.contain('/tipbox/events/sustainoss-london');
-      expect(ics).to.contain('no-reply@tipbox.opencollective.com');
+      expect(ics).to.contain('no-reply@opencollective.com');
     });
   });
 
@@ -395,7 +396,7 @@ describe('server/models/Collective', () => {
       const applyArgs = sendEmailSpy.args.find(callArgs => callArgs[1].includes('Thanks for applying'));
       expect(applyArgs).to.exist;
       expect(applyArgs[0]).to.equal(user1.email);
-      expect(applyArgs[3].from).to.equal('no-reply@wwcode.opencollective.com');
+      expect(applyArgs[3].from).to.equal('no-reply@opencollective.com');
     });
 
     it('updates hostFeePercent for collective and events when adding or changing host', async () => {
@@ -1284,6 +1285,33 @@ describe('server/models/Collective', () => {
 
     it('should throw if feature is not supported', async () => {
       return expect(collective.enableFeature('RECEIVE_POTATOES_FOR_THE_GIANT_RACLETTE')).to.eventually.be.rejected;
+    });
+  });
+
+  describe('settings', () => {
+    describe('custom thank you email message', () => {
+      it('sanitizes the HTML', async () => {
+        const collective = await fakeCollective({
+          settings: {
+            customEmailMessage:
+              '<div>Some content with an iframe <iframe></iframe> and an <img src="/test.jpg"></img></div>',
+          },
+        });
+
+        expect(collective.settings.customEmailMessage).to.equal(
+          '<div>Some content with an iframe  and an <img src="/test.jpg" /></div>',
+        );
+      });
+
+      it('checks the length ', async () => {
+        await expect(fakeCollective({ settings: { customEmailMessage: repeat('x', 600) } })).to.be.rejectedWith(
+          'Validation error: Custom "Thank you" email message should be less than 500 characters',
+        );
+      });
+
+      it('checks the length (ignoring the HTML)', async () => {
+        await expect(fakeCollective({ settings: { customEmailMessage: repeat('<div>x</div>', 499) } })).to.be.fulfilled;
+      });
     });
   });
 });

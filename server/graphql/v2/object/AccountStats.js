@@ -5,11 +5,16 @@ import { get, has, isNil } from 'lodash';
 import moment from 'moment';
 
 import queries from '../../../lib/queries';
+import sequelize, { QueryTypes } from '../../../lib/sequelize';
+import { computeDatesAsISOStrings } from '../../../lib/utils';
+import models from '../../../models';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
+import { AmountStats } from '../object/AmountStats';
+import { getNumberOfDays, getTimeUnit, TimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
 
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
@@ -206,6 +211,186 @@ export const AccountStats = new GraphQLObjectType({
         type: GraphQLJSON,
         resolve(collective, args, req) {
           return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
+        },
+      },
+      expensesTags: {
+        type: new GraphQLList(AmountStats),
+        description: 'Returns expense tags for collective sorted by popularity',
+        args: {
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'The start date of the time series',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'The end date of the time series',
+          },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args) {
+          const limit = args.limit;
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const includeChildren = args.includeChildren;
+          return models.Expense.getCollectiveExpensesTags(collective, { limit, dateFrom, dateTo, includeChildren });
+        },
+      },
+      expensesTagsTimeSeries: {
+        type: new GraphQLNonNull(TimeSeriesAmount),
+        args: {
+          ...TimeSeriesArgs,
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include expense to children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        description: 'History of the expense tags used by this collective.',
+        resolve: async (collective, args) => {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const includeChildren = args.includeChildren;
+          const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective, timeUnit, {
+            dateFrom,
+            dateTo,
+            includeChildren,
+          });
+          return {
+            dateFrom,
+            dateTo,
+            timeUnit,
+            nodes: results.map(result => ({
+              date: result.date,
+              amount: { value: result.amount, currency: result.currency },
+              label: result.label,
+            })),
+          };
+        },
+      },
+      contributionsAmount: {
+        type: new GraphQLList(AmountStats),
+        description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
+        args: {
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'The start date of the time series',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'The end date of the time series',
+          },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args) {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          return sequelize.query(
+            `
+            SELECT
+              (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+              COUNT(o."id") as "count",
+              ABS(SUM(t."amount")) as "amount",
+              t."currency"
+            FROM "Transactions" t
+            LEFT JOIN "Orders" o
+              ON t."OrderId" = o."id"
+            INNER JOIN "Collectives" c
+              ON (
+                c."id" = $collectiveId
+                ${args.includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
+              )
+              AND c."deletedAt" IS NULL
+            WHERE t."type" = 'CREDIT'
+              AND t."kind" = 'CONTRIBUTION'
+              AND t."CollectiveId" =  c."id"
+              AND t."RefundTransactionId" IS NULL
+              AND t."deletedAt" IS NULL
+              ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+            GROUP BY (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
+            ORDER BY ABS(SUM(t."amount")) DESC
+            `,
+            {
+              type: QueryTypes.SELECT,
+              bind: {
+                collectiveId: collective.id,
+                ...computeDatesAsISOStrings(dateFrom, dateTo),
+              },
+            },
+          );
+        },
+      },
+      contributionsAmountTimeSeries: {
+        type: new GraphQLNonNull(TimeSeriesAmount),
+        description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
+        args: {
+          ...TimeSeriesArgs,
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args) {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
+          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const results = await sequelize.query(
+            `
+            SELECT
+              DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+              (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
+              ABS(SUM(t."amount")) as "amount",
+              t."currency"
+            FROM "Transactions" t
+            LEFT JOIN "Orders" o
+              ON t."OrderId" = o."id"
+            INNER JOIN "Collectives" c
+              ON (
+                c."id" = $collectiveId
+                ${args.includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
+              )
+              AND c."deletedAt" IS NULL
+            WHERE
+              t."type" = 'CREDIT'
+              AND t."kind" = 'CONTRIBUTION'
+              AND t."CollectiveId" = c."id"
+              AND t."RefundTransactionId" IS NULL
+              AND t."deletedAt" IS NULL
+              ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+            GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
+            ORDER BY DATE_TRUNC($timeUnit, t."createdAt"), ABS(SUM(t."amount")) DESC
+            `,
+            {
+              type: QueryTypes.SELECT,
+              bind: {
+                collectiveId: collective.id,
+                timeUnit,
+                ...computeDatesAsISOStrings(dateFrom, dateTo),
+              },
+            },
+          );
+          return {
+            dateFrom,
+            dateTo,
+            timeUnit,
+            nodes: results.map(result => ({
+              date: result.date,
+              amount: { value: result.amount, currency: result.currency },
+              label: result.label,
+            })),
+          };
         },
       },
     };

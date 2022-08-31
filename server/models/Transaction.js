@@ -191,6 +191,14 @@ function defineModel() {
         onUpdate: 'CASCADE',
       },
 
+      PayoutMethodId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'PayoutMethods' },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: true,
+      },
+
       isRefund: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
@@ -1030,6 +1038,9 @@ function defineModel() {
             TransactionId: transaction.id,
             CollectiveId: transaction.CollectiveId,
             UserId: transaction.CreatedByUserId,
+            FromCollectiveId: transaction.FromCollectiveId,
+            HostCollectiveId: transaction.HostCollectiveId,
+            OrderId: transaction.OrderId,
             data: {
               transaction: transaction.info,
               user: transaction.User && transaction.User.minimal,

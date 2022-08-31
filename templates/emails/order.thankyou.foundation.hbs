@@ -29,6 +29,13 @@ As the collective's fiscal sponsor, Open Collective Foundation, a public charity
   <a href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>, and share the link to help us spread the word!
 </p>
 
+{{#if customMessage}}
+<p>A message from {{collective.name}}:</p>
+
+<img width="40" height="33" src="{{config.host.website}}/static/images/email/quotation-custom-email.png" />
+<div style="color: #494B4D; font-size: 14px; line-height: 18px; padding-left: 10px; margin-top: 10px; border-left: 5px solid #F1F2F3">{{{customMessage}}}</div>
+{{/if}}
+
 <h2>Help us raise more money!</h2>
 <p>Share this URL: <a href="https://opencollective.com/{{collective.slug}}/donate">https://opencollective.com/{{collective.slug}}/donate</a>
 </p>

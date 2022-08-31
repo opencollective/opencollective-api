@@ -1,9 +1,27 @@
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
-import { cloneDeep, flatten, get, invert, isBoolean, isEqual, isNil, omitBy, pick, set, size, sumBy } from 'lodash';
+import {
+  cloneDeep,
+  find,
+  flatten,
+  get,
+  invert,
+  isBoolean,
+  isEqual,
+  isNil,
+  keyBy,
+  mapValues,
+  omitBy,
+  pick,
+  set,
+  size,
+  sumBy,
+  uniq,
+} from 'lodash';
 
 import { activities, expenseStatus, roles } from '../../constants';
+import ActivityTypes from '../../constants/activities';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
@@ -12,8 +30,8 @@ import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { hasFeature } from '../../lib/allowed-features';
 import { getFxRate } from '../../lib/currency';
+import { simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
@@ -30,6 +48,7 @@ import { formatCurrency } from '../../lib/utils';
 import models, { sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
+import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import paymentProviders from '../../paymentProviders';
 import {
@@ -48,6 +67,8 @@ import {
   ValidationFailed,
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
+
+import { checkRemoteUserCanRoot } from './scope-check';
 
 const debug = debugLib('expenses');
 
@@ -403,7 +424,7 @@ export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, opt
 };
 
 export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+  if (![expenseStatus.APPROVED, expenseStatus.PENDING, expenseStatus.ERROR].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as incomplete in current status',
@@ -664,7 +685,7 @@ const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: T
 };
 
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseData, items, taxes) => {
+const checkExpenseItems = (expenseType, items, taxes) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
@@ -673,13 +694,21 @@ const checkExpenseItems = (expenseData, items, taxes) => {
   }
 
   // Check amounts
+  items.forEach((item, idx) => {
+    if (isNil(item.amount)) {
+      throw new ValidationFailed(
+        `Amount not set for item ${item.description ? `"${item.description}"` : `number ${idx}`}`,
+      );
+    }
+  });
+
   const sumItems = computeTotalAmountForExpense(items, taxes);
   if (!sumItems) {
     throw new ValidationFailed(`The sum of all items must be above 0`);
   }
 
   // If expense is a receipt (not an invoice) then files must be attached
-  if (expenseData.type === EXPENSE_TYPE.RECEIPT) {
+  if (expenseType === EXPENSE_TYPE.RECEIPT) {
     const hasMissingFiles = items.some(a => !a.url);
     if (hasMissingFiles) {
       throw new ValidationFailed('Some items are missing a file');
@@ -788,12 +817,8 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   }
 };
 
-const hasMultiCurrency = (collective, host) => {
-  if (collective.currency !== host?.currency) {
-    return false; // Only support multi-currency when collective/host have the same currency
-  } else {
-    return hasFeature(collective, FEATURE.MULTI_CURRENCY_EXPENSES) || hasFeature(host, FEATURE.MULTI_CURRENCY_EXPENSES);
-  }
+export const hasMultiCurrency = (collective, host): boolean => {
+  return collective.currency === host?.currency; // Only support multi-currency when collective/host have the same currency
 };
 
 type TaxDefinition = {
@@ -876,7 +901,7 @@ export async function createExpense(
   const taxes = expenseData.tax || [];
 
   checkTaxes(collective, collective.host, expenseData.type, taxes);
-  checkExpenseItems(expenseData, itemsData, taxes);
+  checkExpenseItems(expenseData.type, itemsData, taxes);
   checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
 
   if (size(expenseData.attachedFiles) > 15) {
@@ -908,7 +933,6 @@ export async function createExpense(
 
   // Load the payee profile
   const fromCollective = expenseData.fromCollective || (await remoteUser.getCollective());
-
   if (!remoteUser.isAdminOfCollective(fromCollective)) {
     throw new ValidationFailed('You must be an admin of the account to submit an expense in its name');
   } else if (!fromCollective.canBeUsedAsPayoutProfile()) {
@@ -1013,15 +1037,13 @@ export const changesRequireStatusUpdate = (
 export const getItemsChanges = async (
   existingItems: ExpenseItem[],
   expenseData: ExpenseData,
-): Promise<
-  [boolean, Record<string, unknown>[], [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]
-> => {
+): Promise<[boolean, [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]]]> => {
   if (expenseData.items) {
     const itemsDiff = models.ExpenseItem.diffDBEntries(existingItems, expenseData.items);
     const hasItemChanges = flatten(<unknown[]>itemsDiff).length > 0;
-    return [hasItemChanges, expenseData.items, itemsDiff];
+    return [hasItemChanges, itemsDiff];
   } else {
-    return [false, [], [[], [], []]];
+    return [false, [[], [], []]];
   }
 };
 
@@ -1099,7 +1121,7 @@ export async function editExpense(
     checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
   }
 
-  const [hasItemChanges, itemsData, itemsDiff] = await getItemsChanges(expense.items, expenseData);
+  const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, expenseData);
   const taxes = expenseData.tax || expense.data?.taxes || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
@@ -1174,14 +1196,14 @@ export async function editExpense(
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
   }
-  const updatedExpense = await sequelize.transaction(async t => {
+  const updatedExpense = await sequelize.transaction(async transaction => {
     // Update payout method if we get new data from one of the param for it
     if (
       !isPaidCreditCardCharge &&
       expenseData.payoutMethod !== undefined &&
       expenseData.payoutMethod?.id !== expense.PayoutMethodId
     ) {
-      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, t);
+      payoutMethod = await getPayoutMethodFromExpenseData(expenseData, remoteUser, fromCollective, transaction);
 
       // Reset fees payer when changing the payout method and the new one doesn't support it
       if (feesPayer === ExpenseFeesPayer.PAYEE && !models.PayoutMethod.typeSupportsFeesPayer(payoutMethod?.type)) {
@@ -1191,22 +1213,26 @@ export async function editExpense(
 
     // Update items
     if (hasItemChanges) {
-      checkExpenseItems({ ...expense.dataValues, ...cleanExpenseData }, itemsData, taxes);
-      const [newItemsData, oldItems, itemsToUpdate] = itemsDiff;
+      const simulatedItemsUpdate = simulateDBEntriesDiff(expense.items, itemsDiff);
+      checkExpenseItems(expenseType, simulatedItemsUpdate, taxes);
+      const [newItemsData, itemsToRemove, itemsToUpdate] = itemsDiff;
       await Promise.all(<Promise<void>[]>[
         // Delete
-        ...oldItems.map(item => {
-          return item.destroy({ transaction: t });
+        ...itemsToRemove.map(item => {
+          return item.destroy({ transaction });
         }),
         // Create
         ...newItemsData.map(itemData => {
-          return models.ExpenseItem.createFromData(itemData, remoteUser, expense, t);
+          return models.ExpenseItem.createFromData(itemData, remoteUser, expense, transaction);
         }),
         // Update
         ...itemsToUpdate.map(itemData => {
-          return models.ExpenseItem.updateFromData(itemData, t);
+          return models.ExpenseItem.updateFromData(itemData, transaction);
         }),
       ]);
+
+      // Reload items
+      expense.items = await expense.getItems({ transaction, order: [['id', 'ASC']] });
     }
 
     // Update expense
@@ -1226,7 +1252,7 @@ export async function editExpense(
         expenseData.attachedFiles,
       );
 
-      await createAttachedFiles(expense, newAttachedFiles, remoteUser, t);
+      await createAttachedFiles(expense, newAttachedFiles, remoteUser, transaction);
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
@@ -1245,7 +1271,7 @@ export async function editExpense(
     const updatedExpenseProps = {
       ...cleanExpenseData,
       data: !expense.data ? null : cloneDeep(expense.data),
-      amount: computeTotalAmountForExpense(expenseData.items || expense.items, taxes),
+      amount: computeTotalAmountForExpense(expense.items, taxes),
       lastEditedById: remoteUser.id,
       incurredAt: expenseData.incurredAt || new Date(),
       status,
@@ -1261,7 +1287,7 @@ export async function editExpense(
     if (!isEqual(expense.data?.taxes, taxes)) {
       set(updatedExpenseProps, 'data.taxes', taxes);
     }
-    return expense.update(updatedExpenseProps, { transaction: t });
+    return expense.update(updatedExpenseProps, { transaction });
   });
 
   if (isPaidCreditCardCharge) {
@@ -1456,7 +1482,11 @@ export async function createTransferWiseTransactionsAndUpdateExpense({ host, exp
   }
 
   await createTransactionsFromPaidExpense(host, expense, fees, wiseFxRateInfo?.value || 'auto', data);
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser);
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PROCESSING, remoteUser, {
+    message: expense.data?.paymentOption?.formattedEstimatedDelivery
+      ? `ETA: ${expense.data.paymentOption.formattedEstimatedDelivery}`
+      : undefined,
+  });
   await expense.setProcessing(remoteUser.id);
   return expense;
 }
@@ -2011,4 +2041,127 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
   // Fallback on internal system
   const fxRate = await req.loaders.CurrencyExchangeRate.fxRate.load({ fromCurrency: expense.currency, toCurrency });
   return buildAmount(fxRate, OPENCOLLECTIVE, true);
+};
+
+/**
+ * Move expenses to destination account
+ * @param expenses the list of models.Expense, with the collective association preloaded
+ */
+export const moveExpenses = async (
+  req: express.Request,
+  expenses: typeof models.Expense[],
+  destinationAccount: typeof models.Collective,
+) => {
+  // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere
+  checkRemoteUserCanRoot(req);
+  if (!expenses.length) {
+    return [];
+  } else if (destinationAccount.type === collectiveTypes.USER) {
+    throw new ValidationFailed('The "destinationAccount" must not be an USER account');
+  }
+
+  // -- Move expenses --
+  const expenseIds: number[] = uniq(expenses.map(expense => expense.id));
+  const recurringExpenseIds: number[] = uniq(expenses.map(expense => expense.RecurringExpenseId).filter(Boolean));
+  const result = await sequelize.transaction(async dbTransaction => {
+    const associatedTransactionsCount = await models.Transaction.count({
+      where: { ExpenseId: expenseIds },
+      transaction: dbTransaction,
+    });
+
+    if (associatedTransactionsCount > 0) {
+      throw new ValidationFailed('Cannot move expenses with associated transactions');
+    }
+
+    // Moving associated models
+    const [, updatedExpenses] = await models.Expense.update(
+      { CollectiveId: destinationAccount.id },
+      {
+        transaction: dbTransaction,
+        returning: true,
+        where: { id: expenseIds },
+        hooks: false,
+      },
+    );
+
+    const [, updatedComments] = await models.Comment.update(
+      { CollectiveId: destinationAccount.id },
+      {
+        transaction: dbTransaction,
+        returning: ['id'],
+        where: { ExpenseId: expenseIds },
+        hooks: false,
+      },
+    );
+
+    const [, updatedActivities] = await models.Activity.update(
+      { CollectiveId: destinationAccount.id },
+      {
+        transaction: dbTransaction,
+        returning: ['id'],
+        where: { ExpenseId: expenseIds },
+        hooks: false,
+      },
+    );
+
+    let updatedRecurringExpenses = [];
+    if (recurringExpenseIds.length) {
+      [, updatedRecurringExpenses] = await models.RecurringExpense.update(
+        { CollectiveId: destinationAccount.id },
+        {
+          transaction: dbTransaction,
+          returning: ['id'],
+          where: { id: recurringExpenseIds },
+          hooks: false,
+        },
+      );
+    }
+
+    // Record the individual activities for moving the expenses
+    await models.Activity.bulkCreate(
+      updatedExpenses.map(expense => {
+        const originalExpense = find(expenses, { id: expense.id });
+        return {
+          type: ActivityTypes.COLLECTIVE_EXPENSE_MOVED,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          FromCollectiveId: originalExpense.collective.id,
+          CollectiveId: destinationAccount.id,
+          HostCollectiveId: destinationAccount.HostCollectiveId,
+          ExpenseId: expense.id,
+          data: {
+            expense: expense.info,
+            movedFromCollective: originalExpense.collective.info,
+            collective: destinationAccount.info,
+          },
+        };
+      }),
+      {
+        transaction: dbTransaction,
+        hooks: false, // Hooks are not playing well with `bulkCreate`, and we don't need to send any email here anyway
+      },
+    );
+
+    // Record the migration log
+    await models.MigrationLog.create(
+      {
+        type: MigrationLogType.MOVE_EXPENSES,
+        description: `Moved ${updatedExpenses.length} expenses`,
+        CreatedByUserId: req.remoteUser.id,
+        data: {
+          expenses: updatedExpenses.map(o => o.id),
+          recurringExpenses: updatedRecurringExpenses.map(o => o.id),
+          comments: updatedComments.map(c => c.id),
+          activities: updatedActivities.map(a => a.id),
+          destinationAccount: destinationAccount.id,
+          previousExpenseValues: mapValues(keyBy(expenses, 'id'), expense => pick(expense, ['CollectiveId'])),
+        },
+      },
+      { transaction: dbTransaction },
+    );
+
+    return updatedExpenses;
+  });
+
+  return result;
 };

@@ -53,9 +53,6 @@ if [ -z "$LOCALDBNAME" ]; then usage; fi;
 dropdb --if-exists $LOCALDBNAME;
 createdb $LOCALDBNAME 2> /dev/null
 
-# Add POSTGIS extension
-psql "${LOCALDBNAME}" -c "CREATE EXTENSION POSTGIS;" 1> /dev/null
-
 # The first time we run it, we will trigger FK constraints errors
 set +e
 pg_restore --no-acl --no-owner -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null
@@ -89,6 +86,10 @@ echo "DB restored to postgres://localhost/${LOCALDBNAME}"
   psql "${LOCALDBNAME}" -c "alter type \"enum_ExpenseHistories_type\" owner to ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "alter type \"enum_MemberInvitations_role\" owner to ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "alter type \"enum_PayoutMethods_type\" owner to ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "alter type \"enum_MigrationLogs_type\" owner to ${LOCALDBUSER};"
+  # TODO: uncomment those lines when we update the dump
+  # psql "${LOCALDBNAME}" -c "alter type \"enum_OAuthAuthorizationCodes_scope\" owner to ${LOCALDBUSER};"
+  # psql "${LOCALDBNAME}" -c "alter type \"enum_UserTokens_scope\" owner to ${LOCALDBUSER};"
 
   psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${LOCALDBUSER};"

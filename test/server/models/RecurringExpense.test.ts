@@ -43,7 +43,7 @@ describe('server/models/RecurringExpense', () => {
     expect(newExpense.status).to.eq('DRAFT');
     expect(newExpense).to.have.nested.property('data.draftKey');
     expect(newExpense).to.have.nested.property('data.items');
-    expect(newExpense.data.items[0].amount).to.eq(expense.items[0].amount);
+    expect(newExpense.data.items.map(i => i.amount)).to.deep.eqInAnyOrder(expense.items.map(i => i.amount));
   });
 
   it('should mail the user notifying about a new draft', async () => {

@@ -432,7 +432,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
     {{#each transactions}}
     <tr>
       <td valign="top"><a
-          href="{{@root.config.host.website}}/{{collective.slug}}/expenses/{{id}}">{{moment
+          href="{{@root.config.host.website}}/{{collective.slug}}/transactions?searchTerm=%23{{id}}&kind=ALL">{{moment
           createdAt format="MM/DD"}}</a>
       </td>
       <td valign="top"><a href="{{@root.config.host.website}}/{{collective.slug}}">{{collective.shortSlug}}</a></td>

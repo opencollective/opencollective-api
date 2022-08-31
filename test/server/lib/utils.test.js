@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 
-import { exportToPDF } from '../../../server/lib/utils';
+import { cleanTags, exportToPDF } from '../../../server/lib/utils';
 
 describe('server/lib/utils', () => {
   it('exports PDF', done => {
@@ -35,5 +35,17 @@ describe('server/lib/utils', () => {
         done(error);
       }
     });
+  });
+
+  it('clean tags', () => {
+    const tags = ['OpenCollective', '#OpenCollective', 'o#penCollective', 'OpenCollective#', '##OpenCollective'];
+    const cleanedTags = cleanTags(tags);
+    assert.deepEqual(cleanedTags, [
+      'OpenCollective',
+      'OpenCollective',
+      'o#penCollective',
+      'OpenCollective#',
+      'OpenCollective',
+    ]);
   });
 });

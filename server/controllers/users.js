@@ -92,11 +92,17 @@ export const signin = async (req, res, next) => {
       { loginLink, clientIP },
       { sendEvenIfNotProduction: true },
     );
-    await models.Activity.create({
-      type: activities.USER_NEW_TOKEN,
-      UserId: user.id,
-      data: { notify: false },
-    });
+
+    if (!parseToBoolean(config.database.readOnly)) {
+      await models.Activity.create({
+        type: activities.USER_NEW_TOKEN,
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: user.CollectiveId,
+        data: { notify: false },
+      });
+    }
+
     const response = { success: true };
     // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
     if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {

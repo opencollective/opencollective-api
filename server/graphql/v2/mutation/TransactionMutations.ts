@@ -167,6 +167,10 @@ const transactionMutations = {
       // email contributor(s) to let them know their transaction has been rejected
       const activity = {
         type: activities.CONTRIBUTION_REJECTED,
+        OrderId: orderToUpdate.id,
+        FromCollectiveId: orderToUpdate.FromCollectiveId,
+        CollectiveId: orderToUpdate.CollectiveId,
+        HostCollectiveId: toAccount.approvedAt ? toAccount.HostCollectiveId : null,
         data: {
           rejectionReason,
           collective: toAccount.info,

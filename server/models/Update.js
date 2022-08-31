@@ -23,6 +23,13 @@ export const sanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
+export const UPDATE_NOTIFICATION_AUDIENCE = {
+  ALL: 'ALL',
+  COLLECTIVE_ADMINS: 'COLLECTIVE_ADMINS',
+  FINANCIAL_CONTRIBUTORS: 'FINANCIAL_CONTRIBUTORS',
+  NO_ONE: 'NO_ONE',
+};
+
 /**
  * Defines the roles targeted by an update notification. Admins of the parent collective are
  * always included, regardless of the values in this array.
@@ -246,8 +253,10 @@ function defineModel() {
         afterCreate: instance => {
           models.Activity.create({
             type: activities.COLLECTIVE_UPDATE_CREATED,
-            UserId: instance.LastEditedByUserId,
+            UserId: instance.CreatedByUserId,
             CollectiveId: instance.CollectiveId,
+            FromCollectiveId: instance.FromCollectiveId,
+            // TODO(InconsistentActivities): Should have HostCollectiveId
             data: {
               update: instance.activity,
             },
@@ -292,6 +301,8 @@ function defineModel() {
       type: activities.COLLECTIVE_UPDATE_PUBLISHED,
       UserId: remoteUser.id,
       CollectiveId: this.CollectiveId,
+      FromCollectiveId: this.FromCollectiveId,
+      HostCollectiveId: this.collective.approvedAt ? this.collective.HostCollectiveId : null,
       data: {
         fromCollective: this.fromCollective.activity,
         collective: this.collective.activity,

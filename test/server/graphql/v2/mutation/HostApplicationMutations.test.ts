@@ -204,12 +204,11 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         // Test email
         await waitForCondition(() => sendEmailSpy.callCount === 1);
         expect(sendEmailSpy.callCount).to.eq(1);
-        const [emailTo, subject, body, { bcc }] = sendEmailSpy.getCall(0).args;
+        const [emailTo, subject, body] = sendEmailSpy.getCall(0).args;
         expect(emailTo).to.eq(collectiveAdmin.email);
         expect(subject).to.eq('🎉 Your Collective has been approved!');
         expect(body).to.include(`Hey ${collective.name}`);
         expect(body).to.include(`the money will be held by ${host.name}`);
-        expect(bcc).to.eq('emailbcc@opencollective.com');
       });
     });
 
@@ -239,12 +238,11 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
 
         // Test email
         await waitForCondition(() => sendEmailSpy.callCount === 1);
-        const [emailTo, subject, body, { bcc }] = sendEmailSpy.getCall(0).args;
+        const [emailTo, subject, body] = sendEmailSpy.getCall(0).args;
         expect(emailTo).to.eq(collectiveAdmin.email);
         expect(subject).to.eq(`Your application to ${host.name}`);
         expect(body).to.include(`Hello ${collective.name}`);
         expect(body).to.include(`Your application to be fiscally hosted by ${host.name} has been rejected`);
-        expect(bcc).to.eq('emailbcc@opencollective.com');
       });
     });
   });

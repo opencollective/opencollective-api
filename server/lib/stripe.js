@@ -11,6 +11,12 @@ stripe.setMaxNetworkRetries(2);
 
 export default stripe;
 
+export const StripeCustomToken = token => {
+  const stripe = Stripe(token);
+  stripe.setMaxNetworkRetries(2);
+  return stripe;
+};
+
 export const extractFees = (balance, currency) => {
   const fees = {
     total: convertFromStripeAmount(currency, balance.fee),

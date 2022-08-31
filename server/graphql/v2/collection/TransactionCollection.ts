@@ -1,5 +1,6 @@
-import { GraphQLList, GraphQLObjectType } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
+import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { TransactionKind } from '../enum/TransactionKind';
 import { Collection, CollectionFields } from '../interface/Collection';
 import { Transaction } from '../interface/Transaction';
@@ -15,6 +16,10 @@ export const TransactionCollection = new GraphQLObjectType({
     },
     kinds: {
       type: new GraphQLList(TransactionKind),
+    },
+    paymentMethodTypes: {
+      type: new GraphQLNonNull(new GraphQLList(PaymentMethodType)),
+      description: 'The types of payment methods used in this collection, regardless of the pagination',
     },
   }),
 });

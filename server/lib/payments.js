@@ -19,6 +19,7 @@ import paymentProviders from '../paymentProviders';
 
 import { notify } from './notifications/email';
 import { getFxRate } from './currency';
+import emailLib from './email';
 import logger from './logger';
 import { getTransactionPdf } from './pdf';
 import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budget';
@@ -165,6 +166,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'data.tax',
     'kind',
     'isDebt',
+    'PayoutMethodId',
   ]);
 
   refund.CreatedByUserId = user?.id || null;
@@ -613,11 +615,15 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   const user = await order.getUserForActivity();
   const host = await collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
+  const customMessage = collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage;
 
   if (tier && tier.type === tiers.TICKET) {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
+      FromCollectiveId: fromCollective.id,
+      OrderId: order.id,
+      HostCollectiveId: host?.id,
       UserId: user.id,
       data: {
         EventCollectiveId: collective.id,
@@ -626,6 +632,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
         order: order.activity,
         tier: tier && tier.info,
         host: host ? host.info : {},
+        customMessage,
       },
     });
   } else {
@@ -643,7 +650,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),
-      customMessage: collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage,
+      customMessage,
     };
 
     // hit PDF service and get PDF (unless payment method type is gift card)
@@ -677,7 +684,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     const activity = { type: activities.ORDER_THANKYOU, data };
     return notify.collective(activity, {
       collectiveId: data.fromCollective.id,
-      from: `${collective.name} <no-reply@${collective.slug}.opencollective.com>`,
+      from: emailLib.generateFromEmailHeader(collective.name),
       attachments,
     });
   }
@@ -704,6 +711,9 @@ const sendCryptoOrderProcessingEmail = async order => {
     await models.Activity.create({
       type: activities.ORDER_PROCESSING_CRYPTO,
       CollectiveId: collective.id,
+      FromCollectiveId: fromCollective.id,
+      OrderId: order.id,
+      HostCollectiveId: host?.id,
       UserId: user.id,
       data,
     });
@@ -751,6 +761,10 @@ export const sendOrderProcessingEmail = async order => {
   await models.Activity.create({
     type: activities.ORDER_PROCESSING,
     UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
     data,
   });
 };
@@ -779,7 +793,14 @@ const sendManualPendingOrderEmail = async order => {
     pendingOrderLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
     replyTo,
   };
-  return await models.Activity.create({ type: activities.ORDER_PENDING_CONTRIBUTION_NEW, data });
+  return models.Activity.create({
+    type: activities.ORDER_PENDING_CONTRIBUTION_NEW,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+    OrderId: order.id,
+    data,
+  });
 };
 
 export const sendReminderPendingOrderEmail = async order => {
@@ -800,7 +821,14 @@ export const sendReminderPendingOrderEmail = async order => {
     fromCollective: fromCollective.activity,
     viewDetailsLink: `${config.host.website}/${host.slug}/admin/orders?searchTerm=%23${order.id}`,
   };
-  return await models.Activity.create({ type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER, data });
+  return await models.Activity.create({
+    type: activities.ORDER_PENDING_CONTRIBUTION_REMINDER,
+    CollectiveId: order.CollectiveId,
+    FromCollectiveId: order.FromCollectiveId,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+    OrderId: order.id,
+    data,
+  });
 };
 
 export const sendExpiringCreditCardUpdateEmail = async data => {

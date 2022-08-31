@@ -1,0 +1,30 @@
+Subject: Open Collective: A third-party OAuth application has been added to your account
+
+{{> header}}
+
+<p>
+    Hi,
+    <br />
+    <br />
+    A third-party OAuth application ({{application.name}}) was recently authorized to access your account.
+</p>
+
+    {{#if scope.length}}
+    <br />
+    <br />
+    Scopes:
+    <br />
+    <ul>
+        {{#each scope}}
+        <li>{{this}}</li>
+        {{/each}}
+    </ul>
+    {{/if}}
+    <br />
+    <br />
+
+<p>
+    You can manage authorized OAuth applications from the <a href="{{config.host.website}}/{{collective.slug}}/admin/for-developers">For Developers</a> section of your settings.
+</p>
+
+{{> footer}}

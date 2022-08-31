@@ -25,7 +25,7 @@ export const unsubscribe = async (req, res, next) => {
       throw new errors.NotFound(`Cannot find a user with email "${email}"`);
     }
 
-    await models.Notification.unsubscribe(type, 'email', user.id, collective.id);
+    await models.Notification.unsubscribe(type, 'email', user.id, collective?.id);
     res.send({ response: 'ok' });
   } catch (e) {
     next(e);

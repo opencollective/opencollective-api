@@ -52,6 +52,7 @@ export const templateNames = [
   'host.application.contact',
   'host.report',
   'member.invitation',
+  'oauth.application.authorized',
   'onboarding.day2',
   'onboarding.day2.foundation',
   'onboarding.day2.opensource',
@@ -103,6 +104,7 @@ export const templateNames = [
   'conversation.comment.created',
   'update.comment.created',
   'expense.comment.created',
+  'virtualcard.purchase',
 ] as const;
 
 export type EmailTemplates = typeof templateNames[number];

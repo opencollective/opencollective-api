@@ -29,6 +29,7 @@ import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
+  FeatureNotSupportedForCollective,
   Forbidden,
   NotFound,
   Unauthorized,
@@ -355,7 +356,7 @@ export async function createOrder(order, req) {
   let remoteUser = req.remoteUser;
 
   if (remoteUser && !canUseFeature(remoteUser, FEATURE.ORDER)) {
-    return new FeatureNotAllowedForUser();
+    throw new FeatureNotAllowedForUser();
   } else if (!remoteUser) {
     await checkGuestContribution(order, loaders);
   }
@@ -479,6 +480,11 @@ export async function createOrder(order, req) {
         throw new Error(`From collective id ${order.fromCollective.id} not found`);
       }
 
+      // Check if the Collective paying for the order is not blocked/frozen
+      if (!canUseFeature(fromCollective, FEATURE.ORDER)) {
+        throw new FeatureNotSupportedForCollective();
+      }
+
       const possibleRoles = [];
       if (fromCollective.type === types.ORGANIZATION) {
         possibleRoles.push(roles.MEMBER);
@@ -508,6 +514,10 @@ export async function createOrder(order, req) {
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
         captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
+        if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
+          throw new FeatureNotAllowedForUser();
+        }
+
         remoteUser = guestProfile.user;
         fromCollective = guestProfile.collective;
         isGuest = true;
@@ -678,6 +688,8 @@ export async function createOrder(order, req) {
       await models.Activity.create({
         type: activities.TICKET_CONFIRMED,
         CollectiveId: collective.id,
+        FromCollectiveId: fromCollective.id,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
         UserId: remoteUser.id,
         UserTokenId: req.userToken?.id,
         data: {

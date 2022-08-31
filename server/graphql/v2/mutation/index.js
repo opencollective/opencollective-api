@@ -1,4 +1,5 @@
 import accountMutations from './AccountMutations';
+import activitySubscriptionsMutations from './ActivitySubscriptionsMutations';
 import { addFundsMutation } from './AddFundsMutations';
 import applicationMutations from './ApplicationMutations';
 import commentMutations from './CommentMutations';
@@ -54,6 +55,7 @@ const mutation = {
   ...updateMutations,
   ...virtualCardMutations,
   ...webhookMutations,
+  ...activitySubscriptionsMutations,
 };
 
 export default mutation;

@@ -129,6 +129,21 @@ const longDescriptionSanitizerOptions = buildSanitizerOptions({
   videoIframes: true,
 });
 
+const customMessageSanitizeOptions = buildSanitizerOptions({
+  titles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  images: true,
+  links: true,
+});
+
+const sanitizeSettingsValue = value => {
+  if (value?.customEmailMessage) {
+    value.customEmailMessage = sanitizeHTML(value.customEmailMessage, customMessageSanitizeOptions);
+  }
+  return value;
+};
+
 function defineModel() {
   const { models } = sequelize;
 
@@ -390,6 +405,7 @@ function defineModel() {
           return this.getDataValue('settings') || {};
         },
         set(value) {
+          sanitizeSettingsValue(value);
           this.setDataValue('settings', filterCollectiveSettings(value));
         },
         validate: {
@@ -911,7 +927,7 @@ function defineModel() {
           status: 'CONFIRMED',
           organizer: {
             name: parentCollective.name,
-            email: `no-reply@${parentCollective.slug}.opencollective.com`,
+            email: `no-reply@opencollective.com`,
           },
           alarms,
         };
@@ -1082,12 +1098,14 @@ function defineModel() {
       await models.Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_HOST,
         CollectiveId: this.id,
+        FromCollectiveId: this.id,
         data: { collective: this.info },
       });
     } else if (this.type === types.COLLECTIVE) {
       await models.Activity.create({
         type: activities.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
         CollectiveId: this.id,
+        FromCollectiveId: this.id,
         data: { collective: this.info },
       });
     }
@@ -1154,6 +1172,7 @@ function defineModel() {
     await models.Activity.create({
       type: activities.DEACTIVATED_COLLECTIVE_AS_HOST,
       CollectiveId: this.id,
+      FromCollectiveId: this.id,
       data: { collective: this.info },
     });
 
@@ -1194,6 +1213,7 @@ function defineModel() {
         {
           type: activities.COLLECTIVE_FROZEN,
           CollectiveId: this.id,
+          HostCollectiveId: host.id,
           data: { collective: this.info, host: host.info, message },
         },
         { transaction },
@@ -1214,6 +1234,7 @@ function defineModel() {
         {
           type: activities.COLLECTIVE_UNFROZEN,
           CollectiveId: this.id,
+          HostCollectiveId: host.id,
           data: { collective: this.info, host: host.info, message },
         },
         { transaction },
@@ -1887,7 +1908,13 @@ function defineModel() {
     };
 
     return models.Activity.create(
-      { CollectiveId: this.id, type: activities.COLLECTIVE_MEMBER_CREATED, data },
+      {
+        type: activities.COLLECTIVE_MEMBER_CREATED,
+        FromCollectiveId: memberCollective.id,
+        HostCollectiveId: this.approvedAt ? this.HostCollectiveId : null,
+        CollectiveId: this.id,
+        data,
+      },
       sequelizeParams,
     );
   };
@@ -2312,6 +2339,7 @@ function defineModel() {
             models.Activity.create({
               UserId: creatorUser.id,
               CollectiveId: this.id,
+              HostCollectiveId: hostCollective.id,
               type: activities.COLLECTIVE_APPLY,
               data,
             }),
@@ -2406,9 +2434,12 @@ function defineModel() {
       const newHostCollective = await models.Collective.findByPk(newHostCollectiveId);
       if (!newHostCollective) {
         throw new Error('Host not found');
-      }
-      if (!newHostCollective.isHostAccount) {
-        await newHostCollective.becomeHost();
+      } else if (!newHostCollective.isHostAccount) {
+        if (remoteUser.isAdminOfCollective(newHostCollective)) {
+          await newHostCollective.becomeHost();
+        } else {
+          throw new Error(`You need to be an admin of ${newHostCollective.name} to turn it into a host`);
+        }
       }
       return this.addHost(newHostCollective, remoteUser, {
         message: options?.message,
@@ -3371,7 +3402,7 @@ function defineModel() {
       UserId: adminUser.id,
       CollectiveId: collective.id,
       data: {
-        collective: pick(collective, ['name', 'slug']),
+        collective: collective.info,
       },
     });
     return collective;

@@ -65,7 +65,7 @@ describe('server/lib/email', () => {
         collective,
       };
       const options = {
-        from: `${collective.name} <hello@${collective.slug}.opencollective.com>`,
+        from: `"${collective.name}" <hello@opencollective.com>`,
       };
       await emailLib.send(template, data.user.email, data, options);
       let amountStr = 50;
@@ -167,6 +167,31 @@ describe('server/lib/email', () => {
       const result = emailLib.render('user.new.token', { loginLink: 'https://opencollective/USER_LOGIN_LINK' });
       expect(result.html).to.matchSnapshot();
       expect(result.text).to.matchSnapshot();
+    });
+  });
+
+  describe('generateFromEmailHeader', () => {
+    it('sanitizes invalid characters', () => {
+      expect(emailLib.generateFromEmailHeader('Hello World')).to.equal('"Hello World" <no-reply@opencollective.com>');
+      expect(emailLib.generateFromEmailHeader('Hello World <NOPE>')).to.equal(
+        '"Hello World <NOPE>" <no-reply@opencollective.com>',
+      );
+      expect(emailLib.generateFromEmailHeader('Hello "World" <NOPE>')).to.equal(
+        '"Hello “World“ <NOPE>" <no-reply@opencollective.com>',
+      );
+      expect(
+        emailLib.generateFromEmailHeader(
+          `Hello
+      
+          “World“     <NOPE>`,
+        ),
+      ).to.equal('"Hello “World“ <NOPE>" <no-reply@opencollective.com>');
+    });
+
+    it('can customize the email address', () => {
+      expect(emailLib.generateFromEmailHeader('Hello World', 'test@opencollective.com')).to.equal(
+        '"Hello World" <test@opencollective.com>',
+      );
     });
   });
 });

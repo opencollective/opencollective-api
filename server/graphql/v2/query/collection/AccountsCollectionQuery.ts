@@ -8,7 +8,7 @@ import { PaymentMethodService } from '../../enum/PaymentMethodService';
 import { OrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
-const AccountsQuery = {
+const AccountsCollectionQuery = {
   type: new GraphQLNonNull(AccountCollection),
   args: {
     ...CollectionArgs,
@@ -135,4 +135,4 @@ const AccountsQuery = {
   },
 };
 
-export default AccountsQuery;
+export default AccountsCollectionQuery;

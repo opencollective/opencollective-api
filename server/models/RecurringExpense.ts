@@ -60,7 +60,6 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
     const expense = await this.getLastExpense({
       include: [
         { model: models.Collective, as: 'collective' },
-        { model: models.ExpenseAttachedFile, as: 'attachedFiles' },
         { model: models.ExpenseItem, as: 'items' },
       ],
     });
@@ -92,7 +91,6 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       amount: expense.items?.reduce((total, item) => total + item.amount, 0) || expense.amount || 1,
       data: {
         items: expense.items?.map(item => ({ ...pick(item, ['amount', 'description', 'url']), incurredAt })),
-        attachedFiles: expense.attachedFiles?.map(file => pick(file, ['url'])),
         payee: { id: expense.FromCollectiveId },
         invitedByCollectiveId: this.FromCollectiveId,
         draftKey,

@@ -33,6 +33,9 @@ const randStrOfLength = length =>
     .toString(36)
     .slice(1);
 
+// For nullable fields, this helper will randomly
+const optionally = async (fn, probability = 0.5) => (Math.random() < probability ? fn() : null);
+
 /** Generate an array containing between min and max item, filled with generateFunc */
 export const randArray = (generateFunc, min = 1, max = 1) => {
   const arrayLength = randNumber(min, max);
@@ -238,7 +241,7 @@ export const fakeUpdate = async (updateData: Record<string, unknown> = {}, seque
 export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = {}) => {
   return models.ExpenseItem.create({
     amount: randAmount(),
-    url: attachmentData.url || `${randUrl()}.pdf`,
+    url: <string>attachmentData.url || `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
     ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,
@@ -551,11 +554,13 @@ export const fakeNotification = async (data: Record<string, unknown> = {}) => {
  */
 export const fakeActivity = async (
   data: Record<string, unknown> = {},
-  sequelizeParams: Record<string, unknown> = {},
+  sequelizeParams: Record<string, unknown> = { hooks: false },
 ) => {
   return models.Activity.create(
     {
-      CollectiveId: data.CollectiveId || (await fakeCollective()).id,
+      CollectiveId: data.CollectiveId || (await optionally(() => fakeCollective().then(c => c.id))),
+      FromCollectiveId: data.FromCollectiveId || (await optionally(() => fakeCollective().then(c => c.id))),
+      HostCollectiveId: data.HostCollectiveId || (await optionally(() => fakeHost().then(c => c.id))),
       UserId: data.UserId || (await fakeUser()).id,
       type: sample(Object.values(activities)),
       ...data,

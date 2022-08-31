@@ -10,7 +10,10 @@ import { ActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
 
+import { Expense } from './Expense';
+import { Host } from './Host';
 import { Individual } from './Individual';
+import { Order } from './Order';
 
 export const Activity = new GraphQLObjectType({
   name: 'Activity',
@@ -29,12 +32,30 @@ export const Activity = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLDateTime),
       description: 'The date on which the ConnectedAccount was created',
     },
+    fromAccount: {
+      type: Account,
+      description: 'The account that authored by this activity, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        if (activity.FromCollectiveId) {
+          return req.loaders.Collective.byId.load(activity.FromCollectiveId);
+        }
+      },
+    },
     account: {
       type: Account,
-      description: 'The account concerned by this activity, if any',
+      description: 'The account targeted by this activity, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.CollectiveId) {
           return req.loaders.Collective.byId.load(activity.CollectiveId);
+        }
+      },
+    },
+    host: {
+      type: Host,
+      description: 'The host under which this activity happened, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        if (activity.HostCollectiveId) {
+          return req.loaders.Collective.byId.load(activity.HostCollectiveId);
         }
       },
     },
@@ -50,6 +71,24 @@ export const Activity = new GraphQLObjectType({
         }
       },
     },
+    expense: {
+      type: Expense,
+      description: 'The expense related to this activity, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        if (activity.ExpenseId) {
+          return req.loaders.Expense.byId.load(activity.ExpenseId);
+        }
+      },
+    },
+    order: {
+      type: Order,
+      description: 'The order related to this activity, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        if (activity.OrderId) {
+          return req.loaders.Order.byId.load(activity.OrderId);
+        }
+      },
+    },
     data: {
       type: new GraphQLNonNull(GraphQLJSON),
       description: 'Data attached to this activity (if any)',
@@ -57,19 +96,26 @@ export const Activity = new GraphQLObjectType({
         const toPick = [];
         if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_PAID) {
           toPick.push('isManualPayout');
-        }
-        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
-          const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
-          if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
-            toPick.push('error');
+        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_ERROR) {
+          if (activity.CollectiveId) {
+            const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
+            if (req.remoteUser?.isAdmin(collective.HostCollectiveId)) {
+              toPick.push('error');
+            }
           }
-        }
-        if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
-          const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
-          if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
-            toPick.push('message');
+        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE) {
+          if (activity.ExpenseId) {
+            const expense = await req.loaders.Expense.byId.load(activity.ExpenseId);
+            if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
+              toPick.push('message');
+            }
           }
+        } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MOVED) {
+          toPick.push('movedFromCollective');
+        } else if (activity.type === ACTIVITY.COLLECTIVE_MEMBER_CREATED) {
+          toPick.push('member.role');
         }
+
         return pick(activity.data, toPick);
       },
     },

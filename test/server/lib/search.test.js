@@ -33,18 +33,49 @@ describe('server/lib/search', () => {
       expect(results.find(collective => collective.id === userCollective.id)).to.exist;
     });
 
-    it('By name', async () => {
-      const name = 'AVeryUniqueName ThatNoOneElseHas';
-      const { userCollective } = await newUser(name);
-      const [results] = await searchCollectivesInDB(name);
-      expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+    describe('By name', () => {
+      it('matches with the exact search term', async () => {
+        const name = 'AVeryUniqueName ThatNoOneElseHas';
+        const { userCollective } = await newUser(name);
+        const [results] = await searchCollectivesInDB(name);
+        expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+      });
+
+      it('matches when spaces are included in search term and not in name', async () => {
+        const name = 'SomethingNew';
+        const { userCollective } = await newUser(name);
+        const [results] = await searchCollectivesInDB('Something New');
+        expect(results.find(collective => collective.id === userCollective.id)).to.exist;
+      });
+
+      it('does not match when spaces are not included in search term and are in name', async () => {
+        const name = 'Something New';
+        const { userCollective } = await newUser(name);
+        const [results] = await searchCollectivesInDB('SomethingNew');
+        expect(results.find(collective => collective.id === userCollective.id)).to.not.exist;
+      });
     });
 
-    it('By tag', async () => {
-      const tags = ['open source', 'stuff', 'potatoes'];
-      const collective = await fakeCollective({ tags });
-      const [results] = await searchCollectivesInDB('potatoes');
-      expect(results.find(c => c.id === collective.id)).to.exist;
+    describe('By tag', () => {
+      it('works with the basics', async () => {
+        const tags = ['open source', 'stuff', 'potatoes'];
+        const collective = await fakeCollective({ tags });
+        const [results] = await searchCollectivesInDB('potatoes');
+        expect(results.find(c => c.id === collective.id)).to.exist;
+      });
+
+      it('does not break with special characters', async () => {
+        await fakeCollective({ tags: ['something with "double" quotes'] });
+        await fakeCollective({ tags: ["something with 'simple' quotes"] });
+
+        const [results1] = await searchCollectivesInDB('"double');
+        expect(results1).to.have.length(1);
+        expect(results1[0].tags).to.include('something with "double" quotes');
+
+        const [results2] = await searchCollectivesInDB("'simple");
+        expect(results2).to.have.length(1);
+        expect(results2[0].tags).to.include("something with 'simple' quotes");
+      });
     });
 
     it("Doesn't return items with the wrong type", async () => {

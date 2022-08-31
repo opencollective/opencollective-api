@@ -83,6 +83,7 @@ const virtualCardMutations = {
         UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
         data: {
           assignee: assignee.activity,
           collective: collective.activity,
@@ -155,6 +156,7 @@ const virtualCardMutations = {
         UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
         data: {
           assignee: assignee.activity,
           collective: collective.activity,
@@ -285,6 +287,7 @@ const virtualCardMutations = {
         type: activities.VIRTUAL_CARD_REQUESTED,
         UserId: req.remoteUser.id,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
         data: {
           host: host.activity,
           collective: { ...collective.activity, path: await collective.getUrlPath() },
@@ -330,8 +333,8 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
-        throw new Unauthorized("You don't have permission to edit this Virtual Card");
+      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && !req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
+        throw new Unauthorized("You don't have permission to pause this Virtual Card");
       }
 
       const card = await virtualCard.pause();
@@ -343,6 +346,7 @@ const virtualCardMutations = {
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_SUSPENDED,
         CollectiveId: virtualCard.collective.id,
+        HostCollectiveId: virtualCard.host.id,
         UserId: req.remoteUser.id,
         data,
       });
