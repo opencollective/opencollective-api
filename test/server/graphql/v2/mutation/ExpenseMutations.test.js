@@ -229,7 +229,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const expenseData = { ...getValidExpenseData(), type: 'INVOICE', payee: { legacyId: user.CollectiveId } };
 
       // Because of the collective settings
-      let collective = await fakeCollective({ settings: { expenseTypes: { hasInvoice: false } } });
+      let collective = await fakeCollective({ settings: { expenseTypes: { INVOICE: false } } });
       let result = await graphqlQueryV2(
         createExpenseMutation,
         { expense: expenseData, account: { legacyId: collective.id } },
@@ -240,7 +240,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the account');
 
       // Because of the parent settings
-      const parent = await fakeCollective({ settings: { expenseTypes: { hasInvoice: false } } });
+      const parent = await fakeCollective({ settings: { expenseTypes: { INVOICE: false } } });
       collective = await fakeCollective({ ParentCollectiveId: parent.id });
       result = await graphqlQueryV2(
         createExpenseMutation,
@@ -252,7 +252,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the parent');
 
       // Because of the host settings
-      const host = await fakeHost({ settings: { expenseTypes: { hasInvoice: false } } });
+      const host = await fakeHost({ settings: { expenseTypes: { INVOICE: false } } });
       collective = await fakeCollective({ HostCollectiveId: host.id });
       result = await graphqlQueryV2(
         createExpenseMutation,
@@ -530,7 +530,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it(`fails if it's not an allowed expense type`, async () => {
       // Because of the collective settings
-      let collective = await fakeCollective({ settings: { expenseTypes: { hasReceipt: false } } });
+      let collective = await fakeCollective({ settings: { expenseTypes: { RECEIPT: false } } });
       let expense = await fakeExpense({ status: 'PENDING', type: 'INVOICE', CollectiveId: collective.id });
       let updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), type: 'RECEIPT' };
       let result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
@@ -538,7 +538,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type receipt are not allowed by the account');
 
       // Because of the parent settings
-      const parent = await fakeCollective({ settings: { expenseTypes: { hasReceipt: false } } });
+      const parent = await fakeCollective({ settings: { expenseTypes: { RECEIPT: false } } });
       collective = await fakeCollective({ ParentCollectiveId: parent.id });
       expense = await fakeExpense({ status: 'PENDING', type: 'INVOICE', CollectiveId: collective.id });
       updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), type: 'RECEIPT' };
@@ -547,7 +547,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type receipt are not allowed by the parent');
 
       // Because of the host settings
-      const host = await fakeHost({ settings: { expenseTypes: { hasReceipt: false } } });
+      const host = await fakeHost({ settings: { expenseTypes: { RECEIPT: false } } });
       collective = await fakeCollective({ HostCollectiveId: host.id });
       expense = await fakeExpense({ status: 'PENDING', type: 'INVOICE', CollectiveId: collective.id });
       updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), type: 'RECEIPT' };

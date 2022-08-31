@@ -6,7 +6,6 @@ import {
   find,
   flatten,
   get,
-  invert,
   isBoolean,
   isEqual,
   isNil,
@@ -716,14 +715,6 @@ const checkExpenseItems = (expenseType, items, taxes) => {
   }
 };
 
-export const ExpenseTypeSettingsFlag = {
-  [EXPENSE_TYPE.INVOICE]: 'hasInvoice',
-  [EXPENSE_TYPE.RECEIPT]: 'hasReceipt',
-  [EXPENSE_TYPE.GRANT]: 'hasGrant',
-};
-
-export const ExpenseSettingsFlagToType = invert(ExpenseTypeSettingsFlag);
-
 const checkExpenseType = (
   type: EXPENSE_TYPE,
   account: typeof models.Collective,
@@ -731,15 +722,10 @@ const checkExpenseType = (
   host: typeof models.Collective | null,
 ): void => {
   // Check flag in settings in the priority order of collective > parent > host
-  const flag = ExpenseTypeSettingsFlag[type];
-  if (!flag) {
-    return; // Ignore newly introduced expense types
-  }
-
   const accounts = { account, parent, host };
   for (const level of ['account', 'parent', 'host']) {
     const account = accounts[level];
-    const value = account?.settings?.expenseTypes?.[flag];
+    const value = account?.settings?.expenseTypes?.[type];
     if (isBoolean(value)) {
       if (value) {
         return; // Flag is explicitly set to true, we're good

@@ -348,16 +348,16 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     it('returns default types if no settings', async () => {
       const collective = await fakeCollective();
       const result = await graphqlQueryV2(accountQuery, { slug: collective.slug });
-      expect(result.data.account.supportedExpenseTypes).to.deep.eq(['GRANT', 'INVOICE', 'RECEIPT']);
+      expect(result.data.account.supportedExpenseTypes).to.deep.eq(['INVOICE', 'RECEIPT']);
     });
 
     it('applies the right priority order', async () => {
       const host = await fakeHost({
         settings: {
           expenseTypes: {
-            hasGrant: true,
-            hasReceipt: true,
-            hasInvoice: true,
+            GRANT: true,
+            RECEIPT: true,
+            INVOICE: true,
           },
         },
       });
@@ -365,8 +365,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         HostCollectiveId: host.id,
         settings: {
           expenseTypes: {
-            hasGrant: false,
-            hasReceipt: false,
+            GRANT: false,
+            RECEIPT: false,
           },
         },
       });
@@ -375,8 +375,8 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         HostCollectiveId: host.id,
         settings: {
           expenseTypes: {
-            hasGrant: false,
-            hasReceipt: true,
+            GRANT: false,
+            RECEIPT: true,
           },
         },
       });

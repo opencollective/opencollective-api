@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { assign, get, invert, isEmpty, merge, pick } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omitBy, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
@@ -11,7 +11,6 @@ import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { ExpenseSettingsFlagToType } from '../../common/expenses';
 import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
@@ -303,13 +302,10 @@ const accountFieldsDefinition = () => ({
         collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
 
       // Aggregate all configs, using the order of priority collective > parent > host
-      const getExpenseTypes = account => account?.settings?.expenseTypes || {};
-      const defaultExpenseTypes = { hasGrant: true, hasInvoice: true, hasReceipt: true };
+      const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
+      const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
       const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
-      return Object.keys(aggregatedConfig)
-        .filter(key => aggregatedConfig[key]) // Return only the truthy ones
-        .map(key => ExpenseSettingsFlagToType[key]) // Convert hasGrant => GRANT
-        .sort(); // To have a predictable order
+      return Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
     },
   },
   transferwise: {
