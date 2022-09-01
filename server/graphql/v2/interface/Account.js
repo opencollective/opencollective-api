@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { assign, get, invert, isEmpty, pick } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omitBy, pick } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
@@ -25,6 +25,7 @@ import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { WebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection';
 import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from '../enum';
 import { ActivityChannel } from '../enum/ActivityChannel';
+import { ExpenseType } from '../enum/ExpenseType';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { idEncode } from '../identifiers';
@@ -290,6 +291,21 @@ const accountFieldsDefinition = () => ({
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
+    },
+  },
+  supportedExpenseTypes: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExpenseType))),
+    description: 'The list of expense types supported by this account',
+    async resolve(collective, _, req) {
+      const host = collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+      const parent =
+        collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
+
+      // Aggregate all configs, using the order of priority collective > parent > host
+      const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
+      const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
+      const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
+      return Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
     },
   },
   transferwise: {

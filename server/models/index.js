@@ -90,6 +90,7 @@ export function setupModels() {
 
   // Collective
   m.Collective.belongsTo(m.Collective, { foreignKey: 'HostCollectiveId', as: 'host' });
+  m.Collective.belongsTo(m.Collective, { foreignKey: 'ParentCollectiveId', as: 'parent' });
   m.Collective.belongsTo(m.Collective, { as: 'HostCollective' });
   m.Collective.belongsToMany(m.Collective, {
     as: 'memberCollectives',

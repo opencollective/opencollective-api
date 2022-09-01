@@ -126,3 +126,19 @@ export const doesColumnExist = async (queryInterface, table, column) => {
   const tableDescription = await queryInterface.describeTable(table);
   return Boolean(tableDescription[column]);
 };
+
+export const renameInJSONB = (
+  column: string,
+  oldPath: string[],
+  newPath: string[],
+  createIfNotExist = true,
+): string => {
+  const oldPathStr = oldPath.join(',');
+  const newPathStr = newPath.join(',');
+  return `JSONB_SET(
+    "${column}" #- '{${oldPathStr}}', -- Remove old path
+    '{${newPathStr}}', -- New path
+    "${column}" #> '{${oldPathStr}}', -- Get old value
+    ${createIfNotExist.toString()} -- Whether to create the new path if it doesn't exist
+  )`;
+};

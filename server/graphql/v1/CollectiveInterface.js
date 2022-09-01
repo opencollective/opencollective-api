@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, sortBy } from 'lodash';
+import { get, has, isNull, merge, omitBy, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
@@ -779,6 +779,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
           status: { type: GraphQLString },
           includeHostedCollectives: { type: GraphQLBoolean },
         },
+      },
+      supportedExpenseTypes: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
+        description: 'The list of expense types supported by this account',
       },
       role: { type: GraphQLString },
       twitterHandle: { type: GraphQLString },
@@ -1606,6 +1610,22 @@ const CollectiveFields = () => {
 
         query.where.CollectiveId = { [Op.in]: collectiveIds };
         return models.Expense.findAll(query);
+      },
+    },
+    supportedExpenseTypes: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLString))),
+      description: 'The list of expense types supported by this account',
+      async resolve(collective, _, req) {
+        const host =
+          collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
+        const parent =
+          collective.ParentCollectiveId && (await req.loaders.Collective.byId.load(collective.ParentCollectiveId));
+
+        // Aggregate all configs, using the order of priority collective > parent > host
+        const getExpenseTypes = account => omitBy(account?.settings?.expenseTypes, isNull);
+        const defaultExpenseTypes = { GRANT: false, INVOICE: true, RECEIPT: true };
+        const aggregatedConfig = merge(defaultExpenseTypes, ...[host, parent, collective].map(getExpenseTypes));
+        return Object.keys(aggregatedConfig).filter(key => aggregatedConfig[key]); // Return only the truthy ones
       },
     },
     role: {
