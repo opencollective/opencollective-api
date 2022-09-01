@@ -38,21 +38,26 @@ export const AccountWithHostFields = {
     },
     async resolve(account: typeof models.Collective, args): Promise<number> {
       const parent = await account.getParentCollective();
+      const host = await account.getHostCollective();
 
       const possibleValues = [];
 
       if (args.paymentMethodType === 'host') {
         possibleValues.push(account.data?.addedFundsHostFeePercent);
         possibleValues.push(parent?.data?.addedFundsHostFeePercent);
+        possibleValues.push(host.data?.addedFundsHostFeePercent);
       } else if (args.paymentMethodType === 'manual') {
         possibleValues.push(account.data?.bankTransfersHostFeePercent);
         possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
+        possibleValues.push(host.data?.bankTransfersHostFeePercent);
       } else if (args.paymentMethodType === 'creditcard') {
         possibleValues.push(account.data?.creditCardHostFeePercent);
         possibleValues.push(parent?.data?.creditCardHostFeePercent);
+        possibleValues.push(host.data?.creditCardHostFeePercent);
       } else if (args.paymentMethodService === 'paypal') {
         possibleValues.push(account.data?.paypalHostFeePercent);
         possibleValues.push(parent?.data?.paypalHostFeePercent);
+        possibleValues.push(host.data?.paypalHostFeePercent);
       }
 
       possibleValues.push(account.hostFeePercent);
