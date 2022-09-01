@@ -16,7 +16,7 @@ const ExpenseQuote = new GraphQLObjectType({
       description: 'Amount of payment processor fee',
     },
     estimatedDeliveryAt: {
-      type: new GraphQLNonNull(GraphQLDateTime),
+      type: GraphQLDateTime,
       description: 'The date on which the item was created',
     },
   }),
