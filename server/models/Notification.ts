@@ -77,9 +77,14 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
         }
 
         // If user is unsubscribing from ActivityClass, remove existing Notifications for any included ActivityType
-        if (isClass && UserId) {
+        if ((isClass || type === ActivityTypes.ACTIVITY_ALL) && UserId) {
           await Notification.destroy({
-            where: { UserId, CollectiveId, type: { [Op.in]: ActivitiesPerClass[type] }, channel },
+            where: {
+              type: isClass ? { [Op.in]: ActivitiesPerClass[type] } : { [Op.ne]: ActivityTypes.ACTIVITY_ALL },
+              UserId,
+              CollectiveId,
+              channel,
+            },
             transaction,
           });
         }
@@ -111,9 +116,15 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
         await Notification.destroy({ where: { type, channel, UserId, CollectiveId, active: false }, transaction });
 
         // If subscribing from ActivityClass, remove existing unsubscription for its ActivityTypes
-        if (isClass && UserId) {
+        if ((isClass || type === ActivityTypes.ACTIVITY_ALL) && UserId) {
           await Notification.destroy({
-            where: { type: { [Op.in]: ActivitiesPerClass[type] }, channel, UserId, CollectiveId, active: false },
+            where: {
+              type: isClass ? { [Op.in]: ActivitiesPerClass[type] } : { [Op.ne]: ActivityTypes.ACTIVITY_ALL },
+              channel,
+              UserId,
+              CollectiveId,
+              active: false,
+            },
             transaction,
           });
         }
