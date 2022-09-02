@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { differenceBy } from 'lodash';
+import { createSandbox } from 'sinon';
 
 import { US_TAX_FORM_THRESHOLD } from '../../../../../server/constants/tax-form';
+import * as libcurrency from '../../../../../server/lib/currency';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import {
@@ -82,18 +84,20 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
   });
 
   describe('Ready to Pay filter', () => {
-    let expensesReadyToPay, otherPayoutMethod, host;
+    let expensesReadyToPay, otherPayoutMethod, host, sandbox;
 
     before(async () => {
+      sandbox = createSandbox();
       host = await fakeHostWithRequiredLegalDocument();
       otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
-      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
       const collectiveWithoutBalance = await fakeCollective({ HostCollectiveId: host.id });
       const baseExpenseData = {
         type: 'RECEIPT',
         CollectiveId: collective.id,
         status: 'APPROVED',
         amount: 1000,
+        currency: 'USD',
         PayoutMethodId: otherPayoutMethod.id,
       };
       const expenseWithTaxFormData = {
@@ -103,6 +107,15 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         description: 'Not ready (tax form)',
       };
 
+      sandbox
+        .stub(libcurrency, 'getFxRates')
+        .withArgs('SEK', ['USD'])
+        .resolves({ USD: 0.09 })
+        .withArgs('GBP', ['USD'])
+        .resolves({ USD: 1.5 })
+        .withArgs('USD', ['USD'])
+        .resolves({ USD: 1 });
+
       // Add balance to the collective
       await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
 
@@ -111,6 +124,13 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         fakeExpense({ ...baseExpenseData, description: 'Ready (receipt)', type: 'RECEIPT' }),
         fakeExpense({ ...baseExpenseData, description: 'Ready (invoice)', type: 'INVOICE' }),
         fakeExpense({ ...expenseWithTaxFormData, description: 'Ready (invoice, submitted tax form)' }),
+        fakeExpense({
+          ...baseExpenseData,
+          description: 'Ready (enough balance in different currency)',
+          amount: 1000000,
+          currency: 'SEK',
+          type: 'INVOICE',
+        }),
       ]);
 
       await fakeLegalDocument({
@@ -119,7 +139,20 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         requestStatus: 'RECEIVED',
         documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
       });
+      await fakeLegalDocument({
+        year: expensesReadyToPay[3].incurredAt.getFullYear(),
+        CollectiveId: expensesReadyToPay[3].FromCollectiveId,
+        requestStatus: 'RECEIVED',
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+      });
 
+      const expenseWithoutEnoughBalanceInDifferentCurrency = await fakeExpense({
+        ...baseExpenseData,
+        description: 'Ready (not enough balance in different currency)',
+        amount: 800000,
+        currency: 'GBP',
+        type: 'INVOICE',
+      });
       const expensesNotReadyToPay = await Promise.all([
         // Not ready to pay because of their status
         fakeExpense({ ...baseExpenseData, description: 'Not ready (status)', status: 'PENDING' }),
@@ -139,6 +172,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         fakeExpense({ ...expenseWithTaxFormData }),
         // Tax form submitted last year
         fakeExpense({ ...expenseWithTaxFormData, description: 'Not ready (tax form submitted for last year) [NRLY]' }),
+        expenseWithoutEnoughBalanceInDifferentCurrency,
       ]);
 
       // Add a tax form from last year on expense
@@ -149,6 +183,17 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         requestStatus: 'RECEIVED',
         documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
       });
+      // Make sure the last expense is not failing due to missing tax file
+      await fakeLegalDocument({
+        year: expenseWithoutEnoughBalanceInDifferentCurrency.incurredAt.getFullYear(),
+        CollectiveId: expenseWithoutEnoughBalanceInDifferentCurrency.FromCollectiveId,
+        requestStatus: 'RECEIVED',
+        documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM,
+      });
+    });
+
+    after(() => {
+      sandbox.restore();
     });
 
     it('Only returns expenses that are ready to pay', async () => {
