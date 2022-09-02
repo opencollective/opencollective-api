@@ -8,6 +8,17 @@ import { getFxRate } from './currency';
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
+async function computeSumFromResults(results, currency) {
+  let total = 0;
+
+  for (const result of Object.values(results)) {
+    const fxRate = await getFxRate(result.currency, currency);
+    total += Math.round(result.value * fxRate);
+  }
+
+  return total;
+}
+
 export async function getCollectiveIds(collective, includeChildren) {
   if (!includeChildren) {
     return [collective.id];
@@ -52,31 +63,26 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
   });
 }
 
-export async function getConsolidatedBalanceAmount(collective, { currency, version }) {
+export async function getConsolidatedBalanceAmount(collective, { startDate, endDate, currency, version } = {}) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
 
-  const collectiveChildIds = await collective
-    .getChildren({ attributes: ['id'] })
-    .then(children => children.map(child => child.id));
+  const collectiveIds = await getCollectiveIds(collective, true);
 
-  const results = await sumCollectivesTransactions([collective.id, ...collectiveChildIds], {
-    currency,
+  const results = await sumCollectivesTransactions(collectiveIds, {
+    startDate,
+    endDate,
+    // currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: false,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
 
-  let total = 0;
-
-  for (const result of Object.values(results)) {
-    const fxRate = await getFxRate(result.currency, currency);
-    total += Math.round(result.value * fxRate);
-  }
-
   // Sum and convert to final currency
-  return { value: total, currency };
+  const value = await computeSumFromResults(results, currency);
+
+  return { value, currency };
 }
 
 export async function getBalanceWithBlockedFundsAmount(
@@ -131,19 +137,29 @@ export function getBalancesWithBlockedFunds(collectiveIds, { startDate, endDate,
   });
 }
 
-export function getTotalAmountReceivedAmount(collective, { startDate, endDate, currency, version, kind } = {}) {
+export async function getTotalAmountReceivedAmount(
+  collective,
+  { startDate, endDate, currency, version, kind, includeChildren } = {},
+) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
-  return sumCollectiveTransactions(collective, {
+
+  const collectiveIds = await getCollectiveIds(collective, includeChildren);
+
+  const results = await sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
-    currency,
     column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
     transactionType: CREDIT,
     kind: kind,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
   });
+
+  // Sum and convert to final currency
+  const value = await computeSumFromResults(results, currency);
+
+  return { value, currency };
 }
 
 export async function getTotalAmountPaidExpenses(collective, { startDate, endDate, expenseType, currency } = {}) {
@@ -166,47 +182,50 @@ export async function getTotalAmountPaidExpenses(collective, { startDate, endDat
   }
 
   const results = await models.Expense.findAll({
-    attributes: ['currency', [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount']],
+    attributes: ['currency', [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'value']],
     where: where,
     group: 'currency',
     raw: true,
   });
 
-  let total = 0;
-  for (const result of results) {
-    const fxRate = await getFxRate(result.currency, currency);
-    total += Math.round(result.amount * fxRate);
-  }
-
   // Sum and convert to final currency
-  return { value: total, currency };
+  const value = await computeSumFromResults(results, currency);
+
+  return { value, currency };
 }
 
-export async function getTotalNetAmountReceivedAmount(collective, { startDate, endDate, currency, version } = {}) {
+export async function getTotalNetAmountReceivedAmount(
+  collective,
+  { startDate, endDate, currency, version, includeChildren } = {},
+) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
 
-  const totalReceived = await sumCollectiveTransactions(collective, {
+  const collectiveIds = await getCollectiveIds(collective, includeChildren);
+
+  const creditResults = await sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
-    currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     transactionType: CREDIT,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
   });
 
-  const totalFees = await sumCollectiveTransactions(collective, {
+  const creditTotal = await computeSumFromResults(creditResults, currency);
+
+  const feesResults = await sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
-    currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     transactionType: DEBIT,
     kind: TransactionKind.HOST_FEE,
     excludeInternals: true,
   });
 
-  return { ...totalReceived, value: totalReceived.value + totalFees.value };
+  const feesTotal = await computeSumFromResults(feesResults, currency);
+
+  return { value: creditTotal + feesTotal, currency };
 }
 
 export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
@@ -231,15 +250,10 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
     hostCollectiveId: host.id,
   });
 
-  let total = 0;
-
-  for (const result of Object.values(results)) {
-    const fxRate = await getFxRate(result.currency, currency);
-    total += Math.round(result.value * fxRate);
-  }
-
   // Sum and convert to final currency
-  return { value: total, currency };
+  const value = await computeSumFromResults(results, currency);
+
+  return { value, currency };
 }
 
 async function sumCollectiveTransactions(collective, options) {
