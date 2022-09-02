@@ -917,6 +917,13 @@ export const getHostFeePercent = async (order, host = null) => {
     possibleValues.push(collective.data?.bankTransfersHostFeePercent);
     // Fixed for Bank Transfers at parent level
     possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
+    // Custom fee is a priority over host custom one
+    if (collective.data?.useCustomHostFee) {
+      possibleValues.push(collective.hostFeePercent);
+    }
+    if (parent?.data?.useCustomHostFee) {
+      possibleValues.push(parent?.hostFeePercent);
+    }
     // Fixed for Bank Transfers at host level
     // As of August 2020, this will be only set on a selection of Hosts (foundation 8%)
     possibleValues.push(host.data?.bankTransfersHostFeePercent);
@@ -946,6 +953,13 @@ export const getHostFeePercent = async (order, host = null) => {
     // Configurable by the Host globally, at the Collective or Parent level
     possibleValues.push(collective.data?.creditCardHostFeePercent);
     possibleValues.push(parent?.data?.creditCardHostFeePercent);
+    // Custom fee is a priority over host custom one
+    if (collective.data?.useCustomHostFee) {
+      possibleValues.push(collective.hostFeePercent);
+    }
+    if (parent?.data?.useCustomHostFee) {
+      possibleValues.push(parent?.hostFeePercent);
+    }
     possibleValues.push(host.data?.creditCardHostFeePercent);
   }
 
@@ -953,6 +967,13 @@ export const getHostFeePercent = async (order, host = null) => {
     // Configurable by the Host globally or at the Collective level
     possibleValues.push(collective.data?.paypalHostFeePercent);
     possibleValues.push(parent?.data?.paypalHostFeePercent);
+    // Custom fee is a priority over host custom one
+    if (collective.data?.useCustomHostFee) {
+      possibleValues.push(collective.hostFeePercent);
+    }
+    if (parent?.data?.useCustomHostFee) {
+      possibleValues.push(parent?.hostFeePercent);
+    }
     possibleValues.push(host.data?.paypalHostFeePercent);
   }
 
