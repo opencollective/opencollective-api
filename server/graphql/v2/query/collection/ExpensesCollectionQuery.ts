@@ -65,7 +65,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
     const balances = await getBalancesWithBlockedFunds(collectiveIds); // TODO: move to new balance calculation v2 when possible
-    const fxMap = await loadFxRatesMap(
+    const fxRates = await loadFxRatesMap(
       uniq(
         expenses.map(expense => {
           const collectiveBalance = balances[expense.CollectiveId];
@@ -78,7 +78,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
       .filter(expense => {
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
-          expense.amount * fxMap[expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
+          expense.amount * fxRates[expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
         return !hasBalance;
       })
       .map(({ id }) => id);
