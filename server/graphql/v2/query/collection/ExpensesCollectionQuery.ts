@@ -10,6 +10,7 @@ import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
+import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
 import { ExpenseCollection } from '../../collection/ExpenseCollection';
 import ExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
 import { ExpenseType } from '../../enum/ExpenseType';
@@ -25,7 +26,14 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
   const expenses = await models.Expense.findAll({
     where,
     include,
-    attributes: ['Expense.id', 'Expense.type', 'FromCollectiveId', 'CollectiveId'],
+    attributes: [
+      'Expense.id',
+      'Expense.type',
+      'FromCollectiveId',
+      'CollectiveId',
+      'Expense.currency',
+      'Expense.amount',
+    ],
     group: ['Expense.id', 'Expense.FromCollectiveId', 'Expense.CollectiveId'],
     raw: true,
   });
@@ -57,12 +65,25 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
     const balances = await getBalancesWithBlockedFunds(collectiveIds); // TODO: move to new balance calculation v2 when possible
-    where[Op.and].push({
-      [Op.or]: Object.values(balances).map(({ CollectiveId, value }) => ({
-        CollectiveId,
-        amount: { [Op.lte]: value },
-      })),
-    });
+    const fxRates = await loadFxRatesMap(
+      uniq(
+        expenses.map(expense => {
+          const collectiveBalance = balances[expense.CollectiveId];
+          return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency };
+        }),
+      ),
+    );
+
+    const expenseIdsWithoutBalance = expenses
+      .filter(expense => {
+        const collectiveBalance = balances[expense.CollectiveId];
+        const hasBalance =
+          expense.amount * fxRates[expense.currency][collectiveBalance.currency] <= collectiveBalance.value;
+        return !hasBalance;
+      })
+      .map(({ id }) => id);
+
+    where[Op.and].push({ id: { [Op.notIn]: expenseIdsWithoutBalance } });
   }
 };
 

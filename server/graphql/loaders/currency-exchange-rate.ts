@@ -12,7 +12,7 @@ interface CurrencyFxRateRequest {
 /**
  * Group requests by `fromCurrency`, since fx rate APIs support having multiple `toCurrency`.
  */
-const loadFxRatesMap = (requests: CurrencyFxRateRequest[]): Promise<Record<string, Record<string, number>>> => {
+export const loadFxRatesMap = (requests: CurrencyFxRateRequest[]): Promise<Record<string, Record<string, number>>> => {
   // The goal here is to convert a list of requests like this:
   // [{ from: 'USD', to: 'EUR' }, { from: 'USD', to: 'GBP' }, { from: 'EUR', to: 'GBP' }]
   // To a map like this:
