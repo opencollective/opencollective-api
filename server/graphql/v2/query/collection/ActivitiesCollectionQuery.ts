@@ -18,7 +18,7 @@ const ActivitiesCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
   account: {
-    type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(AccountReferenceInput))),
     description: 'The accounts associated with the Activity',
   },
   includeChildrenAccounts: {
@@ -53,10 +53,11 @@ const ActivitiesCollectionQuery = {
   args: ActivitiesCollectionArgs,
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
-    let accounts;
-    if (args.account) {
-      accounts = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
+    if (!args.account.length) {
+      throw new Error('Please provide at least one account');
     }
+
+    const accounts = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
 
     // Check permissions
     checkRemoteUserCanUseAccount(req);
@@ -65,14 +66,13 @@ const ActivitiesCollectionQuery = {
     const where = { [Op.or]: accountOrConditions };
     for (const account of accounts) {
       if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
-        accountOrConditions.push({ CollectiveId: account.id });
+        accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
         if (args.includeChildrenAccounts) {
           const childIds = await account.getChildren().then(children => children.map(child => child.id));
           accountOrConditions.push(...childIds.map(id => ({ CollectiveId: id })));
         }
         if (args.includeHostedAccounts && account.isHostAccount) {
-          const hostedAccounts = await account.getHostedCollectives({ attributes: ['id'] });
-          accountOrConditions.push(...hostedAccounts.map(hostedAccount => ({ CollectiveId: hostedAccount.id })));
+          accountOrConditions.push({ HostCollectiveId: account.id });
         }
       }
     }

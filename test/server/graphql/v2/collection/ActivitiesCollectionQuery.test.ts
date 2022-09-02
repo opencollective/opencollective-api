@@ -3,11 +3,11 @@ import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
-import { fakeActivity, fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActivity, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const activitiesCollectionQuery = gqlV2/* GraphQL */ `
-  query Activities($account: [AccountReferenceInput!], $type: [ActivityAndClassesType!]) {
+  query Activities($account: [AccountReferenceInput!]!, $type: [ActivityAndClassesType!]) {
     activities(limit: 100, offset: 0, account: $account, type: $type) {
       offset
       limit
@@ -41,7 +41,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
   before(async () => {
     await resetTestDB();
     admin = await fakeUser();
-    collective = await fakeCollective({ admin });
+    collective = await fakeHost({ admin });
     let date = new Date('2020-01-01');
     const getNextDate = () => {
       date = new Date(date.getTime() + 1000e5);
@@ -102,7 +102,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
   });
 
   it('filters activities by collective and returned them sorted by date DESC', async () => {
-    const result = await graphqlQueryV2(activitiesCollectionQuery, { account: { legacyId: collective.id } }, admin);
+    const result = await graphqlQueryV2(activitiesCollectionQuery, { account: [{ legacyId: collective.id }] }, admin);
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
     expect(result.data.activities.totalCount).to.eq(4);
@@ -112,7 +112,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
 
   describe('filters activities by class/type', () => {
     it('Can filter by class', async () => {
-      const variables = { account: { legacyId: collective.id }, type: 'EXPENSES' };
+      const variables = { account: [{ legacyId: collective.id }], type: 'EXPENSES' };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -120,7 +120,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     });
 
     it('Can filter by type', async () => {
-      const variables = { account: { legacyId: collective.id }, type: 'COLLECTIVE_EXPENSE_CREATED' };
+      const variables = { account: [{ legacyId: collective.id }], type: 'COLLECTIVE_EXPENSE_CREATED' };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -128,7 +128,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     });
 
     it('Can do both at the same time', async () => {
-      const variables = { account: { legacyId: collective.id }, type: ['COLLECTIVE_EXPENSE_CREATED', 'COLLECTIVE'] };
+      const variables = { account: [{ legacyId: collective.id }], type: ['COLLECTIVE_EXPENSE_CREATED', 'COLLECTIVE'] };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
