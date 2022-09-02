@@ -54,26 +54,22 @@ export const AccountStats = new GraphQLObjectType({
           },
         },
         resolve(account, args, req) {
-          if (args.includeChildren) {
-            return account.getConsolidatedBalanceAmount({
-              // No loaders supported here
-              startDate: args.dateFrom,
-              endDate: args.dateTo,
-            });
-          } else {
-            return account.getBalanceAmount({
-              loaders: req.loaders,
-              startDate: args.dateFrom,
-              endDate: args.dateTo,
-            });
-          }
+          return account.getBalanceAmount({
+            loaders: req.loaders,
+            startDate: args.dateFrom,
+            endDate: args.dateTo,
+            includeChildren: args.includeChildren,
+          });
         },
       },
       consolidatedBalance: {
         description: 'The consolidated amount of all the events and projects combined.',
+        deprecationReason: '2022-09-02: Use balance + includeChildren instead',
         type: new GraphQLNonNull(Amount),
         resolve(account) {
-          return account.getConsolidatedBalanceAmount();
+          return account.getBalanceAmount({
+            includeChildren: true,
+          });
         },
       },
       monthlySpending: {

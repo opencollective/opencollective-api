@@ -38,12 +38,15 @@ export async function getCollectiveIds(collective, includeChildren) {
  - v3: sum by currency based on amountInHostCurrency, limit to entries with a HostCollectiveId, then convert Collective's currency using the Fx Rate of the day
 */
 
-export async function getBalanceAmount(collective, { startDate, endDate, currency, version, loaders } = {}) {
+export async function getBalanceAmount(
+  collective,
+  { startDate, endDate, currency, version, loaders, includeChildren } = {},
+) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === 'v1' && !startDate && !endDate) {
+  if (loaders && version === 'v1' && !startDate && !endDate && !includeChildren) {
     const result = await loaders.Collective.balance.load(collective.id);
     const fxRate = await getFxRate(result.currency, currency);
     return {
@@ -52,27 +55,11 @@ export async function getBalanceAmount(collective, { startDate, endDate, currenc
     };
   }
 
-  return sumCollectiveTransactions(collective, {
-    startDate,
-    endDate,
-    currency,
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: false,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-  });
-}
-
-export async function getConsolidatedBalanceAmount(collective, { startDate, endDate, currency, version } = {}) {
-  version = version || collective.settings?.budget?.version || 'v1';
-  currency = currency || collective.currency;
-
-  const collectiveIds = await getCollectiveIds(collective, true);
+  const collectiveIds = await getCollectiveIds(collective, includeChildren);
 
   const results = await sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
-    // currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: false,
