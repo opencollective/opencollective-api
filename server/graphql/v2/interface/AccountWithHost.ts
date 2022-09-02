@@ -45,18 +45,42 @@ export const AccountWithHostFields = {
       if (args.paymentMethodType === 'host') {
         possibleValues.push(account.data?.addedFundsHostFeePercent);
         possibleValues.push(parent?.data?.addedFundsHostFeePercent);
+        if (account.data?.useCustomHostFee) {
+          possibleValues.push(account.hostFeePercent);
+        }
+        if (parent?.data?.useCustomHostFee) {
+          possibleValues.push(parent?.hostFeePercent);
+        }
         possibleValues.push(host.data?.addedFundsHostFeePercent);
       } else if (args.paymentMethodType === 'manual') {
         possibleValues.push(account.data?.bankTransfersHostFeePercent);
         possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
+        if (account.data?.useCustomHostFee) {
+          possibleValues.push(account.hostFeePercent);
+        }
+        if (parent?.data?.useCustomHostFee) {
+          possibleValues.push(parent?.hostFeePercent);
+        }
         possibleValues.push(host.data?.bankTransfersHostFeePercent);
       } else if (args.paymentMethodType === 'creditcard') {
         possibleValues.push(account.data?.creditCardHostFeePercent);
         possibleValues.push(parent?.data?.creditCardHostFeePercent);
+        if (account.data?.useCustomHostFee) {
+          possibleValues.push(account.hostFeePercent);
+        }
+        if (parent?.data?.useCustomHostFee) {
+          possibleValues.push(parent?.hostFeePercent);
+        }
         possibleValues.push(host.data?.creditCardHostFeePercent);
       } else if (args.paymentMethodService === 'paypal') {
         possibleValues.push(account.data?.paypalHostFeePercent);
         possibleValues.push(parent?.data?.paypalHostFeePercent);
+        if (account.data?.useCustomHostFee) {
+          possibleValues.push(account.hostFeePercent);
+        }
+        if (parent?.data?.useCustomHostFee) {
+          possibleValues.push(parent?.hostFeePercent);
+        }
         possibleValues.push(host.data?.paypalHostFeePercent);
       }
 
