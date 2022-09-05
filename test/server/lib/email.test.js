@@ -52,7 +52,7 @@ describe('server/lib/email', () => {
     });
 
     it('sends the thankyou.fr email template', async () => {
-      const template = 'order.thankyou';
+      const template = 'order.confirmed';
       const collective = { name: 'En Marche', slug: 'enmarchebe' };
       const data = {
         order: { totalAmount: 5000, currency: 'EUR' },
@@ -105,7 +105,7 @@ describe('server/lib/email', () => {
           slug: 'wwcodeaustin',
         },
       };
-      await emailLib.send('order.thankyou', data.user.email, data);
+      await emailLib.send('order.confirmed', data.user.email, data);
       let amountStr = 50;
       amountStr = amountStr.toLocaleString('en-US', {
         style: 'currency',

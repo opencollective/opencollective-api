@@ -212,7 +212,7 @@ module.exports = {
         'order.processing.crypto',
         'order.new.pendingFinancialContribution',
         'order.reminder.pendingFinancialContribution',
-        'order.thankyou',
+        'order.confirmed',
         'orders.suspicious',
         'payment.failed',
         'payment.creditcard.confirmation'
