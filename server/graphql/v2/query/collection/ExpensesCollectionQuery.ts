@@ -67,14 +67,14 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
     const balances = await getBalancesWithBlockedFunds(collectiveIds); // TODO: move to new balance calculation v2 when possible
     const fxRates = await loadFxRatesMap(
       uniq(
-        expenses.map(expense => {
+        expensesWithoutPendingTaxForm.map(expense => {
           const collectiveBalance = balances[expense.CollectiveId];
           return { fromCurrency: expense.currency, toCurrency: collectiveBalance.currency };
         }),
       ),
     );
 
-    const expenseIdsWithoutBalance = expenses
+    const expenseIdsWithoutBalance = expensesWithoutPendingTaxForm
       .filter(expense => {
         const collectiveBalance = balances[expense.CollectiveId];
         const hasBalance =
