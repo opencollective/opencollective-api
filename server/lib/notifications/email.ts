@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { compact, get } from 'lodash';
 
 import { roles } from '../../constants';
-import ActivityTypes from '../../constants/activities';
+import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
 import { types as CollectiveType } from '../../constants/collectives';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
@@ -48,9 +48,13 @@ export const notify = {
       CollectiveId: options?.collective?.id || activity.CollectiveId,
     });
 
+    const isTransactional = TransactionalActivities.includes(activity.type);
     if (unsubscribed.length === 0) {
       debug('notifying.user', user.id, user && user.email, activity.type);
-      return emailLib.send(options?.template || activity.type, options?.to || user.email, activity.data, options);
+      return emailLib.send(options?.template || activity.type, options?.to || user.email, activity.data, {
+        ...options,
+        isTransactional,
+      });
     }
   },
 
@@ -65,7 +69,11 @@ export const notify = {
 
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
-      return emailLib.send(options?.template || activity.type, process.env.ONLY, activity.data, options);
+      const isTransactional = TransactionalActivities.includes(activity.type);
+      return emailLib.send(options?.template || activity.type, process.env.ONLY, activity.data, {
+        ...options,
+        isTransactional,
+      });
     } else if (cleanUsersArray.length > 0) {
       return Promise.all(
         cleanUsersArray

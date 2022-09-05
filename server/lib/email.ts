@@ -29,6 +29,7 @@ type SendMessageOptions = Pick<
   attachments?;
   sendEvenIfNotProduction?: boolean;
   type?: EmailTemplates;
+  isTransactional?: boolean;
 };
 
 type SendMessageData = {
@@ -281,7 +282,7 @@ const generateEmailFromTemplate = (
   const eventSlug = get(data, 'event.slug');
 
   // If we are sending the same email to multiple recipients, it doesn't make sense to allow them to unsubscribe
-  if (!isArray(recipient)) {
+  if (!isArray(recipient) && !options?.isTransactional) {
     data.notificationTypeLabel = getNotificationLabel(options.type || template, recipient);
     data.unsubscribeUrl = `${config.host.website}/email/unsubscribe/${encodeURIComponent(
       recipient || options.bcc,
