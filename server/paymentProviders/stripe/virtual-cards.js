@@ -246,7 +246,7 @@ export const processDeclinedAuthorization = async (stripeAuthorization, stripeEv
     CollectiveId: virtualCard.CollectiveId,
     HostCollectiveId: host.id,
     UserId: virtualCard.UserId,
-    data: { reason, cardName: virtualCard.name },
+    data: { reason, cardName: virtualCard.name, isSystem: true },
   });
 };
 

@@ -50,7 +50,6 @@ enum ActivityTypes {
   // Members
   COLLECTIVE_MEMBER_INVITED = 'collective.member.invited',
   COLLECTIVE_MEMBER_CREATED = 'collective.member.created',
-  COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   COLLECTIVE_CORE_MEMBER_ADDED = 'collective.core.member.added',
   COLLECTIVE_CORE_MEMBER_INVITED = 'collective.core.member.invited',
   COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED = 'collective.core.member.invitation.declined',
@@ -95,7 +94,7 @@ enum ActivityTypes {
   WEBHOOK_STRIPE_RECEIVED = 'webhook.stripe.received',
   WEBHOOK_PAYPAL_RECEIVED = 'webhook.paypal.received',
   // Reports
-  COLLECTIVE_MONTHLY = 'collective.monthly',
+  COLLECTIVE_MONTHLY_REPORT = 'collective.monthlyreport',
   // Host
   ACTIVATED_COLLECTIVE_AS_HOST = 'activated.collective.as.host',
   ACTIVATED_COLLECTIVE_AS_INDEPENDENT = 'activated.collective.as.independent',
@@ -213,7 +212,7 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.VIRTUAL_CARD_CHARGE_DECLINED,
     ActivityTypes.VIRTUAL_CARD_REQUESTED,
   ],
-  [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY],
+  [ActivityClasses.REPORTS]: [ActivityTypes.COLLECTIVE_MONTHLY_REPORT],
 };
 
 export default ActivityTypes;

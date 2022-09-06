@@ -181,7 +181,7 @@ export async function sendHelloWorksUsTaxForm(
       type: activities.TAXFORM_REQUEST,
       UserId: mainUser.id,
       CollectiveId: accountToSubmitRequestTo.id,
-      data: { documentLink, recipientName, accountName },
+      data: { documentLink, recipientName, accountName, isSystem: true },
     });
     return document;
   } catch (error) {

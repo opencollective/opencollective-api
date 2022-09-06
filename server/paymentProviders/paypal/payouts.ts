@@ -76,7 +76,10 @@ export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promi
     const updateExpenses = expenses.map(async e => {
       await e.update({ status: status.ERROR });
       const user = await models.User.findByPk(e.lastEditedById);
-      await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, { error: { message: error.message } });
+      await e.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+        error: { message: error.message },
+        isSystem: true,
+      });
     });
     return Promise.all(updateExpenses);
   }
@@ -143,7 +146,7 @@ export const checkBatchItemStatus = async (
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
           { id: expense.lastEditedById },
-          { error: item.errors },
+          { error: item.errors, isSystem: true },
         );
       }
       break;

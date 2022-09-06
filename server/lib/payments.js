@@ -835,6 +835,7 @@ export const sendExpiringCreditCardUpdateEmail = async data => {
   data = {
     ...data,
     updateDetailsLink: `${config.host.website}/paymentmethod/${data.id}/update`,
+    isSystem: true,
   };
   await models.Activity.create({
     type: activities.PAYMENT_CREDITCARD_EXPIRING,

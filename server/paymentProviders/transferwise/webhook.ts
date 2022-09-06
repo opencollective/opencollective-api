@@ -40,7 +40,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     logger.info(`Transfer failed, setting status to Error and deleting existing transactions.`, event);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
     await expense.setError(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true });
   }
 }
 

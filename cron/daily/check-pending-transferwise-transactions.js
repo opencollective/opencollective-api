@@ -41,7 +41,7 @@ async function processExpense(expense) {
     console.warn(`Transfer ${transfer.status}, setting status to Error and deleting existing transactions.`);
     await models.Transaction.destroy({ where: { ExpenseId: expense.id } });
     await expense.setError(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true });
   }
 }
 /**

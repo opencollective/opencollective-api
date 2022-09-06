@@ -233,7 +233,10 @@ async function createTransfer(
     logger.error(`Wise: Error creating transaction for expense: ${expense.id}`, e);
     await expense.update({ status: status.ERROR });
     const user = await models.User.findByPk(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, { error: { message: e.message } });
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, user, {
+      error: { message: e.message },
+      isSystem: true,
+    });
     throw e;
   }
 }

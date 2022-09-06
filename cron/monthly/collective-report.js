@@ -142,7 +142,7 @@ const processCollective = async collective => {
     }),
   ];
 
-  let emailData = {};
+  let emailData = { isSystem: true };
   const options = { attachments: [], role: [roles.ADMIN, roles.ACCOUNTANT] };
   const csvFilename = `${collective.slug}-${moment(d).format(dateFormat)}-transactions.csv`;
 
