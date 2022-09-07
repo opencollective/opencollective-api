@@ -23,12 +23,12 @@ const ActivitiesCollectionArgs = {
   },
   includeChildrenAccounts: {
     type: GraphQLBoolean,
-    defaultValue: true,
+    defaultValue: false,
     description: 'If account is a parent, also include child accounts',
   },
   includeHostedAccounts: {
     type: GraphQLBoolean,
-    defaultValue: true,
+    defaultValue: false,
     description: 'If account is a host, also include hosted accounts',
   },
   dateFrom: {
@@ -64,12 +64,16 @@ const ActivitiesCollectionQuery = {
     const isRootUser = req.remoteUser.isRoot();
     const accountOrConditions = [];
     const where = { [Op.or]: accountOrConditions };
+    const include = [];
     for (const account of accounts) {
       if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
         accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
         if (args.includeChildrenAccounts) {
-          const childIds = await account.getChildren().then(children => children.map(child => child.id));
-          accountOrConditions.push(...childIds.map(id => ({ CollectiveId: id })));
+          accountOrConditions.push({ '$Collective.ParentCollectiveId$': account.id });
+          include.push({
+            model: models.Collective,
+            required: true,
+          });
         }
         if (args.includeHostedAccounts && account.isHostAccount) {
           accountOrConditions.push({ HostCollectiveId: account.id });
@@ -95,7 +99,7 @@ const ActivitiesCollectionQuery = {
     }
 
     const order: Order = [['createdAt', 'DESC']];
-    const result = await models.Activity.findAndCountAll({ where, order, offset, limit });
+    const result = await models.Activity.findAndCountAll({ where, include, order, offset, limit });
     return {
       nodes: result.rows,
       totalCount: result.count,

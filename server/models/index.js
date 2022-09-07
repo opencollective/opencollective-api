@@ -82,6 +82,8 @@ export function setupModels() {
   /**
    * Relationships
    */
+  // Activity
+  m.Activity.hasMany(m.Collective, { foreignKey: 'ParentCollectiveId', as: 'collective' });
 
   // Applications
   m.Application.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });

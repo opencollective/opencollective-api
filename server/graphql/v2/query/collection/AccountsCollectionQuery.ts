@@ -120,6 +120,7 @@ const AccountsCollectionQuery = {
         orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
         types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
         hostCollectiveIds: null, // not supported
+        parentCollectiveIds: null,
         isHost: args.isHost ? true : null,
         onlyActive: args.isActive ? true : null,
         skipRecentAccounts: args.skipRecentAccounts,

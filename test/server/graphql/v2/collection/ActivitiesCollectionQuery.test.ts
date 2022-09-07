@@ -3,12 +3,24 @@ import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
-import { fakeActivity, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const activitiesCollectionQuery = gqlV2/* GraphQL */ `
-  query Activities($account: [AccountReferenceInput!]!, $type: [ActivityAndClassesType!]) {
-    activities(limit: 100, offset: 0, account: $account, type: $type) {
+  query Activities(
+    $account: [AccountReferenceInput!]!
+    $type: [ActivityAndClassesType!]
+    $includeHostedAccounts: Boolean
+    $includeChildrenAccounts: Boolean
+  ) {
+    activities(
+      limit: 100
+      offset: 0
+      account: $account
+      type: $type
+      includeHostedAccounts: $includeHostedAccounts
+      includeChildrenAccounts: $includeChildrenAccounts
+    ) {
       offset
       limit
       totalCount
@@ -36,12 +48,15 @@ const activitiesCollectionQuery = gqlV2/* GraphQL */ `
 `;
 
 describe('server/graphql/v2/collection/ActivitiesCollection', () => {
-  let collective, admin;
+  let host, collective, childCollective, admin;
 
   before(async () => {
     await resetTestDB();
     admin = await fakeUser();
-    collective = await fakeHost({ admin });
+    host = await fakeHost({ admin });
+    collective = await fakeCollective({ admin, HostCollectiveId: host.id });
+    childCollective = await fakeCollective({ admin, ParentCollectiveId: collective.id, HostCollectiveId: host.id });
+
     let date = new Date('2020-01-01');
     const getNextDate = () => {
       date = new Date(date.getTime() + 1000e5);
@@ -50,29 +65,35 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
 
     await Promise.all([
       // Public collective activities
-      // self
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_CREATED,
         FromCollectiveId: collective.id,
         CollectiveId: collective.id,
         createdAt: getNextDate(),
       }),
-      // authored
-      fakeActivity({
-        type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
-        FromCollectiveId: collective.id,
-        createdAt: getNextDate(),
-      }),
-      // received
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
         createdAt: getNextDate(),
       }),
-      // Hosted
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
-        HostCollectiveId: collective.id,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        createdAt: getNextDate(),
+      }),
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_CONVERSATION_CREATED,
+        CollectiveId: childCollective.id,
+        HostCollectiveId: host.id,
+        createdAt: getNextDate(),
+      }),
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
+        CollectiveId: host.id,
+        FromCollectiveId: host.id,
+        HostCollectiveId: host.id,
         createdAt: getNextDate(),
       }),
       // Random activities
@@ -105,9 +126,50 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     const result = await graphqlQueryV2(activitiesCollectionQuery, { account: [{ legacyId: collective.id }] }, admin);
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
-    expect(result.data.activities.totalCount).to.eq(4);
+    expect(result.data.activities.totalCount).to.eq(3);
     expect(result.data.activities.nodes).to.not.be.null;
     expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: true });
+  });
+
+  describe('including children account activities and hosted account activities', () => {
+    it('include child accounts', async () => {
+      const variables = { account: { legacyId: collective.id }, includeChildrenAccounts: true };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(4);
+      expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
+    });
+
+    it('do not include child accounts', async () => {
+      const variables = { account: { legacyId: collective.id }, includeChildrenAccounts: false };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(3);
+      expect(result.data.activities.nodes[0]).to.not.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
+    });
+
+    it('include hosted accounts', async () => {
+      const variables = { account: { legacyId: host.id }, includeHostedAccounts: true };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(4);
+      expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CORE_MEMBER_EDITED' });
+      expect(result.data.activities.nodes[1]).to.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
+      expect(result.data.activities.nodes[2]).to.containSubset({ type: 'COLLECTIVE_EXPENSE_UPDATED' });
+      expect(result.data.activities.nodes[3]).to.containSubset({ type: 'COLLECTIVE_EXPENSE_CREATED' });
+    });
+
+    it('do not include hosted accounts', async () => {
+      const variables = { account: { legacyId: host.id }, includeHostedAccounts: false };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(1);
+      expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CORE_MEMBER_EDITED' });
+    });
   });
 
   describe('filters activities by class/type', () => {
@@ -116,7 +178,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(3);
+      expect(result.data.activities.totalCount).to.eq(2);
     });
 
     it('Can filter by type', async () => {
@@ -124,7 +186,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(2);
+      expect(result.data.activities.totalCount).to.eq(1);
     });
 
     it('Can do both at the same time', async () => {
@@ -132,7 +194,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(3);
+      expect(result.data.activities.totalCount).to.eq(2);
     });
   });
 });
