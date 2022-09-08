@@ -52,6 +52,7 @@ export const getCollectiveAvatarUrl = (
 
 export const COLLECTIVE_SETTINGS_KEYS_LIST = [
   'apply',
+  'applyMessage',
   'disablePublicExpenseSubmission',
   'disablePaypalPayouts',
   'bitcoin',

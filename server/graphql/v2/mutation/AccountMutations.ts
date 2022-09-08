@@ -12,6 +12,7 @@ import {
 import { GraphQLJSON } from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
+import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import plans from '../../../constants/plans';
 import cache from '../../../lib/cache';
@@ -98,6 +99,16 @@ const accountMutations = {
           }
         }
 
+        models.Activity.create({
+          type: activities.COLLECTIVE_EDITED,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          CollectiveId: account.id,
+          FromCollectiveId: account.id,
+          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+          data: { previousData: { [args.key]: account.data?.[args.key] }, newData: { [args.key]: args.value } },
+        });
+
         const settings = account.settings ? cloneDeep(account.settings) : {};
         set(settings, args.key, args.value);
         return account.update({ settings }, { transaction });
@@ -141,7 +152,22 @@ const accountMutations = {
           throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
         }
 
-        const updateAccountFees = account => {
+        const updateAccountFees = async account => {
+          models.Activity.create({
+            type: activities.COLLECTIVE_EDITED,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.HostCollectiveId,
+            data: {
+              previousData: {
+                hostFeePercent: account.hostFeePercent,
+                useCustomHostFee: account.data?.useCustomHostFee,
+              },
+              newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
+            },
+          });
           return account.update(
             {
               hostFeePercent: args.hostFeePercent,
@@ -260,6 +286,13 @@ const accountMutations = {
         return crypto.hash(code);
       });
 
+      models.Activity.create({
+        type: activities.TWO_FACTOR_CODE_DELETED,
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: user.CollectiveId,
+      });
+
       await user.update({ twoFactorAuthToken: encryptedText, twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
 
       return { account: account, recoveryCodes: recoveryCodesArray };
@@ -303,6 +336,13 @@ const accountMutations = {
         throw new Unauthorized('Two-factor authentication code failed. Please try again');
       }
 
+      models.Activity.create({
+        type: activities.TWO_FACTOR_CODE_DELETED,
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: user.CollectiveId,
+      });
+
       await user.update({ twoFactorAuthToken: null, twoFactorAuthRecoveryCodes: null });
 
       return account;
@@ -337,6 +377,16 @@ const accountMutations = {
       if (!plans[plan]) {
         throw new Error(`Unknown plan: ${plan}`);
       }
+
+      models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: { oldHostPlan: account.plan, newHostPlan: plan },
+      });
 
       await account.update({ plan });
 
@@ -382,8 +432,18 @@ const accountMutations = {
 
       for (const key of Object.keys(args.account)) {
         switch (key) {
-          case 'currency':
+          case 'currency': {
+            models.Activity.create({
+              type: activities.COLLECTIVE_EDITED,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              CollectiveId: account.id,
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+              data: { oldCurrency: account.currency, newCurrency: args.account[key] },
+            });
             await account.setCurrency(args.account[key]);
+          }
         }
       }
 
@@ -416,6 +476,16 @@ const accountMutations = {
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized();
       }
+
+      models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: { oldPolicies: account.data?.policies, newPolicies: args.policies },
+      });
 
       await account.setPolicies(args.policies);
       return account;
@@ -454,6 +524,16 @@ const accountMutations = {
           `You can't delete an Account with admin memberships, children, transactions, orders or expenses. Please archive it instead.`,
         );
       }
+
+      models.Activity.create({
+        type: activities.COLLECTIVE_DELETED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: { name: account.name, slug: account.slug },
+      });
 
       return collectivelib.deleteCollective(account);
     },
