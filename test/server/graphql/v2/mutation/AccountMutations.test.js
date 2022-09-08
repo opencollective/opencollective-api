@@ -2,9 +2,10 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import speakeasy from 'speakeasy';
 
-import { roles } from '../../../../../server/constants';
+import { activities as ACTIVITY, roles } from '../../../../../server/constants';
 import POLICIES from '../../../../../server/constants/policies';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 
@@ -112,6 +113,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(result.errors).to.not.exist;
       expect(result.data.editAccountSetting.settings).to.deep.eq({ tos: 'https://opencollective.com/tos' });
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(collective.id);
+      expect(activity.data).to.deep.equal({ previousData: {}, newData: { tos: 'https://opencollective.com/tos' } });
     });
 
     it('asynchronous mutations are properly supported', async () => {
@@ -249,6 +259,14 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addTwoFactorAuthTokenToIndividual.account.hasTwoFactorAuth).to.eq(true);
       expect(result.data.addTwoFactorAuthTokenToIndividual.recoveryCodes).to.have.lengthOf(6);
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.TWO_FACTOR_CODE_ADDED },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(adminUser.collective.id);
     });
 
     it('fails if user already enabled 2FA', async () => {
@@ -297,6 +315,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         expect(child.hostFeePercent).to.eq(9.99);
         expect(child.hostFeesStructure).to.eq('CUSTOM_FEE');
       });
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: hostAdminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(collective.id);
+      expect(activity.data).to.deep.equal({
+        previousData: { hostFeePercent: 10 },
+        newData: { hostFeePercent: 9.99, useCustomHostFee: true },
+      });
     });
   });
 
@@ -322,9 +352,19 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await collective.reload();
       expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(collective.id);
+      expect(activity.data).to.deep.equal({ newData: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } });
     });
 
     it('should disable policy', async () => {
+      console.log(collective.data);
       const mutationParams = {
         account: { legacyId: collective.id },
         policies: {},
@@ -333,6 +373,19 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await collective.reload();
       expect(collective.data.policies).to.be.empty;
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(collective.id);
+      expect(activity.data).to.deep.equal({
+        previousData: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
+        newData: {},
+      });
     });
 
     it('should fail if user is not authorized', async () => {

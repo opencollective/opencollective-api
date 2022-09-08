@@ -287,7 +287,7 @@ const accountMutations = {
       });
 
       models.Activity.create({
-        type: activities.TWO_FACTOR_CODE_DELETED,
+        type: activities.TWO_FACTOR_CODE_ADDED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
@@ -484,7 +484,7 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { oldPolicies: account.data?.policies, newPolicies: args.policies },
+        data: { previousData: account.data?.policies, newData: args.policies },
       });
 
       await account.setPolicies(args.policies);
