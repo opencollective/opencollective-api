@@ -218,10 +218,6 @@ describe('server/paymentProviders/transferwise/index', () => {
       expect(data).to.have.nested.property('quote');
     });
 
-    it('should check for existing balance', () => {
-      expect(getBorderlessAccount.called).to.be.true;
-    });
-
     it('should create recipient account and update data.recipient', () => {
       expect(createRecipientAccount.called).to.be.true;
       expect(data).to.have.nested.property('recipient');
@@ -235,20 +231,6 @@ describe('server/paymentProviders/transferwise/index', () => {
     it('should fund transfer account and update data.fund', () => {
       expect(fundTransfer.called).to.be.true;
       expect(data).to.have.nested.property('fund');
-    });
-
-    it('should throw if balance is not enough to cover the transfer', async () => {
-      getBorderlessAccount.resolves({
-        balances: [
-          {
-            currency: 'USD',
-            amount: { value: 0 },
-          },
-        ],
-      });
-
-      const payExpensePromise = transferwise.payExpense(connectedAccount, payoutMethod, expense);
-      await expect(payExpensePromise).to.be.eventually.rejectedWith(Error, "You don't have enough funds");
     });
   });
 
