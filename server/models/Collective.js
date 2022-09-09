@@ -1854,7 +1854,7 @@ function defineModel() {
       case roles.BACKER:
       case roles.ATTENDEE:
         if (!context.skipActivity) {
-          await this.createMemberCreatedActivity(member, context, sequelizeParams);
+          await this.createMemberCreatedActivity(member, user, context, sequelizeParams);
         }
         break;
 
@@ -1870,7 +1870,7 @@ function defineModel() {
     return member;
   };
 
-  Collective.prototype.createMemberCreatedActivity = async function (member, context, sequelizeParams) {
+  Collective.prototype.createMemberCreatedActivity = async function (member, user, context, sequelizeParams) {
     // We refetch to preserve historic behavior and make sure it's up to date
     let order;
     if (context.order) {
@@ -1912,6 +1912,7 @@ function defineModel() {
         type: activities.COLLECTIVE_MEMBER_CREATED,
         FromCollectiveId: memberCollective.id,
         HostCollectiveId: this.approvedAt ? this.HostCollectiveId : null,
+        UserId: user.id,
         CollectiveId: this.id,
         data,
       },
