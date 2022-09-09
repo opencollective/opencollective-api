@@ -72,6 +72,7 @@ const ActivitiesCollectionQuery = {
           accountOrConditions.push({ '$Collective.ParentCollectiveId$': account.id });
           include.push({
             model: models.Collective,
+            attributes: [],
             required: true,
           });
         }
