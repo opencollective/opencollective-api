@@ -311,6 +311,7 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
 
       // Notify the admins of the collective
+      activity.data.recipientName = collective.name;
       await notify.collective(activity, {
         from: config.email.noReply,
         exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
@@ -318,6 +319,8 @@ export const notifyByEmail = async (activity: Activity) => {
 
       // Notify the admins of the host (if any)
       const HostCollectiveId = await collective.getHostCollectiveId();
+      const hostCollective = await models.Collective.findByPk(HostCollectiveId);
+      activity.data.recipientName = hostCollective.name;
       if (HostCollectiveId) {
         await notify.collective(activity, {
           from: config.email.noReply,
@@ -327,6 +330,7 @@ export const notifyByEmail = async (activity: Activity) => {
       }
 
       // Notify the author of the expense
+      activity.data.recipientName = activity.data.UserId;
       if (activity.UserId !== activity.data.UserId) {
         await notify.user(activity, {
           userId: activity.data.UserId,

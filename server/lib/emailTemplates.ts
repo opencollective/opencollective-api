@@ -113,6 +113,7 @@ const templatesPath = `${__dirname}/../../templates`;
 
 // Register partials
 const header = fs.readFileSync(`${templatesPath}/partials/header.hbs`, 'utf8');
+const greeting = fs.readFileSync(`${templatesPath}/partials/greeting.hbs`, 'utf8');
 const footer = fs.readFileSync(`${templatesPath}/partials/footer.hbs`, 'utf8');
 const toplogo = fs.readFileSync(`${templatesPath}/partials/toplogo.hbs`, 'utf8');
 const eventsnippet = fs.readFileSync(`${templatesPath}/partials/eventsnippet.hbs`, 'utf8');
@@ -124,6 +125,7 @@ const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
 
 handlebars.registerPartial('header', header);
+handlebars.registerPartial('greeting', greeting);
 handlebars.registerPartial('footer', footer);
 handlebars.registerPartial('toplogo', toplogo);
 handlebars.registerPartial('collectivecard', collectivecard);
