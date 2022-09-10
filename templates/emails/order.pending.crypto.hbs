@@ -14,11 +14,7 @@ Subject: Your {{pledgeAmount}} {{pledgeCurrency}} {{order.type}} to {{{collectiv
 
 {{> toplogo}}
 
-{{#if fromCollective.name}}
-<p>Hi {{fromCollective.name}},</p>
-{{else}}
-<p>Hi!</p>
-{{/if}}
+{{> greeting}}
 
 <p>Thank you for your crypto contribution to {{collective.name}} in the amount of {{pledgeAmount}} {{pledgeCurrency}}, made on
   {{moment order.createdAt}}.</p>

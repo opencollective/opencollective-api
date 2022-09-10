@@ -50,6 +50,11 @@ export const notify = {
       CollectiveId: options?.collective?.id || activity.CollectiveId,
     });
 
+    if (!activity.data.recipientName) {
+      const userCollective = await models.Collective.findByPk(user.CollectiveId);
+      activity.data.recipientName = userCollective.name;
+    }
+
     const isTransactional = TransactionalActivities.includes(activity.type);
     if (unsubscribed.length === 0) {
       debug('notifying.user', user.id, user && user.email, activity.type);
@@ -116,6 +121,8 @@ export const notify = {
           CollectiveId: collective.ParentCollectiveId ? [collective.ParentCollectiveId, collective.id] : collective.id,
           role,
         });
+
+    activity.data.recipientName = activity.data.fromCollective ? activity.data.fromCollective : collective.name;
 
     return notify.users(users, activity, { ...options, collective });
   },

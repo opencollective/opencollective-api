@@ -4,11 +4,7 @@ Subject: {{{remoteUser.collective.name}}} added you as {{{collective.name}}} {{r
 
 {{> toplogo}}
 
-{{#if recipient.collective.name}}
-<p>{{recipient.collective.name}},</p>
-{{else}}
-<p>Hi,</p>
-{{/if}}
+{{> greeting}}
 
 <p>{{remoteUser.collective.name}} (cced) added you to <a href="https://opencollective.com/{{collective.slug}}">{{collective.name}}</a> as {{role}} on Open Collective.</p>
 

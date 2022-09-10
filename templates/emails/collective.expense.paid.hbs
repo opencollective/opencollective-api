@@ -10,7 +10,7 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
 </style>
 
 <center>
-  <h3>Hi there!</h3>
+  <h3>{{> greeting}}</h3>
   <p>
     Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, submitted to {{> linkCollective collective=collective}} on {{moment expense.createdAt}} has been paid.
     {{#if expense.payoutMethod}}

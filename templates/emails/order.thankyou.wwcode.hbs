@@ -8,11 +8,7 @@ Subject: Thank you for your {{currency order.totalAmount currency=order.currency
 
 {{> toplogo}}
 
-{{#if fromCollective.name}}
-<p>{{fromCollective.name}},</p>
-{{else}}
-<p>Hi,</p>
-{{/if}}
+{{> greeting}}
 
 {{#if interval}}
   {{#if firstPayment}}

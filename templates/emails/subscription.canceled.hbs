@@ -4,11 +4,7 @@ Subject: Contribution cancelled to {{{collective.name}}}
 
 {{> toplogo}}
 
-{{#if fromCollective.name}}
-<p>Hi {{fromCollective.name}},</p>
-{{else}}
-<p>Hello</p>
-{{/if}}
+{{> greeting}}
 
 <p>Your recurring contribution to {{collective.name}} (cced) for {{currency subscription.amount currency=subscription.currency}}/{{subscription.interval}} has been cancelled.</p>
 

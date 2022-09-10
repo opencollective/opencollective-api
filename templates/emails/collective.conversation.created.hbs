@@ -3,8 +3,7 @@ Subject: New Conversation on {{{collective.name}}}: "{{{escapeForSubject convers
 {{> header}}
 
 <p style="padding: 1em;">
-  Hi {{collective.name}},
-  <br /><br />
+  {{> greeting}}
   {{> linkCollective collective=fromCollective}} just started
   a new Conversation: <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}">{{conversation.title}}</a>
 </p>

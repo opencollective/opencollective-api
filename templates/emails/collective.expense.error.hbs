@@ -3,7 +3,7 @@ Subject: Payment from {{{collective.name}}} for {{{escapeForSubject expense.desc
 {{> header}}
 
 <center>
-  <h3>Hi there!</h3>
+  <h3>{{> greeting}}</h3>
   <p>
     The payout for your expense, <b><a
         href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, which
