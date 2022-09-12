@@ -67,17 +67,19 @@ export default {
       checkRemoteUserCanRoot(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      const asyncActions = [];
 
       if (args.type.includes('CLOUDFLARE')) {
-        purgeCacheForPage(`/${account.slug}`);
+        asyncActions.push(purgeCacheForPage(`/${account.slug}`));
       }
       if (args.type.includes('GRAPHQL_QUERIES')) {
-        purgeGQLCacheForCollective(account.slug);
+        asyncActions.push(purgeGQLCacheForCollective(account.slug));
       }
       if (args.type.includes('CONTRIBUTORS')) {
-        await invalidateContributorsCache(account.id);
+        asyncActions.push(invalidateContributorsCache(account.id));
       }
 
+      await Promise.all(asyncActions);
       return account;
     },
   },
