@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 
@@ -67,6 +67,15 @@ export const Tier = new GraphQLObjectType({
           return { value: tier.amount, currency: tier.currency };
         },
       },
+      button: {
+        type: GraphQLString,
+      },
+      goal: {
+        type: new GraphQLNonNull(Amount),
+        resolve(tier) {
+          return { value: tier.goal, currency: tier.currency };
+        },
+      },
       type: {
         type: new GraphQLNonNull(TierType),
       },
@@ -106,7 +115,7 @@ export const Tier = new GraphQLObjectType({
       minimumAmount: {
         type: new GraphQLNonNull(Amount),
         resolve(tier) {
-          return { value: tier.minimumAmount };
+          return { value: tier.minimumAmount, currency: tier.currency };
         },
       },
       endsAt: {
@@ -117,6 +126,9 @@ export const Tier = new GraphQLObjectType({
         async resolve(tier) {
           return tier.data?.invoiceTemplate;
         },
+      },
+      useStandalonePage: {
+        type: GraphQLBoolean,
       },
     };
   },
