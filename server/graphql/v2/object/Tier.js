@@ -6,7 +6,7 @@ import models, { Op } from '../../../models';
 import { OrderCollection } from '../collection/OrderCollection';
 import { OrderStatus, TierAmountType, TierInterval, TierType } from '../enum';
 import { getTierFrequencyFromInterval, TierFrequency } from '../enum/TierFrequency';
-import { idEncode } from '../identifiers';
+import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
 
 import { Amount } from './Amount';
 
@@ -18,7 +18,7 @@ export const Tier = new GraphQLObjectType({
       id: {
         type: new GraphQLNonNull(GraphQLString),
         resolve(tier) {
-          return idEncode(tier.id, 'tier');
+          return idEncode(tier.id, IDENTIFIER_TYPES.TIER);
         },
       },
       legacyId: {

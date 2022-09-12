@@ -28,6 +28,7 @@ export const IDENTIFIER_TYPES = {
   EXPENSE_ATTACHED_FILE: 'expense-attached-file',
   EXPENSE_ITEM: 'expense-item',
   RECURRING_EXPENSE: 'recurring-expense',
+  TIER: 'tier',
   ORDER: 'order',
   UPDATE: 'update',
   APPLICATION: 'application',
