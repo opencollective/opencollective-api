@@ -141,10 +141,13 @@ export function memoize(func, { key, maxAge = 0, serialize, unserialize }) {
   return memoizedFunction;
 }
 
-export function purgeGQLCacheForCollective(slug) {
-  for (const operationName of purgeCacheForCollectiveOperationNames) {
-    cache.delete(`${operationName}_${slug}`);
-  }
+export async function purgeGQLCacheForCollective(slug) {
+  // TODO: This doesn't work as expected cause many operations include the hash of the query in their keys
+  return Promise.all(
+    purgeCacheForCollectiveOperationNames.map(operationName => {
+      return cache.delete(`${operationName}_${slug}`);
+    }),
+  );
 }
 
 export function purgeCacheForCollective(slug) {
