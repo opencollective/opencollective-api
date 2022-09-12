@@ -315,9 +315,10 @@ export const AccountStats = new GraphQLObjectType({
               AND t."CollectiveId" =  c."id"
               AND t."RefundTransactionId" IS NULL
               AND t."deletedAt" IS NULL
+              ${args.includeChildren ? `AND t."FromCollectiveId" != $collectiveId` : ``}
               ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
               ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-            GROUP BY (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
+            GROUP BY "label", t."currency"
             ORDER BY ABS(SUM(t."amount")) DESC
             `,
             {
@@ -367,10 +368,11 @@ export const AccountStats = new GraphQLObjectType({
               AND t."CollectiveId" = c."id"
               AND t."RefundTransactionId" IS NULL
               AND t."deletedAt" IS NULL
+              ${args.includeChildren ? `AND t."FromCollectiveId" != $collectiveId` : ``}
               ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
               ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-            GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
-            ORDER BY DATE_TRUNC($timeUnit, t."createdAt"), ABS(SUM(t."amount")) DESC
+            GROUP BY "date", "label", t."currency"
+            ORDER BY "date", ABS(SUM(t."amount")) DESC
             `,
             {
               type: QueryTypes.SELECT,
