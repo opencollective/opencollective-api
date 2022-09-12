@@ -106,7 +106,10 @@ const accountMutations = {
           CollectiveId: account.id,
           FromCollectiveId: account.id,
           HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-          data: { previousData: { [args.key]: account.data?.[args.key] }, newData: { [args.key]: args.value } },
+          data: {
+            previousData: { settings: { [args.key]: account.data?.[args.key] } },
+            newData: { settings: { [args.key]: args.value } },
+          },
         });
 
         const settings = account.settings ? cloneDeep(account.settings) : {};
@@ -385,7 +388,7 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { oldHostPlan: account.plan, newHostPlan: plan },
+        data: { previousData: { hostPlan: account.plan }, newData: { hostPlan: plan } },
       });
 
       await account.update({ plan });
@@ -440,7 +443,7 @@ const accountMutations = {
               CollectiveId: account.id,
               FromCollectiveId: account.id,
               HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-              data: { oldCurrency: account.currency, newCurrency: args.account[key] },
+              data: { previousData: { currency: account.currency }, newData: { currency: args.account[key] } },
             });
             await account.setCurrency(args.account[key]);
           }

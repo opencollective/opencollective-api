@@ -121,7 +121,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({ previousData: {}, newData: { tos: 'https://opencollective.com/tos' } });
+      expect(activity.data).to.deep.equal({
+        previousData: { settings: {} },
+        newData: { settings: { tos: 'https://opencollective.com/tos' } },
+      });
     });
 
     it('asynchronous mutations are properly supported', async () => {
