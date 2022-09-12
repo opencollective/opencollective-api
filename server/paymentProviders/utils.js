@@ -96,7 +96,13 @@ export const persistTransaction = async (virtualCard, transaction) => {
         kind: TransactionKind.EXPENSE,
       });
 
-      await notifyCollectiveMissingReceipt(processingExpense, virtualCard);
+      const expenseAttachment = await models.ExpenseAttachedFile.findOne({
+        where: { ExpenseId: processingExpense.id },
+      });
+
+      if (!expenseAttachment) {
+        await notifyCollectiveMissingReceipt(processingExpense, virtualCard);
+      }
 
       return processingExpense;
     }
