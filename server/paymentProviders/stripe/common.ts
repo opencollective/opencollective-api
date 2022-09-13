@@ -79,9 +79,7 @@ export const refundTransactionOnlyInDatabase = async (
   const refundBalance = await stripe.balanceTransactions.retrieve((refund || dispute).balance_transaction, {
     stripeAccount: hostStripeAccount.username,
   });
-  console.log({ refundBalance });
   const fees = extractFees(refundBalance, refundBalance.currency);
-  console.log({ fees });
 
   /* Create negative transactions for the received transaction */
   return await createRefundTransaction(

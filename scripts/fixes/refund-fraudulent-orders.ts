@@ -32,9 +32,11 @@ async function main({ dryRun, totalAmount, reqMask, isGuest, fromCollectiveId })
   if (!reqMask && !totalAmount && !isGuest && !fromCollectiveId) {
     throw new Error('Not enough parameters');
   } else if (totalAmount && !isGuest && !reqMask && !fromCollectiveId) {
-    throw new Error('Not enough parameters: totalAmount should be used together with isGuest');
+    throw new Error(
+      'Not enough parameters: totalAmount should be used together with isGuest, reqMask or fromCollectiveId',
+    );
   } else if (isGuest && !totalAmount && !reqMask) {
-    throw new Error('Not enough parameters: isGuest should be used together with totalAmount');
+    throw new Error('Not enough parameters: isGuest should be used together with totalAmount or reqMask');
   }
 
   const query = `
