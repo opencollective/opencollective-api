@@ -11,7 +11,7 @@ Subject: Action Required: Submit receipt for card expense
 <p>
 {{#if user}}
 A card attached to {{fromCollective.name}} was charged {{currency expense.amount currency=expense.currency}} and we need the responsible admin to input additional
-information.
+information. This expense was submitted to {{collective.name}}.
 {{else}}
 You need to provide additional info about the card charge of {{currency expense.amount currency=expense.currency}} for {{fromCollective.name}}.
 {{/if}}
