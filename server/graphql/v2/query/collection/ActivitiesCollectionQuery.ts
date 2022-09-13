@@ -22,12 +22,18 @@ const ActivitiesCollectionArgs = {
     description: 'The accounts associated with the Activity',
   },
   includeChildrenAccounts: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: false,
     description: 'If account is a parent, also include child accounts',
   },
+  excludeParentAccount: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description:
+      'If account is a parent, use this option to exclude it from the results. Use in combination with includeChildrenAccounts.',
+  },
   includeHostedAccounts: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     defaultValue: false,
     description: 'If account is a host, also include hosted accounts',
   },
@@ -68,7 +74,9 @@ const ActivitiesCollectionQuery = {
     for (const account of accounts) {
       if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
         // Include all activities related to the account itself
-        accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
+        if (!args.excludeParentAccount) {
+          accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
+        }
 
         // Include all activities related to the account's children
         if (args.includeChildrenAccounts) {
