@@ -1,8 +1,9 @@
 import crypto from 'crypto';
 
+import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { compact, difference, find, has, isNil, omit, pick, split, toNumber } from 'lodash';
+import { cloneDeep, compact, difference, find, has, isNil, omit, pick, set, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -561,6 +562,10 @@ const oauth = {
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;
+      const collective = await models.Collective.findByPk(CollectiveId);
+      if (!collective) {
+        throw new Error(`Could not find Collective #${CollectiveId}`);
+      }
       const accessToken = await transferwise.getOrRefreshToken({ code: code?.toString() });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
 
@@ -583,6 +588,12 @@ const oauth = {
           data,
         });
         await populateProfileId(connectedAccount, toNumber(profileId));
+      }
+
+      if (collective.countryISO && isMemberOfTheEuropeanUnion(collective.countryISO)) {
+        const settings = collective.settings ? cloneDeep(collective.settings) : {};
+        set(settings, 'transferwise.ott', true);
+        await collective.update({ settings });
       }
 
       res.redirect(redirectUrl.href);
