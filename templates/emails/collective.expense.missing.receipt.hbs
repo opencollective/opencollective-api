@@ -5,15 +5,15 @@ Subject: Action Required: Submit receipt for card expense
 
 <center>
   <h1>
-    Please submit the receipt for {{fromCollective.name}} card expense.
+    Please submit the receipt for {{expense.description}}.
   </h1>
 </center>
 <p>
 {{#if user}}
-A card attached to {{fromCollective.name}} was charged {{currency expense.amount currency=expense.currency}} and we need the responsible admin to input additional
+A card attached to {{collective.name}} was charged {{currency expense.amount currency=expense.currency}} for {{expense.description}} and we need the responsible admin to input additional
 information.
 {{else}}
-You need to provide additional info about the card charge of {{currency expense.amount currency=expense.currency}} for {{fromCollective.name}}.
+You need to provide additional info about the card charge of {{currency expense.amount currency=expense.currency}} for {{expense.description}} in the collective {{collective.name}}.
 {{/if}}
 For accounting reasons, the Fiscal Host will need a description and receipt. The card may be suspended if receipts are not provided.
 </p>
