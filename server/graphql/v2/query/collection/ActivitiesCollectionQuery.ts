@@ -67,15 +67,18 @@ const ActivitiesCollectionQuery = {
     const include = [];
     for (const account of accounts) {
       if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
+        // Include all activities related to the account itself
         accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
+
+        // Include all activities related to the account's children
         if (args.includeChildrenAccounts) {
           accountOrConditions.push({ '$Collective.ParentCollectiveId$': account.id });
-          include.push({
-            model: models.Collective,
-            attributes: [],
-            required: true,
-          });
+          if (include.length === 0) {
+            include.push({ model: models.Collective, attributes: [], required: true });
+          }
         }
+
+        // Include all activities related to the account's hosted collectives
         if (args.includeHostedAccounts && account.isHostAccount) {
           accountOrConditions.push({ HostCollectiveId: account.id });
         }
