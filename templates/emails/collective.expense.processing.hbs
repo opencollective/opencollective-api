@@ -6,7 +6,7 @@ Subject: Payment being processed: {{{expense.description}}} for {{{collective.na
   <h3>Hi there!</h3>
   <p>
     Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>,
-    submitted to <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on {{moment expense.createdAt}}, is currently being processed by Wise and should be paid soon.
+    submitted to {{> linkCollective collective=collective}} on {{moment expense.createdAt}}, is currently being processed by Wise and should be paid soon.
   </p>
 </center>
 

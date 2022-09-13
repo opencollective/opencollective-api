@@ -14,21 +14,21 @@ Subject: {{{collective.name}}}: New comment
   <p style="padding: 1em;">
     Hi,
     <br /><br />
-    <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
+    {{> linkCollective collective=fromCollective}} just posted
     a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
   </p>
 {{else if conversation}}
   <p style="font-size: 17px; padding: 1em;">
     Hi {{collective.name}},
     <br /><br />
-    <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
+    {{> linkCollective collective=fromCollective}} just posted
     a new comment on a Conversation, <a href="{{config.host.website}}{{path}}">{{conversation.title}}</a>:
   </p>
 {{else if update}}
   <p style="font-size: 17px; padding: 1em;">
     Hi {{collective.name}},
     <br /><br />
-    <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
+    {{> linkCollective collective=fromCollective}} just posted
     a new comment on an Update, <a href="{{config.host.website}}{{path}}">{{update.title}}</a>:
   </p>
 {{/if}}

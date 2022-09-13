@@ -12,7 +12,7 @@ Subject: {{#ifCond expense.currency '===' 'USD'}}💵 {{/ifCond}}{{#ifCond expen
 <center>
   <h3>Hi there!</h3>
   <p>
-    Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, submitted to <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> on {{moment expense.createdAt}} has been paid.
+    Your expense, <b><a href="{{config.host.website}}/{{collective.slug}}/expenses/{{expense.id}}">{{expense.description}}</a></b>, submitted to {{> linkCollective collective=collective}} on {{moment expense.createdAt}} has been paid.
     {{#if expense.payoutMethod}}
       {{#ifCond expense.payoutMethod.type '===' 'BANK_ACCOUNT'}}
         The money can take a few days to arrive, depending on the bank.

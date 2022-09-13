@@ -53,7 +53,7 @@ h3 {
       <td valign="top" width="50"><img src="{{config.host.website}}/static/images/email/vertical-line-green.png" width="30" /></td>
       <td valign="top">
         <h3 class="grey">Create</h3>
-        <p class="grey">Your Collective <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> has been created. Share this link and start accepting financial contributions: <a href="{{config.host.website}}/{{collective.slug}}">{{config.host.website}}/{{collective.slug}}</a></p>
+        <p class="grey">Your Collective {{> linkCollective collective=collective}} has been created. Share this link and start accepting financial contributions: <a href="{{config.host.website}}/{{collective.slug}}">{{config.host.website}}/{{collective.slug}}</a></p>
       </td>
       <td valign="top">
         <img src="{{config.host.website}}/static/images/email/github.signup.step1.png" width="180" />

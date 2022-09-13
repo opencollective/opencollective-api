@@ -5,7 +5,7 @@ Subject: Thanks for applying to {{host.name}}
 <div class="hidden">Your application is pending.</div>
 
 <p>Oh hey {{user.collective.name}} 👋 </p>
-<p>Thank you for applying to <a href="{{config.host.website}}/{{host.slug}}">{{host.name}}</a> to host <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a>.</p>
+<p>Thank you for applying to <a href="{{config.host.website}}/{{host.slug}}">{{host.name}}</a> to host {{> linkCollective collective=collective}}.</p>
 <p>Please make sure that your <a href="{{config.host.website}}/{{collective.slug}}">Collective page</a> describes your purpose and activities as accurately as possible, as we will look at this info when reviewing your application.</p>
 
 <p>If you have any questions, feel free to respond to this email.</p>
