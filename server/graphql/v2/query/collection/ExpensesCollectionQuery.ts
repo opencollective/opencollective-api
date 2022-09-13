@@ -222,6 +222,8 @@ const ExpensesCollectionQuery = {
     }
     if (args.tag || args.tags) {
       where['tags'] = { [Op.contains]: args.tag || args.tags };
+    } else if (args.tag === null || args.tags === null) {
+      where['tags'] = { [Op.is]: null };
     }
     if (args.minAmount) {
       where['amount'] = { [Op.gte]: args.minAmount };
