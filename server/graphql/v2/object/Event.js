@@ -6,8 +6,6 @@ import { AccountWithContributions, AccountWithContributionsFields } from '../int
 import { AccountWithHost, AccountWithHostFields } from '../interface/AccountWithHost';
 import { AccountWithParent, AccountWithParentFields } from '../interface/AccountWithParent';
 
-import { Collective } from './Collective';
-
 export const Event = new GraphQLObjectType({
   name: 'Event',
   description: 'This represents an Event account',
@@ -28,18 +26,6 @@ export const Event = new GraphQLObjectType({
           } else {
             const parent = await req.loaders.Collective.byId.load(event.ParentCollectiveId);
             return Boolean(parent?.isApproved());
-          }
-        },
-      },
-      parentCollective: {
-        description: 'The Collective hosting this Event',
-        deprecationReason: '2020/07/01 - Use parent instead.',
-        type: Collective,
-        async resolve(event, _, req) {
-          if (!event.ParentCollectiveId) {
-            return null;
-          } else {
-            return req.loaders.Collective.byId.load(event.ParentCollectiveId);
           }
         },
       },

@@ -105,11 +105,6 @@ export const TransactionsCollectionArgs = {
     defaultValue: false,
     description: 'Whether to include debt transactions',
   },
-  kinds: {
-    type: new GraphQLList(TransactionKind),
-    description: 'To filter by transaction kind',
-    deprecationReason: '2020-06-30: Please use kind (singular)',
-  },
   kind: {
     type: new GraphQLList(TransactionKind),
     description: 'To filter by transaction kind',
@@ -277,8 +272,8 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
   if (!args.includeDebts) {
     where.push({ isDebt: { [Op.not]: true } });
   }
-  if (args.kind || args.kinds) {
-    where.push({ kind: args.kind || args.kinds });
+  if (args.kind) {
+    where.push({ kind: args.kind });
   }
   if (args.paymentMethodType) {
     const uniquePaymentMethods: string[] = uniq(args.paymentMethodType);

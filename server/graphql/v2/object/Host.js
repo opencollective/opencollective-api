@@ -124,16 +124,6 @@ export const Host = new GraphQLObjectType({
             type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
             description: 'A collection of accounts for which the metrics should be returned.',
           },
-          from: {
-            type: GraphQLString,
-            description: "Inferior date limit in which we're calculating the metrics",
-            deprecationReason: '2020-09-20: Use dateFrom',
-          },
-          to: {
-            type: GraphQLString,
-            description: "Superior date limit in which we're calculating the metrics",
-            deprecationReason: '2020-09-20: Use dateTo',
-          },
           dateFrom: {
             type: GraphQLDateTime,
             description: 'The start date of the time series',
@@ -564,33 +554,9 @@ export const Host = new GraphQLObjectType({
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
-          const contributionAmountOverTime = async () => {
-            const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-            const dateTo = args.dateTo ? moment(args.dateTo) : null;
-            const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
-
-            const amountDataPoints = await queries.getTransactionsTimeSeries(
-              TransactionKind.CONTRIBUTION,
-              TransactionTypes.CREDIT,
-              host.id,
-              timeUnit,
-              collectiveIds,
-              dateFrom,
-              dateTo,
-            );
-
-            return {
-              dateFrom: args.dateFrom || host.createdAt,
-              dateTo: args.dateTo || new Date(),
-              timeUnit,
-              nodes: resultsToAmountNode(amountDataPoints),
-            };
-          };
-
           const distinct = { distinct: true, col: 'OrderId' };
 
           return {
-            contributionAmountOverTime,
             contributionsCount: () =>
               models.Transaction.count({
                 where,

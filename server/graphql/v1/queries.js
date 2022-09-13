@@ -33,7 +33,6 @@ import {
   OrderDirectionType,
   PaymentMethodType,
   TierType,
-  UpdateType,
   UserType,
 } from './types';
 
@@ -261,54 +260,6 @@ const queries = {
       } else {
         return new Error('Please provide an id.');
       }
-    },
-  },
-
-  /*
-   * Given a collective slug, returns all updates
-   */
-  allUpdates: {
-    type: new GraphQLList(UpdateType),
-    deprecationReason: '2022-01-26: This endpoint is deprecated and will be removed soon',
-    args: {
-      CollectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      includeHostedCollectives: { type: GraphQLBoolean },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-    },
-    async resolve(_, args, req) {
-      const query = { where: {} };
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-      query.order = [
-        ['publishedAt', 'DESC'],
-        ['createdAt', 'DESC'],
-      ];
-      if (!req.remoteUser || !req.remoteUser.isAdmin(args.CollectiveId)) {
-        query.where.publishedAt = { [Op.ne]: null };
-      }
-      const collective = await req.loaders.Collective.byId.load(args.CollectiveId);
-      if (!collective) {
-        throw new Error('Collective not found');
-      }
-      let collectiveIds;
-      if (args.includeHostedCollectives) {
-        const members = await models.Member.findAll({
-          where: {
-            MemberCollectiveId: collective.id,
-            role: 'HOST',
-          },
-        });
-        collectiveIds = members.map(member => member.CollectiveId);
-      } else {
-        collectiveIds = [args.CollectiveId];
-      }
-      query.where.CollectiveId = { [Op.in]: collectiveIds };
-      return models.Update.findAll(query);
     },
   },
 
@@ -936,11 +887,6 @@ const queries = {
         type: GraphQLBoolean,
         description: 'Included collectives which are archived',
       },
-      onlyActive: {
-        type: GraphQLBoolean,
-        description: 'Whether to return only active accounts',
-        deprecationReason: '2021-01-20: Not supported anymore.',
-      },
       skipRecentAccounts: {
         type: GraphQLBoolean,
         description: 'Whether to skip recent accounts (48h)',
@@ -1009,63 +955,6 @@ const queries = {
         });
         return generateResults(collectives, total);
       }
-    },
-  },
-  /** Gets the transactions of a payment method
-   * @param {Object} args contains the parameters
-   * @param {Number} args.uuid The Payment method id
-   * @param {String} [args.type] The transaction type - Debit or Credit
-   * @param {Number} [args.limit] The limit of records to be returned
-   * @param {String} [args.offset] The offset of the query
-   * @param {String} [args.dateFrom] The start date(field createdAt) to return the list of transactions
-   * @param {String} [args.dateTo] The end date(field createdAt) to return the list of transactions
-   * @returns {[models.Transaction]} returns an array of transactions.
-   */
-  allTransactionsFromPaymentMethod: {
-    type: new GraphQLList(TransactionInterfaceType),
-    deprecationReason: '2021-01-29: Not used anymore',
-    args: {
-      uuid: { type: new GraphQLNonNull(GraphQLString) },
-      type: { type: GraphQLString },
-      limit: { type: GraphQLInt },
-      offset: { type: GraphQLInt },
-      dateFrom: { type: GraphQLString },
-      dateTo: { type: GraphQLString },
-    },
-    resolve: async (_, args) => {
-      const paymentMethod = await models.PaymentMethod.findOne({
-        where: { uuid: args.uuid },
-      });
-      if (!paymentMethod) {
-        throw Error(`Payment Method with uuid ${args.uuid} not found.`);
-      }
-      const query = {
-        where: {
-          PaymentMethodId: paymentMethod.id,
-        },
-        order: [['createdAt', 'DESC']],
-      };
-      if (args.type) {
-        query.where.type = args.type;
-      }
-      if (args.limit) {
-        query.limit = args.limit;
-      }
-      if (args.offset) {
-        query.offset = args.offset;
-      }
-
-      if (args.dateFrom || args.dateTo) {
-        query.where.createdAt = {};
-        if (args.dateFrom) {
-          query.where.createdAt[Op.gte] = args.dateFrom;
-        }
-        if (args.dateTo) {
-          query.where.createdAt[Op.lte] = args.dateTo;
-        }
-      }
-      const transactions = await models.Transaction.findAll(query);
-      return transactions;
     },
   },
 };

@@ -654,7 +654,6 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       isArchived: { type: GraphQLBoolean },
       isApproved: { type: GraphQLBoolean },
       isDeletable: { type: GraphQLBoolean },
-      hasVirtualCards: { type: GraphQLBoolean, deprecationReason: '2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE' },
       host: { type: CollectiveInterfaceType },
       hostCollective: { type: CollectiveInterfaceType },
       members: {
@@ -1926,13 +1925,6 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
       resolve(collective) {
         return get(collective.data, 'categories', []);
-      },
-    },
-    hasVirtualCards: {
-      type: new GraphQLNonNull(GraphQLBoolean),
-      deprecationReason: '2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE',
-      resolve(collective) {
-        return models.VirtualCard.count({ where: { CollectiveId: collective.id } });
       },
     },
   };

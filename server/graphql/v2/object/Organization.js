@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
@@ -14,14 +14,6 @@ export const Organization = new GraphQLObjectType({
     return {
       ...AccountFields,
       ...AccountWithContributionsFields,
-      balance: {
-        description: 'Amount of money in cents in the currency of the collective currently available to spend',
-        deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
-        type: GraphQLInt,
-        resolve(account, _, req) {
-          return account.getBalanceWithBlockedFunds({ loaders: req.loaders });
-        },
-      },
       email: {
         type: GraphQLString,
         deprecationReason: '2022-07-18: This field is deprecated and will return null',

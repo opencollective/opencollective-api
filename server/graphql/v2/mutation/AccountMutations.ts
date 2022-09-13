@@ -14,8 +14,6 @@ import { cloneDeep, isNull, omitBy, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
-import plans from '../../../constants/plans';
-import cache from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
@@ -359,68 +357,6 @@ const accountMutations = {
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
-      });
-
-      return account;
-    },
-  },
-  editHostPlan: {
-    type: new GraphQLNonNull(Host),
-    description: 'Update the plan. Scope: "account".',
-    deprecationReason: '2022-07-06: Host Plans are deprecated.',
-    args: {
-      account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
-        description: 'Account where the host plan will be edited.',
-      },
-      plan: {
-        type: new GraphQLNonNull(GraphQLString),
-        description: 'The name of the plan to subscribe to.',
-      },
-    },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
-      checkRemoteUserCanUseAccount(req);
-
-      const account = await fetchAccountWithReference(args.account);
-      if (!req.remoteUser.isAdminOfCollective(account)) {
-        throw new Forbidden();
-      }
-      if (!account.isHostAccount) {
-        throw new Error(`Only Fiscal Hosts can set their plan.`);
-      }
-
-      const plan = args.plan;
-      if (!plans[plan]) {
-        throw new Error(`Unknown plan: ${plan}`);
-      }
-
-      const previousData = { hostPlan: account.plan };
-
-      await account.update({ plan });
-
-      if (plan === 'start-plan-2021') {
-        // This should cascade to all Collectives
-        await account.updateHostFee(0, req.remoteUser);
-      }
-
-      if (plan === 'start-plan-2021' || plan === 'grow-plan-2021') {
-        // This should cascade to all Collectives
-        await account.updatePlatformFee(0, req.remoteUser);
-
-        // Make sure budget is activated
-        await account.activateBudget();
-      }
-
-      await cache.delete(`plan_${account.id}`);
-
-      await models.Activity.create({
-        type: activities.COLLECTIVE_EDITED,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: account.id,
-        FromCollectiveId: account.id,
-        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData, newData: { hostPlan: plan } },
       });
 
       return account;
