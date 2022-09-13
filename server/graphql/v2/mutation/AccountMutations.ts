@@ -99,18 +99,21 @@ const accountMutations = {
           }
         }
 
-        models.Activity.create({
-          type: activities.COLLECTIVE_EDITED,
-          UserId: req.remoteUser.id,
-          UserTokenId: req.userToken?.id,
-          CollectiveId: account.id,
-          FromCollectiveId: account.id,
-          HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-          data: {
-            previousData: { settings: { [args.key]: account.data?.[args.key] } },
-            newData: { settings: { [args.key]: args.value } },
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_EDITED,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+            data: {
+              previousData: { settings: { [args.key]: account.data?.[args.key] } },
+              newData: { settings: { [args.key]: args.value } },
+            },
           },
-        });
+          { transaction },
+        );
 
         const settings = account.settings ? cloneDeep(account.settings) : {};
         set(settings, args.key, args.value);
@@ -156,21 +159,6 @@ const accountMutations = {
         }
 
         const updateAccountFees = async account => {
-          models.Activity.create({
-            type: activities.COLLECTIVE_EDITED,
-            UserId: req.remoteUser.id,
-            UserTokenId: req.userToken?.id,
-            CollectiveId: account.id,
-            FromCollectiveId: account.id,
-            HostCollectiveId: account.HostCollectiveId,
-            data: {
-              previousData: {
-                hostFeePercent: account.hostFeePercent,
-                useCustomHostFee: account.data?.useCustomHostFee,
-              },
-              newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
-            },
-          });
           return account.update(
             {
               hostFeePercent: args.hostFeePercent,
@@ -189,6 +177,22 @@ const accountMutations = {
         if (children.length > 0) {
           await Promise.all(children.map(updateAccountFees));
         }
+
+        await models.Activity.create({
+          type: activities.COLLECTIVE_EDITED,
+          UserId: req.remoteUser.id,
+          UserTokenId: req.userToken?.id,
+          CollectiveId: account.id,
+          FromCollectiveId: account.id,
+          HostCollectiveId: account.HostCollectiveId,
+          data: {
+            previousData: {
+              hostFeePercent: account.hostFeePercent,
+              useCustomHostFee: account.data?.useCustomHostFee,
+            },
+            newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
+          },
+        }, { transaction: dbTransaction });
 
         return account;
       });
@@ -289,14 +293,14 @@ const accountMutations = {
         return crypto.hash(code);
       });
 
-      models.Activity.create({
+      await user.update({ twoFactorAuthToken: encryptedText, twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+
+      await models.Activity.create({
         type: activities.TWO_FACTOR_CODE_ADDED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
       });
-
-      await user.update({ twoFactorAuthToken: encryptedText, twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
 
       return { account: account, recoveryCodes: recoveryCodesArray };
     },
@@ -339,14 +343,14 @@ const accountMutations = {
         throw new Unauthorized('Two-factor authentication code failed. Please try again');
       }
 
-      models.Activity.create({
+      await user.update({ twoFactorAuthToken: null, twoFactorAuthRecoveryCodes: null });
+
+      await models.Activity.create({
         type: activities.TWO_FACTOR_CODE_DELETED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
       });
-
-      await user.update({ twoFactorAuthToken: null, twoFactorAuthRecoveryCodes: null });
 
       return account;
     },
@@ -381,16 +385,6 @@ const accountMutations = {
         throw new Error(`Unknown plan: ${plan}`);
       }
 
-      models.Activity.create({
-        type: activities.COLLECTIVE_EDITED,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: account.id,
-        FromCollectiveId: account.id,
-        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData: { hostPlan: account.plan }, newData: { hostPlan: plan } },
-      });
-
       await account.update({ plan });
 
       if (plan === 'start-plan-2021') {
@@ -407,6 +401,16 @@ const accountMutations = {
       }
 
       await cache.delete(`plan_${account.id}`);
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: { previousData: { hostPlan: account.plan }, newData: { hostPlan: plan } },
+      });
 
       return account;
     },
@@ -436,7 +440,8 @@ const accountMutations = {
       for (const key of Object.keys(args.account)) {
         switch (key) {
           case 'currency': {
-            models.Activity.create({
+            await account.setCurrency(args.account[key]);
+            await models.Activity.create({
               type: activities.COLLECTIVE_EDITED,
               UserId: req.remoteUser.id,
               UserTokenId: req.userToken?.id,
@@ -445,7 +450,6 @@ const accountMutations = {
               HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
               data: { previousData: { currency: account.currency }, newData: { currency: args.account[key] } },
             });
-            await account.setCurrency(args.account[key]);
           }
         }
       }
@@ -480,7 +484,8 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
-      models.Activity.create({
+      await account.setPolicies(args.policies);
+      await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
         UserId: req.remoteUser.id,
         UserTokenId: req.userToken?.id,
@@ -489,8 +494,6 @@ const accountMutations = {
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
         data: { previousData: account.data?.policies, newData: args.policies },
       });
-
-      await account.setPolicies(args.policies);
       return account;
     },
   },
@@ -527,16 +530,6 @@ const accountMutations = {
           `You can't delete an Account with admin memberships, children, transactions, orders or expenses. Please archive it instead.`,
         );
       }
-
-      models.Activity.create({
-        type: activities.COLLECTIVE_DELETED,
-        UserId: req.remoteUser.id,
-        UserTokenId: req.userToken?.id,
-        CollectiveId: account.id,
-        FromCollectiveId: account.id,
-        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { name: account.name, slug: account.slug },
-      });
 
       return collectivelib.deleteCollective(account);
     },

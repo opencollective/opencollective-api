@@ -4,6 +4,7 @@ import config from 'config';
 import { get, pick } from 'lodash';
 import isURL from 'validator/lib/isURL';
 
+import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
@@ -413,6 +414,14 @@ export async function deleteCollective(collective) {
 
     await user.destroy();
   }
+
+  await models.Activity.create({
+    type: activities.COLLECTIVE_DELETED,
+    CollectiveId: collective.id,
+    FromCollectiveId: collective.id,
+    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+    data: { name: collective.name, slug: collective.slug },
+  });
 
   return collective;
 }
