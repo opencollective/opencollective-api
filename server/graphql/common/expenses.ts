@@ -1292,10 +1292,9 @@ export async function editExpense(
         await virtualCard.resume();
       }
     }
-  } else {
-    await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
   }
 
+  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
   return updatedExpense;
 }
 

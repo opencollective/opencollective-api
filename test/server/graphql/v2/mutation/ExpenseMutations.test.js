@@ -681,6 +681,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       await expense.reload();
       expect(expense).to.have.nested.property('data.missingDetails').eq(false);
+
+      // Ensure activity is created
+      const activities = await expense.getActivities({ where: { type: 'collective.expense.updated' } });
+      expect(activities).to.have.length(1);
     });
   });
 
