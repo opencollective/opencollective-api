@@ -33,7 +33,7 @@ import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../erro
 import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { ProcessOrderAction } from '../enum/ProcessOrderAction';
-import { getDecodedId } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { OrderCreateInput } from '../input/OrderCreateInput';
@@ -159,27 +159,21 @@ const orderMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
-      const decodedId = getDecodedId(args.order.id);
-      const { reason, reasonCode } = args;
-
-      const query = {
-        where: { id: decodedId },
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: false,
         include: [
           { association: 'paymentMethod' },
           { model: models.Subscription },
           { model: models.Collective, as: 'collective' },
           { model: models.Collective, as: 'fromCollective' },
         ],
-      };
-
-      const order = await models.Order.findOne(query);
+      });
 
       if (!order) {
         throw new NotFound('Recurring contribution not found');
       }
 
-      const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
-      if (!req.remoteUser.isAdminOfCollective(fromCollective)) {
+      if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
       } else if (!order.Subscription?.isActive && order.status === status.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
@@ -203,12 +197,12 @@ const orderMutations = {
           collective: order.collective.minimal,
           user: req.remoteUser.minimal,
           fromCollective: order.fromCollective.minimal,
-          reason,
-          reasonCode,
+          reason: args.reason,
+          reasonCode: args.reasonCode,
         },
       });
 
-      return models.Order.findOne(query);
+      return order.reload();
     },
   },
   updateOrder: {
@@ -239,7 +233,7 @@ const orderMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
-      const decodedId = getDecodedId(args.order.id);
+      const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
       const haveDetailsChanged = !isUndefined(args.amount) && !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod);
 

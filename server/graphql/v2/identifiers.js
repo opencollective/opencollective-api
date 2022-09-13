@@ -86,12 +86,3 @@ export const getIdEncodeResolver =
   (type, idField = 'id') =>
   entity =>
     idEncode(entity[idField], type);
-
-/**
- * Resolve original id by decoding if string, otherwise return as is.
- * @param {number|string} id - id to decode
- * @returns {number} decoded id
- */
-export function getDecodedId(id) {
-  return isNaN(id) && typeof id === 'string' ? idDecode(id) : id;
-}
