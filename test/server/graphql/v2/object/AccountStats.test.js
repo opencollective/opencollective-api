@@ -54,11 +54,16 @@ describe('server/graphql/v2/object/AccountStats', () => {
       expect(contributionsAmount).to.containSubset([{ label: 'recurring', amount: { value: 500 } }]);
     });
 
-    it('should ignore moved funds from parent and children collective', async () => {
+    it('should ignore contributions between parent and children collective', async () => {
       await fakeTransaction(
         { CollectiveId: project.id, FromCollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 20000 },
         { createDoubleEntry: true },
       );
+      await fakeTransaction(
+        { CollectiveId: collective.id, FromCollectiveId: project.id, kind: 'CONTRIBUTION', amount: 30000 },
+        { createDoubleEntry: true },
+      );
+
       const result = await graphqlQueryV2(accountQuery, { slug: collective.slug, includeChildren: true });
       const contributionsAmount = result.data.account.stats.contributionsAmount;
 
