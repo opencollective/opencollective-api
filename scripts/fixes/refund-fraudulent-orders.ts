@@ -25,16 +25,18 @@ const refundOrder = async (order, { dryRun }) => {
   }
 };
 
-async function main({ dryRun, totalAmount, reqMask, isGuest }) {
+async function main({ dryRun, totalAmount, reqMask, isGuest, fromCollectiveId }) {
   if (dryRun) {
     console.info('RUNNING IN DRY MODE!');
   }
-  if (!reqMask && !totalAmount && !isGuest) {
+  if (!reqMask && !totalAmount && !isGuest && !fromCollectiveId) {
     throw new Error('Not enough parameters');
-  } else if (totalAmount && !isGuest && !reqMask) {
-    throw new Error('Not enough parameters: totalAmount should be used together with isGuest');
+  } else if (totalAmount && !isGuest && !reqMask && !fromCollectiveId) {
+    throw new Error(
+      'Not enough parameters: totalAmount should be used together with isGuest, reqMask or fromCollectiveId',
+    );
   } else if (isGuest && !totalAmount && !reqMask) {
-    throw new Error('Not enough parameters: isGuest should be used together with totalAmount');
+    throw new Error('Not enough parameters: isGuest should be used together with totalAmount or reqMask');
   }
 
   const query = `
@@ -42,11 +44,13 @@ async function main({ dryRun, totalAmount, reqMask, isGuest }) {
     FROM "Orders" as o
     INNER JOIN "Transactions" t ON t."OrderId" = o."id"
     WHERE
-      o."status" = 'PAID'
+      o."deletedAt" IS NULL
+      AND o."status" = 'PAID'
       AND o."totalAmount" > 0
       AND t."kind" = 'CONTRIBUTION'
       AND t."type" = 'CREDIT'
       AND t."RefundTransactionId" IS NULL
+      ${fromCollectiveId ? `AND o."FromCollectiveId" = ${fromCollectiveId}` : ''}
       ${totalAmount ? `AND o."totalAmount" = '${totalAmount}'` : ''}
       ${reqMask ? `AND o."data"->>'reqMask' = '${reqMask}'` : ''}
       ${isGuest ? `AND (o."data"->>'isGuest')::boolean IS TRUE` : ''}
@@ -64,7 +68,11 @@ async function main({ dryRun, totalAmount, reqMask, isGuest }) {
 
   for (const order of orders) {
     console.log(`\nProcessing order #${order.id}...`);
-    await refundOrder(order, { dryRun });
+    try {
+      await refundOrder(order, { dryRun });
+    } catch (e) {
+      console.log(e);
+    }
   }
 }
 
@@ -87,6 +95,10 @@ function parseCommandLineArguments() {
     help: 'The request totalAmount to look for',
   });
 
+  parser.add_argument('--fromCollectiveId', {
+    help: 'The fromCollectiveId to look for',
+  });
+
   parser.add_argument('--run', {
     help: 'Perform the changes.',
     default: false,
@@ -100,6 +112,7 @@ function parseCommandLineArguments() {
     reqMask: args.mask,
     isGuest: args.guest,
     totalAmount: args.amount,
+    fromCollectiveId: args.fromCollectiveId,
   };
 }
 /* eslint-enable camelcase */
