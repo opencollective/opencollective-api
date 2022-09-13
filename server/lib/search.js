@@ -178,6 +178,7 @@ export const searchCollectivesInDB = async (
     orderBy,
     types,
     hostCollectiveIds,
+    parentCollectiveIds,
     isHost,
     onlyActive,
     skipRecentAccounts,
@@ -197,6 +198,10 @@ export const searchCollectivesInDB = async (
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
+  }
+
+  if (parentCollectiveIds && parentCollectiveIds.length > 0) {
+    dynamicConditions += 'AND c."ParentCollectiveId" IN (:parentCollectiveIds) ';
   }
 
   if (isHost) {
@@ -276,6 +281,7 @@ export const searchCollectivesInDB = async (
         offset,
         limit,
         hostCollectiveIds,
+        parentCollectiveIds,
         isHost,
       },
     },

@@ -920,6 +920,10 @@ const queries = {
         type: new GraphQLList(GraphQLInt),
         description: 'Limit the search to collectives under these hosts',
       },
+      parentCollectiveIds: {
+        type: new GraphQLList(GraphQLInt),
+        description: 'Limit the search to collectives under these parent collectives',
+      },
       types: {
         type: new GraphQLList(TypeOfCollectiveType),
         description: 'Only return collectives of this type',
@@ -954,12 +958,24 @@ const queries = {
       },
     },
     async resolve(_, args, req) {
-      const { limit, offset, term, types, isHost, hostCollectiveIds, skipRecentAccounts, skipGuests } = args;
+      const {
+        limit,
+        offset,
+        term,
+        types,
+        isHost,
+        hostCollectiveIds,
+        parentCollectiveIds,
+        skipRecentAccounts,
+        skipGuests,
+      } = args;
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
       const listToStr = list => (list ? list.join('_') : '');
       const generateResults = (collectives, total) => {
-        const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}`;
+        const optionalParamsKey = `${listToStr(types)}-${listToStr(hostCollectiveIds)}-${listToStr(
+          parentCollectiveIds,
+        )}`;
         const skipRecentKey = skipRecentAccounts ? 'skipRecent' : 'all';
         const skipGuestsKey = skipGuests ? '-withGuests-' : '';
         return {
@@ -980,6 +996,7 @@ const queries = {
         const [collectives, total] = await searchCollectivesInDB(cleanTerm, offset, limit, {
           types,
           hostCollectiveIds,
+          parentCollectiveIds,
           isHost,
           skipRecentAccounts,
           skipGuests,

@@ -82,7 +82,6 @@ export function setupModels() {
   /**
    * Relationships
    */
-
   // Applications
   m.Application.belongsTo(m.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
   m.Application.belongsTo(m.User, { foreignKey: 'CreatedByUserId', as: 'createdByUser' });

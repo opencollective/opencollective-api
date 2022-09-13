@@ -1,4 +1,5 @@
 import { GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean } from 'graphql/type';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { flatten, uniq } from 'lodash';
 import { Order } from 'sequelize';
@@ -7,9 +8,8 @@ import ActivityTypes, { ActivitiesPerClass } from '../../../../constants/activit
 import models, { Op } from '../../../../models';
 import { checkRemoteUserCanUseAccount } from '../../../common/scope-check';
 import { ActivityCollection } from '../../collection/ActivityCollection';
-import { ActivityAttribution } from '../../enum/ActivityAttribution';
 import { ActivityAndClassesType } from '../../enum/ActivityType';
-import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
+import { AccountReferenceInput, fetchAccountsWithReferences } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 const IGNORED_ACTIVITIES: string[] = [ActivityTypes.COLLECTIVE_TRANSACTION_CREATED]; // This activity is creating a lot of noise, is usually covered already by orders/expenses activities and is not properly categorized (see https://github.com/opencollective/opencollective/issues/5903)
@@ -18,12 +18,24 @@ const ActivitiesCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
   account: {
-    type: new GraphQLNonNull(AccountReferenceInput),
-    description: 'The account associated with the Activity',
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(AccountReferenceInput))),
+    description: 'The accounts associated with the Activity',
   },
-  attribution: {
-    type: ActivityAttribution,
-    description: 'How activities are related to the account',
+  includeChildrenAccounts: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description: 'If account is a parent, also include child accounts',
+  },
+  excludeParentAccount: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description:
+      'If account is a parent, use this option to exclude it from the results. Use in combination with includeChildrenAccounts.',
+  },
+  includeHostedAccounts: {
+    type: new GraphQLNonNull(GraphQLBoolean),
+    defaultValue: false,
+    description: 'If account is a host, also include hosted accounts',
   },
   dateFrom: {
     type: GraphQLDateTime,
@@ -47,36 +59,44 @@ const ActivitiesCollectionQuery = {
   args: ActivitiesCollectionArgs,
   async resolve(_: void, args, req): Promise<CollectionReturnType> {
     const { offset, limit } = args;
-    const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+    if (!args.account.length) {
+      throw new Error('Please provide at least one account');
+    }
+
+    const accounts = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
 
     // Check permissions
     checkRemoteUserCanUseAccount(req);
-    if (!req.remoteUser.isAdminOfCollective(account) && !req.remoteUser.isRoot()) {
+    const isRootUser = req.remoteUser.isRoot();
+    const accountOrConditions = [];
+    const where = { [Op.or]: accountOrConditions };
+    const include = [];
+    for (const account of accounts) {
+      if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
+        // Include all activities related to the account itself
+        if (!args.excludeParentAccount) {
+          accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
+        }
+
+        // Include all activities related to the account's children
+        if (args.includeChildrenAccounts) {
+          accountOrConditions.push({ '$Collective.ParentCollectiveId$': account.id });
+          if (include.length === 0) {
+            include.push({ model: models.Collective, attributes: [], required: true });
+          }
+        }
+
+        // Include all activities related to the account's hosted collectives
+        if (args.includeHostedAccounts && account.isHostAccount) {
+          accountOrConditions.push({ HostCollectiveId: account.id });
+        }
+      }
+    }
+
+    if (accountOrConditions.length === 0) {
       return { nodes: null, totalCount: 0, limit, offset };
     }
 
-    // Filter activities by account based on attribution. null = all related activities
-    const accountOrConditions = [];
-    const getDistinctFromCondition = value => ({ [Op.or]: [{ [Op.is]: null }, { [Op.ne]: value }] }); // Ideally, we should use `IS DISTINCT FROM` (https://wiki.postgresql.org/wiki/Is_distinct_from), but it's not supported by Sequelize yet: https://github.com/sequelize/sequelize/issues/12612
-
-    if (!args.attribution) {
-      accountOrConditions.push(
-        { CollectiveId: account.id },
-        { FromCollectiveId: account.id },
-        { HostCollectiveId: account.id },
-      );
-    } else if (args.attribution === 'SELF') {
-      accountOrConditions.push({ FromCollectiveId: account.id, CollectiveId: account.id });
-    } else if (args.attribution === 'AUTHORED') {
-      accountOrConditions.push({ FromCollectiveId: account.id, CollectiveId: getDistinctFromCondition(account.id) });
-    } else if (args.attribution === 'RECEIVED') {
-      accountOrConditions.push({ CollectiveId: account.id, FromCollectiveId: getDistinctFromCondition(account.id) });
-    } else if (args.attribution === 'HOSTED_ACCOUNTS') {
-      accountOrConditions.push({ HostCollectiveId: account.id });
-    }
-
-    // Other filters
-    const where = { [Op.or]: accountOrConditions };
     if (args.dateFrom) {
       where['createdAt'] = { [Op.gte]: args.dateFrom };
     }
@@ -91,7 +111,7 @@ const ActivitiesCollectionQuery = {
     }
 
     const order: Order = [['createdAt', 'DESC']];
-    const result = await models.Activity.findAndCountAll({ where, order, offset, limit });
+    const result = await models.Activity.findAndCountAll({ where, include, order, offset, limit });
     return {
       nodes: result.rows,
       totalCount: result.count,

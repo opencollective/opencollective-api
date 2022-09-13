@@ -3,16 +3,24 @@ import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 
 import ActivityTypes from '../../../../../server/constants/activities';
-import { fakeActivity, fakeCollective, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeActivity, fakeCollective, fakeHost, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const activitiesCollectionQuery = gqlV2/* GraphQL */ `
   query Activities(
-    $account: AccountReferenceInput!
-    $attribution: ActivityAttribution
+    $account: [AccountReferenceInput!]!
     $type: [ActivityAndClassesType!]
+    $includeHostedAccounts: Boolean
+    $includeChildrenAccounts: Boolean
   ) {
-    activities(limit: 100, offset: 0, account: $account, attribution: $attribution, type: $type) {
+    activities(
+      limit: 100
+      offset: 0
+      account: $account
+      type: $type
+      includeHostedAccounts: $includeHostedAccounts
+      includeChildrenAccounts: $includeChildrenAccounts
+    ) {
       offset
       limit
       totalCount
@@ -40,12 +48,15 @@ const activitiesCollectionQuery = gqlV2/* GraphQL */ `
 `;
 
 describe('server/graphql/v2/collection/ActivitiesCollection', () => {
-  let collective, admin;
+  let host, collective, childCollective, admin;
 
   before(async () => {
     await resetTestDB();
     admin = await fakeUser();
-    collective = await fakeCollective({ admin });
+    host = await fakeHost({ admin });
+    collective = await fakeCollective({ admin, HostCollectiveId: host.id });
+    childCollective = await fakeCollective({ admin, ParentCollectiveId: collective.id, HostCollectiveId: host.id });
+
     let date = new Date('2020-01-01');
     const getNextDate = () => {
       date = new Date(date.getTime() + 1000e5);
@@ -54,29 +65,35 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
 
     await Promise.all([
       // Public collective activities
-      // self
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_CREATED,
         FromCollectiveId: collective.id,
         CollectiveId: collective.id,
         createdAt: getNextDate(),
       }),
-      // authored
-      fakeActivity({
-        type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
-        FromCollectiveId: collective.id,
-        createdAt: getNextDate(),
-      }),
-      // received
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_EXPENSE_CREATED,
         CollectiveId: collective.id,
+        HostCollectiveId: host.id,
         createdAt: getNextDate(),
       }),
-      // Hosted
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_EXPENSE_UPDATED,
-        HostCollectiveId: collective.id,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        createdAt: getNextDate(),
+      }),
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_CONVERSATION_CREATED,
+        CollectiveId: childCollective.id,
+        HostCollectiveId: host.id,
+        createdAt: getNextDate(),
+      }),
+      fakeActivity({
+        type: ActivityTypes.COLLECTIVE_CORE_MEMBER_EDITED,
+        CollectiveId: host.id,
+        FromCollectiveId: host.id,
+        HostCollectiveId: host.id,
         createdAt: getNextDate(),
       }),
       // Random activities
@@ -86,7 +103,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
 
   it('must be logged in', async () => {
     const resultUnauthenticated = await graphqlQueryV2(activitiesCollectionQuery, {
-      account: { legacyId: collective.id },
+      account: [{ legacyId: collective.id }],
     });
 
     expect(resultUnauthenticated.errors).to.exist;
@@ -106,76 +123,78 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
   });
 
   it('filters activities by collective and returned them sorted by date DESC', async () => {
-    const result = await graphqlQueryV2(activitiesCollectionQuery, { account: { legacyId: collective.id } }, admin);
+    const result = await graphqlQueryV2(activitiesCollectionQuery, { account: [{ legacyId: collective.id }] }, admin);
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
-    expect(result.data.activities.totalCount).to.eq(4);
+    expect(result.data.activities.totalCount).to.eq(3);
     expect(result.data.activities.nodes).to.not.be.null;
     expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: true });
   });
 
-  describe('filters activities by attribution', () => {
-    it('Self', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'SELF' };
+  describe('including children account activities and hosted account activities', () => {
+    it('include child accounts', async () => {
+      const variables = { account: { legacyId: collective.id }, includeChildrenAccounts: true };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].account.slug).to.eq(collective.slug);
-      expect(result.data.activities.nodes[0].fromAccount.slug).to.eq(collective.slug);
+      expect(result.data.activities.totalCount).to.eq(4);
+      expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
     });
 
-    it('Authored', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'AUTHORED' };
+    it('do not include child accounts', async () => {
+      const variables = { account: { legacyId: collective.id }, includeChildrenAccounts: false };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].fromAccount.slug).to.eq(collective.slug);
+      expect(result.data.activities.totalCount).to.eq(3);
+      expect(result.data.activities.nodes[0]).to.not.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
     });
 
-    it('Received', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'RECEIVED' };
+    it('include hosted accounts', async () => {
+      const variables = { account: { legacyId: host.id }, includeHostedAccounts: true };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].account.slug).to.eq(collective.slug);
+      expect(result.data.activities.totalCount).to.eq(4);
+      expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CORE_MEMBER_EDITED' });
+      expect(result.data.activities.nodes[1]).to.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
+      expect(result.data.activities.nodes[2]).to.containSubset({ type: 'COLLECTIVE_EXPENSE_UPDATED' });
+      expect(result.data.activities.nodes[3]).to.containSubset({ type: 'COLLECTIVE_EXPENSE_CREATED' });
     });
 
-    it('Hosted', async () => {
-      const variables = { account: { legacyId: collective.id }, attribution: 'HOSTED_ACCOUNTS' };
+    it('do not include hosted accounts', async () => {
+      const variables = { account: { legacyId: host.id }, includeHostedAccounts: false };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.activities.totalCount).to.eq(1);
-      expect(result.data.activities.nodes[0].host.slug).to.eq(collective.slug);
+      expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CORE_MEMBER_EDITED' });
     });
   });
 
   describe('filters activities by class/type', () => {
     it('Can filter by class', async () => {
-      const variables = { account: { legacyId: collective.id }, type: 'EXPENSES' };
-      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(3);
-    });
-
-    it('Can filter by type', async () => {
-      const variables = { account: { legacyId: collective.id }, type: 'COLLECTIVE_EXPENSE_CREATED' };
+      const variables = { account: [{ legacyId: collective.id }], type: 'EXPENSES' };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.activities.totalCount).to.eq(2);
     });
 
-    it('Can do both at the same time', async () => {
-      const variables = { account: { legacyId: collective.id }, type: ['COLLECTIVE_EXPENSE_CREATED', 'COLLECTIVE'] };
+    it('Can filter by type', async () => {
+      const variables = { account: [{ legacyId: collective.id }], type: 'COLLECTIVE_EXPENSE_CREATED' };
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(3);
+      expect(result.data.activities.totalCount).to.eq(1);
+    });
+
+    it('Can do both at the same time', async () => {
+      const variables = { account: [{ legacyId: collective.id }], type: ['COLLECTIVE_EXPENSE_CREATED', 'COLLECTIVE'] };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(2);
     });
   });
 });
