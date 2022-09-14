@@ -375,7 +375,7 @@ export async function createPaymentFailedActivity(order, lastAttempt) {
   });
 }
 
-/** Send `thankyou` email */
+/** Send `order.confirmed` email */
 export async function sendThankYouEmail(order, transaction, isFirstPayment = false) {
   const attachments = [];
   const { collective, paymentMethod } = order;

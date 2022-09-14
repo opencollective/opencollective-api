@@ -1,6 +1,6 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`] = `
+exports[`server/lib/email Sending emails sends the order.confirmed.fr email template 1`] = `
 "<!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">
 <html xmlns=\\"http://www.w3.org/1999/xhtml\\">
 <head>
@@ -106,7 +106,7 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
   </html>"
 `;
 
-exports[`server/lib/email Sending emails sends the thankyou.fr email template 2`] = `
+exports[`server/lib/email Sending emails sends the order.confirmed.fr email template 2`] = `
 "Xavier,
 
 Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer
