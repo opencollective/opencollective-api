@@ -1,4 +1,4 @@
-import { GraphQLFloat, GraphQLInt, GraphQLObjectType } from 'graphql';
+import { GraphQLFloat, GraphQLObjectType } from 'graphql';
 import { isNil } from 'lodash';
 
 import { Currency } from '../enum/Currency';
@@ -26,7 +26,7 @@ export const Amount = new GraphQLObjectType({
       },
     },
     valueInCents: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       resolve(amount) {
         if (isNil(amount.value)) {
           return null;

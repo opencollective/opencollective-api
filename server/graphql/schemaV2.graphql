@@ -4669,7 +4669,7 @@ A financial amount.
 type Amount {
   value: Float
   currency: Currency
-  valueInCents: Int
+  valueInCents: Float
 
   """
   If the amount was generated from a currency conversion, this field contains details about the conversion
