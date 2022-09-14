@@ -2,7 +2,7 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import { createComment, deleteComment, editComment } from '../../common/comment';
-import { getDecodedId, idDecode, IDENTIFIER_TYPES } from '../identifiers';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { CommentCreateInput } from '../input/CommentCreateInput';
 import { CommentUpdateInput } from '../input/CommentUpdateInput';
 import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
@@ -20,7 +20,7 @@ const commentMutations = {
       },
     },
     resolve(_, { comment }, req) {
-      const commentToEdit = { ...comment, id: getDecodedId(comment.id) };
+      const commentToEdit = { ...comment, id: idDecode(comment.id, IDENTIFIER_TYPES.COMMENT) };
       return editComment(commentToEdit, req);
     },
   },
@@ -32,7 +32,7 @@ const commentMutations = {
       },
     },
     resolve(_, { id }, req) {
-      const decodedId = getDecodedId(id);
+      const decodedId = idDecode(id, IDENTIFIER_TYPES.COMMENT);
       return deleteComment(decodedId, req);
     },
   },

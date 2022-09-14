@@ -23,9 +23,9 @@ export const OrderReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the order
  */
-export const fetchOrderWithReference = async input => {
+export const fetchOrderWithReference = async (input, { include, throwIfMissing = true } = {}) => {
   const loadOrderById = id => {
-    return models.Order.findByPk(id);
+    return models.Order.findByPk(id, { include });
   };
 
   let order;
@@ -37,7 +37,7 @@ export const fetchOrderWithReference = async input => {
   } else {
     throw new Error('Please provide an id');
   }
-  if (!order) {
+  if (!order && throwIfMissing) {
     throw new NotFound('Order Not Found');
   }
   return order;
