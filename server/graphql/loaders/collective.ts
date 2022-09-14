@@ -3,6 +3,7 @@ import { first, groupBy, uniq } from 'lodash';
 
 import { roles } from '../../constants';
 import { types as CollectiveType } from '../../constants/collectives';
+import ExpenseStatuses from '../../constants/expense_status';
 import models, { Op, sequelize } from '../../models';
 
 import { sortResultsSimple } from './helpers';
@@ -120,7 +121,21 @@ export default {
           group: ['FromCollectiveId'],
           raw: true,
           mapToModel: false,
-          where: { [Op.and]: [{ FromCollectiveId: otherAccountsCollectiveIds }, { status: 'UNVERIFIED' }] },
+          where: {
+            [Op.and]: [{ FromCollectiveId: otherAccountsCollectiveIds }, { status: ExpenseStatuses.UNVERIFIED }],
+          },
+          include: {
+            association: 'collective',
+            required: true,
+            attributes: [],
+            where: {
+              [Op.or]: [
+                { id: adminOfCollectiveIds }, // Either `remoteUser` is an admin of the collective
+                { ParentCollectiveId: adminOfCollectiveIds }, // Or an admin of the parent collective
+                { HostCollectiveId: adminOfCollectiveIds }, // Or `remoteUser` is an admin of the collective's host
+              ],
+            },
+          },
         });
       }
 
