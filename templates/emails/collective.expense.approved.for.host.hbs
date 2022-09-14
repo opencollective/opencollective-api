@@ -11,7 +11,7 @@ Subject: New expense approved on {{{collective.name}}}: {{currency expense.amoun
 <br />
 
 <table>
-  <tr><th>Submitted by:</th><td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td></tr>
+  <tr><th>Submitted by:</th><td>{{> linkCollective collective=fromCollective}}</td></tr>
   <tr><th>Payout method:</th><td>{{expense.payoutMethodLabel}}</td></tr>
   {{#if expense.privateMessage}}
     <tr><th valign="top">Private note:</th><td>{{{expense.privateMessage}}}</td></tr>

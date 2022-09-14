@@ -5,7 +5,7 @@ Subject: New Conversation on {{{collective.name}}}: "{{{escapeForSubject convers
 <p style="padding: 1em;">
   Hi {{collective.name}},
   <br /><br />
-  <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just started
+  {{> linkCollective collective=fromCollective}} just started
   a new Conversation: <a href="{{config.host.website}}/{{collective.slug}}/conversations/{{conversation.slug}}-{{conversation.hashId}}">{{conversation.title}}</a>
 </p>
 

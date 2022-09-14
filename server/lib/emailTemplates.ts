@@ -119,6 +119,7 @@ const eventsnippet = fs.readFileSync(`${templatesPath}/partials/eventsnippet.hbs
 const expenseItems = fs.readFileSync(`${templatesPath}/partials/expense-items.hbs`, 'utf8');
 const eventdata = fs.readFileSync(`${templatesPath}/partials/eventdata.hbs`, 'utf8');
 const collectivecard = fs.readFileSync(`${templatesPath}/partials/collectivecard.hbs`, 'utf8');
+const linkCollective = fs.readFileSync(`${templatesPath}/partials/link-collective.hbs`, 'utf8');
 const chargeDateNotice = fs.readFileSync(`${templatesPath}/partials/charge_date_notice.hbs`, 'utf8');
 const mthReportFooter = fs.readFileSync(`${templatesPath}/partials/monthlyreport.footer.hbs`, 'utf8');
 const mthReportSubscription = fs.readFileSync(`${templatesPath}/partials/monthlyreport.subscription.hbs`, 'utf8');
@@ -127,6 +128,7 @@ handlebars.registerPartial('header', header);
 handlebars.registerPartial('footer', footer);
 handlebars.registerPartial('toplogo', toplogo);
 handlebars.registerPartial('collectivecard', collectivecard);
+handlebars.registerPartial('linkCollective', linkCollective);
 handlebars.registerPartial('eventsnippet', eventsnippet);
 handlebars.registerPartial('expenseItems', expenseItems);
 handlebars.registerPartial('eventdata', eventdata);

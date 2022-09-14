@@ -9,7 +9,7 @@ Subject: {{{collective.name}}} wants to pay you
   </h1>
 </center>
 <p>
-  This means <a href="{{config.host.website}}/{{collective.slug}}">{{collective.name}}</a> wants to pay you. You need to confirm some details so your payment can be processed.
+  This means {{> linkCollective collective=collective}} wants to pay you. You need to confirm some details so your payment can be processed.
 </p>
 
 
@@ -19,7 +19,7 @@ Subject: {{{collective.name}}} wants to pay you
 <table>
   <tr>
     <th>Requested by </th>
-    <td><a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a></td>
+    <td>{{> linkCollective collective=fromCollective}}</td>
   </tr>
   {{#if recipientNote}}
   <tr>

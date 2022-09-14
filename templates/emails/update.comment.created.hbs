@@ -6,7 +6,7 @@ Subject: New comment from {{{fromCollective.name}}} on "{{{escapeForSubject upda
 <p style="font-size: 17px; padding: 1em;">
   Hi {{collective.name}},
   <br /><br />
-  <a href="{{config.host.website}}/{{fromCollective.slug}}">{{fromCollective.name}}</a> just posted
+  {{> linkCollective collective=fromCollective}} just posted
   a new comment on an Update, <a href="{{config.host.website}}{{path}}">{{update.title}}</a>:
 </p>
 
