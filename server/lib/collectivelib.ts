@@ -420,7 +420,7 @@ export async function deleteCollective(collective) {
     CollectiveId: collective.id,
     FromCollectiveId: collective.id,
     HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-    data: { name: collective.name, slug: collective.slug },
+    data: collective.info,
   });
 
   return collective;

@@ -99,6 +99,11 @@ const accountMutations = {
           }
         }
 
+        const settings = account.settings ? cloneDeep(account.settings) : {};
+        set(settings, args.key, args.value);
+
+        const previousData = { settings: { [args.key]: account.data?.[args.key] } };
+        const updatedAccount = account.update({ settings }, { transaction });
         await models.Activity.create(
           {
             type: activities.COLLECTIVE_EDITED,
@@ -108,16 +113,14 @@ const accountMutations = {
             FromCollectiveId: account.id,
             HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
             data: {
-              previousData: { settings: { [args.key]: account.data?.[args.key] } },
+              previousData,
               newData: { settings: { [args.key]: args.value } },
             },
           },
           { transaction },
         );
 
-        const settings = account.settings ? cloneDeep(account.settings) : {};
-        set(settings, args.key, args.value);
-        return account.update({ settings }, { transaction });
+        return updatedAccount;
       });
     },
   },
