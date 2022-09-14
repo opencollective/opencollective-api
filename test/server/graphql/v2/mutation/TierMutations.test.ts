@@ -150,6 +150,7 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       );
       expect(result.errors).to.not.exist;
       expect(result.data.editTier.legacyId).to.exist;
+      expect(result.data.editTier.name).to.equal('New name');
 
       const editedTier = await models.Tier.findByPk(result.data.editTier.legacyId);
       expect(editedTier).to.exist;

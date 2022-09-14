@@ -32,9 +32,6 @@ export const Tier = new GraphQLObjectType({
       },
       name: {
         type: GraphQLString,
-        resolve(tier) {
-          return tier.slug;
-        },
       },
       description: {
         type: GraphQLString,

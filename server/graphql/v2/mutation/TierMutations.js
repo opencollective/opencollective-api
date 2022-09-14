@@ -46,7 +46,7 @@ const tierMutations = {
         amount: getValueInCentsFromAmountInput(args.tier.amount),
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
-        interval: getIntervalFromTierFrequency(args.tier.interval),
+        interval: getIntervalFromTierFrequency(args.tier.frequency),
       });
     },
   },
