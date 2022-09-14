@@ -359,6 +359,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       // Check activity
       const activity = await models.Activity.findOne({
         where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['createdAt', 'DESC']],
       });
 
       expect(activity).to.exist;

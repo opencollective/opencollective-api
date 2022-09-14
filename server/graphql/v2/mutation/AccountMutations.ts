@@ -168,6 +168,11 @@ const accountMutations = {
           );
         };
 
+        const previousData = {
+          hostFeePercent: account.hostFeePercent,
+          useCustomHostFee: account.data?.useCustomHostFee,
+        };
+
         // Update main account
         await updateAccountFees(account);
 
@@ -178,21 +183,21 @@ const accountMutations = {
           await Promise.all(children.map(updateAccountFees));
         }
 
-        await models.Activity.create({
-          type: activities.COLLECTIVE_EDITED,
-          UserId: req.remoteUser.id,
-          UserTokenId: req.userToken?.id,
-          CollectiveId: account.id,
-          FromCollectiveId: account.id,
-          HostCollectiveId: account.HostCollectiveId,
-          data: {
-            previousData: {
-              hostFeePercent: account.hostFeePercent,
-              useCustomHostFee: account.data?.useCustomHostFee,
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_EDITED,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.HostCollectiveId,
+            data: {
+              previousData,
+              newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
             },
-            newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
           },
-        }, { transaction: dbTransaction });
+          { transaction: dbTransaction },
+        );
 
         return account;
       });
@@ -385,6 +390,8 @@ const accountMutations = {
         throw new Error(`Unknown plan: ${plan}`);
       }
 
+      const previousData = { hostPlan: account.plan };
+
       await account.update({ plan });
 
       if (plan === 'start-plan-2021') {
@@ -409,7 +416,7 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData: { hostPlan: account.plan }, newData: { hostPlan: plan } },
+        data: { previousData, newData: { hostPlan: plan } },
       });
 
       return account;
@@ -440,6 +447,7 @@ const accountMutations = {
       for (const key of Object.keys(args.account)) {
         switch (key) {
           case 'currency': {
+            const previousData = { currency: account.currency };
             await account.setCurrency(args.account[key]);
             await models.Activity.create({
               type: activities.COLLECTIVE_EDITED,
@@ -448,7 +456,7 @@ const accountMutations = {
               CollectiveId: account.id,
               FromCollectiveId: account.id,
               HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-              data: { previousData: { currency: account.currency }, newData: { currency: args.account[key] } },
+              data: { previousData, newData: { currency: args.account[key] } },
             });
           }
         }
@@ -484,6 +492,7 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
+      const previousData = account.data?.policies;
       await account.setPolicies(args.policies);
       await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
@@ -492,7 +501,7 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData: account.data?.policies, newData: args.policies },
+        data: { previousData, newData: args.policies },
       });
       return account;
     },
