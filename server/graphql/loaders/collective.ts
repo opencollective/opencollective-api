@@ -82,6 +82,7 @@ export default {
       }
 
       let administratedMembers = [];
+      let invitedExpenses = [];
 
       // Aggregates all the profiles linked to users
       const uniqueCollectiveIds = uniq(collectiveIds.filter(Boolean));
@@ -113,15 +114,25 @@ export default {
             },
           },
         });
+
+        invitedExpenses = await models.Expense.findAll({
+          attributes: ['FromCollectiveId'],
+          group: ['FromCollectiveId'],
+          raw: true,
+          mapToModel: false,
+          where: { [Op.and]: [{ FromCollectiveId: otherAccountsCollectiveIds }, { status: 'UNVERIFIED' }] },
+        });
       }
 
       // User must be self or directly administered by remoteUser
       const administratedMemberCollectiveIds = new Set(administratedMembers.map(m => m.MemberCollectiveId));
+      const invitedExpensePayeeIds = new Set(invitedExpenses.map(m => m.FromCollectiveId));
       return collectiveIds.map(collectiveId => {
         return (
           collectiveId === remoteUser.CollectiveId ||
           req.remoteUser.isAdmin(collectiveId) ||
-          administratedMemberCollectiveIds.has(collectiveId)
+          administratedMemberCollectiveIds.has(collectiveId) ||
+          invitedExpensePayeeIds.has(collectiveId)
         );
       });
     });
