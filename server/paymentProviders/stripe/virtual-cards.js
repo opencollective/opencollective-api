@@ -207,7 +207,9 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
       type: activities.VIRTUAL_CARD_PURCHASE,
       CollectiveId: collective.id,
       UserId: user.id,
+      ExpenseId: expense.id,
       data: {
+        VirtualCardId: virtualCard.id,
         responsibleAdmin: responsibleAdmin.activity,
         collective: collective.activity,
         amount,
