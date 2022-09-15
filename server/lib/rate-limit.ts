@@ -1,3 +1,5 @@
+import config from 'config';
+
 import cache from './cache';
 
 export const ONE_HOUR_IN_SECONDS = 60 * 60;
@@ -20,7 +22,10 @@ export default class RateLimit {
 
   /** Load the count from cache if required and check if the limit has been reached */
   public async hasReachedLimit(): Promise<boolean> {
-    if (this.ignoreTests && (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci')) {
+    if (
+      this.ignoreTests &&
+      (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci' || config.env === 'e2e')
+    ) {
       return false;
     }
     const count = await this.getCallsCount();
@@ -29,7 +34,10 @@ export default class RateLimit {
 
   /** Register `nbCalls` in the cache. Returns false if limit has been reached. */
   public async registerCall(): Promise<boolean> {
-    if (this.ignoreTests && (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci')) {
+    if (
+      this.ignoreTests &&
+      (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'ci' || config.env === 'e2e')
+    ) {
       return true;
     }
     const count = await this.getCallsCount();
