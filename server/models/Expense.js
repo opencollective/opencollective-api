@@ -358,6 +358,7 @@ function defineModel() {
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },
+        path: this.collective.getUrlPath(),
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
         expense: this.info,

@@ -66,7 +66,6 @@ data['collective.expense.paid'] = {
 data['collective.expense.missing.receipt'] = {
   host: { id: 1, name: 'WWCode', slug: 'wwcode' },
   expense: {
-    description: 'Team dinner',
     amount: 1250,
     currency: 'USD',
   },
