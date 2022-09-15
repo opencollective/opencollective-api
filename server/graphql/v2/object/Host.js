@@ -290,7 +290,7 @@ export const Host = new GraphQLObjectType({
           if (transferwiseAccount) {
             return TransferwiseLib.getAccountBalances(transferwiseAccount).then(balances => {
               return balances.map(balance => ({
-                value: Math.round((balance.amount.value - Math.abs(balance.reservedAmount?.value || 0)) * 100),
+                value: Math.round(balance.amount.value * 100),
                 currency: balance.amount.currency,
               }));
             });

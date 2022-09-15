@@ -54,7 +54,6 @@ describe('server/paymentProviders/transferwise/index', () => {
     fundTransfer,
     getAccountRequirements,
     cacheSpy,
-    getBorderlessAccount,
     validateAccountRequirements,
     createBatchGroup,
     completeBatchGroup,
@@ -67,14 +66,6 @@ describe('server/paymentProviders/transferwise/index', () => {
   before(utils.resetTestDB);
   before(() => {
     createQuote = sandbox.stub(transferwiseLib, 'createQuote').resolves(quote);
-    getBorderlessAccount = sandbox.stub(transferwiseLib, 'getBorderlessAccount').resolves({
-      balances: [
-        {
-          currency: 'USD',
-          amount: { value: 100000 },
-        },
-      ],
-    });
     sandbox.stub(transferwiseLib, 'getTemporaryQuote').resolves(quote);
     sandbox.stub(transferwiseLib, 'getProfiles').resolves([
       {
@@ -256,14 +247,6 @@ describe('server/paymentProviders/transferwise/index', () => {
       createBatchGroup.resolves({ id: batchGroupId });
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
       createBatchGroupTransfer.resolves({ id: 800 });
-      getBorderlessAccount.resolves({
-        balances: [
-          {
-            currency: 'USD',
-            amount: { value: 100000 },
-          },
-        ],
-      });
       await transferwise.scheduleExpenseForPayment(expense);
     });
 
@@ -395,14 +378,6 @@ describe('server/paymentProviders/transferwise/index', () => {
       getBatchGroup.resolves({ id: batchGroupId, version: 1, transferIds: [800], status: 'NEW' });
       createBatchGroupTransfer.resolves({ id: 800 });
       completeBatchGroup.resolves({ id: batchGroupId, version: 2, status: 'COMPLETED' });
-      getBorderlessAccount.resolves({
-        balances: [
-          {
-            currency: 'USD',
-            amount: { value: 100000 },
-          },
-        ],
-      });
       response = await transferwise.payExpensesBatchGroup(host, [expense]);
     });
 
