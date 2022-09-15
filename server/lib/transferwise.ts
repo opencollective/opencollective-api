@@ -13,8 +13,8 @@ import { isNull, omitBy, pick, startCase, toInteger, toUpper } from 'lodash';
 import { TransferwiseError } from '../graphql/errors';
 import {
   AccessToken,
+  BalanceV4,
   BatchGroup,
-  BorderlessAccount,
   CurrencyPair,
   Profile,
   QuoteV2,
@@ -361,16 +361,15 @@ export const getCurrencyPairs = async (token: string): Promise<{ sourceCurrencie
   );
 };
 
-export const getBorderlessAccount = async (token: string, profileId: string | number): Promise<BorderlessAccount> => {
+export const listBalancesAccount = async (
+  token: string,
+  profileId: string | number,
+  types = 'STANDARD',
+): Promise<BalanceV4[]> => {
   try {
-    const accounts: BorderlessAccount[] = await requestDataAndThrowParsedError(
-      axios.get,
-      `/v1/borderless-accounts?profileId=${profileId}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
-    return accounts.find(a => a.profileId === profileId);
+    return requestDataAndThrowParsedError(axios.get, `/v4/profiles/${profileId}/balances?types=${types}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   } catch (e) {
     logger.error(e);
     reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });

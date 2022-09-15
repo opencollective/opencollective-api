@@ -260,15 +260,29 @@ export type Balance = {
   };
 };
 
-export type BorderlessAccount = {
+export type BalanceV4 = {
   id: number;
-  profileId: number;
-  recipientId: number;
+  currency: string;
+  type: 'STANDARD' | 'SAVINGS';
+  amount: {
+    value: number;
+    currency: string;
+  };
+  reservedAmount: {
+    value: number;
+    currency: string;
+  };
+  cashAmount: {
+    value: number;
+    currency: string;
+  };
+  totalWorth: {
+    value: number;
+    currency: string;
+  };
   creationTime: string;
   modificationTime: string;
-  active: boolean;
-  eligible: boolean;
-  balances: Balance[];
+  visible: boolean;
 };
 
 export type AccessToken = {

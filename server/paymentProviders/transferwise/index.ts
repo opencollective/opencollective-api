@@ -18,7 +18,7 @@ import models, { sequelize } from '../../models';
 import PayoutMethod from '../../models/PayoutMethod';
 import { ConnectedAccount } from '../../types/ConnectedAccount';
 import {
-  Balance,
+  BalanceV4,
   BatchGroup,
   QuoteV2,
   QuoteV2PaymentOption,
@@ -524,11 +524,10 @@ async function getRequiredBankInformation(
   return requiredFields;
 }
 
-async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<Balance[]> {
+async function getAccountBalances(connectedAccount: ConnectedAccount): Promise<BalanceV4[]> {
   await populateProfileId(connectedAccount);
   const token = await getToken(connectedAccount);
-  const account = await transferwise.getBorderlessAccount(token, <number>connectedAccount.data.id);
-  return account?.balances || [];
+  return transferwise.listBalancesAccount(token, <number>connectedAccount.data.id);
 }
 
 const oauth = {
