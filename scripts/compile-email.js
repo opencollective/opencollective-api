@@ -63,6 +63,25 @@ data['collective.expense.paid'] = {
     viewLatestExpenses: 'https://opencollective.com/wwcodeaustin/expenses',
   },
 };
+data['collective.expense.missing.receipt'] = {
+  host: { id: 1, name: 'WWCode', slug: 'wwcode' },
+  expense: {
+    description: 'Team dinner',
+    amount: 1250,
+    currency: 'USD',
+  },
+  collective: {
+    slug: 'wwcodeaustin',
+    name: 'Women Who Code Austin',
+  },
+  fromCollective: {
+    slug: 'xdamman',
+    name: 'Xavier Damman',
+  },
+  actions: {
+    viewLatestExpenses: 'https://opencollective.com/wwcodeaustin/expenses',
+  },
+};
 data['user.card.claimed'] = {
   currency: 'USD',
   initialBalance: 10000,
