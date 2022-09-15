@@ -11,6 +11,8 @@ enum ActivityTypes {
   COLLECTIVE_APPROVED = 'collective.approved',
   COLLECTIVE_REJECTED = 'collective.rejected',
   COLLECTIVE_CREATED = 'collective.created',
+  COLLECTIVE_EDITED = 'collective.edited',
+  COLLECTIVE_DELETED = 'collective.deleted',
   ORGANIZATION_COLLECTIVE_CREATED = 'organization.collective.created',
   // Freezing collectives
   COLLECTIVE_FROZEN = 'collective.frozen',
@@ -84,6 +86,8 @@ enum ActivityTypes {
   USER_CREATED = 'user.created',
   USER_NEW_TOKEN = 'user.new.token',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
+  TWO_FACTOR_CODE_ADDED = 'user.new.two.factor.code',
+  TWO_FACTOR_CODE_DELETED = 'user.remove.two.factor.code',
   // User edits
   USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
@@ -156,6 +160,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.ACTIVATED_COLLECTIVE_AS_HOST,
     ActivityTypes.ACTIVATED_COLLECTIVE_AS_INDEPENDENT,
     ActivityTypes.COLLECTIVE_TRANSACTION_CREATED, // TODO: Should not be here. See https://github.com/opencollective/opencollective/issues/5903
+    ActivityTypes.COLLECTIVE_EDITED,
+    ActivityTypes.COLLECTIVE_DELETED,
   ],
   [ActivityClasses.EXPENSES]: [
     ActivityTypes.COLLECTIVE_EXPENSE_APPROVED,

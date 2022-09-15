@@ -3,6 +3,7 @@ import gql from 'fake-tag';
 import { describe, it } from 'mocha';
 import { createSandbox } from 'sinon';
 
+import { activities as ACTIVITY } from '../../../../server/constants';
 import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
 import models, { Op } from '../../../../server/models';
@@ -989,6 +990,33 @@ describe('server/graphql/v1/collective', () => {
       // console.log('>>> updatedCollective', updatedCollective);
       expect(updatedCollective.host.id).to.equal(hostCollective.id);
       expect(updatedCollective.currency).to.equal('EUR');
+    });
+
+    it('check edit activity is created after', async () => {
+      const user = await fakeUser(null, { legalName: 'Old Legal Name' });
+      const editCollectiveMutation = gql`
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            legalName
+          }
+        }
+      `;
+
+      const collective = { id: user.collective.id, legalName: 'New Legal Name' };
+      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
+      expect(result.data.editCollective.legalName).to.eq('New Legal Name');
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: user.id, type: ACTIVITY.COLLECTIVE_EDITED },
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(user.collective.id);
+      expect(activity.data).to.deep.equal({
+        previousData: { legalName: 'Old Legal Name' },
+        newData: { legalName: 'New Legal Name' },
+      });
     });
   });
   describe('edits member public message', () => {

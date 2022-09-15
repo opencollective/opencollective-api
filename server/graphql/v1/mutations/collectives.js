@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { get, omit, truncate } from 'lodash';
+import { cloneDeep, get, isEqual, omit, pick, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
@@ -16,6 +16,7 @@ import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
 import models from '../../../models';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { CollectiveInputType } from '../inputTypes';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
   features: { conversations: true },
@@ -291,6 +292,18 @@ export async function createCollectiveFromGithub(_, args, req) {
   return collective;
 }
 
+function getCollectiveDataDiff(originalCollective, modifiedCollective) {
+  const collectiveInputTypeFields = Object.keys(CollectiveInputType.getFields());
+  const originalCollectiveData = pick(originalCollective, collectiveInputTypeFields);
+  const modifiedCollectiveData = pick(modifiedCollective, collectiveInputTypeFields);
+  const differenceKeys = Object.keys(originalCollectiveData).filter(
+    k => !isEqual(originalCollectiveData[k], modifiedCollectiveData[k]),
+  );
+  const previousData = pick(originalCollectiveData, differenceKeys);
+  const newData = pick(modifiedCollectiveData, differenceKeys);
+  return { previousData, newData };
+}
+
 export function editCollective(_, args, req) {
   if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to edit a collective');
@@ -341,7 +354,7 @@ export function editCollective(_, args, req) {
     newCollectiveData.countryISO = location.country;
   }
 
-  let collective, parentCollective;
+  let originalCollective, collective, parentCollective;
 
   return req.loaders.Collective.byId
     .load(args.collective.id)
@@ -349,6 +362,7 @@ export function editCollective(_, args, req) {
       if (!c) {
         throw new Error(`Collective with id ${args.collective.id} not found`);
       }
+      originalCollective = cloneDeep(c);
       collective = c;
     })
     .then(() => {
@@ -430,9 +444,20 @@ export function editCollective(_, args, req) {
         });
       }
     })
-    .then(() => {
+    .then(async () => {
       // Ask cloudflare to refresh the cache for this collective's page
       purgeCacheForCollective(collective.slug);
+      const data = getCollectiveDataDiff(originalCollective, collective);
+      // Create the activity which will store the data diff
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: collective.id,
+        FromCollectiveId: collective.id,
+        HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
+        data,
+      });
       return collective;
     });
 }

@@ -12,6 +12,7 @@ import {
 import { GraphQLJSON } from 'graphql-type-json';
 import { cloneDeep, set } from 'lodash';
 
+import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import plans from '../../../constants/plans';
 import cache from '../../../lib/cache';
@@ -100,7 +101,26 @@ const accountMutations = {
 
         const settings = account.settings ? cloneDeep(account.settings) : {};
         set(settings, args.key, args.value);
-        return account.update({ settings }, { transaction });
+
+        const previousData = { settings: { [args.key]: account.data?.[args.key] } };
+        const updatedAccount = await account.update({ settings }, { transaction });
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_EDITED,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+            data: {
+              previousData,
+              newData: { settings: { [args.key]: args.value } },
+            },
+          },
+          { transaction },
+        );
+
+        return updatedAccount;
       });
     },
   },
@@ -141,7 +161,7 @@ const accountMutations = {
           throw new ValidationFailed('The collective needs to be approved before you can change the fees structure');
         }
 
-        const updateAccountFees = account => {
+        const updateAccountFees = async account => {
           return account.update(
             {
               hostFeePercent: args.hostFeePercent,
@@ -149,6 +169,11 @@ const accountMutations = {
             },
             { transaction: dbTransaction },
           );
+        };
+
+        const previousData = {
+          hostFeePercent: account.hostFeePercent,
+          useCustomHostFee: account.data?.useCustomHostFee,
         };
 
         // Update main account
@@ -160,6 +185,22 @@ const accountMutations = {
         if (children.length > 0) {
           await Promise.all(children.map(updateAccountFees));
         }
+
+        await models.Activity.create(
+          {
+            type: activities.COLLECTIVE_EDITED,
+            UserId: req.remoteUser.id,
+            UserTokenId: req.userToken?.id,
+            CollectiveId: account.id,
+            FromCollectiveId: account.id,
+            HostCollectiveId: account.HostCollectiveId,
+            data: {
+              previousData,
+              newData: { hostFeePercent: args.hostFeePercent, useCustomHostFee: args.isCustomFee },
+            },
+          },
+          { transaction: dbTransaction },
+        );
 
         return account;
       });
@@ -262,6 +303,13 @@ const accountMutations = {
 
       await user.update({ twoFactorAuthToken: encryptedText, twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
 
+      await models.Activity.create({
+        type: activities.TWO_FACTOR_CODE_ADDED,
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: user.CollectiveId,
+      });
+
       return { account: account, recoveryCodes: recoveryCodesArray };
     },
   },
@@ -305,6 +353,13 @@ const accountMutations = {
 
       await user.update({ twoFactorAuthToken: null, twoFactorAuthRecoveryCodes: null });
 
+      await models.Activity.create({
+        type: activities.TWO_FACTOR_CODE_DELETED,
+        UserId: user.id,
+        FromCollectiveId: user.CollectiveId,
+        CollectiveId: user.CollectiveId,
+      });
+
       return account;
     },
   },
@@ -338,6 +393,8 @@ const accountMutations = {
         throw new Error(`Unknown plan: ${plan}`);
       }
 
+      const previousData = { hostPlan: account.plan };
+
       await account.update({ plan });
 
       if (plan === 'start-plan-2021') {
@@ -354,6 +411,16 @@ const accountMutations = {
       }
 
       await cache.delete(`plan_${account.id}`);
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: { previousData, newData: { hostPlan: plan } },
+      });
 
       return account;
     },
@@ -382,8 +449,19 @@ const accountMutations = {
 
       for (const key of Object.keys(args.account)) {
         switch (key) {
-          case 'currency':
+          case 'currency': {
+            const previousData = { currency: account.currency };
             await account.setCurrency(args.account[key]);
+            await models.Activity.create({
+              type: activities.COLLECTIVE_EDITED,
+              UserId: req.remoteUser.id,
+              UserTokenId: req.userToken?.id,
+              CollectiveId: account.id,
+              FromCollectiveId: account.id,
+              HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+              data: { previousData, newData: { currency: args.account[key] } },
+            });
+          }
         }
       }
 
@@ -417,7 +495,17 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
+      const previousData = account.data?.policies;
       await account.setPolicies(args.policies);
+      await models.Activity.create({
+        type: activities.COLLECTIVE_EDITED,
+        UserId: req.remoteUser.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        FromCollectiveId: account.id,
+        HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
+        data: { previousData, newData: args.policies },
+      });
       return account;
     },
   },
