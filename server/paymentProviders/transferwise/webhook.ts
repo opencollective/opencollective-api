@@ -86,7 +86,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       );
     }
     await expense.setError(expense.lastEditedById);
-    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true });
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
   }
 }
 
