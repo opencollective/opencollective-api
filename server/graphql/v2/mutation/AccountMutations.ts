@@ -103,7 +103,7 @@ const accountMutations = {
         set(settings, args.key, args.value);
 
         const previousData = { settings: { [args.key]: account.data?.[args.key] } };
-        const updatedAccount = account.update({ settings }, { transaction });
+        const updatedAccount = await account.update({ settings }, { transaction });
         await models.Activity.create(
           {
             type: activities.COLLECTIVE_EDITED,
