@@ -8,6 +8,18 @@ import { getFxRate } from './currency';
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
+export async function getCollectiveIds(collective, includeChildren) {
+  if (!includeChildren) {
+    return [collective.id];
+  }
+
+  const collectiveChildrenIds = await collective
+    .getChildren({ attributes: ['id'] })
+    .then(children => children.map(child => child.id));
+
+  return [collective.id, ...collectiveChildrenIds];
+}
+
 /* Versions of the balance algorithm:
  - v0: sum everything in the netAmountInCollectiveCurrency column then assume it's in Collective's currency - DELETED
  - v1: sum by currency based on netAmountInCollectiveCurrency then convert to Collective's currency using the Fx Rate of the day

@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { get, has, isNil } from 'lodash';
 import moment from 'moment';
 
+import { getCollectiveIds } from '../../../lib/budget';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
@@ -294,6 +295,7 @@ export const AccountStats = new GraphQLObjectType({
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
           return sequelize.query(
             `
             SELECT
@@ -305,25 +307,22 @@ export const AccountStats = new GraphQLObjectType({
             LEFT JOIN "Orders" o
               ON t."OrderId" = o."id"
             INNER JOIN "Collectives" c
-              ON (
-                c."id" = $collectiveId
-                ${args.includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
-              )
-              AND c."deletedAt" IS NULL
+              ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
             WHERE t."type" = 'CREDIT'
               AND t."kind" = 'CONTRIBUTION'
-              AND t."CollectiveId" =  c."id"
+              AND t."CollectiveId" IN (:collectiveIds)
               AND t."RefundTransactionId" IS NULL
               AND t."deletedAt" IS NULL
-              ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-              ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-            GROUP BY (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
+              AND t."FromCollectiveId" NOT IN (:collectiveIds)
+              ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
+            GROUP BY "label", t."currency"
             ORDER BY ABS(SUM(t."amount")) DESC
             `,
             {
               type: QueryTypes.SELECT,
-              bind: {
-                collectiveId: collective.id,
+              replacements: {
+                collectiveIds,
                 ...computeDatesAsISOStrings(dateFrom, dateTo),
               },
             },
@@ -345,6 +344,7 @@ export const AccountStats = new GraphQLObjectType({
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
           const results = await sequelize.query(
             `
             SELECT
@@ -356,26 +356,23 @@ export const AccountStats = new GraphQLObjectType({
             LEFT JOIN "Orders" o
               ON t."OrderId" = o."id"
             INNER JOIN "Collectives" c
-              ON (
-                c."id" = $collectiveId
-                ${args.includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
-              )
-              AND c."deletedAt" IS NULL
+              ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
             WHERE
               t."type" = 'CREDIT'
               AND t."kind" = 'CONTRIBUTION'
-              AND t."CollectiveId" = c."id"
+              AND t."CollectiveId" IN (:collectiveIds)
               AND t."RefundTransactionId" IS NULL
               AND t."deletedAt" IS NULL
-              ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-              ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-            GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END), t."currency"
-            ORDER BY DATE_TRUNC($timeUnit, t."createdAt"), ABS(SUM(t."amount")) DESC
+              AND t."FromCollectiveId" NOT IN (:collectiveIds)
+              ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
+            GROUP BY "date", "label", t."currency"
+            ORDER BY "date", ABS(SUM(t."amount")) DESC
             `,
             {
               type: QueryTypes.SELECT,
-              bind: {
-                collectiveId: collective.id,
+              replacements: {
+                collectiveIds,
                 timeUnit,
                 ...computeDatesAsISOStrings(dateFrom, dateTo),
               },
