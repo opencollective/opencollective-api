@@ -1,25 +1,25 @@
 import { Request, Response } from 'express';
-import { pick } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
-import { createTransferWiseTransactionsAndUpdateExpense, getExpenseFees } from '../graphql/common/expenses';
+import { getExpenseFees, setTransferWiseExpenseAsProcessing } from '../graphql/common/expenses';
 import { idDecode, IDENTIFIER_TYPES } from '../graphql/v2/identifiers';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import models, { Op } from '../models';
 import transferwise from '../paymentProviders/transferwise';
+import { BatchGroup } from '../types/transferwise';
 
-const processPaidExpense = (host, remoteUser, fundData) => async expense => {
+const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async expense => {
   await expense.reload();
   if (expense.data?.transfer) {
     const payoutMethod = await expense.getPayoutMethod();
     const { feesInHostCurrency } = await getExpenseFees(expense, host, { payoutMethod, forceManual: false });
-    return createTransferWiseTransactionsAndUpdateExpense({
-      host,
+    return setTransferWiseExpenseAsProcessing({
       expense,
-      data: { ...pick(expense.data, ['transfer']), fundData },
-      fees: feesInHostCurrency,
+      host,
+      data: { batchGroup },
+      feesInHostCurrency,
       remoteUser,
     });
   }
@@ -76,7 +76,7 @@ export async function payBatch(
     if (ottHeader) {
       const fundResponse = await transferwise.payExpensesBatchGroup(host, undefined, ottHeader);
       res.sendStatus(200);
-      await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse)));
+      await Promise.all(expenses.map(processPaidExpense(host, remoteUser, fundResponse as BatchGroup)));
     }
     // First attempt without 2FA
     else {

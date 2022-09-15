@@ -106,7 +106,7 @@ describe('server/controllers/transferwise', () => {
         },
       ],
     });
-    payExpensesBatchGroup = sandbox.stub(transferwise, 'payExpensesBatchGroup').resolves();
+    payExpensesBatchGroup = sandbox.stub(transferwise, 'payExpensesBatchGroup').resolves({ status: 'COMPLETED' });
   });
 
   it('should throw if remote user is not a host admin', async () => {
@@ -150,15 +150,14 @@ describe('server/controllers/transferwise', () => {
     expect(res.sendStatus.firstCall.firstArg).to.equal(403);
   });
 
-  it('should create transactions for paid expenses when retrying with OTT header', async () => {
+  it('should mark expense as processing when retrying with OTT header', async () => {
     req.headers['x-2fa-approval'] = 'hash';
     // Simulate paid expenses because we stub fundExpensesBatchGroup
     await expense.update({ data: { ...expense.data, transfer: { id: 1234 } } });
     await transferwiseController.payBatch(req, res);
 
     await expense.reload();
-    const transactions = await expense.getTransactions();
-    expect(transactions).to.be.an('array').with.length(2);
     expect(expense).to.have.property('status', expenseStatus.PROCESSING);
+    expect(expense).to.have.nested.property('data.batchGroup.status', 'COMPLETED');
   });
 });
