@@ -567,6 +567,13 @@ export const executeOrder = async (user, order, options = {}) => {
   if (transaction) {
     await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
 
+    // Credit card charges are synchronous. If the transaction is
+    // created here it means that the payment went through so it's
+    // safe to create subscription after this.
+
+    // The order will be updated to ACTIVE
+    order.interval && (await createSubscription(order));
+
     // Register user as collective backer (don't do for internal transfers)
     // Or in the case of tickets register the user as an ATTENDEE
     if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
@@ -596,13 +603,6 @@ export const executeOrder = async (user, order, options = {}) => {
       { order, skipActivity: true },
     );
   }
-
-  // Credit card charges are synchronous. If the transaction is
-  // created here it means that the payment went through so it's
-  // safe to create subscription after this.
-
-  // The order will be updated to ACTIVE
-  order.interval && transaction && (await createSubscription(order));
 };
 
 const validatePayment = payment => {
