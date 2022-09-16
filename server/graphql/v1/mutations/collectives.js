@@ -7,6 +7,7 @@ import { v4 as uuid } from 'uuid';
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
+import OrderStatuses from '../../../constants/order_status';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
@@ -489,6 +490,22 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
+  // We need to cancel all active recurring contributions managed externally
+  const childrenIds = (await collective.getChildren({ attributes: ['id'] })).map(c => c.id);
+  const orders = await models.Order.findAll({
+    where: { CollectiveId: [collective.id, ...childrenIds] },
+    includes: [{ model: models.Subscription, required: true, isManagedExternally: true, isActive: true }],
+  });
+
+  // There's a risk of having a timeout or rate limiting if we cancel too many subscriptions at once. We need a better solution, such as making the archive job asynchronous.
+  // See https://github.com/opencollective/opencollective/issues/5962
+  if (orders.length > 20) {
+    throw new Error('Too many recurring contributions attached to this profile, please contact support');
+  }
+
+  // TODO: Cancel all subscriptions
+
+  // Trigger archive
   const membership = await models.Member.findOne({
     where: {
       CollectiveId: collective.id,
