@@ -10,8 +10,8 @@ import fetch from 'node-fetch';
 import { v1 as uuid } from 'uuid';
 
 import { uploadToS3 } from '../../server/lib/awsS3';
-import models, { Op } from '../../server/models';
 import { isValidUploadedImage } from '../../server/lib/images';
+import models, { Op } from '../../server/models';
 
 const uploadImageToS3FromUrl = async url => {
   const parsedUrl = new URL(url);
@@ -58,6 +58,7 @@ const replaceAllExternalImages = async (content: string, options): Promise<strin
     return content;
   }
 
+  // Trigger replacements
   let newContent = content;
   for (const url of externalImages) {
     try {
@@ -126,6 +127,27 @@ const main = async options => {
         await tier.update({ longDescription: newLongDescription });
       } catch (e) {
         console.error('Error while updating tier', tier.slug, e);
+      }
+    }
+  }
+
+  // Updates
+  const updates = await models.Update.findAll({
+    where: {
+      CollectiveId: collective ? collective.id : { [Op.ne]: null },
+      html: { [Op.iRegexp]: postgresExternalImageRegex },
+    },
+  });
+
+  for (const update of updates) {
+    console.log('Processing update', update.slug);
+    const newHTML = await replaceAllExternalImages(update.html, options);
+    if (newHTML !== update.html) {
+      console.log('Updating update', update.slug);
+      try {
+        await update.update({ html: newHTML });
+      } catch (e) {
+        console.error('Error while updating update', update.slug, e);
       }
     }
   }
