@@ -15,9 +15,13 @@ import { PaymentProviderService } from '../types';
 import { paypalRequest } from './api';
 import { refundPaypalCapture } from './payment';
 
-export const cancelPaypalSubscription = async (order: typeof models.Order, reason = undefined): Promise<void> => {
+export const cancelPaypalSubscription = async (
+  order: typeof models.Order,
+  reason = undefined,
+  host: typeof models.Collective = undefined,
+): Promise<void> => {
   const collective = order.collective || (await order.getCollective());
-  const hostCollective = await collective.getHostCollective();
+  const hostCollective = host || (await collective.getHostCollective());
   const subscription = order.Subscription || (await order.getSubscription());
   await paypalRequest(`billing/subscriptions/${subscription.paypalSubscriptionId}/cancel`, { reason }, hostCollective);
 };
