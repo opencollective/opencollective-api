@@ -30,8 +30,23 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     return;
   }
 
-  if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
-    logger.info(`Transfer sent, marking expense as paid.`, event);
+  const transaction = await models.Transaction.findOne({
+    where: {
+      ExpenseId: expense.id,
+      data: { transfer: { id: toString(event.data.resource.id) } },
+    },
+  });
+  if (
+    transaction &&
+    expense.status === expenseStatus.PROCESSING &&
+    event.data.current_state === 'outgoing_payment_sent'
+  ) {
+    logger.info(`Wise: Transfer sent, marking expense as paid.`, event);
+    await expense.setPaid(expense.lastEditedById);
+    const user = await models.User.findByPk(expense.lastEditedById);
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
+  } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
+    logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
     const feesInHostCurrency: {
       paymentProcessorFeeInHostCurrency: number;
       hostFeeInHostCurrency: number;
@@ -66,7 +81,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     (expense.status === expenseStatus.PROCESSING || expense.status === expenseStatus.PAID) &&
     (event.data.current_state === 'funds_refunded' || event.data.current_state === 'cancelled')
   ) {
-    logger.info(`Transfer failed, setting status to Error and deleting existing transactions.`, event);
+    logger.info(`Wise: Transfer failed, setting status to error and refunding existing transactions.`, event);
     const transaction = await models.Transaction.findOne({
       where: {
         ExpenseId: expense.id,
