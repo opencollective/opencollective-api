@@ -99,6 +99,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
         null,
         expense.User,
       );
+      logger.info(`Wise: Refunded transactions for Wise transfer #${event.data.resource.id}.`);
+    } else {
+      logger.info(`Wise: Wise transfer #${event.data.resource.id} has no transactions, skipping refund.`);
     }
     await expense.setError(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_ERROR, null, { isSystem: true, event });
