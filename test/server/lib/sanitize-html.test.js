@@ -159,6 +159,21 @@ describe('server/lib/sanitize-html', () => {
         expect(sanitizeHTML(url, sanitizerOptions)).to.eq(url);
       });
     });
+
+    it('keeps external images when images is set', () => {
+      expect(
+        sanitizeHTML('Hello <img src="https://example.com/test.jpg"> World', buildSanitizerOptions({ images: true })),
+      ).to.eq(`Hello <img src="https://example.com/test.jpg" /> World`);
+    });
+
+    it('strips external images when imagesInternal is set', () => {
+      expect(
+        sanitizeHTML(
+          'Hello <img src="https://example.com/test.jpg"> World',
+          buildSanitizerOptions({ imagesInternal: true }),
+        ),
+      ).to.eq(`Hello  World`);
+    });
   });
 
   describe('generateSummaryForHTML', () => {
