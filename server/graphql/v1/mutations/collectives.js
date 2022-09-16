@@ -425,7 +425,8 @@ export function editCollective(_, args, req) {
     })
     .then(() => {
       // Set private instructions value
-      if (args.collective.privateInstructions) {
+      // eslint-disable-next-line eqeqeq
+      if (args.collective.privateInstructions != null) {
         newCollectiveData.data = {
           ...collective.data,
           privateInstructions: args.collective.privateInstructions,
