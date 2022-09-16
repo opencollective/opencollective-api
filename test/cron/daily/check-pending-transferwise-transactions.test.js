@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions.js';
+import { run as checkPendingTransfers } from '../../../cron/daily/check-pending-transferwise-transactions';
 import { roles } from '../../../server/constants';
 import status from '../../../server/constants/expense_status';
 import emailLib from '../../../server/lib/email';
+import logger from '../../../server/lib/logger';
 import * as transferwiseLib from '../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import {
@@ -18,7 +19,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
+describe('cron/hourly/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();
   let getTransfer, sendMessage;
   let expense, host, collective, payoutMethod;
@@ -54,6 +55,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
       status: status.PROCESSING,
       amount: 10000,
       CollectiveId: collective.id,
+      HostCollectiveId: host.id,
       currency: 'USD',
       PayoutMethodId: payoutMethod.id,
       category: 'Engineering',
@@ -63,20 +65,10 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
         transfer: { id: 1234 },
       },
     });
-    await fakeTransaction({
-      type: 'DEBIT',
-      amount: -1 * expense.amount,
-      ExpenseId: expense.id,
-      data: {
-        transfer: { id: 1234 },
-        quote: { fee: 1, rate: 1 },
-        fees: { hostFeeInHostCurrency: 1, platformFeeInHostCurrency: 1 },
-      },
-    });
   });
 
   it('should complete processing transactions if transfer was sent', async () => {
-    getTransfer.resolves({ status: 'outgoing_payment_sent' });
+    getTransfer.resolves({ status: 'outgoing_payment_sent', id: 1234 });
     await checkPendingTransfers();
 
     await expense.reload();
@@ -84,7 +76,7 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
   });
 
   it('should ignore expenses manually marked as paid', async () => {
-    getTransfer.resolves({ status: 'outgoing_payment_sent' });
+    getTransfer.resolves({ status: 'outgoing_payment_sent', id: 1234 });
     const manualExpense = await fakeExpense({
       status: status.PAID,
       amount: 10000,
@@ -95,35 +87,48 @@ describe('cron/hourly/check-pending-transferwise-transactions.js', () => {
       type: 'INVOICE',
       description: 'January Invoice',
     });
-    await fakeTransaction({
-      type: 'DEBIT',
-      amount: -1 * manualExpense.amount,
-      ExpenseId: manualExpense.id,
-      data: { unrelatedDataKey: true },
-    });
 
-    const spy = sandbox.spy(console, 'log');
+    const spy = sandbox.spy(logger, 'info');
 
     await checkPendingTransfers();
 
-    assert.calledWith(spy, `\nProcessing expense #${expense.id}...`);
-    assert.neverCalledWith(spy, `\nProcessing expense #${manualExpense.id}...`);
+    assert.calledWith(spy, `Processing expense #${expense.id}...`);
+    assert.neverCalledWith(spy, `Processing expense #${manualExpense.id}...`);
   });
 
-  it('should set expense as error and clear existing transactions when funds are refunded', async () => {
-    getTransfer.resolves({ status: 'funds_refunded' });
+  it('should set expense as error and refund existing transactions when funds are refunded', async () => {
+    await expense.update({ status: 'PAID' });
+    await fakeTransaction(
+      {
+        type: 'CREDIT',
+        amount: expense.amount,
+        FromCollectiveId: expense.FromCollectiveId,
+        CollectiveId: expense.CollectiveId,
+        ExpenseId: expense.id,
+        data: {
+          transfer: { id: 1234 },
+          quote: { fee: 1, rate: 1 },
+          fees: { hostFeeInHostCurrency: 1, platformFeeInHostCurrency: 1 },
+        },
+      },
+      { createDoubleEntry: true },
+    );
+    getTransfer.resolves({ status: 'funds_refunded', id: 1234 });
     await checkPendingTransfers();
 
     await expense.reload();
     expect(expense).to.have.property('status', status.ERROR);
     const transactions = await expense.getTransactions();
-    expect(transactions).to.be.empty;
+    expect(transactions).to.containSubset([
+      { id: 1, RefundTransactionId: 4 },
+      { id: 2, RefundTransactionId: 3 },
+    ]);
   });
 
   it('should send a notification email to the payee and the host when funds are refunded', async () => {
     const admin = await fakeUser({ email: 'admin@oc.com' });
     await fakeMember({ CollectiveId: host.id, MemberCollectiveId: admin.CollectiveId, role: roles.ADMIN });
-    getTransfer.resolves({ status: 'funds_refunded' });
+    getTransfer.resolves({ status: 'funds_refunded', id: 1234 });
 
     await checkPendingTransfers();
 
