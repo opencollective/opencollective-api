@@ -348,7 +348,7 @@ export const AccountStats = new GraphQLObjectType({
           const results = await sequelize.query(
             `
             SELECT
-              DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+              DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
               (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
               ABS(SUM(t."amount")) as "amount",
               t."currency"
