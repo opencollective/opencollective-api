@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, omit, pick, truncate } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, omit, pick, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
@@ -425,8 +425,7 @@ export function editCollective(_, args, req) {
     })
     .then(() => {
       // Set private instructions value
-      // eslint-disable-next-line eqeqeq
-      if (args.collective.privateInstructions != null) {
+      if (!isNil(args.collective.privateInstructions)) {
         newCollectiveData.data = {
           ...collective.data,
           privateInstructions: args.collective.privateInstructions,
