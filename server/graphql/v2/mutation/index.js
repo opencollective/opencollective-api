@@ -22,6 +22,7 @@ import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
 import rootMutations from './RootMutations';
+import tierMutations from './TierMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
 import virtualCardMutations from './VirtualCardMutations';
@@ -56,6 +57,7 @@ const mutation = {
   ...virtualCardMutations,
   ...webhookMutations,
   ...activitySubscriptionsMutations,
+  ...tierMutations,
 };
 
 export default mutation;
