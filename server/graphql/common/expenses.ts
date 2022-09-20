@@ -86,6 +86,16 @@ const isOwner = async (req: express.Request, expense: typeof models.Expense): Pr
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
+const isDraftPayee = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  } else if (expense.data?.payee?.id) {
+    return req.remoteUser.isAdmin(expense.data.payee.id);
+  } else {
+    return false;
+  }
+};
+
 const isCollectiveAccountant = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -240,7 +250,6 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
   const nonEditableStatuses = [
     expenseStatus.PAID,
     expenseStatus.PROCESSING,
-    expenseStatus.DRAFT,
     expenseStatus.SCHEDULED_FOR_PAYMENT,
     expenseStatus.CANCELED,
   ];
@@ -248,6 +257,8 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
   // Host and Collective Admin can attach receipts to paid charge expenses
   if (expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
+  } else if (expense.status === expenseStatus.DRAFT) {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not edit expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
