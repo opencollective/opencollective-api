@@ -137,7 +137,7 @@ describe('server/graphql/common/expenses', () => {
   });
 
   describe('canEditExpense', () => {
-    it('only if not processing, paid, draft or scheduled for payment', async () => {
+    it('only if not processing, paid or scheduled for payment', async () => {
       await expense.update({ status: 'PENDING' });
       expect(await canEditExpense(hostAdminReq, expense)).to.be.true;
       await expense.update({ status: 'APPROVED' });
@@ -151,9 +151,15 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'PAID' });
       expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
       await expense.update({ status: 'DRAFT' });
-      expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
+      expect(await canEditExpense(hostAdminReq, expense)).to.be.true;
       await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
       expect(await canEditExpense(hostAdminReq, expense)).to.be.false;
+    });
+
+    it('can edit expense if user is the draft payee', async () => {
+      const expensePayee = await fakeUser();
+      await expense.update({ status: 'DRAFT', data: { payee: { id: expensePayee.collective.id } } });
+      expect(await canEditExpense(makeRequest(expensePayee), expense)).to.be.true;
     });
 
     it('only with the allowed roles', async () => {
