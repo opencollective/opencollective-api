@@ -8,7 +8,7 @@ import { getFxRate } from './currency';
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
-async function computeSumFromResults(results, currency) {
+async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
 
   for (const result of Object.values(results)) {
@@ -67,7 +67,7 @@ export async function getBalanceAmount(
   });
 
   // Sum and convert to final currency
-  const value = await computeSumFromResults(results, currency);
+  const value = await sumTransactionsInCurrency(results, currency);
 
   return { value, currency };
 }
@@ -144,7 +144,7 @@ export async function getTotalAmountReceivedAmount(
   });
 
   // Sum and convert to final currency
-  const value = await computeSumFromResults(results, currency);
+  const value = await sumTransactionsInCurrency(results, currency);
 
   return { value, currency };
 }
@@ -176,7 +176,7 @@ export async function getTotalAmountPaidExpenses(collective, { startDate, endDat
   });
 
   // Sum and convert to final currency
-  const value = await computeSumFromResults(results, currency);
+  const value = await sumTransactionsInCurrency(results, currency);
 
   return { value, currency };
 }
@@ -199,7 +199,7 @@ export async function getTotalNetAmountReceivedAmount(
     excludeInternals: true,
   });
 
-  const creditTotal = await computeSumFromResults(creditResults, currency);
+  const creditTotal = await sumTransactionsInCurrency(creditResults, currency);
 
   const feesResults = await sumCollectivesTransactions(collectiveIds, {
     startDate,
@@ -210,7 +210,7 @@ export async function getTotalNetAmountReceivedAmount(
     excludeInternals: true,
   });
 
-  const feesTotal = await computeSumFromResults(feesResults, currency);
+  const feesTotal = await sumTransactionsInCurrency(feesResults, currency);
 
   return { value: creditTotal + feesTotal, currency };
 }
@@ -238,7 +238,7 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   });
 
   // Sum and convert to final currency
-  const value = await computeSumFromResults(results, currency);
+  const value = await sumTransactionsInCurrency(results, currency);
 
   return { value, currency };
 }
