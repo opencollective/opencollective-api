@@ -141,6 +141,7 @@ export async function getTotalAmountReceivedAmount(
     kind: kind,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
+    excludeCrossCollectiveTransactions: includeChildren,
   });
 
   // Sum and convert to final currency
@@ -197,6 +198,7 @@ export async function getTotalNetAmountReceivedAmount(
     transactionType: CREDIT,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
+    excludeCrossCollectiveTransactions: includeChildren,
   });
 
   const creditTotal = await sumTransactionsInCurrency(creditResults, currency);
@@ -268,6 +270,7 @@ async function sumCollectivesTransactions(
     withBlockedFunds = false,
     hostCollectiveId = null,
     excludeInternals = false,
+    excludeCrossCollectiveTransactions = false,
     kind,
   } = {},
 ) {
@@ -277,6 +280,9 @@ async function sumCollectivesTransactions(
 
   if (ids) {
     where.CollectiveId = ids;
+    if (excludeCrossCollectiveTransactions) {
+      where.FromCollectiveId = { [Op.notIn]: ids };
+    }
   }
   if (transactionType) {
     where.type = transactionType;
