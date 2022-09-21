@@ -81,9 +81,9 @@ async function createCollective(_, args, req) {
       const collectiveWithSlug = await models.Collective.findOne({ where: { slug: collectiveData.slug }, transaction });
 
       if (collectiveWithSlug) {
-        throw new Error(
-          `The slug ${collectiveData.slug} is already taken. Please use another slug for your collective.`,
-        );
+        throw new ValidationFailed('An account already exists for this URL, please choose another one.', null, {
+          extraInfo: { slugExists: true },
+        });
       }
 
       // Handle GitHub automated approval and apply to the Open Source Collective Host
