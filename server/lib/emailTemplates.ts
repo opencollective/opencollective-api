@@ -23,6 +23,7 @@ export const templateNames = [
   'collective.contact',
   'collective.frozen',
   'collective.unfrozen',
+  'collective.unhosted',
   'collective.created.opensource',
   'collective.expense.approved',
   'collective.expense.approved.for.host',
