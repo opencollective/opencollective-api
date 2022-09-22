@@ -589,7 +589,11 @@ const oauth = {
         await populateProfileId(connectedAccount, toNumber(profileId));
       }
 
-      if (collective.countryISO && isMemberOfTheEuropeanUnion(collective.countryISO)) {
+      // Automatically set OTT flag on for European contries and Australia.
+      if (
+        collective.countryISO &&
+        (isMemberOfTheEuropeanUnion(collective.countryISO) || collective.countryISO === 'AU')
+      ) {
         const settings = collective.settings ? cloneDeep(collective.settings) : {};
         set(settings, 'transferwise.ott', true);
         await collective.update({ settings });
