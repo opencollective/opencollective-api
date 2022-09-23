@@ -1612,21 +1612,23 @@ const generateInsufficientBalanceErrorMessage = ({
   balance,
   currency,
   expenseAmount,
+  expenseCurrency,
+  rate,
   isSameCurrency,
   fees = 0,
   feesName = '',
 }) => {
   let msg = `Collective does not have enough funds to ${object}.`;
   msg += ` Current balance: ${formatCurrency(balance, currency)}`;
-  msg += `, Expense amount: ${formatCurrency(expenseAmount, currency)}`;
+  msg += `, Expense amount: ${formatCurrency(expenseAmount, expenseCurrency)}`;
   if (fees) {
-    msg += `, Estimated ${feesName} fees: ${formatCurrency(fees, currency)}`;
+    msg += `, Estimated ${feesName} fees: ${formatCurrency(fees, expenseCurrency)}`;
   }
 
   if (!isSameCurrency) {
-    msg += `. For expenses submitted in a different currency than the collective, an error margin of 20% is applied. The maximum amount that can be paid is ${formatCurrency(
-      Math.round(balance / 1.2),
-      currency,
+    msg += `. For expenses submitted in a different currency than the collective, an error margin of 2σ to the latest rate is applied. The maximum amount that can be paid is ${formatCurrency(
+      Math.round(balance * rate),
+      expenseCurrency,
     )}`;
   }
 
@@ -1643,21 +1645,28 @@ export const checkHasBalanceToPayExpense = async (
   { forceManual = false, manualFees = {}, useExistingWiseData = false } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-  const balanceInExpenseCurrency = await expense.collective.getBalanceWithBlockedFunds({ currency: expense.currency });
+  const balanceInCollectiveCurrency = await expense.collective.getBalanceWithBlockedFunds();
   const isSameCurrency = expense.currency === expense.collective.currency;
+  const exchangeStats =
+    !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
-  // Ensure the collective has enough funds to pay the expense, with an error margin of 20% of the expense amount
-  // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  const getMinExpectedBalance = amountToPay => (isSameCurrency ? amountToPay : Math.round(amountToPay * 1.2));
+  // Ensure the collective has enough funds to pay the expense, with an error margin of 2σ (standard deviations) the exchange rate of past 5 days
+  // to account for fluctuating rates. (2σ counts for 95% of rates of the given period)
+  const getMinExpectedBalance = amountToPayInExpenseCurrency =>
+    isSameCurrency
+      ? amountToPayInExpenseCurrency
+      : Math.round(amountToPayInExpenseCurrency / (exchangeStats.latestRate - exchangeStats.stddev * 2));
 
   // Check base balance before fees
-  if (balanceInExpenseCurrency < getMinExpectedBalance(expense.amount)) {
+  if (balanceInCollectiveCurrency < getMinExpectedBalance(expense.amount)) {
     throw new Unauthorized(
       generateInsufficientBalanceErrorMessage({
         object: 'pay this expense',
-        balance: balanceInExpenseCurrency,
-        currency: expense.currency,
+        balance: balanceInCollectiveCurrency,
+        currency: expense.collective.currency,
+        expenseCurrency: expense.currency,
         expenseAmount: expense.amount,
+        rate: exchangeStats.latestRate && exchangeStats.latestRate - exchangeStats.stddev * 2,
         isSameCurrency,
       }),
     );
@@ -1691,14 +1700,16 @@ export const checkHasBalanceToPayExpense = async (
 
   // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
   // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  if (balanceInExpenseCurrency < getMinExpectedBalance(totalAmountToPay)) {
+  if (balanceInCollectiveCurrency < getMinExpectedBalance(totalAmountToPay)) {
     throw new Error(
       generateInsufficientBalanceErrorMessage({
         object: 'cover for the fees of this payment method',
-        balance: balanceInExpenseCurrency,
-        currency: expense.currency,
+        balance: balanceInCollectiveCurrency,
+        currency: expense.collective.currency,
         expenseAmount: expense.amount,
+        expenseCurrency: expense.currency,
         isSameCurrency,
+        rate: exchangeStats.latestRate && exchangeStats.latestRate - exchangeStats.stddev * 2,
         fees: feesInExpenseCurrency.paymentProcessorFee,
         feesName: payoutMethodType,
       }),
