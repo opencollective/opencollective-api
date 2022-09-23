@@ -20,6 +20,7 @@ import { randEmail, randUrl } from '../../../../stores';
 import {
   fakeCollective,
   fakeConnectedAccount,
+  fakeCurrencyExchangeRate,
   fakeExpense,
   fakeExpenseItem,
   fakeHost,
@@ -1558,6 +1559,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
 
       describe('Multi-currency expense', () => {
+        before(async () => {
+          await fakeCurrencyExchangeRate({
+            from: 'USD',
+            to: 'EUR',
+            rate: 1.1,
+          });
+        });
+
         it('Pays the expense manually', async () => {
           const paymentProcessorFee = 100; // Expressed in collective currency
           const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
