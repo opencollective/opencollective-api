@@ -29,6 +29,14 @@ const AccountsCollectionQuery = {
       type: GraphQLBoolean,
       description: 'Only return Fiscal Hosts accounts if true',
     },
+    includeDeleted: {
+      type: GraphQLBoolean,
+      description: 'Included collectives which are soft deleted',
+    },
+    includeArchived: {
+      type: GraphQLBoolean,
+      description: 'Included collectives which are soft archived',
+    },
     isActive: {
       type: GraphQLBoolean,
       description: 'Only return "active" accounts with Financial Contributions enabled if true.',
@@ -127,6 +135,8 @@ const AccountsCollectionQuery = {
         hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
         countries: args.country,
         tags: args.tag,
+        includeDeleted: args.includeDeleted,
+        includeArchived: args.includeArchived,
       };
 
       const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

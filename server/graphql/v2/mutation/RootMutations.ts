@@ -49,6 +49,62 @@ const BanAccountResponse = new GraphQLObjectType({
  * Root mutations
  */
 export default {
+  editAccountFlags: {
+    type: new GraphQLNonNull(Account),
+    description: '[Root only] Edits account flags (deleted, banned, archived, trusted host)',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to change the flags for',
+      },
+      isDeleted: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is soft deleted',
+      },
+      isBanned: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is banned',
+      },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is archived',
+      },
+      isTrustedHost: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is a trusted host',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanRoot(req);
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
+
+      if (args.isDeleted && !account.deletedAt) {
+        await account.destroy();
+      } else if (!args.isDeleted && account.deletedAt) {
+        await account.restore();
+
+        // We have freed the slug, so we have to restore it to its original value
+        const timestampPart = account.slug.match(/-\d+$/)[0];
+        await account.update({ slug: account.slug.replace(timestampPart, '') });
+      }
+
+      if (args.isArchived && !account.deactivatedAt) {
+        await account.update({ deactivatedAt: Date.now() });
+      } else if (!args.isArchived && account.deactivatedAt) {
+        await account.update({ deactivatedAt: null });
+      }
+
+      if (args.isBanned !== Boolean(account.data?.isBanned)) {
+        await account.update({ data: { ...account.data, isBanned: args.isBanned } });
+      }
+
+      if (args.isTrustedHost !== Boolean(account.data?.isTrustedHost)) {
+        await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
+      }
+      console.log(account);
+      return account;
+    },
+  },
   clearCacheForAccount: {
     type: new GraphQLNonNull(Account),
     description: '[Root only] Clears the cache for a given account',

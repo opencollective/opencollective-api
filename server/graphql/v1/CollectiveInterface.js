@@ -1174,6 +1174,11 @@ const CollectiveFields = () => {
         return collective.isHost();
       },
     },
+    isTrustedHost: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Returns whether this host is trusted or not',
+      resolve: collective => get(collective, 'data.isTrustedHost', false),
+    },
     canApply: {
       description: 'Returns whether this host accepts applications for new collectives',
       type: GraphQLBoolean,
@@ -1214,6 +1219,20 @@ const CollectiveFields = () => {
       type: GraphQLBoolean,
       resolve(collective) {
         return Boolean(collective.deactivatedAt && !collective.isActive);
+      },
+    },
+    isDeleted: {
+      type: GraphQLBoolean,
+      description: 'Returns whether this account is deleted',
+      resolve(collective) {
+        return Boolean(collective.deletedAt);
+      },
+    },
+    isBanned: {
+      type: GraphQLBoolean,
+      description: 'Returns whether this account is banned',
+      resolve(collective) {
+        return Boolean(collective.data?.isBanned);
       },
     },
     isApproved: {
