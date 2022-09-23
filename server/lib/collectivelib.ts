@@ -398,10 +398,6 @@ export async function deleteCollective(collective) {
   });
   await map(memberInvitations, memberInvitation => memberInvitation.destroy(), { concurrency: 3 });
 
-  // Update collective slug to free the current slug for future
-  const newSlug = `${collective.slug}-${Date.now()}`;
-  await collective.update({ slug: newSlug });
-
   await collective.destroy();
 
   if (user) {
