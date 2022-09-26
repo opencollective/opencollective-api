@@ -1,7 +1,11 @@
+#!/usr/bin/env node
+
 /**
  * Upload some images that were linked directly in the past to S3, in order to be compliant with the new CSP.
  * See https://github.com/opencollective/opencollective/issues/5728
  */
+
+import '../../server/env';
 
 import { Command } from 'commander';
 import config from 'config';
