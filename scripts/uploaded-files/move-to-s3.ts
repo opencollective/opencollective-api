@@ -54,11 +54,7 @@ const replaceAllExternalImages = async (content: string, options): Promise<strin
   }
 
   if (!options.run) {
-    console.log(
-      `Would have replaced ${Array.from(imageMatches)
-        .map(m => m[1])
-        .join(', ')}`,
-    );
+    console.log(`Would have replaced ${Array.from(externalImages).join(', ')}`);
     return content;
   }
 
