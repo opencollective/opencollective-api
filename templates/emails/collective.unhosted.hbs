@@ -5,12 +5,12 @@ Subject: Important: {{{collective.name}}} has been un-hosted by {{{host.name}}}
 <p style="font-size: 17px; padding: 1em;">
   Hi {{collective.name}},
   <br /><br />
-  Your fiscal host, <a href="{{config.host.website}}/{{host.slug}}">{{{host.name}}}</a>, has un-hosted your Collective.
+  Your fiscal host, {{> linkCollective collective=host}}, has un-hosted your Collective.
   <br/><br/>
   If you have additional questions about this, please <a href="{{config.host.website}}/{{host.slug}}/contact">contact</a> your fiscal host.
   {{#if message}}
     <br /><br />
-    <a href="{{config.host.website}}/{{host.slug}}">{{{host.name}}}</a> included the following message:
+    {{> linkCollective collective=host}} included the following message:
   {{/if}}
 </p>
 
