@@ -19,7 +19,7 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
   titles: true,
   basicTextFormatting: true,
   multilineTextFormatting: true,
-  images: true,
+  imagesInternal: true,
   links: true,
   videoIframes: true,
 });
