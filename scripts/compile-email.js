@@ -71,7 +71,6 @@ data['collective.expense.missing.receipt'] = {
   },
   collective: {
     slug: 'wwcodeaustin',
-    urlPath: '/wwcodeaustin',
     name: 'Women Who Code Austin',
   },
   fromCollective: {

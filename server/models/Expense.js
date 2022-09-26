@@ -329,7 +329,6 @@ function defineModel() {
     if (!this.collective) {
       this.collective = await this.getCollective();
     }
-    const urlPath = await this.collective.getUrlPath();
     const host = await this.collective.getHostCollective(); // may be null
     const payoutMethod = await this.getPayoutMethod();
     const items = this.items || this.data?.items || (await this.getItems());
@@ -358,7 +357,7 @@ function defineModel() {
           'isSystem',
         ]),
         host: get(host, 'minimal'),
-        collective: { ...this.collective.minimal, isActive: this.collective.isActive, urlPath },
+        collective: { ...this.collective.minimal, isActive: this.collective.isActive },
         user: submittedByUserCollective.minimal,
         fromCollective: fromCollective.minimal,
         expense: this.info,
