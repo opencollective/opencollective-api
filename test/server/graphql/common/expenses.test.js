@@ -714,7 +714,7 @@ describe('server/graphql/common/expenses', () => {
       });
 
       await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.rejectedWith(
-        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: R$5,000.00. For expenses submitted in a different currency than the collective, an error margin of 2σ to the latest rate is applied. The maximum amount that can be paid is R$4,936.70',
+        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: R$5,000.00. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is R$4,936.70',
       );
 
       expense = await fakeExpense({
@@ -727,7 +727,7 @@ describe('server/graphql/common/expenses', () => {
       });
 
       await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.rejectedWith(
-        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: €5,000.00. For expenses submitted in a different currency than the collective, an error margin of 2σ to the latest rate is applied. The maximum amount that can be paid is €920.90',
+        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: €5,000.00. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is €920.90',
       );
     });
   });
