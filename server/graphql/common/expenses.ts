@@ -1626,7 +1626,7 @@ const generateInsufficientBalanceErrorMessage = ({
   }
 
   if (!isSameCurrency) {
-    msg += `. For expenses submitted in a different currency than the collective, an error margin of 2σ to the latest rate is applied. The maximum amount that can be paid is ${formatCurrency(
+    msg += `. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
       Math.round(balance * rate),
       expenseCurrency,
     )}`;
