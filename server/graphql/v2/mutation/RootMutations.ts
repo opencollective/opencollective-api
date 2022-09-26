@@ -101,7 +101,6 @@ export default {
       if (args.isTrustedHost !== Boolean(account.data?.isTrustedHost)) {
         await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
       }
-      console.log(account);
       return account;
     },
   },
