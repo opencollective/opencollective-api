@@ -1,7 +1,11 @@
+#!/usr/bin/env node
+
 /**
  * Upload some images that were linked directly in the past to S3, in order to be compliant with the new CSP.
  * See https://github.com/opencollective/opencollective/issues/5728
  */
+
+import '../../server/env';
 
 import { Command } from 'commander';
 import config from 'config';
@@ -50,11 +54,7 @@ const replaceAllExternalImages = async (content: string, options): Promise<strin
   }
 
   if (!options.run) {
-    console.log(
-      `Would have replaced ${Array.from(imageMatches)
-        .map(m => m[1])
-        .join(', ')}`,
-    );
+    console.log(`Would have replaced ${Array.from(externalImages).join(', ')}`);
     return content;
   }
 
