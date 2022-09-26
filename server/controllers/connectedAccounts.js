@@ -50,7 +50,11 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
 
       const token = req.remoteUser.generateConnectedAccountVerifiedToken(connectedAccount.id, data.profile.username);
       if (context === 'createCollective') {
-        res.redirect(`${config.host.website}/opensource/apply/pick-repo?token=${token}`);
+        res.redirect(
+          `${config.host.website}/opensource/apply/pick-repo?token=${token}${
+            CollectiveId ? `&collectiveSlug=${CollectiveId}` : ''
+          }`,
+        );
       } else {
         res.redirect(`${config.host.website}/${userCollective.slug}/admin/connected-accounts`);
       }
