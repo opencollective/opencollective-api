@@ -129,7 +129,18 @@ async function createCollective(_, args, req) {
         }
       }
 
-      const collective = await models.Collective.create(collectiveData, { transaction });
+      let collective;
+      try {
+        collective = await models.Collective.create(collectiveData, { transaction });
+      } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+          throw new ValidationFailed('An account already exists for this URL, please choose another one.', null, {
+            extraInfo: { slugExists: true },
+          });
+        } else {
+          throw error;
+        }
+      }
 
       // Add authenticated user as an admin
       if (!args.skipDefaultAdmin) {
