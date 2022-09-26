@@ -100,6 +100,12 @@ const HostApplicationMutations = {
         throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
 
+      const { githubHandle } = args.applicationData || {};
+      if (githubHandle) {
+        collective.repositoryUrl = `https://github.com/${githubHandle}`;
+        await collective.save();
+      }
+
       // No need to check the balance, this is being handled in changeHost, along with most other checks
       const response = await collective.changeHost(host.id, req.remoteUser, {
         message: args.message,
