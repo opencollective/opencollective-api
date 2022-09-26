@@ -181,6 +181,10 @@ const HostApplicationMutations = {
       checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      if (account.ParentCollectiveId) {
+        throw new ValidationFailed(`Cannot unhost projects/events with a parent. Please unhost the parent instead.`);
+      }
+
       const host = await req.loaders.Collective.host.load(account.id);
       if (!host) {
         return account;

@@ -436,6 +436,27 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(unhostingActivity.data.host.id).to.eq(host.id);
     });
 
+    it('validates if collective does not have a parent account', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const event = await fakeEvent({ ParentCollectiveId: collective.id });
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: event.id,
+          },
+          message: 'root user',
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Cannot unhost projects/events with a parent. Please unhost the parent instead.',
+      );
+    });
+
     it('does not remove the the host from a hosted collective with non-zero balance', async () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
