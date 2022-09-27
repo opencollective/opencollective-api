@@ -489,6 +489,7 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
+  // Trigger archive
   const membership = await models.Member.findOne({
     where: {
       CollectiveId: collective.id,

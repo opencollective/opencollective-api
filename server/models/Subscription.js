@@ -65,12 +65,12 @@ function defineModel() {
     return this.save();
   };
 
-  Subscription.prototype.deactivate = async function (reason) {
+  Subscription.prototype.deactivate = async function (reason, host) {
     // If subscription exists on a third party, cancel it there
     if (this.paypalSubscriptionId) {
       const order = await this.getOrder();
       order.Subscription = this;
-      await cancelPaypalSubscription(order, reason);
+      await cancelPaypalSubscription(order, reason, host);
     }
 
     return this.update({ isActive: false, deactivatedAt: new Date() });
