@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, omit, pick, truncate } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, omit, pick, truncate } from 'lodash';
 import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
@@ -425,7 +425,7 @@ export function editCollective(_, args, req) {
     })
     .then(() => {
       // Set private instructions value
-      if (args.collective.privateInstructions) {
+      if (!isNil(args.collective.privateInstructions)) {
         newCollectiveData.data = {
           ...collective.data,
           privateInstructions: args.collective.privateInstructions,
@@ -489,6 +489,7 @@ export async function archiveCollective(_, args, req) {
     }
   }
 
+  // Trigger archive
   const membership = await models.Member.findOne({
     where: {
       CollectiveId: collective.id,

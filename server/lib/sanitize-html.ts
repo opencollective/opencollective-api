@@ -18,11 +18,27 @@ interface AllowedContentType {
   links?: boolean;
   /** Allow images */
   images?: boolean;
+  /* Same as images but only allows images from our own services */
+  imagesInternal?: boolean;
   /** Allow video iframes from trusted providers */
   videoIframes?: boolean;
   /** Allow tables */
   tables?: boolean;
 }
+
+/**
+ * A config to allow everything supported on RichTextEditor
+ */
+export const SANITIZE_OPTIONS_ALL: AllowedContentType = Object.freeze({
+  titles: true,
+  mainTitles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+  images: true,
+  videoIframes: true,
+  tables: true,
+});
 
 interface SanitizeOptions {
   allowedTags: string[];
@@ -68,9 +84,18 @@ export const buildSanitizerOptions = (allowedContent: AllowedContentType = {}): 
   }
 
   // Images
-  if (allowedContent.images) {
+  if (allowedContent.images || allowedContent.imagesInternal) {
     allowedTags.push('img', 'figure', 'figcaption');
     allowedAttributes['img'] = ['src'];
+    if (allowedContent.imagesInternal) {
+      transformTags['img'] = function (tagName, attribs) {
+        if (isValidUploadedImage(attribs.src, { ignoreInNonProductionEnv: false })) {
+          return { tagName, attribs };
+        } else {
+          return { tagName: 'INVALID_TAG', text: 'Invalid image' }; // Will be stripped by other rules (invalid tag name)
+        }
+      };
+    }
   }
 
   // Links

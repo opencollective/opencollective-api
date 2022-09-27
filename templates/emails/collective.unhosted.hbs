@@ -1,0 +1,21 @@
+Subject: Important: {{{collective.name}}} has been un-hosted by {{{host.name}}}
+
+{{> header}}
+
+<p style="font-size: 17px; padding: 1em;">
+  Hi {{collective.name}},
+  <br /><br />
+  Your fiscal host, {{> linkCollective collective=host}}, has un-hosted your Collective.
+  <br/><br/>
+  If you have additional questions about this, please <a href="{{config.host.website}}/{{host.slug}}/contact">contact</a> your fiscal host.
+  {{#if message}}
+    <br /><br />
+    {{> linkCollective collective=host}} included the following message:
+  {{/if}}
+</p>
+
+{{#if message}}
+  <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 0 24px;border-left: 3px solid #e4e4e4;white-space: pre-line;font-style: italic;">{{message}}</blockquote>
+{{/if}}
+
+{{> footer}}

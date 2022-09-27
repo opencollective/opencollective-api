@@ -9,6 +9,7 @@ import {
   fakeHost,
   fakeOrganization,
   fakeProject,
+  fakeTransaction,
   fakeUpdate,
   fakeUser,
   multiple,
@@ -41,6 +42,13 @@ const accountQuery = gqlV2/* GraphQL */ `
           id
           createdAt
           publishedAt
+        }
+      }
+      stats {
+        balance {
+          value
+          valueInCents
+          currency
         }
       }
     }
@@ -422,6 +430,42 @@ describe('server/graphql/v2/query/AccountQuery', () => {
       expect(updates[2]).to.containSubset({ publishedAt: new Date('2020-03-01'), createdAt: new Date('2020-01-01') });
       expect(updates[3]).to.containSubset({ publishedAt: new Date('2020-02-01'), createdAt: new Date('2020-05-01') });
       expect(updates[4]).to.containSubset({ publishedAt: new Date('2020-01-01'), createdAt: new Date('2020-01-01') });
+    });
+  });
+
+  describe('stats', () => {
+    describe('balance', () => {
+      it('returns the balance of the collective', async () => {
+        const collective = await fakeCollective({ currency: 'USD' });
+        const result1 = await graphqlQueryV2(accountQuery, { slug: collective.slug });
+        expect(result1.data.account.stats.balance.value).to.eq(0);
+        expect(result1.data.account.stats.balance.valueInCents).to.eq(0);
+        expect(result1.data.account.stats.balance.currency).to.eq('USD');
+
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, netAmountInCollectiveCurrency: 1000 });
+        const result2 = await graphqlQueryV2(accountQuery, { slug: collective.slug });
+        expect(result2.data.account.stats.balance.value).to.eq(10);
+        expect(result2.data.account.stats.balance.valueInCents).to.eq(1000);
+      });
+
+      it('works with big ints (> GRAPHQL_MAX_INT)', async () => {
+        const collective = await fakeCollective({ currency: 'USD' });
+        const GRAPHQL_MAX_INT = 2147483647;
+        await Promise.all(
+          times(3, () =>
+            fakeTransaction({
+              type: 'CREDIT',
+              CollectiveId: collective.id,
+              netAmountInCollectiveCurrency: GRAPHQL_MAX_INT,
+            }),
+          ),
+        );
+
+        const result = await graphqlQueryV2(accountQuery, { slug: collective.slug });
+        result.errors && console.error(result.errors);
+        expect(result.data.account.stats.balance.value).to.eq(64424509.41);
+        expect(result.data.account.stats.balance.valueInCents).to.eq(6442450941);
+      });
     });
   });
 });

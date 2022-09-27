@@ -495,13 +495,16 @@ export const fakeOrder = async (
       fakeTransaction({
         OrderId: order.id,
         type: 'CREDIT',
+        kind: 'CONTRIBUTION',
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
+        HostCollectiveId: collective.HostCollectiveId,
         amount: order.totalAmount,
       }),
       fakeTransaction({
         OrderId: order.id,
         type: 'DEBIT',
+        kind: 'CONTRIBUTION',
         CollectiveId: order.FromCollectiveId,
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,
