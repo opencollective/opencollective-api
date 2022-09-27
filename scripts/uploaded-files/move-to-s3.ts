@@ -10,11 +10,12 @@ import '../../server/env';
 import { Command } from 'commander';
 import config from 'config';
 import { last } from 'lodash';
-import fetch from 'node-fetch';
 import { v1 as uuid } from 'uuid';
 
 import { uploadToS3 } from '../../server/lib/awsS3';
+import { fetchWithTimeout } from '../../server/lib/fetch';
 import { isValidUploadedImage } from '../../server/lib/images';
+import { buildSanitizerOptions, SANITIZE_OPTIONS_ALL, sanitizeHTML } from '../../server/lib/sanitize-html';
 import models, { Op } from '../../server/models';
 
 const uploadImageToS3FromUrl = async url => {
@@ -24,7 +25,7 @@ const uploadImageToS3FromUrl = async url => {
     throw new Error('Could not figure out the extension for image', url);
   }
 
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url, { timeoutInMs: 20000 });
   if (response.status !== 200) {
     throw new Error('Failed to fetch');
   }
@@ -41,7 +42,7 @@ const uploadImageToS3FromUrl = async url => {
   return result.Location;
 };
 
-const replaceAllExternalImages = async (content: string, options): Promise<string> => {
+const replaceAllExternalImages = async (content: string, contentUrl: string, options): Promise<string> => {
   const imageMatches = content.matchAll(/<img\s.*?src=(?:'|")([^'">]+)(?:'|")/gi);
   const externalImages = Array.from(imageMatches || [])
     .map(match => match[1])
@@ -49,12 +50,11 @@ const replaceAllExternalImages = async (content: string, options): Promise<strin
     .filter(url => !isValidUploadedImage(url, { ignoreInNonProductionEnv: false }));
 
   if (!externalImages.length) {
-    console.log('No image to replace');
     return content;
   }
 
   if (!options.run) {
-    console.log(`Would have replaced ${Array.from(externalImages).join(', ')}`);
+    console.log(`On ${contentUrl}, the script would have replaced ${Array.from(externalImages).join(', ')}`);
     return content;
   }
 
@@ -73,7 +73,13 @@ const replaceAllExternalImages = async (content: string, options): Promise<strin
     }
   }
 
-  return newContent;
+  // Return the content, removing external images if --strip-failed is set
+  if (options['strip-failed']) {
+    const sanitizerOptions = buildSanitizerOptions({ ...SANITIZE_OPTIONS_ALL, imagesInternal: true });
+    return sanitizeHTML(newContent, sanitizerOptions);
+  } else {
+    return newContent;
+  }
 };
 
 const main = async options => {
@@ -98,8 +104,8 @@ const main = async options => {
   });
 
   for (const collective of collectives) {
-    console.log('Processing collective', collective.slug);
-    const newLongDescription = await replaceAllExternalImages(collective.longDescription, options);
+    const collectiveUrl = `${config.host.website}/${collective.slug}`;
+    const newLongDescription = await replaceAllExternalImages(collective.longDescription, collectiveUrl, options);
     if (newLongDescription !== collective.longDescription) {
       console.log('Updating collective', collective.slug);
       try {
@@ -112,6 +118,7 @@ const main = async options => {
 
   // Tiers
   const tiers = await models.Tier.findAll({
+    include: [{ model: models.Collective, as: 'Collective', required: true }],
     where: {
       CollectiveId: collective ? collective.id : { [Op.ne]: null },
       longDescription: { [Op.iRegexp]: postgresExternalImageRegex },
@@ -119,8 +126,8 @@ const main = async options => {
   });
 
   for (const tier of tiers) {
-    console.log('Processing tier', tier.slug);
-    const newLongDescription = await replaceAllExternalImages(tier.longDescription, options);
+    const tierUrl = `${config.host.website}/${tier.Collective.slug}/contribute/${tier.slug}-${tier.id}`;
+    const newLongDescription = await replaceAllExternalImages(tier.longDescription, tierUrl, options);
     if (newLongDescription !== tier.longDescription) {
       console.log('Updating tier', tier.slug);
       try {
@@ -133,6 +140,7 @@ const main = async options => {
 
   // Updates
   const updates = await models.Update.findAll({
+    include: [{ association: 'collective', required: true }],
     where: {
       CollectiveId: collective ? collective.id : { [Op.ne]: null },
       html: { [Op.iRegexp]: postgresExternalImageRegex },
@@ -140,8 +148,8 @@ const main = async options => {
   });
 
   for (const update of updates) {
-    console.log('Processing update', update.slug);
-    const newHTML = await replaceAllExternalImages(update.html, options);
+    const updateUrl = `${config.host.website}/${update.collective.slug}/updates/${update.slug}`;
+    const newHTML = await replaceAllExternalImages(update.html, updateUrl, options);
     if (newHTML !== update.html) {
       console.log('Updating update', update.slug);
       try {
@@ -157,6 +165,7 @@ const main = async options => {
 
 const options = new Command()
   .option('--run', 'Trigger the changes')
+  .option('--strip-failed', 'Will strip out all external images if one fails to be fetched')
   .option('--collective <collectiveSlug>', 'Only run for this collective')
   .parse()
   .opts();

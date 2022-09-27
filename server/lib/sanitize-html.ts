@@ -26,6 +26,20 @@ interface AllowedContentType {
   tables?: boolean;
 }
 
+/**
+ * A config to allow everything supported on RichTextEditor
+ */
+export const SANITIZE_OPTIONS_ALL: AllowedContentType = Object.freeze({
+  titles: true,
+  mainTitles: true,
+  basicTextFormatting: true,
+  multilineTextFormatting: true,
+  links: true,
+  images: true,
+  videoIframes: true,
+  tables: true,
+});
+
 interface SanitizeOptions {
   allowedTags: string[];
   allowedAttributes: Record<string, unknown>;
