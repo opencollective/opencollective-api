@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
+import moment from 'moment';
 import { createSandbox } from 'sinon';
 
-import { activities } from '../../../../../server/constants';
+import { activities, roles } from '../../../../../server/constants';
+import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
@@ -12,7 +14,9 @@ import {
   fakeEvent,
   fakeHost,
   fakeHostApplication,
+  fakeMember,
   fakeProject,
+  fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
@@ -77,9 +81,31 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
+const REMOVE_HOST_MUTATION = gqlV2/* GraphQL */ `
+  mutation UnhostAccount($account: AccountReferenceInput!, $message: String) {
+    removeHost(account: $account, message: $message) {
+      id
+      slug
+      name
+      ... on AccountWithHost {
+        host {
+          id
+        }
+      }
+    }
+  }
+`;
+
 describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
+  let rootUser;
+
   before(async () => {
     await resetTestDB();
+  });
+
+  before(async () => {
+    rootUser = await fakeUser();
+    await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: roles.ADMIN });
   });
 
   describe('processHostApplication', () => {
@@ -333,6 +359,183 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(memberInvitationActivities).to.have.length(2);
       expect(memberInvitationActivities[0].data.memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
       expect(memberInvitationActivities[1].data.memberCollective.name).to.eq('Another admin');
+    });
+  });
+
+  describe('removeHost', () => {
+    it('requires an account reference input', async () => {
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, {});
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Variable "$account" of required type "AccountReferenceInput!" was not provided.',
+      );
+    });
+
+    it('requires token with host scope', async () => {
+      const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, {
+        account: {
+          id: 'some id',
+        },
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage hosted accounts.');
+    });
+
+    it('results in error if account does not exist', async () => {
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: -1,
+          },
+        },
+        rootUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Account Not Found');
+    });
+
+    it('is successful if account already does not have a host', async () => {
+      const collective = await fakeCollective({ HostCollectiveId: null });
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: collective.id,
+          },
+        },
+        rootUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
+    });
+
+    it('removes the host from a hosted collective using a root user', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: collective.id,
+          },
+          message: 'root user',
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
+
+      const unhostingActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_UNHOSTED, CollectiveId: collective.id },
+      });
+      expect(unhostingActivity).to.exist;
+      expect(unhostingActivity.data.message).to.eq('root user');
+      expect(unhostingActivity.data.collective.id).to.eq(collective.id);
+      expect(unhostingActivity.data.host.id).to.eq(host.id);
+    });
+
+    it('validates if collective does not have a parent account', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const event = await fakeEvent({ ParentCollectiveId: collective.id });
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: event.id,
+          },
+          message: 'root user',
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        'Cannot unhost projects/events with a parent. Please unhost the parent instead.',
+      );
+    });
+
+    it('does not remove the the host from a hosted collective with non-zero balance', async () => {
+      const host = await fakeHost();
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+
+      const transactionProps = {
+        type: 'CREDIT',
+        kind: TransactionKind.CONTRIBUTION,
+        CollectiveId: collective.id,
+        currency: 'USD',
+        hostCurrency: 'USD',
+        HostCollectiveId: host.id,
+        createdAt: moment.utc(),
+      };
+
+      await fakeTransaction({
+        ...transactionProps,
+        kind: TransactionKind.CONTRIBUTION,
+        amount: 3000,
+        hostFeeInHostCurrency: -600,
+      });
+
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: collective.id,
+          },
+          message: 'non-zero balance',
+        },
+        rootUser,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Unable to change host: you still have a balance of $30.00');
+    });
+
+    it('validates if user is admin of target host collective', async () => {
+      const user = await fakeUser();
+      await fakeCollective({ admin: user });
+
+      const collectiveToBeUnhosted = await fakeCollective();
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: collectiveToBeUnhosted.id,
+          },
+          message: 'not admin of host',
+        },
+        user,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
+    });
+
+    it('removes the host from a hosted collective using host admin', async () => {
+      const user = await fakeUser();
+      const host = await fakeHost({ admin: user });
+      const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const result = await graphqlQueryV2(
+        REMOVE_HOST_MUTATION,
+        {
+          account: {
+            legacyId: collective.id,
+          },
+          message: 'using host admin',
+        },
+        user,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.removeHost.host).to.be.null;
+
+      const unhostingActivity = await models.Activity.findOne({
+        where: { type: activities.COLLECTIVE_UNHOSTED, CollectiveId: collective.id },
+      });
+      expect(unhostingActivity).to.exist;
+      expect(unhostingActivity.data.message).to.eq('using host admin');
+      expect(unhostingActivity.data.collective.id).to.eq(collective.id);
+      expect(unhostingActivity.data.host.id).to.eq(host.id);
     });
   });
 });

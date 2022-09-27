@@ -15,12 +15,8 @@ import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
-import {
-  checkRemoteUserCanRoot,
-  checkRemoteUserCanUseAccount,
-  checkRemoteUserCanUseHost,
-} from '../../common/scope-check';
-import { Forbidden, NotFound, ValidationFailed } from '../../errors';
+import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
+import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { ProcessHostApplicationAction } from '../enum/ProcessHostApplicationAction';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { InviteMemberInput } from '../input/InviteMemberInput';
@@ -171,23 +167,47 @@ const HostApplicationMutations = {
   },
   removeHost: {
     type: new GraphQLNonNull(Account),
-    description: '[Root only] Removes the host for an account',
+    description: 'Removes the host for an account',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'The account to unhost',
       },
+      message: {
+        type: GraphQLString,
+      },
     },
     resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
-      checkRemoteUserCanRoot(req);
+      checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+      if (account.ParentCollectiveId) {
+        throw new ValidationFailed(`Cannot unhost projects/events with a parent. Please unhost the parent instead.`);
+      }
+
       const host = await req.loaders.Collective.host.load(account.id);
       if (!host) {
-        throw new ValidationFailed('This account has no host');
+        return account;
+      }
+      if (!req.remoteUser.isAdminOfCollective(host) && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
+        throw new Unauthorized();
       }
 
       await account.changeHost(null);
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_UNHOSTED,
+        UserId: req.remoteUser?.id,
+        UserTokenId: req.userToken?.id,
+        CollectiveId: account.id,
+        HostCollectiveId: host.id,
+        data: {
+          collective: account.info,
+          host: host.info,
+          message: args.message,
+        },
+      });
+
       await Promise.all([purgeAllCachesForAccount(account), purgeAllCachesForAccount(host)]);
       return account.reload();
     },
