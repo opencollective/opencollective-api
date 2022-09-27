@@ -13,7 +13,7 @@ import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
-import { computeDatesAsISOStrings } from './utils';
+import { computeDatesAsISOStrings, ifStr } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;
@@ -1089,7 +1089,7 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
     LEFT JOIN "PayoutMethods" pm
       ON all_expenses."PayoutMethodId" = pm.id
     WHERE all_expenses.type NOT IN (:ignoredExpenseTypes)
-    ${accountIds?.length ? 'AND account.id IN (:accountIds)' : ''}
+    ${ifStr(accountIds?.length, 'AND account.id IN (:accountIds)')}
     AND account.id != d."HostCollectiveId"
     AND (account."HostCollectiveId" IS NULL OR account."HostCollectiveId" != d."HostCollectiveId") -- Ignore tax forms when the submitter is hosted by a host that has tax form enabled (OCF, OSC, OC)
     AND all_expenses.status NOT IN (:ignoredExpenseStatuses)
@@ -1134,9 +1134,9 @@ const getTransactionsTimeSeries = async (
          AND "HostCollectiveId" = :hostCollectiveId
          AND type = :type
          AND "deletedAt" IS NULL
-         ${collectiveIds ? `AND "CollectiveId" IN (:collectiveIds)` : ``}
-         ${startDate ? `AND "createdAt" >= :startDate` : ``}
-         ${endDate ? `AND "createdAt" <= :endDate` : ``}
+         ${ifStr(collectiveIds, `AND "CollectiveId" IN (:collectiveIds)`)}
+         ${ifStr(startDate, `AND "createdAt" >= :startDate`)}
+         ${ifStr(endDate, `AND "createdAt" <= :endDate`)}
        GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
        ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
       `,
