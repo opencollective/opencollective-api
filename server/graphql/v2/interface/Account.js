@@ -644,6 +644,10 @@ const accountFieldsDefinition = () => ({
       return models.Notification.findAll({ where });
     },
   },
+  permissions: {
+    type: new GraphQLNonNull(AccountPermissions),
+    description: 'Logged-in user permissions on an account',
+  },
 });
 
 export const Account = new GraphQLInterfaceType({
