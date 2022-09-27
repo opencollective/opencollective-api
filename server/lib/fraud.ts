@@ -1,17 +1,119 @@
 import config from 'config';
 import debugLib from 'debug';
 import { get } from 'lodash';
+import moment from 'moment';
 import validator from 'validator';
 
-import { BadRequest } from '../graphql/errors';
-import models from '../models';
+import { BadRequest, ValidationFailed } from '../graphql/errors';
+import models, { sequelize } from '../models';
 
 import cache from './cache';
-import { md5, sleep } from './utils';
+import logger from './logger';
+import { ifStr, md5, sleep } from './utils';
+
+const debug = debugLib('fraud');
+
+type FraudStats = { errorRate: number; numberOfOrders: number; paymentMethodRate: number };
 
 const ONE_HOUR_IN_SECONDS = 60 * 60;
 
-const debug = debugLib('fraud');
+const BASE_STATS_QUERY = `
+    SELECT
+        ROUND(COALESCE(AVG(CASE WHEN o."status" = 'ERROR' THEN 1 ELSE 0 END), 0), 5)::Float as "errorRate",
+        COUNT(*) as "numberOfOrders",
+        COALESCE(COUNT(DISTINCT CONCAT(pm."name", pm."data"->>'expYear'))::Float / NULLIF(COUNT(*),0), 0) as "paymentMethodRate"
+    FROM "Orders" o
+    LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
+`;
+
+export const getUserStats = async (user: typeof models.User, since?: Date): Promise<FraudStats> => {
+  return sequelize.query(
+    `
+    ${BASE_STATS_QUERY} 
+    WHERE o."CreatedByUserId" = :userId
+    AND pm."type" = 'creditcard'
+    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    `,
+    { replacements: { userId: user.id, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+  );
+};
+
+export const getEmailStats = async (domain: string, since?: Date): Promise<FraudStats> => {
+  return sequelize.query(
+    `
+    ${BASE_STATS_QUERY} 
+    LEFT JOIN "Users" u ON u."id" = o."CreatedByUserId"
+    WHERE LOWER(u."email") LIKE LOWER(:domain)
+    AND pm."type" = 'creditcard'
+    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    `,
+    { replacements: { domain, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+  );
+};
+
+export const getIpStats = async (ip: string, since?: Date): Promise<FraudStats> => {
+  return sequelize.query(
+    `
+    ${BASE_STATS_QUERY} 
+    WHERE o."data"->>'reqIp' LIKE :ip
+    AND pm."type" = 'creditcard'
+    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    `,
+    { replacements: { ip, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+  );
+};
+
+const makeStatLimitChecker = (stat: FraudStats) => (limitParams: number[]) => {
+  const statArray = [stat.numberOfOrders, stat.errorRate, stat.paymentMethodRate];
+  const fail = limitParams.every((limit, index) => limit <= statArray[index]);
+  debug(`Checking ${statArray.join()} below treshold ${limitParams.join()}: ${fail ? 'FAIL' : 'PASS'}`);
+  if (fail) {
+    throw new Error(`Stat ${statArray.join()} above treshold ${limitParams.join()}`);
+  }
+};
+
+export const validateStat = async (
+  statFn: (...any) => Promise<FraudStats>,
+  args: Array<any>,
+  limitParamsString: string,
+  errorMessage: string,
+) => {
+  const stats = await statFn(...args);
+  const assertLimit = makeStatLimitChecker(stats);
+  const limitParams = JSON.parse(limitParamsString);
+  try {
+    limitParams.forEach(assertLimit);
+  } catch (e) {
+    const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { stats, limitParams });
+    logger.warn(error.message);
+    throw error;
+  }
+};
+
+export const checkUser = (user: typeof models.User) =>
+  validateStat(
+    getUserStats,
+    [user, moment.utc().subtract(1, 'month').toDate()],
+    config.fraud.order.U1M,
+    `Fraud: User #${user.id} failed fraud protection`,
+  );
+
+export const checkIP = async (ip: string) =>
+  validateStat(
+    getIpStats,
+    [ip, moment.utc().subtract(5, 'days').toDate()],
+    config.fraud.order.I5D,
+    `Fraud: IP ${ip} failed fraud protection`,
+  );
+
+export const checkEmail = async (email: string) =>
+  validateStat(
+    getEmailStats,
+    [email, moment.utc().subtract(1, 'month').toDate()],
+    config.fraud.order.E1M,
+    `Fraud: email ${email} failed fraud protection`,
+  );
+
 const getOrdersLimit = (order: typeof models.Order, reqIp: string, reqMask: string) => {
   const limits = [];
 
@@ -87,7 +189,6 @@ export const checkOrdersLimit = async (order, reqIp, reqMask) => {
   const errorMessage = 'Your card was declined.';
 
   const limits = getOrdersLimit(order, reqIp, reqMask);
-
   for (const limit of limits) {
     const count = (await cache.get(limit.key)) || 0;
     debug(`${count} orders for limit '${limit.key}'`);

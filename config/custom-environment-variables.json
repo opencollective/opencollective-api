@@ -208,5 +208,12 @@
   },
   "twoFactorAuthentication": {
     "enabled": "TWO_FACTOR_AUTHENTICATION_ENABLED"
+  },
+  "fraud": {
+    "order": {
+      "U1M": "FRAUD_ORDER_U1M",
+      "E1M": "FRAUD_ORDER_E1M",
+      "I5D": "FRAUD_ORDER_I5D"
+    }
   }
 }
