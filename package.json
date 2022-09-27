@@ -101,7 +101,7 @@
     "node-fetch": "2.6.7",
     "node-slack": "0.0.7",
     "nodemailer": "6.7.8",
-    "p-queue": "6.6.2",
+    "p-queue": "7.3.0",
     "p-throttle": "4.1.1",
     "passport": "0.6.0",
     "passport-github": "1.1.0",
