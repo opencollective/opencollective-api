@@ -1,11 +1,12 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
+import OrderStatuses from '../../../../../server/constants/order_status';
 import roles from '../../../../../server/constants/roles';
 import { getTierFrequencyFromInterval } from '../../../../../server/graphql/v2/enum/TierFrequency';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models from '../../../../../server/models';
-import { fakeCollective, fakeMember, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeMember, fakeOrder, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const CREATE_TIER_MUTATION = gqlV2/* GraphQL */ `
@@ -28,8 +29,8 @@ const EDIT_TIER_MUTATION = gqlV2/* GraphQL */ `
 `;
 
 const DELETE_TIER_MUTATION = gqlV2/* GraphQL */ `
-  mutation DeleteTierMutation($tier: TierReferenceInput!) {
-    deleteTier(tier: $tier) {
+  mutation DeleteTierMutation($tier: TierReferenceInput!, $stopRecurringContributions: Boolean) {
+    deleteTier(tier: $tier, stopRecurringContributions: $stopRecurringContributions) {
       id
       legacyId
     }
@@ -183,6 +184,29 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
 
       const editedTier = await models.Tier.findByPk(result.data.deleteTier.legacyId);
       expect(editedTier).to.not.exist;
+    });
+
+    it('deletes tier stopping recurring contributions', async () => {
+      const tierWithRecurringContributions = await fakeTier({ CollectiveId: collective.id });
+      const order = await fakeOrder(
+        { status: OrderStatuses.ACTIVE, TierId: tierWithRecurringContributions.id },
+        { withSubscription: true, withTransactions: true },
+      );
+
+      const result = await graphqlQueryV2(
+        DELETE_TIER_MUTATION,
+        { tier: { legacyId: tierWithRecurringContributions.id }, stopRecurringContributions: true },
+        adminUser,
+      );
+      expect(result.errors).to.not.exist;
+      expect(result.data.deleteTier.legacyId).to.exist;
+
+      const editedTier = await models.Tier.findByPk(result.data.deleteTier.legacyId);
+      expect(editedTier).to.not.exist;
+
+      await order.reload();
+
+      expect(order.status).to.equal(OrderStatuses.CANCELLED);
     });
   });
 });
