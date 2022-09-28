@@ -4,11 +4,12 @@ import { get } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
+import OrderStatuses from '../constants/order_status';
 import status from '../constants/order_status';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
-import sequelize, { DataTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize } from '../lib/utils';
 
@@ -444,6 +445,48 @@ function defineModel() {
         return null;
       }
     });
+  };
+
+  /**
+   * Cancels all subscription orders in the given tier
+   */
+  Order.cancelActiveOrdersByTierId = function (tierId) {
+    return Order.update(
+      { status: OrderStatuses.CANCELLED },
+      {
+        where: {
+          TierId: tierId,
+          SubscriptionId: { [Op.not]: null },
+          status: {
+            [Op.not]: [OrderStatuses.PAID, OrderStatuses.CANCELLED, OrderStatuses.REJECTED, OrderStatuses.EXPIRED],
+          },
+        },
+      },
+    );
+  };
+
+  /**
+   * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
+   */
+  Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId) {
+    return sequelize.query(
+      `
+        UPDATE public."Orders" SET status = 'CANCELLED'
+        WHERE id IN (
+          SELECT "Orders".id FROM public."Orders"
+          INNER JOIN public."Subscriptions" ON "Subscriptions".id = "Orders"."SubscriptionId"
+          WHERE
+            "Orders".status NOT IN ('PAID', 'CANCELLED', 'REJECTED', 'EXPIRED') AND
+            "Subscriptions"."isManagedExternally" AND
+            "Subscriptions"."isActive" AND
+            "Orders"."CollectiveId" = ?
+        )
+      `,
+      {
+        type: QueryTypes.UPDATE,
+        replacements: [collectiveId],
+      },
+    );
   };
 
   Temporal(Order, sequelize);
