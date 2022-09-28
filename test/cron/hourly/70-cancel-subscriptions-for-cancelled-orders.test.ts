@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
-import { run as runCronJob } from '../../../cron/hourly/70-cancel-archived-accounts-subscriptions';
+import { run as runCronJob } from '../../../cron/hourly/70-cancel-subscriptions-for-cancelled-orders';
 import * as PaypalAPI from '../../../server/paymentProviders/paypal/api';
 import {
   fakeCollective,
@@ -37,7 +37,7 @@ const fakePayPalSubscriptionOrder = async collective => {
   );
 };
 
-describe('cron/hourly/70-cancel-archived-accounts-subscriptions', () => {
+describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
   let sandbox, host;
 
   before(async () => {
