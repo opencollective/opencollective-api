@@ -83,6 +83,7 @@ import userlib from '../lib/userlib';
 import { capitalize, cleanTags, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
+import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 
 const debug = debugLib('models:Collective');
@@ -2411,6 +2412,8 @@ function defineModel() {
         },
       });
     }
+
+    await Order.cancelNonTransferableActiveOrdersByCollectiveId(this.id);
 
     const virtualCards = await models.VirtualCard.findAll({ where: { CollectiveId: this.id } });
     await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
