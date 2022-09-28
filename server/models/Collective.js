@@ -2412,6 +2412,9 @@ function defineModel() {
       });
     }
 
+    const virtualCards = await models.VirtualCard.findAll({ where: { CollectiveId: this.id } });
+    await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
