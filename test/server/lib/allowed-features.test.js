@@ -37,7 +37,7 @@ describe('server/lib/allowed-features', () => {
     it('PROJECTS', () => {
       expect(isFeatureAllowedForCollectiveType('COLLECTIVE', FEATURE.PROJECTS)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.PROJECTS)).to.be.false;
-      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.PROJECTS, true)).to.be.false;
+      expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.PROJECTS, true)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.PROJECTS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.PROJECTS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.PROJECTS)).to.be.true;
@@ -68,7 +68,7 @@ describe('server/lib/allowed-features', () => {
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.COLLECTIVE_GOALS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.COLLECTIVE_GOALS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.COLLECTIVE_GOALS)).to.be.false;
-      expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.COLLECTIVE_GOALS)).to.be.false;
+      expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.COLLECTIVE_GOALS)).to.be.true;
     });
 
     it('TOP_FINANCIAL_CONTRIBUTORS', () => {
