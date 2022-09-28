@@ -514,8 +514,9 @@ export async function archiveCollective(_, args, req) {
   }
 
   // TODO: cascade deactivation to EVENTs and PROJECTs?
+  await collective.changeHost(null);
 
-  return collective.update({ isActive: false, deactivatedAt: Date.now(), approvedAt: null, HostCollectiveId: null });
+  return collective.update({ deactivatedAt: Date.now() });
 }
 
 export async function unarchiveCollective(_, args, req) {
