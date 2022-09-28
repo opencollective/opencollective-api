@@ -138,6 +138,21 @@ describe('sql/ban-collectives', () => {
     await expect(updates.byUserOnAnotherCollective).to.not.be.softDeleted;
   });
 
+  it('frees the slug of the collectives', async () => {
+    const { collective } = await createCollectiveWithData();
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+    const collectiveWithSameId = await models.Collective.findOne({ where: { id: collective.id }, paranoid: false });
+    const collectiveWithSameSlug = await models.Collective.findOne({
+      where: { slug: collective.slug },
+      paranoid: false,
+    });
+    expect(collectiveWithSameId).to.be.not.null;
+    expect(collectiveWithSameSlug).to.be.null;
+  });
+
   it('deletes all data from the user when banned', async () => {
     const { user, collective, event, updates, members } = await createCollectiveWithData();
     const [result] = await sequelize.query(banCollectivesQuery, {

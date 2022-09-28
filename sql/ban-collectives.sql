@@ -14,6 +14,7 @@ WITH banned_collectives AS (
   -- Delete the actual collectives and their events
   UPDATE ONLY "Collectives" c
   SET         "deletedAt" = NOW(),
+              "slug" = c.slug || '-' || extract(epoch from NOW())::text,
               data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
   FROM        banned_collectives
   WHERE       c."id" = banned_collectives.id
