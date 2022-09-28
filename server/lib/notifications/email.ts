@@ -20,15 +20,16 @@ import { replaceVideosByImagePreviews } from './utils';
 const debug = debugLib('notifications');
 
 type NotifySubscribersOptions = {
-  template?: string;
+  attachments?: any[];
+  bcc?: string;
+  cc?: string;
+  collective?: typeof models.Collective;
+  exclude?: number[];
   from?: string;
   replyTo?: string;
-  bcc?: string;
-  collective?: typeof models.Collective;
   sendEvenIfNotProduction?: boolean;
-  attachments?: any[];
+  template?: string;
   to?: string;
-  exclude?: number[];
   unsubscribed?: Array<typeof models.User>;
 };
 
@@ -413,7 +414,11 @@ export const notifyByEmail = async (activity: Activity) => {
         }
         break;
       }
-      await notify.collective(activity, { collectiveId: activity.data.collective.id });
+      const HostCollectiveId = await collective.getHostCollectiveId();
+      await notify.collective(activity, {
+        collectiveId: activity.data.collective.id,
+        cc: (HostCollectiveId) ? HostCollectiveId : 'no-reply@opencollective.com',
+      });
       break;
 
     case ActivityTypes.COLLECTIVE_REJECTED:
@@ -421,7 +426,9 @@ export const notifyByEmail = async (activity: Activity) => {
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         break;
       }
+      const HostCollectiveId = await collective.getHostCollectiveId();
       await notify.collective(activity, {
+        cc: (HostCollectiveId) ? HostCollectiveId : 'no-reply@opencollective.com',
         collectiveId: activity.data.collective.id,
         template: 'collective.rejected',
         replyTo: `no-reply@opencollective.com`,
