@@ -68,7 +68,7 @@ describe('server/lib/allowed-features', () => {
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.COLLECTIVE_GOALS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.COLLECTIVE_GOALS)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.COLLECTIVE_GOALS)).to.be.false;
-      expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.COLLECTIVE_GOALS)).to.be.false;
+      expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.COLLECTIVE_GOALS)).to.be.true;
     });
 
     it('TOP_FINANCIAL_CONTRIBUTORS', () => {
