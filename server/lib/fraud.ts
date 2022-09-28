@@ -77,6 +77,7 @@ export const validateStat = async (
   args: Array<any>,
   limitParamsString: string,
   errorMessage: string,
+  options?: { onFail: () => Promise<void> },
 ) => {
   const stats = await statFn(...args);
   const assertLimit = makeStatLimitChecker(stats);
@@ -86,6 +87,7 @@ export const validateStat = async (
   } catch (e) {
     const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { stats, limitParams });
     logger.warn(error.message);
+    options?.onFail?.().catch(logger.error);
     throw error;
   }
 };
@@ -96,6 +98,11 @@ export const checkUser = (user: typeof models.User) =>
     [user, moment.utc().subtract(1, 'month').toDate()],
     config.fraud.order.U1M,
     `Fraud: User #${user.id} failed fraud protection`,
+    {
+      onFail: async () => {
+        await user.limitAccount('User failed fraud protection.');
+      },
+    },
   );
 
 export const checkIP = async (ip: string) =>
@@ -113,6 +120,14 @@ export const checkEmail = async (email: string) =>
     config.fraud.order.E1M,
     `Fraud: email ${email} failed fraud protection`,
   );
+
+export const orderFraudProtection = async req => {
+  const { remoteUser } = req;
+
+  if (remoteUser) {
+    await checkUser(remoteUser);
+  }
+};
 
 const getOrdersLimit = (order: typeof models.Order, reqIp: string, reqMask: string) => {
   const limits = [];

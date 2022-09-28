@@ -15,7 +15,7 @@ import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
-import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/fraud';
+import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit, orderFraudProtection } from '../../../lib/fraud';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
@@ -238,6 +238,7 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
+  await orderFraudProtection(req);
 
   let orderCreated, isGuest, guestToken;
   try {
