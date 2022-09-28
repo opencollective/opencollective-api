@@ -73,7 +73,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttri
         await privacyVirtualCards.deleteCard(this);
         break;
       default:
-        throw new Error(`Can not resume virtual card provided by ${this.provider}`);
+        throw new Error(`Can not delete virtual card provided by ${this.provider}`);
     }
 
     await this.destroy();
