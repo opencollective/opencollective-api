@@ -9,6 +9,7 @@ import {
   isBoolean,
   isEqual,
   isNil,
+  isNumber,
   keyBy,
   mapValues,
   omitBy,
@@ -1607,32 +1608,6 @@ export const getExpenseFees = async (
   return { feesInCollectiveCurrency: resultFees, feesInHostCurrency, feesInExpenseCurrency };
 };
 
-const generateInsufficientBalanceErrorMessage = ({
-  object,
-  balance,
-  currency,
-  expenseAmount,
-  isSameCurrency,
-  fees = 0,
-  feesName = '',
-}) => {
-  let msg = `Collective does not have enough funds to ${object}.`;
-  msg += ` Current balance: ${formatCurrency(balance, currency)}`;
-  msg += `, Expense amount: ${formatCurrency(expenseAmount, currency)}`;
-  if (fees) {
-    msg += `, Estimated ${feesName} fees: ${formatCurrency(fees, currency)}`;
-  }
-
-  if (!isSameCurrency) {
-    msg += `. For expenses submitted in a different currency than the collective, an error margin of 20% is applied. The maximum amount that can be paid is ${formatCurrency(
-      Math.round(balance / 1.2),
-      currency,
-    )}`;
-  }
-
-  return msg;
-};
-
 /**
  * Check if the collective balance is enough to pay the expense. Throws if not.
  */
@@ -1643,25 +1618,56 @@ export const checkHasBalanceToPayExpense = async (
   { forceManual = false, manualFees = {}, useExistingWiseData = false } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
-  const balanceInExpenseCurrency = await expense.collective.getBalanceWithBlockedFunds({ currency: expense.currency });
+  const balanceInCollectiveCurrency = await expense.collective.getBalanceWithBlockedFunds();
   const isSameCurrency = expense.currency === expense.collective.currency;
+  const exchangeStats =
+    !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
-  // Ensure the collective has enough funds to pay the expense, with an error margin of 20% of the expense amount
-  // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  const getMinExpectedBalance = amountToPay => (isSameCurrency ? amountToPay : Math.round(amountToPay * 1.2));
+  // Ensure the collective has enough funds to pay the expense, with an error margin of 2σ (standard deviations) the exchange rate of past 5 days
+  // to account for fluctuating rates. If no exchange rate is available, fallback to the 20% rule.
+  const assertMinExpectedBalance = (amountToPayInExpenseCurrency, feesInExpenseCurrency?) => {
+    let defaultErrorMessage = `Collective does not have enough funds ${
+      feesInExpenseCurrency ? 'to cover for the fees of this payment method' : 'to pay this expense'
+    }. Current balance: ${formatCurrency(
+      balanceInCollectiveCurrency,
+      expense.collective.currency,
+    )}, Expense amount: ${formatCurrency(expense.amount, expense.currency)}`;
+    if (feesInExpenseCurrency) {
+      defaultErrorMessage += `, Estimated ${payoutMethodType} fees: ${formatCurrency(
+        feesInExpenseCurrency,
+        expense.currency,
+      )}`;
+    }
+    if (isSameCurrency) {
+      if (balanceInCollectiveCurrency < amountToPayInExpenseCurrency) {
+        throw new ValidationFailed(`${defaultErrorMessage}.`);
+      }
+    } else if (isNumber(exchangeStats?.latestRate)) {
+      const rate = exchangeStats.latestRate - exchangeStats.stddev * 2;
+      const safeAmount = Math.round(amountToPayInExpenseCurrency / rate);
+      if (balanceInCollectiveCurrency < safeAmount) {
+        throw new ValidationFailed(
+          `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
+            Math.round(balanceInCollectiveCurrency * rate),
+            expense.currency,
+          )}.`,
+        );
+      }
+    } else {
+      const safeAmount = Math.round(amountToPayInExpenseCurrency * 1.2);
+      if (balanceInCollectiveCurrency < safeAmount) {
+        throw new ValidationFailed(
+          `${defaultErrorMessage}. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is ${formatCurrency(
+            Math.round(balanceInCollectiveCurrency / 1.2),
+            expense.collective.currency,
+          )}.`,
+        );
+      }
+    }
+  };
 
   // Check base balance before fees
-  if (balanceInExpenseCurrency < getMinExpectedBalance(expense.amount)) {
-    throw new Unauthorized(
-      generateInsufficientBalanceErrorMessage({
-        object: 'pay this expense',
-        balance: balanceInExpenseCurrency,
-        currency: expense.currency,
-        expenseAmount: expense.amount,
-        isSameCurrency,
-      }),
-    );
-  }
+  assertMinExpectedBalance(expense.amount);
 
   const { feesInHostCurrency, feesInCollectiveCurrency, feesInExpenseCurrency } = await getExpenseFees(expense, host, {
     fees: manualFees,
@@ -1691,19 +1697,7 @@ export const checkHasBalanceToPayExpense = async (
 
   // Ensure the collective has enough funds to cover the fees for this expense, with an error margin of 20% of the expense amount
   // to account for fluctuating rates. Example: to pay for a $100 expense in euros, the collective needs to have at least $120.
-  if (balanceInExpenseCurrency < getMinExpectedBalance(totalAmountToPay)) {
-    throw new Error(
-      generateInsufficientBalanceErrorMessage({
-        object: 'cover for the fees of this payment method',
-        balance: balanceInExpenseCurrency,
-        currency: expense.currency,
-        expenseAmount: expense.amount,
-        isSameCurrency,
-        fees: feesInExpenseCurrency.paymentProcessorFee,
-        feesName: payoutMethodType,
-      }),
-    );
-  }
+  assertMinExpectedBalance(totalAmountToPay, feesInExpenseCurrency.paymentProcessorFee);
 
   return { feesInCollectiveCurrency, feesInExpenseCurrency, feesInHostCurrency, totalAmountToPay };
 };

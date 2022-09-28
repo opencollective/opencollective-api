@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import moment from 'moment';
 
 import { CurrencyExchangeRate } from '../../../server/models/CurrencyExchangeRate';
 import { fakeCurrencyExchangeRate } from '../../test-helpers/fake-data';
@@ -45,6 +46,23 @@ describe('server/models/CurrencyExchangeRate', () => {
       const usdToNzd = result.find(rate => rate.to === 'NZD');
       expect(usdToNzd).to.exist;
       expect(usdToNzd.rate).to.equal(rates[3].rate);
+    });
+  });
+
+  describe('getPairStats', () => {
+    it('returns up-to-date currency exchange stats', async () => {
+      await Promise.all([
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.0, createdAt: moment().subtract(3, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment().subtract(2, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.2, createdAt: moment().subtract(1, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment() }),
+      ]);
+      const stats = await CurrencyExchangeRate.getPairStats('USD', 'BRL');
+
+      expect(stats).to.have.property('latestRate', 5.1);
+      expect(stats).to.have.property('stddev');
+      expect(stats).to.have.property('from');
+      expect(stats).to.have.property('to');
     });
   });
 });

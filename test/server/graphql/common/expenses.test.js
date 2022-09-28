@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import moment from 'moment';
 
 import { expenseStatus } from '../../../../server/constants';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
@@ -18,12 +19,22 @@ import {
   canSeeExpensePayoutMethod,
   canUnapprove,
   canUnschedulePayment,
+  checkHasBalanceToPayExpense,
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
 } from '../../../../server/graphql/common/expenses';
 import { createTransactionsFromPaidExpense } from '../../../../server/lib/transactions';
+import models from '../../../../server/models';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
-import { fakeCollective, fakeExpense, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeCurrencyExchangeRate,
+  fakeExpense,
+  fakeHost,
+  fakePayoutMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import { getApolloErrorCode, makeRequest } from '../../../utils';
 
 describe('server/graphql/common/expenses', () => {
@@ -649,6 +660,75 @@ describe('server/graphql/common/expenses', () => {
           });
         });
       });
+    });
+  });
+
+  describe('checkHasBalanceToPayExpense', () => {
+    let host, collective, payoutMethod;
+    before(async () => {
+      host = await fakeHost({ currency: 'USD' });
+      collective = await fakeCollective({ currency: 'USD', HostCollectiveId: host.id });
+      payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+      await fakeTransaction({
+        type: 'CREDIT',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        amount: 1000 * 100,
+      });
+      await models.CurrencyExchangeRate.destroy({ where: { to: ['BRL', 'EUR'] } });
+      await Promise.all([
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.0, createdAt: moment().subtract(3, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment().subtract(2, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.2, createdAt: moment().subtract(1, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'BRL', rate: 5.1, createdAt: moment() }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 1, createdAt: moment().subtract(3, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 1.1, createdAt: moment().subtract(2, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 1.15, createdAt: moment().subtract(1, 'days') }),
+        fakeCurrencyExchangeRate({ from: 'USD', to: 'EUR', rate: 1.05, createdAt: moment() }),
+      ]);
+    });
+
+    it('throws if the collective has not enough balance to cover for the expense', async () => {
+      const expense = await fakeExpense({
+        currency: 'USD',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: payoutMethod.CollectiveId,
+        amount: 100001,
+      });
+
+      await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.rejectedWith(
+        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: $1,000.01',
+      );
+    });
+
+    it('throws if the collective has not enough balance to cover for the exchange rate variance', async () => {
+      let expense = await fakeExpense({
+        currency: 'BRL',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: payoutMethod.CollectiveId,
+        amount: 500000,
+      });
+
+      await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.rejectedWith(
+        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: R$5,000.00. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is R$4,936.70',
+      );
+
+      expense = await fakeExpense({
+        currency: 'EUR',
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        PayoutMethodId: payoutMethod.id,
+        FromCollectiveId: payoutMethod.CollectiveId,
+        amount: 500000,
+      });
+
+      await expect(checkHasBalanceToPayExpense(host, expense, payoutMethod)).to.be.rejectedWith(
+        'Collective does not have enough funds to pay this expense. Current balance: $1,000.00, Expense amount: €5,000.00. For expenses submitted in a different currency than the collective, an error margin is applied to accommodate for fluctuations. The maximum amount that can be paid is €920.90',
+      );
     });
   });
 });
