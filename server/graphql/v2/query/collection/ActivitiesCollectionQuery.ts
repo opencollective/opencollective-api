@@ -65,6 +65,13 @@ const ActivitiesCollectionQuery = {
 
     const accounts = await fetchAccountsWithReferences(args.account, { throwIfMissing: true });
 
+    // Sanity checks for performance
+    if (args.includeHostedAccounts && accounts.length > 1) {
+      throw new Error('Cannot retrieve hosted accounts activity for multiple hosts at the same time');
+    } else if (args.includeChildrenAccounts && accounts.length > 100) {
+      throw new Error('Cannot retrieve children accounts activity for more than 100 accounts at the same time');
+    }
+
     // Check permissions
     checkRemoteUserCanUseAccount(req);
     const isRootUser = req.remoteUser.isRoot();
