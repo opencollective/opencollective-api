@@ -1,11 +1,18 @@
 import { expect } from 'chai';
 import config from 'config';
 
-import { checkEmail, checkIP, checkUser, getEmailStats, getIpStats, getUserStats } from '../../../server/lib/fraud';
-import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
+import {
+  checkEmail,
+  checkIP,
+  checkUser,
+  getEmailStats,
+  getIpStats,
+  getUserStats,
+} from '../../../../server/lib/security/fraud';
+import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../../test-helpers/fake-data';
+import { resetTestDB } from '../../../utils';
 
-describe('lib/fraud', () => {
+describe('lib/security/fraud', () => {
   let user;
   before(async () => {
     await resetTestDB();
