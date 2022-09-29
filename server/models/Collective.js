@@ -894,6 +894,9 @@ function defineModel() {
         if (this.longDescription) {
           description += `\n\n${this.longDescription}`;
         }
+        if (this.data?.privateInstructions) {
+          description += `\n\n${this.data.privateInstructions}`;
+        }
         let location = this.location.name || '';
         if (this.location.address) {
           location += `, ${this.location.address}`;
