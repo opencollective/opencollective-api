@@ -72,7 +72,7 @@ const ActivitiesCollectionQuery = {
     const where = { [Op.or]: accountOrConditions };
     const include = [];
     for (const account of accounts) {
-      if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
+      if (isRootUser || req.remoteUser.isAdminOfCollectiveOrHost(account)) {
         // Include all activities related to the account itself
         if (!args.excludeParentAccount) {
           accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
