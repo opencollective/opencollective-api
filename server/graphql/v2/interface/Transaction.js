@@ -562,7 +562,10 @@ export const TransactionFields = () => {
         }
 
         if (transaction.kind === TransactionKinds.EXPENSE) {
-          const expense = transaction.expense || (await req.loaders.Expense.byId.load(transaction.ExpenseId));
+          let expense = transaction.expense;
+          if (!expense && transaction.ExpenseId) {
+            expense = await req.loaders.Expense.byId.load(transaction.ExpenseId);
+          }
 
           const wiseId = transaction.data?.transfer?.id;
           // TODO: PayPal Adaptive is missing
