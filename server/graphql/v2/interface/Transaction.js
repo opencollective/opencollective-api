@@ -548,7 +548,7 @@ export const TransactionFields = () => {
     merchantId: {
       type: GraphQLString,
       description: 'Merchant id related to the Transaction (Stripe, PayPal, Wise, Privacy)',
-      resolve(transaction, _, req) {
+      async resolve(transaction, _, req) {
         if (!req.remoteUser || !req.remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], transaction.HostCollectiveId)) {
           return;
         }
@@ -562,13 +562,18 @@ export const TransactionFields = () => {
         }
 
         if (transaction.kind === TransactionKinds.EXPENSE) {
+          const expense = transaction.expense || (await req.loaders.Expense.byId.load(transaction.ExpenseId));
+
           const wiseId = transaction.data?.transfer?.id;
           // TODO: PayPal Adaptive is missing
           // https://github.com/opencollective/opencollective/issues/4891
           const paypalPayoutId = transaction.data?.transaction_id;
           const privacyId = transaction.data?.token;
 
-          return wiseId || paypalPayoutId || privacyId;
+          // NOTE: We don't have transaction?.data?.transaction stored for transactions < 2022-09-27, but we have it available in expense.data
+          const stripeVirtualCardId = transaction?.data?.transaction?.id || expense?.data?.transactionId;
+
+          return wiseId || paypalPayoutId || privacyId || stripeVirtualCardId;
         }
       },
     },

@@ -277,6 +277,7 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
     incurredAt: new Date(stripeTransaction.created * 1000),
     isRefund,
     fromAuthorizationId: stripeTransaction.authorization,
+    data: { transaction: stripeTransaction },
   });
 };
 
