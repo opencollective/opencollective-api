@@ -133,7 +133,7 @@
     "@babel/plugin-transform-typescript": "^7.17.12",
     "@babel/register": "^7.16.0",
     "@types/lodash": "^4.14.171",
-    "@types/mocha": "^9.0.0",
+    "@types/mocha": "^10.0.0",
     "@types/node": "^16.0.0",
     "@types/nodemailer": "^6.4.4",
     "@types/validator": "^13.7.1",
