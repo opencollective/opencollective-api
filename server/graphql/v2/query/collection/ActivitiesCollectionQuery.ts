@@ -74,34 +74,39 @@ const ActivitiesCollectionQuery = {
 
     // Check permissions
     checkRemoteUserCanUseAccount(req);
-    const isRootUser = req.remoteUser.isRoot();
+    const isRoot = req.remoteUser.isRoot();
+
+    // Build accounts conditions
     const accountOrConditions = [];
     const where = { [Op.or]: accountOrConditions };
-    const include = [];
-    for (const account of accounts) {
-      if (isRootUser || req.remoteUser.isAdminOfCollective(account)) {
-        // Include all activities related to the account itself
-        if (!args.excludeParentAccount) {
-          accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
-        }
+    const allowedAccounts = isRoot ? accounts : accounts.filter(a => req.remoteUser.isAdminOfCollectiveOrHost(a));
+    for (const account of allowedAccounts) {
+      // Include all activities related to the account itself
+      if (!args.excludeParentAccount) {
+        accountOrConditions.push({ CollectiveId: account.id }, { FromCollectiveId: account.id });
+      }
 
-        // Include all activities related to the account's children
-        if (args.includeChildrenAccounts) {
-          accountOrConditions.push({ '$Collective.ParentCollectiveId$': account.id });
-          if (include.length === 0) {
-            include.push({ model: models.Collective, attributes: [], required: true });
-          }
-        }
-
-        // Include all activities related to the account's hosted collectives
-        if (args.includeHostedAccounts && account.isHostAccount) {
-          accountOrConditions.push({ HostCollectiveId: account.id });
-        }
+      // Include all activities related to the account's hosted collectives
+      if (args.includeHostedAccounts && account.isHostAccount) {
+        accountOrConditions.push({ HostCollectiveId: account.id });
       }
     }
 
     if (accountOrConditions.length === 0) {
       return { nodes: null, totalCount: 0, limit, offset };
+    }
+
+    // Include all activities related to the account's children
+    if (args.includeChildrenAccounts) {
+      const parentIds = uniq(allowedAccounts.map(account => account.id));
+      const childrenAccounts = await models.Collective.findAll({
+        attributes: ['id'],
+        where: { ParentCollectiveId: parentIds, id: { [Op.notIn]: parentIds } },
+      });
+
+      childrenAccounts.forEach(childAccount => {
+        accountOrConditions.push({ CollectiveId: childAccount.id }, { FromCollectiveId: childAccount.id });
+      });
     }
 
     if (args.dateFrom) {
@@ -118,7 +123,7 @@ const ActivitiesCollectionQuery = {
     }
 
     const order: Order = [['createdAt', 'DESC']];
-    const result = await models.Activity.findAndCountAll({ where, include, order, offset, limit });
+    const result = await models.Activity.findAndCountAll({ where, order, offset, limit });
     return {
       nodes: result.rows,
       totalCount: result.count,
