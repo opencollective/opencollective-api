@@ -17,7 +17,7 @@ export const validateTags = (tags: string[] | null, { maxNbTags = 30, maxTagLeng
       if (tag.length === 0) {
         throw new Error("Can't add empty tags");
       } else if (tag.length > maxTagLength) {
-        throw new Error(`Tag ${tag} is too long, must me shorter than 32 characters`);
+        throw new Error(`Tag ${tag} is too long, must be shorter than 32 characters`);
       }
     });
   }
