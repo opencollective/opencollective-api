@@ -2719,7 +2719,7 @@ function defineModel() {
     const paymentMethod = await models.PaymentMethod.findOne(query);
     if (!paymentMethod) {
       throw new Error('No payment method found');
-    } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
+    } else if (paymentMethod.expiryDate && paymentMethod.expiryDate < new Date()) {
       throw new Error('Payment method expired');
     }
     return paymentMethod;
