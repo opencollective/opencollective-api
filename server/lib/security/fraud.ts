@@ -1,9 +1,12 @@
 import config from 'config';
 import debugLib from 'debug';
+import Express from 'express';
+import { toLower, toString } from 'lodash';
 import moment from 'moment';
 
 import { ValidationFailed } from '../../graphql/errors';
 import models, { sequelize } from '../../models';
+import SuspendedAsset, { AssetType } from '../../models/SuspendedAsset';
 import logger from '../logger';
 import { ifStr } from '../utils';
 
@@ -32,16 +35,16 @@ export const getUserStats = async (user: typeof models.User, since?: Date): Prom
   );
 };
 
-export const getEmailStats = async (domain: string, since?: Date): Promise<FraudStats> => {
+export const getEmailStats = async (email: string, since?: Date): Promise<FraudStats> => {
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
     LEFT JOIN "Users" u ON u."id" = o."CreatedByUserId"
-    WHERE LOWER(u."email") LIKE LOWER(:domain)
+    WHERE LOWER(u."email") LIKE LOWER(:email)
     AND pm."type" = 'creditcard'
     ${ifStr(since, 'AND o."createdAt" >= :since')}
     `,
-    { replacements: { domain, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { email, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
@@ -71,8 +74,11 @@ export const validateStat = async (
   args: Parameters<typeof getUserStats | typeof getIpStats | typeof getEmailStats>,
   limitParamsString: string,
   errorMessage: string,
-  options?: { onFail: () => Promise<void> },
+  options?: { onFail?: (error?: Error) => Promise<void>; preCheck?: () => Promise<void> },
 ) => {
+  if (options?.preCheck) {
+    await options.preCheck();
+  }
   const stats = await statFn(...args);
   const assertLimit = makeStatLimitChecker(stats);
   const limitParams = JSON.parse(limitParamsString);
@@ -81,44 +87,91 @@ export const validateStat = async (
   } catch (e) {
     const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { stats, limitParams });
     logger.warn(error.message);
-    options?.onFail?.().catch(logger.error);
+    options?.onFail?.(error).catch(logger.error);
     throw error;
   }
 };
 
-export const checkUser = (user: typeof models.User) =>
-  validateStat(
+export const checkUser = (user: typeof models.User) => {
+  const assetParams = { type: AssetType.USER, fingerprint: toString(user.id) };
+  return validateStat(
     getUserStats,
     [user, moment.utc().subtract(1, 'month').toDate()],
     config.fraud.order.U1M,
     `Fraud: User #${user.id} failed fraud protection`,
     {
-      onFail: async () => {
+      onFail: async error => {
+        await SuspendedAsset.create({
+          ...assetParams,
+          reason: error.message,
+        });
         await user.limitAccount('User failed fraud protection.');
+      },
+      preCheck: async () => {
+        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
       },
     },
   );
+};
 
-export const checkIP = async (ip: string) =>
-  validateStat(
+export const checkIP = async (ip: string) => {
+  const assetParams = { type: AssetType.IP, fingerprint: ip };
+  return validateStat(
     getIpStats,
     [ip, moment.utc().subtract(5, 'days').toDate()],
     config.fraud.order.I5D,
     `Fraud: IP ${ip} failed fraud protection`,
+    {
+      onFail: async error => {
+        await SuspendedAsset.create({
+          ...assetParams,
+          reason: error.message,
+        });
+      },
+      preCheck: async () => {
+        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
+      },
+    },
   );
+};
 
-export const checkEmail = async (email: string) =>
-  validateStat(
+export const checkEmail = async (email: string) => {
+  const assetParams = { type: AssetType.EMAIL_ADDRESS, fingerprint: toLower(email) };
+  return validateStat(
     getEmailStats,
     [email, moment.utc().subtract(1, 'month').toDate()],
     config.fraud.order.E1M,
     `Fraud: email ${email} failed fraud protection`,
+    {
+      onFail: async error => {
+        await SuspendedAsset.create({
+          ...assetParams,
+          reason: error.message,
+        });
+      },
+      preCheck: async () => {
+        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
+      },
+    },
   );
+};
 
-export const orderFraudProtection = async req => {
-  const { remoteUser } = req;
+export const orderFraudProtection = async (
+  req: Express.Request,
+  order: { [key: string]: unknown; guestInfo?: { email?: string } },
+) => {
+  const { remoteUser, ip } = req;
+  const checks = [];
+
+  if (ip) {
+    checks.push(checkIP(ip));
+  }
 
   if (remoteUser) {
-    await checkUser(remoteUser);
+    checks.push(checkUser(remoteUser));
+  } else if (order?.guestInfo?.email) {
+    checks.push(checkEmail(order.guestInfo.email));
   }
+
+  await Promise.all(checks);
 };

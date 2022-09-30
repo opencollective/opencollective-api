@@ -239,7 +239,7 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
-  await orderFraudProtection(req);
+  await orderFraudProtection(req, order);
 
   let orderCreated, isGuest, guestToken;
   try {
