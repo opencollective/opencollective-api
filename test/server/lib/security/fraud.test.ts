@@ -192,7 +192,7 @@ describe('lib/security/fraud', () => {
           service: 'stripe',
           CollectiveId: remoteUser.collective.id,
           name: '4242',
-          data: { expYear: 2022 },
+          data: { expYear: 2022, expMonth: 13, country: 'US' },
         });
         await multiple(fakeOrder, 5, { status: 'ERROR', PaymentMethodId: pm.id, CreatedByUserId: remoteUser.id });
         await expect(orderFraudProtection({ remoteUser } as Express.Request, {})).to.be.rejectedWith(
@@ -223,6 +223,29 @@ describe('lib/security/fraud', () => {
         await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith(
           'EMAIL_ADDRESS is suspended',
         );
+      });
+    });
+
+    describe('credit card verification', () => {
+      const order = {
+        paymentMethod: {
+          name: '4242',
+          type: 'creditcard',
+          creditCardInfo: { expYear: 2022, expMonth: 13, country: 'US' },
+        },
+      };
+      before(() => {
+        config.fraud.order.C1M = '[[5, 0.8, 0.2]]';
+      });
+
+      it('should throw if donation comes from a guest-user from the same email', async () => {
+        await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith(
+          'Credit Card 4242-2022-13-US failed fraud protection',
+        );
+      });
+
+      it('should throw if user email is already suspended', async () => {
+        await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith('CREDIT_CARD is suspended');
       });
     });
   });

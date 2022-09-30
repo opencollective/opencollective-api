@@ -60,6 +60,29 @@ export const getIpStats = async (ip: string, since?: Date): Promise<FraudStats> 
   );
 };
 
+export const getCreditCardStats = async (
+  { name, expYear, expMonth, country }: { name: string; expYear: number; expMonth: number; country: string },
+  since?: Date,
+): Promise<FraudStats> => {
+  return sequelize.query(
+    `
+    ${BASE_STATS_QUERY} 
+    WHERE pm."type" = 'creditcard'
+    AND pm."name" = :name
+    AND pm."data"->>'expYear' = :expYear
+    AND pm."data"->>'expMonth' = :expMonth
+    AND pm."data"->>'country' = :country
+    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    `,
+    {
+      replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, since },
+      type: sequelize.QueryTypes.SELECT,
+      raw: true,
+      plain: true,
+    },
+  );
+};
+
 const makeStatLimitChecker = (stat: FraudStats) => (limitParams: number[]) => {
   const statArray = [stat.numberOfOrders, stat.errorRate, stat.paymentMethodRate];
   const fail = limitParams.every((limit, index) => limit <= statArray[index]);
@@ -114,6 +137,34 @@ export const checkUser = (user: typeof models.User) => {
   );
 };
 
+export const checkCreditCard = async (paymentMethod: {
+  name: string;
+  creditCardInfo?: { expYear: number; expMonth: number; country: string };
+}) => {
+  const { name, creditCardInfo } = paymentMethod;
+  const assetParams = {
+    type: AssetType.CREDIT_CARD,
+    fingerprint: [name, ...Object.values(creditCardInfo)].join('-'),
+  };
+  return validateStat(
+    getCreditCardStats,
+    [{ name, ...creditCardInfo }, moment.utc().subtract(1, 'month').toDate()],
+    config.fraud.order.C1M,
+    `Fraud: Credit Card ${assetParams.fingerprint} failed fraud protection`,
+    {
+      onFail: async error => {
+        await SuspendedAsset.create({
+          ...assetParams,
+          reason: error.message,
+        });
+      },
+      preCheck: async () => {
+        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
+      },
+    },
+  );
+};
+
 export const checkIP = async (ip: string) => {
   const assetParams = { type: AssetType.IP, fingerprint: ip };
   return validateStat(
@@ -158,13 +209,25 @@ export const checkEmail = async (email: string) => {
 
 export const orderFraudProtection = async (
   req: Express.Request,
-  order: { [key: string]: unknown; guestInfo?: { email?: string } },
+  order: {
+    [key: string]: unknown;
+    guestInfo?: { email?: string };
+    paymentMethod?: {
+      type: string;
+      name: string;
+      creditCardInfo?: { expYear: number; expMonth: number; country: string };
+    };
+  },
 ) => {
   const { remoteUser, ip } = req;
   const checks = [];
 
   if (ip) {
     checks.push(checkIP(ip));
+  }
+
+  if (order.paymentMethod?.creditCardInfo) {
+    checks.push(checkCreditCard(order.paymentMethod));
   }
 
   if (remoteUser) {
