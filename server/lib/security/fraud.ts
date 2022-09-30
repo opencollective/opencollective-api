@@ -92,15 +92,22 @@ const makeStatLimitChecker = (stat: FraudStats) => (limitParams: number[]) => {
   }
 };
 
+type ValidateStatOptions = {
+  onFail?: (error?: Error) => Promise<void>;
+  preCheck?: () => Promise<void>;
+  assetParams?: { type: AssetType; fingerprint: string };
+};
+
 export const validateStat = async (
   statFn: (...any) => Promise<FraudStats>,
   args: Parameters<typeof getUserStats | typeof getIpStats | typeof getEmailStats>,
   limitParamsString: string,
   errorMessage: string,
-  options?: { onFail?: (error?: Error) => Promise<void>; preCheck?: () => Promise<void> },
+  options: ValidateStatOptions = {},
 ) => {
-  if (options?.preCheck) {
-    await options.preCheck();
+  if (options.assetParams || options.preCheck) {
+    const preCheck = options.preCheck?.() || SuspendedAsset.assertAssetIsNotSuspended(options.assetParams);
+    await preCheck;
   }
   const stats = await statFn(...args);
   const assertLimit = makeStatLimitChecker(stats);
@@ -110,7 +117,13 @@ export const validateStat = async (
   } catch (e) {
     const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { stats, limitParams });
     logger.warn(error.message);
-    options?.onFail?.(error).catch(logger.error);
+    const onFail =
+      options.onFail?.(error) ||
+      SuspendedAsset.create({
+        ...options.assetParams,
+        reason: error.message,
+      });
+    await onFail.catch(logger.error);
     throw error;
   }
 };
@@ -123,15 +136,13 @@ export const checkUser = (user: typeof models.User) => {
     config.fraud.order.U1M,
     `Fraud: User #${user.id} failed fraud protection`,
     {
+      assetParams,
       onFail: async error => {
         await SuspendedAsset.create({
           ...assetParams,
           reason: error.message,
         });
         await user.limitAccount('User failed fraud protection.');
-      },
-      preCheck: async () => {
-        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
       },
     },
   );
@@ -151,17 +162,7 @@ export const checkCreditCard = async (paymentMethod: {
     [{ name, ...creditCardInfo }, moment.utc().subtract(1, 'month').toDate()],
     config.fraud.order.C1M,
     `Fraud: Credit Card ${assetParams.fingerprint} failed fraud protection`,
-    {
-      onFail: async error => {
-        await SuspendedAsset.create({
-          ...assetParams,
-          reason: error.message,
-        });
-      },
-      preCheck: async () => {
-        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
-      },
-    },
+    { assetParams },
   );
 };
 
@@ -172,17 +173,7 @@ export const checkIP = async (ip: string) => {
     [ip, moment.utc().subtract(5, 'days').toDate()],
     config.fraud.order.I5D,
     `Fraud: IP ${ip} failed fraud protection`,
-    {
-      onFail: async error => {
-        await SuspendedAsset.create({
-          ...assetParams,
-          reason: error.message,
-        });
-      },
-      preCheck: async () => {
-        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
-      },
-    },
+    { assetParams },
   );
 };
 
@@ -193,17 +184,7 @@ export const checkEmail = async (email: string) => {
     [email, moment.utc().subtract(1, 'month').toDate()],
     config.fraud.order.E1M,
     `Fraud: email ${email} failed fraud protection`,
-    {
-      onFail: async error => {
-        await SuspendedAsset.create({
-          ...assetParams,
-          reason: error.message,
-        });
-      },
-      preCheck: async () => {
-        await SuspendedAsset.assertAssetIsNotSuspended(assetParams);
-      },
-    },
+    { assetParams },
   );
 };
 
