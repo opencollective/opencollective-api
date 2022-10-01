@@ -12017,6 +12017,22 @@ type Mutation {
     """
     account: AccountReferenceInput!
   ): Account
+
+  """
+  Send message to an account.
+  """
+  sendMessage(
+    """
+    Reference to the Account to send message to.
+    """
+    account: AccountReferenceInput!
+
+    """
+    Message to send to the account.
+    """
+    message: String!
+    subject: String
+  ): SendMessageResult
   createApplication(application: ApplicationCreateInput!): Application
   updateApplication(application: ApplicationUpdateInput!): Application
   deleteApplication(application: ApplicationReferenceInput!): Application
@@ -13114,6 +13130,10 @@ input PoliciesCollectiveMinimumAdminsInput {
   numberOfAdmins: Int
   applies: PolicyApplication
   freeze: Boolean
+}
+
+type SendMessageResult {
+  success: Boolean
 }
 
 """

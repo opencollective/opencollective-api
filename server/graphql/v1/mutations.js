@@ -116,6 +116,7 @@ const mutations = {
       return unarchiveCollective(_, args, req);
     },
   },
+
   sendMessageToCollective: {
     type: new GraphQLObjectType({
       name: 'SendMessageToCollectiveResult',
@@ -123,6 +124,7 @@ const mutations = {
         success: { type: GraphQLBoolean },
       },
     }),
+    deprecationReason: '2022-08-01: Please use the sendMessage mutation from GraphQL v2 instead.',
     args: {
       collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       message: { type: new GraphQLNonNull(GraphQLString) },
