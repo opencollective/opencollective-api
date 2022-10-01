@@ -18,6 +18,7 @@ import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
+import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
@@ -483,6 +484,31 @@ const accountMutations = {
       }
 
       return collectivelib.deleteCollective(account);
+    },
+  },
+  sendMessage: {
+    type: new GraphQLObjectType({
+      name: 'SendMessageResult',
+      fields: {
+        success: { type: GraphQLBoolean },
+      },
+    }),
+    description: 'Send message to an account.',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Reference to the Account to send message to.',
+      },
+      message: {
+        type: new GraphQLNonNull(GraphQLString),
+        description: 'Message to send to the account.',
+      },
+      subject: { type: GraphQLString },
+    },
+    async resolve(_, args, req) {
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+
+      return sendMessage({ req, args, collective: account, isGqlV2: true });
     },
   },
 };
