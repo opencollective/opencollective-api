@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { uniqBy } from 'lodash';
+import { isNil, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -16,6 +16,7 @@ import {
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
+import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
   AccountReferenceInput,
@@ -57,14 +58,6 @@ export default {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account to change the flags for',
       },
-      isDeleted: {
-        type: GraphQLBoolean,
-        description: 'Specify whether the account is soft deleted',
-      },
-      isBanned: {
-        type: GraphQLBoolean,
-        description: 'Specify whether the account is banned',
-      },
       isArchived: {
         type: GraphQLBoolean,
         description: 'Specify whether the account is archived',
@@ -78,27 +71,13 @@ export default {
       checkRemoteUserCanRoot(req);
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
 
-      if (args.isDeleted && !account.deletedAt) {
-        await account.destroy();
-      } else if (!args.isDeleted && account.deletedAt) {
-        await account.restore();
-
-        // We have freed the slug, so we have to restore it to its original value
-        const timestampPart = account.slug.match(/-\d+$/)[0];
-        await account.update({ slug: account.slug.replace(timestampPart, '') });
-      }
-
       if (args.isArchived && !account.deactivatedAt) {
-        await account.update({ deactivatedAt: Date.now() });
-      } else if (!args.isArchived && account.deactivatedAt) {
-        await account.update({ deactivatedAt: null });
+        await archiveCollective(_, account, req);
+      } else if (args.isArchived === false && account.deactivatedAt) {
+        await unarchiveCollective(_, account, req);
       }
 
-      if (args.isBanned !== Boolean(account.data?.isBanned)) {
-        await account.update({ data: { ...account.data, isBanned: args.isBanned } });
-      }
-
-      if (args.isTrustedHost !== Boolean(account.data?.isTrustedHost)) {
+      if (!isNil(args.isTrustedHost) && Boolean(args.isTrustedHost) !== Boolean(account.data?.isTrustedHost)) {
         await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
       }
       return account;

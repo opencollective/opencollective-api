@@ -181,7 +181,6 @@ export const searchCollectivesInDB = async (
     parentCollectiveIds,
     isHost,
     onlyActive,
-    includeDeleted,
     includeArchived,
     skipRecentAccounts,
     skipGuests = true,
@@ -216,9 +215,6 @@ export const searchCollectivesInDB = async (
 
   if (onlyActive) {
     dynamicConditions += 'AND c."isActive" = TRUE ';
-  }
-  if (!includeDeleted) {
-    dynamicConditions += 'AND c."deletedAt" IS NULL ';
   }
 
   if (!includeArchived) {
@@ -266,7 +262,8 @@ export const searchCollectivesInDB = async (
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
     LEFT JOIN "CollectiveTransactionStats" transaction_stats ON transaction_stats."id" = c.id
-    WHERE (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
+    WHERE c."deletedAt" IS NULL
+    AND (c."data" ->> 'hideFromSearch')::boolean IS NOT TRUE
     AND c.name != 'incognito'
     AND c.name != 'anonymous'
     AND c."isIncognito" = FALSE ${dynamicConditions}
