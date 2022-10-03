@@ -1,4 +1,4 @@
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -93,6 +93,10 @@ const tierMutations = {
       tier: {
         type: new GraphQLNonNull(TierReferenceInput),
       },
+      stopRecurringContributions: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        defaultValue: false,
+      },
     },
     async resolve(_, args, req) {
       checkRemoteUserCanUseAccount(req);
@@ -101,6 +105,10 @@ const tierMutations = {
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
+      }
+
+      if (args.stopRecurringContributions) {
+        await models.Order.cancelActiveOrdersByTierId(tier.id);
       }
 
       await tier.destroy();

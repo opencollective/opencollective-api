@@ -13077,7 +13077,7 @@ type Mutation {
   """
   Delete a tier.
   """
-  deleteTier(tier: TierReferenceInput!): Tier!
+  deleteTier(tier: TierReferenceInput!, stopRecurringContributions: Boolean! = false): Tier!
 }
 
 input CollectiveCreateInput {
