@@ -52,7 +52,7 @@
     "bayes": "1.0.0",
     "bcrypt": "5.0.1",
     "bluebird": "3.7.2",
-    "burner-email-providers": "1.0.67",
+    "burner-email-providers": "github:opencollective/burner-email-providers",
     "cloudflare": "2.9.1",
     "cloudflare-ip": "0.0.7",
     "commander": "^9.0.0",
