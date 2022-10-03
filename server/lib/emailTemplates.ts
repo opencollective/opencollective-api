@@ -45,6 +45,7 @@ export const templateNames = [
   'collective.virtualcard.added',
   'collective.virtualcard.missing.receipts',
   'collective.virtualcard.suspended',
+  'collective.virtualcard.deleted',
   'confirm-guest-account',
   'event.reminder.1d',
   'event.reminder.7d',
