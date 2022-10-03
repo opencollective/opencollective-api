@@ -74,7 +74,7 @@ import {
 import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
 import queries from '../lib/queries';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
@@ -890,10 +890,13 @@ function defineModel() {
           endDate.getHours(),
           endDate.getMinutes(),
         ];
-        let description = this.description || '';
-        if (this.longDescription) {
-          description += `\n\n${this.longDescription}`;
+
+        // Build description as HTML
+        const descriptionParts = [this.description, this.longDescription].filter(Boolean);
+        if (this.data?.privateInstructions) {
+          descriptionParts.push(`Private instructions:\n${stripHTML(this.data.privateInstructions)}`);
         }
+
         let location = this.location.name || '';
         if (this.location.address) {
           location += `, ${this.location.address}`;
@@ -919,7 +922,7 @@ function defineModel() {
         ];
         const event = {
           title: this.name,
-          description,
+          description: descriptionParts.join('\n\n'),
           start,
           end,
           location,
