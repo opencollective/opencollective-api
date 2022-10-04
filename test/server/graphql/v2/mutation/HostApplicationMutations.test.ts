@@ -4,10 +4,12 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import { activities, roles } from '../../../../../server/constants';
+import OrderStatuses from '../../../../../server/constants/order_status';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
+import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
@@ -15,9 +17,11 @@ import {
   fakeHost,
   fakeHostApplication,
   fakeMember,
+  fakeOrder,
   fakeProject,
   fakeTransaction,
   fakeUser,
+  fakeVirtualCard,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
@@ -363,6 +367,14 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
   });
 
   describe('removeHost', () => {
+    let sandbox;
+
+    before(() => {
+      sandbox = createSandbox();
+    });
+
+    after(() => sandbox.restore());
+
     it('requires an account reference input', async () => {
       const result = await graphqlQueryV2(REMOVE_HOST_MUTATION, {});
       expect(result.errors).to.exist;
@@ -513,9 +525,26 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
     });
 
     it('removes the host from a hosted collective using host admin', async () => {
+      const deleteCardMock = sandbox.stub(stripeVirtualCardService, 'deleteCard');
+      deleteCardMock.resolves();
+
       const user = await fakeUser();
       const host = await fakeHost({ admin: user });
       const collective = await fakeCollective({ HostCollectiveId: host.id });
+      const orderWithExternalSubscription = await fakeOrder(
+        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE, subscription: { isManagedExternally: true } },
+        { withSubscription: true },
+      );
+      const orderWithInternalSubscription = await fakeOrder(
+        { CollectiveId: collective.id, status: OrderStatuses.ACTIVE },
+        { withSubscription: true },
+      );
+
+      const virtualCard = await fakeVirtualCard({
+        HostCollectiveId: host.id,
+        CollectiveId: collective.id,
+        provider: 'STRIPE',
+      });
       const result = await graphqlQueryV2(
         REMOVE_HOST_MUTATION,
         {
@@ -526,6 +555,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         },
         user,
       );
+
       expect(result.errors).to.not.exist;
       expect(result.data.removeHost.host).to.be.null;
 
@@ -536,6 +566,14 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       expect(unhostingActivity.data.message).to.eq('using host admin');
       expect(unhostingActivity.data.collective.id).to.eq(collective.id);
       expect(unhostingActivity.data.host.id).to.eq(host.id);
+
+      await orderWithExternalSubscription.reload();
+      expect(orderWithExternalSubscription.status).to.eq(OrderStatuses.CANCELLED);
+
+      await orderWithInternalSubscription.reload();
+      expect(orderWithInternalSubscription.status).to.eq(OrderStatuses.ACTIVE);
+
+      expect(await models.VirtualCard.findByPk(virtualCard.id)).to.not.exist;
     });
   });
 });

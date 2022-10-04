@@ -5,6 +5,7 @@ import '../../server/env';
 import { groupBy, size } from 'lodash';
 
 import { activities } from '../../server/constants';
+import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sleep } from '../../server/lib/utils';
@@ -28,6 +29,20 @@ const getHostFromOrder = async order => {
   return models.Collective.findByPk(transactions[0].HostCollectiveId);
 };
 
+const getOrderCancelationReason = (collective, order, orderHost) => {
+  if (order.TierId && !order.Tier) {
+    return ['DELETED_TIER', `Order tier deleted`];
+  } else if (collective.deactivatedAt) {
+    return ['ARCHIVED_ACCOUNT', `@${collective.slug} archived their account`];
+  } else if (!collective.HostCollectiveId) {
+    return ['UNHOSTED_COLLECTIVE', `@${collective.slug} was un-hosted`];
+  } else if (collective.HostCollectiveId !== orderHost.id) {
+    return ['CHANGED_HOST', `@${collective.slug} changed host`];
+  } else {
+    return ['CANCELLED_ORDER', `Order cancelled`];
+  }
+};
+
 /**
  * When archiving collectives. we need to make sure subscriptions managed externally are properly cancelled
  * by calling the right service method (PayPal). We do this asynchronously to properly deal with rate limiting and
@@ -35,17 +50,17 @@ const getHostFromOrder = async order => {
  */
 export async function run() {
   const orphanOrders = await models.Order.findAll({
+    where: { status: OrderStatuses.CANCELLED },
     include: [
+      {
+        model: models.Tier,
+      },
       {
         model: models.Subscription,
         required: true,
-        where: { isManagedExternally: true, isActive: true },
+        where: { isActive: true },
       },
-      {
-        association: 'collective',
-        required: true,
-        where: { deactivatedAt: { [Op.not]: null }, isActive: false },
-      },
+      { association: 'collective', require: true },
       { association: 'fromCollective' },
       { association: 'paymentMethod' },
     ],
@@ -59,15 +74,17 @@ export async function run() {
   logger.info(`Found ${orphanOrders.length} recurring contributions to cancel across ${size(groupedOrders)} accounts`);
 
   for (const accountOrders of Object.values(groupedOrders)) {
-    const collectiveHandle = accountOrders[0].collective.slug;
-    const reason = `@${collectiveHandle} archived their account`;
+    const collective = accountOrders[0].collective;
+    const collectiveHandle = collective.slug;
     logger.info(`Cancelling ${accountOrders.length} subscriptions for @${collectiveHandle}`);
     for (const order of accountOrders) {
       const host = await getHostFromOrder(order);
-      logger.debug(`Cancelling order ${order.id} for @${collectiveHandle} (host: ${host.slug})`);
+      const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
+      logger.debug(
+        `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
+      );
       if (!process.env.DRY) {
         await order.Subscription.deactivate(reason, host);
-        await order.update({ status: 'CANCELLED' });
         await models.Activity.create({
           type: activities.SUBSCRIPTION_CANCELED,
           CollectiveId: order.CollectiveId,
@@ -79,7 +96,7 @@ export async function run() {
             subscription: order.Subscription,
             collective: order.collective.minimal,
             fromCollective: order.fromCollective.minimal,
-            reasonCode: 'ARCHIVED_ACCOUNT',
+            reasonCode: reasonCode,
             reason: reason,
           },
         });
