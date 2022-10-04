@@ -70,11 +70,11 @@ export const NewAccountOrReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchAccountWithReference = async (
   input,
-  { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false } = {},
+  { loaders = null, throwIfMissing = false, dbTransaction = undefined, lock = false, paranoid = true } = {},
 ) => {
   const loadCollectiveById = id => {
     if (!loaders || dbTransaction) {
-      return models.Collective.findByPk(id, { transaction: dbTransaction, lock });
+      return models.Collective.findByPk(id, { transaction: dbTransaction, lock, paranoid });
     } else {
       return loaders.Collective.byId.load(id);
     }
@@ -88,7 +88,7 @@ export const fetchAccountWithReference = async (
     collective = await loadCollectiveById(input.legacyId || input.id);
   } else if (input.slug) {
     collective = await models.Collective.findOne(
-      { where: { slug: input.slug.toLowerCase() } },
+      { where: { slug: input.slug.toLowerCase() }, paranoid },
       { transaction: dbTransaction, lock },
     );
   } else {

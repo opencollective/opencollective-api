@@ -8581,6 +8581,11 @@ type Query {
     isHost: Boolean
 
     """
+    Included collectives which are archived
+    """
+    includeArchived: Boolean
+
+    """
     Only return "active" accounts with Financial Contributions enabled if true.
     """
     isActive: Boolean
@@ -12767,6 +12772,26 @@ type Mutation {
   Remove the given payout method. Scope: "expenses".
   """
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
+
+  """
+  [Root only] Edits account flags (deleted, banned, archived, trusted host)
+  """
+  editAccountFlags(
+    """
+    Account to change the flags for
+    """
+    account: AccountReferenceInput!
+
+    """
+    Specify whether the account is archived
+    """
+    isArchived: Boolean
+
+    """
+    Specify whether the account is a trusted host
+    """
+    isTrustedHost: Boolean
+  ): Account!
 
   """
   [Root only] Clears the cache for a given account

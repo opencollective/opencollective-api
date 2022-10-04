@@ -1174,6 +1174,11 @@ const CollectiveFields = () => {
         return collective.isHost();
       },
     },
+    isTrustedHost: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Returns whether this host is trusted or not',
+      resolve: collective => Boolean(get(collective, 'data.isTrustedHost')),
+    },
     canApply: {
       description: 'Returns whether this host accepts applications for new collectives',
       type: GraphQLBoolean,

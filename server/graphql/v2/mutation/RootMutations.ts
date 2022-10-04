@@ -1,6 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { uniqBy } from 'lodash';
+import { isNil, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -16,6 +16,7 @@ import {
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
+import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
 import { AccountCacheType } from '../enum/AccountCacheType';
 import {
   AccountReferenceInput,
@@ -49,6 +50,39 @@ const BanAccountResponse = new GraphQLObjectType({
  * Root mutations
  */
 export default {
+  editAccountFlags: {
+    type: new GraphQLNonNull(Account),
+    description: '[Root only] Edits account flags (deleted, banned, archived, trusted host)',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to change the flags for',
+      },
+      isArchived: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is archived',
+      },
+      isTrustedHost: {
+        type: GraphQLBoolean,
+        description: 'Specify whether the account is a trusted host',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanRoot(req);
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
+
+      if (args.isArchived && !account.deactivatedAt) {
+        await archiveCollective(_, account, req);
+      } else if (args.isArchived === false && account.deactivatedAt) {
+        await unarchiveCollective(_, account, req);
+      }
+
+      if (!isNil(args.isTrustedHost) && Boolean(args.isTrustedHost) !== Boolean(account.data?.isTrustedHost)) {
+        await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
+      }
+      return account;
+    },
+  },
   clearCacheForAccount: {
     type: new GraphQLNonNull(Account),
     description: '[Root only] Clears the cache for a given account',

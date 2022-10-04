@@ -932,6 +932,10 @@ const queries = {
         type: GraphQLBoolean,
         description: 'Filter on whether account is a host',
       },
+      includeArchived: {
+        type: GraphQLBoolean,
+        description: 'Included collectives which are archived',
+      },
       onlyActive: {
         type: GraphQLBoolean,
         description: 'Whether to return only active accounts',
@@ -968,6 +972,7 @@ const queries = {
         parentCollectiveIds,
         skipRecentAccounts,
         skipGuests,
+        includeArchived,
       } = args;
       const cleanTerm = term ? term.trim() : '';
       logger.info(`Search Query: ${cleanTerm}`);
@@ -1000,6 +1005,7 @@ const queries = {
           isHost,
           skipRecentAccounts,
           skipGuests,
+          includeArchived,
         });
         return generateResults(collectives, total);
       }
