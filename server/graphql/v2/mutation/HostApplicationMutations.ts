@@ -320,6 +320,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
     },
     {
       bcc: adminUsers.map(u => u.email),
+      replyTo: host.data?.replyToEmail || undefined,
     },
   );
 };

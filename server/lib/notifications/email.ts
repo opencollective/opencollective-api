@@ -414,10 +414,9 @@ export const notifyByEmail = async (activity: Activity) => {
         }
         break;
       }
-      const HostCollectiveId = await collective.getHostCollectiveId();
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
-        cc: (HostCollectiveId) ? HostCollectiveId : 'no-reply@opencollective.com',
+        replyTo: activity.data.host.data?.replyToEmail || undefined,
       });
       break;
 
@@ -426,12 +425,10 @@ export const notifyByEmail = async (activity: Activity) => {
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         break;
       }
-      const HostCollectiveId = await collective.getHostCollectiveId();
       await notify.collective(activity, {
-        cc: (HostCollectiveId) ? HostCollectiveId : 'no-reply@opencollective.com',
         collectiveId: activity.data.collective.id,
         template: 'collective.rejected',
-        replyTo: `no-reply@opencollective.com`,
+        replyTo: activity.data.host.data?.replyToEmail || undefined,
       });
       break;
 
