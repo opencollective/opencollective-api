@@ -1,5 +1,7 @@
 'use strict';
 
+import { AssetType } from '../server/models/SuspendedAsset';
+
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     await queryInterface.createTable('SuspendedAssets', {
@@ -9,7 +11,7 @@ module.exports = {
         autoIncrement: true,
       },
       type: {
-        type: Sequelize.STRING,
+        type: Sequelize.ENUM(...Object.values(AssetType)),
         allowNull: false,
       },
       reason: {

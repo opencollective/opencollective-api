@@ -10,8 +10,6 @@ export enum AssetType {
   EMAIL_DOMAIN = 'EMAIL_DOMAIN',
 }
 
-const AssetTypes = Object.values(AssetType);
-
 /**
  * Sequelize model to represent an SuspendedAsset, linked to the `SuspendedAssets` table.
  */
@@ -24,7 +22,13 @@ class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreatio
   public declare updatedAt: Date;
   public declare deletedAt: Date;
 
-  static async assertAssetIsNotSuspended({ type, fingerprint }): Promise<void> {
+  static async assertAssetIsNotSuspended({
+    type,
+    fingerprint,
+  }: {
+    type: AssetType;
+    fingerprint: string;
+  }): Promise<void> {
     const asset = await this.findOne({ where: { type, fingerprint } });
     if (asset) {
       throw new Error(`Asset ${fingerprint} of type ${type} is suspended.`);
@@ -41,14 +45,8 @@ SuspendedAsset.init(
       autoIncrement: true,
     },
     type: {
-      type: DataTypes.STRING,
+      type: DataTypes.ENUM(...Object.values(AssetType)),
       allowNull: false,
-      validate: {
-        isIn: {
-          args: [AssetTypes],
-          msg: `Must be one of ${AssetTypes.join(', ')}`,
-        },
-      },
     },
     reason: {
       type: DataTypes.STRING,
