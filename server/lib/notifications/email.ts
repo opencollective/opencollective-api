@@ -535,6 +535,7 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED:
+    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
       });

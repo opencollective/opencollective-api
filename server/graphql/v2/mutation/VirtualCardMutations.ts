@@ -390,15 +390,45 @@ const virtualCardMutations = {
     async resolve(_: void, args, req: express.Request): Promise<boolean> {
       checkRemoteUserCanUseVirtualCards(req);
 
-      const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
+      const virtualCard = await models.VirtualCard.findOne({
+        where: { id: args.virtualCard.id },
+        include: [
+          {
+            model: models.Collective,
+            as: 'collective',
+          },
+          {
+            model: models.Collective,
+            as: 'host',
+          },
+        ],
+      });
+
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && !req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
+
       await virtualCard.delete();
+
+      const userCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+
+      await models.Activity.create({
+        type: activities.COLLECTIVE_VIRTUAL_CARD_DELETED,
+        CollectiveId: virtualCard.collective.id,
+        HostCollectiveId: virtualCard.host.id,
+        UserId: req.remoteUser.id,
+        data: {
+          virtualCard: virtualCard.info,
+          collective: virtualCard.collective.info,
+          host: virtualCard.host.info,
+          deletedBy: userCollective.info,
+        },
+      });
+
       return true;
     },
   },
