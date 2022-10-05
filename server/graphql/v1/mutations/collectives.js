@@ -14,7 +14,7 @@ import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
-import models from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { CollectiveInputType } from '../inputTypes';
 
@@ -513,10 +513,26 @@ export async function archiveCollective(_, args, req) {
     return updatedCollective;
   }
 
-  // TODO: cascade deactivation to EVENTs and PROJECTs?
+  // `changeHost` will recursively check children and unhost them
   await collective.changeHost(null);
 
-  return collective.update({ deactivatedAt: Date.now() });
+  // Mark all children as archived, with a special `data.archivedFromParent` flag for later un-archive
+  const deactivatedAt = new Date();
+  await sequelize.query(
+    `UPDATE "Collectives"
+    SET "deactivatedAt" = :deactivatedAt,
+        "data" = JSONB_SET(COALESCE("data", '{}'), '{archivedFromParent}', 'true')
+    WHERE "ParentCollectiveId" = :collectiveId
+    AND "deletedAt" IS NULL
+    AND "deactivatedAt" IS NULL
+  `,
+    {
+      replacements: { collectiveId: collective.id, deactivatedAt },
+    },
+  );
+
+  // Mark main account as archived
+  return collective.update({ deactivatedAt });
 }
 
 export async function unarchiveCollective(_, args, req) {
