@@ -6,6 +6,7 @@ export const OrderStatus = new GraphQLEnumType({
   values: {
     ACTIVE: {},
     CANCELLED: {},
+    DISPUTED: {},
     ERROR: {},
     EXPIRED: {},
     NEW: {},

@@ -1,9 +1,12 @@
 import config from 'config';
 import { get, toUpper } from 'lodash';
 
+import OrderStatuses from '../../constants/order_status';
 import * as constants from '../../constants/transactions';
+import { TransactionTypes } from '../../constants/transactions';
 import logger from '../../lib/logger';
 import {
+  createRefundTransaction,
   getApplicationFee,
   getHostFee,
   getHostFeeSharePercent,
@@ -308,11 +311,96 @@ export const setupCreditCard = async (paymentMethod, { user, collective } = {}) 
   return paymentMethod;
 };
 
+// Charge has a new Stripe dispute
+const createDispute = async event => {
+  const stripeChargeId = event.data.object.charge;
+  const transactions = await models.Transaction.findAll({
+    where: { data: { charge: { id: stripeChargeId } } },
+    include: [
+      {
+        model: models.Order,
+        required: true,
+        include: [models.Subscription],
+      },
+      {
+        model: models.Collective,
+        required: true,
+        as: 'collective',
+      },
+    ],
+  });
+
+  await Promise.all(
+    transactions.map(async transaction => {
+      await transaction.update({ isDisputed: true });
+      const order = transaction.Order;
+      if (order.status !== OrderStatuses.DISPUTED) {
+        await order.update({ status: OrderStatuses.DISPUTED });
+
+        if (order.SubscriptionId) {
+          await order.Subscription.deactivate();
+        }
+      }
+    }),
+  );
+};
+
+// Charge has been closed on Stripe (with status of: won/lost/closed)
+const closeDispute = async event => {
+  const stripeChargeId = event.data.object.charge;
+  const transactions = await models.Transaction.findAll({
+    where: { data: { charge: { id: stripeChargeId } } },
+    include: [
+      {
+        model: models.Order,
+        include: [models.Subscription],
+        required: true,
+      },
+    ],
+  });
+
+  const disputeStatus = event.data.object.status;
+
+  await Promise.all(
+    transactions.map(async transaction => {
+      const order = transaction.Order;
+
+      // A won dispute means it was decided as not fraudulent
+      if (disputeStatus === 'won') {
+        await transaction.update({ isDisputed: false });
+
+        if (order.status === OrderStatuses.DISPUTED) {
+          if (order.SubscriptionId) {
+            await order.update({ status: OrderStatuses.ACTIVE });
+            await order.Subscription.activate();
+          } else {
+            await order.update({ status: OrderStatuses.PAID });
+          }
+        }
+        // A lost dispute means it was decided as fraudulent
+      } else if (disputeStatus === 'lost') {
+        if (transaction.type === TransactionTypes.CREDIT) {
+          await createRefundTransaction(transaction, 0, { refundTransactionId: transaction.id });
+        }
+
+        // TODO:
+        //  lookup in stripe the fee for dispute
+        //  create transaction for dispute fee (+ processor fee) debiting the fiscal host
+      } else {
+        console.log('DISPUTE CLOSED FOR ORDER ID: ', order.id);
+        console.log('Dispute Status:', disputeStatus);
+      }
+    }),
+  );
+};
+
 export default {
   features: {
     recurring: true,
     waitToCharge: false,
   },
+  closeDispute,
+  createDispute,
 
   processOrder: async order => {
     const hostStripeAccount = await order.collective.getHostStripeAccount();

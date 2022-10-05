@@ -7,8 +7,10 @@ import nock from 'nock';
 import cache from '../../../../server/lib/cache';
 import models, { sequelize } from '../../../../server/models';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
-import { fakeHost, fakeUser } from '../../../test-helpers/fake-data';
+import stripeMocks from '../../../mocks/stripe';
+import { fakeHost, fakeOrder, fakePaymentMethod, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
+import OrderStatuses from '../../../../server/constants/order_status';
 
 async function createOrderWithPaymentMethod(paymentMethodName, orderParams = {}) {
   const user = await models.User.createUserWithCollective({
@@ -258,6 +260,107 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         const transactions = await order.getTransactions();
         expect(transactions.filter(t => t.kind === 'HOST_FEE_SHARE_DEBT')).to.have.lengthOf(2);
         expect(transactions.filter(t => t.kind === 'PLATFORM_TIP_DEBT')).to.have.lengthOf(2);
+      });
+    });
+  });
+
+  describe('#createDispute()', () => {
+    let order;
+
+    beforeEach(() => utils.resetTestDB());
+
+    beforeEach(async () => {
+      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      order = await fakeOrder(
+        {
+          CollectiveId: 1,
+          totalAmount: 10,
+          PaymentMethodId: paymentMethod.id,
+        },
+        { withSubscription: true },
+      );
+      await fakeTransaction(
+        {
+          OrderId: order.id,
+          amount: 10,
+          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+        },
+        { createDoubleEntry: true },
+      );
+    });
+
+    it('disputes all Transactions connected to the charge', async () => {
+      await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+
+      const transactions = await order.getTransactions();
+      expect(transactions.map(tx => tx.isDisputed)).to.eql([true, true]);
+    });
+
+    it('disputes the Order connected to the charge', async () => {
+      await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+
+      await order.reload();
+      expect(order.status).to.eql(OrderStatuses.DISPUTED);
+    });
+
+    it('deactivates the Subscription connected to the charge', async () => {
+      await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+
+      const subscription = await order.getSubscription();
+      expect(subscription.isActive).to.eql(false);
+    });
+  });
+
+  describe.only('#closeDispute()', () => {
+    let order;
+
+    beforeEach(() => utils.resetTestDB());
+
+    beforeEach(async () => {
+      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      order = await fakeOrder(
+        {
+          CollectiveId: 1,
+          totalAmount: 10,
+          PaymentMethodId: paymentMethod.id,
+        },
+        { withSubscription: true },
+      );
+      await fakeTransaction(
+        {
+          OrderId: order.id,
+          amount: 10,
+          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+        },
+        { createDoubleEntry: true },
+      );
+    });
+
+    describe('the dispute was won and is not fraud', () => {
+      it('un-disputes all Transactions connected to the charge', async () => {
+        await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+        await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+
+        const transactions = await order.getTransactions();
+        expect(transactions.map(tx => tx.isDisputed)).to.eql([false, false]);
+      });
+
+      it('un-disputes the Order connected to the charge', async () => {
+        await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+        await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.PAID);
+      });
+    });
+
+    describe('the dispute was lost and is fraud', () => {
+      it('TODO', async () => {
+        await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+        await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
+
+        await order.reload();
+        expect(order.status).to.eql(OrderStatuses.DISPUTED);
       });
     });
   });

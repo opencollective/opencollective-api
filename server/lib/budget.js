@@ -355,6 +355,9 @@ async function sumCollectivesTransactions(
   if (kind) {
     where.kind = kind;
   }
+  if (withBlockedFunds) {
+    where.isDisputed = { [Op.eq]: true };
+  }
 
   const totals = {};
 

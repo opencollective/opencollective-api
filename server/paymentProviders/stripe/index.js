@@ -255,19 +255,20 @@ export default {
      * We check the event on stripe directly to be sure we don't get a fake event from
      * someone else
      */
+    // TODO: Change to https://stripe.com/docs/webhooks/signatures#verify-official-libraries
+    //       to verify the signature without having to make another call to Stripe?
     return stripe.events.retrieve(requestBody.id, { stripeAccount: requestBody.user_id }).then(event => {
       if (!event || (event && !event.type)) {
         throw new errors.BadRequest('Event not found');
       }
       if (event.type === 'invoice.payment_succeeded') {
         return creditcard.webhook(requestBody, event);
-      } else if (event.type === 'charge.refund.updated') {
-        return alipay.webhook(requestBody, event);
-      } else if (event.type === 'source.chargeable') {
-        /* This will cause stripe to send us email alerts, saying
-         * that our stuff is broken. But that should never happen
-         * since they discontinued the support. */
-        throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
+        // Charge has a Stripe dispute
+      } else if (event.type === 'charge.dispute.created') {
+        return creditcard.createDispute(event);
+        // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
+      } else if (event.type === 'charge.dispute.closed') {
+        return creditcard.closeDispute(event);
       } else {
         logger.warn(`Stripe: Webhooks: Received an unsuported event type: ${event.type}`);
         return;

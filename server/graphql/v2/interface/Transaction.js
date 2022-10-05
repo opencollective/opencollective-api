@@ -183,6 +183,9 @@ const transactionFieldsDefinition = () => ({
   isRefund: {
     type: GraphQLBoolean,
   },
+  isDisputed: {
+    type: GraphQLBoolean,
+  },
   paymentMethod: {
     type: PaymentMethod,
   },
