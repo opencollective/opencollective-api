@@ -468,6 +468,7 @@ export async function archiveCollective(_, args, req) {
   }
 
   const collective = await models.Collective.findByPk(args.id);
+
   if (!collective) {
     throw new NotFound(`Collective with id ${args.id} not found`);
   }
