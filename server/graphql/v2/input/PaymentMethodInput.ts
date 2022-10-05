@@ -80,7 +80,16 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       name: pm.name,
       save: pm.isSavedForLater,
       token: pm.creditCardInfo.token,
-      data: pick(pm.creditCardInfo, ['brand', 'country', 'expMonth', 'expYear', 'fullName', 'funding', 'zip']),
+      data: pick(pm.creditCardInfo, [
+        'brand',
+        'country',
+        'expMonth',
+        'expYear',
+        'fullName',
+        'funding',
+        'zip',
+        'fingerprint',
+      ]),
     };
     if (pm.creditCardInfo.expYear && pm.creditCardInfo.expMonth) {
       const { expYear, expMonth } = pm.creditCardInfo;
