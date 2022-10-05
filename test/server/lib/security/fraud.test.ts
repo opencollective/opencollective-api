@@ -88,10 +88,10 @@ describe('lib/security/fraud', () => {
     });
 
     describe('checkUser', () => {
-      const defaultU1M = config.fraud.order.U1M;
+      const defaultuser = config.fraud.order.user;
 
       after(() => {
-        config.fraud.order.U1M = defaultU1M;
+        config.fraud.order.user = defaultuser;
       });
 
       it('should pass if user stats are below treshold', async () => {
@@ -99,16 +99,16 @@ describe('lib/security/fraud', () => {
       });
 
       it('should throw if user stats hit the treshold', async () => {
-        config.fraud.order.U1M = '[[5, 0.8, 0.2]]';
+        config.fraud.order.user = '[["1 month", 5, 0.8, 0.2]]';
         await expect(checkUser(user)).to.be.rejectedWith('above treshold');
       });
     });
 
     describe('checkIP', () => {
-      const defaultI5D = config.fraud.order.I5D;
+      const defaultip = config.fraud.order.ip;
 
       after(() => {
-        config.fraud.order.I5D = defaultI5D;
+        config.fraud.order.ip = defaultip;
       });
 
       it('should pass if ip stats are below treshold', async () => {
@@ -116,16 +116,16 @@ describe('lib/security/fraud', () => {
       });
 
       it('should throw if ip stats hit the treshold', async () => {
-        config.fraud.order.I5D = '[[5, 0.8, 0.2]]';
+        config.fraud.order.ip = '[["5 days", 5, 0.8, 0.2]]';
         await expect(checkIP('127.0.0.1')).to.be.rejectedWith('above treshold');
       });
     });
 
     describe('checkEmail', () => {
-      const defaultE1M = config.fraud.order.E1M;
+      const defaultemail = config.fraud.order.email;
 
       after(() => {
-        config.fraud.order.E1M = defaultE1M;
+        config.fraud.order.email = defaultemail;
       });
 
       it('should pass if email stats are below treshold', async () => {
@@ -133,12 +133,12 @@ describe('lib/security/fraud', () => {
       });
 
       it('should throw if email stats hit the treshold', async () => {
-        config.fraud.order.E1M = '[[5, 0.8, 0.2]]';
+        config.fraud.order.email = '[["1 month", 5, 0.8, 0.2]]';
         await expect(checkEmail('crook@tempmail.com')).to.be.rejectedWith('above treshold');
       });
 
       it('should throw if domain stats hit the treshold', async () => {
-        config.fraud.order.E1M = '[[5, 0.8, 0.2]]';
+        config.fraud.order.email = '[["1 month", 5, 0.8, 0.2]]';
         await expect(checkEmail('%@tempmail.com')).to.be.rejectedWith('above treshold');
       });
     });
@@ -154,7 +154,7 @@ describe('lib/security/fraud', () => {
 
     describe('IP verification', () => {
       it('should throw if it fails IP verification', async () => {
-        config.fraud.order.I5D = '[[3, 1, 0.1]]';
+        config.fraud.order.ip = '[["5 days", 3, 1, 0.1]]';
         const pm = await fakePaymentMethod({
           type: 'creditcard',
           service: 'stripe',
@@ -183,7 +183,7 @@ describe('lib/security/fraud', () => {
       let remoteUser;
       before(async () => {
         remoteUser = await fakeUser({ email: 'willem@dafoe.com' });
-        config.fraud.order.U1M = '[[3, 1, 0.2]]';
+        config.fraud.order.user = '[["1 month", 3, 1, 0.2]]';
       });
 
       it('should throw if it fails User verification', async () => {
@@ -210,7 +210,7 @@ describe('lib/security/fraud', () => {
     describe('email verification', () => {
       const order = { guestInfo: { email: 'willem@dafoe.com' } };
       before(() => {
-        config.fraud.order.E1M = '[[5, 0.8, 0.2]]';
+        config.fraud.order.email = '[["5 days", 5, 0.8, 0.2]]';
       });
 
       it('should throw if donation comes from a guest-user from the same email', async () => {
@@ -235,7 +235,7 @@ describe('lib/security/fraud', () => {
         },
       };
       before(() => {
-        config.fraud.order.C1M = '[[5, 0.8, 0.2]]';
+        config.fraud.order.card = '[["1 month", 5, 0.8, 0.2]]';
       });
 
       it('should throw if donation comes from a guest-user from the same email', async () => {

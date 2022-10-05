@@ -2,15 +2,16 @@ import config from 'config';
 import debugLib from 'debug';
 import Express from 'express';
 import { toLower, toString } from 'lodash';
-import moment from 'moment';
 
 import { ValidationFailed } from '../../graphql/errors';
 import models, { sequelize } from '../../models';
 import SuspendedAsset, { AssetType } from '../../models/SuspendedAsset';
 import logger from '../logger';
-import { ifStr } from '../utils';
+import { ifStr, parseToBoolean } from '../utils';
 
 const debug = debugLib('security/fraud');
+
+const ENFORCE_SUSPENDED_ASSET = parseToBoolean(config.fraud.enforceSuspendedAsset) === true;
 
 type FraudStats = { errorRate: number; numberOfOrders: number; paymentMethodRate: number };
 
@@ -23,46 +24,46 @@ const BASE_STATS_QUERY = `
     LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
 `;
 
-export const getUserStats = async (user: typeof models.User, since?: Date): Promise<FraudStats> => {
+export const getUserStats = async (user: typeof models.User, interval?: string): Promise<FraudStats> => {
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
     WHERE o."CreatedByUserId" = :userId
     AND pm."type" = 'creditcard'
-    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
-    { replacements: { userId: user.id, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { userId: user.id, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
-export const getEmailStats = async (email: string, since?: Date): Promise<FraudStats> => {
+export const getEmailStats = async (email: string, interval?: string): Promise<FraudStats> => {
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
     LEFT JOIN "Users" u ON u."id" = o."CreatedByUserId"
     WHERE LOWER(u."email") LIKE LOWER(:email)
     AND pm."type" = 'creditcard'
-    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
-    { replacements: { email, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { email, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
-export const getIpStats = async (ip: string, since?: Date): Promise<FraudStats> => {
+export const getIpStats = async (ip: string, interval?: string): Promise<FraudStats> => {
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
     WHERE o."data"->>'reqIp' LIKE :ip
     AND pm."type" = 'creditcard'
-    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
-    { replacements: { ip, since }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    { replacements: { ip, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
   );
 };
 
 export const getCreditCardStats = async (
   { name, expYear, expMonth, country }: { name: string; expYear: number; expMonth: number; country: string },
-  since?: Date,
+  interval?: string,
 ): Promise<FraudStats> => {
   return sequelize.query(
     `
@@ -72,10 +73,10 @@ export const getCreditCardStats = async (
     AND pm."data"->>'expYear' = :expYear
     AND pm."data"->>'expMonth' = :expMonth
     AND pm."data"->>'country' = :country
-    ${ifStr(since, 'AND o."createdAt" >= :since')}
+    ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     {
-      replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, since },
+      replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, interval },
       type: sequelize.QueryTypes.SELECT,
       raw: true,
       plain: true,
@@ -83,14 +84,22 @@ export const getCreditCardStats = async (
   );
 };
 
-const makeStatLimitChecker = (stat: FraudStats) => (limitParams: number[]) => {
-  const statArray = [stat.numberOfOrders, stat.errorRate, stat.paymentMethodRate];
-  const fail = limitParams.every((limit, index) => limit <= statArray[index]);
-  debug(`Checking ${statArray.join()} below treshold ${limitParams.join()}: ${fail ? 'FAIL' : 'PASS'}`);
-  if (fail) {
-    throw new Error(`Stat ${statArray.join()} above treshold ${limitParams.join()}`);
-  }
-};
+const makeStatLimitChecker =
+  (
+    statFn: (...any) => Promise<FraudStats>,
+    args: Parameters<typeof getUserStats | typeof getIpStats | typeof getEmailStats>,
+  ) =>
+  async (limitParams: [string, number, number, number]) => {
+    const [interval, ...limits] = limitParams;
+    args.push(interval);
+    const stat = await statFn(...args);
+    const statArray = [stat.numberOfOrders, stat.errorRate, stat.paymentMethodRate];
+    const fail = limits.every((limit, index) => limit <= statArray[index]);
+    debug(`Checking ${statArray.join()} below treshold ${limitParams.join()}: ${fail ? 'FAIL' : 'PASS'}`);
+    if (fail) {
+      throw new Error(`Stat ${statArray.join()} above treshold ${limitParams.join()}`);
+    }
+  };
 
 type ValidateStatOptions = {
   onFail?: (error?: Error) => Promise<void>;
@@ -105,17 +114,16 @@ export const validateStat = async (
   errorMessage: string,
   options: ValidateStatOptions = {},
 ) => {
-  if (options.assetParams || options.preCheck) {
+  if (ENFORCE_SUSPENDED_ASSET && (options.assetParams || options.preCheck)) {
     const preCheck = options.preCheck?.() || SuspendedAsset.assertAssetIsNotSuspended(options.assetParams);
     await preCheck;
   }
-  const stats = await statFn(...args);
-  const assertLimit = makeStatLimitChecker(stats);
+  const assertLimit = makeStatLimitChecker(statFn, args);
   const limitParams = JSON.parse(limitParamsString);
   try {
-    limitParams.forEach(assertLimit);
+    await Promise.all(limitParams.map(assertLimit));
   } catch (e) {
-    const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { stats, limitParams });
+    const error = new ValidationFailed(`${errorMessage}: ${e.message}`, null, { args, limitParams });
     logger.warn(error.message);
     const onFail =
       options.onFail?.(error) ||
@@ -124,7 +132,9 @@ export const validateStat = async (
         reason: error.message,
       });
     await onFail.catch(logger.error);
-    throw error;
+    if (ENFORCE_SUSPENDED_ASSET) {
+      throw error;
+    }
   }
 };
 
@@ -132,8 +142,8 @@ export const checkUser = (user: typeof models.User) => {
   const assetParams = { type: AssetType.USER, fingerprint: toString(user.id) };
   return validateStat(
     getUserStats,
-    [user, moment.utc().subtract(1, 'month').toDate()],
-    config.fraud.order.U1M,
+    [user],
+    config.fraud.order.user,
     `Fraud: User #${user.id} failed fraud protection`,
     {
       assetParams,
@@ -142,7 +152,7 @@ export const checkUser = (user: typeof models.User) => {
           ...assetParams,
           reason: error.message,
         });
-        await user.limitAccount('User failed fraud protection.');
+        // await user.limitAccount('User failed fraud protection.');
       },
     },
   );
@@ -159,8 +169,8 @@ export const checkCreditCard = async (paymentMethod: {
   };
   return validateStat(
     getCreditCardStats,
-    [{ name, ...creditCardInfo }, moment.utc().subtract(1, 'month').toDate()],
-    config.fraud.order.C1M,
+    [{ name, ...creditCardInfo }],
+    config.fraud.order.card,
     `Fraud: Credit Card ${assetParams.fingerprint} failed fraud protection`,
     { assetParams },
   );
@@ -168,23 +178,21 @@ export const checkCreditCard = async (paymentMethod: {
 
 export const checkIP = async (ip: string) => {
   const assetParams = { type: AssetType.IP, fingerprint: ip };
-  return validateStat(
-    getIpStats,
-    [ip, moment.utc().subtract(5, 'days').toDate()],
-    config.fraud.order.I5D,
-    `Fraud: IP ${ip} failed fraud protection`,
-    { assetParams },
-  );
+  return validateStat(getIpStats, [ip], config.fraud.order.ip, `Fraud: IP ${ip} failed fraud protection`, {
+    assetParams,
+  });
 };
 
 export const checkEmail = async (email: string) => {
   const assetParams = { type: AssetType.EMAIL_ADDRESS, fingerprint: toLower(email) };
   return validateStat(
     getEmailStats,
-    [email, moment.utc().subtract(1, 'month').toDate()],
-    config.fraud.order.E1M,
+    [email],
+    config.fraud.order.email,
     `Fraud: email ${email} failed fraud protection`,
-    { assetParams },
+    {
+      assetParams,
+    },
   );
 };
 

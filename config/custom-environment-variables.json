@@ -211,9 +211,11 @@
   },
   "fraud": {
     "order": {
-      "U1M": "FRAUD_ORDER_U1M",
-      "E1M": "FRAUD_ORDER_E1M",
-      "I5D": "FRAUD_ORDER_I5D"
-    }
+      "user": "FRAUD_ORDER_USER",
+      "card": "FRAUD_ORDER_CARD",
+      "email": "FRAUD_ORDER_EMAIL",
+      "ip": "FRAUD_ORDER_IP"
+    },
+    "enforceSuspendedAsset": "FRAUD_PROTECTION_SUSPEND_ASSET"
   }
 }
