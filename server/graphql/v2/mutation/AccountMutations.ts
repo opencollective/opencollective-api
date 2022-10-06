@@ -9,6 +9,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
+import { GraphQLNonEmptyString } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { cloneDeep, isNull, omitBy, set } from 'lodash';
 
@@ -493,14 +494,14 @@ const accountMutations = {
         success: { type: GraphQLBoolean },
       },
     }),
-    description: 'Send message to an account.',
+    description: 'Send a message to an account. Scope: "account"',
     args: {
       account: {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Reference to the Account to send message to.',
       },
       message: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
         description: 'Message to send to the account.',
       },
       subject: { type: GraphQLString },

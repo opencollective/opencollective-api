@@ -8,6 +8,8 @@ import { canUseFeature } from '../../lib/user-permissions';
 import models from '../../models';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
+import { checkRemoteUserCanUseAccount } from './scope-check';
+
 /**
  * Resolver function for host field on Collective type.
  */
@@ -27,6 +29,7 @@ async function hostResolver(collective, _, { loaders }) {
 }
 
 async function sendMessage({ req, collective, args, isGqlV2 }) {
+  checkRemoteUserCanUseAccount(req);
   const user = req.remoteUser;
 
   if (!canUseFeature(user, FEATURE.CONTACT_COLLECTIVE)) {
