@@ -291,7 +291,7 @@ async function sumCollectiveTransactions(collective, options) {
   return result;
 }
 
-async function sumCollectivesTransactions(
+export async function sumCollectivesTransactions(
   ids,
   {
     column,
@@ -356,7 +356,8 @@ async function sumCollectivesTransactions(
     where.kind = kind;
   }
   if (withBlockedFunds) {
-    where.isDisputed = { [Op.eq]: true };
+    // Exclude disputed transactions
+    where.isDisputed = { [Op.eq]: false };
   }
 
   const totals = {};
