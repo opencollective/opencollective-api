@@ -14,7 +14,7 @@ import * as github from '../../../lib/github';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
-import models, { Op, sequelize } from '../../../models';
+import models, { sequelize } from '../../../models';
 import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { CollectiveInputType } from '../inputTypes';
 

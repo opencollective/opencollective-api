@@ -95,12 +95,19 @@ describe('server/graphql/v1/mutation', () => {
         CreatedByUserId: user1.id,
         ParentCollectiveId: collective1.id,
         HostCollectiveId: collective1.HostCollectiveId,
+        isActive: true,
+        approvedAt: new Date(),
       }),
     );
   });
 
   beforeEach('create a project  under collective1', async () => {
-    await fakeProject({ ParentCollectiveId: collective1.id });
+    await fakeProject({
+      ParentCollectiveId: collective1.id,
+      HostCollectiveId: collective1.HostCollectiveId,
+      isActive: true,
+      approvedAt: new Date(),
+    });
   });
 
   describe('createCollective tests', () => {
