@@ -1781,12 +1781,13 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     const useTwoFactorAuthentication =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
+    const twoFactorSessionId = req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`) || 'noSessionId';
     if (useTwoFactorAuthentication) {
       await handleTwoFactorAuthenticationPayoutLimit(
         req.remoteUser,
         args.twoFactorAuthenticatorCode,
         expense,
-        req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`) || 'noSessionId',
+        twoFactorSessionId,
       );
     }
 
@@ -1859,7 +1860,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       }
     } catch (error) {
       if (useTwoFactorAuthentication) {
-        await resetRollingPayoutLimitOnFailure(req.remoteUser, expense);
+        await resetRollingPayoutLimitOnFailure(req.remoteUser, twoFactorSessionId, expense);
       }
 
       throw error;
