@@ -45,7 +45,6 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
-  getConsolidatedBalanceAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalMoneyManagedAmount,
@@ -2748,10 +2747,6 @@ function defineModel() {
 
   Collective.prototype.getBalance = function (options) {
     return getBalanceAmount(this, options).then(result => result.value);
-  };
-
-  Collective.prototype.getConsolidatedBalanceAmount = function (options) {
-    return getConsolidatedBalanceAmount(this, options);
   };
 
   Collective.prototype.getYearlyIncome = function () {

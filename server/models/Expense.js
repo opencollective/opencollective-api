@@ -520,6 +520,13 @@ function defineModel() {
     { dateFrom = null, dateTo = null, limit = 100, includeChildren = false } = {},
   ) {
     const noTag = 'no tag';
+    const collectiveIds = [collective.id];
+    if (includeChildren) {
+      const collectiveChildrenIds = await collective
+        .getChildren({ attributes: ['id'] })
+        .then(children => children.map(child => child.id));
+      collectiveIds.push(...collectiveChildrenIds);
+    }
     return sequelize.query(
       `
       SELECT
@@ -531,28 +538,25 @@ function defineModel() {
       INNER JOIN "Transactions" t
         ON t."ExpenseId" = e."id"
       INNER JOIN "Collectives" c
-        ON (
-          c."id" = $collectiveId
-          ${includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
-        )
-        AND c."deletedAt" IS NULL
+        ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
       WHERE e."CollectiveId" = c."id"
         AND e."deletedAt" IS NULL
         AND e."status" = 'PAID'
-        AND t."CollectiveId" = c."id"
+        AND t."CollectiveId" IN (:collectiveIds)
+        AND t."FromCollectiveId" NOT IN (:collectiveIds)
         AND t."RefundTransactionId" IS NULL
         AND t."type" = 'DEBIT'
         AND t."deletedAt" IS NULL
-        ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-        ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
+        ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
+        ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
       GROUP BY TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
       ORDER BY ABS(SUM(t."amount")) DESC
-      LIMIT $limit
+      LIMIT :limit
     `,
       {
         type: QueryTypes.SELECT,
-        bind: {
-          collectiveId: collective.id,
+        replacements: {
+          collectiveIds,
           limit,
           ...computeDatesAsISOStrings(dateFrom, dateTo),
         },
@@ -566,39 +570,42 @@ function defineModel() {
     { dateFrom = null, dateTo = null, includeChildren = false } = {},
   ) {
     const noTag = 'no tag';
+    const collectiveIds = [collective.id];
+    if (includeChildren) {
+      const collectiveChildrenIds = await collective
+        .getChildren({ attributes: ['id'] })
+        .then(children => children.map(child => child.id));
+      collectiveIds.push(...collectiveChildrenIds);
+    }
     return sequelize.query(
       `
       SELECT
-        DATE_TRUNC($timeUnit, t."createdAt") AS "date",
+        DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
         TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))) AS label,
         COUNT(e."id") as "count",
         ABS(SUM(t."amount")) as "amount",
         t."currency" as "currency"
       FROM "Expenses" e
       INNER JOIN "Transactions" t
-        ON t."ExpenseId" = e."id"
-        AND t."deletedAt" IS NULL
+        ON t."ExpenseId" = e."id" AND t."deletedAt" IS NULL
       INNER JOIN "Collectives" c
-        ON (
-          c."id" = $collectiveId
-          ${includeChildren ? `OR c."ParentCollectiveId" = $collectiveId` : ``}
-        )
-        AND c."deletedAt" IS NULL
+        ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
       WHERE e."CollectiveId" = c."id"
         AND e."deletedAt" IS NULL
         AND e."status" = 'PAID'
-        AND t."CollectiveId" = c."id"
+        AND t."CollectiveId" IN (:collectiveIds)
+        AND t."FromCollectiveId" NOT IN (:collectiveIds)
         AND t."RefundTransactionId" IS NULL
         AND t."type" = 'DEBIT'
-        ${dateFrom ? `AND t."createdAt" >= $startDate` : ``}
-        ${dateTo ? `AND t."createdAt" <= $endDate` : ``}
-      GROUP BY DATE_TRUNC($timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
-      ORDER BY DATE_TRUNC($timeUnit, t."createdAt") DESC, ABS(SUM(t."amount")) DESC
+        ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
+        ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
+      GROUP BY DATE_TRUNC(:timeUnit, t."createdAt"), TRIM(UNNEST(COALESCE(e."tags", '{"${noTag}"}'))), t."currency"
+      ORDER BY DATE_TRUNC(:timeUnit, t."createdAt") DESC, ABS(SUM(t."amount")) DESC
     `,
       {
         type: QueryTypes.SELECT,
-        bind: {
-          collectiveId: collective.id,
+        replacements: {
+          collectiveIds,
           timeUnit,
           ...computeDatesAsISOStrings(dateFrom, dateTo),
         },

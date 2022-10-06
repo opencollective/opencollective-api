@@ -47,16 +47,29 @@ export const AccountStats = new GraphQLObjectType({
             type: GraphQLDateTime,
             description: 'Calculate balance until this date.',
           },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include balance from children (Projects and Events)',
+            defaultValue: false,
+          },
         },
         resolve(account, args, req) {
-          return account.getBalanceAmount({ loaders: req.loaders, startDate: args.dateFrom, endDate: args.dateTo });
+          return account.getBalanceAmount({
+            loaders: req.loaders,
+            startDate: args.dateFrom,
+            endDate: args.dateTo,
+            includeChildren: args.includeChildren,
+          });
         },
       },
       consolidatedBalance: {
         description: 'The consolidated amount of all the events and projects combined.',
+        deprecationReason: '2022-09-02: Use balance + includeChildren instead',
         type: new GraphQLNonNull(Amount),
-        resolve(account, args, req) {
-          return account.getConsolidatedBalanceAmount({ loaders: req.loaders });
+        resolve(account) {
+          return account.getBalanceAmount({
+            includeChildren: true,
+          });
         },
       },
       monthlySpending: {
@@ -112,6 +125,11 @@ export const AccountStats = new GraphQLObjectType({
             description: 'Set this to true to use cached data',
             defaultValue: false,
           },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include money received in children (Projects and Events)',
+            defaultValue: false,
+          },
         },
         async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
@@ -123,7 +141,7 @@ export const AccountStats = new GraphQLObjectType({
           }
 
           // Search query joins "CollectiveTransactionStats" on this field, so we can use the cache
-          if (args.useCache && !dateFrom && !dateTo) {
+          if (args.useCache && !dateFrom && !dateTo && !args.includeChildren) {
             const cachedAmount = collective.dataValues['__stats_totalAmountReceivedInHostCurrency__'];
             if (!isNil(cachedAmount)) {
               const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective.id));
@@ -142,11 +160,16 @@ export const AccountStats = new GraphQLObjectType({
             }
           }
 
-          return collective.getTotalAmountReceivedAmount({ kind, startDate: dateFrom, endDate: dateTo });
+          return collective.getTotalAmountReceivedAmount({
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            includeChildren: args.includeChildren,
+          });
         },
       },
       totalPaidExpenses: {
-        description: 'Total of paid expenses, filter per expensetype',
+        description: 'Total of paid expenses, filter per expense type',
         type: new GraphQLNonNull(Amount),
         args: {
           expenseType: {
