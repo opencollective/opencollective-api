@@ -2112,9 +2112,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const result4 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams4, hostAdmin);
 
       expect(result4.errors).to.exist;
-      expect(result4.errors[0].message).to.eq(
-        'Two-factor authentication payout limit exceeded: please re-enter your code.',
-      );
+      expect(result4.errors[0].message).to.eq('Two-factor authentication required');
     });
 
     it('authorizes users based on their active session', async () => {
@@ -2152,7 +2150,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         },
       );
       expect(result1.errors).to.exist;
-      expect(result1.errors[0].message).to.eq('Two-factor authentication enabled: please enter your code.');
+      expect(result1.errors[0].message).to.eq('Two-factor authentication required');
 
       // It works with session 1
       const result2 = await graphqlQueryV2(
@@ -2180,7 +2178,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         },
       );
       expect(result3.errors).to.exist;
-      expect(result3.errors[0].message).to.eq('Two-factor authentication enabled: please enter your code.');
+      expect(result3.errors[0].message).to.eq('Two-factor authentication required');
     });
   });
 

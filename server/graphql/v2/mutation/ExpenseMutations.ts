@@ -291,6 +291,10 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
       checkRemoteUserCanUseExpenses(req);
 
+      if (args?.paymentParams?.twoFactorAuthenticatorCode) {
+        req.headers['x-two-factor-auth'] = `totp ${args.paymentParams.twoFactorAuthenticatorCode}`;
+      }
+
       const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       switch (args.action) {
         case 'APPROVE':
