@@ -5,6 +5,7 @@ import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 import speakeasy from 'speakeasy';
 
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { fakeApplication, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -116,7 +117,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user, null, {
-        'x-two-factor-auth': `totp ${twoFactorAuthenticatorCode}`
+        [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`
       });
       expect(result.errors).to.not.exist;
       const resultApp = result.data.createApplication;
@@ -140,7 +141,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user, null, {
-        'x-two-factor-auth': `totp 1234`
+        [TwoFactorAuthenticationHeader]: `totp 1234`
       });
       expect(result.errors[0].message).to.eq('Two-factor authentication code is invalid');
     });

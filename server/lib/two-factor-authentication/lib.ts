@@ -24,6 +24,8 @@ export enum TwoFactorMethod {
   TOTP = 'totp',
 }
 
+export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication'
+
 export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP];
 
 export type Token = {
@@ -40,7 +42,7 @@ export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } =
 };
 
 function getTwoFactorAuthTokenFromRequest(req: Request): Token {
-  const header = req.get('x-two-factor-auth');
+  const header = req.get(TwoFactorAuthenticationHeader);
   if (!header) {
     return null;
   }
