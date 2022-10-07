@@ -4,6 +4,7 @@ import querystring from 'querystring';
 import { expect } from 'chai';
 import nock from 'nock';
 
+import OrderStatuses from '../../../../server/constants/order_status';
 import cache from '../../../../server/lib/cache';
 import models, { sequelize } from '../../../../server/models';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
@@ -17,7 +18,6 @@ import {
   fakeUser,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
-import OrderStatuses from '../../../../server/constants/order_status';
 
 async function createOrderWithPaymentMethod(paymentMethodName, orderParams = {}) {
   const user = await models.User.createUserWithCollective({
