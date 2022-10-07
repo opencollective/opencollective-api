@@ -14,6 +14,7 @@ import {
   differenceBy,
   get,
   includes,
+  isEmpty,
   isNull,
   isUndefined,
   omit,
@@ -3382,7 +3383,7 @@ function defineModel() {
       }
     }
 
-    return this.update({ data: { ...this.data, policies } });
+    return this.update({ data: { ...this.data, policies: policies } });
   };
 
   /**
