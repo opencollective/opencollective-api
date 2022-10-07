@@ -318,7 +318,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
     });
   });
 
-  describe.only('#closeDispute()', () => {
+  describe('#closeDispute()', () => {
     let order;
 
     beforeEach(() => utils.resetTestDB());

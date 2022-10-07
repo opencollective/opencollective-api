@@ -4,7 +4,6 @@ import { get, toUpper } from 'lodash';
 import OrderStatuses from '../../constants/order_status';
 import { TransactionKind } from '../../constants/transaction-kind';
 import * as constants from '../../constants/transactions';
-import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
