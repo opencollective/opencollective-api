@@ -9,6 +9,9 @@ export const Policies = new GraphQLObjectType({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
       type: GraphQLBoolean,
     },
+    [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
+      type: GraphQLBoolean,
+    },
     [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
       type: new GraphQLObjectType({
         name: POLICIES.COLLECTIVE_MINIMUM_ADMINS,

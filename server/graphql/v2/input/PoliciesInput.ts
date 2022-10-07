@@ -9,6 +9,9 @@ export const PoliciesInput = new GraphQLInputObjectType({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
       type: GraphQLBoolean,
     },
+    [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
+      type: GraphQLBoolean,
+    },
     [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
       type: new GraphQLInputObjectType({
         name: 'PoliciesCollectiveMinimumAdminsInput',

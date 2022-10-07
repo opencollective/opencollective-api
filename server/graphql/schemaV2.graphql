@@ -4105,6 +4105,7 @@ type VirtualCardCollection implements Collection {
 
 type Policies {
   EXPENSE_AUTHOR_CANNOT_APPROVE: Boolean
+  REQUIRE_2FA_FOR_ADMINS: Boolean
   COLLECTIVE_MINIMUM_ADMINS: COLLECTIVE_MINIMUM_ADMINS
 }
 
@@ -13174,6 +13175,7 @@ input AccountUpdateInput {
 
 input PoliciesInput {
   EXPENSE_AUTHOR_CANNOT_APPROVE: Boolean
+  REQUIRE_2FA_FOR_ADMINS: Boolean
   COLLECTIVE_MINIMUM_ADMINS: PoliciesCollectiveMinimumAdminsInput
 }
 
