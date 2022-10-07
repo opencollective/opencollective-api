@@ -127,13 +127,17 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = (remoteUser, query, jwtPayload) => {
+export const makeRequest = (remoteUser, query, jwtPayload, headers = {}) => {
   return {
     remoteUser,
     jwtPayload,
     body: { query },
     loaders: loaders({ remoteUser }),
+    headers,
     header: () => null,
+    get: a => {
+      return headers[a];
+    },
   };
 };
 
@@ -185,7 +189,7 @@ export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =
  * @param {object} remoteUser - The user to add to the context. It is not required.
  * @param {object} schema - Schema to which queries and mutations will be served against. Schema v1 by default.
  */
-export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload) => {
+export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload, headers) => {
   const prepare = () => {
     if (remoteUser) {
       remoteUser.rolesByCollectiveId = null; // force refetching the roles
@@ -206,7 +210,7 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
       schema,
       source: query,
       rootValue: null,
-      contextValue: makeRequest(remoteUser, query, jwtPayload),
+      contextValue: makeRequest(remoteUser, query, jwtPayload, headers),
       variableValues: variables,
     }),
   );
@@ -218,8 +222,8 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
  * @param {object} remoteUser - The user to add to the context. It is not required.
  */
-export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPayload = null) {
-  return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload);
+export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPayload = null, headers = {}) {
+  return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload, headers);
 }
 
 /** Helper for interpreting fee description in BDD tests
