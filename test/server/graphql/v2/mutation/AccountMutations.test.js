@@ -364,7 +364,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
-      expect(activity.data).to.deep.equal({ newData: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } });
+      expect(activity.data).to.deep.equal({
+        previousData: {},
+        newData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } },
+      });
     });
 
     it('should disable policy', async () => {
@@ -387,8 +390,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        previousData: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
-        newData: {},
+        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } },
+        newData: { policies: {} },
       });
     });
 

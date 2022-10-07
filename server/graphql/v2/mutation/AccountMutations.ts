@@ -495,7 +495,7 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
-      const previousData = account.data?.policies;
+      const previousData = { policies: account.data?.policies };
       await account.setPolicies(args.policies);
       await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
@@ -504,7 +504,7 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData, newData: args.policies },
+        data: { previousData, newData: { policies: args.policies } },
       });
       return account;
     },
