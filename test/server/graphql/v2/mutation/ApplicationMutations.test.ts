@@ -116,9 +116,15 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       });
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
-      const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user, null, {
-        [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`
-      });
+      const result = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: VALID_APPLICATION_PARAMS },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
+        },
+      );
       expect(result.errors).to.not.exist;
       const resultApp = result.data.createApplication;
       expect(resultApp.id).to.exist;
@@ -140,9 +146,15 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
 
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
-      const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user, null, {
-        [TwoFactorAuthenticationHeader]: `totp 1234`
-      });
+      const result = await graphqlQueryV2(
+        CREATE_APPLICATION_MUTATION,
+        { application: VALID_APPLICATION_PARAMS },
+        user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `totp 1234`,
+        },
+      );
       expect(result.errors[0].message).to.eq('Two-factor authentication code is invalid');
     });
 

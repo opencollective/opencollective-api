@@ -622,16 +622,16 @@ async function validateExpensePayout2FALimit(req, expense, expensePaidAmountKey)
   const twoFactorSession = req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
-  const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0
+  const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
 
   // requires a 2FA token to be present if there is no value in the cache (first payout by user)
-  // or the this payout would put the user over the rolling limit. 
+  // or the this payout would put the user over the rolling limit.
   const use2FAToken =
     isNil(currentPaidExpenseAmountCache) ||
     currentPaidExpenseAmount + expense.amount > hostPayoutTwoFactorAuthenticationRollingLimit;
 
-  if (!await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
-    throw new Error("Host has two-factor authentication enabled for large payouts.");
+  if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+    throw new Error('Host has two-factor authentication enabled for large payouts.');
   }
 
   await twoFactorAuthLib.validateRequest(req, {
@@ -639,8 +639,8 @@ async function validateExpensePayout2FALimit(req, expense, expensePaidAmountKey)
     alwaysAskForToken: use2FAToken,
     sessionDuration: ROLLING_LIMIT_CACHE_VALIDITY, // duration of a auth session after a token is presented
     sessionKey: `2fa_expense_payout_${twoFactorSession}`, // key of the 2fa session where the 2fa will be valid for the duration
-  }); 
-  
+  });
+
   if (use2FAToken) {
     // if a 2fa token was used, reset rolling limit
     cache.set(expensePaidAmountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
@@ -672,7 +672,7 @@ export const scheduleExpenseForPayment = async (
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
       const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
-      await validateExpensePayout2FALimit(req, expense, expensePaidAmountKey)
+      await validateExpensePayout2FALimit(req, expense, expensePaidAmountKey);
     }
   }
 
@@ -1820,7 +1820,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
 
     if (useTwoFactorAuthentication) {
       currentPaidExpenseAmount = await cache.get(expensePaidAmountKey);
-      await validateExpensePayout2FALimit(req, expense, expensePaidAmountKey)
+      await validateExpensePayout2FALimit(req, expense, expensePaidAmountKey);
     }
 
     try {

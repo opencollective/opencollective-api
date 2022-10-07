@@ -24,7 +24,7 @@ export enum TwoFactorMethod {
   TOTP = 'totp',
 }
 
-export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication'
+export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
 export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP];
 
@@ -110,8 +110,7 @@ async function validateRequest(
   req: Request,
   options: ValidateRequestOptions = DefaultValidateRequestOptions,
 ): Promise<void> {
-
-  options = {...DefaultValidateRequestOptions, ...options}
+  options = { ...DefaultValidateRequestOptions, ...options };
 
   const remoteUser = req?.remoteUser;
 
@@ -132,13 +131,9 @@ async function validateRequest(
 
   const token = getTwoFactorAuthTokenFromRequest(req);
   if (!token) {
-    throw new ApolloError(
-      'Two-factor authentication required',
-      '2FA_REQUIRED',
-      {
-        supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
-      },
-    );
+    throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
+      supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
+    });
   }
 
   await validateToken(remoteUser, token);
