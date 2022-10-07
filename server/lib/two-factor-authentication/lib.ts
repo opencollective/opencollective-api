@@ -1,0 +1,171 @@
+import { ApolloError } from 'apollo-server-errors';
+import { Request } from 'express';
+import { isNil } from 'lodash';
+
+import User from '../../models/User';
+import cache from '../cache';
+
+import totp from './totp';
+
+const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 600; // 10min
+
+type ValidateRequestOptions = {
+  // require user configured 2FA
+  requireTwoFactorAuthEnabled?: boolean;
+  // always ask for a token when using 2FA
+  alwaysAskForToken?: boolean;
+  // duration which we wont require a token after a successful use
+  sessionDuration?: number;
+  // identifier for the session
+  sessionKey?: (() => string) | string;
+};
+
+export enum TwoFactorMethod {
+  TOTP = 'totp',
+}
+
+export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP];
+
+export type Token = {
+  type: TwoFactorMethod;
+  code: string;
+};
+
+export interface TwoFactorAuthProvider {
+  validateToken(user: typeof User, token: Token): Promise<void>;
+}
+
+export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
+  [TwoFactorMethod.TOTP]: totp,
+};
+
+function getTwoFactorAuthTokenFromRequest(req: Request): Token {
+  const header = req.get('x-two-factor-auth');
+  if (!header) {
+    return null;
+  }
+
+  const parts = header.split(' ');
+  const type = parts[0] as TwoFactorMethod;
+  const code = parts[1];
+
+  return {
+    type,
+    code,
+  };
+}
+
+async function validateToken(user: typeof User, token: Token): Promise<void> {
+  if (!SupportedTwoFactorMethods.includes(token.type)) {
+    throw new Error(`Unsupported 2FA type ${token.type}`);
+  }
+
+  return providers[token.type].validateToken(user, token);
+}
+
+const DefaultValidateRequestOptions: ValidateRequestOptions = {
+  requireTwoFactorAuthEnabled: false,
+  alwaysAskForToken: false,
+  sessionDuration: DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION,
+};
+
+function getSessionKey(req: Request, options: ValidateRequestOptions) {
+  if (typeof options.sessionKey === 'function') {
+    return options.sessionKey();
+  } else if (typeof options.sessionKey === 'string') {
+    return options.sessionKey;
+  } else {
+    const userId = req?.remoteUser?.id;
+    const sessionId = req.jwtPayload?.sessionId;
+    return `${userId}_2fa_${sessionId}`;
+  }
+}
+
+async function hasValidTwoFactorSession(
+  req: Request,
+  options: ValidateRequestOptions = DefaultValidateRequestOptions,
+): Promise<boolean> {
+  const sessionKey = getSessionKey(req, options);
+
+  const twoFactorSession = await cache.get(sessionKey);
+
+  if (isNil(twoFactorSession)) {
+    return false;
+  }
+
+  return true;
+}
+
+async function storeTwoFactorSession(
+  req: Request,
+  options: ValidateRequestOptions = DefaultValidateRequestOptions,
+): Promise<void> {
+  const sessionKey = getSessionKey(req, options);
+  return cache.set(sessionKey, {}, options.sessionDuration);
+}
+
+async function validateRequest(
+  req: Request,
+  options: ValidateRequestOptions = DefaultValidateRequestOptions,
+): Promise<void> {
+
+  options = {...DefaultValidateRequestOptions, ...options}
+
+  const remoteUser = req?.remoteUser;
+
+  const userHasTwoFactorAuth = await userHasTwoFactorAuthEnabled(remoteUser);
+  if (options.requireTwoFactorAuthEnabled && !userHasTwoFactorAuth) {
+    throw new ApolloError('Two factor authentication must be configured', '2FA_REQUIRED');
+  }
+
+  if (!userHasTwoFactorAuth) {
+    return;
+  }
+
+  if (!options.alwaysAskForToken) {
+    if (await hasValidTwoFactorSession(req, options)) {
+      return;
+    }
+  }
+
+  const token = getTwoFactorAuthTokenFromRequest(req);
+  if (!token) {
+    throw new ApolloError(
+      'Two-factor authentication required',
+      '2FA_REQUIRED',
+      {
+        supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
+      },
+    );
+  }
+
+  await validateToken(remoteUser, token);
+
+  return storeTwoFactorSession(req, options);
+}
+
+async function twoFactorMethodsSupportedByUser(remoteUser: typeof User) {
+  const methods = [];
+  if (remoteUser.twoFactorAuthToken) {
+    methods.push(TwoFactorMethod.TOTP);
+  }
+
+  return methods;
+}
+
+async function userHasTwoFactorAuthEnabled(user: typeof User) {
+  if (user.twoFactorAuthToken) {
+    return true;
+  }
+
+  return false;
+}
+
+const twoFactorAuthLib = {
+  validateRequest,
+  validateToken,
+  getTwoFactorAuthTokenFromRequest,
+  userHasTwoFactorAuthEnabled,
+};
+
+export default twoFactorAuthLib;
