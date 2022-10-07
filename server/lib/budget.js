@@ -344,6 +344,14 @@ export async function sumCollectivesTransactions(
     // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
     where.isRefund = { [Op.not]: true };
   }
+  // Only consider excluding blocked funds if refunds are also being excluded
+  // We don't want a situation where we have a disputed transaction and
+  // a refund for that transaction and we are only summing one or the other
+  if (withBlockedFunds && excludeRefunds) {
+    // Exclude disputed transactions
+    where.isDisputed = { [Op.eq]: false };
+  }
+
   if (hostCollectiveId) {
     // Only transactions that are marked under a Fiscal Host
     where.HostCollectiveId = hostCollectiveId;
@@ -354,10 +362,6 @@ export async function sumCollectivesTransactions(
   }
   if (kind) {
     where.kind = kind;
-  }
-  if (withBlockedFunds) {
-    // Exclude disputed transactions
-    where.isDisputed = { [Op.eq]: false };
   }
 
   const totals = {};

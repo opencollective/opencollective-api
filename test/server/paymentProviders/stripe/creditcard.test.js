@@ -8,7 +8,14 @@ import cache from '../../../../server/lib/cache';
 import models, { sequelize } from '../../../../server/models';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
 import stripeMocks from '../../../mocks/stripe';
-import { fakeHost, fakeOrder, fakePaymentMethod, fakeTransaction, fakeUser } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeHost,
+  fakeOrder,
+  fakePaymentMethod,
+  fakeTransaction,
+  fakeUser,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 import OrderStatuses from '../../../../server/constants/order_status';
 
@@ -311,12 +318,13 @@ describe('server/paymentProviders/stripe/creditcard', () => {
     });
   });
 
-  describe('#closeDispute()', () => {
+  describe.only('#closeDispute()', () => {
     let order;
 
     beforeEach(() => utils.resetTestDB());
 
     beforeEach(async () => {
+      const collective = await fakeCollective({ isHostAccount: true });
       const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
       order = await fakeOrder(
         {
@@ -329,6 +337,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       await fakeTransaction(
         {
           OrderId: order.id,
+          HostCollectiveId: collective.id,
           amount: 10,
           data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
         },
@@ -345,22 +354,53 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         expect(transactions.map(tx => tx.isDisputed)).to.eql([false, false]);
       });
 
-      it('un-disputes the Order connected to the charge', async () => {
-        await creditcard.createDispute(stripeMocks.webhook_dispute_created);
-        await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+      describe('when the Order has a Subscription', () => {
+        it('resets the Order connected to the charge to ACTIVE', async () => {
+          await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+          await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
 
-        await order.reload();
-        expect(order.status).to.eql(OrderStatuses.PAID);
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.ACTIVE);
+        });
+
+        it('reactivates the Subscription', async () => {
+          await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+          await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+
+          const subscription = await order.getSubscription();
+          expect(subscription.isActive).to.eql(true);
+        });
+      });
+
+      describe('when the Order does not have a Subscription', () => {
+        it('resets the Order connected to the charge to PAID', async () => {
+          await order.update({ SubscriptionId: null });
+          await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+          await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.PAID);
+        });
       });
     });
 
     describe('the dispute was lost and is fraud', () => {
-      it('TODO', async () => {
+      it('creates a refund transaction for the fraudulent transaction', async () => {
         await creditcard.createDispute(stripeMocks.webhook_dispute_created);
         await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
 
-        await order.reload();
-        expect(order.status).to.eql(OrderStatuses.DISPUTED);
+        const transactions = await order.getTransactions();
+        const refundTransactions = transactions.filter(tx => tx.isRefund === true);
+        expect(refundTransactions.length).to.eql(2);
+      });
+
+      it('creates a dispute fee DEBIT transaction for the host collective', async () => {
+        await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+        await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
+
+        const transactions = await order.getTransactions();
+        const disputeFeeTransaction = transactions.find(tx => tx.description === 'Dispute Fee paid to Stripe');
+        expect(disputeFeeTransaction.amount).to.eql(-1500);
       });
     });
   });

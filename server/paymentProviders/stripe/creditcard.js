@@ -2,9 +2,12 @@ import config from 'config';
 import { get, toUpper } from 'lodash';
 
 import OrderStatuses from '../../constants/order_status';
+import { TransactionKind } from '../../constants/transaction-kind';
 import * as constants from '../../constants/transactions';
 import { TransactionTypes } from '../../constants/transactions';
+import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { toNegative } from '../../lib/math';
 import {
   createRefundTransaction,
   getApplicationFee,
@@ -349,7 +352,7 @@ const createDispute = async event => {
 const closeDispute = async event => {
   const stripeChargeId = event.data.object.charge;
   const transactions = await models.Transaction.findAll({
-    where: { data: { charge: { id: stripeChargeId } } },
+    where: { data: { charge: { id: stripeChargeId } }, isDisputed: true },
     include: [
       {
         model: models.Order,
@@ -358,40 +361,68 @@ const closeDispute = async event => {
       },
     ],
   });
+  const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
 
-  const disputeStatus = event.data.object.status;
+  if (transactions.length > 0) {
+    const disputeStatus = event.data.object.status;
+    const disputeTransaction = event.data.object.balance_transactions.find(
+      tx => tx.type === 'adjustment' && tx.reporting_category === 'dispute',
+    );
 
-  await Promise.all(
-    transactions.map(async transaction => {
-      const order = transaction.Order;
+    // A lost dispute means it was decided as fraudulent
+    if (disputeStatus === 'lost') {
+      // Create refund transaction for the fraudulent charge
+      await createRefundTransaction(creditTransaction, 0, {
+        ...creditTransaction.data,
+        dispute: event,
+        refundTransactionId: creditTransaction.id,
+      });
 
+      // Create transaction for dispute fee debiting the fiscal host
+      const feeDetails = disputeTransaction.fee_details.find(feeDetails => feeDetails.description === 'Dispute fee');
+      const currency = feeDetails.currency.toUpperCase();
+      const amount = feeDetails.amount;
+      const fiscalHost = await models.Collective.findByPk(creditTransaction.HostCollectiveId);
+      const hostCurrencyFxRate = await getFxRate(currency, fiscalHost.currency);
+      const hostCurrencyAmount = Math.round(toNegative(amount) * hostCurrencyFxRate);
+
+      await models.Transaction.create({
+        type: 'DEBIT',
+        HostCollectiveId: fiscalHost.id,
+        CollectiveId: fiscalHost.id,
+        FromCollectiveId: fiscalHost.id,
+        OrderId: creditTransaction.OrderId,
+        amount: toNegative(hostCurrencyAmount),
+        netAmountInCollectiveCurrency: toNegative(hostCurrencyAmount),
+        amountInHostCurrency: Math.round(toNegative(amount) * hostCurrencyFxRate),
+        currency: currency,
+        hostCurrency: currency,
+        description: 'Dispute Fee paid to Stripe',
+        paymentProcessorFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        platformFeeInHostCurrency: 0,
+        hostCurrencyFxRate,
+        kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
+        data: event.data,
+      });
       // A won dispute means it was decided as not fraudulent
-      if (disputeStatus === 'won') {
-        await transaction.update({ isDisputed: false });
-
-        if (order.status === OrderStatuses.DISPUTED) {
-          if (order.SubscriptionId) {
-            await order.update({ status: OrderStatuses.ACTIVE });
-            await order.Subscription.activate();
-          } else {
-            await order.update({ status: OrderStatuses.PAID });
-          }
+    } else if (disputeStatus === 'won') {
+      const order = creditTransaction.Order;
+      if (order.status === OrderStatuses.DISPUTED) {
+        if (order.SubscriptionId) {
+          await order.update({ status: OrderStatuses.ACTIVE });
+          await order.Subscription.activate();
+        } else {
+          await order.update({ status: OrderStatuses.PAID });
         }
-        // A lost dispute means it was decided as fraudulent
-      } else if (disputeStatus === 'lost') {
-        if (transaction.type === TransactionTypes.CREDIT) {
-          await createRefundTransaction(transaction, 0, { refundTransactionId: transaction.id });
-        }
-
-        // TODO:
-        //  lookup in stripe the fee for dispute
-        //  create transaction for dispute fee (+ processor fee) debiting the fiscal host
-      } else {
-        console.log('DISPUTE CLOSED FOR ORDER ID: ', order.id);
-        console.log('Dispute Status:', disputeStatus);
       }
-    }),
-  );
+      await Promise.all(
+        transactions.map(async transaction => {
+          await transaction.update({ isDisputed: false });
+        }),
+      );
+    }
+  }
 };
 
 export default {
