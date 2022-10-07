@@ -2,6 +2,7 @@ import config from 'config';
 import { GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
@@ -20,6 +21,7 @@ const createApplication = {
   },
   async resolve(_, args, req) {
     checkRemoteUserCanUseApplications(req);
+    await twoFactorAuthLib.validateRequest(req);
 
     const collective = args.application.account
       ? await fetchAccountWithReference(args.application.account, { throwIfMissing: true })
