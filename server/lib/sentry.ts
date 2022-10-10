@@ -52,6 +52,8 @@ type CaptureErrorParams = {
   user?: Sentry.User;
   handler?: HandlerType;
   feature?: FEATURE;
+  /** Used to group Axios errors, when the URL includes parameters */
+  requestPath?: string;
 };
 
 const stringifyExtra = (value: unknown) => {
@@ -70,12 +72,12 @@ const stringifyExtra = (value: unknown) => {
   }
 };
 
-const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError) => {
+const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError, params: CaptureErrorParams) => {
   scope.setTag('lib_axios', 'true');
   if (err.request) {
     scope.setExtra('axios_request', JSON.stringify(pick(err.request, ['method', 'url', 'path']), null, 2));
     scope.setTransactionName(`Axios query: ${err.request.method} ${err.request.path}`);
-    const fingerPrint = ['axios', err.request.method, err.request.path];
+    const fingerPrint = ['axios', err.request.method, params.requestPath || err.request.path];
     if (err.response) {
       fingerPrint.push(String(err.response.status));
     }
@@ -90,7 +92,7 @@ const enhanceScopeWithAxiosError = (scope: Sentry.Scope, err: AxiosError) => {
 };
 
 const withScopeFromCaptureErrorParams = (
-  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature }: CaptureErrorParams = {},
+  { severity = 'error', tags, handler, extra, user, breadcrumbs, feature, requestPath }: CaptureErrorParams = {},
   callback: (scope: Sentry.Scope) => void,
 ) => {
   Sentry.withScope(scope => {
@@ -102,6 +104,9 @@ const withScopeFromCaptureErrorParams = (
     }
     if (feature) {
       scope.setTag('feature', feature);
+    }
+    if (requestPath) {
+      scope.setTag('requestPath', requestPath);
     }
     if (!isEmpty(tags)) {
       Object.entries(tags).forEach(([tag, value]) => scope.setTag(tag, value));
@@ -133,7 +138,7 @@ export const reportErrorToSentry = (err: Error, params: CaptureErrorParams = {})
   withScopeFromCaptureErrorParams(params, (scope: Sentry.Scope) => {
     // Add some more data if the error is an Axios error
     if (axios.isAxiosError(err)) {
-      enhanceScopeWithAxiosError(scope, err);
+      enhanceScopeWithAxiosError(scope, err, params);
     }
 
     Sentry.captureException(err);
