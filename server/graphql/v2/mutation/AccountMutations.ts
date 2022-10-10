@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
-import { cloneDeep, set } from 'lodash';
+import { cloneDeep, isNull, omitBy, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
@@ -26,6 +26,7 @@ import { AccountTypeToModelMapping } from '../enum/AccountType';
 import { idDecode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AccountUpdateInput } from '../input/AccountUpdateInput';
+import { PoliciesInput } from '../input/PoliciesInput';
 import { Account } from '../interface/Account';
 import { Host } from '../object/Host';
 import { Individual } from '../object/Individual';
@@ -477,7 +478,7 @@ const accountMutations = {
         description: 'Account where the policies are being set',
       },
       policies: {
-        type: new GraphQLNonNull(GraphQLJSON),
+        type: new GraphQLNonNull(PoliciesInput),
         description: 'The policy to be added',
       },
     },
@@ -495,8 +496,9 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
-      const previousData = { policies: account.data?.policies };
-      await account.setPolicies(args.policies);
+      const previousPolicies = account.data?.policies;
+      const newPolicies = omitBy({ ...previousPolicies, ...args.policies }, isNull);
+      await account.setPolicies(newPolicies);
       await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
         UserId: req.remoteUser.id,
@@ -504,8 +506,9 @@ const accountMutations = {
         CollectiveId: account.id,
         FromCollectiveId: account.id,
         HostCollectiveId: account.approvedAt ? account.HostCollectiveId : null,
-        data: { previousData, newData: { policies: args.policies } },
+        data: { previousData: { policies: previousPolicies }, newData: { policies: newPolicies } },
       });
+
       return account;
     },
   },

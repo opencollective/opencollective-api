@@ -335,7 +335,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
   describe('setPolicies', () => {
     const setPoliciesMutation = gqlV2/* GraphQL */ `
-      mutation setPoliciesMutation($account: AccountReferenceInput!, $policies: JSON!) {
+      mutation setPoliciesMutation($account: AccountReferenceInput!, $policies: PoliciesInput!) {
         setPolicies(account: $account, policies: $policies) {
           id
           settings
@@ -351,7 +351,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         account: { legacyId: collective.id },
         policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
       };
-      await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.not.exist;
 
       await collective.reload();
       expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
@@ -370,13 +371,46 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       });
     });
 
-    it('should disable policy', async () => {
-      console.log(collective.data);
+    it('should merge with existing policies', async () => {
       const mutationParams = {
         account: { legacyId: collective.id },
-        policies: {},
+        policies: { [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 } },
       };
-      await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.not.exist;
+
+      await collective.reload();
+      expect(collective.data.policies).to.deep.eq({
+        [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true,
+        [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+      });
+
+      // Check activity
+      const activity = await models.Activity.findOne({
+        where: { UserId: adminUser.id, type: ACTIVITY.COLLECTIVE_EDITED },
+        order: [['createdAt', 'DESC']],
+      });
+
+      expect(activity).to.exist;
+      expect(activity.CollectiveId).to.equal(collective.id);
+      expect(activity.data).to.deep.equal({
+        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } },
+        newData: {
+          policies: {
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true,
+            [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+          },
+        },
+      });
+    });
+
+    it('should disable policy', async () => {
+      const mutationParams = {
+        account: { legacyId: collective.id },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: null, [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: null },
+      };
+      const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
+      expect(result.errors).to.not.exist;
 
       await collective.reload();
       expect(collective.data.policies).to.be.empty;
@@ -390,8 +424,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } },
         newData: { policies: {} },
+        previousData: {
+          policies: {
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true,
+            [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
+          },
+        },
       });
     });
 
