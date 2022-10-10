@@ -5,22 +5,20 @@ Subject: Important: {{{collective.name}}} has been un-hosted by {{{host.name}}}
 <p style="font-size: 17px; padding: 1em;">
   Hi {{collective.name}},
   <br /><br />
-  Your fiscal host, {{> linkCollective collective=host}}, has un-hosted your Collective.
-</p>
-<ul style="font-size: 17px; margin-bottom: 1em;">
-  <li>PayPal recurring contributions, if any, cannot be transferred. They will be cancelled.</li>
-  <li>Virtual Cards assigned to your collective by {{host.name}} will be cancelled.</li>
-</ul>
-<p style="font-size: 17px; padding: 0 1em;">
-  If you have additional questions about this, please <a href="{{config.host.website}}/{{host.slug}}/contact">contact</a> your fiscal host.
-  {{#if message}}
-    <br /><br />
-    {{> linkCollective collective=host}} included the following message:
-  {{/if}}
+  You have been un-hosted by {{> linkCollective collective=host}}. This Fiscal Host will no longer manage money on behalf of your Collective. Any active recurring PayPal contributions or Virtual Cards will be canceled.
 </p>
 
 {{#if message}}
+<p style="font-size: 17px; padding: 0 1em;">
+  Message from {{host.name}}
+</p>
   <blockquote style="padding: 1em; color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 0 24px;border-left: 3px solid #e4e4e4;white-space: pre-line;font-style: italic;">{{message}}</blockquote>
 {{/if}}
+
+<p style="font-size: 17px; padding: 1em;">
+To continue using your Collective, you may apply to another Fiscal Host or use your own bank account and become an Independent Collective. To close down your Collective, go to Settings > Advanced > Archive or Delete.
+<br /><br />
+If you have questions, reply to this email to contact support.
+</p>
 
 {{> footer}}

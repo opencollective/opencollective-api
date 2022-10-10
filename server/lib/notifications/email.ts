@@ -133,9 +133,13 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.COLLECTIVE_EXPENSE_CREATED:
     case ActivityTypes.COLLECTIVE_FROZEN:
     case ActivityTypes.COLLECTIVE_UNFROZEN:
-    case ActivityTypes.COLLECTIVE_UNHOSTED:
     case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:
       await notify.collective(activity);
+      break;
+    case ActivityTypes.COLLECTIVE_UNHOSTED:
+      await notify.collective(activity, {
+        replyTo: 'support@opencollective.com',
+      });
       break;
 
     case ActivityTypes.OAUTH_APPLICATION_AUTHORIZED:
