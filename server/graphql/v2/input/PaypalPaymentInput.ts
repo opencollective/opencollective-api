@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLString } from 'graphql';
+import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
 
 export const PaypalPaymentInput = new GraphQLInputObjectType({
@@ -8,6 +8,5 @@ export const PaypalPaymentInput = new GraphQLInputObjectType({
     data: { type: GraphQLJSON },
     orderId: { type: GraphQLString },
     subscriptionId: { type: GraphQLString },
-    isNewApi: { type: GraphQLBoolean, deprecationReason: '2021-07-30: Not used anymore' },
   }),
 });

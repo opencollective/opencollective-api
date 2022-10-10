@@ -21,11 +21,6 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Legal name of the user',
     },
-    token: {
-      type: GraphQLString,
-      description: 'The unique guest token',
-      deprecationReason: '2021-01-26: Guest tokens are not used anymore',
-    },
     location: {
       type: LocationInput,
       description: 'Address of the user, mandatory when amount is above $5000.',
