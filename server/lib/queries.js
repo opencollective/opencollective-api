@@ -220,6 +220,7 @@ const getTopBackers = (since, until, tags, limit) => {
     LEFT JOIN "Collectives" collective ON collective.id = t."CollectiveId"
     WHERE
       t.type='CREDIT'
+      AND t."deletedAt" IS NULL
       ${sinceClause}
       ${untilClause}
       ${tagsClause}

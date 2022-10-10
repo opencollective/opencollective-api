@@ -2392,7 +2392,15 @@ function defineModel() {
 
     const balance = await this.getBalance();
     if (balance > 0) {
-      throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
+      if (options?.isChildren) {
+        throw new Error(
+          `Unable to change host: your ${this.type.toLowerCase()} "${
+            this.name
+          }" still has a balance of ${formatCurrency(balance, this.currency)}`,
+        );
+      } else {
+        throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
+      }
     }
 
     await models.Member.destroy({
@@ -2421,11 +2429,11 @@ function defineModel() {
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
-      await Promise.all(events.map(e => e.changeHost(null)));
+      await Promise.all(events.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
     const projects = await this.getProjects();
     if (projects?.length > 0) {
-      await Promise.all(projects.map(e => e.changeHost(null)));
+      await Promise.all(projects.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
 
     // Reset current host
