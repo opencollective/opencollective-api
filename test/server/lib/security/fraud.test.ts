@@ -231,7 +231,7 @@ describe('lib/security/fraud', () => {
         paymentMethod: {
           name: '4242',
           type: 'creditcard',
-          creditCardInfo: { expYear: 2022, expMonth: 13, country: 'US' },
+          creditCardInfo: { expYear: 2022, expMonth: 13, brand: 'Visa' },
         },
       };
       before(() => {
@@ -240,7 +240,7 @@ describe('lib/security/fraud', () => {
 
       it('should throw if donation comes from a guest-user from the same email', async () => {
         await expect(orderFraudProtection({} as Express.Request, order)).to.be.rejectedWith(
-          'Credit Card 4242-2022-13-US failed fraud protection',
+          'Credit Card 4242-Visa-13-2022 failed fraud protection',
         );
       });
 
