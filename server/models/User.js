@@ -152,6 +152,10 @@ function defineModel() {
           });
         },
 
+        hasTwoFactorAuthentication() {
+          return this.twoFactorAuthToken !== null;
+        },
+
         name() {
           return this.userCollective.then(collective => collective.name);
         },
