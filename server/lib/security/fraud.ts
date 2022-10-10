@@ -1,7 +1,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import Express from 'express';
-import { toLower, toString } from 'lodash';
+import { pick, toLower, toString } from 'lodash';
 
 import { ValidationFailed } from '../../graphql/errors';
 import models, { sequelize } from '../../models';
@@ -160,12 +160,14 @@ export const checkUser = (user: typeof models.User) => {
 
 export const checkCreditCard = async (paymentMethod: {
   name: string;
-  creditCardInfo?: { expYear: number; expMonth: number; country: string; fingerprint?: string };
+  creditCardInfo?: { expYear: number; expMonth: number; brand?: string; fingerprint?: string };
 }) => {
   const { name, creditCardInfo } = paymentMethod;
   const assetParams = {
     type: AssetType.CREDIT_CARD,
-    fingerprint: creditCardInfo.fingerprint || [name, ...Object.values(creditCardInfo)].join('-'),
+    fingerprint:
+      creditCardInfo.fingerprint ||
+      [name, ...Object.values(pick(creditCardInfo, ['brand', 'expMonth', 'expYear', 'funding']))].join('-'),
   };
   return validateStat(
     getCreditCardStats,
@@ -204,7 +206,7 @@ export const orderFraudProtection = async (
     paymentMethod?: {
       type: string;
       name: string;
-      creditCardInfo?: { expYear: number; expMonth: number; country: string; fingerprint?: string };
+      creditCardInfo?: { expYear: number; expMonth: number; brand?: string; fingerprint?: string };
     };
   },
 ) => {
