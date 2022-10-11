@@ -18,20 +18,33 @@ interface RepositoryInfo {
     isAdmin: boolean;
     licenseSpdxId: string;
 }
+interface ValidatedRepositoryInfo {
+    allValidationsPassed: boolean;
+    fields: {
+        lastCommitDate: { value: string; isValid: boolean };
+        collaboratorsCount: { value: number; isValid: boolean };
+        starsCount: { value: number; isValid: boolean };
+        isFork: { value: boolean; isValid: boolean };
+        isOwnedByOrg: { value: boolean; isValid: boolean };
+        isAdmin: { value: boolean; isValid: boolean };
+        licenseSpdxId: { value: string; isValid: boolean };
+    };
+}
 
-export function OSCValidator(repositoryInfo?: RepositoryInfo) {
-    const { lastCommitDate, collaboratorsCount, starsCount, isFork, isOwnedByOrg, isAdmin, licenseSpdxId } = repositoryInfo;
+export function OSCValidator(repositoryInfo?: RepositoryInfo): ValidatedRepositoryInfo {
+    const { lastCommitDate, collaboratorsCount, starsCount, isFork, isOwnedByOrg, isAdmin, licenseSpdxId } =
+        repositoryInfo;
 
     const fields = {
         lastCommitDate: {
             value: lastCommitDate,
             // within the past year
-            isValid: (lastCommitDate && moment(lastCommitDate) > moment().subtract(12, 'months')),
+            isValid: lastCommitDate && moment(lastCommitDate) > moment().subtract(12, 'months'),
         },
         collaboratorsCount: {
             value: collaboratorsCount,
             // at least 2 collaborators
-            isValid: (collaboratorsCount && collaboratorsCount >= 2),
+            isValid: collaboratorsCount && collaboratorsCount >= 2,
         },
         starsCount: {
             value: starsCount,
@@ -41,22 +54,22 @@ export function OSCValidator(repositoryInfo?: RepositoryInfo) {
         isFork: {
             value: isFork,
             // should not be a fork
-            isValid: (isFork === false),
+            isValid: isFork === false,
         },
         isOwnedByOrg: {
             value: isOwnedByOrg,
             // should be owned by an org
-            isValid: (isOwnedByOrg === true),
+            isValid: isOwnedByOrg === true,
         },
         isAdmin: {
             value: isAdmin,
             // user should be admin
-            isValid: (isAdmin === true),
+            isValid: isAdmin === true,
         },
         licenseSpdxId: {
             value: licenseSpdxId,
             // license should be part of OSI-approved licenses
-            isValid: (osiApprovedLicenses.find(license => license.key === licenseSpdxId)),
+            isValid: !!osiApprovedLicenses.find(license => license.key === licenseSpdxId),
         },
     };
 
