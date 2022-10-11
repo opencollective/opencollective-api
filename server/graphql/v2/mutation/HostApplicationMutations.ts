@@ -10,6 +10,8 @@ import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
+import * as github from '../../../lib/github';
+import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
@@ -82,6 +84,8 @@ const HostApplicationMutations = {
         throw new NotFound('Host not found');
       }
 
+      const isProd = config.env === 'production';
+
       const where = {
         CollectiveId: collective.id,
         role: MemberRoles.ADMIN,
@@ -96,16 +100,46 @@ const HostApplicationMutations = {
         throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
 
-      const { githubHandle } = args.applicationData || {};
-      if (githubHandle) {
-        collective.repositoryUrl = `https://github.com/${githubHandle}`;
+      let validatedRepositoryInfo, shouldAutomaticallyApprove = false;
+      const { repositoryUrl } = args.applicationData || {};
+
+      if (repositoryUrl && repositoryUrl.contains("github.com/")) {
+        // check if actually a github repo
+        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
+
+        try {
+          // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
+          const bypassGithubValidation = !isProd && req.remoteUser.email.match(/.*test.*@opencollective.com$/);
+          if (!bypassGithubValidation) {
+            const githubAccount = await models.ConnectedAccount.findOne(
+              { where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' } },
+            );
+            if (!githubAccount) {
+              throw new Error('You must have a connected GitHub Account to apply to a host with GitHub.');
+            }
+            // In e2e/CI environment, checkGithubAdmin will be stubbed
+            await github.checkGithubAdmin(githubHandle, githubAccount.token);
+
+            if (githubHandle.includes('/')) {
+              validatedRepositoryInfo = OSCValidator(await github.getValidatorInfo(githubHandle, githubAccount.token));
+            }
+          }
+
+          shouldAutomaticallyApprove = !!validatedRepositoryInfo?.allValidationsPassed;
+        } catch (error) {
+          throw new ValidationFailed(error.message);
+        }
+
+        validatedRepositoryInfo = //
+          collective.repositoryUrl = repositoryUrl;
         await collective.save();
       }
 
       // No need to check the balance, this is being handled in changeHost, along with most other checks
       const response = await collective.changeHost(host.id, req.remoteUser, {
+        shouldAutomaticallyApprove,
         message: args.message,
-        applicationData: args.applicationData,
+        applicationData: { ...args.applicationData, validatedRepositoryInfo },
       });
 
       if (args.inviteMembers && args.inviteMembers.length) {
@@ -233,8 +267,7 @@ const approveApplication = async (host, collective, req) => {
 
   if (getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins > adminCount + adminInvitationCount) {
     throw new Forbidden(
-      `Your host policy requires at least ${
-        getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
+      `Your host policy requires at least ${getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
       } admins for this account.`,
     );
   }

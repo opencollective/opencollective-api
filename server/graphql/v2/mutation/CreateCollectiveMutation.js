@@ -9,6 +9,7 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import { defaultHostCollective } from '../../../lib/utils';
@@ -38,7 +39,8 @@ async function createCollective(_, args, req) {
   const { remoteUser, loaders } = req;
 
   let user = remoteUser,
-    host;
+    host,
+    validatedRepositoryInfo;
 
   if (args.host) {
     host = await fetchAccountWithReference(args.host, { loaders });
@@ -102,12 +104,17 @@ async function createCollective(_, args, req) {
             if (!githubAccount) {
               throw new Error('You must have a connected GitHub Account to create a collective with GitHub.');
             }
-            // In e2e/CI environment, checkGithubAdmin and checkGithubStars will be stubbed
+            // In e2e/CI environment, checkGithubAdmin will be stubbed
             await github.checkGithubAdmin(githubHandle, githubAccount.token);
-            await github.checkGithubStars(githubHandle, githubAccount.token);
+
+            if (githubHandle.includes('/')) {
+              validatedRepositoryInfo = OSCValidator(await github.getValidatorInfo(githubHandle, githubAccount.token));
+            }
           }
+
           const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-          shouldAutomaticallyApprove = policy?.numberOfAdmins > 1 ? false : true;
+          shouldAutomaticallyApprove =
+            policy?.numberOfAdmins > 1 ? false : !!validatedRepositoryInfo?.allValidationsPassed;
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
@@ -168,13 +175,12 @@ async function createCollective(_, args, req) {
           shouldAutomaticallyApprove = true;
         }
       }
-
       // Add the host if any
       if (host) {
         await collective.addHost(host, user, {
           shouldAutomaticallyApprove,
           message: args.message,
-          applicationData: args.applicationData,
+          applicationData: { ...args.applicationData, validatedRepositoryInfo },
         });
         purgeCacheForCollective(host.slug);
       }
