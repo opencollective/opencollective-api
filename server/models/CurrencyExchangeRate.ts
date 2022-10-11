@@ -43,6 +43,22 @@ export class CurrencyExchangeRate extends Model<
       },
     );
   }
+
+  static async getPairStats(
+    from: string,
+    to: string,
+  ): Promise<{ from: string; to: string; stddev: number; latestRate: number }> {
+    const info = sequelize.query(
+      `
+      SELECT "from", "to", STDDEV("rate"), (ARRAY_AGG("rate" ORDER BY "createdAt" DESC))[1] as "latestRate"
+      FROM "CurrencyExchangeRates"
+      WHERE "from" = :from AND "to" = :to AND "createdAt" >= DATE_TRUNC('day', NOW() - INTERVAL '5 days')
+      GROUP BY "to", "from"
+    `,
+      { replacements: { from, to }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
+    );
+    return info;
+  }
 }
 
 // Link the model to database fields

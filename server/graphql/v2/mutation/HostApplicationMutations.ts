@@ -130,8 +130,7 @@ const HostApplicationMutations = {
           throw new ValidationFailed(error.message);
         }
 
-        validatedRepositoryInfo = //
-          collective.repositoryUrl = repositoryUrl;
+        collective.repositoryUrl = repositoryUrl;
         await collective.save();
       }
 
@@ -359,6 +358,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
     },
     {
       bcc: adminUsers.map(u => u.email),
+      replyTo: host.data?.replyToEmail || undefined,
     },
   );
 };

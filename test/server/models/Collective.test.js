@@ -345,6 +345,16 @@ describe('server/models/Collective', () => {
       }
     });
 
+    it('fails to change host if one of the children has a pending balance', async () => {
+      const collective = await fakeCollective();
+      const event = await fakeEvent({ name: 'Crazy Party', ParentCollectiveId: collective.id });
+      const transaction = await fakeTransaction({ CollectiveId: event.id, type: 'CREDIT', amount: 1000 });
+      await expect(collective.changeHost(null)).to.be.eventually.rejectedWith(
+        'Unable to change host: your event "Crazy Party" still has a balance of $10.00',
+      );
+      await transaction.destroy(); // We unfortunately have to do that because `getTopBackers` is based on previous tests' data
+    });
+
     it('fails to deactivate as host if it is hosting any collective', async () => {
       try {
         await hostUser.collective.deactivateAsHost();

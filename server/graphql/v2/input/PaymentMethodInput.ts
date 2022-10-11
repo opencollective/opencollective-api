@@ -80,11 +80,27 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       name: pm.name,
       save: pm.isSavedForLater,
       token: pm.creditCardInfo.token,
-      data: pick(pm.creditCardInfo, ['brand', 'country', 'expMonth', 'expYear', 'fullName', 'funding', 'zip']),
+      data: pick(pm.creditCardInfo, [
+        'brand',
+        'country',
+        'expMonth',
+        'expYear',
+        'fullName',
+        'funding',
+        'zip',
+        'fingerprint',
+      ]),
     };
     if (pm.creditCardInfo.expYear && pm.creditCardInfo.expMonth) {
       const { expYear, expMonth } = pm.creditCardInfo;
       paymentMethod['expiryDate'] = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM').endOf('month');
+    }
+    // Internal fallback for card fingerprint
+    if (!paymentMethod.data?.fingerprint) {
+      paymentMethod.data.fingerprint = [
+        pm.name,
+        ...Object.values(pick(pm.creditCardInfo, ['brand', 'expMonth', 'expYear', 'funding'])),
+      ].join('-');
     }
     return paymentMethod;
   } else if (pm.paypalInfo) {

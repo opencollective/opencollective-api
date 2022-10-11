@@ -565,3 +565,11 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
 
   return { startDate, endDate };
 };
+
+/**
+ * Returns string if given condition is truthy, otherwise returns empty string.
+ * @param {*} condition
+ * @param {String} string
+ * @returns string
+ */
+export const ifStr = (condition, expression) => (condition ? expression : '');

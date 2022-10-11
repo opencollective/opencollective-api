@@ -29,6 +29,10 @@ const AccountsCollectionQuery = {
       type: GraphQLBoolean,
       description: 'Only return Fiscal Hosts accounts if true',
     },
+    includeArchived: {
+      type: GraphQLBoolean,
+      description: 'Included collectives which are archived',
+    },
     isActive: {
       type: GraphQLBoolean,
       description: 'Only return "active" accounts with Financial Contributions enabled if true.',
@@ -127,6 +131,7 @@ const AccountsCollectionQuery = {
         hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
         countries: args.country,
         tags: args.tag,
+        includeArchived: args.includeArchived,
       };
 
       const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, offset, limit, extraParameters);

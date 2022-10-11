@@ -91,7 +91,6 @@ interface CollectiveInterface {
   isArchived: Boolean
   isApproved: Boolean
   isDeletable: Boolean
-  hasVirtualCards: Boolean @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
   host: CollectiveInterface
   hostCollective: CollectiveInterface
 
@@ -1402,6 +1401,11 @@ type Collective implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -1591,7 +1595,6 @@ type Collective implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -1649,6 +1652,11 @@ type Event implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -1838,7 +1846,6 @@ type Event implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -1896,6 +1903,11 @@ type Fund implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -2085,7 +2097,6 @@ type Fund implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -2143,6 +2154,11 @@ type Organization implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -2332,7 +2348,6 @@ type Organization implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
   email: String @deprecated(reason: "2022-07-18: This field is deprecated and will return null")
 }
 
@@ -2391,6 +2406,11 @@ type Project implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -2580,7 +2600,6 @@ type Project implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -2880,6 +2899,11 @@ type User implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -3069,7 +3093,6 @@ type User implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
   email: String
   applications: [Application]
 }
@@ -3129,6 +3152,11 @@ type Vendor implements CollectiveInterface {
   isHost: Boolean
 
   """
+  Returns whether this host is trusted or not
+  """
+  isTrustedHost: Boolean!
+
+  """
   Returns whether this host accepts applications for new collectives
   """
   canApply: Boolean
@@ -3318,7 +3346,6 @@ type Vendor implements CollectiveInterface {
   stats: CollectiveStatsType
   contributionPolicy: String
   categories: [String]!
-  hasVirtualCards: Boolean! @deprecated(reason: "2021-10-12: Use features.VIRTUAL_CARDS === ACTIVE")
 }
 
 """
@@ -3363,8 +3390,6 @@ type Query {
     includeHostedCollectivesTransactions: Boolean
   ): [Transaction]
   Application(id: Int): Application
-  allUpdates(CollectiveId: Int!, includeHostedCollectives: Boolean, limit: Int, offset: Int): [UpdateType]
-    @deprecated(reason: "2022-01-26: This endpoint is deprecated and will be removed soon")
   Transaction(id: Int, uuid: String): Transaction
   allCollectives(
     """
@@ -3516,9 +3541,9 @@ type Query {
     isHost: Boolean
 
     """
-    Whether to return only active accounts
+    Included collectives which are archived
     """
-    onlyActive: Boolean @deprecated(reason: "2021-01-20: Not supported anymore.")
+    includeArchived: Boolean
 
     """
     Whether to skip recent accounts (48h)
@@ -3536,14 +3561,6 @@ type Query {
     limit: Int = 20
     offset: Int = 0
   ): CollectiveSearchResults
-  allTransactionsFromPaymentMethod(
-    uuid: String!
-    type: String
-    limit: Int
-    offset: Int
-    dateFrom: String
-    dateTo: String
-  ): [Transaction] @deprecated(reason: "2021-01-29: Not used anymore")
 }
 
 """

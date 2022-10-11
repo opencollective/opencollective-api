@@ -6,7 +6,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
-class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttributes<VirtualCard>> {
+class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
   public declare id: CreationOptional<string>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
@@ -73,7 +73,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttri
         await privacyVirtualCards.deleteCard(this);
         break;
       default:
-        throw new Error(`Can not resume virtual card provided by ${this.provider}`);
+        throw new Error(`Can not delete virtual card provided by ${this.provider}`);
     }
 
     await this.destroy();
@@ -85,6 +85,17 @@ class VirtualCard extends Model<InferAttributes<VirtualCard>, InferCreationAttri
 
   isPaused() {
     return this.data?.status === 'inactive' || this.data?.state === 'PAUSED';
+  }
+
+  get info() {
+    return {
+      id: this.id,
+      name: this.name,
+      provider: this.provider,
+      last4: this.last4,
+      CollectiveId: this.CollectiveId,
+      HostCollectiveId: this.HostCollectiveId,
+    };
   }
 }
 

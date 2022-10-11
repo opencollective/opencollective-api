@@ -221,7 +221,7 @@ handlebars.registerHelper('debug', console.log);
  * ```
  */
 handlebars.registerHelper('escapeForSubject', str => {
-  return str ? str.replace(/[\r\n]/g, ' ') : '';
+  return str ? str.replaceAll(/[\r\n]/g, ' ') : '';
 });
 
 export default handlebars;

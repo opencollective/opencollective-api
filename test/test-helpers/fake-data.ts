@@ -20,6 +20,7 @@ import models from '../../server/models';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
+import { AssetType } from '../../server/models/SuspendedAsset';
 import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
@@ -844,5 +845,16 @@ export const fakeRecurringExpense = async (data: Record<string, unknown> = {}) =
     CollectiveId,
     FromCollectiveId,
     interval: <RecurringExpenseIntervals>data.interval || RecurringExpenseIntervals.MONTH,
+  });
+};
+
+export const fakeSuspendedAsset = async (
+  data: { type?: AssetType; fingerprint?: string; reason?: string; [key: string]: unknown } = {},
+) => {
+  return models.SuspendedAsset.create({
+    ...data,
+    type: data.type || sample(Object.values(AssetType)),
+    fingerprint: data.fingerprint || randStr('asset'),
+    reason: data.reason || 'for the sake of this test',
   });
 };

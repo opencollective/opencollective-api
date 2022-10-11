@@ -393,11 +393,6 @@ interface Account {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -629,6 +624,11 @@ interface Account {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
 }
 
 """
@@ -1134,7 +1134,6 @@ type Expense {
   (Optional) files attached to the expense
   """
   attachedFiles: [ExpenseAttachedFile!]
-  attachments: [ExpenseItem] @deprecated(reason: "2020-04-08: Field has been renamed to \"items\"")
   items: [ExpenseItem]
 
   """
@@ -2299,6 +2298,9 @@ enum ActivityType {
   COLLECTIVE_APPROVED
   COLLECTIVE_REJECTED
   COLLECTIVE_CREATED
+  COLLECTIVE_EDITED
+  COLLECTIVE_DELETED
+  COLLECTIVE_UNHOSTED
   ORGANIZATION_COLLECTIVE_CREATED
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
@@ -2328,6 +2330,7 @@ enum ActivityType {
   COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED
+  COLLECTIVE_VIRTUAL_CARD_DELETED
   VIRTUAL_CARD_REQUESTED
   VIRTUAL_CARD_CHARGE_DECLINED
   VIRTUAL_CARD_PURCHASE
@@ -2362,6 +2365,8 @@ enum ActivityType {
   USER_CREATED
   USER_NEW_TOKEN
   OAUTH_APPLICATION_AUTHORIZED
+  TWO_FACTOR_CODE_ADDED
+  TWO_FACTOR_CODE_DELETED
   USER_CHANGE_EMAIL
   USER_PAYMENT_METHOD_CREATED
   USER_CARD_CLAIMED
@@ -2645,11 +2650,6 @@ type Host implements Account & AccountWithContributions {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -2866,6 +2866,11 @@ type Host implements Account & AccountWithContributions {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -2878,11 +2883,6 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Number of unique financial contributors.
@@ -2930,11 +2930,6 @@ type Host implements Account & AccountWithContributions {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
   hostFeePercent: Float
   totalHostedCollectives: Int
@@ -2946,16 +2941,6 @@ type Host implements Account & AccountWithContributions {
     A collection of accounts for which the metrics should be returned.
     """
     account: [AccountReferenceInput!]
-
-    """
-    Inferior date limit in which we're calculating the metrics
-    """
-    from: String @deprecated(reason: "2020-09-20: Use dateFrom")
-
-    """
-    Superior date limit in which we're calculating the metrics
-    """
-    to: String @deprecated(reason: "2020-09-20: Use dateTo")
 
     """
     The start date of the time series
@@ -3148,11 +3133,6 @@ interface AccountWithContributions {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
 }
 
@@ -3421,8 +3401,10 @@ type Conversation {
   updatedAt: DateTime!
   tags: [String]
   summary: String!
-  collective: Account
-  fromCollective: Account
+  collective: Account @deprecated(reason: "2022-09-14: Please use account")
+  account: Account
+  fromCollective: Account @deprecated(reason: "2022-09-14: Please use fromAccount")
+  fromAccount: Account
 
   """
   The root comment / starter for this conversation
@@ -3607,12 +3589,17 @@ type AccountStats {
     Calculate balance until this date.
     """
     dateTo: DateTime
+
+    """
+    Include balance from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
   ): Amount!
 
   """
   The consolidated amount of all the events and projects combined.
   """
-  consolidatedBalance: Amount!
+  consolidatedBalance: Amount! @deprecated(reason: "2022-09-02: Use balance + includeChildren instead")
 
   """
   Average amount spent per month based on the last 90 days
@@ -3652,10 +3639,15 @@ type AccountStats {
     Set this to true to use cached data
     """
     useCache: Boolean! = false
+
+    """
+    Include money received in children (Projects and Events)
+    """
+    includeChildren: Boolean = false
   ): Amount!
 
   """
-  Total of paid expenses, filter per expensetype
+  Total of paid expenses, filter per expense type
   """
   totalPaidExpenses(
     """
@@ -4078,11 +4070,14 @@ type Policies {
 
 type COLLECTIVE_MINIMUM_ADMINS {
   numberOfAdmins: Int
-  applies: COLLECTIVE_MINIMUM_ADMINS_APPLIES
+  applies: PolicyApplication
   freeze: Boolean
 }
 
-enum COLLECTIVE_MINIMUM_ADMINS_APPLIES {
+"""
+Defines how the policy is applied
+"""
+enum PolicyApplication {
   ALL_COLLECTIVES
   NEW_COLLECTIVES
 }
@@ -4137,6 +4132,18 @@ enum ActivityChannel {
 }
 
 """
+Fields for the user permissions on an account
+"""
+type AccountPermissions {
+  id: String!
+
+  """
+  Whether the current user can mark this order as expired
+  """
+  addFunds: Permission!
+}
+
+"""
 A collection of webhooks
 """
 type WebhookCollection implements Collection {
@@ -4155,18 +4162,6 @@ type Webhook {
   activityType: ActivityType
   webhookUrl: URL
   account: Account!
-}
-
-"""
-Fields for the user permissions on an account
-"""
-type AccountPermissions {
-  id: String!
-
-  """
-  Whether the current user can mark this order as expired
-  """
-  addFunds: Permission!
 }
 
 """
@@ -4464,12 +4459,6 @@ type ContributionStats {
   The total number of contributions
   """
   contributionsCount: Int!
-
-  """
-  The contribution amounts over time
-  """
-  contributionAmountOverTime: TimeSeriesAmount
-    @deprecated(reason: "2022-04-21: Please use hostMetricsTimeSeries.totalReceived")
 
   """
   Number of one time contributions
@@ -4993,11 +4982,6 @@ type Bot implements Account {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -5214,6 +5198,11 @@ type Bot implements Account {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -5226,11 +5215,6 @@ type Bot implements Account {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 }
 
 """
@@ -5499,11 +5483,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -5720,6 +5699,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -5732,11 +5716,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -5809,11 +5788,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
 }
 
@@ -6335,11 +6309,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -6556,6 +6525,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -6568,11 +6542,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -6645,22 +6614,12 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
 
   """
   The Account parenting this account
   """
   parent: Account
-
-  """
-  The Collective hosting this Event
-  """
-  parentCollective: Collective @deprecated(reason: "2020/07/01 - Use parent instead.")
 
   """
   The Event start date and time
@@ -6954,11 +6913,6 @@ type Individual implements Account {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -7173,6 +7127,11 @@ type Individual implements Account {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -7185,11 +7144,6 @@ type Individual implements Account {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Email for the account. For authenticated user: scope: "email".
@@ -7550,11 +7504,6 @@ type Organization implements Account & AccountWithContributions {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -7769,6 +7718,11 @@ type Organization implements Account & AccountWithContributions {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -7781,11 +7735,6 @@ type Organization implements Account & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Number of unique financial contributors.
@@ -7833,11 +7782,6 @@ type Organization implements Account & AccountWithContributions {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the collective currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
   email: String @deprecated(reason: "2022-07-18: This field is deprecated and will return null")
 
@@ -8176,11 +8120,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -8397,6 +8336,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -8409,11 +8353,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -8486,11 +8425,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
 }
 
@@ -8569,6 +8503,11 @@ type Query {
     Only return Fiscal Hosts accounts if true
     """
     isHost: Boolean
+
+    """
+    Included collectives which are archived
+    """
+    includeArchived: Boolean
 
     """
     Only return "active" accounts with Financial Contributions enabled if true.
@@ -9168,11 +9107,6 @@ type Query {
     Whether to include debt transactions
     """
     includeDebts: Boolean! = false
-
-    """
-    To filter by transaction kind
-    """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
 
     """
     To filter by transaction kind
@@ -10474,6 +10408,9 @@ enum ActivityAndClassesType {
   COLLECTIVE_APPROVED
   COLLECTIVE_REJECTED
   COLLECTIVE_CREATED
+  COLLECTIVE_EDITED
+  COLLECTIVE_DELETED
+  COLLECTIVE_UNHOSTED
   ORGANIZATION_COLLECTIVE_CREATED
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
@@ -10503,6 +10440,7 @@ enum ActivityAndClassesType {
   COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_MISSING_RECEIPTS
   COLLECTIVE_VIRTUAL_CARD_SUSPENDED
+  COLLECTIVE_VIRTUAL_CARD_DELETED
   VIRTUAL_CARD_REQUESTED
   VIRTUAL_CARD_CHARGE_DECLINED
   VIRTUAL_CARD_PURCHASE
@@ -10537,6 +10475,8 @@ enum ActivityAndClassesType {
   USER_CREATED
   USER_NEW_TOKEN
   OAUTH_APPLICATION_AUTHORIZED
+  TWO_FACTOR_CODE_ADDED
+  TWO_FACTOR_CODE_DELETED
   USER_CHANGE_EMAIL
   USER_PAYMENT_METHOD_CREATED
   USER_CARD_CLAIMED
@@ -10872,11 +10812,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -11093,6 +11028,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -11105,11 +11045,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -11182,11 +11117,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
 }
 
@@ -11478,11 +11408,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     To filter by transaction kind
     """
-    kinds: [TransactionKind] @deprecated(reason: "2020-06-30: Please use kind (singular)")
-
-    """
-    To filter by transaction kind
-    """
     kind: [TransactionKind]
 
     """
@@ -11699,6 +11624,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   List of activities that the logged-in user is subscribed for this collective
   """
   activitySubscriptions(channel: ActivityChannel): [ActivitySubscription]
+
+  """
+  Logged-in user permissions on an account
+  """
+  permissions: AccountPermissions!
   webhooks(
     """
     The number of results to fetch (default 10, max 1000)
@@ -11711,11 +11641,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     offset: Int! = 0
     account: AccountReferenceInput!
   ): WebhookCollection!
-
-  """
-  Logged-in user permissions on an account
-  """
-  permissions: AccountPermissions!
 
   """
   Returns the Fiscal Host
@@ -11788,11 +11713,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account
   """
   platformContributionAvailable: Boolean!
-
-  """
-  Amount of money in cents in the currency of the account currently available to spend
-  """
-  balance: Int @deprecated(reason: "2020/04/09 - Should not have been introduced. Use stats.balance.value")
   contributionPolicy: String
 
   """
@@ -12064,21 +11984,6 @@ type Mutation {
   ): Individual!
 
   """
-  Update the plan. Scope: "account".
-  """
-  editHostPlan(
-    """
-    Account where the host plan will be edited.
-    """
-    account: AccountReferenceInput!
-
-    """
-    The name of the plan to subscribe to.
-    """
-    plan: String!
-  ): Host! @deprecated(reason: "2022-07-06: Host Plans are deprecated.")
-
-  """
   Edit key properties of an account. Scope: "account".
   """
   editAccount(
@@ -12100,7 +12005,7 @@ type Mutation {
     """
     The policy to be added
     """
-    policies: JSON!
+    policies: PoliciesInput!
   ): Account!
 
   """
@@ -12754,6 +12659,26 @@ type Mutation {
   removePayoutMethod(payoutMethodId: String!): PayoutMethod!
 
   """
+  [Root only] Edits account flags (deleted, banned, archived, trusted host)
+  """
+  editAccountFlags(
+    """
+    Account to change the flags for
+    """
+    account: AccountReferenceInput!
+
+    """
+    Specify whether the account is archived
+    """
+    isArchived: Boolean
+
+    """
+    Specify whether the account is a trusted host
+    """
+    isTrustedHost: Boolean
+  ): Account!
+
+  """
   [Root only] Clears the cache for a given account
   """
   clearCacheForAccount(
@@ -13062,7 +12987,7 @@ type Mutation {
   """
   Delete a tier.
   """
-  deleteTier(tier: TierReferenceInput!): Tier!
+  deleteTier(tier: TierReferenceInput!, stopRecurringContributions: Boolean! = false): Tier!
 }
 
 input CollectiveCreateInput {
@@ -13178,6 +13103,17 @@ input AccountUpdateInput {
   """
   id: String!
   currency: Currency
+}
+
+input PoliciesInput {
+  EXPENSE_AUTHOR_CANNOT_APPROVE: Boolean
+  COLLECTIVE_MINIMUM_ADMINS: PoliciesCollectiveMinimumAdminsInput
+}
+
+input PoliciesCollectiveMinimumAdminsInput {
+  numberOfAdmins: Int
+  applies: PolicyApplication
+  freeze: Boolean
 }
 
 """
@@ -14024,11 +13960,6 @@ input GuestInfoInput {
   legalName: String
 
   """
-  The unique guest token
-  """
-  token: String @deprecated(reason: "2021-01-26: Guest tokens are not used anymore")
-
-  """
   Address of the user, mandatory when amount is above $5000.
   """
   location: LocationInput
@@ -14124,7 +14055,6 @@ input PaypalPaymentInput {
   data: JSON
   orderId: String
   subscriptionId: String
-  isNewApi: Boolean @deprecated(reason: "2021-07-30: Not used anymore")
 }
 
 """

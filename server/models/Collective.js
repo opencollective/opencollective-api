@@ -45,7 +45,6 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
-  getConsolidatedBalanceAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalMoneyManagedAmount,
@@ -74,7 +73,7 @@ import {
 import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
 import queries from '../lib/queries';
-import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
+import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
@@ -83,6 +82,7 @@ import userlib from '../lib/userlib';
 import { capitalize, cleanTags, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
+import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 
 const debug = debugLib('models:Collective');
@@ -890,10 +890,13 @@ function defineModel() {
           endDate.getHours(),
           endDate.getMinutes(),
         ];
-        let description = this.description || '';
-        if (this.longDescription) {
-          description += `\n\n${this.longDescription}`;
+
+        // Build description as HTML
+        const descriptionParts = [this.description, this.longDescription].filter(Boolean);
+        if (this.data?.privateInstructions) {
+          descriptionParts.push(`Private instructions:\n${stripHTML(this.data.privateInstructions)}`);
         }
+
         let location = this.location.name || '';
         if (this.location.address) {
           location += `, ${this.location.address}`;
@@ -919,7 +922,7 @@ function defineModel() {
         ];
         const event = {
           title: this.name,
-          description,
+          description: descriptionParts.join('\n\n'),
           start,
           end,
           location,
@@ -2388,7 +2391,15 @@ function defineModel() {
 
     const balance = await this.getBalance();
     if (balance > 0) {
-      throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
+      if (options?.isChildren) {
+        throw new Error(
+          `Unable to change host: your ${this.type.toLowerCase()} "${
+            this.name
+          }" still has a balance of ${formatCurrency(balance, this.currency)}`,
+        );
+      } else {
+        throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
+      }
     }
 
     await models.Member.destroy({
@@ -2409,14 +2420,19 @@ function defineModel() {
       });
     }
 
+    await Order.cancelNonTransferableActiveOrdersByCollectiveId(this.id);
+
+    const virtualCards = await models.VirtualCard.findAll({ where: { CollectiveId: this.id } });
+    await Promise.all(virtualCards.map(virtualCard => virtualCard.delete()));
+
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
-      await Promise.all(events.map(e => e.changeHost(null)));
+      await Promise.all(events.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
     const projects = await this.getProjects();
     if (projects?.length > 0) {
-      await Promise.all(projects.map(e => e.changeHost(null)));
+      await Promise.all(projects.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
 
     // Reset current host
@@ -2719,7 +2735,7 @@ function defineModel() {
     const paymentMethod = await models.PaymentMethod.findOne(query);
     if (!paymentMethod) {
       throw new Error('No payment method found');
-    } else if (paymentMethod.endDate && paymentMethod.endDate < new Date()) {
+    } else if (paymentMethod.expiryDate && paymentMethod.expiryDate < new Date()) {
       throw new Error('Payment method expired');
     }
     return paymentMethod;
@@ -2739,10 +2755,6 @@ function defineModel() {
 
   Collective.prototype.getBalance = function (options) {
     return getBalanceAmount(this, options).then(result => result.value);
-  };
-
-  Collective.prototype.getConsolidatedBalanceAmount = function (options) {
-    return getConsolidatedBalanceAmount(this, options);
   };
 
   Collective.prototype.getYearlyIncome = function () {
@@ -3378,7 +3390,7 @@ function defineModel() {
       }
     }
 
-    return this.update({ data: { ...this.data, policies } });
+    return this.update({ data: { ...this.data, policies: policies } });
   };
 
   /**

@@ -27,6 +27,7 @@ import PaypalProduct from './PaypalProduct';
 import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import Subscription from './Subscription';
+import SuspendedAsset from './SuspendedAsset';
 import Tier from './Tier';
 import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
@@ -71,6 +72,7 @@ export function setupModels() {
   m['RecurringExpense'] = RecurringExpense;
   m['RequiredLegalDocument'] = RequiredLegalDocument;
   m['Subscription'] = Subscription;
+  m['SuspendedAsset'] = SuspendedAsset;
   m['Tier'] = Tier;
   m['Transaction'] = Transaction;
   m['TransactionSettlement'] = TransactionSettlement;

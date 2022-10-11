@@ -20,15 +20,16 @@ import { replaceVideosByImagePreviews } from './utils';
 const debug = debugLib('notifications');
 
 type NotifySubscribersOptions = {
-  template?: string;
+  attachments?: any[];
+  bcc?: string;
+  cc?: string;
+  collective?: typeof models.Collective;
+  exclude?: number[];
   from?: string;
   replyTo?: string;
-  bcc?: string;
-  collective?: typeof models.Collective;
   sendEvenIfNotProduction?: boolean;
-  attachments?: any[];
+  template?: string;
   to?: string;
-  exclude?: number[];
   unsubscribed?: Array<typeof models.User>;
 };
 
@@ -413,7 +414,10 @@ export const notifyByEmail = async (activity: Activity) => {
         }
         break;
       }
-      await notify.collective(activity, { collectiveId: activity.data.collective.id });
+      await notify.collective(activity, {
+        collectiveId: activity.data.collective.id,
+        replyTo: activity.data.host.data?.replyToEmail || undefined,
+      });
       break;
 
     case ActivityTypes.COLLECTIVE_REJECTED:
@@ -424,7 +428,7 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
         template: 'collective.rejected',
-        replyTo: `no-reply@opencollective.com`,
+        replyTo: activity.data.host.data?.replyToEmail || undefined,
       });
       break;
 
@@ -535,6 +539,7 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED:
+    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED:
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
       });
