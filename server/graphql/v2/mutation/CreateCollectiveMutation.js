@@ -96,6 +96,7 @@ async function createCollective(_, args, req) {
         try {
           // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
           const bypassGithubValidation = !isProd && user.email.match(/.*test.*@opencollective.com$/);
+
           if (!bypassGithubValidation) {
             const githubAccount = await models.ConnectedAccount.findOne(
               { where: { CollectiveId: user.CollectiveId, service: 'github' } },
@@ -111,10 +112,10 @@ async function createCollective(_, args, req) {
               validatedRepositoryInfo = OSCValidator(await github.getValidatorInfo(githubHandle, githubAccount.token));
             }
           }
-
+          const { allValidationsPassed } = validatedRepositoryInfo || {};
           const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
           shouldAutomaticallyApprove =
-            policy?.numberOfAdmins > 1 ? false : !!validatedRepositoryInfo?.allValidationsPassed;
+            policy?.numberOfAdmins > 1 ? false : allValidationsPassed || bypassGithubValidation;
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
