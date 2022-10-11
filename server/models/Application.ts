@@ -5,27 +5,8 @@ import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribut
 
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
-
-interface IInfo_Application {
-  name: string;
-  description: string;
-  apiKey: string;
-  clientId: string;
-  clientSecret: string;
-  callbackUrl: string;
-}
-
-interface IPublicInfo_Application {
-  id: number;
-  name: string;
-  description: string;
-  type: string;
-  CollectiveId: number;
-  CreatedByUserId: number;
-  createdAt: Date;
-  updatedAt: Date;
-  deletedAt: Date;
-}
+import { ApplicationInfo } from '../types/ApplicationInfo';
+import { ApplicationPublicInfo } from '../types/ApplicationPublicInfo';
 
 export class Application extends Model<InferAttributes<Application>, InferCreationAttributes<Application>> {
   public declare readonly id: CreationOptional<number>;
@@ -43,7 +24,7 @@ export class Application extends Model<InferAttributes<Application>, InferCreati
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  get info(): NonAttribute<IInfo_Application> {
+  get info(): NonAttribute<ApplicationInfo> {
     return {
       name: this.name,
       description: this.description,
@@ -53,7 +34,8 @@ export class Application extends Model<InferAttributes<Application>, InferCreati
       callbackUrl: this.callbackUrl,
     };
   }
-  get publicInfo(): NonAttribute<IPublicInfo_Application> {
+
+  get publicInfo(): NonAttribute<ApplicationPublicInfo> {
     return {
       id: this.id,
       name: this.name,
@@ -90,6 +72,7 @@ export class Application extends Model<InferAttributes<Application>, InferCreati
     });
   };
 }
+
 Application.init(
   {
     id: {
@@ -160,11 +143,11 @@ Application.init(
       type: DataTypes.DATE,
     },
   },
-
   {
     sequelize,
     paranoid: true,
     tableName: 'Applications',
   },
 );
+
 export default Application;
