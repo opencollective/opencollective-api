@@ -103,8 +103,7 @@ const HostApplicationMutations = {
       let validatedRepositoryInfo, shouldAutomaticallyApprove = false;
       const { repositoryUrl } = args.applicationData || {};
 
-      if (repositoryUrl && repositoryUrl.contains("github.com/")) {
-        // check if actually a github repo
+      if (repositoryUrl && repositoryUrl.contains("https://github.com/")) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
 
         try {
