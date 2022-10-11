@@ -45,7 +45,6 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
-  getConsolidatedBalanceAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalMoneyManagedAmount,
@@ -2392,7 +2391,15 @@ function defineModel() {
 
     const balance = await this.getBalance();
     if (balance > 0) {
-      throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
+      if (options?.isChildren) {
+        throw new Error(
+          `Unable to change host: your ${this.type.toLowerCase()} "${
+            this.name
+          }" still has a balance of ${formatCurrency(balance, this.currency)}`,
+        );
+      } else {
+        throw new Error(`Unable to change host: you still have a balance of ${formatCurrency(balance, this.currency)}`);
+      }
     }
 
     await models.Member.destroy({
@@ -2421,11 +2428,11 @@ function defineModel() {
     // Prepare events and projects to receive a new host
     const events = await this.getEvents();
     if (events?.length > 0) {
-      await Promise.all(events.map(e => e.changeHost(null)));
+      await Promise.all(events.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
     const projects = await this.getProjects();
     if (projects?.length > 0) {
-      await Promise.all(projects.map(e => e.changeHost(null)));
+      await Promise.all(projects.map(e => e.changeHost(null, remoteUser, { isChildren: true })));
     }
 
     // Reset current host
@@ -2748,10 +2755,6 @@ function defineModel() {
 
   Collective.prototype.getBalance = function (options) {
     return getBalanceAmount(this, options).then(result => result.value);
-  };
-
-  Collective.prototype.getConsolidatedBalanceAmount = function (options) {
-    return getConsolidatedBalanceAmount(this, options);
   };
 
   Collective.prototype.getYearlyIncome = function () {
@@ -3387,7 +3390,7 @@ function defineModel() {
       }
     }
 
-    return this.update({ data: { ...this.data, policies } });
+    return this.update({ data: { ...this.data, policies: policies } });
   };
 
   /**

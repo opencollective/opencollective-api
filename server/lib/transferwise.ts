@@ -95,12 +95,14 @@ export const requestDataAndThrowParsedError = (
   url: string,
   {
     data,
+    requestPath,
     ...options
   }: {
     data?: Record<string, unknown>;
     headers?: Record<string, unknown>;
     params?: Record<string, unknown>;
     auth?: Record<string, unknown>;
+    requestPath?: string;
   },
   defaultErrorMessage?: string,
 ): Promise<any> => {
@@ -129,7 +131,7 @@ export const requestDataAndThrowParsedError = (
       debug(JSON.stringify(e.response?.data, null, 2) || e);
       const error = parseError(e, defaultErrorMessage);
       logger.error(error.toString());
-      reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
+      reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE, requestPath });
       throw error;
     })
     .finally(() => {
@@ -234,6 +236,7 @@ export const cancelTransfer = async (token: string, transferId: string | number)
     axios.put,
     `/v1/transfers/${transferId}/cancel`,
     {
+      requestPath: '/v1/transfers/:id/cancel',
       data: {},
       headers: { Authorization: `Bearer ${token}` },
     },
@@ -253,6 +256,7 @@ export const fundTransfer = async (
     axios.post,
     `/v3/profiles/${profileId}/transfers/${transferId}/payments`,
     {
+      requestPath: '/v3/profiles/:profileId/transfers/:transferId/payments',
       data: { type: 'BALANCE' },
       headers: { Authorization: `Bearer ${token}` },
     },
@@ -302,6 +306,7 @@ export const getTransfer = async (token: string, transferId: number): Promise<Tr
     axios.get,
     `/v1/transfers/${transferId}`,
     {
+      requestPath: '/v1/transfers/:id',
       headers: { Authorization: `Bearer ${token}` },
     },
     'There was an error fetching transfer for Wise',
@@ -368,6 +373,7 @@ export const listBalancesAccount = async (
 ): Promise<BalanceV4[]> => {
   try {
     return requestDataAndThrowParsedError(axios.get, `/v4/profiles/${profileId}/balances?types=${types}`, {
+      requestPath: '/v4/profiles/:profileId/balances',
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch (e) {
@@ -384,6 +390,7 @@ export const createBatchGroup = async (
 ): Promise<BatchGroup> => {
   try {
     return requestDataAndThrowParsedError(axios.post, `/v3/profiles/${profileId}/batch-groups`, {
+      requestPath: '/v3/profiles/:profileId/batch-groups',
       headers: { Authorization: `Bearer ${token}` },
       data,
     });
@@ -401,6 +408,7 @@ export const getBatchGroup = async (
 ): Promise<BatchGroup> => {
   try {
     return requestDataAndThrowParsedError(axios.get, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+      requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       headers: { Authorization: `Bearer ${token}` },
     });
   } catch (e) {
@@ -422,6 +430,7 @@ export const createBatchGroupTransfer = async (
       axios.post,
       `/v3/profiles/${profileId}/batch-groups/${batchGroupId}/transfers`,
       {
+        requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId/transfers',
         data,
         headers: { Authorization: `Bearer ${token}` },
       },
@@ -441,6 +450,7 @@ export const completeBatchGroup = async (
 ): Promise<BatchGroup> => {
   try {
     return requestDataAndThrowParsedError(axios.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+      requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       data: { version, status: 'COMPLETED' },
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -459,6 +469,7 @@ export const cancelBatchGroup = async (
 ): Promise<BatchGroup> => {
   try {
     return requestDataAndThrowParsedError(axios.patch, `/v3/profiles/${profileId}/batch-groups/${batchGroupId}`, {
+      requestPath: '/v3/profiles/:profileId/batch-groups/:batchGroupId',
       data: { version, status: 'CANCELLED' },
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -626,7 +637,7 @@ export const listApplicationWebhooks = async (): Promise<Webhook[]> => {
     return webhooks;
   } catch (e) {
     logger.error(e);
-    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE, requestPath: '/v3/applications/:key/subscriptions' });
     throw new Error("There was an error while listing Wise's application webhooks");
   }
 };
@@ -643,7 +654,7 @@ export const createApplicationWebhook = async (webhookInfo: WebhookCreateInput):
     return webhook;
   } catch (e) {
     logger.error(e);
-    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE, requestPath: '/v3/applications/:key/subscriptions' });
     throw new Error("There was an error while creating Wise's application webhook");
   }
 };
@@ -659,7 +670,7 @@ export const deleteApplicationWebhook = async (id: string | number): Promise<any
       .then(getData);
   } catch (e) {
     logger.error(e);
-    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE });
+    reportErrorToSentry(e, { feature: FEATURE.TRANSFERWISE, requestPath: '/v3/applications/:key/subscriptions/:id' });
     throw new Error("There was an error while deleting Wise's application webhook");
   }
 };

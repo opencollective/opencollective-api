@@ -95,14 +95,6 @@ export const AccountWithContributionsFields = {
       return false;
     },
   },
-  balance: {
-    description: 'Amount of money in cents in the currency of the account currently available to spend',
-    deprecationReason: '2020/04/09 - Should not have been introduced. Use stats.balance.value',
-    type: GraphQLInt,
-    resolve(account: typeof models.Collective, _, req: express.Request): Promise<number> {
-      return account.getBalanceWithBlockedFunds({ loaders: req.loaders });
-    },
-  },
   contributionPolicy: {
     type: GraphQLString,
   },

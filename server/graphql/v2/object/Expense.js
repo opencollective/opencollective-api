@@ -267,17 +267,6 @@ const Expense = new GraphQLObjectType({
           }
         },
       },
-      attachments: {
-        type: new GraphQLList(ExpenseItem),
-        deprecationReason: '2020-04-08: Field has been renamed to "items"',
-        async resolve(expense, _, req) {
-          if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
-          }
-
-          return ExpenseLib.getExpenseItems(expense.id, req);
-        },
-      },
       items: {
         type: new GraphQLList(ExpenseItem),
         async resolve(expense, _, req) {

@@ -169,19 +169,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
                 currency
                 name
                 ... on Collective {
-                  balance
                   host {
                     id
                     slug
                   }
                 }
-              }
-              fromCollective {
-                id
-                type
-                name
-                slug
-                imageUrl
               }
             }
           }

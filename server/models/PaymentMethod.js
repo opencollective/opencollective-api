@@ -4,7 +4,7 @@ import debugLib from 'debug';
 import { get, intersection } from 'lodash';
 
 import { maxInteger } from '../constants/math';
-import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
@@ -480,16 +480,7 @@ function defineModel() {
         CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
       };
       debug('PaymentMethod.create', paymentMethodData);
-      // We don't need to have multiple Alipay PaymentMethod per-users because it is just we use this just as a flag for the payment type
-      if (paymentMethod.type === PAYMENT_METHOD_TYPE.ALIPAY) {
-        const [pm] = await models.PaymentMethod.findOrCreate({
-          where: { type: paymentMethod.type, service: paymentMethod.service, CollectiveId: paymentMethod.CollectiveId },
-          defaults: paymentMethodData,
-        });
-        return pm;
-      } else {
-        return models.PaymentMethod.create(paymentMethodData);
-      }
+      return models.PaymentMethod.create(paymentMethodData);
     } else {
       return PaymentMethod.findOne({
         where: { uuid: paymentMethod.uuid },
