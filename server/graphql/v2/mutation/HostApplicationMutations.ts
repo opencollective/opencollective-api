@@ -100,19 +100,20 @@ const HostApplicationMutations = {
         throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
 
-      let validatedRepositoryInfo, shouldAutomaticallyApprove = false;
+      let validatedRepositoryInfo,
+        shouldAutomaticallyApprove = false;
       const { repositoryUrl } = args.applicationData || {};
 
-      if (repositoryUrl && repositoryUrl.contains("https://github.com/")) {
+      if (repositoryUrl && repositoryUrl.contains('https://github.com/')) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
 
         try {
           // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
           const bypassGithubValidation = !isProd && req.remoteUser.email.match(/.*test.*@opencollective.com$/);
           if (!bypassGithubValidation) {
-            const githubAccount = await models.ConnectedAccount.findOne(
-              { where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' } },
-            );
+            const githubAccount = await models.ConnectedAccount.findOne({
+              where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
+            });
             if (!githubAccount) {
               throw new Error('You must have a connected GitHub Account to apply to a host with GitHub.');
             }
@@ -265,7 +266,8 @@ const approveApplication = async (host, collective, req) => {
 
   if (getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins > adminCount + adminInvitationCount) {
     throw new Forbidden(
-      `Your host policy requires at least ${getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
+      `Your host policy requires at least ${
+        getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
       } admins for this account.`,
     );
   }
