@@ -186,6 +186,9 @@
     "fetchCollectiveTransactionsCsv": false,
     "fetchHostTransactionsCsv": false
   },
+  "sentry": {
+    "tracesSampleRate": 0.01
+  },
   "privacy": {
     "apiUrl": "https://sandbox.privacy.com"
   },

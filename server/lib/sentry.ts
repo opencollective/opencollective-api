@@ -8,7 +8,8 @@
 import '../env';
 
 import * as Sentry from '@sentry/node';
-import type { SeverityLevel } from '@sentry/types';
+import * as Tracing from '@sentry/tracing';
+import type { Integration, SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
 import { isEmpty, isEqual, pick } from 'lodash';
@@ -18,14 +19,28 @@ import FEATURE from '../constants/feature';
 import logger from './logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
 
-if (config.sentry?.dsn) {
-  logger.info('Initializing Sentry');
+const getIntegrations = (expressApp = null): Integration[] => {
+  const integrations: Integration[] = [new Sentry.Integrations.Http({ tracing: true })];
+  if (expressApp) {
+    integrations.push(new Tracing.Integrations.Express({ app: expressApp }));
+  }
+  return integrations;
+};
+
+export const initSentry = (expressApp = null) => {
   Sentry.init({
     dsn: config.sentry.dsn,
     environment: config.env,
     attachStacktrace: true,
     enabled: config.env !== 'test',
+    tracesSampleRate: config.sentry.tracesSampleRate,
+    integrations: getIntegrations(expressApp),
   });
+};
+
+if (config.sentry?.dsn) {
+  logger.info('Initializing Sentry');
+  initSentry();
 
   // Catch all errors that haven't been caught anywhere else
   process
@@ -52,6 +67,7 @@ type CaptureErrorParams = {
   user?: Sentry.User;
   handler?: HandlerType;
   feature?: FEATURE;
+  transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
 };
@@ -192,8 +208,28 @@ const isIgnoredGQLError = (err): boolean => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart(): Record<string, unknown> {
+  requestDidStart({ request }): Record<string, unknown> {
+    const transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
+    if (request.operationName && transaction) {
+      transaction.setName(`GraphQL: ${request.operationName}`);
+    }
+
     return {
+      executionDidStart() {
+        return {
+          willResolveField({ info }) {
+            // hook for each new resolver
+            const span = transaction.startChild({
+              op: 'resolver',
+              description: `${info.parentType.name}.${info.fieldName}`,
+            });
+            return () => {
+              // this will execute once the resolver is finished
+              span.finish();
+            };
+          },
+        };
+      },
       didEncounterErrors(ctx): void {
         // If we couldn't parse the operation, don't do anything here
         if (!ctx.operation) {
