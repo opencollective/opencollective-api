@@ -15,6 +15,7 @@ const compactRepo = repo => {
     'owner', // (1) (4)
     'stargazers_count', // (1) (2) (4)
     'fork', // (3)
+    'license', // (4)
   ]);
   repo.owner = pick(repo.owner, [
     'login', // (1)
@@ -24,7 +25,7 @@ const compactRepo = repo => {
   // https://github.com/opencollective/opencollective-website/blob/master/frontend/src/reducers/github.js
   // 2) Required for the pledge feature in /graphql/v1/orders.js
   // 3) Required for update-contributions
-  // 4) Required on the frontend in the "GitHub flow" (OpenSourceApplyPage)
+  // 4) Required on the frontend in the "OSC application flow"
   return repo;
 };
 
@@ -204,6 +205,55 @@ export async function checkGithubStars(githubHandle, accessToken) {
       );
     }
   }
+}
+
+export async function getValidatorInfo(githubHandle, accessToken) {
+  const octokit = getOctokit(accessToken);
+  const [owner, repo] = githubHandle.split('/');
+  const { repository } = await octokit.graphql(
+    `
+      query Repository($owner: String!, $repo: String!) {
+        repository(owner: $owner, name: $repo) {
+          isFork
+          stargazerCount
+          viewerCanAdminister
+          owner {
+            ... on Organization {
+              login
+            }
+          }
+          licenseInfo {
+            name
+            spdxId
+          }
+          defaultBranchRef {
+            target {
+              ... on Commit {
+                committedDate
+              }
+            }
+          }
+          collaborators {
+            totalCount
+          }
+        }
+      }
+    `,
+    {
+      owner,
+      repo,
+    },
+  );
+
+  return {
+    lastCommitDate: repository.defaultBranchRef.target.committedDate,
+    starsCount: repository.stargazerCount,
+    collaboratorsCount: repository.collaborators.totalCount,
+    isFork: repository.isFork,
+    isOwnedByOrg: !!repository.owner?.login,
+    isAdmin: repository.viewerCanAdminister,
+    licenseSpdxId: repository.licenseInfo?.spdxId,
+  };
 }
 
 const githubUsernameRegex = new RegExp('[a-z\\d](?:[a-z\\d]|-(?=[a-z\\d])){0,38}', 'i');

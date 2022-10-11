@@ -1,0 +1,66 @@
+import moment from 'moment';
+import spdxLicenses from 'spdx-license-list';
+
+// Turn spdxLicenes object into an array with only OSI approved licenses
+const osiApprovedLicenses = Object.keys(spdxLicenses)
+    .map(key => ({
+        key,
+        osiApproved: spdxLicenses[key].osiApproved,
+    }))
+    .filter(license => license.osiApproved);
+
+interface RepositoryInfo {
+    lastCommitDate: string;
+    collaboratorsCount: number;
+    starsCount: number;
+    isFork: boolean;
+    isOwnedByOrg: boolean;
+    isAdmin: boolean;
+    licenseSpdxId: string;
+}
+
+export function OSCValidator(repositoryInfo?: RepositoryInfo) {
+    const { lastCommitDate, collaboratorsCount, starsCount, isFork, isOwnedByOrg, isAdmin, licenseSpdxId } = repositoryInfo;
+
+    const fields = {
+        lastCommitDate: {
+            value: lastCommitDate,
+            // within the past year
+            isValid: (lastCommitDate && moment(lastCommitDate) > moment().subtract(12, 'months')),
+        },
+        collaboratorsCount: {
+            value: collaboratorsCount,
+            // at least 2 collaborators
+            isValid: (collaboratorsCount && collaboratorsCount >= 2),
+        },
+        starsCount: {
+            value: starsCount,
+            // any star count is valid
+            isValid: true,
+        },
+        isFork: {
+            value: isFork,
+            // should not be a fork
+            isValid: (isFork === false),
+        },
+        isOwnedByOrg: {
+            value: isOwnedByOrg,
+            // should be owned by an org
+            isValid: (isOwnedByOrg === true),
+        },
+        isAdmin: {
+            value: isAdmin,
+            // user should be admin
+            isValid: (isAdmin === true),
+        },
+        licenseSpdxId: {
+            value: licenseSpdxId,
+            // license should be part of OSI-approved licenses
+            isValid: (osiApprovedLicenses.find(license => license.key === licenseSpdxId)),
+        },
+    };
+
+    const allValidationsPassed = Object.keys(fields).every(key => fields[key].isValid);
+
+    return { allValidationsPassed, fields };
+}
