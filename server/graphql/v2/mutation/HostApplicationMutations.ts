@@ -115,14 +115,15 @@ const HostApplicationMutations = {
             const githubAccount = await models.ConnectedAccount.findOne({
               where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
             });
-            if (!githubAccount) {
-              throw new Error('You must have a connected GitHub Account to apply to a host with GitHub.');
-            }
-            // In e2e/CI environment, checkGithubAdmin will be stubbed
-            await github.checkGithubAdmin(githubHandle, githubAccount.token);
+            if (githubAccount) {
+              // In e2e/CI environment, checkGithubAdmin will be stubbed
+              await github.checkGithubAdmin(githubHandle, githubAccount.token);
 
-            if (githubHandle.includes('/')) {
-              validatedRepositoryInfo = OSCValidator(await github.getValidatorInfo(githubHandle, githubAccount.token));
+              if (githubHandle.includes('/')) {
+                validatedRepositoryInfo = OSCValidator(
+                  await github.getValidatorInfo(githubHandle, githubAccount.token),
+                );
+              }
             }
           }
 
