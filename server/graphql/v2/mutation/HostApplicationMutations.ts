@@ -126,8 +126,8 @@ const HostApplicationMutations = {
               }
             }
           }
-
-          shouldAutomaticallyApprove = !!validatedRepositoryInfo?.allValidationsPassed;
+          const { allValidationsPassed } = validatedRepositoryInfo || {};
+          shouldAutomaticallyApprove = adminCount >= requiredAdmins && (allValidationsPassed || bypassGithubValidation);
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
