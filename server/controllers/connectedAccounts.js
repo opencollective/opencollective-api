@@ -179,9 +179,13 @@ export const fetchAllRepositories = async (req, res, next) => {
     req.setTimeout(GITHUB_REPOS_FETCH_TIMEOUT);
     let repos = await github.getAllUserPublicRepos(githubAccount.token);
     if (repos.length !== 0) {
-      repos = repos.filter(repo => {
-        return repo.stargazers_count >= config.githubFlow.minNbStars && repo.fork === false;
-      });
+      repos = repos
+        .filter(repo => {
+          return repo.fork === false;
+        })
+        .sort((a, b) => {
+          return b.stargazers_count - a.stargazers_count;
+        });
     }
     res.send(repos);
   } catch (e) {
