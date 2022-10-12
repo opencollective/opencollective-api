@@ -1,21 +1,17 @@
 import config from 'config';
 import slugify from 'limax';
 import { cloneDeep, get, isEqual, isNil, omit, pick, truncate } from 'lodash';
-import sanitize from 'sanitize-html';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
-import FEATURE from '../../../constants/feature';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
-import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
-import { canUseFeature } from '../../../lib/user-permissions';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
-import { FeatureNotAllowedForUser, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
+import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { CollectiveInputType } from '../inputTypes';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -594,67 +590,6 @@ export async function deleteCollective(_, args, req) {
   }
 
   return collectivelib.deleteCollective(collective);
-}
-
-export async function sendMessageToCollective(_, args, req) {
-  const user = req.remoteUser;
-  if (!canUseFeature(user, FEATURE.CONTACT_COLLECTIVE)) {
-    throw new FeatureNotAllowedForUser(
-      'You are not authorized to contact Collectives. Please contact support@opencollective.com if you think this is an error.',
-    );
-  }
-
-  const collective = await models.Collective.findByPk(args.collectiveId);
-  if (!collective) {
-    throw new NotFound(`Collective with id ${args.id} not found`);
-  }
-
-  if (!(await collective.canContact())) {
-    throw new Unauthorized(`You can't contact this collective`);
-  }
-
-  const message = args.message && sanitize(args.message, { allowedTags: [], allowedAttributes: {} }).trim();
-  if (!message || message.length < 10) {
-    throw new Error('Message is too short');
-  }
-
-  const subject =
-    args.subject && sanitize(args.subject, { allowedTags: [], allowedAttributes: {} }).trim().slice(0, 60);
-
-  // User sending the email must have an associated collective
-  const fromCollective = await models.Collective.findByPk(user.CollectiveId);
-  if (!fromCollective) {
-    throw new Error("Your user account doesn't have any profile associated. Please contact support");
-  }
-
-  // Limit email sent per user
-  if (!user.isAdminOfCollectiveOrHost(collective) && !user.isRoot()) {
-    const maxEmailMessagePerHour = config.limits.collectiveEmailMessagePerHour;
-    const cacheKey = `user_contact_send_message_${user.id}`;
-    const rateLimit = new RateLimit(cacheKey, maxEmailMessagePerHour, ONE_HOUR_IN_SECONDS);
-    if (!(await rateLimit.registerCall())) {
-      throw new RateLimitExceeded('Too many messages sent in a limited time frame. Please try again later.');
-    }
-  }
-
-  // Create the activity (which will send the message to the users)
-  await models.Activity.create({
-    type: activities.COLLECTIVE_CONTACT,
-    UserId: user.id,
-    UserTokenId: req.userToken?.id,
-    CollectiveId: collective.id,
-    FromCollectiveId: user.CollectiveId,
-    HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
-    data: {
-      fromCollective,
-      collective,
-      user,
-      subject: subject || null,
-      message: message,
-    },
-  });
-
-  return { success: true };
 }
 
 export async function activateCollectiveAsHost(_, args, req) {
