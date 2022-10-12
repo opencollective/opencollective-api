@@ -2,6 +2,7 @@ import { ApolloError } from 'apollo-server-errors';
 import { Request } from 'express';
 import { isNil } from 'lodash';
 
+import { Unauthorized } from '../../graphql/errors';
 import User from '../../models/User';
 import cache from '../cache';
 
@@ -16,7 +17,7 @@ type ValidateRequestOptions = {
   alwaysAskForToken?: boolean;
   // duration which we wont require a token after a successful use
   sessionDuration?: number;
-  // identifier for the session
+  // identifier for the session, defaults to use the JWT token's session key
   sessionKey?: (() => string) | string;
 };
 
@@ -51,6 +52,10 @@ function getTwoFactorAuthTokenFromRequest(req: Request): Token {
   const type = parts[0] as TwoFactorMethod;
   const code = parts[1];
 
+  if (!type || !code) {
+    throw new Error('Malformed 2FA token header');
+  }
+
   return {
     type,
     code,
@@ -72,14 +77,14 @@ const DefaultValidateRequestOptions: ValidateRequestOptions = {
 };
 
 function getSessionKey(req: Request, options: ValidateRequestOptions) {
+  const userId = req.remoteUser.id;
   if (typeof options.sessionKey === 'function') {
-    return options.sessionKey();
+    return `2fa:${userId}:${options.sessionKey()}`;
   } else if (typeof options.sessionKey === 'string') {
-    return options.sessionKey;
+    return `2fa:${userId}:${options.sessionKey}`;
   } else {
-    const userId = req?.remoteUser?.id;
     const sessionId = req.jwtPayload?.sessionId;
-    return `${userId}_2fa_${sessionId}`;
+    return `2fa:${userId}:${sessionId}`;
   }
 }
 
@@ -112,7 +117,11 @@ async function validateRequest(
 ): Promise<void> {
   options = { ...DefaultValidateRequestOptions, ...options };
 
-  const remoteUser = req?.remoteUser;
+  if (!req.remoteUser) {
+    throw new Unauthorized();
+  }
+
+  const remoteUser = req.remoteUser;
 
   const userHasTwoFactorAuth = await userHasTwoFactorAuthEnabled(remoteUser);
   if (options.requireTwoFactorAuthEnabled && !userHasTwoFactorAuth) {
@@ -132,7 +141,7 @@ async function validateRequest(
   const token = getTwoFactorAuthTokenFromRequest(req);
   if (!token) {
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
-      supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
+      supportedMethods: twoFactorMethodsSupportedByUser(req.remoteUser),
     });
   }
 
@@ -141,7 +150,7 @@ async function validateRequest(
   return storeTwoFactorSession(req, options);
 }
 
-async function twoFactorMethodsSupportedByUser(remoteUser: typeof User) {
+function twoFactorMethodsSupportedByUser(remoteUser: typeof User): TwoFactorMethod[] {
   const methods = [];
   if (remoteUser.twoFactorAuthToken) {
     methods.push(TwoFactorMethod.TOTP);
