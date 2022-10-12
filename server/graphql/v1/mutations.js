@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
+import { sendMessage } from '../common/collective';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
 import { NotFound, Unauthorized } from '../errors';
@@ -18,7 +19,6 @@ import {
   deactivateCollectiveAsHost,
   deleteCollective,
   editCollective,
-  sendMessageToCollective,
   unarchiveCollective,
 } from './mutations/collectives';
 import { editConnectedAccount } from './mutations/connectedAccounts';
@@ -116,6 +116,7 @@ const mutations = {
       return unarchiveCollective(_, args, req);
     },
   },
+
   sendMessageToCollective: {
     type: new GraphQLObjectType({
       name: 'SendMessageToCollectiveResult',
@@ -123,13 +124,16 @@ const mutations = {
         success: { type: GraphQLBoolean },
       },
     }),
+    deprecationReason: '2022-08-01: Please use the sendMessage mutation from GraphQL v2 instead.',
     args: {
       collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
       message: { type: new GraphQLNonNull(GraphQLString) },
       subject: { type: GraphQLString },
     },
-    resolve(_, args, req) {
-      return sendMessageToCollective(_, args, req);
+    async resolve(_, args, req) {
+      const collective = await models.Collective.findByPk(args.collectiveId);
+
+      return sendMessage({ req, args, collective, isGqlV2: false });
     },
   },
   createUser: {
