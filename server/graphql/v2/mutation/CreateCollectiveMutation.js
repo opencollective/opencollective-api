@@ -88,6 +88,13 @@ async function createCollective(_, args, req) {
         });
       }
 
+      // Throw validation error if you have not invited enough admins
+      const requiredAdmins = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins || 0;
+      const adminsIncludingInvitedCount = (args.inviteMembers?.length || 0) + 1;
+      if (requiredAdmins > adminsIncludingInvitedCount) {
+        throw new ValidationFailed(`This host policy requires at least ${requiredAdmins} admins for this account.`);
+      }
+
       // Trigger automated Github approval when repository is on github.com (or using deprecated automateApprovaWithGithub argument )
       const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
       const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
@@ -95,6 +102,7 @@ async function createCollective(_, args, req) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
         const opensourceHost = defaultHostCollective('opensource');
         host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
+
         try {
           // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
           const bypassGithubValidation = !isProd && user.email.match(/.*test.*@opencollective.com$/);
@@ -116,9 +124,7 @@ async function createCollective(_, args, req) {
             }
           }
           const { allValidationsPassed } = validatedRepositoryInfo || {};
-          const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-          shouldAutomaticallyApprove =
-            policy?.numberOfAdmins > 1 ? false : allValidationsPassed || bypassGithubValidation;
+          shouldAutomaticallyApprove = requiredAdmins <= 1 && (allValidationsPassed || bypassGithubValidation);
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
