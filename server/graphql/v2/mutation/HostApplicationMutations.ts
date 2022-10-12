@@ -103,40 +103,38 @@ const HostApplicationMutations = {
       let validatedRepositoryInfo: ValidatedRepositoryInfo,
         shouldAutomaticallyApprove = false;
 
-      if (args.applicationData?.repositoryUrl) {
+      // Trigger automated Github approval when repository is on github.com
+      const repositoryUrl = args.applicationData?.repositoryUrl;
+      const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
+      if (hostname === 'github.com') {
+        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
         try {
-          const { hostname } = new URL(args.applicationData.repositoryUrl);
-          if (hostname === 'github.com') {
-            {
-              const githubHandle = github.getGithubHandleFromUrl(args.applicationData.repositoryUrl);
-              // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
-              const bypassGithubValidation = !isProd && req.remoteUser.email.match(/.*test.*@opencollective.com$/);
-              if (!bypassGithubValidation) {
-                const githubAccount = await models.ConnectedAccount.findOne({
-                  where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
-                });
-                if (!githubAccount) {
-                  throw new Error('You must have a connected GitHub Account to apply to a host with GitHub.');
-                }
-                // In e2e/CI environment, checkGithubAdmin will be stubbed
-                await github.checkGithubAdmin(githubHandle, githubAccount.token);
+          // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
+          const bypassGithubValidation = !isProd && req.remoteUser.email.match(/.*test.*@opencollective.com$/);
+          if (!bypassGithubValidation) {
+            const githubAccount = await models.ConnectedAccount.findOne({
+              where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
+            });
+            if (!githubAccount) {
+              throw new Error('You must have a connected GitHub Account to apply to a host with GitHub.');
+            }
+            // In e2e/CI environment, checkGithubAdmin will be stubbed
+            await github.checkGithubAdmin(githubHandle, githubAccount.token);
 
-                if (githubHandle.includes('/')) {
-                  validatedRepositoryInfo = OSCValidator(
-                    await github.getValidatorInfo(githubHandle, githubAccount.token),
-                  );
-                }
-              }
-
-              shouldAutomaticallyApprove = !!validatedRepositoryInfo?.allValidationsPassed;
+            if (githubHandle.includes('/')) {
+              validatedRepositoryInfo = OSCValidator(await github.getValidatorInfo(githubHandle, githubAccount.token));
             }
           }
 
-          collective.repositoryUrl = args.applicationData.repositoryUrl;
-          await collective.save();
+          shouldAutomaticallyApprove = !!validatedRepositoryInfo?.allValidationsPassed;
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
+      }
+
+      if (repositoryUrl) {
+        collective.repositoryUrl = repositoryUrl;
+        await collective.save();
       }
 
       // No need to check the balance, this is being handled in changeHost, along with most other checks

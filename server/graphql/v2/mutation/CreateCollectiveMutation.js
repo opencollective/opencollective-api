@@ -88,9 +88,11 @@ async function createCollective(_, args, req) {
         });
       }
 
-      // Handle GitHub automated approval and apply to the Open Source Collective Host
-      const githubHandle = github.getGithubHandleFromUrl(collectiveData.repositoryUrl) || collectiveData.githubHandle;
-      if (args.automateApprovalWithGithub) {
+      // Trigger automated Github approval when repository is on github.com
+      const repositoryUrl = args.applicationData?.repositoryUrl;
+      const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
+      if (hostname === 'github.com') {
+        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
         const opensourceHost = defaultHostCollective('opensource');
         host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
         try {
@@ -119,11 +121,13 @@ async function createCollective(_, args, req) {
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
+
         if (githubHandle.includes('/')) {
           collectiveData.settings.githubRepo = githubHandle;
         } else {
           collectiveData.settings.githubOrg = githubHandle;
         }
+
         collectiveData.tags = collectiveData.tags || [];
         if (!collectiveData.tags.includes('open source')) {
           collectiveData.tags.push('open source');
@@ -235,6 +239,7 @@ const createCollectiveMutation = {
       description: 'Whether to trigger the automated approval for Open Source collectives with GitHub.',
       type: GraphQLBoolean,
       defaultValue: false,
+      deprecationReason: '2022-10-12: This is now automated',
     },
     message: {
       type: GraphQLString,
