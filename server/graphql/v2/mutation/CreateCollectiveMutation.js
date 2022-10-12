@@ -88,11 +88,11 @@ async function createCollective(_, args, req) {
         });
       }
 
-      // Trigger automated Github approval when repository is on github.com
-      const repositoryUrl = args.applicationData?.repositoryUrl;
+      // Trigger automated Github approval when repository is on github.com (or using deprecated automateApprovaWithGithub argument )
+      const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
       const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
-      if (hostname === 'github.com') {
-        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
+      if (hostname === 'github.com' || args.automateApprovalWithGithub) {
+        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
         const opensourceHost = defaultHostCollective('opensource');
         host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
         try {

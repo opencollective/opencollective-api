@@ -281,7 +281,7 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       const result = await utils.graphqlQueryV2(
         createCollectiveMutation,
         {
-          collective: { ...backYourStackCollectiveData, repositoryUrl: 'backyourstack' },
+          collective: { ...backYourStackCollectiveData, repositoryUrl: 'https://github.com/backyourstack' },
           host: { slug: host.slug },
         },
         user,
