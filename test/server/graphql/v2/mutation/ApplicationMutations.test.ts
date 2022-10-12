@@ -156,6 +156,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
         },
       );
       expect(result.errors[0].message).to.eq('Two-factor authentication code is invalid');
+      expect(result.errors[0].extensions.code).to.eq('INVALID_2FA_CODE');
     });
 
     it('required 2FA when 2FA enabled', async () => {
@@ -164,6 +165,7 @@ describe('server/graphql/v2/mutation/ApplicationMutations', () => {
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(CREATE_APPLICATION_MUTATION, { application: VALID_APPLICATION_PARAMS }, user);
       expect(result.errors[0].message).to.eq('Two-factor authentication required');
+      expect(result.errors[0].extensions.code).to.eq('2FA_REQUIRED');
     });
   });
 
