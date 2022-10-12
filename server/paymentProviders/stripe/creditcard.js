@@ -396,7 +396,7 @@ const closeDispute = async event => {
         amountInHostCurrency: hostCurrencyAmount,
         currency: currency,
         hostCurrency: fiscalHost.currency,
-        description: 'Dispute Fee paid to Stripe',
+        description: 'Stripe Transaction Review Fee',
         paymentProcessorFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
         platformFeeInHostCurrency: 0,
