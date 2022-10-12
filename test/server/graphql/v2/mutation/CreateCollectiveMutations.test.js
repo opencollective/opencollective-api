@@ -191,8 +191,34 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         .times(2)
         .reply(200, {
           name: 'backyourstack',
-          stargazers_count: 102, // eslint-disable-line camelcase
           permissions: { admin: true, push: true, pull: true },
+        });
+
+      nock('https://api.github.com:443')
+        .post('/graphql')
+        .reply(200, {
+          data: {
+            repository: {
+              isFork: false,
+              stargazerCount: 2,
+              viewerCanAdminister: true,
+              owner: {
+                login: 'backyourstack',
+              },
+              licenseInfo: {
+                name: 'MIT',
+                spdxId: 'MIT',
+              },
+              defaultBranchRef: {
+                target: {
+                  comittedDate: new Date().toString(),
+                },
+              },
+              collaborators: {
+                totalCount: 10,
+              },
+            },
+          },
         });
 
       const result = await utils.graphqlQueryV2(
