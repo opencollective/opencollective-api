@@ -611,8 +611,7 @@ export const markExpenseAsSpam = async (
 
 const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
 
-async function validateExpensePayout2FALimit(req, expense, expensePaidAmountKey) {
-  const host = await expense.collective.getHostCollective();
+async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey) {
   const hostPayoutTwoFactorAuthenticationRollingLimit = get(
     host,
     'settings.payoutsTwoFactorAuth.rollingLimit',
@@ -672,7 +671,7 @@ export const scheduleExpenseForPayment = async (
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
       const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
-      await validateExpensePayout2FALimit(req, expense, expensePaidAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey);
     }
   }
 
@@ -1815,12 +1814,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     const useTwoFactorAuthentication =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
-    const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
-    let currentPaidExpenseAmount;
+    const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
+    let totalPaidExpensesAmount;
 
     if (useTwoFactorAuthentication) {
-      currentPaidExpenseAmount = await cache.get(expensePaidAmountKey);
-      await validateExpensePayout2FALimit(req, expense, expensePaidAmountKey);
+      totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
     }
 
     try {
@@ -1892,8 +1891,8 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       }
     } catch (error) {
       if (useTwoFactorAuthentication) {
-        if (!isNil(currentPaidExpenseAmount) && currentPaidExpenseAmount !== 0) {
-          cache.set(expensePaidAmountKey, currentPaidExpenseAmount - expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
+        if (!isNil(totalPaidExpensesAmount) && totalPaidExpensesAmount !== 0) {
+          cache.set(totalPaidExpensesAmountKey, totalPaidExpensesAmount - expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
         }
       }
 
