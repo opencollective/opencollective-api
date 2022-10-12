@@ -1,5 +1,6 @@
 import config from 'config';
 import { get, toUpper } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
 import OrderStatuses from '../../constants/order_status';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -371,11 +372,18 @@ const closeDispute = async event => {
     // A lost dispute means it was decided as fraudulent
     if (disputeStatus === 'lost') {
       // Create refund transaction for the fraudulent charge
-      await createRefundTransaction(creditTransaction, 0, {
-        ...creditTransaction.data,
-        dispute: event,
-        refundTransactionId: creditTransaction.id,
-      });
+      const transactionGroup = uuid();
+      await createRefundTransaction(
+        creditTransaction,
+        0,
+        {
+          ...creditTransaction.data,
+          dispute: event,
+          refundTransactionId: creditTransaction.id,
+        },
+        null,
+        transactionGroup,
+      );
 
       // Create transaction for dispute fee debiting the fiscal host
       const feeDetails = disputeTransaction.fee_details.find(feeDetails => feeDetails.description === 'Dispute fee');
@@ -391,12 +399,13 @@ const closeDispute = async event => {
         CollectiveId: fiscalHost.id,
         FromCollectiveId: fiscalHost.id,
         OrderId: creditTransaction.OrderId,
+        TransactionGroup: transactionGroup,
         amount: toNegative(amount),
         netAmountInCollectiveCurrency: toNegative(amount),
         amountInHostCurrency: hostCurrencyAmount,
         currency: currency,
         hostCurrency: fiscalHost.currency,
-        description: 'Stripe Transaction Review Fee',
+        description: 'Stripe Transaction Dispute Fee',
         paymentProcessorFeeInHostCurrency: 0,
         hostFeeInHostCurrency: 0,
         platformFeeInHostCurrency: 0,

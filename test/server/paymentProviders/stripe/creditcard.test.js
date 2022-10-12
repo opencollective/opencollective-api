@@ -399,7 +399,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
 
         const transactions = await order.getTransactions();
-        const disputeFeeTransaction = transactions.find(tx => tx.description === 'Dispute Fee paid to Stripe');
+        const disputeFeeTransaction = transactions.find(tx => tx.description === 'Stripe Transaction Dispute Fee');
         expect(disputeFeeTransaction.amount).to.eql(-1500);
       });
     });
