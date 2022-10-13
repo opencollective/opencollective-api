@@ -46,6 +46,9 @@
     "fetchCollectiveTransactionsCsv": true,
     "fetchHostTransactionsCsv": true
   },
+  "sentry": {
+    "tracesSampleRate": 0.01
+  },
   "privacy": {
     "apiUrl": "https://api.privacy.com"
   },
