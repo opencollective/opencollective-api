@@ -34,6 +34,9 @@
   "pdfService": {
     "fetchTransactionsReceipts": true
   },
+  "sentry": {
+    "tracesSampleRate": 0.01
+  },
   "restService": {
     "fetchCollectiveTransactionsCsv": true,
     "fetchHostTransactionsCsv": true

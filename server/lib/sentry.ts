@@ -33,7 +33,7 @@ export const initSentry = (expressApp = null) => {
     environment: config.env,
     attachStacktrace: true,
     enabled: config.env !== 'test',
-    tracesSampleRate: config.sentry.tracesSampleRate,
+    tracesSampleRate: parseFloat(config.sentry.tracesSampleRate) || 0,
     integrations: getIntegrations(expressApp),
   });
 };
