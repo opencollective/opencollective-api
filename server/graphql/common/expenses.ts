@@ -30,6 +30,7 @@ import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
+import cache from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
@@ -39,10 +40,7 @@ import * as libPayments from '../../lib/payments';
 import { hasPolicy } from '../../lib/policies';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
-import {
-  handleTwoFactorAuthenticationPayoutLimit,
-  resetRollingPayoutLimitOnFailure,
-} from '../../lib/two-factor-authentication';
+import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency } from '../../lib/utils';
 import models, { sequelize } from '../../models';
@@ -611,6 +609,45 @@ export const markExpenseAsSpam = async (
   return updatedExpense;
 };
 
+const ROLLING_LIMIT_CACHE_VALIDITY = 3600; // 1h in secs for cache to expire
+
+async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey) {
+  const hostPayoutTwoFactorAuthenticationRollingLimit = get(
+    host,
+    'settings.payoutsTwoFactorAuth.rollingLimit',
+    1000000,
+  );
+
+  const twoFactorSession = req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`);
+
+  const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
+  const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
+
+  // requires a 2FA token to be present if there is no value in the cache (first payout by user)
+  // or the this payout would put the user over the rolling limit.
+  const use2FAToken =
+    isNil(currentPaidExpenseAmountCache) ||
+    currentPaidExpenseAmount + expense.amount > hostPayoutTwoFactorAuthenticationRollingLimit;
+
+  if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+    throw new Error('Host has two-factor authentication enabled for large payouts.');
+  }
+
+  await twoFactorAuthLib.validateRequest(req, {
+    requireTwoFactorAuthEnabled: true, // requires user to have 2FA configured
+    alwaysAskForToken: use2FAToken,
+    sessionDuration: ROLLING_LIMIT_CACHE_VALIDITY, // duration of a auth session after a token is presented
+    sessionKey: `2fa_expense_payout_${twoFactorSession}`, // key of the 2fa session where the 2fa will be valid for the duration
+  });
+
+  if (use2FAToken) {
+    // if a 2fa token was used, reset rolling limit
+    cache.set(expensePaidAmountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
+  } else {
+    cache.set(expensePaidAmountKey, currentPaidExpenseAmount + expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
+  }
+}
+
 export const scheduleExpenseForPayment = async (
   req: express.Request,
   expense: typeof models.Expense,
@@ -633,12 +670,8 @@ export const scheduleExpenseForPayment = async (
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
-      await handleTwoFactorAuthenticationPayoutLimit(
-        req.remoteUser,
-        options.twoFactorAuthenticatorCode,
-        expense,
-        req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`) || 'noSessionId',
-      );
+      const expensePaidAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
+      await validateExpensePayout2FALimit(req, host, expense, expensePaidAmountKey);
     }
   }
 
@@ -1781,13 +1814,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     const useTwoFactorAuthentication =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
+    const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
+    let totalPaidExpensesAmount;
+
     if (useTwoFactorAuthentication) {
-      await handleTwoFactorAuthenticationPayoutLimit(
-        req.remoteUser,
-        args.twoFactorAuthenticatorCode,
-        expense,
-        req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`) || 'noSessionId',
-      );
+      totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
+      await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
     }
 
     try {
@@ -1859,7 +1891,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       }
     } catch (error) {
       if (useTwoFactorAuthentication) {
-        await resetRollingPayoutLimitOnFailure(req.remoteUser, expense);
+        if (!isNil(totalPaidExpensesAmount) && totalPaidExpensesAmount !== 0) {
+          cache.set(totalPaidExpensesAmountKey, totalPaidExpensesAmount - expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
+        }
       }
 
       throw error;

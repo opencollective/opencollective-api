@@ -17,7 +17,7 @@ import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
-import { verifyTwoFactorAuthenticatorCode } from '../../../lib/two-factor-authentication';
+import { validateTOTPToken } from '../../../lib/two-factor-authentication/totp';
 import models, { sequelize } from '../../../models';
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
@@ -346,7 +346,7 @@ const accountMutations = {
         throw new Unauthorized('This account already has 2FA disabled.');
       }
 
-      const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, args.code);
+      const verified = validateTOTPToken(user.twoFactorAuthToken, args.code);
 
       if (!verified) {
         throw new Unauthorized('Two-factor authentication code failed. Please try again');

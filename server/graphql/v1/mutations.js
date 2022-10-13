@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
+import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { sendMessage } from '../common/collective';
@@ -197,8 +198,9 @@ const mutations = {
         description: 'The new email address for user',
       },
     },
-    resolve: (_, { email }, { remoteUser }) => {
-      return updateUserEmail(remoteUser, email);
+    resolve: async (_, { email }, req) => {
+      await twoFactorAuthLib.validateRequest(req);
+      return updateUserEmail(req.remoteUser, email);
     },
   },
   confirmUserEmail: {

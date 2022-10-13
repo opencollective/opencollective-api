@@ -7,10 +7,8 @@ import emailLib from '../lib/email';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import {
-  verifyTwoFactorAuthenticationRecoveryCode,
-  verifyTwoFactorAuthenticatorCode,
-} from '../lib/two-factor-authentication';
+import { verifyTwoFactorAuthenticationRecoveryCode } from '../lib/two-factor-authentication';
+import { validateTOTPToken } from '../lib/two-factor-authentication/totp';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
 
@@ -165,7 +163,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
 
   if (twoFactorAuthenticatorCode) {
     // if there is a 2FA code, we need to verify it before returning the token
-    const verified = verifyTwoFactorAuthenticatorCode(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
+    const verified = validateTOTPToken(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
     if (!verified) {
       return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
     }

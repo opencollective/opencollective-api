@@ -10,6 +10,7 @@ import expenseStatus from '../../../constants/expense_status';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import { TwoFactorAuthenticationHeader } from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import {
   approveExpense,
@@ -290,6 +291,10 @@ const expenseMutations = {
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
       checkRemoteUserCanUseExpenses(req);
+
+      if (args?.paymentParams?.twoFactorAuthenticatorCode) {
+        req.headers[TwoFactorAuthenticationHeader] = `totp ${args.paymentParams.twoFactorAuthenticatorCode}`;
+      }
 
       const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       switch (args.action) {
