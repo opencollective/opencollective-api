@@ -187,7 +187,8 @@
     "fetchHostTransactionsCsv": "FETCH_HOST_TRANSACTIONS_CSV"
   },
   "sentry": {
-    "dsn": "SENTRY_DSN"
+    "dsn": "SENTRY_DSN",
+    "tracesSampleRate": "SENTRY_TRACES_SAMPLE_RATE"
   },
   "privacy": {
     "apiUrl": "PRIVACY_API_URL"
