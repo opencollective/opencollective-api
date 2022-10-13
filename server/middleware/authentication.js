@@ -214,6 +214,8 @@ export const authenticateService = (req, res, next) => {
       opts.scope = [
         // We need this to call github.getOrgMemberships and check if the user is an admin of a given Organization
         'read:org',
+        // We need this for the `github.getValidatorInfo` query
+        'public_repo',
       ];
     } else {
       // We try to deprecate this scope by progressively forcing a context

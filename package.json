@@ -118,6 +118,7 @@
     "sequelize-cli": "6.5.1",
     "sequelize-temporal": "1.0.8",
     "showdown": "2.1.0",
+    "spdx-license-list": "^6.6.0",
     "speakeasy": "2.0.0",
     "stripe": "10.13.0",
     "throng": "5.0.0",

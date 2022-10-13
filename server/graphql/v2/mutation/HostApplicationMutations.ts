@@ -10,6 +10,8 @@ import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/cache';
 import emailLib from '../../../lib/email';
+import * as github from '../../../lib/github';
+import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import models, { sequelize } from '../../../models';
@@ -82,6 +84,8 @@ const HostApplicationMutations = {
         throw new NotFound('Host not found');
       }
 
+      const isProd = config.env === 'production';
+
       const where = {
         CollectiveId: collective.id,
         role: MemberRoles.ADMIN,
@@ -96,16 +100,49 @@ const HostApplicationMutations = {
         throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
       }
 
-      const { githubHandle } = args.applicationData || {};
-      if (githubHandle) {
-        collective.repositoryUrl = `https://github.com/${githubHandle}`;
+      let validatedRepositoryInfo: ValidatedRepositoryInfo,
+        shouldAutomaticallyApprove = false;
+
+      // Trigger automated Github approval when repository is on github.com
+      const repositoryUrl = args.applicationData?.repositoryUrl;
+      const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
+      if (hostname === 'github.com') {
+        const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
+        try {
+          // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation
+          const bypassGithubValidation = !isProd && req.remoteUser.email.match(/.*test.*@opencollective.com$/);
+          if (!bypassGithubValidation) {
+            const githubAccount = await models.ConnectedAccount.findOne({
+              where: { CollectiveId: req.remoteUser.CollectiveId, service: 'github' },
+            });
+            if (githubAccount) {
+              // In e2e/CI environment, checkGithubAdmin will be stubbed
+              await github.checkGithubAdmin(githubHandle, githubAccount.token);
+
+              if (githubHandle.includes('/')) {
+                validatedRepositoryInfo = OSCValidator(
+                  await github.getValidatorInfo(githubHandle, githubAccount.token),
+                );
+              }
+            }
+          }
+          const { allValidationsPassed } = validatedRepositoryInfo || {};
+          shouldAutomaticallyApprove = adminCount >= requiredAdmins && (allValidationsPassed || bypassGithubValidation);
+        } catch (error) {
+          throw new ValidationFailed(error.message);
+        }
+      }
+
+      if (repositoryUrl) {
+        collective.repositoryUrl = repositoryUrl;
         await collective.save();
       }
 
       // No need to check the balance, this is being handled in changeHost, along with most other checks
       const response = await collective.changeHost(host.id, req.remoteUser, {
+        shouldAutomaticallyApprove,
         message: args.message,
-        applicationData: args.applicationData,
+        applicationData: { ...args.applicationData, validatedRepositoryInfo },
       });
 
       if (args.inviteMembers && args.inviteMembers.length) {
