@@ -6,6 +6,7 @@ import chaiSubset from 'chai-subset';
 import { mapValues } from 'lodash';
 import markdownTable from 'markdown-table';
 import Sequelize from 'sequelize';
+import sinonChai from 'sinon-chai';
 
 // setting up NODE_ENV to test when running the tests.
 if (!process.env.NODE_ENV) {
@@ -16,6 +17,7 @@ chai.use(chaiAsPromised);
 chai.use(chaiJestSnapshot);
 chai.use(chaiSubset);
 chai.use(chaiSorted);
+chai.use(sinonChai);
 
 before(() => {
   chaiJestSnapshot.resetSnapshotRegistry();
