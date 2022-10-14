@@ -124,7 +124,7 @@ async function createCollective(_, args, req) {
             }
           }
           const { allValidationsPassed } = validatedRepositoryInfo || {};
-          shouldAutomaticallyApprove = 1 >= requiredAdmins && (allValidationsPassed || bypassGithubValidation);
+          shouldAutomaticallyApprove = allValidationsPassed || bypassGithubValidation;
         } catch (error) {
           throw new ValidationFailed(error.message);
         }

@@ -72,6 +72,7 @@ import {
 } from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
+import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
@@ -2245,6 +2246,18 @@ function defineModel() {
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
+    // If collective does not have enough admins, block it from receiving Contributions
+    const adminCount = await models.Member.count({
+      where: {
+        CollectiveId: this.id,
+        role: roles.ADMIN,
+      },
+    });
+    const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+    if (policy?.freeze && policy.numberOfAdmins > adminCount) {
+      await this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+    }
+
     // events should take the currency of their parent collective, not necessarily the one from their host.
     if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
       updatedValues.currency = hostCollective.currency;
@@ -2461,6 +2474,7 @@ function defineModel() {
       return this.addHost(newHostCollective, remoteUser, {
         message: options?.message,
         applicationData: options?.applicationData,
+        shouldAutomaticallyApprove: options?.shouldAutomaticallyApprove,
       });
     }
   };
