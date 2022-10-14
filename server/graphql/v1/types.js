@@ -1596,7 +1596,9 @@ export const OrderType = new GraphQLObjectType({
             return {};
           }
 
-          return order.getCreatedByUser();
+          if (order.CreatedByUserId) {
+            return req.loaders.User.byId.load(order.CreatedByUserId);
+          }
         },
       },
       description: {
@@ -1651,10 +1653,11 @@ export const OrderType = new GraphQLObjectType({
           'Payment method used to pay for the order. The paymentMethod is also attached to individual transactions since a credit card can change over the lifetime of a subscription.',
         type: PaymentMethodType,
         resolve(order, args, req) {
-          if (!req.remoteUser) {
+          if (!order.PaymentMethodId || !order.FromCollectiveId || !req.remoteUser?.isAdmin(order.FromCollectiveId)) {
             return null;
+          } else {
+            return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
           }
-          return order.getPaymentMethodForUser(req.remoteUser);
         },
       },
       transactions: {
