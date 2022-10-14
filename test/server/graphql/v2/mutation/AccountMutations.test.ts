@@ -1,13 +1,16 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
+import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
+import FEATURE from '../../../../../server/constants/feature';
 import POLICIES from '../../../../../server/constants/policies';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, waitForCondition } from '../../../../utils';
 
 const editSettingsMutation = gqlV2/* GraphQL */ `
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -444,6 +447,137 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await collective.reload();
       expect(collective.data.policies).to.be.empty;
+    });
+  });
+
+  describe('sendMessage', () => {
+    const sendMessageMutation = gqlV2/* GraphQL */ `
+      mutation SendMessage($account: AccountReferenceInput!, $message: NonEmptyString!, $subject: String) {
+        sendMessage(account: $account, message: $message, subject: $subject) {
+          success
+        }
+      }
+    `;
+
+    const message = 'Hello collective, I am reaching out to you for testing purposes.';
+
+    let sandbox, sendEmailSpy, collectiveWithContact, collectiveWithoutContact;
+
+    before(async () => {
+      sandbox = createSandbox();
+      collectiveWithContact = await fakeCollective({ admin: adminUser, settings: { features: { contactForm: true } } });
+      collectiveWithoutContact = await fakeCollective({
+        admin: adminUser,
+        settings: { features: { contactForm: false } },
+      });
+
+      sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
+    });
+
+    after(() => sandbox.restore());
+
+    afterEach(() => {
+      sendEmailSpy.resetHistory();
+    });
+
+    it('sends the message by email', async () => {
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message,
+          subject: 'Testing',
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.sendMessage.success).to.equal(true);
+
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.args[0][1]).to.equal(
+        `New message from ${randomUser.collective.name} on Open Collective: Testing`,
+      );
+      expect(sendEmailSpy.args[0][2]).to.include(message);
+    });
+
+    it('cannot inject code in the email (XSS)', async () => {
+      const code = '<script>console.log("XSS")</script>';
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message: message + code,
+          subject: 'Testing',
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.sendMessage.success).to.equal(true);
+
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.args[0][1]).to.equal(
+        `New message from ${randomUser.collective.name} on Open Collective: Testing`,
+      );
+      expect(sendEmailSpy.args[0][2]).to.include(message);
+      expect(sendEmailSpy.args[0][2]).to.not.include(code);
+    });
+
+    it('returns an error if not authenticated', async () => {
+      const result = await graphqlQueryV2(sendMessageMutation, {
+        account: { id: idEncode(collectiveWithContact.id, 'account') },
+        message,
+      });
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('returns an error if collective cannot be contacted', async () => {
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithoutContact.id, 'account') },
+          message,
+        },
+        randomUser,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(`You can't contact this account`);
+    });
+
+    it('returns an error if the feature is blocked for user', async () => {
+      const userWithoutContact = await fakeUser();
+      await userWithoutContact.limitFeature(FEATURE.CONTACT_COLLECTIVE);
+
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message,
+        },
+        userWithoutContact,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(
+        'You are not authorized to contact Collectives. Please contact support@opencollective.com if you think this is an error.',
+      );
+    });
+
+    it('returns an error if the message is invalid', async () => {
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message: 'short',
+        },
+        randomUser,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Message is too short');
     });
   });
 });
