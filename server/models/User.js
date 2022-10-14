@@ -3,7 +3,7 @@ import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { cloneDeep, defaults, get, intersection, pick } from 'lodash';
+import { defaults, get, intersection, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import OrderStatuses from '../constants/order_status';

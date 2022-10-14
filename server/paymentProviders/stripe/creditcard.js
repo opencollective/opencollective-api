@@ -1,8 +1,8 @@
 import config from 'config';
 import { get, toUpper } from 'lodash';
 import { v4 as uuid } from 'uuid';
-import FEATURE from '../../constants/feature';
 
+import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
 import { TransactionKind } from '../../constants/transaction-kind';
 import * as constants from '../../constants/transactions';
