@@ -2246,6 +2246,13 @@ function defineModel() {
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
+    // events should take the currency of their parent collective, not necessarily the one from their host.
+    if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
+      updatedValues.currency = hostCollective.currency;
+    }
+
+    const promises = [models.Member.create(member), this.update(updatedValues)];
+
     // If collective does not have enough admins, block it from receiving contributions when automatically approving
     if (shouldAutomaticallyApprove) {
       const adminCount = await models.Member.count({
@@ -2259,13 +2266,6 @@ function defineModel() {
         promises.push(this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS));
       }
     }
-
-    // events should take the currency of their parent collective, not necessarily the one from their host.
-    if ([types.COLLECTIVE, types.FUND].includes(this.type)) {
-      updatedValues.currency = hostCollective.currency;
-    }
-
-    const promises = [models.Member.create(member), this.update(updatedValues)];
 
     // Invalidate current collective payment method if there's one
     await models.PaymentMethod.destroy({
