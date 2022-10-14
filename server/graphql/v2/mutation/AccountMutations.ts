@@ -17,6 +17,7 @@ import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
+import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { validateTOTPToken } from '../../../lib/two-factor-authentication/totp';
 import models, { sequelize } from '../../../models';
 import { sendMessage } from '../../common/collective';
@@ -76,6 +77,11 @@ const accountMutations = {
           lock: true,
           throwIfMissing: true,
         });
+
+        // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
+        if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
+          await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+        }
 
         const isKeyEditableByHostAdmins = ['expenseTypes'].includes(args.key);
         const permissionMethod = isKeyEditableByHostAdmins ? 'isAdminOfCollectiveOrHost' : 'isAdminOfCollective';
@@ -434,8 +440,15 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
+      // Merge submitted policies with existing ones
       const previousPolicies = account.data?.policies;
       const newPolicies = omitBy({ ...previousPolicies, ...args.policies }, isNull);
+
+      // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
+      if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
+        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+      }
+
       await account.setPolicies(newPolicies);
       await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
