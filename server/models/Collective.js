@@ -2246,16 +2246,18 @@ function defineModel() {
       ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
     };
 
-    // If collective does not have enough admins, block it from receiving Contributions
-    const adminCount = await models.Member.count({
-      where: {
-        CollectiveId: this.id,
-        role: roles.ADMIN,
-      },
-    });
-    const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
-    if (policy?.freeze && policy.numberOfAdmins > adminCount) {
-      await this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
+    // If collective does not have enough admins, block it from receiving contributions when automatically approving
+    if (shouldAutomaticallyApprove) {
+      const adminCount = await models.Member.count({
+        where: {
+          CollectiveId: this.id,
+          role: roles.ADMIN,
+        },
+      });
+      const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+      if (policy?.freeze && policy.numberOfAdmins > adminCount) {
+        promises.push(this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS));
+      }
     }
 
     // events should take the currency of their parent collective, not necessarily the one from their host.
