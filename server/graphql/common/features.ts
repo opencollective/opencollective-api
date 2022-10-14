@@ -1,20 +1,39 @@
 import { get } from 'lodash';
+import { QueryOptions } from 'sequelize';
 
 import { types } from '../../constants/collectives';
 import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
-import models, { Op } from '../../models';
+import models, { sequelize } from '../../models';
 
 import { hasMultiCurrency } from './expenses';
+
+/**
+ * Wraps the given query in a `EXISTS` call and returns the result as a boolean.
+ * Would be great to replace with https://github.com/sequelize/sequelize/issues/10187 if it gets implemented
+ */
+const checkExistsInDB = async (query: string, queryOptions: QueryOptions = null): Promise<boolean> => {
+  return sequelize
+    .query(`SELECT EXISTS (${query})`, { type: sequelize.QueryTypes.SELECT, plain: true, ...queryOptions })
+    .then(result => result.exists);
+};
 
 const checkIsActive = async (
   promise: Promise<number | boolean>,
   fallback = FEATURE_STATUS.AVAILABLE,
 ): Promise<FEATURE_STATUS> => {
   return promise.then(result => (result ? FEATURE_STATUS.ACTIVE : fallback));
+};
+
+/** A simple wrapper around checkExistsInDB + checkIsActive */
+const checkIsActiveIfExistsInDB = async (
+  query: string,
+  queryOptions: QueryOptions = null,
+  fallback = FEATURE_STATUS.AVAILABLE,
+): Promise<FEATURE_STATUS> => {
+  return checkIsActive(checkExistsInDB(query, queryOptions), fallback);
 };
 
 const checkReceiveFinancialContributions = async (collective, remoteUser) => {
@@ -32,29 +51,42 @@ const checkReceiveFinancialContributions = async (collective, remoteUser) => {
 
   // If `/donate` is disabled, the collective needs to have at least one active tier
   if (collective.settings?.disableCustomContributions) {
-    const hasSomeActiveTiers = await models.Tier.count({ where: { CollectiveId: collective.id }, limit: 1 });
+    const hasSomeActiveTiers = await checkExistsInDB(
+      'SELECT * FROM "Tiers" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
+      { replacements: { CollectiveId: collective.id } },
+    );
     if (!hasSomeActiveTiers) {
       return FEATURE_STATUS.DISABLED;
     }
   }
 
-  return checkIsActive(
-    models.Order.count({
-      where: { CollectiveId: collective.id, status: { [Op.or]: ['PAID', 'ACTIVE'] } },
-      limit: 1,
-    }),
+  return checkIsActiveIfExistsInDB(
+    `SELECT 1 FROM "Orders"
+      WHERE "CollectiveId" = :CollectiveId
+      AND "status" IN ('ACTIVE', 'PAID')
+      AND "deletedAt" IS NULL
+    `,
+    {
+      replacements: { CollectiveId: collective.id },
+    },
   );
 };
 
 const checkVirtualCardFeatureStatus = async account => {
   if (account.isHostAccount) {
     if (get(account.settings, 'features.virtualCards')) {
-      return checkIsActive(models.VirtualCard.count({ where: { HostCollectiveId: account.id } }));
+      return checkIsActiveIfExistsInDB(
+        'SELECT 1 FROM "VirtualCards" WHERE "HostCollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
+        { replacements: { CollectiveId: account.id } },
+      );
     }
   } else if (account.HostCollectiveId) {
     const host = account.host || (await account.getHostCollective());
     if (host && get(host.settings, 'features.virtualCards')) {
-      return checkIsActive(models.VirtualCard.count({ where: { CollectiveId: account.id } }));
+      return checkIsActiveIfExistsInDB(
+        'SELECT 1 FROM "VirtualCards" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
+        { replacements: { CollectiveId: account.id } },
+      );
     }
   }
 
@@ -63,18 +95,23 @@ const checkVirtualCardFeatureStatus = async account => {
 
 const checkCanUsePaymentMethods = async collective => {
   // Ignore type if the account already has some payment methods setup. Useful for Organizations that were turned into Funds.
-  const paymentMethodCount = await models.PaymentMethod.count({
-    where: {
-      CollectiveId: collective.id,
-      [Op.or]: [
-        { service: PAYMENT_METHOD_SERVICE.STRIPE, type: PAYMENT_METHOD_TYPE.CREDITCARD },
-        { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.GIFTCARD },
-        { service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE, type: PAYMENT_METHOD_TYPE.PREPAID },
-      ],
+  const hasPaymentMethods = await checkExistsInDB(
+    `
+    SELECT 1 FROM "PaymentMethods"
+    WHERE "CollectiveId" = :CollectiveId
+    AND "deletedAt" IS NULL
+    AND (
+      (service = 'opencollective' AND type = 'prepaid')
+      OR (service = 'opencollective' AND type = 'giftcard')
+      OR (service = 'stripe' AND type = 'creditcard')
+    )
+  `,
+    {
+      replacements: { CollectiveId: collective.id },
     },
-  });
+  );
 
-  if (paymentMethodCount) {
+  if (hasPaymentMethods) {
     return FEATURE_STATUS.ACTIVE;
   } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
@@ -85,23 +122,23 @@ const checkCanUsePaymentMethods = async collective => {
 
 const checkCanEmitGiftCards = async collective => {
   // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
-  const createdGiftCards = await models.PaymentMethod.count({
-    where: {
-      service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
-      type: PAYMENT_METHOD_TYPE.GIFTCARD,
-    },
-    include: [
-      {
-        model: models.PaymentMethod,
-        as: 'sourcePaymentMethod',
-        where: { CollectiveId: collective.id },
-        required: true,
-        attributes: [],
-      },
-    ],
-  });
 
-  if (createdGiftCards) {
+  const hasCreatedGiftCards = await checkExistsInDB(
+    `
+    SELECT 1 FROM "PaymentMethods" pm
+    INNER JOIN "PaymentMethods" source ON source.id = pm."SourcePaymentMethodId"
+    WHERE source."CollectiveId" = :CollectiveId
+    AND source."deletedAt" IS NULL
+    AND pm."deletedAt" IS NULL
+    AND pm.service = 'opencollective'
+    AND pm.type = 'giftcard'
+  `,
+    {
+      replacements: { CollectiveId: collective.id },
+    },
+  );
+
+  if (hasCreatedGiftCards) {
     return FEATURE_STATUS.ACTIVE;
   } else if ([types.USER, types.ORGANIZATION].includes(collective.type)) {
     return FEATURE_STATUS.AVAILABLE;
@@ -145,60 +182,52 @@ export const getFeatureStatusResolver =
       case FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS:
         return checkReceiveFinancialContributions(collective, req.remoteUser);
       case FEATURE.RECEIVE_EXPENSES:
-        return checkIsActive(models.Expense.count({ where: { CollectiveId: collective.id }, limit: 1 }));
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
+          { replacements: { CollectiveId: collective.id } },
+        );
       case FEATURE.MULTI_CURRENCY_EXPENSES:
         return checkMultiCurrencyExpense(collective, req);
       case FEATURE.UPDATES:
-        return checkIsActive(
-          models.Update.count({
-            where: { CollectiveId: collective.id, publishedAt: { [Op.not]: null } },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Updates" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "publishedAt" IS NOT NULL`,
+          { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.CONVERSATIONS:
-        return checkIsActive(models.Conversation.count({ where: { CollectiveId: collective.id }, limit: 1 }));
+        return checkIsActiveIfExistsInDB(
+          'SELECT 1 FROM "Conversations" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL',
+          { replacements: { CollectiveId: collective.id } },
+        );
       case FEATURE.RECURRING_CONTRIBUTIONS:
-        return checkIsActive(
-          models.Order.count({
-            where: { FromCollectiveId: collective.id, SubscriptionId: { [Op.not]: null }, status: 'ACTIVE' },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Orders" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "SubscriptionId" IS NOT NULL AND "status" = 'ACTIVE'`,
+          { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.TRANSFERWISE:
-        return checkIsActive(
-          models.ConnectedAccount.count({
-            where: { service: 'transferwise', CollectiveId: collective.id },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'transferwise'`,
+          { replacements: { CollectiveId: collective.id } },
           FEATURE_STATUS.DISABLED,
         );
       case FEATURE.EVENTS:
-        return checkIsActive(
-          models.Collective.count({
-            where: { type: types.EVENT, ParentCollectiveId: collective.id },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Collectives" WHERE "ParentCollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'EVENT'`,
+          { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.PROJECTS:
-        return checkIsActive(
-          models.Collective.count({
-            where: { type: types.PROJECT, ParentCollectiveId: collective.id },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Collectives" WHERE "ParentCollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "type" = 'PROJECT'`,
+          { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.CONNECTED_ACCOUNTS:
-        return checkIsActive(
-          models.Member.count({
-            where: { role: 'CONNECTED_COLLECTIVE', CollectiveId: collective.id },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Members" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND role = 'CONNECTED_COLLECTIVE'`,
+          { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.TRANSACTIONS:
-        return checkIsActive(
-          models.Transaction.count({
-            where: { [Op.or]: { CollectiveId: collective.id, FromCollectiveId: collective.id } },
-            limit: 1,
-          }),
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "Transactions" WHERE "CollectiveId" = :CollectiveId OR "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
+          { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.USE_PAYMENT_METHODS:
         return checkCanUsePaymentMethods(collective);
@@ -216,11 +245,11 @@ export const getFeatureStatusResolver =
           : FEATURE_STATUS.DISABLED;
       }
       case FEATURE.PAYPAL_PAYOUTS: {
-        const hasConnectedAccount = await models.ConnectedAccount.count({
-          where: { service: 'paypal', CollectiveId: collective.id },
-          limit: 1,
-        });
-        return hasConnectedAccount ? FEATURE_STATUS.ACTIVE : FEATURE_STATUS.DISABLED;
+        return checkIsActiveIfExistsInDB(
+          `SELECT 1 FROM "ConnectedAccounts" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL AND "service" = 'paypal'`,
+          { replacements: { CollectiveId: collective.id } },
+          FEATURE_STATUS.DISABLED,
+        );
       }
       default:
         return FEATURE_STATUS.ACTIVE;
