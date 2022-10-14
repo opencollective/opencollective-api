@@ -422,17 +422,6 @@ function defineModel() {
     }).then(() => this);
   };
 
-  Order.prototype.getPaymentMethodForUser = function (user) {
-    return user.populateRoles().then(() => {
-      // this check is necessary to cover organizations as well as user collective
-      if (user.isAdmin(this.FromCollectiveId)) {
-        return models.PaymentMethod.findByPk(this.PaymentMethodId);
-      } else {
-        return null;
-      }
-    });
-  };
-
   Order.prototype.getSubscriptionForUser = function (user) {
     if (!this.SubscriptionId) {
       return null;
