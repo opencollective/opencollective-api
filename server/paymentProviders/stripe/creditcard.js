@@ -1,6 +1,7 @@
 import config from 'config';
 import { get, toUpper } from 'lodash';
 import { v4 as uuid } from 'uuid';
+import FEATURE from '../../constants/feature';
 
 import OrderStatuses from '../../constants/order_status';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -330,8 +331,18 @@ const createDispute = async event => {
         required: true,
         as: 'collective',
       },
+      {
+        model: models.User,
+        required: true,
+        as: 'createdByUser',
+      },
     ],
   });
+  const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
+  const user = creditTransaction.createdByUser;
+
+  // Block User from creating any new Orders
+  await user.limitFeature(FEATURE.ORDER);
 
   await Promise.all(
     transactions.map(async transaction => {
@@ -359,11 +370,19 @@ const closeDispute = async event => {
         include: [models.Subscription],
         required: true,
       },
+      {
+        model: models.User,
+        required: true,
+        as: 'createdByUser',
+      },
     ],
   });
   const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
+  const user = creditTransaction.createdByUser;
 
   if (transactions.length > 0) {
+    const order = creditTransaction.Order;
+
     const disputeStatus = event.data.object.status;
     const disputeTransaction = event.data.object.balance_transactions.find(
       tx => tx.type === 'adjustment' && tx.reporting_category === 'dispute',
@@ -371,6 +390,14 @@ const closeDispute = async event => {
 
     // A lost dispute means it was decided as fraudulent
     if (disputeStatus === 'lost') {
+      if (order.status === OrderStatuses.DISPUTED) {
+        if (order.SubscriptionId) {
+          await order.update({ status: OrderStatuses.CANCELLED });
+        } else {
+          await order.update({ status: OrderStatuses.REFUNDED });
+        }
+      }
+
       // Create refund transaction for the fraudulent charge
       const transactionGroup = uuid();
       await createRefundTransaction(
@@ -413,9 +440,9 @@ const closeDispute = async event => {
         kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
         data: event.data,
       });
+
       // A won dispute means it was decided as not fraudulent
     } else if (disputeStatus === 'won') {
-      const order = creditTransaction.Order;
       if (order.status === OrderStatuses.DISPUTED) {
         if (order.SubscriptionId) {
           await order.update({ status: OrderStatuses.ACTIVE });
@@ -424,6 +451,12 @@ const closeDispute = async event => {
           await order.update({ status: OrderStatuses.PAID });
         }
       }
+
+      const userHasDisputedOrders = await user.hasDisputedOrders();
+      if (!userHasDisputedOrders) {
+        await user.unlimitFeature(FEATURE.ORDER);
+      }
+
       await Promise.all(
         transactions.map(async transaction => {
           await transaction.update({ isDisputed: false });

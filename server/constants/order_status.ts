@@ -22,8 +22,9 @@ enum OrderStatuses {
   // For Pledges
   PLEDGED = 'PLEDGED',
   REJECTED = 'REJECTED',
-  // For disputed charges from Stripe
+  // Disputed charges from Stripe
   DISPUTED = 'DISPUTED',
+  REFUNDED = 'REFUNDED',
 }
 
 export default OrderStatuses;
