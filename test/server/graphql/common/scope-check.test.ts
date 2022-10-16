@@ -54,7 +54,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
       rootUser = await fakeUser({}, { name: 'Root user' });
       await rootOrg.addUserWithRole(rootUser, 'ADMIN');
-      
+      console.log("isRoot", rootUser.isRoot());
     })
     beforeEach(async () => {
       req = makeRequest(rootUser);
