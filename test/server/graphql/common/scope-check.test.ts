@@ -12,7 +12,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     application = await fakeApplication({ type: 'oAuth' });
     userOwningTheToken = await fakeUser();
     userToken = await fakeUserToken({ type: 'OAUTH', ApplicationId: application.id, UserId: userOwningTheToken.id, scope: ['account'] });
-    console.log("🚀 ~ file: scope-check.test.ts ~ line 15 ~ before ~ userToken", userToken)
   });
 
   describe('checkScope', () => {
