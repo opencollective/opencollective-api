@@ -52,9 +52,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     before(async () => {
       rootUser = await fakeUser();
       await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
+      
     })
     beforeEach(async () => {
       req = makeRequest(rootUser);
+      console.log("🚀 ~ file: scope-check.test.ts ~ line 59 ~ beforeEach ~ req", req.remoteUser.isRoot())
       req.userToken = userToken;
     });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
