@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { checkRemoteUserCanRoot, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
-import { fakeApplication, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
+import { fakeApplication, fakeMember, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
@@ -47,13 +47,18 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanRoot', () => {
+    let rootUser;
+
+    before(async () => {
+      rootUser = await fakeUser();
+      await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
+    })
     beforeEach(async () => {
-      req = makeRequest(userOwningTheToken);
+      req = makeRequest(rootUser);
       req.userToken = userToken;
     });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
-      console.log("🚀 ~ file: scope-check.test.ts ~ line 57 ~ it ~ req", req)
       expect(() => checkRemoteUserCanRoot(req)).to.not.throw();
     });
     it(`Execute without errors if the scope is allowed by the user token`, async () => {
@@ -62,6 +67,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(() => checkRemoteUserCanRoot(req)).to.not.throw();
     });
     it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanRoot(req)).to.throw(`You need to be logged in.`);
+    });
+    it(`Throws when not authenticated as a root user`, async () => {
+      req.remoteUser = userOwningTheToken;
       req.remoteUser = null;
       expect(() => checkRemoteUserCanRoot(req)).to.throw(`You need to be logged in.`);
     });
