@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { checkRemoteUserCanRoot, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
-import { fakeApplication, fakeMember, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
+import { fakeApplication, fakeOrganization, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
@@ -50,8 +50,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     let rootUser;
 
     before(async () => {
-      rootUser = await fakeUser();
-      await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
+      await resetTestDB();
+      const rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
+      rootUser = await fakeUser({}, { name: 'Root user' });
+      await rootOrg.addUserWithRole(rootUser, 'ADMIN');
       
     })
     beforeEach(async () => {
@@ -74,7 +76,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Throws when not authenticated as a root user`, async () => {
       req.remoteUser = userOwningTheToken;
-      req.remoteUser = null;
       expect(() => checkRemoteUserCanRoot(req)).to.throw(`You need to be logged in as root.`);
     });
     it(`Throws if the scope is not available on the token`, async () => {
