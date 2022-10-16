@@ -73,7 +73,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     it(`Throws when not authenticated as a root user`, async () => {
       req.remoteUser = userOwningTheToken;
       req.remoteUser = null;
-      expect(() => checkRemoteUserCanRoot(req)).to.throw(`You need to be logged in.`);
+      expect(() => checkRemoteUserCanRoot(req)).to.throw(`You need to be logged in as root.`);
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanRoot(req)).to.throw(`The User Token is not allowed for operations in scope "root".`);
