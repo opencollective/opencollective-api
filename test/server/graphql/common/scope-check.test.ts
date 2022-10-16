@@ -48,7 +48,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   });
   describe('checkRemoteUserCanRoot', () => {
     beforeEach(async () => {
-      req = makeRequest();
+      req = makeRequest(userOwningTheToken);
       req.userToken = userToken;
     });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
