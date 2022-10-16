@@ -54,6 +54,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
+      console.log("🚀 ~ file: scope-check.test.ts ~ line 57 ~ it ~ req", req)
       expect(() => checkRemoteUserCanRoot(req)).to.not.throw();
     });
     it(`Execute without errors if the scope is allowed by the user token`, async () => {
