@@ -35,13 +35,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   describe('enforceScope', () => {
     it(`Doesn't throw error if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
-      expect(enforceScope(req, 'account')).to.not.throw();
+      expect(() => enforceScope(req, 'account')).to.not.throw();
     });
     it(`Doesn't throw error if true if user token has scope`, async () => {
-      expect(enforceScope(req, 'account')).to.not.throw();
+      expect(() => enforceScope(req, 'account')).to.not.throw();
     });
-    it(`Throw errorif doesn't have the scope`, async () => {
-      expect(enforceScope(req, 'root')).to.throw(`The User Token is not allowed for operations in scope "root".`);
+    it(`Throw error if doesn't have the scope`, async () => {
+      expect(() => enforceScope(req, 'root')).to.throw(`The User Token is not allowed for operations in scope "root".`);
     });
   });
 });
