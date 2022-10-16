@@ -15,12 +15,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     console.log("🚀 ~ file: scope-check.test.ts ~ line 15 ~ before ~ userToken", userToken)
   });
 
-  beforeEach(async () => {
-    req = makeRequest();
-    req.userToken = userToken;
-  });
-
   describe('checkScope', () => {
+    beforeEach(async () => {
+      req = makeRequest();
+      req.userToken = userToken;
+    });
     it(`Returns true if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(checkScope(req, 'account')).to.be.true;
@@ -33,6 +32,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('enforceScope', () => {
+    beforeEach(async () => {
+      req = makeRequest();
+      req.userToken = userToken;
+    });
     it(`Doesn't throw error if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => enforceScope(req, 'account')).to.not.throw();
@@ -45,6 +48,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanRoot', () => {
+    beforeEach(async () => {
+      req = makeRequest();
+      req.userToken = userToken;
+    });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => checkRemoteUserCanRoot(req)).to.not.throw();
