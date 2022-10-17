@@ -350,7 +350,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     it(`Execute without errors for comment on Conversation if the scope is allowed by the user token`, async () => {
       const userTokenWithScopeConversations = await fakeUserToken({ scope: ['conversations'] });
       req.userToken = userTokenWithScopeConversations;
-      expect(() => checkRemoteUserCanUseComment(commentOnExpense, req)).to.not.throw();
+      expect(() => checkRemoteUserCanUseComment(commentOnConversation, req)).to.not.throw();
     });
     it(`Throws when not authenticated`, async () => {
       req.remoteUser = null;
