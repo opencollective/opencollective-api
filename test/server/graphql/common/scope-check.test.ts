@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 
-import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount, checkRemoteUserCanUseVirtualCards, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkRemoteUserCanUseVirtualCards, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
 import { fakeApplication, fakeOrganization, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
 describe('server/graphql/v2/mutation/AccountMutations', () => {
-  let req, userToken , application, userOwningTheToken;
+  let req, userToken, application, userOwningTheToken;
 
   before(async () => {
     await resetTestDB();
@@ -46,7 +46,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(() => enforceScope(req, 'root')).to.throw(`The User Token is not allowed for operations in scope "root".`);
     });
   });
-  describe('checkRemoteUserCanUseAccount', () => {    
+  describe('checkRemoteUserCanUseAccount', () => {
     beforeEach(async () => {
       req = makeRequest(userOwningTheToken);
       req.userToken = userToken;
@@ -88,6 +88,28 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanUseVirtualCards(req)).to.throw(`The User Token is not allowed for operations in scope "virtualCards".`);
+    });
+  });
+  describe('checkRemoteUserCanUseHost', () => {
+    beforeEach(async () => {
+      req = makeRequest(userOwningTheToken);
+      req.userToken = userToken;
+    });
+    it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
+      req.userToken = null;
+      expect(() => checkRemoteUserCanUseHost(req)).to.not.throw();
+    });
+    it(`Execute without errors if the scope is allowed by the user token`, async () => {
+      const userTokenWithScopeHost = await fakeUserToken({ scope: ['host'] });
+      req.userToken = userTokenWithScopeHost;
+      expect(() => checkRemoteUserCanUseHost(req)).to.not.throw();
+    });
+    it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanUseHost(req)).to.throw(`You need to be logged in to manage hosted accounts.`);
+    });
+    it(`Throws if the scope is not available on the token`, async () => {
+      expect(() => checkRemoteUserCanUseHost(req)).to.throw(`The User Token is not allowed for operations in scope "host".`);
     });
   });
   describe.skip('checkRemoteUserCanRoot', () => {
