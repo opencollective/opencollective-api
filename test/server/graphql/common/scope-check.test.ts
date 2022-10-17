@@ -23,11 +23,12 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     userToken = await fakeUserToken({ type: 'OAUTH', ApplicationId: application.id, UserId: userOwningTheToken.id, scope: ['account'] });
   });
 
+  beforeEach(async () => {
+    req = makeRequest(userOwningTheToken);
+    req.userToken = userToken;
+  });
+
   describe('checkScope', () => {
-    beforeEach(async () => {
-      req = makeRequest();
-      req.userToken = userToken;
-    });
     it(`Returns true if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(checkScope(req, 'account')).to.be.true;
@@ -40,10 +41,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('enforceScope', () => {
-    beforeEach(async () => {
-      req = makeRequest();
-      req.userToken = userToken;
-    });
     it(`Doesn't throw error if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => enforceScope(req, 'account')).to.not.throw();
@@ -56,10 +53,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanUseAccount', () => {
-    beforeEach(async () => {
-      req = makeRequest(userOwningTheToken);
-      req.userToken = userToken;
-    });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => checkRemoteUserCanUseAccount(req)).to.not.throw();
@@ -78,10 +71,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanUseVirtualCards', () => {
-    beforeEach(async () => {
-      req = makeRequest(userOwningTheToken);
-      req.userToken = userToken;
-    });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => checkRemoteUserCanUseVirtualCards(req)).to.not.throw();
@@ -100,10 +89,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanUseHost', () => {
-    beforeEach(async () => {
-      req = makeRequest(userOwningTheToken);
-      req.userToken = userToken;
-    });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => checkRemoteUserCanUseHost(req)).to.not.throw();
@@ -122,10 +107,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanUseTransactions', () => {
-    beforeEach(async () => {
-      req = makeRequest(userOwningTheToken);
-      req.userToken = userToken;
-    });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => checkRemoteUserCanUseTransactions(req)).to.not.throw();
@@ -144,10 +125,6 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanUseOrders', () => {
-    beforeEach(async () => {
-      req = makeRequest(userOwningTheToken);
-      req.userToken = userToken;
-    });
     it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
       req.userToken = null;
       expect(() => checkRemoteUserCanUseOrders(req)).to.not.throw();
