@@ -380,6 +380,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     let rootUser;
 
     before(async () => {
+      await resetTestDB();
       rootUser = await fakeUser();
       await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
     });
