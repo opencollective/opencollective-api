@@ -22,7 +22,7 @@ import {
   fakeComment,
   fakeConversation,
   fakeExpense,
-  fakeOrganization,
+  fakeMember,
   fakeUpdate,
   fakeUser,
   fakeUserToken,
@@ -376,14 +376,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
     });
   });
-  describe.skip('checkRemoteUserCanRoot', () => {
-    let rootUser, rootOrg;
+  describe('checkRemoteUserCanRoot', () => {
+    let rootUser;
 
+    before(resetTestDB);
     before(async () => {
-      rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
-      rootUser = await fakeUser({}, { name: 'Root user' });
-      await rootOrg.addUserWithRole(rootUser, 'ADMIN');
-      console.log('isRoot', rootUser.isRoot());
+      rootUser = await fakeUser();
+      await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
     });
     beforeEach(async () => {
       req = makeRequest(rootUser);
