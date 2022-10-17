@@ -40,8 +40,8 @@ export const addFundsMutation = {
     // because we found it was a practice for Independent Collectives especially
     const isInternal =
       account.id === fromAccount.id ||
-      (account.parentCollectiveid && account.parentCollectiveid === fromAccount.id) ||
-      (fromAccount.parentCollectiveid && account.id === fromAccount.parentCollectiveid);
+      (account.ParentCollectiveId && account.ParentCollectiveId === fromAccount.id) ||
+      (fromAccount.ParentCollectiveId && account.id === fromAccount.ParentCollectiveId);
     if (!isInternal) {
       const fromAccountAllowedTypes = ['USER', 'ORGANIZATION'];
       if (!fromAccountAllowedTypes.includes(fromAccount.type)) {
