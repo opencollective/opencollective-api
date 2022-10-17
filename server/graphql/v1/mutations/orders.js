@@ -23,6 +23,7 @@ import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
 import models from '../../../models';
@@ -701,7 +702,12 @@ export async function confirmOrder(order, remoteUser, guestToken) {
 export async function refundTransaction(_, args, req) {
   // 0. Retrieve transaction from database
   const transaction = await models.Transaction.findByPk(args.id, {
-    include: [models.Order, models.PaymentMethod],
+    include: [
+      models.Order,
+      models.PaymentMethod,
+      { association: 'collective', required: false },
+      { association: 'fromCollective', required: false },
+    ],
   });
 
   if (!transaction) {
@@ -718,6 +724,17 @@ export async function refundTransaction(_, args, req) {
   const canUserRefund = await canRefund(transaction, undefined, req);
   if (!canUserRefund) {
     throw new Forbidden('Cannot refund this transaction');
+  }
+
+  // Check 2FA
+  const collective = transaction.type === 'CREDIT' ? transaction.collective : transaction.fromCollective;
+  if (collective && req.remoteUser.isAdminOfCollective(collective)) {
+    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+  } else {
+    const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
+    if (req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId)) {
+      await twoFactorAuthLib.enforceForAccountAdmins(req, await creditTransaction.getHostCollective());
+    }
   }
 
   // 2. Refund via payment method

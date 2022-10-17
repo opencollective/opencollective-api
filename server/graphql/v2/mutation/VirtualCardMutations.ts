@@ -8,6 +8,7 @@ import VirtualCardProviders from '../../../constants/virtual_card_providers';
 import logger from '../../../lib/logger';
 import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
@@ -47,6 +48,9 @@ const virtualCardMutations = {
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
+
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host);
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
@@ -155,6 +159,9 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host);
+
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
         throwIfMissing: true,
@@ -224,7 +231,10 @@ const virtualCardMutations = {
 
       const virtualCard = await models.VirtualCard.findOne({
         where: { id: args.virtualCard.id },
-        include: [{ association: 'host', required: true }],
+        include: [
+          { association: 'host', required: true },
+          { association: 'collective', required: true },
+        ],
       });
 
       if (!virtualCard) {
@@ -233,10 +243,11 @@ const virtualCardMutations = {
 
       if (args.limitAmount && !req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
         throw new Unauthorized("You don't have permission to update this Virtual Card's limit");
-      } else if (
-        !req.remoteUser.isAdmin(virtualCard.HostCollectiveId) &&
-        !req.remoteUser.isAdmin(virtualCard.CollectiveId)
-      ) {
+      } else if (req.remoteUser.isAdminOfCollective(virtualCard.collective)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.collective);
+      } else if (req.remoteUser.isAdminOfCollective(virtualCard.host)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.host);
+      } else {
         throw new Unauthorized("You don't have permission to update this Virtual Card");
       }
 
@@ -324,6 +335,9 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to request a virtual card for this collective");
       }
 
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+
       const host = await collective.getHostCollective();
       const userCollective = await req.remoteUser.getCollective();
       const activity = {
@@ -376,7 +390,11 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && !req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
+      if (req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.host);
+      } else if (req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.collective);
+      } else {
         throw new Unauthorized("You don't have permission to pause this Virtual Card");
       }
 
@@ -409,7 +427,10 @@ const virtualCardMutations = {
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
       checkRemoteUserCanUseVirtualCards(req);
 
-      const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
+      const virtualCard = await models.VirtualCard.findOne({
+        where: { id: args.virtualCard.id },
+        include: [{ association: 'host', required: true }],
+      });
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
       }
@@ -451,7 +472,11 @@ const virtualCardMutations = {
         throw new NotFound('Could not find Virtual Card');
       }
 
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && !req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
+      if (req.remoteUser.isAdminOfCollective(virtualCard.collective)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.collective);
+      } else if (req.remoteUser.isAdminOfCollective(virtualCard.host)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.host);
+      } else {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
 

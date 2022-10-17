@@ -6,6 +6,7 @@ import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -58,6 +59,8 @@ const memberInvitationMutations = {
         throw new Forbidden('You can only invite users.');
       }
 
+      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+
       const memberParams = {
         ...pick(args, ['role', 'description', 'since']),
         MemberCollectiveId: memberAccount.id,
@@ -106,6 +109,8 @@ const memberInvitationMutations = {
       if (![MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER].includes(args.role)) {
         throw new Forbidden('You can only edit accountants, admins, or members.');
       }
+
+      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
 
       // Edit member invitation
       const editableAttributes = pick(args, ['role', 'description', 'since']);

@@ -199,7 +199,7 @@ const mutations = {
       },
     },
     resolve: async (_, { email }, req) => {
-      await twoFactorAuthLib.validateRequest(req);
+      await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
       return updateUserEmail(req.remoteUser, email);
     },
   },

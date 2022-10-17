@@ -78,11 +78,6 @@ const accountMutations = {
           throwIfMissing: true,
         });
 
-        // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
-        if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
-          await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
-        }
-
         const isKeyEditableByHostAdmins = ['expenseTypes'].includes(args.key);
         const permissionMethod = isKeyEditableByHostAdmins ? 'isAdminOfCollectiveOrHost' : 'isAdminOfCollective';
         if (!req.remoteUser[permissionMethod](account)) {
@@ -94,6 +89,11 @@ const accountMutations = {
           checkRemoteUserCanUseHost(req);
         } else {
           checkRemoteUserCanUseAccount(req);
+        }
+
+        // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
+        if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
+          await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
         }
 
         if (
@@ -392,6 +392,8 @@ const accountMutations = {
         throw new Forbidden();
       }
 
+      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { neverAskForToken: true });
+
       for (const key of Object.keys(args.account)) {
         switch (key) {
           case 'currency': {
@@ -446,7 +448,7 @@ const accountMutations = {
 
       // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
       if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
-        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
+        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
       }
 
       await account.setPolicies(newPolicies);
@@ -484,6 +486,8 @@ const accountMutations = {
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an Admin of the account.');
       }
+
+      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
 
       if (await account.isHost()) {
         throw new Error(

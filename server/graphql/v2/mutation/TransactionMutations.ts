@@ -5,6 +5,7 @@ import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order_status';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject } from '../../common/transactions';
@@ -66,6 +67,9 @@ const transactionMutations = {
 
       const host = await models.Collective.findByPk(transaction.HostCollectiveId);
 
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { neverAskForToken: true });
+
       const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(transactionData, host);
 
       return platformTipTransaction;
@@ -82,7 +86,6 @@ const transactionMutations = {
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
       checkRemoteUserCanUseTransactions(req);
-
       const transaction = await fetchTransactionWithReference(args.transaction);
       return legacyRefundTransaction(undefined, { id: transaction.id }, req);
     },
@@ -140,6 +143,13 @@ const transactionMutations = {
 
       if (!orderToUpdate) {
         throw new NotFound('Order not found');
+      }
+
+      if (req.remoteUser.isAdminOfCollective(toAccount)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, toAccount, { neverAskForToken: true });
+      } else if (req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
+        const host = await models.Collective.findByPk(transaction.HostCollectiveId);
+        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { neverAskForToken: true });
       }
 
       if (orderToUpdate.SubscriptionId) {

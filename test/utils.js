@@ -9,12 +9,14 @@ import { graphql } from 'graphql';
 import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
 import { loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
+import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
@@ -553,3 +555,18 @@ export const snapshotLedger = async columns => {
 };
 
 export const getApolloErrorCode = call => call.catch(e => e?.extensions?.code);
+
+export const generateValid2FAHeader = user => {
+  if (!user.twoFactorAuthToken) {
+    return null;
+  }
+
+  const decryptedToken = crypto.decrypt(user.twoFactorAuthToken).toString();
+  const twoFactorAuthenticatorCode = speakeasy.totp({
+    algorithm: 'SHA1',
+    encoding: 'base32',
+    secret: decryptedToken,
+  });
+
+  return `totp ${twoFactorAuthenticatorCode}`;
+};

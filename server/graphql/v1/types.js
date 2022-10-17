@@ -252,6 +252,14 @@ export const UserType = new GraphQLObjectType({
           return hasSeenLatestChangelogEntry(user);
         },
       },
+      hasTwoFactorAuth: {
+        type: GraphQLBoolean,
+        resolve(user, _, req) {
+          if (req.remoteUser.id === user.id) {
+            return Boolean(user.twoFactorAuthToken);
+          }
+        },
+      },
     };
   },
 });
