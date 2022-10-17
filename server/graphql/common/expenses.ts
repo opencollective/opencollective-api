@@ -209,6 +209,10 @@ export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
+export const canSeeExpenseSecurityChceks: ExpensePermissionEvaluator = async (req, expense) => {
+  return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+};
+
 /** Checks if the user can verify or resend a draft */
 export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
