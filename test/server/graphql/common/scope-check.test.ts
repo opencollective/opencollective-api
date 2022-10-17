@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount, checkRemoteUserCanUseVirtualCards, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
 import { fakeApplication, fakeOrganization, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
@@ -66,6 +66,28 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       const userTokenWithScopeRoot = await fakeUserToken({ scope: ['root'] });
       req.userToken = userTokenWithScopeRoot;
       expect(() => checkRemoteUserCanUseAccount(req)).to.throw(`The User Token is not allowed for operations in scope "account".`);
+    });
+  });
+  describe('checkRemoteUserCanUseVirtualCards', () => {
+    beforeEach(async () => {
+      req = makeRequest(userOwningTheToken);
+      req.userToken = userToken;
+    });
+    it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
+      req.userToken = null;
+      expect(() => checkRemoteUserCanUseVirtualCards(req)).to.not.throw();
+    });
+    it(`Execute without errors if the scope is allowed by the user token`, async () => {
+      const userTokenWithScopeVirtualCards = await fakeUserToken({ scope: ['virtualCards'] });
+      req.userToken = userTokenWithScopeVirtualCards;
+      expect(() => checkRemoteUserCanUseVirtualCards(req)).to.not.throw();
+    });
+    it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanUseVirtualCards(req)).to.throw(`You need to be logged in to manage virtual cards.`);
+    });
+    it(`Throws if the scope is not available on the token`, async () => {
+      expect(() => checkRemoteUserCanUseVirtualCards(req)).to.throw(`The User Token is not allowed for operations in scope "virtualCards".`);
     });
   });
   describe.skip('checkRemoteUserCanRoot', () => {
