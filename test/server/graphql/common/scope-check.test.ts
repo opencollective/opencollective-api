@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { checkRemoteUserCanRoot, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
+import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount, checkScope, enforceScope } from '../../../../server/graphql/common/scope-check';
 import { fakeApplication, fakeOrganization, fakeUser, fakeUserToken } from '../../../test-helpers/fake-data';
 import { makeRequest, resetTestDB } from '../../../utils';
 
@@ -46,7 +46,29 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(() => enforceScope(req, 'root')).to.throw(`The User Token is not allowed for operations in scope "root".`);
     });
   });
-  describe('checkRemoteUserCanRoot', () => {
+  describe('checkRemoteUserCanUseAccount', () => {    
+    beforeEach(async () => {
+      req = makeRequest(userOwningTheToken);
+      req.userToken = userToken;
+    });
+    it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
+      req.userToken = null;
+      expect(() => checkRemoteUserCanUseAccount(req)).to.not.throw();
+    });
+    it(`Execute without errors if the scope is allowed by the user token`, async () => {
+      expect(() => checkRemoteUserCanUseAccount(req)).to.not.throw();
+    });
+    it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanUseAccount(req)).to.throw(`You need to be logged in to manage account.`);
+    });
+    it(`Throws if the scope is not available on the token`, async () => {
+      const userTokenWithScopeRoot = await fakeUserToken({ scope: ['root'] });
+      req.userToken = userTokenWithScopeRoot;
+      expect(() => checkRemoteUserCanUseAccount(req)).to.throw(`The User Token is not allowed for operations in scope "account".`);
+    });
+  });
+  describe.skip('checkRemoteUserCanRoot', () => {
     let rootUser, rootOrg;
 
     before(async () => {
