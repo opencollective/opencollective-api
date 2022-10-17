@@ -31,6 +31,9 @@
       "bucket": "opencollective-test"
     }
   },
+  "stripe": {
+    "webhookSigningSecret": "webhookSigningSecret"
+  },
   "slack": {
     "webhooks": {
       "abuse": "SLACK_ABUSE_TEST_URL"
