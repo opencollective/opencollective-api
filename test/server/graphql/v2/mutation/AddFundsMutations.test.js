@@ -86,8 +86,13 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         userToken,
         randomUser,
       );
-      console.log('🚀 ~ file: AddFundsMutations.test.js ~ line 83 ~ it ~ result', result);
-      expect(result.errors[0]).to.eq('The User Token is not allowed for operations in scope "host".');
+
+      expect(result.errors[0]).to.include('The User Token is not allowed for operations in scope "host".');
+      console.log(
+        '🚀 ~ file: AddFundsMutations.test.js ~ line 83 ~ it ~ result',
+        typeof result.errors[0],
+        result.errors[0].message,
+      );
     });
 
     it('cannot add funds as non-admin', async () => {
