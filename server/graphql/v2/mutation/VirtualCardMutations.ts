@@ -201,7 +201,13 @@ const virtualCardMutations = {
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
       }
-      if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+
+      if (args.monthlyLimit && !req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
+        throw new Unauthorized("You don't have permission to update this Virtual Card's monthly limit");
+      } else if (
+        !req.remoteUser.isAdmin(virtualCard.HostCollectiveId) &&
+        !req.remoteUser.isAdmin(virtualCard.CollectiveId)
+      ) {
         throw new Unauthorized("You don't have permission to update this Virtual Card");
       }
 
