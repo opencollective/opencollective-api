@@ -4,6 +4,7 @@ import {
   checkRemoteUserCanRoot,
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseApplications,
+  checkRemoteUserCanUseConversations,
   checkRemoteUserCanUseHost,
   checkRemoteUserCanUseOrders,
   checkRemoteUserCanUseTransactions,
@@ -131,8 +132,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(() => checkRemoteUserCanUseOrders(req)).to.not.throw();
     });
     it(`Execute without errors if the scope is allowed by the user token`, async () => {
-      const userTokenWithScopeTransactions = await fakeUserToken({ scope: ['orders'] });
-      req.userToken = userTokenWithScopeTransactions;
+      const userTokenWithScopeOrders = await fakeUserToken({ scope: ['orders'] });
+      req.userToken = userTokenWithScopeOrders;
       expect(() => checkRemoteUserCanUseOrders(req)).to.not.throw();
     });
     it(`Throws when not authenticated`, async () => {
@@ -149,8 +150,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(() => checkRemoteUserCanUseApplications(req)).to.not.throw();
     });
     it(`Execute without errors if the scope is allowed by the user token`, async () => {
-      const userTokenWithScopeTransactions = await fakeUserToken({ scope: ['applications'] });
-      req.userToken = userTokenWithScopeTransactions;
+      const userTokenWithScopeApplications = await fakeUserToken({ scope: ['applications'] });
+      req.userToken = userTokenWithScopeApplications;
       expect(() => checkRemoteUserCanUseApplications(req)).to.not.throw();
     });
     it(`Throws when not authenticated`, async () => {
@@ -159,6 +160,24 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanUseApplications(req)).to.throw(`The User Token is not allowed for operations in scope "applications".`);
+    });
+  });
+  describe('checkRemoteUserCanUseConversations', () => {
+    it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
+      req.userToken = null;
+      expect(() => checkRemoteUserCanUseConversations(req)).to.not.throw();
+    });
+    it(`Execute without errors if the scope is allowed by the user token`, async () => {
+      const userTokenWithScopeConversations = await fakeUserToken({ scope: ['conversations'] });
+      req.userToken = userTokenWithScopeConversations;
+      expect(() => checkRemoteUserCanUseConversations(req)).to.not.throw();
+    });
+    it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanUseConversations(req)).to.throw(`You need to be logged in to manage conversations`);
+    });
+    it(`Throws if the scope is not available on the token`, async () => {
+      expect(() => checkRemoteUserCanUseConversations(req)).to.throw(`The User Token is not allowed for operations in scope "conversations".`);
     });
   });
   describe.skip('checkRemoteUserCanRoot', () => {
