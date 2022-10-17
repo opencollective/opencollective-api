@@ -86,6 +86,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         userToken,
         randomUser,
       );
+      console.log('🚀 ~ file: AddFundsMutations.test.js ~ line 83 ~ it ~ result', result);
       expect(result.errors[0]).to.eq('The User Token is not allowed for operations in scope "host".');
     });
 
@@ -137,7 +138,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
 
     it('can add funds as host admin with authorization', async () => {
       const userToken = await fakeUserToken({ scope: ['host'] });
-      const result = await graphqlQueryV2(
+      const result = await oAuthGraphqlQueryV2(
         addFundsMutation,
         {
           account: { legacyId: collective.id },
