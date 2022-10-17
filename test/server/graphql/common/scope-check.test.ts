@@ -354,9 +354,15 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Throws when not authenticated`, async () => {
       req.remoteUser = null;
-      expect(() => checkRemoteUserCanUseComment(commentOnExpense, req)).to.throw(`You need to be logged in to manage expenses`);
-      expect(() => checkRemoteUserCanUseComment(commentOnUpdate, req)).to.throw(`You need to be logged in to manage updates.`);
-      expect(() => checkRemoteUserCanUseComment(commentOnConversation, req)).to.throw(`You need to be logged in to manage conversations`);
+      expect(() => checkRemoteUserCanUseComment(commentOnExpense, req)).to.throw(
+        `You need to be logged in to manage expenses`,
+      );
+      expect(() => checkRemoteUserCanUseComment(commentOnUpdate, req)).to.throw(
+        `You need to be logged in to manage updates.`,
+      );
+      expect(() => checkRemoteUserCanUseComment(commentOnConversation, req)).to.throw(
+        `You need to be logged in to manage conversations`,
+      );
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanUseComment(commentOnExpense, req)).to.throw(
