@@ -47,11 +47,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
   });
   describe('checkRemoteUserCanRoot', () => {
-    let rootUser;
+    let rootUser, rootOrg;
 
     before(async () => {
-      await resetTestDB();
-      const rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
+      rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
       rootUser = await fakeUser({}, { name: 'Root user' });
       await rootOrg.addUserWithRole(rootUser, 'ADMIN');
       console.log("isRoot", rootUser.isRoot());
