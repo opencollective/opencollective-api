@@ -7,6 +7,7 @@ import POLICIES from '../../../constants/policies';
 import MemberRoles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { getPolicy } from '../../../lib/policies';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { editPublicMessage } from '../../common/members';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -88,6 +89,9 @@ const memberMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
 
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
       if (args.role !== MemberRoles.CONNECTED_COLLECTIVE) {
         throw new BadRequest('This mutation only supports the CONNECTED_ACCOUNT role');
       }
@@ -146,6 +150,9 @@ const memberMutations = {
           throw new Forbidden('There must be at least one admin for the account.');
         }
       }
+
+      // Enforce 2FA if enabled on the account
+      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
 
       // Edit member
       const editableAttributes = pick(args, ['role', 'description', 'since']);
@@ -236,6 +243,9 @@ const memberMutations = {
           }
         }
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
 
       // Remove member
       if (args.isInvitation) {

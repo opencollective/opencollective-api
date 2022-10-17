@@ -12,8 +12,9 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
-import { getPolicy } from '../../../lib/policies';
+import { getPolicy, hasPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
@@ -77,6 +78,10 @@ const HostApplicationMutations = {
       }
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Forbidden('You need to be an Admin of the account');
+      }
+
+      if (hasPolicy(collective, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
       }
 
       const host = await fetchAccountWithReference(args.host);
@@ -190,6 +195,10 @@ const HostApplicationMutations = {
         throw new ValidationFailed('This collective application has already been approved');
       }
 
+      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+      }
+
       switch (args.action) {
         case 'APPROVE':
           return { account: await approveApplication(host, account, req) };
@@ -234,6 +243,10 @@ const HostApplicationMutations = {
       }
       if (!req.remoteUser.isAdminOfCollective(host) && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
         throw new Unauthorized();
+      }
+
+      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
       }
 
       await account.changeHost(null);

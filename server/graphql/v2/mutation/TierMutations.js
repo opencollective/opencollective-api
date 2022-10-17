@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound, Unauthorized } from '../../errors';
@@ -35,6 +36,9 @@ const tierMutations = {
         throw new Unauthorized();
       }
 
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+
       if (args.tier.amountType === 'FIXED') {
         args.tier.presets = null;
         args.tier.minimumAmount = null;
@@ -69,6 +73,9 @@ const tierMutations = {
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized();
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
 
       if (args.tier.amountType === 'FIXED') {
         args.tier.presets = null;
@@ -106,6 +113,9 @@ const tierMutations = {
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
 
       if (args.stopRecurringContributions) {
         await models.Order.cancelActiveOrdersByTierId(tier.id);

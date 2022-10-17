@@ -629,7 +629,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     isNil(currentPaidExpenseAmountCache) ||
     currentPaidExpenseAmount + expense.amount > hostPayoutTwoFactorAuthenticationRollingLimit;
 
-  if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+  if (!twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
     throw new Error('Host has two-factor authentication enabled for large payouts.');
   }
 
@@ -1146,6 +1146,15 @@ export async function editExpense(
 
   const { collective } = expense;
   const { host } = collective;
+
+  // Check if 2FA is enforced on any of the account remote user is admin of, stop the loop if 2FA gets validated for any of them
+  if (req.remoteUser) {
+    for (const account of [expense.fromCollective, collective, host].filter(Boolean)) {
+      if (await twoFactorAuthLib.enforceForAccountAdmins(req, account)) {
+        break;
+      }
+    }
+  }
 
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
@@ -1811,15 +1820,18 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       PayoutMethodTypes.BANK_ACCOUNT,
     ].includes(payoutMethodType);
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-    const useTwoFactorAuthentication =
+    const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
     const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
     let totalPaidExpensesAmount;
 
-    if (useTwoFactorAuthentication) {
+    if (use2FARollingLimit) {
       totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
       await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
+    } else {
+      // Not using rolling limit, but still enforcing 2FA for all admins
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host);
     }
 
     try {
@@ -1890,7 +1902,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {
-      if (useTwoFactorAuthentication) {
+      if (use2FARollingLimit) {
         if (!isNil(totalPaidExpensesAmount) && totalPaidExpensesAmount !== 0) {
           cache.set(totalPaidExpensesAmountKey, totalPaidExpensesAmount - expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
         }

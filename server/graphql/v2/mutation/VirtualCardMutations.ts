@@ -3,9 +3,12 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities, frequencies } from '../../../constants';
+import POLICIES from '../../../constants/policies';
 import VirtualCardProviders from '../../../constants/virtual_card_providers';
 import logger from '../../../lib/logger';
+import { hasPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
 import privacy from '../../../paymentProviders/privacy';
@@ -45,6 +48,10 @@ const virtualCardMutations = {
       const host = await collective.getHostCollective();
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");
+      }
+
+      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
       }
 
       const assignee = await fetchAccountWithReference(args.assignee, {
@@ -137,6 +144,9 @@ const virtualCardMutations = {
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
+      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+      }
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
@@ -209,6 +219,9 @@ const virtualCardMutations = {
         !req.remoteUser.isAdmin(virtualCard.CollectiveId)
       ) {
         throw new Unauthorized("You don't have permission to update this Virtual Card");
+      }
+      if (hasPolicy(virtualCard.host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
       }
 
       const updateAttributes = {};
@@ -287,6 +300,9 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to request a virtual card for this collective");
       }
 
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+
       const host = await collective.getHostCollective();
       const userCollective = await req.remoteUser.getCollective();
       const activity = {
@@ -343,6 +359,8 @@ const virtualCardMutations = {
         throw new Unauthorized("You don't have permission to pause this Virtual Card");
       }
 
+      // TODO check 2FA on host and collective
+
       const card = await virtualCard.pause();
       const data = {
         virtualCard,
@@ -372,7 +390,10 @@ const virtualCardMutations = {
     async resolve(_: void, args, req: express.Request): Promise<VirtualCardModel> {
       checkRemoteUserCanUseVirtualCards(req);
 
-      const virtualCard = await models.VirtualCard.findOne({ where: { id: args.virtualCard.id } });
+      const virtualCard = await models.VirtualCard.findOne({
+        where: { id: args.virtualCard.id },
+        include: [{ association: 'host', required: true }],
+      });
       if (!virtualCard) {
         throw new NotFound('Could not find Virtual Card');
       }
@@ -417,6 +438,8 @@ const virtualCardMutations = {
       if (!req.remoteUser.isAdmin(virtualCard.HostCollectiveId) && !req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }
+
+      // TODO check 2FA on host and collective
 
       await virtualCard.delete();
 

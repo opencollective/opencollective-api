@@ -9,6 +9,7 @@
 import { get, padStart, sample } from 'lodash';
 import moment from 'moment';
 import type { CreateOptions } from 'sequelize';
+import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
@@ -16,6 +17,7 @@ import { types as CollectiveType } from '../../server/constants/collectives';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { crypto } from '../../server/lib/encryption';
 import models from '../../server/models';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -57,9 +59,16 @@ export const fakeUUID = firstHeightChars => {
 export const fakeUser = async (
   userData: Record<string, unknown> = {},
   collectiveData: Record<string, unknown> = {},
+  { enable2FA = false } = {},
 ) => {
+  const generate2FAAuthToken = () => {
+    const twoFactorAuthSecret = speakeasy.generateSecret({ length: 64 });
+    return crypto.encrypt(twoFactorAuthSecret.base32).toString();
+  };
+
   const user = await models.User.create({
     email: randEmail(),
+    twoFactorAuthToken: enable2FA ? generate2FAAuthToken() : null,
     ...userData,
   });
 

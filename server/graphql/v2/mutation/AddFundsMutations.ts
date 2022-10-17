@@ -2,6 +2,9 @@ import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
+import POLICIES from '../../../constants/policies';
+import { hasPolicy } from '../../../lib/policies';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
@@ -57,11 +60,19 @@ export const addFundsMutation = {
       }
     }
 
+    const host = await account.getHostCollective();
+    if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
+      throw new Error('Only an site admin or collective host admin can add fund');
+    } else if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+    }
+
     return addFunds(
       {
         totalAmount: getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency }),
         collective: account,
         fromCollective: fromAccount,
+        host,
         description: args.description,
         hostFeePercent: args.hostFeePercent,
         tier,

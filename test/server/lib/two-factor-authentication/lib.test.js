@@ -90,13 +90,13 @@ describe('lib/two-factor-authentication', () => {
         twoFactorAuthToken: '12345',
       });
 
-      await expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.eventually.be.true;
+      expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.be.true;
     });
 
     it('return false if user has 2fa disabled', async () => {
       const user = await fakeUser();
 
-      await expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.eventually.be.false;
+      expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.be.false;
     });
   });
 

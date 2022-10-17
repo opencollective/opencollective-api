@@ -2,8 +2,11 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { pick } from 'lodash';
 
+import POLICIES from '../../../constants/policies';
 import logger from '../../../lib/logger';
+import { hasPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
@@ -33,6 +36,10 @@ const payoutMethodMutations = {
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
+      }
+
+      if (hasPolicy(collective, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
       }
 
       if (args.payoutMethod.data.isManualBankTransfer) {

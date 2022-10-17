@@ -19,12 +19,15 @@ import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import POLICIES from '../../../constants/policies';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import { hasPolicy } from '../../../lib/policies';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
   updateSubscriptionDetails,
 } from '../../../lib/subscriptions';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
@@ -135,6 +138,11 @@ const orderMutations = {
         platformTipAmount,
       };
 
+      // Check 2FA for non-guest contributions
+      if (req.remoteUser) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective);
+      }
+
       const result = await createOrderLegacy(legacyOrderObj, req);
       return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
     },
@@ -180,6 +188,9 @@ const orderMutations = {
       } else if (order.status === status.PAID) {
         throw new Error('Cannot cancel a paid order');
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective);
 
       await order.update({ status: status.CANCELLED });
       await order.Subscription.deactivate();
@@ -263,6 +274,9 @@ const orderMutations = {
           'Amount and payment method cannot be updated at the same time, please update one after the other',
         );
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective);
 
       let previousOrderValues, previousSubscriptionValues;
       if (haveDetailsChanged) {
@@ -352,9 +366,14 @@ const orderMutations = {
 
       const order = await fetchOrderWithReference(args.order);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+      const host = await toAccount.getHostCollective();
 
-      if (!req.remoteUser?.isAdmin(toAccount.HostCollectiveId)) {
+      if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can process orders');
+      }
+
+      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
       }
 
       if (args.action === 'MARK_AS_PAID') {
@@ -433,6 +452,9 @@ const orderMutations = {
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
 
       if (!args.orders.length) {
         return [];
