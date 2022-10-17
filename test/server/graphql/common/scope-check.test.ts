@@ -4,6 +4,7 @@ import {
   checkRemoteUserCanRoot,
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseApplications,
+  checkRemoteUserCanUseConnectedAccounts,
   checkRemoteUserCanUseConversations,
   checkRemoteUserCanUseExpenses,
   checkRemoteUserCanUseHost,
@@ -216,6 +217,24 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanUseUpdates(req)).to.throw(`The User Token is not allowed for operations in scope "updates".`);
+    });
+  });
+  describe('checkRemoteUserCanUseConnectedAccounts', () => {
+    it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
+      req.userToken = null;
+      expect(() => checkRemoteUserCanUseConnectedAccounts(req)).to.not.throw();
+    });
+    it(`Execute without errors if the scope is allowed by the user token`, async () => {
+      const userTokenWithScopeConnectedAccounts = await fakeUserToken({ scope: ['connectedAccounts'] });
+      req.userToken = userTokenWithScopeConnectedAccounts;
+      expect(() => checkRemoteUserCanUseConnectedAccounts(req)).to.not.throw();
+    });
+    it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanUseConnectedAccounts(req)).to.throw(`You need to be logged in to manage connected accounts.`);
+    });
+    it(`Throws if the scope is not available on the token`, async () => {
+      expect(() => checkRemoteUserCanUseConnectedAccounts(req)).to.throw(`The User Token is not allowed for operations in scope "connectedAccounts".`);
     });
   });
   describe.skip('checkRemoteUserCanRoot', () => {
