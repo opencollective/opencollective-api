@@ -4,6 +4,7 @@ import {
   checkRemoteUserCanRoot,
   checkRemoteUserCanUseAccount,
   checkRemoteUserCanUseHost,
+  checkRemoteUserCanUseOrders,
   checkRemoteUserCanUseTransactions,
   checkRemoteUserCanUseVirtualCards,
   checkScope,
@@ -140,6 +141,28 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     });
     it(`Throws if the scope is not available on the token`, async () => {
       expect(() => checkRemoteUserCanUseTransactions(req)).to.throw(`The User Token is not allowed for operations in scope "transactions".`);
+    });
+  });
+  describe('checkRemoteUserCanUseOrders', () => {
+    beforeEach(async () => {
+      req = makeRequest(userOwningTheToken);
+      req.userToken = userToken;
+    });
+    it(`Execute without errors if not using OAuth (aka. if there's no req.userToken)`, async () => {
+      req.userToken = null;
+      expect(() => checkRemoteUserCanUseOrders(req)).to.not.throw();
+    });
+    it(`Execute without errors if the scope is allowed by the user token`, async () => {
+      const userTokenWithScopeTransactions = await fakeUserToken({ scope: ['orders'] });
+      req.userToken = userTokenWithScopeTransactions;
+      expect(() => checkRemoteUserCanUseOrders(req)).to.not.throw();
+    });
+    it(`Throws when not authenticated`, async () => {
+      req.remoteUser = null;
+      expect(() => checkRemoteUserCanUseOrders(req)).to.throw(`You need to be logged in to manage orders`);
+    });
+    it(`Throws if the scope is not available on the token`, async () => {
+      expect(() => checkRemoteUserCanUseOrders(req)).to.throw(`The User Token is not allowed for operations in scope "orders".`);
     });
   });
   describe.skip('checkRemoteUserCanRoot', () => {
