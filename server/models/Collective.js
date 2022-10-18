@@ -47,6 +47,7 @@ import {
   getBalanceWithBlockedFundsAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
+  getTotalAmountSpentAmount,
   getTotalMoneyManagedAmount,
   getTotalNetAmountReceivedAmount,
   getYearlyIncome,
@@ -2769,6 +2770,14 @@ function defineModel() {
     return getTotalAmountReceivedAmount(this, options).then(result => result.value);
   };
 
+  Collective.prototype.getTotalAmountSpentAmount = function (options) {
+    return getTotalAmountSpentAmount(this, options);
+  };
+
+  Collective.prototype.getTotalAmountSpent = function (options) {
+    return getTotalAmountSpentAmount(this, options).then(result => Math.abs(result.value));
+  };
+
   Collective.prototype.getTotalPaidExpensesAmount = function (options) {
     return getTotalAmountPaidExpenses(this, options);
   };
@@ -2791,44 +2800,6 @@ function defineModel() {
 
   Collective.prototype.getTotalMoneyManagedAmount = function (options) {
     return getTotalMoneyManagedAmount(this, options);
-  };
-
-  /**
-   * Get the total amount spent by this collective, either directly or by
-   * others through generated gift cards.
-   */
-  Collective.prototype.getTotalAmountSpent = function (startDate, endDate) {
-    endDate = endDate || new Date();
-    const createdAt = startDate ? { [Op.lt]: endDate, [Op.gte]: startDate } : { [Op.lt]: endDate };
-
-    return models.Transaction.findAll({
-      attributes: [
-        'currency',
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
-      ],
-      group: ['currency'],
-      where: {
-        type: 'DEBIT',
-        createdAt: createdAt,
-        ExpenseId: null,
-        [Op.or]: {
-          CollectiveId: this.id,
-          UsingGiftCardFromCollectiveId: this.id,
-        },
-      },
-      raw: true,
-    }).then(async result => {
-      let totalAmount = 0;
-      for (const amount of result) {
-        let total = -parseInt(amount.total, 10);
-        if (amount.currency !== this.currency) {
-          const fxRate = await getFxRate(amount.currency, this.currency);
-          total = fxRate * total;
-        }
-        totalAmount = total + totalAmount;
-      }
-      return Math.round(totalAmount);
-    });
   };
 
   // Get the average monthly spending based on last 90 days
