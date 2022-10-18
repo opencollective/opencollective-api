@@ -209,7 +209,7 @@ export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 
-export const canSeeExpenseSecurityChceks: ExpensePermissionEvaluator = async (req, expense) => {
+export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
 };
 

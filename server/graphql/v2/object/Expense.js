@@ -4,7 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
-import { checkExpense } from '../../../lib/security/check';
+import { checkExpense } from '../../../lib/security/expense';
 import models, { Op } from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
@@ -378,7 +378,7 @@ const Expense = new GraphQLObjectType({
       securityChecks: {
         type: new GraphQLList(SecurityCheck),
         async resolve(expense, _, req) {
-          if (await ExpenseLib.canSeeExpenseSecurityChceks(req, expense)) {
+          if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
             return checkExpense(expense);
           }
         },

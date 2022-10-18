@@ -429,6 +429,18 @@ function defineModel() {
     return count > 0;
   };
 
+  User.prototype.findRelatedUsersByIp = async function ({ include, where } = {}) {
+    const ip = this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+    return User.findAll({
+      where: {
+        ...where,
+        id: { [Op.ne]: this.id },
+        [Op.or]: [{ data: { creationRequest: { ip } } }, { data: { lastSignInRequest: { ip } } }],
+      },
+      include,
+    });
+  };
+
   /**
    * Class Methods
    */
