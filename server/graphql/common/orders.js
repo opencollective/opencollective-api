@@ -86,6 +86,10 @@ export async function addFunds(order, remoteUser) {
     orderData.data.hostFeePercent = order.hostFeePercent;
   }
 
+  if (!isNil(order.memo)) {
+    orderData.data.memo = order.memo;
+  }
+
   const orderCreated = await models.Order.create(orderData);
 
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();

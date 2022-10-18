@@ -822,6 +822,11 @@ type Order {
   Custom data related to the order, based on the fields described by tier.customFields. Must be authenticated as an admin of the fromAccount or toAccount (returns null otherwise)
   """
   customData: JSON
+
+  """
+  Memo attached to the order
+  """
+  memo: String
 }
 
 """
@@ -11788,6 +11793,7 @@ type Mutation {
     tier: TierReferenceInput
     amount: AmountInput!
     description: String!
+    memo: String
     hostFeePercent: Float
     invoiceTemplate: String
   ): Order!
