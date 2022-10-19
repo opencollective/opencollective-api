@@ -14,10 +14,12 @@ import { hasMultiCurrency } from './expenses';
  * Wraps the given query in a `EXISTS` call and returns the result as a boolean.
  * Would be great to replace with https://github.com/sequelize/sequelize/issues/10187 if it gets implemented
  */
-const checkExistsInDB = async (query: string, queryOptions: QueryOptions = null): Promise<boolean> => {
+const checkExistsInDB = async (query: string | string[], queryOptions: QueryOptions = null): Promise<boolean> => {
+  const queriesArray = Array.isArray(query) ? query : [query];
+  const queries = queriesArray.map(q => `EXISTS (${q})`).join(' OR ');
   return sequelize
-    .query(`SELECT EXISTS (${query})`, { type: sequelize.QueryTypes.SELECT, plain: true, ...queryOptions })
-    .then(result => result.exists);
+    .query(`SELECT ${queries} AS result`, { type: sequelize.QueryTypes.SELECT, plain: true, ...queryOptions })
+    .then(({ result }) => result);
 };
 
 const checkIsActive = async (
@@ -29,7 +31,7 @@ const checkIsActive = async (
 
 /** A simple wrapper around checkExistsInDB + checkIsActive */
 const checkIsActiveIfExistsInDB = async (
-  query: string,
+  query: string | string[],
   queryOptions: QueryOptions = null,
   fallback = FEATURE_STATUS.AVAILABLE,
 ): Promise<FEATURE_STATUS> => {
@@ -226,7 +228,11 @@ export const getFeatureStatusResolver =
         );
       case FEATURE.TRANSACTIONS:
         return checkIsActiveIfExistsInDB(
-          `SELECT 1 FROM "Transactions" WHERE "CollectiveId" = :CollectiveId OR "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
+          [
+            // Using two EXISTS as Postgres is not using the best indexes otherwise
+            `SELECT 1 FROM "Transactions" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
+            `SELECT 1 FROM "Transactions" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL`,
+          ],
           { replacements: { CollectiveId: collective.id } },
         );
       case FEATURE.USE_PAYMENT_METHODS:

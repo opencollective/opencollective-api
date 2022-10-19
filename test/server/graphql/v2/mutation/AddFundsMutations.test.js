@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
 import { roles } from '../../../../../server/constants';
-import { fakeCollective, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeProject, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -44,6 +44,12 @@ const addFundsMutation = gqlV2/* GraphQL */ `
   }
 `;
 
+const validMutationVariables = {
+  amount: { value: 20, currency: 'USD', valueInCents: 2000 },
+  description: 'add funds as admin',
+  hostFeePercent: 6,
+};
+
 describe('server/graphql/v2/mutation/AddFundsMutations', () => {
   let hostAdmin, collectiveAdmin, randomUser, collective;
 
@@ -72,9 +78,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         {
           account: { legacyId: collective.id },
           fromAccount: { legacyId: randomUser.CollectiveId },
-          amount: { value: 20, currency: 'USD', valueInCents: 2000 },
-          description: 'add funds as non-admin',
-          hostFeePercent: 6,
+          ...validMutationVariables,
         },
         randomUser,
       );
@@ -86,11 +90,9 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       const result = await graphqlQueryV2(
         addFundsMutation,
         {
+          ...validMutationVariables,
           account: { legacyId: collective.id },
           fromAccount: { legacyId: randomUser.CollectiveId },
-          amount: { value: 20, currency: 'USD', valueInCents: 2000 },
-          description: 'add funds as admin',
-          hostFeePercent: 6,
         },
         collectiveAdmin,
       );
@@ -104,11 +106,9 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       const result = await graphqlQueryV2(
         addFundsMutation,
         {
+          ...validMutationVariables,
           account: { legacyId: collective.id },
           fromAccount: { legacyId: randomUser.CollectiveId },
-          amount: { value: 20, currency: 'USD', valueInCents: 2000 },
-          description: 'add funds as admin',
-          hostFeePercent: 6,
         },
         hostAdmin,
       );
@@ -116,6 +116,71 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
       expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
+    describe('add funds from a collective', () => {
+      it('is not allowed by default', async () => {
+        const fromCollective = await fakeCollective({ HostCollectiveId: collective.HostCollectiveId });
+        const toCollective = await fakeCollective({ HostCollectiveId: collective.HostCollectiveId });
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: toCollective.id },
+            fromAccount: { legacyId: fromCollective.id },
+          },
+          hostAdmin,
+        );
+
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.match(
+          /Adding funds is only possible from the following types: USER,ORGANIZATION/,
+        );
+      });
+
+      it('can be done if the target account is a parent', async () => {
+        const fromCollective = await fakeCollective({ HostCollectiveId: collective.HostCollectiveId });
+        const toCollective = await fakeProject({
+          HostCollectiveId: collective.HostCollectiveId,
+          ParentCollectiveId: fromCollective.id,
+        });
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: toCollective.id },
+            fromAccount: { legacyId: fromCollective.id },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+        expect(result.data.addFunds.amount.currency).to.equal('USD');
+      });
+
+      it('can be done if the target account is a child', async () => {
+        const toCollective = await fakeCollective({ HostCollectiveId: collective.HostCollectiveId });
+        const fromCollective = await fakeProject({
+          HostCollectiveId: collective.HostCollectiveId,
+          ParentCollectiveId: toCollective.id,
+        });
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: toCollective.id },
+            fromAccount: { legacyId: fromCollective.id },
+          },
+          hostAdmin,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+        expect(result.data.addFunds.amount.currency).to.equal('USD');
+      });
     });
 
     describe('add funds to a specific tier', () => {

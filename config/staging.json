@@ -23,6 +23,7 @@
     "slowRequest": true
   },
   "stripe": {
+    "webhookSigningSecret": "whsec_ygKqDLhcNrbtmAfqunpHEYkAWGWJeHTP",
     "redirectUri": "https://api-staging.opencollective.com/connected-accounts/stripe/callback"
   },
   "transferwise": {
