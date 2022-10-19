@@ -152,17 +152,22 @@ export async function getTotalAmountReceivedAmount(
 
 export async function getTotalAmountSpentAmount(
   collective,
-  { startDate, endDate, currency, version, kind, includeChildren } = {},
+  { startDate, endDate, currency, version, kind, includeChildren, net } = {},
 ) {
   version = version || collective.settings?.budget?.version || 'v1';
   currency = currency || collective.currency;
 
   const collectiveIds = await getCollectiveIds(collective, includeChildren);
 
+  let column = ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency';
+  if (net === true) {
+    column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
+  }
+
   const results = await sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
-    column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
+    column: column,
     transactionType: DEBIT,
     kind: kind,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
