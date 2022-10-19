@@ -4,16 +4,12 @@ import Stripe from 'stripe';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 
-const stripe = Stripe(config.stripe.secret);
-
-// Retry a request twice before giving up
-stripe.setMaxNetworkRetries(2);
+const stripe = new Stripe(config.stripe.secret, { apiVersion: undefined, maxNetworkRetries: 2 });
 
 export default stripe;
 
 export const StripeCustomToken = token => {
-  const stripe = Stripe(token);
-  stripe.setMaxNetworkRetries(2);
+  const stripe = new Stripe(token, { apiVersion: undefined, maxNetworkRetries: 2 });
   return stripe;
 };
 

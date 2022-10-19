@@ -27,7 +27,7 @@ const refund = async transactionId => {
 
   /* Refund both charge & application fee */
   if (!IS_DRY) {
-    const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
+    const charge = await stripe.charges.retrieve(chargeId as string, { stripeAccount: hostStripeAccount.username });
     if (charge.disputed) {
       console.log('Charge is already disputed.');
       return;
@@ -38,7 +38,7 @@ const refund = async transactionId => {
     }
 
     const refund = await stripe.refunds.create(
-      { charge: chargeId, refund_application_fee: true }, // eslint-disable-line camelcase
+      { charge: chargeId as string, refund_application_fee: true }, // eslint-disable-line camelcase
       { stripeAccount: hostStripeAccount.username },
     );
 
