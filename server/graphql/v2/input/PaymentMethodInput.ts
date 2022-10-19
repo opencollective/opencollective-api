@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 import moment from 'moment';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import stripe from '../../../lib/stripe';
 import { PaymentMethodLegacyType } from '../enum';
 import { getServiceTypeFromLegacyPaymentMethodType } from '../enum/PaymentMethodLegacyType';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
@@ -74,22 +75,19 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   }
 
   if (pm.creditCardInfo) {
+    const token = await stripe.tokens.retrieve(pm.creditCardInfo.token);
     const paymentMethod = {
       service: PAYMENT_METHOD_SERVICE.STRIPE,
       type: PAYMENT_METHOD_TYPE.CREDITCARD,
       name: pm.name,
       save: pm.isSavedForLater,
       token: pm.creditCardInfo.token,
-      data: pick(pm.creditCardInfo, [
-        'brand',
-        'country',
-        'expMonth',
-        'expYear',
-        'fullName',
-        'funding',
-        'zip',
-        'fingerprint',
-      ]),
+      data: {
+        ...pick(token.card, ['brand', 'country', 'fullName', 'funding', 'zip', 'fingerprint']),
+        name: token.card.name,
+        expMonth: token.card.exp_month,
+        expYear: token.card.exp_year,
+      },
     };
     if (pm.creditCardInfo.expYear && pm.creditCardInfo.expMonth) {
       const { expYear, expMonth } = pm.creditCardInfo;
