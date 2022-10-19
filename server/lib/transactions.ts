@@ -12,7 +12,7 @@ import { getFxRate } from './currency';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { ADDED_FUNDS, CONTRIBUTION, EXPENSE } = TransactionKind;
-const { TICKET } = TierType;
+const { SINGLE_TICKET, MULTIPLE_TICKET } = TierType;
 const { CHARGE } = ExpenseType;
 
 /**
@@ -342,7 +342,7 @@ export async function generateDescription(transaction, { req = null, full = fals
       baseString = `Monthly contribution`;
     } else if (subscription?.interval === 'year') {
       baseString = `Yearly contribution`;
-    } else if (tier && tier.type === TICKET) {
+    } else if (tier && (tier.type === SINGLE_TICKET || tier.type === MULTIPLE_TICKET)) {
       baseString = `Registration`;
     }
   } else if (transaction.kind === ADDED_FUNDS) {

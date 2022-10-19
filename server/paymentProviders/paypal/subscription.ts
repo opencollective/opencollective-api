@@ -50,7 +50,8 @@ type PaypalProductCategory = 'MERCHANDISE' | 'MEMBERSHIP_CLUBS_AND_ORGANIZATIONS
  */
 export const getProductTypeAndCategory = (tier: typeof models.Tier): [PaypalProductType, PaypalProductCategory?] => {
   switch (tier?.type) {
-    case TierType.TICKET:
+    case TierType.SINGLE_TICKET:
+    case TierType.MULTIPLE_TICKET:
       return ['DIGITAL'];
     case TierType.PRODUCT:
       return ['DIGITAL', 'MERCHANDISE'];

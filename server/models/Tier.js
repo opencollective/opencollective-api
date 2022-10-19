@@ -83,7 +83,7 @@ function defineModel() {
       },
 
       type: {
-        type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
+        type: DataTypes.STRING, // TIER, SINGLE_TICKET, MULTIPLE_TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
         defaultValue: 'TIER',
       },
 
@@ -149,7 +149,12 @@ function defineModel() {
         validate: {
           min: 0,
           validateFixedAmount(value) {
-            if (this.type !== 'TICKET' && this.amountType === 'FIXED' && (value === null || value === undefined)) {
+            if (
+              this.type !== 'SINGLE_TICKET' &&
+              this.type !== 'MULTIPLE_TICKET' &&
+              this.amountType === 'FIXED' &&
+              (value === null || value === undefined)
+            ) {
               throw new Error(`In ${this.name}'s tier, "Amount" is required`);
             }
           },

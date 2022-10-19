@@ -375,7 +375,7 @@ describe('server/graphql/v1/createOrder', () => {
     const tier = await fakeTier({
       CollectiveId: event.id,
       name: 'tier-name',
-      type: 'TICKET',
+      type: 'MULTIPLE_TICKET',
       amount: 0,
       amountType: 'FLEXIBLE',
       presets: [0, 500, 1000],

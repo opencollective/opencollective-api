@@ -254,7 +254,7 @@ function defineModel() {
     if (interval) {
       return `${capitalize(interval)}ly financial contribution to ${collective.name}${tierNameInfo}`;
     } else {
-      const isRegistration = tier?.type === TierType.TICKET;
+      const isRegistration = tier?.type === TierType.SINGLE_TICKET || tier?.type === TierType.MULTIPLE_TICKET;
       return `${isRegistration ? 'Registration' : 'Financial contribution'} to ${collective.name}${tierNameInfo}`;
     }
   };
@@ -323,7 +323,7 @@ function defineModel() {
     // Register user as collective backer or an attendee (for events)
     const member = await this.collective.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
-      tier?.type === TierType.TICKET ? roles.ATTENDEE : roles.BACKER,
+      tier?.type === TierType.SINGLE_TICKET || tier?.type === TierType.MULTIPLE_TICKET ? roles.ATTENDEE : roles.BACKER,
       { TierId: this.TierId },
       { order: this },
     );

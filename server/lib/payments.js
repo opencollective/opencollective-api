@@ -623,7 +623,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   const parentCollective = await collective.getParentCollective();
   const customMessage = collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage;
 
-  if (tier && tier.type === tiers.TICKET) {
+  if (tier && (tier.type === tiers.SINGLE_TICKET || tier.type === tiers.MULTIPLE_TICKET)) {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,

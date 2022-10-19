@@ -52,7 +52,7 @@ describe('server/models/Tier', () => {
       .then(() =>
         models.Tier.createMany(
           [
-            { type: 'TICKET', name: 'ticket 1', amount: 1000, maxQuantity: 10 },
+            { type: 'MULTIPLE_TICKET', name: 'ticket 1', amount: 1000, maxQuantity: 10 },
             { type: 'TIER', name: 'backer', amount: 500, interval: 'month' },
             {
               type: 'TIER',

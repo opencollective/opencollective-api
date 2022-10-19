@@ -323,7 +323,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       it('works with a free ticket', async () => {
         const freeTicket = await fakeTier({
           CollectiveId: toCollective.id,
-          type: 'TICKET',
+          type: 'MULTIPLE_TICKET',
           amount: 0,
           amountType: 'FIXED',
         });

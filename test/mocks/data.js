@@ -723,7 +723,7 @@ export default {
 
   ticket1: {
     name: 'Free ticket',
-    type: 'TICKET',
+    type: 'MULTIPLE_TICKET',
     description: 'free tickets for all',
     amount: 0,
     currency: 'USD',
@@ -732,7 +732,7 @@ export default {
 
   ticket2: {
     name: 'paid ticket',
-    type: 'TICKET',
+    type: 'MULTIPLE_TICKET',
     description: '$20 ticket',
     amount: 2000,
     currency: 'USD',

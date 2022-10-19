@@ -296,7 +296,7 @@ describe('server/graphql/v1/mutation', () => {
         expect(tiers[1].interval).to.equal('month');
         tiers[0].goal = 20000;
         tiers[1].amount = 100000;
-        tiers.push({ name: 'free ticket', type: 'TICKET', amount: 0 });
+        tiers.push({ name: 'free ticket', type: 'MULTIPLE_TICKET', amount: 0 });
         const result2 = await utils.graphqlQuery(editTiersMutation, { id: collective1.id, tiers }, user1);
         result2.errors && console.error(result2.errors[0]);
         const updatedTiers = result2.data.editTiers;
