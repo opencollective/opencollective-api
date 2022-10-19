@@ -13,7 +13,6 @@ import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
-import alipay from './alipay';
 import creditcard from './creditcard';
 import * as virtualcard from './virtual-cards';
 
@@ -52,7 +51,6 @@ export default {
   types: {
     default: creditcard,
     creditcard,
-    alipay,
   },
 
   oauth: {
@@ -206,8 +204,6 @@ export default {
     switch (order.paymentMethod.type) {
       case 'bitcoin':
         throw new errors.BadRequest('Stripe-Bitcoin not supported anymore :(');
-      case 'alipay':
-        return alipay.processOrder(order);
       case 'creditcard': /* Fallthrough */
       default:
         return creditcard.processOrder(order);
@@ -261,10 +257,8 @@ export default {
       if (!event || (event && !event.type)) {
         throw new errors.BadRequest('Event not found');
       }
-      if (event.type === 'invoice.payment_succeeded') {
-        return creditcard.webhook(requestBody, event);
-        // Charge has a Stripe dispute
-      } else if (event.type === 'charge.dispute.created') {
+
+      if (event.type === 'charge.dispute.created') {
         return creditcard.createDispute(event);
         // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
       } else if (event.type === 'charge.dispute.closed') {
