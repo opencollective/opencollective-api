@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSONObject } from 'graphql-type-json';
 import moment from 'moment';
 
+import ExpenseStatus from '../../../../server/constants/expense_status';
 import models, { Op } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { Currency } from '../enum';
@@ -140,8 +141,8 @@ export const VirtualCard = new GraphQLObjectType({
           const sumExpensesInPeriod = await models.Expense.sum('amount', {
             where: {
               VirtualCardId: virtualCard.id,
+              status: [ExpenseStatus.PROCESSING, ExpenseStatus.PAID],
               ...(startOfInterval && { incurredAt: { [Op.gte]: startOfInterval } }),
-              kind: [PROCESSING, PAID],
             },
           });
 
