@@ -1,0 +1,8 @@
+export enum VirtualCardLimitIntervals {
+  PER_AUTHORIZATION = 'PER_AUTHORIZATION',
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+  YEARLY = 'YEARLY',
+  ALL_TIME = 'ALL_TIME',
+}

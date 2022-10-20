@@ -8442,10 +8442,19 @@ type VirtualCard {
   privateData: JSONObject
   provider: String
   spendingLimitAmount: Int
-  spendingLimitInterval: String
+  spendingLimitInterval: VirtualCardLimitInterval
   currency: Currency
   createdAt: DateTime
   updatedAt: DateTime
+}
+
+enum VirtualCardLimitInterval {
+  PER_AUTHORIZATION
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+  ALL_TIME
 }
 
 """
