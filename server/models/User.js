@@ -39,7 +39,7 @@ function defineModel() {
             msg: 'Email must be valid',
           },
           isBurnerEmail: function (val) {
-            if (isEmailBurner(val.toLowerCase()) && !emailLib.isWhitelistedDomain(val.toLowerCase())) {
+            if (isEmailBurner(val.toLowerCase()) && !emailLib.isAuthorizedEmailDomain(val.toLowerCase())) {
               throw new Error(
                 'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
               );
