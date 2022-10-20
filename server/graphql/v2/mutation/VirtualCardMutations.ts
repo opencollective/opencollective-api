@@ -252,7 +252,7 @@ const virtualCardMutations = {
 
         updateAttributes['spendingLimitAmount'] = monthlyLimitInCents;
 
-        await stripe.updateVirtualCardMonthlyLimit(virtualCard, monthlyLimitInCents);
+        await stripe.updateVirtualCardLimit(virtualCard, monthlyLimitInCents);
       }
 
       return virtualCard.update(updateAttributes);
