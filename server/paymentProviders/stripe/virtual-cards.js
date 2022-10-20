@@ -344,15 +344,15 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
 };
 
 export const processCardUpdate = async (stripeCard, stripeEvent) => {
-  if (stripeEvent) {
-    await checkStripeEvent(virtualCard.host, stripeEvent);
-  }
-
-  const virtualCard = await models.VirtualCard.findByPk(stripeCard.id);
+  const virtualCard = await models.VirtualCard.findByPk(stripeCard.id, { include: ['host'] });
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeCard.id}`, stripeEvent);
     reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeCard, stripeEvent } });
     return;
+  }
+
+  if (stripeEvent) {
+    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
   await virtualCard.update({
