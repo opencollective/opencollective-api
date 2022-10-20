@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
-import { compact, defaults, isNil, keys, pickBy, reject } from 'lodash';
+import { compact, defaults, isNil, keys, pick, pickBy, reject } from 'lodash';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
@@ -238,6 +238,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     type?: ActivityClasses | ActivityTypes;
     CollectiveId?: number;
     UserId?: number | number[];
+    channel?: channels;
   }) {
     debug('getUnsubscribers', _where);
     // Enforce that there are no unsubscribers for transactional activities.
@@ -249,14 +250,10 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     const getUsers = notifications => notifications.map(notification => notification.User);
 
     const include = [{ model: models.User, required: true }];
-    const where = { active: false };
+    const where = { active: false, ...pick(_where, ['UserId', 'channel']) };
 
     const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
     where['type'] = compact([_where.type, `${_where.type}.for.host`, ...classes]);
-
-    if (_where.UserId) {
-      where['UserId'] = _where.UserId;
-    }
 
     const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
     if (collective) {
