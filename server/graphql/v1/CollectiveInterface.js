@@ -493,7 +493,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         description: 'Total amount spent',
         type: GraphQLInt,
         resolve(collective) {
-          return collective.getTotalAmountSpent();
+          return collective.getTotalAmountSpent({ net: true });
         },
       },
       totalAmountReceived: {

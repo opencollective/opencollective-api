@@ -6,6 +6,7 @@ import { createSandbox } from 'sinon';
 import { activities as ACTIVITY } from '../../../../server/constants';
 import * as expenses from '../../../../server/graphql/common/expenses';
 import cache from '../../../../server/lib/cache';
+import * as currency from '../../../../server/lib/currency';
 import models, { Op } from '../../../../server/models';
 import * as store from '../../../stores';
 import { fakeHost, fakeOrganization, fakeUser } from '../../../test-helpers/fake-data';
@@ -797,6 +798,20 @@ describe('server/graphql/v1/collective', () => {
     });
 
     it('gets totalAmountSpent by collective', async () => {
+      const sandbox = createSandbox();
+
+      const stub = sandbox.stub(currency, 'getFxRate');
+
+      stub
+        .withArgs('EUR', 'EUR')
+        .resolves(1)
+        .withArgs('USD', 'USD')
+        .resolves(1)
+        .withArgs('EUR', 'USD')
+        .resolves(1.1)
+        .withArgs('USD', 'EUR')
+        .resolves(1 / 1.1);
+
       const query = gql`
         query TotalCollectiveContributions($slug: String, $type: String) {
           Collective(slug: $slug) {
@@ -825,6 +840,8 @@ describe('server/graphql/v1/collective', () => {
       expect(Number.isInteger(collective.stats.totalAmountSpent)).to.be.true;
       const totalAmountSpent = Math.round(1000 * 1.1 + 1000);
       expect(collective.stats.totalAmountSpent).to.equal(totalAmountSpent);
+
+      sandbox.restore();
     });
   });
 
