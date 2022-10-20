@@ -251,6 +251,9 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     const include = [{ model: models.User, required: true }];
     const where = { active: false };
 
+    const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
+    where['type'] = compact([_where.type, `${_where.type}.for.host`, ...classes]);
+
     if (_where.UserId) {
       where['UserId'] = _where.UserId;
     }
@@ -270,11 +273,12 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
       if (where['UserId']) {
         where['CollectiveId'].push(null);
       }
+
+      // Also consider users who unsubscribed from ALL activities in this collective.
+      where['type'].push(ActivityTypes.ACTIVITY_ALL);
     }
 
-    const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
-    where['type'] = { [Op.in]: compact([_where.type, `${_where.type}.for.host`, ...classes]) };
-
+    debug('getUnsubscribers', where);
     const unsubs = await Notification.findAll({
       where,
       include,
