@@ -5,6 +5,7 @@ import { createSandbox } from 'sinon';
 import { frequencies } from '../../../../../server/constants';
 import ActivityTypes from '../../../../../server/constants/activities';
 import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
+import { VirtualCardLimitIntervals } from '../../../../../server/constants/virtual-cards';
 import models from '../../../../../server/models';
 import * as stripeVirtualCards from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { fakeCollective, fakeHost, fakeUser, fakeVirtualCard } from '../../../../test-helpers/fake-data';
@@ -21,9 +22,16 @@ const EDIT_VIRTUAL_CARD_MUTATION = gqlV2/* GraphQL */ `
     $virtualCard: VirtualCardReferenceInput!
     $name: String
     $assignee: AccountReferenceInput
-    $monthlyLimit: AmountInput
+    $limitAmount: AmountInput
+    $limitInterval: VirtualCardLimitInterval
   ) {
-    editVirtualCard(virtualCard: $virtualCard, name: $name, assignee: $assignee, monthlyLimit: $monthlyLimit) {
+    editVirtualCard(
+      virtualCard: $virtualCard
+      name: $name
+      assignee: $assignee
+      limitAmount: $limitAmount
+      limitInterval: $limitInterval
+    ) {
       name
       assignee {
         legacyId
@@ -368,17 +376,16 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
           virtualCard: {
             id: virtualCard.id,
           },
-          monthlyLimit: {
+          limitAmount: {
             valueInCents: 10000,
           },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
         },
         collectiveAdminUser,
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(
-        `You don't have permission to update this Virtual Card's monthly limit`,
-      );
+      expect(result.errors[0].message).to.equal(`You don't have permission to update this Virtual Card's limit`);
     });
 
     it('validates limit is less than maximum monthly limit', async () => {
@@ -395,15 +402,16 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
           virtualCard: {
             id: virtualCard.id,
           },
-          monthlyLimit: {
+          limitAmount: {
             valueInCents: 600000,
           },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
         },
         hostAdminUser,
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(`Monthly limit should not exceed 5000 USD`);
+      expect(result.errors[0].message).to.equal(`Limit for interval should not exceed 5000 USD`);
     });
 
     it('edits virtual card limit using host admin user', async () => {
@@ -414,7 +422,7 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
         spendingLimitInterval: frequencies.MONTHLY,
       });
 
-      sandbox.stub(stripeVirtualCards, 'updateVirtualCardMonthlyLimit').resolves();
+      sandbox.stub(stripeVirtualCards, 'updateVirtualCardLimit').resolves();
 
       const result = await graphqlQueryV2(
         EDIT_VIRTUAL_CARD_MUTATION,
@@ -422,9 +430,10 @@ describe('server/graphql/v2/mutation/VirtualCardMutations', () => {
           virtualCard: {
             id: virtualCard.id,
           },
-          monthlyLimit: {
+          limitAmount: {
             valueInCents: 150000,
           },
+          limitInterval: VirtualCardLimitIntervals.MONTHLY,
         },
         hostAdminUser,
       );
