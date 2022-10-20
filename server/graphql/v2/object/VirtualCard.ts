@@ -141,6 +141,7 @@ export const VirtualCard = new GraphQLObjectType({
             where: {
               VirtualCardId: virtualCard.id,
               ...(startOfInterval && { incurredAt: { [Op.gte]: startOfInterval } }),
+              kind: [PROCESSING, PAID],
             },
           });
 
