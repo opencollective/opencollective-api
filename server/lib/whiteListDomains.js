@@ -27,6 +27,7 @@ const whiteListDomains = [
   'mailhaven.com',
   'brainonfire.net',
   'sohu.com',
+  'slmail.me',
 ];
 
 export default whiteListDomains;
