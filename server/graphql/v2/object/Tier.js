@@ -127,6 +127,12 @@ export const Tier = new GraphQLObjectType({
       useStandalonePage: {
         type: GraphQLBoolean,
       },
+      singleTicket: {
+        type: GraphQLBoolean,
+        async resolve(tier) {
+          return tier.data?.singleTicket;
+        },
+      },
     };
   },
 });

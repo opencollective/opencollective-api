@@ -40,14 +40,22 @@ const tierMutations = {
         args.tier.minimumAmount = null;
       }
 
-      return await tier.update({
+      const tierUpdateData = {
         ...args.tier,
         id: tierId,
         amount: getValueInCentsFromAmountInput(args.tier.amount),
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
-      });
+      };
+      let data;
+      if (args.tier.singleTicket !== undefined) {
+        const tier = await models.Tier.findOne({ where: { id: tierId } });
+        data = { ...tier.data, singleTicket: args.tier.singleTicket };
+        tierUpdateData.data = data;
+      }
+
+      return await tier.update(tierUpdateData);
     },
   },
   createTier: {
@@ -74,8 +82,7 @@ const tierMutations = {
         args.tier.presets = null;
         args.tier.minimumAmount = null;
       }
-
-      return models.Tier.create({
+      const tierData = {
         ...args.tier,
         CollectiveId: account.id,
         currency: account.currency,
@@ -83,7 +90,12 @@ const tierMutations = {
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.interval),
-      });
+      };
+      if (args.tier.singleTicket !== undefined) {
+        tierData.data = { singleTicket: args.tier.singleTicket };
+      }
+
+      return models.Tier.create(tierData);
     },
   },
   deleteTier: {

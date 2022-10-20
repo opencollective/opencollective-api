@@ -2635,14 +2635,25 @@ function defineModel() {
             tier.presets = null;
             tier.minimumAmount = null;
           }
-          if (tier.invoiceTemplate) {
-            tier.data = { ...tier.data, invoiceTemplate: tier.invoiceTemplate };
-          }
           if (tier.id) {
-            return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
+            models.Tier.findOne({ where: { id: tier.id, CollectiveId: this.id } }).then(t => {
+              if (tier.invoiceTemplate) {
+                tier.data = { ...t.data, invoiceTemplate: tier.invoiceTemplate };
+              }
+              if (tier.singleTicket !== undefined) {
+                tier.data = { ...t.data, singleTicket: tier.singleTicket };
+              }
+              return models.Tier.update(tier, { where: { id: tier.id, CollectiveId: this.id } });
+            });
           } else {
             tier.CollectiveId = this.id;
             tier.currency = tier.currency || this.currency;
+            if (tier.invoiceTemplate) {
+              tier.data = { invoiceTemplate: tier.invoiceTemplate };
+            }
+            if (tier.singleTicket) {
+              tier.data = { ...tier.data, singleTicket: tier.singleTicket };
+            }
             return models.Tier.create(tier);
           }
         });

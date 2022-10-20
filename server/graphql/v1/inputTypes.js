@@ -302,6 +302,10 @@ export const TierInputType = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Invoice receipt template',
     },
+    singleTicket: {
+      type: GraphQLBoolean,
+      description: 'Only one ticket per order',
+    },
   }),
 });
 
