@@ -1,7 +1,9 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSONObject } from 'graphql-type-json';
+import moment from 'moment';
 
+import models, { Op } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { Currency } from '../enum';
 import { Account } from '../interface/Account';
@@ -100,6 +102,44 @@ export const VirtualCard = new GraphQLObjectType({
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (canSeeVirtualCardPrivateInfo(req, collective)) {
           return virtualCard.spendingLimitInterval;
+        }
+      },
+    },
+    remainingLimit: {
+      type: GraphQLInt,
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
+        if (canSeeVirtualCardPrivateInfo(req, collective)) {
+          const { spendingLimitAmount, spendingLimitInterval } = virtualCard;
+          let startOfInterval: string;
+
+          // Stripe spending limit intervals start on UTC midnight for daily, Sunday at midnight UTC for weekly and 1st of the month or year
+          // https://stripe.com/docs/api/issuing/cards/object#issuing_card_object-spending_controls-spending_limits-interval
+          switch (spendingLimitInterval) {
+            case 'DAILY':
+              startOfInterval = moment().utc(true).startOf('day').toISOString();
+              break;
+            case 'WEEKLY':
+              startOfInterval = moment().utc(true).startOf('isoWeek').toISOString();
+              break;
+            case 'MONTHLY':
+              startOfInterval = moment().utc(true).startOf('month').toISOString();
+              break;
+            case 'YEARLY':
+              startOfInterval = moment().utc(true).startOf('year').toISOString();
+              break;
+            default:
+              return null;
+          }
+
+          const sumExpensesInPeriod = await models.Expense.sum('amount', {
+            where: {
+              VirtualCardId: virtualCard.id,
+              ...(startOfInterval && { incurredAt: { [Op.gte]: startOfInterval } }),
+            },
+          });
+
+          return spendingLimitAmount - sumExpensesInPeriod;
         }
       },
     },
