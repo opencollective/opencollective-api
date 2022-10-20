@@ -125,13 +125,13 @@ export const VirtualCard = new GraphQLObjectType({
             case 'MONTHLY':
               startOfInterval = moment().utc(true).startOf('month').toISOString();
               break;
-            case 'YEARLY':
+            case 'ANNUALLY':
               startOfInterval = moment().utc(true).startOf('year').toISOString();
               break;
-            case 'ALL_TIME':
+            case 'FOREVER':
               startOfInterval = undefined;
               break;
-            case 'PER_AUTHORIZATION':
+            case 'TRANSACTION':
               return spendingLimitAmount;
             default:
               return null;
