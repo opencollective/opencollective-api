@@ -1,9 +1,10 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSONObject } from 'graphql-type-json';
-import moment from 'moment';
 
 import ExpenseStatus from '../../../../server/constants/expense_status';
+import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
+import { getSpendingLimitIntervalDates } from '../../../lib/stripe';
 import models, { Op } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { Currency } from '../enum';
@@ -107,43 +108,37 @@ export const VirtualCard = new GraphQLObjectType({
         }
       },
     },
+    spendingLimitRenewsOn: {
+      type: GraphQLDateTime,
+      async resolve(virtualCard, _, req) {
+        const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
+        if (canSeeVirtualCardPrivateInfo(req, collective)) {
+          const { spendingLimitInterval } = virtualCard;
+
+          const { renewsOn } = getSpendingLimitIntervalDates(spendingLimitInterval);
+
+          return renewsOn;
+        }
+      },
+    },
     remainingLimit: {
       type: GraphQLInt,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (canSeeVirtualCardPrivateInfo(req, collective)) {
           const { spendingLimitAmount, spendingLimitInterval } = virtualCard;
-          let startOfInterval: string;
 
-          // Stripe spending limit intervals start on UTC midnight for daily, Sunday at midnight UTC for weekly and 1st of the month or year
-          // https://stripe.com/docs/api/issuing/cards/object#issuing_card_object-spending_controls-spending_limits-interval
-          switch (spendingLimitInterval) {
-            case 'DAILY':
-              startOfInterval = moment().utc(true).startOf('day').toISOString();
-              break;
-            case 'WEEKLY':
-              startOfInterval = moment().utc(true).startOf('isoWeek').toISOString();
-              break;
-            case 'MONTHLY':
-              startOfInterval = moment().utc(true).startOf('month').toISOString();
-              break;
-            case 'YEARLY':
-              startOfInterval = moment().utc(true).startOf('year').toISOString();
-              break;
-            case 'ALL_TIME':
-              startOfInterval = undefined;
-              break;
-            case 'PER_AUTHORIZATION':
-              return spendingLimitAmount;
-            default:
-              return null;
+          if (spendingLimitInterval === VirtualCardLimitIntervals.PER_AUTHORIZATION) {
+            return spendingLimitAmount;
           }
+
+          const { renewedOn } = getSpendingLimitIntervalDates(spendingLimitInterval);
 
           const sumExpensesInPeriod = await models.Expense.sum('amount', {
             where: {
               VirtualCardId: virtualCard.id,
               status: [ExpenseStatus.PROCESSING, ExpenseStatus.PAID],
-              ...(startOfInterval && { incurredAt: { [Op.gte]: startOfInterval } }),
+              ...(renewedOn && { incurredAt: { [Op.gte]: renewedOn } }),
             },
           });
 

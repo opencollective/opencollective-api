@@ -1,8 +1,10 @@
 import config from 'config';
 import { get } from 'lodash';
+import moment from 'moment';
 import Stripe from 'stripe';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
+import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
 
 const stripe = Stripe(config.stripe.secret);
 
@@ -92,4 +94,34 @@ export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
     : null;
 
   return { charge, refund, dispute };
+};
+
+export const getSpendingLimitIntervalDates = spendingLimitInterval => {
+  const now = moment().utc(true);
+  let renewedOn, renewsOn;
+
+  // Stripe spending limit intervals start on UTC midnight for daily, Sunday at midnight UTC for weekly and 1st of the month or year
+  // https://stripe.com/docs/api/issuing/cards/object#issuing_card_object-spending_controls-spending_limits-interval
+  switch (spendingLimitInterval) {
+    case VirtualCardLimitIntervals.DAILY:
+      renewedOn = now.startOf('day');
+      renewsOn = now.add(1, 'day').startOf('day');
+      break;
+    case VirtualCardLimitIntervals.WEEKLY:
+      renewedOn = now.startOf('isoWeek');
+      renewsOn = now.add(1, 'week').startOf('isoWeek');
+      break;
+    case VirtualCardLimitIntervals.MONTHLY:
+      renewedOn = now.startOf('month');
+      renewsOn = now.add(1, 'month').startOf('month');
+      break;
+    case VirtualCardLimitIntervals.YEARLY:
+      renewedOn = now.startOf('year');
+      renewsOn = now.add(1, 'year').startOf('year');
+      break;
+    case VirtualCardLimitIntervals.ALL_TIME:
+    case VirtualCardLimitIntervals.PER_AUTHORIZATION:
+  }
+
+  return { renewedOn: renewedOn?.toISOString(), renewsOn: renewsOn?.toISOString() };
 };
