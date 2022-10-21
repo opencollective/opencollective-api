@@ -7,6 +7,7 @@ import ExpenseStatus from '../../../../server/constants/expense_status';
 import models, { Op } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { Currency } from '../enum';
+import { VirtualCardLimitInterval } from '../enum/VirtualCardLimitInterval';
 import { Account } from '../interface/Account';
 
 import { Individual } from './Individual';
@@ -98,7 +99,7 @@ export const VirtualCard = new GraphQLObjectType({
       },
     },
     spendingLimitInterval: {
-      type: GraphQLString,
+      type: VirtualCardLimitInterval,
       async resolve(virtualCard, _, req) {
         const collective = await req.loaders.Collective.byId.load(virtualCard.CollectiveId);
         if (canSeeVirtualCardPrivateInfo(req, collective)) {

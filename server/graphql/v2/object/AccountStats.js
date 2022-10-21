@@ -93,15 +93,48 @@ export const AccountStats = new GraphQLObjectType({
       totalAmountSpent: {
         description: 'Total amount spent',
         type: new GraphQLNonNull(Amount),
-        async resolve(collective) {
-          return {
-            value: await collective.getTotalAmountSpent(),
-            currency: collective.currency,
-          };
+        args: {
+          kind: {
+            type: new GraphQLList(TransactionKind),
+            description: 'Filter by kind',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount spent before this date',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount spent after this date',
+          },
+          periodInMonths: {
+            type: GraphQLInt,
+            description: 'Calculate total amount spent in the last x months. Cannot be used with startDate/endDate',
+          },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include money spent in children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+
+          return collective.getTotalAmountSpentAmount({
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            includeChildren: args.includeChildren,
+          });
         },
       },
       totalAmountReceived: {
-        description: 'Net amount received',
+        description: 'Total amount received',
         type: new GraphQLNonNull(Amount),
         args: {
           kind: {
@@ -169,7 +202,7 @@ export const AccountStats = new GraphQLObjectType({
         },
       },
       totalPaidExpenses: {
-        description: 'Total of paid expenses, filter per expense type',
+        description: 'Total of paid expenses to the account, filter per expense type',
         type: new GraphQLNonNull(Amount),
         args: {
           expenseType: {

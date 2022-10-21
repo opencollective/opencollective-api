@@ -47,6 +47,7 @@ import {
   getBalanceWithBlockedFundsAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
+  getTotalAmountSpentAmount,
   getTotalMoneyManagedAmount,
   getTotalNetAmountReceivedAmount,
   getYearlyIncome,
@@ -72,6 +73,7 @@ import {
 } from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
+import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
@@ -2252,6 +2254,20 @@ function defineModel() {
 
     const promises = [models.Member.create(member), this.update(updatedValues)];
 
+    // If collective does not have enough admins, block it from receiving contributions when automatically approving
+    if (shouldAutomaticallyApprove) {
+      const adminCount = await models.Member.count({
+        where: {
+          CollectiveId: this.id,
+          role: roles.ADMIN,
+        },
+      });
+      const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+      if (policy?.freeze && policy.numberOfAdmins > adminCount) {
+        promises.push(this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS));
+      }
+    }
+
     // Invalidate current collective payment method if there's one
     await models.PaymentMethod.destroy({
       where: {
@@ -2461,6 +2477,7 @@ function defineModel() {
       return this.addHost(newHostCollective, remoteUser, {
         message: options?.message,
         applicationData: options?.applicationData,
+        shouldAutomaticallyApprove: options?.shouldAutomaticallyApprove,
       });
     }
   };
@@ -2769,6 +2786,14 @@ function defineModel() {
     return getTotalAmountReceivedAmount(this, options).then(result => result.value);
   };
 
+  Collective.prototype.getTotalAmountSpentAmount = function (options) {
+    return getTotalAmountSpentAmount(this, options);
+  };
+
+  Collective.prototype.getTotalAmountSpent = function (options) {
+    return getTotalAmountSpentAmount(this, options).then(result => Math.abs(result.value));
+  };
+
   Collective.prototype.getTotalPaidExpensesAmount = function (options) {
     return getTotalAmountPaidExpenses(this, options);
   };
@@ -2791,44 +2816,6 @@ function defineModel() {
 
   Collective.prototype.getTotalMoneyManagedAmount = function (options) {
     return getTotalMoneyManagedAmount(this, options);
-  };
-
-  /**
-   * Get the total amount spent by this collective, either directly or by
-   * others through generated gift cards.
-   */
-  Collective.prototype.getTotalAmountSpent = function (startDate, endDate) {
-    endDate = endDate || new Date();
-    const createdAt = startDate ? { [Op.lt]: endDate, [Op.gte]: startDate } : { [Op.lt]: endDate };
-
-    return models.Transaction.findAll({
-      attributes: [
-        'currency',
-        [Sequelize.fn('COALESCE', Sequelize.fn('SUM', Sequelize.col('netAmountInCollectiveCurrency')), 0), 'total'],
-      ],
-      group: ['currency'],
-      where: {
-        type: 'DEBIT',
-        createdAt: createdAt,
-        ExpenseId: null,
-        [Op.or]: {
-          CollectiveId: this.id,
-          UsingGiftCardFromCollectiveId: this.id,
-        },
-      },
-      raw: true,
-    }).then(async result => {
-      let totalAmount = 0;
-      for (const amount of result) {
-        let total = -parseInt(amount.total, 10);
-        if (amount.currency !== this.currency) {
-          const fxRate = await getFxRate(amount.currency, this.currency);
-          total = fxRate * total;
-        }
-        totalAmount = total + totalAmount;
-      }
-      return Math.round(totalAmount);
-    });
   };
 
   // Get the average monthly spending based on last 90 days

@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNull, merge, omitBy, sortBy } from 'lodash';
+import { get, has, isNull, merge, omitBy, pick, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
@@ -19,6 +19,7 @@ import { types } from '../../constants/collectives';
 import FEATURE, { FeaturesList } from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { PUBLIC_POLICIES } from '../../constants/policies';
 import roles from '../../constants/roles';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { getContributorsForCollective } from '../../lib/contributors';
@@ -28,7 +29,9 @@ import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { getFeatureStatusResolver } from '../common/features';
+import { checkScope } from '../common/scope-check';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
+import { Policies } from '../v2/object/Policies';
 
 import { ApplicationType } from './Application';
 import { TransactionInterfaceType } from './TransactionInterface';
@@ -493,7 +496,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
         description: 'Total amount spent',
         type: GraphQLInt,
         resolve(collective) {
-          return collective.getTotalAmountSpent();
+          return collective.getTotalAmountSpent({ net: true });
         },
       },
       totalAmountReceived: {
@@ -878,6 +881,11 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       categories: {
         type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
         description: 'Categories set by Open Collective to help moderation.',
+      },
+      policies: {
+        type: new GraphQLNonNull(Policies),
+        description:
+          'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
       },
     };
   },
@@ -1925,6 +1933,17 @@ const CollectiveFields = () => {
       type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
       resolve(collective) {
         return get(collective.data, 'categories', []);
+      },
+    },
+    policies: {
+      type: new GraphQLNonNull(Policies),
+      async resolve(account, _, req) {
+        const policies = account.data?.policies || {};
+        if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
+          return policies;
+        }
+
+        return pick(policies, PUBLIC_POLICIES);
       },
     },
   };

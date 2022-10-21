@@ -150,6 +150,38 @@ export async function getTotalAmountReceivedAmount(
   return { value, currency };
 }
 
+export async function getTotalAmountSpentAmount(
+  collective,
+  { startDate, endDate, currency, version, kind, includeChildren, net } = {},
+) {
+  version = version || collective.settings?.budget?.version || 'v1';
+  currency = currency || collective.currency;
+
+  const collectiveIds = await getCollectiveIds(collective, includeChildren);
+
+  let column = ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency';
+  if (net === true) {
+    column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
+  }
+
+  const results = await sumCollectivesTransactions(collectiveIds, {
+    startDate,
+    endDate,
+    column: column,
+    transactionType: DEBIT,
+    kind: kind,
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    excludeInternals: true,
+    excludeCrossCollectiveTransactions: includeChildren,
+    includeGiftCards: true,
+  });
+
+  // Sum and convert to final currency
+  const value = await sumTransactionsInCurrency(results, currency);
+
+  return { value, currency };
+}
+
 export async function getTotalAmountPaidExpenses(collective, { startDate, endDate, expenseType, currency } = {}) {
   currency = currency || collective.currency;
 
@@ -271,15 +303,26 @@ async function sumCollectivesTransactions(
     hostCollectiveId = null,
     excludeInternals = false,
     excludeCrossCollectiveTransactions = false,
+    includeGiftCards = false,
     kind,
   } = {},
 ) {
   const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
 
-  const where = {};
+  let where = {};
 
   if (ids) {
-    where.CollectiveId = ids;
+    if (includeGiftCards) {
+      where = {
+        ...where,
+        [Op.or]: {
+          CollectiveId: ids,
+          UsingGiftCardFromCollectiveId: ids,
+        },
+      };
+    } else {
+      where.CollectiveId = ids;
+    }
     if (excludeCrossCollectiveTransactions) {
       where.FromCollectiveId = { [Op.notIn]: ids };
     }
