@@ -209,6 +209,11 @@ function defineModel() {
         allowNull: true,
       },
 
+      isDisputed: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
+
       createdAt: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

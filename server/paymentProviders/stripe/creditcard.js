@@ -1,9 +1,16 @@
 import config from 'config';
 import { get, toUpper } from 'lodash';
+import { v4 as uuid } from 'uuid';
 
+import FEATURE from '../../constants/feature';
+import OrderStatuses from '../../constants/order_status';
+import { TransactionKind } from '../../constants/transaction-kind';
 import * as constants from '../../constants/transactions';
+import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { toNegative } from '../../lib/math';
 import {
+  createRefundTransaction,
   getApplicationFee,
   getHostFee,
   getHostFeeSharePercent,
@@ -308,11 +315,184 @@ export const setupCreditCard = async (paymentMethod, { user, collective } = {}) 
   return paymentMethod;
 };
 
+// Charge has a new Stripe dispute
+async function createDispute(event) {
+  const stripeChargeId = event.data.object.charge;
+  const chargeTransaction = await models.Transaction.findOne({
+    where: { data: { charge: { id: stripeChargeId } } },
+    include: [
+      {
+        model: models.User,
+        required: true,
+        as: 'createdByUser',
+      },
+    ],
+  });
+  // const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
+  if (!chargeTransaction) {
+    return;
+  }
+
+  const user = chargeTransaction.createdByUser;
+
+  const transactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: chargeTransaction.TransactionGroup,
+    },
+    include: {
+      model: models.Order,
+      required: true,
+      include: [models.Subscription],
+    },
+  });
+
+  // Block User from creating any new Orders
+  await user.limitFeature(FEATURE.ORDER);
+
+  await Promise.all(
+    transactions.map(async transaction => {
+      await transaction.update({ isDisputed: true });
+      const order = transaction.Order;
+      if (order.status !== OrderStatuses.DISPUTED) {
+        await order.update({ status: OrderStatuses.DISPUTED });
+
+        if (order.SubscriptionId) {
+          await order.Subscription.deactivate();
+        }
+      }
+    }),
+  );
+}
+
+// Charge has been closed on Stripe (with status of: won/lost/closed)
+async function closeDispute(event) {
+  const stripeChargeId = event.data.object.charge;
+  const chargeTransaction = await models.Transaction.findOne({
+    where: { data: { charge: { id: stripeChargeId } }, isDisputed: true },
+    include: [
+      {
+        model: models.Order,
+        required: true,
+        include: [models.Subscription],
+      },
+      {
+        model: models.User,
+        required: true,
+        as: 'createdByUser',
+      },
+    ],
+  });
+
+  if (!chargeTransaction) {
+    return;
+  }
+
+  const user = chargeTransaction.createdByUser;
+
+  const transactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: chargeTransaction.TransactionGroup,
+    },
+    include: {
+      model: models.Order,
+      required: true,
+      include: [models.Subscription],
+    },
+  });
+
+  if (transactions.length > 0) {
+    const order = chargeTransaction.Order;
+
+    const disputeStatus = event.data.object.status;
+    const disputeTransaction = event.data.object.balance_transactions.find(
+      tx => tx.type === 'adjustment' && tx.reporting_category === 'dispute',
+    );
+
+    // A lost dispute means it was decided as fraudulent
+    if (disputeStatus === 'lost') {
+      if (order.status === OrderStatuses.DISPUTED) {
+        if (order.SubscriptionId) {
+          await order.update({ status: OrderStatuses.CANCELLED });
+        } else {
+          await order.update({ status: OrderStatuses.REFUNDED });
+        }
+      }
+
+      // Create refund transaction for the fraudulent charge
+      const transactionGroup = uuid();
+      await createRefundTransaction(
+        chargeTransaction,
+        0,
+        {
+          ...chargeTransaction.data,
+          dispute: event,
+          refundTransactionId: chargeTransaction.id,
+        },
+        null,
+        transactionGroup,
+      );
+
+      // Create transaction for dispute fee debiting the fiscal host
+      const feeDetails = disputeTransaction.fee_details.find(feeDetails => feeDetails.description === 'Dispute fee');
+      const currency = feeDetails.currency.toUpperCase();
+      const amount = feeDetails.amount;
+      const fiscalHost = await models.Collective.findByPk(chargeTransaction.HostCollectiveId);
+      const hostCurrencyFxRate = await getFxRate(currency, fiscalHost.currency);
+      const hostCurrencyAmount = Math.round(toNegative(amount) * hostCurrencyFxRate);
+
+      await models.Transaction.create({
+        type: 'DEBIT',
+        HostCollectiveId: fiscalHost.id,
+        CollectiveId: fiscalHost.id,
+        FromCollectiveId: fiscalHost.id,
+        OrderId: chargeTransaction.OrderId,
+        TransactionGroup: transactionGroup,
+        amount: toNegative(amount),
+        netAmountInCollectiveCurrency: toNegative(amount),
+        amountInHostCurrency: hostCurrencyAmount,
+        currency: currency,
+        hostCurrency: fiscalHost.currency,
+        description: 'Stripe Transaction Dispute Fee',
+        paymentProcessorFeeInHostCurrency: 0,
+        hostFeeInHostCurrency: 0,
+        platformFeeInHostCurrency: 0,
+        hostCurrencyFxRate,
+        kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
+        data: event.data,
+      });
+
+      // A won dispute means it was decided as not fraudulent
+    } else if (disputeStatus === 'won') {
+      if (order.status === OrderStatuses.DISPUTED) {
+        if (order.SubscriptionId) {
+          await order.update({ status: OrderStatuses.ACTIVE });
+          await order.Subscription.activate();
+        } else {
+          await order.update({ status: OrderStatuses.PAID });
+        }
+      }
+
+      const userHasDisputedOrders = await user.hasDisputedOrders();
+      if (!userHasDisputedOrders) {
+        await user.unlimitFeature(FEATURE.ORDER);
+      }
+
+      await Promise.all(
+        transactions.map(async transaction => {
+          await transaction.update({ isDisputed: false });
+        }),
+      );
+    }
+  }
+}
+
 export default {
   features: {
     recurring: true,
     waitToCharge: false,
   },
+  closeDispute,
+  createDispute,
 
   processOrder: async order => {
     const hostStripeAccount = await order.collective.getHostStripeAccount();

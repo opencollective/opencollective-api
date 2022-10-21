@@ -75,13 +75,6 @@ describe('server/routes/webhooks.stripe', () => {
         .end(done);
     });
 
-    it('error out on `source.chargeable`', done => {
-      const stripeMock = _.cloneDeep(originalStripeMock);
-
-      sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
-      request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_source_chargeable).expect(400).end(done);
-    });
-
     it('should return HTTP 200 if event is not supported', done => {
       const stripeMock = _.cloneDeep(originalStripeMock);
       stripeMock.event_source_chargeable.type = 'application_fee.created';

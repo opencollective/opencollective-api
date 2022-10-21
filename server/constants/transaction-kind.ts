@@ -15,6 +15,8 @@ export enum TransactionKind {
   HOST_FEE_SHARE_DEBT = 'HOST_FEE_SHARE_DEBT',
   /** Amount given by Fiscal Hosts to cover payment processor fee on refunds */
   PAYMENT_PROCESSOR_COVER = 'PAYMENT_PROCESSOR_COVER',
+  /** Amount paid by the the Fiscal Host to cover a lost fraud dispute fee */
+  PAYMENT_PROCESSOR_DISPUTE_FEE = 'PAYMENT_PROCESSOR_DISPUTE_FEE',
   /** Reserved keyword in case we want to use in the future */
   PAYMENT_PROCESSOR_FEE = 'PAYMENT_PROCESSOR_FEE',
   /** Reserved keyword in case we want to use in the future */

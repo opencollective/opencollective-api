@@ -286,7 +286,13 @@ export const refundPaymentProcessorFeeToCollective = async (transaction, refundT
  *  method that should be saved within the *data* field of the
  *  transactions being created.
  */
-export async function createRefundTransaction(transaction, refundedPaymentProcessorFee, data, user) {
+export async function createRefundTransaction(
+  transaction,
+  refundedPaymentProcessorFee,
+  data,
+  user,
+  transactionGroupId = null,
+) {
   /* If the transaction passed isn't the one from the collective
    * perspective, the opposite transaction is retrieved.
    *
@@ -309,7 +315,7 @@ export async function createRefundTransaction(transaction, refundedPaymentProces
   const buildRefund = transaction => {
     return {
       ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
-      TransactionGroup: transactionGroup,
+      TransactionGroup: transactionGroupId || transactionGroup,
     };
   };
 

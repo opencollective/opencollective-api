@@ -830,6 +830,7 @@ All order statuses
 enum OrderStatus {
   ACTIVE
   CANCELLED
+  DISPUTED
   ERROR
   EXPIRED
   NEW
@@ -920,6 +921,7 @@ interface Transaction {
   order: Order
   isRefunded: Boolean
   isRefund: Boolean
+  isDisputed: Boolean
   paymentMethod: PaymentMethod
   payoutMethod: PayoutMethod
   permissions: TransactionPermissions
@@ -961,6 +963,7 @@ enum TransactionKind {
   HOST_FEE_SHARE
   HOST_FEE_SHARE_DEBT
   PAYMENT_PROCESSOR_COVER
+  PAYMENT_PROCESSOR_DISPUTE_FEE
   PAYMENT_PROCESSOR_FEE
   PLATFORM_FEE
   PLATFORM_TIP
@@ -3081,6 +3084,11 @@ type Host implements Account & AccountWithContributions {
   Returns whether the host is trusted or not
   """
   isTrustedHost: Boolean!
+
+  """
+  Returns whether the host has any disputed orders
+  """
+  hasDisputedOrders: Boolean!
 }
 
 """
@@ -3609,10 +3617,35 @@ type AccountStats {
   """
   Total amount spent
   """
-  totalAmountSpent: Amount!
+  totalAmountSpent(
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate total amount spent before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate total amount spent after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate total amount spent in the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include money spent in children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+  ): Amount!
 
   """
-  Net amount received
+  Total amount received
   """
   totalAmountReceived(
     """
@@ -3647,7 +3680,7 @@ type AccountStats {
   ): Amount!
 
   """
-  Total of paid expenses, filter per expense type
+  Total of paid expenses to the account, filter per expense type
   """
   totalPaidExpenses(
     """
@@ -3678,6 +3711,13 @@ type AccountStats {
   """
   totalNetAmountReceived: Amount!
   activeRecurringContributions: JSON
+    @deprecated(reason: "2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.")
+  activeRecurringContributionsV2(
+    """
+    The frequency of the recurring contribution (MONTHLY or YEARLY)
+    """
+    frequency: ContributionFrequency! = MONTHLY
+  ): Amount
 
   """
   Returns expense tags for collective sorted by popularity
@@ -5913,6 +5953,7 @@ type Credit implements Transaction {
   order: Order
   isRefunded: Boolean
   isRefund: Boolean
+  isDisputed: Boolean
   paymentMethod: PaymentMethod
   payoutMethod: PayoutMethod
 
@@ -6019,6 +6060,7 @@ type Debit implements Transaction {
   order: Order
   isRefunded: Boolean
   isRefund: Boolean
+  isDisputed: Boolean
   paymentMethod: PaymentMethod
   payoutMethod: PayoutMethod
 

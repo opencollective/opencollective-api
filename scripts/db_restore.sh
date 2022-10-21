@@ -87,6 +87,7 @@ echo "DB restored to postgres://localhost/${LOCALDBNAME}"
   psql "${LOCALDBNAME}" -c "alter type \"enum_MemberInvitations_role\" owner to ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "alter type \"enum_PayoutMethods_type\" owner to ${LOCALDBUSER};"
   psql "${LOCALDBNAME}" -c "alter type \"enum_MigrationLogs_type\" owner to ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "alter type \"enum_Transactions_kind\" owner to ${LOCALDBUSER};"
   # TODO: uncomment those lines when we update the dump
   # psql "${LOCALDBNAME}" -c "alter type \"enum_OAuthAuthorizationCodes_scope\" owner to ${LOCALDBUSER};"
   # psql "${LOCALDBNAME}" -c "alter type \"enum_UserTokens_scope\" owner to ${LOCALDBUSER};"

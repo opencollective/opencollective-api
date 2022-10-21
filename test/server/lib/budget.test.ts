@@ -1,6 +1,7 @@
 import { expect } from 'chai';
+import moment from 'moment';
 
-import { getYearlyIncome } from '../../../server/lib/budget';
+import { getYearlyIncome, sumCollectivesTransactions } from '../../../server/lib/budget';
 import { fakeCollective, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -70,6 +71,59 @@ describe('server/lib/budget', () => {
 
       // Total should be the sum of all the above
       expect(await getYearlyIncome(collective)).to.equal(235e2);
+    });
+  });
+
+  describe('sumCollectivesTransactions', () => {
+    it('sums correctly', async () => {
+      const collective = await fakeCollective();
+
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 }, { createDoubleEntry: true });
+
+      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 }, { createDoubleEntry: true });
+
+      const txs = await sumCollectivesTransactions([collective.id], {
+        column: 'netAmountInCollectiveCurrency',
+        startDate: moment().subtract(1, 'day'),
+        endDate: moment(),
+        kind: null,
+      });
+      const sum = txs[collective.id];
+      expect(sum.value).to.eq(50e2);
+    });
+
+    describe('when blocked funds are excluded', () => {
+      describe('when there are disputed Transactions', () => {
+        it('returns the unblocked funds sum', async () => {
+          const collective = await fakeCollective();
+
+          await fakeTransaction(
+            { type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 },
+            { createDoubleEntry: true },
+          );
+
+          await fakeTransaction(
+            { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 },
+            { createDoubleEntry: true },
+          );
+
+          await fakeTransaction(
+            { type: 'CREDIT', CollectiveId: collective.id, amount: 40e2, isDisputed: true },
+            { createDoubleEntry: true },
+          );
+
+          const txs = await sumCollectivesTransactions([collective.id], {
+            column: 'netAmountInCollectiveCurrency',
+            startDate: moment().subtract(1, 'day'),
+            endDate: moment(),
+            kind: null,
+            withBlockedFunds: true,
+            excludeRefunds: false,
+          });
+          const sum = txs[collective.id];
+          expect(sum.value).to.eq(50e2);
+        });
+      });
     });
   });
 });

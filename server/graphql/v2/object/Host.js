@@ -20,6 +20,7 @@ import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import queries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
+import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -692,6 +693,28 @@ export const Host = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLBoolean),
         description: 'Returns whether the host is trusted or not',
         resolve: account => get(account, 'data.isTrustedHost', false),
+      },
+      hasDisputedOrders: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host has any disputed orders',
+        async resolve(host) {
+          const [results] = await sequelize.query(
+            `
+            SELECT o.id FROM "Orders" o
+            JOIN "Transactions" t ON t."OrderId" = o.id
+            WHERE t."HostCollectiveId" = :hostCollectiveId AND o.status = 'DISPUTED'
+            LIMIT 1;
+            `,
+            {
+              type: QueryTypes.SELECT,
+              replacements: {
+                hostCollectiveId: host.id,
+              },
+            },
+          );
+
+          return !isEmpty(results);
+        },
       },
     };
   },
