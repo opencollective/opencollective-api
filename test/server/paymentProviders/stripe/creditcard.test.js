@@ -288,12 +288,21 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         },
         { withSubscription: true },
       );
-      await fakeTransaction(
+      const tx = await fakeTransaction(
         {
           CreatedByUserId: user.id,
           OrderId: order.id,
           amount: 10,
           data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          CreatedByUserId: user.id,
+          OrderId: order.id,
+          TransactionGroup: tx.TransactionGroup,
+          amount: 5,
         },
         { createDoubleEntry: true },
       );
@@ -308,7 +317,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
     it('disputes all Transactions connected to the charge', async () => {
       const transactions = await order.getTransactions();
-      expect(transactions.map(tx => tx.isDisputed)).to.eql([true, true]);
+      expect(transactions.map(tx => tx.isDisputed)).to.eql([true, true, true, true]);
     });
 
     it('disputes the Order connected to the charge', async () => {
@@ -339,13 +348,22 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         },
         { withSubscription: true },
       );
-      await fakeTransaction(
+      const tx = await fakeTransaction(
         {
           CreatedByUserId: user.id,
           OrderId: order.id,
           HostCollectiveId: collective.id,
           amount: 10,
           data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          CreatedByUserId: user.id,
+          OrderId: order.id,
+          TransactionGroup: tx.TransactionGroup,
+          amount: 5,
         },
         { createDoubleEntry: true },
       );
@@ -357,7 +375,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
 
         const transactions = await order.getTransactions();
-        expect(transactions.map(tx => tx.isDisputed)).to.eql([false, false]);
+        expect(transactions.map(tx => tx.isDisputed)).to.eql([false, false, false, false]);
       });
 
       describe('when the Order has a Subscription', () => {

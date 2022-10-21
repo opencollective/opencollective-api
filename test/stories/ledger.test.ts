@@ -19,6 +19,8 @@ import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/exp
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
+import creditcard from '../../server/paymentProviders/stripe/creditcard';
+import stripeMocks from '../mocks/stripe';
 import {
   fakeCollective,
   fakeExpense,
@@ -39,6 +41,7 @@ const SNAPSHOT_COLUMNS = [
   'HostCollectiveId',
   'settlementStatus',
   'isRefund',
+  'isDisputed',
 ];
 
 const SNAPSHOT_COLUMNS_MULTI_CURRENCIES = [
@@ -564,6 +567,52 @@ describe('test/stories/ledger', () => {
 
       await refundTransaction(collective, secondCollective, host, hostAdmin, contributorUser, baseOrderData);
       expect(await secondCollective.getBalance()).to.eq(0);
+    });
+  });
+
+  describe('Level 6: Disputed Transactions', async () => {
+    const disputeTransaction = async (collective, fromCollective, host, hostAdmin, contributorUser, baseOrderData) => {
+      const order = await fakeOrder(baseOrderData);
+      order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
+      await executeOrder(contributorUser, order);
+
+      await models.Transaction.update(
+        {
+          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+          HostCollectiveId: host.id,
+        },
+        { where: { OrderId: order.id } },
+      );
+      await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+    };
+
+    it('1. Dispute is created', async () => {
+      const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
+      await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+
+      expect(await collective.getBalance(), 'Total Balance').to.eq(9500);
+      expect(await collective.getBalanceWithBlockedFunds(), 'Balance without Blocked Funds').to.eq(0);
+    });
+
+    it('2. Dispute is created and then closed as lost', async () => {
+      const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
+      await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
+      await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+
+      expect(await collective.getBalance(), 'Total Balance').to.eq(0);
+      expect(await collective.getBalanceWithBlockedFunds(), 'Balance without Blocked Funds').to.eq(0);
+    });
+
+    it('3. Dispute is created and then closed as won', async () => {
+      const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
+      await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
+      await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+      await snapshotLedger(SNAPSHOT_COLUMNS);
+
+      expect(await collective.getBalance(), 'Total Balance').to.eq(9500);
+      expect(await collective.getBalanceWithBlockedFunds(), 'Balance without Blocked Funds').to.eq(9500);
     });
   });
 });

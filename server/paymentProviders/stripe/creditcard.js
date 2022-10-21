@@ -316,21 +316,11 @@ export const setupCreditCard = async (paymentMethod, { user, collective } = {}) 
 };
 
 // Charge has a new Stripe dispute
-const createDispute = async event => {
+async function createDispute(event) {
   const stripeChargeId = event.data.object.charge;
-  const transactions = await models.Transaction.findAll({
+  const chargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: stripeChargeId } } },
     include: [
-      {
-        model: models.Order,
-        required: true,
-        include: [models.Subscription],
-      },
-      {
-        model: models.Collective,
-        required: true,
-        as: 'collective',
-      },
       {
         model: models.User,
         required: true,
@@ -338,8 +328,23 @@ const createDispute = async event => {
       },
     ],
   });
-  const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
-  const user = creditTransaction.createdByUser;
+  // const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
+  if (!chargeTransaction) {
+    return;
+  }
+
+  const user = chargeTransaction.createdByUser;
+
+  const transactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: chargeTransaction.TransactionGroup,
+    },
+    include: {
+      model: models.Order,
+      required: true,
+      include: [models.Subscription],
+    },
+  });
 
   // Block User from creating any new Orders
   await user.limitFeature(FEATURE.ORDER);
@@ -357,18 +362,18 @@ const createDispute = async event => {
       }
     }),
   );
-};
+}
 
 // Charge has been closed on Stripe (with status of: won/lost/closed)
-const closeDispute = async event => {
+async function closeDispute(event) {
   const stripeChargeId = event.data.object.charge;
-  const transactions = await models.Transaction.findAll({
+  const chargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: stripeChargeId } }, isDisputed: true },
     include: [
       {
         model: models.Order,
-        include: [models.Subscription],
         required: true,
+        include: [models.Subscription],
       },
       {
         model: models.User,
@@ -377,11 +382,26 @@ const closeDispute = async event => {
       },
     ],
   });
-  const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
-  const user = creditTransaction.createdByUser;
+
+  if (!chargeTransaction) {
+    return;
+  }
+
+  const user = chargeTransaction.createdByUser;
+
+  const transactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: chargeTransaction.TransactionGroup,
+    },
+    include: {
+      model: models.Order,
+      required: true,
+      include: [models.Subscription],
+    },
+  });
 
   if (transactions.length > 0) {
-    const order = creditTransaction.Order;
+    const order = chargeTransaction.Order;
 
     const disputeStatus = event.data.object.status;
     const disputeTransaction = event.data.object.balance_transactions.find(
@@ -401,12 +421,12 @@ const closeDispute = async event => {
       // Create refund transaction for the fraudulent charge
       const transactionGroup = uuid();
       await createRefundTransaction(
-        creditTransaction,
+        chargeTransaction,
         0,
         {
-          ...creditTransaction.data,
+          ...chargeTransaction.data,
           dispute: event,
-          refundTransactionId: creditTransaction.id,
+          refundTransactionId: chargeTransaction.id,
         },
         null,
         transactionGroup,
@@ -416,7 +436,7 @@ const closeDispute = async event => {
       const feeDetails = disputeTransaction.fee_details.find(feeDetails => feeDetails.description === 'Dispute fee');
       const currency = feeDetails.currency.toUpperCase();
       const amount = feeDetails.amount;
-      const fiscalHost = await models.Collective.findByPk(creditTransaction.HostCollectiveId);
+      const fiscalHost = await models.Collective.findByPk(chargeTransaction.HostCollectiveId);
       const hostCurrencyFxRate = await getFxRate(currency, fiscalHost.currency);
       const hostCurrencyAmount = Math.round(toNegative(amount) * hostCurrencyFxRate);
 
@@ -425,7 +445,7 @@ const closeDispute = async event => {
         HostCollectiveId: fiscalHost.id,
         CollectiveId: fiscalHost.id,
         FromCollectiveId: fiscalHost.id,
-        OrderId: creditTransaction.OrderId,
+        OrderId: chargeTransaction.OrderId,
         TransactionGroup: transactionGroup,
         amount: toNegative(amount),
         netAmountInCollectiveCurrency: toNegative(amount),
@@ -464,7 +484,7 @@ const closeDispute = async event => {
       );
     }
   }
-};
+}
 
 export default {
   features: {

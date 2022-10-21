@@ -344,13 +344,6 @@ export async function sumCollectivesTransactions(
     // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
     where.isRefund = { [Op.not]: true };
   }
-  // Only consider excluding blocked funds if refunds are also being excluded
-  // We don't want a situation where we have a disputed transaction and
-  // a refund for that transaction and we are only summing one or the other
-  if (withBlockedFunds && excludeRefunds) {
-    // Exclude disputed transactions
-    where.isDisputed = { [Op.eq]: false };
-  }
 
   if (hostCollectiveId) {
     // Only transactions that are marked under a Fiscal Host
@@ -417,6 +410,7 @@ export async function sumCollectivesTransactions(
   }
 
   if (withBlockedFunds) {
+    // BLOCKED EXPENSES
     const blockedFundsWhere = {
       CollectiveId: ids,
       [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING }],
@@ -455,6 +449,45 @@ export async function sumCollectivesTransactions(
       }
 
       const fxRate = await getFxRate(blockedFundResult['currency'], totals[CollectiveId].currency);
+      totals[CollectiveId].value -= Math.round(value * fxRate);
+    }
+
+    // BLOCKED TRANSACTIONS
+    const disputedTransactions = await models.Transaction.findAll({
+      attributes: [
+        'CollectiveId',
+        groupBy,
+        [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
+        [
+          sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
+          'netAmountInCollectiveCurrency',
+        ],
+        [
+          sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amountInHostCurrency')), 0),
+          'amountInHostCurrency',
+        ],
+        [
+          sequelize.fn(
+            'COALESCE',
+            sequelize.literal(
+              'SUM(COALESCE("amountInHostCurrency", 0)) + SUM(COALESCE("platformFeeInHostCurrency", 0)) + SUM(COALESCE("hostFeeInHostCurrency", 0)) + SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) + SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0))',
+            ),
+            0,
+          ),
+          'netAmountInHostCurrency',
+        ],
+      ],
+      // only consider disputed txs that don't have associated refunds
+      where: { ...where, isDisputed: { [Op.eq]: true }, RefundTransactionId: { [Op.eq]: null } },
+      group: ['CollectiveId', groupBy],
+      raw: true,
+    });
+
+    for (const disputedTransaction of disputedTransactions) {
+      const CollectiveId = disputedTransaction['CollectiveId'];
+      const value = disputedTransaction[column];
+
+      const fxRate = await getFxRate(disputedTransaction[groupBy], totals[CollectiveId].currency);
       totals[CollectiveId].value -= Math.round(value * fxRate);
     }
   }
