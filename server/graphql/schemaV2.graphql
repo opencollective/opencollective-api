@@ -155,22 +155,22 @@ interface Account {
   """
   The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)
   """
-  id: String
+  id: String!
 
   """
   The internal database identifier of the collective (ie: 580)
   """
-  legacyId: Int @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
+  legacyId: Int! @deprecated(reason: "2020-01-01: should only be used during the transition to GraphQL API v2.")
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
+  slug: String!
 
   """
   The type of the account (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL/VENDOR)
   """
-  type: AccountType
+  type: AccountType!
 
   """
   Public name
@@ -211,7 +211,7 @@ interface Account {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -226,7 +226,7 @@ interface Account {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -2388,14 +2388,14 @@ enum ActivityType {
 This represents an Host account
 """
 type Host implements Account & AccountWithContributions {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -2432,7 +2432,7 @@ type Host implements Account & AccountWithContributions {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -2447,7 +2447,7 @@ type Host implements Account & AccountWithContributions {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -4720,14 +4720,14 @@ enum CurrencyExchangeRateSourceType {
 This represents a Bot account
 """
 type Bot implements Account {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -4764,7 +4764,7 @@ type Bot implements Account {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -4779,7 +4779,7 @@ type Bot implements Account {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -5221,14 +5221,14 @@ type Bot implements Account {
 This represents a Collective account
 """
 type Collective implements Account & AccountWithHost & AccountWithContributions {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -5265,7 +5265,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -5280,7 +5280,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -6047,14 +6047,14 @@ type Debit implements Transaction {
 This represents an Event account
 """
 type Event implements Account & AccountWithHost & AccountWithContributions & AccountWithParent {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -6091,7 +6091,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -6106,7 +6106,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -6651,14 +6651,14 @@ interface AccountWithParent {
 This represents an Individual account
 """
 type Individual implements Account {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -6695,7 +6695,7 @@ type Individual implements Account {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -6710,7 +6710,7 @@ type Individual implements Account {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -7242,14 +7242,14 @@ type MemberOf {
 This represents an Organization account
 """
 type Organization implements Account & AccountWithContributions {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -7286,7 +7286,7 @@ type Organization implements Account & AccountWithContributions {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -7301,7 +7301,7 @@ type Organization implements Account & AccountWithContributions {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -7858,14 +7858,14 @@ scalar JSONObject
 This represents a Vendor account
 """
 type Vendor implements Account & AccountWithHost & AccountWithContributions {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -7902,7 +7902,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -7917,7 +7917,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -10559,14 +10559,14 @@ enum ExpenseStatusFilter {
 This represents an Project account
 """
 type Fund implements Account & AccountWithHost & AccountWithContributions {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -10603,7 +10603,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -10618,7 +10618,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
@@ -11155,14 +11155,14 @@ input OrderReferenceInput {
 This represents an Project account
 """
 type Project implements Account & AccountWithHost & AccountWithContributions & AccountWithParent {
-  id: String
-  legacyId: Int
+  id: String!
+  legacyId: Int!
 
   """
   The slug identifying the account (ie: babel)
   """
-  slug: String
-  type: AccountType
+  slug: String!
+  type: AccountType!
 
   """
   Public name
@@ -11199,7 +11199,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   Returns whether this account is archived
   """
-  isArchived: Boolean
+  isArchived: Boolean!
 
   """
   Whether this account is frozen
@@ -11214,7 +11214,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   """
   Returns whether the account is setup to Host collectives.
   """
-  isHost: Boolean
+  isHost: Boolean!
 
   """
   Returns true if the remote user is an admin of this account
