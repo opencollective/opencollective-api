@@ -301,13 +301,16 @@ export async function sumCollectivesTransactions(
     excludeRefunds = true,
     withBlockedFunds = false,
     hostCollectiveId = null,
+    fromCollectiveId = null,
     excludeInternals = false,
     excludeCrossCollectiveTransactions = false,
     includeGiftCards = false,
     kind,
   } = {},
 ) {
-  const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
+  const currencyColumn = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column)
+    ? 'hostCurrency'
+    : 'currency';
 
   let where = {};
 
@@ -349,6 +352,9 @@ export async function sumCollectivesTransactions(
     // Only transactions that are marked under a Fiscal Host
     where.HostCollectiveId = hostCollectiveId;
   }
+  if (fromCollectiveId) {
+    where.FromCollectiveId = fromCollectiveId;
+  }
   if (excludeInternals) {
     // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
     where.data = { internal: { [Op.not]: true } };
@@ -360,16 +366,23 @@ export async function sumCollectivesTransactions(
   const totals = {};
 
   // Initialize totals
-  if (ids) {
-    for (const CollectiveId of ids) {
-      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
-    }
-  }
+  // if (ids) {
+  //   for (const CollectiveId of ids) {
+  //     totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+  //   }
+  // }
+
+  const collectiveIdColumn = [
+    sequelize.fn('COALESCE', sequelize.col('UsingGiftCardFromCollectiveId'), sequelize.col('CollectiveId')),
+    'CollectiveId',
+  ];
 
   const results = await models.Transaction.findAll({
     attributes: [
-      'CollectiveId',
-      groupBy,
+      collectiveIdColumn,
+      'FromCollectiveId',
+      currencyColumn,
+      sequelize.fn('ARRAY_AGG', sequelize.col('kind')),
       [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
       [
         sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
@@ -388,25 +401,34 @@ export async function sumCollectivesTransactions(
       ],
     ],
     where,
-    group: ['CollectiveId', groupBy],
+    group: [collectiveIdColumn, currencyColumn, 'FromCollectiveId'],
+    order: [[column, 'ASC']],
     raw: true,
   });
 
+  console.log(results);
+
   for (const result of results) {
     const CollectiveId = result['CollectiveId'];
+    const FromCollectiveId = result['FromCollectiveId'];
+    // const UsingGiftCardFromCollectiveId = result['UsingGiftCardFromCollectiveId'];
+
     const value = result[column];
 
+    let groupBy = CollectiveId;
+    groupBy = `${CollectiveId}-${FromCollectiveId}`;
+
     // Initialize Collective total
-    if (!totals[CollectiveId]) {
-      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+    if (!totals[groupBy]) {
+      totals[groupBy] = { CollectiveId, FromCollectiveId, value: 0, currency: null };
     }
     // If it's the first total collected, set the currency
-    if (totals[CollectiveId].value === 0) {
-      totals[CollectiveId].currency = result[groupBy];
+    if (!totals[groupBy].currency) {
+      totals[groupBy].currency = result[currencyColumn];
     }
 
-    const fxRate = await getFxRate(result[groupBy], totals[CollectiveId].currency);
-    totals[CollectiveId].value += Math.round(value * fxRate);
+    const fxRate = await getFxRate(result[currencyColumn], totals[groupBy].currency);
+    totals[groupBy].value += Math.round(value * fxRate);
   }
 
   if (withBlockedFunds) {
@@ -456,7 +478,7 @@ export async function sumCollectivesTransactions(
     const disputedTransactions = await models.Transaction.findAll({
       attributes: [
         'CollectiveId',
-        groupBy,
+        currencyColumn,
         [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
         [
           sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
@@ -479,7 +501,7 @@ export async function sumCollectivesTransactions(
       ],
       // only consider disputed txs that don't have associated refunds
       where: { ...where, isDisputed: { [Op.eq]: true }, RefundTransactionId: { [Op.eq]: null } },
-      group: ['CollectiveId', groupBy],
+      group: ['CollectiveId', currencyColumn],
       raw: true,
     });
 
@@ -487,7 +509,7 @@ export async function sumCollectivesTransactions(
       const CollectiveId = disputedTransaction['CollectiveId'];
       const value = disputedTransaction[column];
 
-      const fxRate = await getFxRate(disputedTransaction[groupBy], totals[CollectiveId].currency);
+      const fxRate = await getFxRate(disputedTransaction[currencyColumn], totals[CollectiveId].currency);
       totals[CollectiveId].value -= Math.round(value * fxRate);
     }
   }
