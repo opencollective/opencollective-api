@@ -1,3 +1,4 @@
+import Promise from 'bluebird';
 import DataLoader from 'dataloader';
 import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
@@ -6,6 +7,7 @@ import moment from 'moment';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
+import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
@@ -175,13 +177,12 @@ export const loaders = req => {
       models.Order.findAll({
         attributes: [
           'Order.CollectiveId',
+          'Order.currency',
           'Subscription.interval',
           [
             sequelize.fn(
               'SUM',
-              sequelize.literal(
-                `COALESCE("Order"."totalAmount", 0) - COALESCE(("Order"."data"->>'platformFee')::integer, 0)`,
-              ),
+              sequelize.literal(`COALESCE("Order"."totalAmount", 0) - COALESCE("Order"."platformTipAmount", 0)`),
             ),
             'total',
           ],
@@ -190,7 +191,7 @@ export const loaders = req => {
           CollectiveId: { [Op.in]: ids },
           status: 'ACTIVE',
         },
-        group: ['Subscription.interval', 'CollectiveId'],
+        group: ['Subscription.interval', 'CollectiveId', 'Order.currency'],
         include: [
           {
             model: models.Subscription,
@@ -201,15 +202,19 @@ export const loaders = req => {
         raw: true,
       }).then(rows => {
         const results = groupBy(rows, 'CollectiveId');
-        return ids.map(collectiveId => {
-          const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0 };
-
+        return Promise.map(ids, async collectiveId => {
+          const stats = { CollectiveId: Number(collectiveId), monthly: 0, yearly: 0, currency: null };
           if (results[collectiveId]) {
-            results[collectiveId].forEach(stat => {
-              stats[stat.interval === 'month' ? 'monthly' : 'yearly'] += stat.total;
-            });
+            for (const result of results[collectiveId]) {
+              const interval = result.interval === 'month' ? 'monthly' : 'yearly';
+              // If it's the first total collected, set the currency
+              if (!stats.currency) {
+                stats.currency = result.currency;
+              }
+              const fxRate = await getFxRate(result.currency, stats.currency);
+              stats[interval] += result.total * fxRate;
+            }
           }
-
           return stats;
         });
       }),
