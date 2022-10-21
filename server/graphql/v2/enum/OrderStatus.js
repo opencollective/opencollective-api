@@ -13,6 +13,7 @@ export const OrderStatus = new GraphQLEnumType({
     PAID: {},
     PENDING: {},
     PLEDGED: {},
+    REFUNDED: {},
     REJECTED: {},
     REQUIRE_CLIENT_CONFIRMATION: {},
   },
