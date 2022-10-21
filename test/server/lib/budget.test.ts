@@ -94,68 +94,34 @@ describe('server/lib/budget', () => {
 
     describe('when blocked funds are excluded', () => {
       describe('when there are disputed Transactions', () => {
-        describe('when refunds are excluded', () => {
-          it('returns the unblocked funds sum', async () => {
-            const collective = await fakeCollective();
+        it('returns the unblocked funds sum', async () => {
+          const collective = await fakeCollective();
 
-            await fakeTransaction(
-              { type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 },
-              { createDoubleEntry: true },
-            );
+          await fakeTransaction(
+            { type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 },
+            { createDoubleEntry: true },
+          );
 
-            await fakeTransaction(
-              { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 },
-              { createDoubleEntry: true },
-            );
+          await fakeTransaction(
+            { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 },
+            { createDoubleEntry: true },
+          );
 
-            await fakeTransaction(
-              { type: 'CREDIT', CollectiveId: collective.id, amount: 40e2, isDisputed: true },
-              { createDoubleEntry: true },
-            );
+          await fakeTransaction(
+            { type: 'CREDIT', CollectiveId: collective.id, amount: 40e2, isDisputed: true },
+            { createDoubleEntry: true },
+          );
 
-            const txs = await sumCollectivesTransactions([collective.id], {
-              column: 'netAmountInCollectiveCurrency',
-              startDate: moment().subtract(1, 'day'),
-              endDate: moment(),
-              kind: null,
-              withBlockedFunds: true,
-              excludeRefunds: true,
-            });
-            const sum = txs[collective.id];
-            expect(sum.value).to.eq(50e2);
+          const txs = await sumCollectivesTransactions([collective.id], {
+            column: 'netAmountInCollectiveCurrency',
+            startDate: moment().subtract(1, 'day'),
+            endDate: moment(),
+            kind: null,
+            withBlockedFunds: true,
+            excludeRefunds: false,
           });
-        });
-
-        describe('when refunds are not excluded', () => {
-          it('returns the unblocked + blocked funds sum', async () => {
-            const collective = await fakeCollective();
-
-            await fakeTransaction(
-              { type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 },
-              { createDoubleEntry: true },
-            );
-
-            await fakeTransaction(
-              { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 },
-              { createDoubleEntry: true },
-            );
-
-            await fakeTransaction(
-              { type: 'CREDIT', CollectiveId: collective.id, amount: 40e2, isDisputed: true },
-              { createDoubleEntry: true },
-            );
-
-            const txs = await sumCollectivesTransactions([collective.id], {
-              column: 'netAmountInCollectiveCurrency',
-              startDate: moment().subtract(1, 'day'),
-              endDate: moment(),
-              kind: null,
-              withBlockedFunds: true,
-              excludeRefunds: false,
-            });
-            const sum = txs[collective.id];
-            expect(sum.value).to.eq(90e2);
-          });
+          const sum = txs[collective.id];
+          expect(sum.value).to.eq(50e2);
         });
       });
     });
