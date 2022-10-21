@@ -27,7 +27,6 @@ const authorizedEmailDomains = [
   'mailhaven.com',
   'brainonfire.net',
   'sohu.com',
-  'slmail.me',
 ];
 
 export default authorizedEmailDomains;
