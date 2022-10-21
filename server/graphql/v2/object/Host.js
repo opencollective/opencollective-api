@@ -698,7 +698,7 @@ export const Host = new GraphQLObjectType({
       hasDisputedOrders: {
         type: new GraphQLNonNull(GraphQLBoolean),
         description: 'Returns whether the host has any disputed orders',
-        async resolve(collective) {
+        async resolve(host) {
           const [results] = await sequelize.query(
             `
             SELECT o.id FROM "Orders" o
@@ -709,7 +709,7 @@ export const Host = new GraphQLObjectType({
             {
               type: QueryTypes.SELECT,
               replacements: {
-                hostCollectiveId: collective.id,
+                hostCollectiveId: host.id,
               },
             },
           );
