@@ -28,6 +28,7 @@ function defineModel() {
         unique: true,
         set(val) {
           if (val && val.toLowerCase) {
+            this.emailChanged = true;
             this.setDataValue('email', val.toLowerCase());
           }
         },
@@ -41,7 +42,7 @@ function defineModel() {
           },
           isBurnerEmail: function (val) {
             if (
-              this.changed('email') &&
+              this.emailChanged &&
               isEmailBurner(val.toLowerCase()) &&
               !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
             ) {
@@ -56,13 +57,19 @@ function defineModel() {
       emailWaitingForValidation: {
         type: DataTypes.STRING,
         unique: true,
+        set(val) {
+          if (val && val.toLowerCase) {
+            this.emailWaitingForValidationChanged = true;
+            this.setDataValue('emailWaitingForValidation', val.toLowerCase());
+          }
+        },
         validate: {
           isEmail: {
             msg: 'Email must be valid',
           },
           isBurnerEmail: function (val) {
             if (
-              this.changed('email') &&
+              this.emailWaitingForValidationChanged &&
               isEmailBurner(val.toLowerCase()) &&
               !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
             ) {
