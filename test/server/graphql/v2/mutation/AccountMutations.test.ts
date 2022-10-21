@@ -465,7 +465,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     before(async () => {
       sandbox = createSandbox();
-      collectiveWithContact = await fakeCollective({ admin: adminUser, settings: { features: { contactForm: true } } });
+      collectiveWithContact = await fakeCollective({ name: 'Test Collective', admin: adminUser, settings: { features: { contactForm: true } } });
       collectiveWithoutContact = await fakeCollective({
         admin: adminUser,
         settings: { features: { contactForm: false } },
@@ -504,6 +504,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('cannot inject code in the email (XSS)', async () => {
       const code = '<script>console.log("XSS")</script>';
+      const xssUser = await fakeUser({ name: 'XSS User' }, { name: 'XSS Collective', slug: 'xss-collective' });
       const result = await graphqlQueryV2(
         sendMessageMutation,
         {
@@ -511,7 +512,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           message: message + code,
           subject: 'Testing',
         },
-        randomUser,
+        xssUser,
       );
 
       expect(result.errors).to.not.exist;
@@ -519,11 +520,9 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await waitForCondition(() => sendEmailSpy.callCount === 1);
       expect(sendEmailSpy.callCount).to.equal(1);
-      expect(sendEmailSpy.args[0][1]).to.equal(
-        `New message from ${randomUser.collective.name} on Open Collective: Testing`,
-      );
+      expect(sendEmailSpy.args[0][1]).to.equal(`New message from XSS Collective on Open Collective: Testing`);
       expect(sendEmailSpy.args[0][2]).to.include(message);
-      expect(sendEmailSpy.args[0][2]).to.not.include(code);
+      expect(sendEmailSpy.args[0][2]).to.not.include('<script>');
     });
 
     it('returns an error if not authenticated', async () => {
