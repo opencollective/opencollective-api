@@ -12,11 +12,11 @@ import nodemailer from 'nodemailer';
 import { activities } from '../constants';
 import models from '../models';
 
+import authorizedEmailDomains from './authorizedEmailDomains';
 import templates, { EmailTemplates } from './emailTemplates';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
 import { isEmailInternal, md5, sha512 } from './utils';
-import whiteListDomains from './whiteListDomains';
 
 const debug = debugLib('email');
 
@@ -263,9 +263,9 @@ const getNotificationLabel = (template, recipients): string => {
   return notificationTypeLabels[template];
 };
 
-const isWhitelistedDomain = email => {
+const isAuthorizedEmailDomain = email => {
   const domain = email.split('@');
-  return whiteListDomains.includes(domain[1].toLowerCase());
+  return authorizedEmailDomains.includes(domain[1].toLowerCase());
 };
 
 /*
@@ -423,7 +423,7 @@ const emailLib = {
   isValidUnsubscribeToken,
   generateEmailFromTemplate,
   send: generateEmailFromTemplateAndSend,
-  isWhitelistedDomain,
+  isAuthorizedEmailDomain,
   generateFromEmailHeader,
 };
 

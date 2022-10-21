@@ -1,4 +1,4 @@
-const whiteListDomains = [
+const authorizedEmailDomains = [
   'hush.com',
   'opayq.com',
   'mailhero.io',
@@ -29,4 +29,4 @@ const whiteListDomains = [
   'sohu.com',
 ];
 
-export default whiteListDomains;
+export default authorizedEmailDomains;
