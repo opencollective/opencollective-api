@@ -1,5 +1,7 @@
 /* eslint-disable camelcase */
 
+import { VirtualCardLimitIntervals } from '../constants/virtual-cards';
+
 export type PagingParams = {
   page?: number;
   page_size?: number;
@@ -34,13 +36,29 @@ export type Card = {
   memo: string;
   spend_limit: number;
   token: string;
-  spend_limit_duration: 'TRANSACTION' | 'MONTHLY' | 'ANNUALLY' | 'FOREVER';
+  spend_limit_duration: PrivacyVirtualCardLimitInterval;
   state: 'OPEN' | 'PAUSED' | 'CLOSED' | 'PENDING_FULFILLMENT' | 'PENDING_ACTIVATION';
   type: 'SINGLE_USE' | 'MERCHANT_LOCKED' | 'UNLOCKED' | 'PHYSICAL';
   cvv?: string;
   pan?: string;
   exp_year?: string;
   exp_month?: string;
+};
+
+export enum PrivacyVirtualCardLimitInterval {
+  TRANSACTION = 'TRANSACTION',
+  MONTHLY = 'MONTHLY',
+  ANNUALLY = 'ANNUALLY',
+  FOREVER = 'FOREVER',
+}
+
+export const PrivacyVirtualCardLimitIntervalToOCInterval: {
+  [privacyInterval in PrivacyVirtualCardLimitInterval]: VirtualCardLimitIntervals;
+} = {
+  [PrivacyVirtualCardLimitInterval.TRANSACTION]: VirtualCardLimitIntervals.PER_AUTHORIZATION,
+  [PrivacyVirtualCardLimitInterval.MONTHLY]: VirtualCardLimitIntervals.MONTHLY,
+  [PrivacyVirtualCardLimitInterval.ANNUALLY]: VirtualCardLimitIntervals.YEARLY,
+  [PrivacyVirtualCardLimitInterval.FOREVER]: VirtualCardLimitIntervals.ALL_TIME,
 };
 
 export type Merchant = {
