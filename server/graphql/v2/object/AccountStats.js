@@ -5,10 +5,12 @@ import { get, has, isNil } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
+import { getFxRate } from '../../../lib/currency';
 import queries from '../../../lib/queries';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import { computeDatesAsISOStrings } from '../../../lib/utils';
 import models from '../../../models';
+import { ContributionFrequency } from '../enum/ContributionFrequency';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
 import { TransactionKind } from '../enum/TransactionKind';
@@ -266,8 +268,34 @@ export const AccountStats = new GraphQLObjectType({
       },
       activeRecurringContributions: {
         type: GraphQLJSON,
+        deprecationReason: '2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.',
         resolve(collective, args, req) {
           return req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
+        },
+      },
+      activeRecurringContributionsV2: {
+        type: Amount,
+        args: {
+          frequency: {
+            type: new GraphQLNonNull(ContributionFrequency),
+            description: 'The frequency of the recurring contribution (MONTHLY or YEARLY)',
+            defaultValue: 'MONTHLY',
+          },
+        },
+        async resolve(collective, args, req) {
+          const key = args.frequency.toLowerCase();
+          if (!['monthly', 'yearly'].includes(key)) {
+            throw new Error('Unsupported frequency.');
+          }
+          const stats = await req.loaders.Collective.stats.activeRecurringContributions.load(collective.id);
+          const currency = collective.currency;
+          // There is no guarantee that stats are returned in collective.currency, we convert to be sure
+          const fxRate = await getFxRate(stats.currency, currency);
+          const value = Math.round(stats[key] * fxRate);
+          return {
+            value: value,
+            currency: currency,
+          };
         },
       },
       expensesTags: {
