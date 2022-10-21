@@ -73,6 +73,7 @@ import {
 } from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
 import logger from '../lib/logger';
+import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
@@ -2253,6 +2254,20 @@ function defineModel() {
 
     const promises = [models.Member.create(member), this.update(updatedValues)];
 
+    // If collective does not have enough admins, block it from receiving contributions when automatically approving
+    if (shouldAutomaticallyApprove) {
+      const adminCount = await models.Member.count({
+        where: {
+          CollectiveId: this.id,
+          role: roles.ADMIN,
+        },
+      });
+      const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+      if (policy?.freeze && policy.numberOfAdmins > adminCount) {
+        promises.push(this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS));
+      }
+    }
+
     // Invalidate current collective payment method if there's one
     await models.PaymentMethod.destroy({
       where: {
@@ -2462,6 +2477,7 @@ function defineModel() {
       return this.addHost(newHostCollective, remoteUser, {
         message: options?.message,
         applicationData: options?.applicationData,
+        shouldAutomaticallyApprove: options?.shouldAutomaticallyApprove,
       });
     }
   };
