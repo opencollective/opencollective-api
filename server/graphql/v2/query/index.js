@@ -6,7 +6,7 @@ import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
-import SumTransactionsCollectionQuery from './collection/SumTransactionsCollectionQuery';
+import GroupTransactionsCollectionQuery from './collection/GroupTransactionsCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import AccountQuery from './AccountQuery';
@@ -48,7 +48,7 @@ const query = {
   tagStats: TagStatsCollectionQuery,
   tier: TierQuery,
   transactions: TransactionsCollectionQuery,
-  sumTransactions: SumTransactionsCollectionQuery,
+  groupTransactions: GroupTransactionsCollectionQuery,
   update: UpdateQuery,
   paypalPlan: PaypalPlanQuery,
   loggedInAccount: {
