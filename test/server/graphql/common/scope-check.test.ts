@@ -67,7 +67,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       req.userToken = null;
       expect(() => enforceScope(req, 'account')).to.not.throw();
     });
-    it(`Doesn't throw error if true if user token has scope`, async () => {
+    it(`Doesn't throw error if user token has scope`, async () => {
       expect(() => enforceScope(req, 'account')).to.not.throw();
     });
     it(`Throw error if doesn't have the scope`, async () => {

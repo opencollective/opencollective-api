@@ -231,18 +231,10 @@ export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPay
  * This function allows to test queries and mutations against schema v2.
  * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
  * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
- * @param {object} authorization - The user token to add to the context.
- * @param {object} remoteUser - The user to add to the context. It is not required.
+ * @param {object} userToken - The user token to add to the context.
  */
-export async function oAuthGraphqlQueryV2(
-  query,
-  variables,
-  authorization,
-  remoteUser = null,
-  jwtPayload = null,
-  headers = {},
-) {
-  return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload, headers, authorization);
+export async function oAuthGraphqlQueryV2(query, variables, userToken = {}, jwtPayload = null, headers = {}) {
+  return graphqlQuery(query, variables, userToken.user, schemaV2, jwtPayload, headers, userToken);
 }
 
 /** Helper for interpreting fee description in BDD tests

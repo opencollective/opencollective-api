@@ -73,7 +73,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
 
   describe('addFunds', () => {
     it('verifies the scope', async () => {
-      const userToken = await fakeUserToken({ scope: ['account'] });
+      const userToken = await fakeUserToken({ scope: ['account'], UserId: randomUser.id });
       const result = await oAuthGraphqlQueryV2(
         addFundsMutation,
         {
@@ -84,7 +84,6 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           hostFeePercent: 6,
         },
         userToken,
-        randomUser,
       );
 
       expect(result.errors[0].message).to.match(/The User Token is not allowed for operations in scope "host"./);
@@ -137,7 +136,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
     });
 
     it('can add funds as host admin with authorization', async () => {
-      const userToken = await fakeUserToken({ scope: ['host'] });
+      const userToken = await fakeUserToken({ scope: ['host'], UserId: hostAdmin.id });
       const result = await oAuthGraphqlQueryV2(
         addFundsMutation,
         {
@@ -148,7 +147,6 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           hostFeePercent: 6,
         },
         userToken,
-        hostAdmin,
       );
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
