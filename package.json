@@ -238,7 +238,7 @@
     "test:update": "TZ=UTC CHAI_JEST_SNAPSHOT_UPDATE_ALL=true nyc mocha",
     "test:clean": "rm -rf .nyc_output coverage",
     "test:coverage": "codecov",
-    "test:graphql": "npm run test test/server/graphql/common/scope-check.test.ts",
+    "test:graphql": "npm run test test/server/graphql/v2/mutation/AddFundsMutations.test.js",
     "test:lib": "npm run test test/server/lib",
     "test:models": "npm run test test/server/models",
     "test:payment-providers": "npm run test test/server/paymentProviders",

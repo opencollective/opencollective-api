@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
 import { roles } from '../../../../../server/constants';
-import { fakeCollective, fakeProject, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { fakeCollective, fakeProject, fakeTier, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
+import { graphqlQueryV2, oAuthGraphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
 const addFundsMutation = gqlV2/* GraphQL */ `
@@ -72,6 +72,23 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
   });
 
   describe('addFunds', () => {
+    it('verifies the scope', async () => {
+      const userToken = await fakeUserToken({ scope: ['account'] });
+      const result = await oAuthGraphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          amount: { value: 20, currency: 'USD', valueInCents: 2000 },
+          description: 'add funds as non-admin',
+          hostFeePercent: 6,
+        },
+        userToken,
+        randomUser,
+      );
+      expect(result.errors[0]).to.eq('The User Token is not allowed for operations in scope "host".');
+    });
+
     it('cannot add funds as non-admin', async () => {
       const result = await graphqlQueryV2(
         addFundsMutation,
@@ -110,6 +127,26 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
           account: { legacyId: collective.id },
           fromAccount: { legacyId: randomUser.CollectiveId },
         },
+        hostAdmin,
+      );
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+      expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
+    it('can add funds as host admin with authorization', async () => {
+      const userToken = await fakeUserToken({ scope: ['host'] });
+      const result = await graphqlQueryV2(
+        addFundsMutation,
+        {
+          account: { legacyId: collective.id },
+          fromAccount: { legacyId: randomUser.CollectiveId },
+          amount: { value: 20, currency: 'USD', valueInCents: 2000 },
+          description: 'add funds as admin',
+          hostFeePercent: 6,
+        },
+        userToken,
         hostAdmin,
       );
       result.errors && console.error(result.errors);

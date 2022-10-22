@@ -127,7 +127,7 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = (remoteUser, query, jwtPayload, headers = {}) => {
+export const makeRequest = (remoteUser, query, jwtPayload, headers = {}, userToken) => {
   return {
     remoteUser,
     jwtPayload,
@@ -138,6 +138,7 @@ export const makeRequest = (remoteUser, query, jwtPayload, headers = {}) => {
     get: a => {
       return headers[a];
     },
+    userToken,
   };
 };
 
@@ -189,7 +190,7 @@ export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =
  * @param {object} remoteUser - The user to add to the context. It is not required.
  * @param {object} schema - Schema to which queries and mutations will be served against. Schema v1 by default.
  */
-export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload, headers) => {
+export const graphqlQuery = async (query, variables, remoteUser, schema = schemaV1, jwtPayload, headers, userToken) => {
   const prepare = () => {
     if (remoteUser) {
       remoteUser.rolesByCollectiveId = null; // force refetching the roles
@@ -210,7 +211,7 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
       schema,
       source: query,
       rootValue: null,
-      contextValue: makeRequest(remoteUser, query, jwtPayload, headers),
+      contextValue: makeRequest(remoteUser, query, jwtPayload, headers, userToken),
       variableValues: variables,
     }),
   );
@@ -224,6 +225,24 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
  */
 export async function graphqlQueryV2(query, variables, remoteUser = null, jwtPayload = null, headers = {}) {
   return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload, headers);
+}
+
+/**
+ * This function allows to test queries and mutations against schema v2.
+ * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`
+ * @param {object} variables - Variables to use in the queries and mutations. Example: { id: 1 }
+ * @param {object} authorization - The user token to add to the context.
+ * @param {object} remoteUser - The user to add to the context. It is not required.
+ */
+export async function oAuthGraphqlQueryV2(
+  query,
+  variables,
+  authorization,
+  remoteUser = null,
+  jwtPayload = null,
+  headers = {},
+) {
+  return graphqlQuery(query, variables, remoteUser, schemaV2, jwtPayload, headers, authorization);
 }
 
 /** Helper for interpreting fee description in BDD tests
