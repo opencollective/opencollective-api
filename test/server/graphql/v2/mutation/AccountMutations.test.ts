@@ -465,7 +465,11 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     before(async () => {
       sandbox = createSandbox();
-      collectiveWithContact = await fakeCollective({ name: 'Test Collective', admin: adminUser, settings: { features: { contactForm: true } } });
+      collectiveWithContact = await fakeCollective({
+        name: 'Test Collective',
+        admin: adminUser,
+        settings: { features: { contactForm: true } },
+      });
       collectiveWithoutContact = await fakeCollective({
         admin: adminUser,
         settings: { features: { contactForm: false } },
