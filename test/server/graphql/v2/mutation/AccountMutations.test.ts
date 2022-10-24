@@ -523,10 +523,42 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.data.sendMessage.success).to.equal(true);
 
       await waitForCondition(() => sendEmailSpy.callCount === 1);
+
+      const expectedMessage =
+        'Hi Test Collective,\n' +
+        '\n' +
+        'XSS Collective [http://localhost:3000/xss-collective] just sent you a message on\n' +
+        'Open Collective. Simply reply to this email to reply to the sender.\n' +
+        '\n' +
+        '\n' +
+        '\n' +
+        '\n' +
+        'Subject\n' +
+        '\n' +
+        '> Testing\n' +
+        '\n' +
+        '\n' +
+        'Message\n' +
+        '\n' +
+        '> Hello collective, I am reaching out to you for testing purposes.\n' +
+        '\n' +
+        'If this message is spam, please forward it to support@opencollective.com\n' +
+        '[support@opencollective.com].\n' +
+        '\n' +
+        '[http://localhost:3000/static/images/email/logo-email-footer@2x.png]\n' +
+        '[http://localhost:3000]\n' +
+        '\n' +
+        'We can do great things together\n' +
+        '\n' +
+        'You can also follow us on Twitter [https://twitter.com/OpenCollect] or come chat\n' +
+        'with us on our public Slack channel [https://slack.opencollective.com].\n' +
+        '\n' +
+        'Made with ❤️ from all over the world\n' +
+        '[https://docs.opencollective.com/help/about/team]';
+
       expect(sendEmailSpy.callCount).to.equal(1);
       expect(sendEmailSpy.args[0][1]).to.equal(`New message from XSS Collective on Open Collective: Testing`);
-      expect(sendEmailSpy.args[0][2]).to.include(message);
-      expect(sendEmailSpy.args[0][2]).to.not.include('<script>');
+      expect(sendEmailSpy.args[0][3].text).to.equal(expectedMessage);
     });
 
     it('returns an error if not authenticated', async () => {
