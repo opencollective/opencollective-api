@@ -32,7 +32,6 @@ import errorHandler from './middleware/error_handler';
 import * as params from './middleware/params';
 import required from './middleware/required_param';
 import sanitizer from './middleware/sanitizer';
-import alipay from './paymentProviders/stripe/alipay';
 
 const upload = multer();
 
@@ -280,9 +279,6 @@ export default async app => {
     authentication.parseJwtNoExpiryCheck,
     connectedAccounts.verify,
   );
-
-  /* AliPay Payment Callback */
-  app.get('/services/stripe/alipay/callback', noCache, alipay.confirmOrder);
 
   /* TransferWise OTT Request Endpoint */
   app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);

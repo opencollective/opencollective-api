@@ -7,6 +7,7 @@ import { createSandbox, useFakeTimers } from 'sinon';
 import { roles } from '../../../../../server/constants';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as payments from '../../../../../server/lib/payments';
+import stripe from '../../../../../server/lib/stripe';
 import models from '../../../../../server/models';
 import { randEmail } from '../../../../stores';
 import {
@@ -190,6 +191,17 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       // Stub the payment
       sandbox = createSandbox();
+      sandbox.stub(stripe.tokens, 'retrieve').callsFake(() =>
+        Promise.resolve({
+          id: 'tok_123456781234567812345678',
+          card: {
+            brand: 'VISA',
+            country: 'US',
+            expMonth: 11,
+            expYear: 2024,
+          },
+        }),
+      );
       sandbox.stub(payments, 'executeOrder').callsFake(stubExecuteOrderFn);
 
       // Add Stripe to host
