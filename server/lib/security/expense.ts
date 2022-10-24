@@ -42,6 +42,7 @@ const getExpensesStats = where =>
 const addBooleanCheck = (checks, condition: boolean, ifTrue: SecurityCheck, ifFalse?: SecurityCheck) =>
   condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null;
 
+// Runs statistical analysis of past Expenses based on different conditionals
 const checkExpenseStats = async (
   where,
   { expense, checks, scope, details }: { scope: Scope; details?: string; checks: Array<SecurityCheck>; expense },
@@ -53,6 +54,7 @@ const checkExpenseStats = async (
     currency: expense.currency,
   });
 
+  // Checks if there was any SPAM or rejects on the platform
   const spam = find(platformStats, { status: status.SPAM });
   addBooleanCheck(checks, spam, {
     scope,
@@ -70,6 +72,8 @@ const checkExpenseStats = async (
 
   const paidInTheCollective = find(collectiveStats, { status: status.PAID });
   const paidOnThePlatform = find(platformStats, { status: status.PAID });
+
+  // Check if there was any past expense already paid in this collective
   if (paidInTheCollective) {
     addBooleanCheck(checks, paidInTheCollective.count > 0, {
       scope,
@@ -81,6 +85,7 @@ const checkExpenseStats = async (
     });
   }
   const wasNeverPaidOnThePlatform = !paidOnThePlatform;
+  // Check if there was any past expense already paid on the platform
   addBooleanCheck(checks, !wasNeverPaidOnThePlatform && !paidInTheCollective, {
     scope,
     level: Level.LOW,
@@ -89,6 +94,7 @@ const checkExpenseStats = async (
     )} was never been paid by this collective but was already paid on the platform`,
     details,
   });
+  // Alerts that there was no expenses paid on the platform
   addBooleanCheck(checks, wasNeverPaidOnThePlatform, {
     scope,
     level: Level.HIGH,
@@ -109,6 +115,8 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     ],
   });
   await expense.User.populateRoles();
+
+  // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.
   const relatedUsers = await expense.User.findRelatedUsersByIp({
     where: {
       updatedAt: {
@@ -128,7 +136,7 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     ).join(', ')} where all accessed from the same IP in the past week.`,
   });
 
-  // Author
+  // Author Security Check: Checks if the author of the expense has 2FA enabled or not.
   addBooleanCheck(
     checks,
     expense.User.hasTwoFactorAuthentication,
@@ -145,6 +153,8 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
       details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
     },
   );
+
+  // Author Membership Check: Checks if the user is admin of the fiscal host or the collective paying for the expense
   const userIsHostAdmin = expense.User.isAdmin(expense.HostCollectiveId);
   addBooleanCheck(checks, userIsHostAdmin, {
     scope: Scope.USER,
@@ -159,6 +169,7 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
   });
 
+  // Statistical analysis of the user who submitted the expense.
   await checkExpenseStats(
     { UserId: expense.UserId },
     {
@@ -168,6 +179,7 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
       details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
     },
   );
+  // If the user sho submitted the expense is not the same being paid for the expense, run another statistical analysis of the payee.
   if (expense.User.CollectiveId !== expense.FromCollectiveId) {
     await checkExpenseStats(
       { FromCollectiveId: expense.FromCollectiveId },
@@ -180,15 +192,17 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     );
   }
 
-  // Payout Method
   if (
     expense.PayoutMethod &&
     [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(expense.PayoutMethod?.type)
   ) {
+    // Statistical analysis of the Payout Method
     await checkExpenseStats(
       { PayoutMethodId: expense.PayoutMethodId },
       { expense, checks, scope: Scope.PAYOUT_METHOD },
     );
+
+    // Check if this Payout Method is being used by someone other user or collective
     const similarPayoutMethods = await expense.PayoutMethod.findSimilar({ include: [models.Collective] });
     if (similarPayoutMethods) {
       addBooleanCheck(checks, similarPayoutMethods.length > 0, {
