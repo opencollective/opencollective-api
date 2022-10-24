@@ -3,9 +3,10 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { activities } from '../../../constants';
+import POLICIES from '../../../constants/policies';
 import VirtualCardProviders from '../../../constants/virtual_card_providers';
-import { VirtualCardMaximumLimitForInterval } from '../../../constants/virtual-cards';
 import logger from '../../../lib/logger';
+import { getPolicy } from '../../../lib/policies';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import models from '../../../models';
 import VirtualCardModel from '../../../models/VirtualCard';
@@ -133,7 +134,12 @@ const virtualCardMutations = {
       });
 
       const { limitInterval } = args;
-      const maximumLimitForInterval = VirtualCardMaximumLimitForInterval[limitInterval];
+
+      const virtualCardMaximumLimitForIntervalPolicy = getPolicy(
+        host,
+        POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
+      );
+      const maximumLimitForInterval = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
 
       if (limitAmountInCents > maximumLimitForInterval * 100) {
         throw new BadRequest(
@@ -260,7 +266,11 @@ const virtualCardMutations = {
         }
 
         const { limitInterval } = args;
-        const maximumLimitForInterval = VirtualCardMaximumLimitForInterval[limitInterval];
+        const virtualCardMaximumLimitForIntervalPolicy = getPolicy(
+          virtualCard.host,
+          POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
+        );
+        const maximumLimitForInterval = virtualCardMaximumLimitForIntervalPolicy[limitInterval];
 
         const limitAmountInCents = getValueInCentsFromAmountInput(args.limitAmount, {
           expectedCurrency: virtualCard.host.currency,
