@@ -580,8 +580,4 @@ export default {
 
   refundTransaction,
   refundTransactionOnlyInDatabase,
-  webhook: (/* requestBody, event */) => {
-    // We don't do anything at the moment
-    return Promise.resolve();
-  },
 };

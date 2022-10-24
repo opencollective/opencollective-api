@@ -46,7 +46,6 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.COLLECTIVE_GOALS]: 'settings.collectivePage.showGoals',
   [FEATURE.PAYPAL_PAYOUTS]: 'settings.features.paypalPayouts',
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
-  [FEATURE.ALIPAY]: 'settings.features.alipay',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
   [FEATURE.EMAIL_NOTIFICATIONS_PANEL]: 'settings.features.emailNotificationsPanel',
 };

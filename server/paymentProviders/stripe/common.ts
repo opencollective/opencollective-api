@@ -11,7 +11,7 @@ export const refundTransaction = async (
   options?: { checkRefundStatus: boolean },
 ): Promise<typeof models.Transaction> => {
   /* What's going to be refunded */
-  const chargeId = result(transaction.data, 'charge.id');
+  const chargeId: string = result(transaction.data, 'charge.id');
   if (transaction.data?.refund?.status === 'pending') {
     throw new Error(`Transaction #${transaction.id} refund was already requested and it is pending`);
   }
@@ -36,7 +36,7 @@ export const refundTransaction = async (
   }
 
   const charge = await stripe.charges.retrieve(chargeId, { stripeAccount: hostStripeAccount.username });
-  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction, {
+  const refundBalance = await stripe.balanceTransactions.retrieve(refund.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
   });
   const refundedFees = extractFees(refundBalance, refundBalance.currency);
@@ -76,9 +76,12 @@ export const refundTransactionOnlyInDatabase = async (
   if (!refund && !dispute) {
     throw new Error('No refund or dispute found in Stripe.');
   }
-  const refundBalance = await stripe.balanceTransactions.retrieve((refund || dispute).balance_transaction, {
-    stripeAccount: hostStripeAccount.username,
-  });
+  const refundBalance = await stripe.balanceTransactions.retrieve(
+    (refund.balance_transaction || dispute.balance_transactions[0].id) as string,
+    {
+      stripeAccount: hostStripeAccount.username,
+    },
+  );
   const fees = extractFees(refundBalance, refundBalance.currency);
 
   /* Create negative transactions for the received transaction */
