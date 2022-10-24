@@ -5,6 +5,7 @@ import { compact, get } from 'lodash';
 
 import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
+import Channels from '../../constants/channels';
 import { types as CollectiveType } from '../../constants/collectives';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
@@ -63,6 +64,7 @@ export const notify = {
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
+      channel: Channels.EMAIL,
     });
 
     // Remove any possible null or empty user in the array

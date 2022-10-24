@@ -6,6 +6,7 @@ import slugify from 'limax';
 import { defaults, get, intersection, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
+import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
@@ -27,6 +28,7 @@ function defineModel() {
         unique: true,
         set(val) {
           if (val && val.toLowerCase) {
+            this.emailChanged = true;
             this.setDataValue('email', val.toLowerCase());
           }
         },
@@ -39,7 +41,11 @@ function defineModel() {
             msg: 'Email must be valid',
           },
           isBurnerEmail: function (val) {
-            if (isEmailBurner(val.toLowerCase()) && !emailLib.isWhitelistedDomain(val.toLowerCase())) {
+            if (
+              this.emailChanged &&
+              isEmailBurner(val.toLowerCase()) &&
+              !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
+            ) {
               throw new Error(
                 'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
               );
@@ -51,9 +57,26 @@ function defineModel() {
       emailWaitingForValidation: {
         type: DataTypes.STRING,
         unique: true,
+        set(val) {
+          if (val && val.toLowerCase) {
+            this.emailWaitingForValidationChanged = true;
+            this.setDataValue('emailWaitingForValidation', val.toLowerCase());
+          }
+        },
         validate: {
           isEmail: {
             msg: 'Email must be valid',
+          },
+          isBurnerEmail: function (val) {
+            if (
+              this.emailWaitingForValidationChanged &&
+              isEmailBurner(val.toLowerCase()) &&
+              !emailLib.isAuthorizedEmailDomain(val.toLowerCase())
+            ) {
+              throw new Error(
+                'This email provider is not allowed on Open Collective. If you think that it should be, please email us at support@opencollective.com.',
+              );
+            }
           },
         },
       },
@@ -349,7 +372,7 @@ function defineModel() {
   };
 
   /**
-   * Limit the user account, preventing most actions on the platoform
+   * Limit the user account, preventing most actions on the platform
    * @param spamReport: an optional spam report to attach to the account limitation. See `server/lib/spam.ts`.
    */
   User.prototype.limitAccount = async function (spamReport = null) {
@@ -368,10 +391,38 @@ function defineModel() {
    */
   User.prototype.limitFeature = async function (feature) {
     const features = get(this.data, 'features', {});
-
     features[feature] = false;
 
-    return this.update({ data: { ...this.data, features } });
+    logger.info(`Limiting feature ${feature} for user account ${this.id}`);
+
+    this.changed('data', true);
+    this.data = { ...this.data, features };
+    return this.save();
+  };
+
+  /**
+   * Remove limit from the user account, allowing a specific feature
+   * @param feature:the feature to unlimit. See `server/constants/feature.ts`.
+   */
+  User.prototype.unlimitFeature = async function (feature) {
+    const features = get(this.data, 'features', {});
+    features[feature] = true;
+
+    logger.info(`Unlimiting feature ${feature} for user account ${this.id}`);
+
+    this.changed('data', true);
+    this.data = { ...this.data, features };
+    return this.save();
+  };
+
+  /**
+   * Returns whether the User has any Orders with status of DISPUTED
+   */
+  User.prototype.hasDisputedOrders = async function () {
+    const count = await sequelize.models.Order.count({
+      where: { CreatedByUserId: this.id, status: OrderStatuses.DISPUTED },
+    });
+    return count > 0;
   };
 
   /**

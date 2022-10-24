@@ -60,20 +60,20 @@ import { IsMemberOfFields } from './IsMemberOf';
 
 const accountFieldsDefinition = () => ({
   id: {
-    type: GraphQLString,
+    type: new GraphQLNonNull(GraphQLString),
     description: 'The public id identifying the account (ie: 5v08jk63-w4g9nbpz-j7qmyder-p7ozax5g)',
   },
   legacyId: {
-    type: GraphQLInt,
+    type: new GraphQLNonNull(GraphQLInt),
     description: 'The internal database identifier of the collective (ie: 580)',
     deprecationReason: '2020-01-01: should only be used during the transition to GraphQL API v2.',
   },
   slug: {
-    type: GraphQLString,
+    type: new GraphQLNonNull(GraphQLString),
     description: 'The slug identifying the account (ie: babel)',
   },
   type: {
-    type: AccountType,
+    type: new GraphQLNonNull(AccountType),
     description: 'The type of the account (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL/VENDOR)',
   },
   name: {
@@ -164,7 +164,7 @@ const accountFieldsDefinition = () => ({
     description: 'The time of last update',
   },
   isArchived: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether this account is archived',
   },
   isFrozen: {
@@ -176,7 +176,7 @@ const accountFieldsDefinition = () => ({
     description: 'Returns whether the account accepts financial contributions.',
   },
   isHost: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether the account is setup to Host collectives.',
   },
   isAdmin: {
@@ -689,19 +689,19 @@ const accountWebhooks = {
 export const AccountFields = {
   ...accountFieldsDefinition(),
   id: {
-    type: GraphQLString,
+    type: new GraphQLNonNull(GraphQLString),
     resolve(collective) {
       return idEncode(collective.id, 'account');
     },
   },
   legacyId: {
-    type: GraphQLInt,
+    type: new GraphQLNonNull(GraphQLInt),
     resolve(collective) {
       return collective.id;
     },
   },
   type: {
-    type: AccountType,
+    type: new GraphQLNonNull(AccountType),
     resolve(collective) {
       return invert(AccountTypeToModelMapping)[collective.type];
     },
@@ -737,7 +737,7 @@ export const AccountFields = {
     },
   },
   isArchived: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether this account is archived',
     resolve(collective) {
       return Boolean(collective.deactivatedAt);
@@ -751,7 +751,7 @@ export const AccountFields = {
     },
   },
   isHost: {
-    type: GraphQLBoolean,
+    type: new GraphQLNonNull(GraphQLBoolean),
     description: 'Returns whether the account is setup to Host collectives.',
     resolve(collective) {
       return Boolean(collective.isHostAccount);

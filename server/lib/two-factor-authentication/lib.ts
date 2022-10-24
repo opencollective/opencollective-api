@@ -76,7 +76,7 @@ const DefaultValidateRequestOptions: ValidateRequestOptions = {
   sessionDuration: DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION,
 };
 
-function getSessionKey(req: Request, options: ValidateRequestOptions) {
+function getSessionKey(req: Request, options: ValidateRequestOptions): string {
   const userId = req.remoteUser.id;
   if (typeof options.sessionKey === 'function') {
     return `2fa:${userId}:${options.sessionKey()}`;
@@ -159,7 +159,7 @@ function twoFactorMethodsSupportedByUser(remoteUser: typeof User): TwoFactorMeth
   return methods;
 }
 
-async function userHasTwoFactorAuthEnabled(user: typeof User) {
+async function userHasTwoFactorAuthEnabled(user: typeof User): Promise<boolean> {
   if (user.twoFactorAuthToken) {
     return true;
   }
