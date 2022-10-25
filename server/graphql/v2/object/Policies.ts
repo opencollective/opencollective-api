@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLObjectType } from 'graphql';
+import { get } from 'lodash';
 
 import POLICIES from '../../../constants/policies';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
@@ -44,7 +45,9 @@ export const Policies = new GraphQLObjectType({
         }),
       }),
       resolve(account) {
-        return getPolicy(account, POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL);
+        if (get(account.settings, 'features.virtualCards')) {
+          return getPolicy(account, POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL);
+        }
       },
     },
   }),
