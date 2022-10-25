@@ -13,6 +13,7 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op } from '../../server/models';
 import privacy from '../../server/paymentProviders/privacy';
 import { processTransaction } from '../../server/paymentProviders/stripe/virtual-cards';
+import { PrivacyVirtualCardLimitIntervalToOCInterval } from '../../server/types/privacy';
 
 const DRY = process.env.DRY;
 
@@ -65,7 +66,7 @@ async function reconcileConnectedAccount(connectedAccount) {
           } else {
             await card.update({
               spendingLimitAmount: privacyCard['spend_limit'] === 0 ? null : privacyCard['spend_limit'],
-              spendingLimitInterval: privacyCard['spend_limit_duration'],
+              spendingLimitInterval: PrivacyVirtualCardLimitIntervalToOCInterval[privacyCard['spend_limit_duration']],
               data: omit(privacyCard, ['pan', 'cvv', 'exp_year', 'exp_month']),
             });
           }
