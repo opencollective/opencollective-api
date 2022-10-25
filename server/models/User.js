@@ -152,6 +152,10 @@ function defineModel() {
           });
         },
 
+        hasTwoFactorAuthentication() {
+          return this.twoFactorAuthToken !== null;
+        },
+
         name() {
           return this.userCollective.then(collective => collective.name);
         },
@@ -423,6 +427,18 @@ function defineModel() {
       where: { CreatedByUserId: this.id, status: OrderStatuses.DISPUTED },
     });
     return count > 0;
+  };
+
+  User.prototype.findRelatedUsersByIp = async function ({ include, where } = {}) {
+    const ip = this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+    return User.findAll({
+      where: {
+        ...where,
+        id: { [Op.ne]: this.id },
+        [Op.or]: [{ data: { creationRequest: { ip } } }, { data: { lastSignInRequest: { ip } } }],
+      },
+      include,
+    });
   };
 
   /**

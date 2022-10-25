@@ -1,0 +1,12 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`lib/security/expense checkExpense() returns potential threats related to the expense payment 1`] = `
+"
+| scope         | level  | message                                            |
+| ------------- | ------ | -------------------------------------------------- |
+| USER          | HIGH   | This user may be impersonating multiple profiles   |
+| USER          | MEDIUM | User is not using 2FA                              |
+| USER          | HIGH   | User was never been paid on the platform           |
+| PAYOUT_METHOD | HIGH   | Payout Method was never been paid on the platform  |
+| PAYOUT_METHOD | LOW    | Payout Method is also being used by other accounts |"
+`;

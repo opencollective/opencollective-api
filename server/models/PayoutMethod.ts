@@ -1,7 +1,8 @@
-import { get, pick } from 'lodash';
+import { get, isEmpty, omit, pick } from 'lodash';
 import {
   CreationOptional,
   DataTypes,
+  FindOptions,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -10,7 +11,8 @@ import {
 } from 'sequelize';
 import isEmail from 'validator/lib/isEmail';
 
-import sequelize from '../lib/sequelize';
+import logger from '../lib/logger';
+import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
@@ -26,6 +28,30 @@ export enum PayoutMethodTypes {
   ACCOUNT_BALANCE = 'ACCOUNT_BALANCE',
   CREDIT_CARD = 'CREDIT_CARD',
 }
+
+const IDENTIFIABLE_DATA_FIELDS = [
+  'abartn',
+  'accountNumber',
+  'bankCode',
+  'BIC',
+  'billerCode',
+  'branchCode',
+  'bsbCode',
+  'cardNumber',
+  'cardToken',
+  'customerReferenceNumber',
+  'IBAN',
+  'idDocumentNumber',
+  'idDocumentType',
+  'identificationNumber',
+  'ifscCode',
+  'institutionNumber',
+  'interacAccount',
+  'phoneNumber',
+  'sortCode',
+  'swiftCode',
+  'transitNumber',
+];
 
 /** An interface for the values stored in `data` field for PayPal payout methods */
 export interface PaypalPayoutMethodData {
@@ -151,6 +177,25 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   /** Filters out all the fields that cannot be edited by user */
   private static cleanData(data: Record<string, unknown>): Record<string, unknown> {
     return pick(data, PayoutMethod.editableFields);
+  }
+
+  async findSimilar({ include, where }: Partial<Pick<FindOptions, 'include' | 'where'>> = {}) {
+    let data;
+    if (this.type === PayoutMethodTypes.BANK_ACCOUNT) {
+      const keyDetailFields = IDENTIFIABLE_DATA_FIELDS;
+      if (this.unfilteredData?.type === 'email') {
+        keyDetailFields.push('email');
+      }
+      data = pick(this.unfilteredData, ['type', ...keyDetailFields.map(k => `details.${k}`)]);
+    } else if (this.type === PayoutMethodTypes.PAYPAL) {
+      data = { email: this.unfilteredData.email };
+    }
+    if (!isEmpty(omit(data, 'type'))) {
+      return PayoutMethod.findAll({ where: { ...where, id: { [Op.ne]: this.id }, data }, include });
+    } else {
+      logger.warn(`Couldn't pick identifiable data fields from PayoutMethod #${this.id}`);
+      return [];
+    }
   }
 }
 
