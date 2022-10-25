@@ -102,7 +102,10 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
       `
   WITH
     "collectiveids" AS (
-      SELECT id FROM "Collectives" WHERE "HostCollectiveId"=:HostCollectiveId AND "isActive"=true
+      SELECT id FROM "Collectives"
+      WHERE "HostCollectiveId" = :HostCollectiveId
+      AND "isActive"=true
+      AND "deletedAt" IS NULL
     ),
     "monthlyOrdersWithAmountInHostCurrency" AS (
       SELECT o.id, MAX(o."CollectiveId") as "CollectiveId", MAX(t.currency) AS currency, MAX(t."amountInHostCurrency") as "amountInHostCurrency"
@@ -111,7 +114,9 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
       LEFT JOIN "Transactions" t ON t."OrderId" = o.id
       WHERE s.interval = 'month' AND s."isActive" = true
         AND o."CollectiveId" IN (SELECT id FROM collectiveids)
+        AND o."deletedAt" IS NULL
         AND s."deletedAt" IS NULL
+        AND t."deletedAt" IS NULL
       GROUP BY o.id
     ),
     "yearlyAndOneTimeOrdersWithAmountInHostCurrency" AS (
@@ -121,8 +126,10 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
       LEFT JOIN "Transactions" t ON t."OrderId" = o.id
       WHERE ((s.interval = 'year' AND s."isActive" = true) OR s.interval IS NULL)
         AND o."CollectiveId" IN (SELECT id FROM collectiveids)
+        AND o."deletedAt" IS NULL
         AND s."deletedAt" IS NULL
         AND t."createdAt" > (current_date - INTERVAL '12 months')
+        AND t."deletedAt" IS NULL
       GROUP BY o.id
     )
 
@@ -138,7 +145,10 @@ const getTotalAnnualBudgetForHost = HostCollectiveId => {
       WHERE t.type='CREDIT' AND t."CollectiveId" IN (SELECT id FROM collectiveids)
         AND t."deletedAt" IS NULL
         AND t."createdAt" > (current_date - INTERVAL '12 months')
-        AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL)
+        AND s.interval = 'month' AND s."isActive" IS FALSE AND s."deletedAt" IS NULL
+        AND t."deletedAt" IS NULL
+        AND o."deletedAt" IS NULL
+    )
     "yearlyIncome"
   `,
       {
