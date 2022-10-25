@@ -42,6 +42,15 @@ const getExpensesStats = where =>
 const addBooleanCheck = (checks, condition: boolean, ifTrue: SecurityCheck, ifFalse?: SecurityCheck) =>
   condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null;
 
+const getTimeWindowFromDate = (
+  date: moment.MomentInput,
+  amount: moment.DurationInputArg1,
+  unit: moment.DurationInputArg2,
+) => ({
+  [Op.gte]: moment(date).subtract(amount, unit).toDate(),
+  [Op.lte]: moment(date).add(amount, unit).toDate(),
+});
+
 // Runs statistical analysis of past Expenses based on different conditionals
 const checkExpenseStats = async (
   where,
@@ -119,9 +128,16 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
   // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.
   const relatedUsers = await expense.User.findRelatedUsersByIp({
     where: {
-      updatedAt: {
-        [Op.gte]: moment().subtract(7, 'days').toDate(),
-      },
+      [Op.or]: [
+        // Same users that logged in around the time this expense was created
+        { lastLoginAt: getTimeWindowFromDate(expense.createdAt, 3, 'days') },
+        // Same users that logged in around the time this expense was updated
+        { lastLoginAt: getTimeWindowFromDate(expense.updatedAt, 3, 'days') },
+        // Same users that logged in around the same time the author
+        { lastLoginAt: getTimeWindowFromDate(expense.User.lastLoginAt, 3, 'days') },
+        // Same users created around the same period
+        { createdAt: getTimeWindowFromDate(expense.User.createdAt, 3, 'days') },
+      ],
     },
     include: [{ association: 'collective' }],
   });
