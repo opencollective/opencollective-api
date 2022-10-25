@@ -221,6 +221,20 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
+      memo: {
+        type: GraphQLString,
+        description:
+          'Memo field which adds additional details about the order. For example in added funds this can be a note to mark what method (cheque, money order) the funds were received.',
+        async resolve(order, _, { loaders, remoteUser }) {
+          const collective = order.collective || (await loaders.Collective.byId.load(order.CollectiveId));
+          const hostCollectiveId = collective?.HostCollectiveId;
+          if (remoteUser && hostCollectiveId && remoteUser.isAdmin(hostCollectiveId)) {
+            return order.data?.memo;
+          } else {
+            return null;
+          }
+        },
+      },
     };
   },
 });
