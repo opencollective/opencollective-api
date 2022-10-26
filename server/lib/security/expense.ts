@@ -219,11 +219,14 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     );
 
     // Check if this Payout Method is being used by someone other user or collective
-    const similarPayoutMethods = await expense.PayoutMethod.findSimilar({ include: [models.Collective] });
+    const similarPayoutMethods = await expense.PayoutMethod.findSimilar({
+      include: [models.Collective],
+      where: { CollectiveId: { [Op.ne]: expense.User.collective.id } },
+    });
     if (similarPayoutMethods) {
       addBooleanCheck(checks, similarPayoutMethods.length > 0, {
         scope: Scope.PAYOUT_METHOD,
-        level: Level.LOW,
+        level: Level.MEDIUM,
         message: `Payout Method is also being used by other accounts`,
         details: `${compact(similarPayoutMethods.map(pm => pm.Collective?.slug)).join(
           ', ',

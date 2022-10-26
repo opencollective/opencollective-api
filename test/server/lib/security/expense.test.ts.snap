@@ -8,5 +8,5 @@ exports[`lib/security/expense checkExpense() returns potential threats related t
 | USER          | MEDIUM | User is not using 2FA                              |
 | USER          | HIGH   | User was never been paid on the platform           |
 | PAYOUT_METHOD | HIGH   | Payout Method was never been paid on the platform  |
-| PAYOUT_METHOD | LOW    | Payout Method is also being used by other accounts |"
+| PAYOUT_METHOD | MEDIUM | Payout Method is also being used by other accounts |"
 `;
