@@ -4,9 +4,114 @@ import { SequelizeValidationError, ValidationError } from 'sequelize';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import { randEmail } from '../../stores';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('server/models/PayoutMethod', () => {
+  describe('findSimilar()', () => {
+    before(async () => {
+      await resetTestDB();
+    });
+
+    it('finds similar BANK_ACCOUNT payout methods', async () => {
+      const pm = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          type: 'aba',
+          details: {
+            email: 'will@dafoe.net',
+            abartn: '123456',
+            accountNumber: '1234567890',
+          },
+          accountHolderName: 'Willem Dafoe',
+          currency: 'USD',
+        },
+      });
+      const otherPm = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          type: 'aba',
+          details: {
+            email: 'nic@cage.com',
+            abartn: '123456',
+            accountNumber: '1234567890',
+          },
+          accountHolderName: 'Nicolas Cage',
+          currency: 'USD',
+        },
+      });
+      await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          type: 'aba',
+          details: {
+            email: 'john@cusack.com',
+            abartn: '100000',
+            accountNumber: '1234567890',
+          },
+          accountHolderName: 'John Cusack',
+          currency: 'USD',
+        },
+      });
+
+      const similarPayoutMethods = await pm.findSimilar();
+      expect(similarPayoutMethods).to.have.length(1);
+      expect(similarPayoutMethods[0]).to.have.property('id', otherPm.id);
+    });
+
+    it('finds similar PAYPAL payout methods', async () => {
+      const pm = await fakePayoutMethod({
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'will@dafoe.net',
+        },
+      });
+      const otherPm = await fakePayoutMethod({
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'will@dafoe.net',
+        },
+      });
+      await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        email: 'john@cusack.com',
+      });
+
+      const similarPayoutMethods = await pm.findSimilar();
+      expect(similarPayoutMethods).to.have.length(1);
+      expect(similarPayoutMethods[0]).to.have.property('id', otherPm.id);
+    });
+
+    it('returns empty when account has no similar rows', async () => {
+      const pm = await fakePayoutMethod({
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'nic@cage.org',
+        },
+      });
+
+      const similarPayoutMethods = await pm.findSimilar();
+      expect(similarPayoutMethods).to.have.length(0);
+    });
+
+    it('returns empty when there is not enough identifiable parameters', async () => {
+      const pm = await fakePayoutMethod({
+        type: PayoutMethodTypes.BANK_ACCOUNT,
+        data: {
+          type: 'aba',
+          details: {
+            email: 'will@dafoe.net',
+          },
+          accountHolderName: 'Willem Dafoe',
+          currency: 'USD',
+        },
+      });
+
+      const similarPayoutMethods = await pm.findSimilar();
+      expect(similarPayoutMethods).to.have.length(0);
+    });
+  });
+
   describe('validate data', () => {
     describe('for PayPal', () => {
       it('check email', async () => {

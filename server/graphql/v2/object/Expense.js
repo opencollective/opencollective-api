@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
+import { checkExpense } from '../../../lib/security/expense';
 import models, { Op } from '../../../models';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
@@ -28,6 +29,7 @@ import ExpenseQuote from './ExpenseQuote';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
+import { SecurityCheck } from './SecurityCheck';
 import { TaxInfo } from './TaxInfo';
 import { VirtualCard } from './VirtualCard';
 
@@ -371,6 +373,14 @@ const Expense = new GraphQLObjectType({
         type: RecurringExpense,
         async resolve(expense) {
           return expense.getRecurringExpense();
+        },
+      },
+      securityChecks: {
+        type: new GraphQLList(SecurityCheck),
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
+            return checkExpense(expense);
+          }
         },
       },
     };

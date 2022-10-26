@@ -10,11 +10,11 @@ import {
   getIpStats,
   getUserStats,
   orderFraudProtection,
-} from '../../../../server/lib/security/fraud';
+} from '../../../../server/lib/security/order';
 import { fakeOrder, fakePaymentMethod, fakeUser, multiple } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
-describe('lib/security/fraud', () => {
+describe('lib/security/order', () => {
   describe('helper functions', () => {
     let user;
     before(resetTestDB);

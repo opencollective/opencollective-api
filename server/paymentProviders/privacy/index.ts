@@ -7,7 +7,7 @@ import * as privacy from '../../lib/privacy';
 import { reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
 import VirtualCardModel from '../../models/VirtualCard';
-import { Transaction } from '../../types/privacy';
+import { PrivacyVirtualCardLimitIntervalToOCInterval, Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
 import { getVirtualCardForTransaction, persistTransaction } from '../utils';
 
@@ -74,7 +74,7 @@ const assignCardToCollective = async (
     UserId: userId,
     provider: VirtualCardProviders.PRIVACY,
     spendingLimitAmount: card['spend_limit'] === 0 ? null : card['spend_limit'],
-    spendingLimitInterval: card['spend_limit_duration'],
+    spendingLimitInterval: PrivacyVirtualCardLimitIntervalToOCInterval[card['spend_limit_duration']],
   });
 };
 

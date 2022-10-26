@@ -21,8 +21,8 @@ import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
 import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
-import { orderFraudProtection } from '../../../lib/security/fraud';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
+import { orderFraudProtection } from '../../../lib/security/order';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
 import models from '../../../models';
@@ -217,11 +217,7 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data?.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid ||
-        paymentMethod.token ||
-        paymentMethod.type === 'manual' ||
-        paymentMethod.type === 'alipay' ||
-        paymentMethod.type === 'crypto',
+      paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual' || paymentMethod.type === 'crypto',
     );
   }
 };

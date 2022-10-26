@@ -8,8 +8,8 @@ import { stub, useFakeTimers } from 'sinon';
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
+import { fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
-
 const userData = utils.data('user1');
 
 const { User } = models;
@@ -174,6 +174,28 @@ describe('server/models/User', () => {
           expect(user2.collective.slug).to.equal('xavier-damman1');
           expect(user2.collective.name).to.equal('Xavier Damman');
         });
+    });
+  });
+
+  describe('findRelatedUsersByIp', () => {
+    it('returns empty list if there are no other useres sharing the same IP', async () => {
+      await fakeUser({ data: { lastSignInRequest: { ip: '201.32.14.2' }, creationRequest: { ip: '201.32.14.2' } } });
+      const user = await fakeUser({ data: { creationRequest: { ip: '143.23.13.2' } } });
+
+      const relatedUsers = await user.findRelatedUsersByIp();
+      expect(relatedUsers).to.have.length(0);
+    });
+
+    it('returns list of users that are using the same IP address', async () => {
+      const ip = '192.168.0.27';
+
+      await fakeUser({ data: { lastSignInRequest: { ip: '201.32.14.2' }, creationRequest: { ip: '201.32.14.2' } } });
+      const otherUser = await fakeUser({ data: { lastSignInRequest: { ip } } });
+      const user = await fakeUser({ data: { creationRequest: { ip } } });
+
+      const relatedUsers = await user.findRelatedUsersByIp();
+      expect(relatedUsers).to.have.length(1);
+      expect(relatedUsers).to.have.nested.property('[0].id', otherUser.id);
     });
   });
 });

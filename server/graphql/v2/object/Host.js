@@ -17,7 +17,6 @@ import expenseType from '../../../constants/expense_type';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
-import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import queries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize, { QueryTypes } from '../../../lib/sequelize';
@@ -188,9 +187,6 @@ export const Host = new GraphQLObjectType({
 
           if (find(connectedAccounts, ['service', 'stripe'])) {
             supportedPaymentMethods.push('CREDIT_CARD');
-            if (hasFeature(collective, FEATURE.ALIPAY)) {
-              supportedPaymentMethods.push('ALIPAY');
-            }
           }
 
           if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {
@@ -702,7 +698,10 @@ export const Host = new GraphQLObjectType({
             `
             SELECT o.id FROM "Orders" o
             JOIN "Transactions" t ON t."OrderId" = o.id
-            WHERE t."HostCollectiveId" = :hostCollectiveId AND o.status = 'DISPUTED'
+            WHERE t."HostCollectiveId" = :hostCollectiveId
+            AND o.status = 'DISPUTED'
+            AND o."deletedAt" IS NULL
+            AND t."deletedAt" IS NULL
             LIMIT 1;
             `,
             {
