@@ -556,9 +556,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         'Made with ❤️ from all over the world\n' +
         '[https://docs.opencollective.com/help/about/team]';
 
+      console.log("🚀 ~ file: AccountMutations.test.ts ~ line 562 ~ it ~ sendEmailSpy.args[0][3].html", sendEmailSpy.args[0][3])
       expect(sendEmailSpy.callCount).to.equal(1);
       expect(sendEmailSpy.args[0][1]).to.equal(`New message from XSS Collective on Open Collective: Testing`);
-      expect(sendEmailSpy.args[0][3].text).to.equal(expectedMessage);
+      expect(sendEmailSpy.args[0][3].html).to.equal(expectedMessage);
     });
 
     it('returns an error if not authenticated', async () => {
