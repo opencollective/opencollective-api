@@ -10,7 +10,6 @@ import expenseStatus from '../../../constants/expense_status';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
-import { TwoFactorAuthenticationHeader } from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import {
   approveExpense,
@@ -276,13 +275,9 @@ const expenseMutations = {
               type: GraphQLBoolean,
               description: 'Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually',
             },
-            twoFactorAuthenticatorCode: {
-              type: GraphQLString,
-              description: '2FA code for if the host account has 2FA for payouts turned on.',
-            },
             feesPayer: {
               type: FeesPayer,
-              description: '2FA code for if the host account has 2FA for payouts turned on.',
+              description: 'Who is responsible for paying any due fees.',
               defaultValue: 'COLLECTIVE',
             },
           }),
@@ -291,10 +286,6 @@ const expenseMutations = {
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
       checkRemoteUserCanUseExpenses(req);
-
-      if (args?.paymentParams?.twoFactorAuthenticatorCode) {
-        req.headers[TwoFactorAuthenticationHeader] = `totp ${args.paymentParams.twoFactorAuthenticatorCode}`;
-      }
 
       const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       switch (args.action) {
@@ -316,7 +307,6 @@ const expenseMutations = {
           );
         case 'SCHEDULE_FOR_PAYMENT':
           return scheduleExpenseForPayment(req, expense, {
-            twoFactorAuthenticatorCode: args.paymentParams?.twoFactorAuthenticatorCode,
             feesPayer: args.paymentParams?.feesPayer,
           });
         case 'UNSCHEDULE_PAYMENT':
@@ -326,7 +316,6 @@ const expenseMutations = {
             id: expense.id,
             paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,
-            twoFactorAuthenticatorCode: args.paymentParams?.twoFactorAuthenticatorCode,
             feesPayer: args.paymentParams?.feesPayer,
           });
         default:

@@ -655,7 +655,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
 export const scheduleExpenseForPayment = async (
   req: express.Request,
   expense: typeof models.Expense,
-  options: { feesPayer?: 'COLLECTIVE' | 'PAYEE'; twoFactorAuthenticatorCode?: string } = {},
+  options: { feesPayer?: 'COLLECTIVE' | 'PAYEE' } = {},
 ): Promise<typeof models.Expense> => {
   if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
     throw new BadRequest('Expense is already scheduled for payment');
