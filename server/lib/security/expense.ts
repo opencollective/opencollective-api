@@ -42,6 +42,15 @@ const getExpensesStats = where =>
 const addBooleanCheck = (checks, condition: boolean, ifTrue: SecurityCheck, ifFalse?: SecurityCheck) =>
   condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null;
 
+const getTimeWindowFromDate = (
+  date: moment.MomentInput,
+  amount: moment.DurationInputArg1,
+  unit: moment.DurationInputArg2,
+) => ({
+  [Op.gte]: moment(date).subtract(amount, unit).toDate(),
+  [Op.lte]: moment(date).add(amount, unit).toDate(),
+});
+
 // Runs statistical analysis of past Expenses based on different conditionals
 const checkExpenseStats = async (
   where,
@@ -117,23 +126,46 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
   await expense.User.populateRoles();
 
   // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.
-  const relatedUsers = await expense.User.findRelatedUsersByIp({
+  const relatedUsersByIp = await expense.User.findRelatedUsersByIp({
     where: {
-      updatedAt: {
-        [Op.gte]: moment().subtract(7, 'days').toDate(),
-      },
+      [Op.or]: [
+        // Same users that logged in around the time this expense was created
+        { lastLoginAt: getTimeWindowFromDate(expense.createdAt, 3, 'days') },
+        // Same users that logged in around the time this expense was updated
+        { lastLoginAt: getTimeWindowFromDate(expense.updatedAt, 3, 'days') },
+        // Same users that logged in around the same time the author
+        { lastLoginAt: getTimeWindowFromDate(expense.User.lastLoginAt, 3, 'days') },
+        // Same users created around the same period
+        { createdAt: getTimeWindowFromDate(expense.User.createdAt, 3, 'days') },
+      ],
     },
     include: [{ association: 'collective' }],
   });
-  addBooleanCheck(checks, relatedUsers.length > 0, {
+  const relatedUsersByConnectedAccounts = await expense.User.findRelatedUsersByConnectedAccounts();
+  const details = [];
+  if (relatedUsersByIp.length > 0) {
+    details.push(
+      `${compact(
+        [expense.User, ...relatedUsersByIp].map(user =>
+          user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
+        ),
+      ).join(', ')} where all accessed from the same IP.`,
+    );
+  }
+  if (relatedUsersByConnectedAccounts.length > 0) {
+    details.push(
+      `${compact(
+        [expense.User, ...relatedUsersByConnectedAccounts].map(user =>
+          user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
+        ),
+      ).join(', ')} share similar connected account usernames.`,
+    );
+  }
+  addBooleanCheck(checks, relatedUsersByIp.length > 0 || relatedUsersByConnectedAccounts.length > 0, {
     scope: Scope.USER,
     level: Level.HIGH,
     message: `This user may be impersonating multiple profiles`,
-    details: `${compact(
-      [expense.User, ...relatedUsers].map(user =>
-        user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
-      ),
-    ).join(', ')} where all accessed from the same IP in the past week.`,
+    details: compact(details).join(' '),
   });
 
   // Author Security Check: Checks if the author of the expense has 2FA enabled or not.
@@ -203,11 +235,14 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     );
 
     // Check if this Payout Method is being used by someone other user or collective
-    const similarPayoutMethods = await expense.PayoutMethod.findSimilar({ include: [models.Collective] });
+    const similarPayoutMethods = await expense.PayoutMethod.findSimilar({
+      include: [models.Collective],
+      where: { CollectiveId: { [Op.ne]: expense.User.collective.id } },
+    });
     if (similarPayoutMethods) {
       addBooleanCheck(checks, similarPayoutMethods.length > 0, {
         scope: Scope.PAYOUT_METHOD,
-        level: Level.LOW,
+        level: Level.MEDIUM,
         message: `Payout Method is also being used by other accounts`,
         details: `${compact(similarPayoutMethods.map(pm => pm.Collective?.slug)).join(
           ', ',

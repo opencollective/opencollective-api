@@ -3,9 +3,10 @@ import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, get, intersection, pick } from 'lodash';
+import { defaults, get, intersection, isEmpty, pick } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
+import { Service } from '../constants/connected_account';
 import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
 import * as auth from '../lib/auth';
@@ -438,6 +439,40 @@ function defineModel() {
         [Op.or]: [{ data: { creationRequest: { ip } } }, { data: { lastSignInRequest: { ip } } }],
       },
       include,
+    });
+  };
+
+  User.prototype.findRelatedUsersByConnectedAccounts = async function () {
+    const connectedAccounts = await models.ConnectedAccount.findAll({
+      where: {
+        CollectiveId: this.CollectiveId,
+        service: { [Op.in]: [Service.GITHUB, Service.TWITTER, Service.PAYPAL] },
+        username: { [Op.ne]: null },
+      },
+    });
+
+    if (isEmpty(connectedAccounts)) {
+      return [];
+    }
+
+    return User.findAll({
+      where: {
+        id: { [Op.ne]: this.id },
+      },
+      include: [
+        {
+          model: models.Collective,
+          as: 'collective',
+          required: true,
+          include: [
+            {
+              model: models.ConnectedAccount,
+              where: { [Op.or]: connectedAccounts.map(ca => pick(ca, ['service', 'username'])) },
+              required: true,
+            },
+          ],
+        },
+      ],
     });
   };
 
