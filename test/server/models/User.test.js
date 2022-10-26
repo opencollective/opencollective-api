@@ -5,10 +5,11 @@ import config from 'config';
 import { SequelizeValidationError } from 'sequelize';
 import { stub, useFakeTimers } from 'sinon';
 
+import { Service } from '../../../server/constants/connected_account';
 import * as auth from '../../../server/lib/auth';
 import models from '../../../server/models';
 import { randEmail } from '../../stores';
-import { fakeUser } from '../../test-helpers/fake-data';
+import { fakeConnectedAccount, fakeUser, multiple } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 const userData = utils.data('user1');
 
@@ -196,6 +197,42 @@ describe('server/models/User', () => {
       const relatedUsers = await user.findRelatedUsersByIp();
       expect(relatedUsers).to.have.length(1);
       expect(relatedUsers).to.have.nested.property('[0].id', otherUser.id);
+    });
+  });
+
+  describe('findRelatedUsersByConnectedAccounts', () => {
+    let user1, user2, user3, user4;
+    beforeEach(async () => {
+      [user1, user2, user3, user4] = await multiple(fakeUser, 10, {});
+      await fakeConnectedAccount({ CollectiveId: user1.CollectiveId, service: Service.GITHUB, username: 'bob' });
+      await fakeConnectedAccount({ CollectiveId: user2.CollectiveId, service: Service.GITHUB, username: 'bob' });
+      await fakeConnectedAccount({ CollectiveId: user1.CollectiveId, service: Service.STRIPE, username: 'bob' });
+      await fakeConnectedAccount({ CollectiveId: user3.CollectiveId, service: Service.STRIPE, username: 'bob' });
+      await fakeConnectedAccount({
+        CollectiveId: user1.CollectiveId,
+        service: Service.PAYPAL,
+        username: 'bob@hotmail.com',
+      });
+      await fakeConnectedAccount({
+        CollectiveId: user4.CollectiveId,
+        service: Service.PAYPAL,
+        username: 'bob@hotmail.com',
+      });
+    });
+
+    it('should return related users if another user has the same username', async () => {
+      let relatedUsers = await user1.findRelatedUsersByConnectedAccounts();
+
+      expect(relatedUsers).to.containSubset([{ id: user2.id }, { id: user4.id }]);
+
+      relatedUsers = await user4.findRelatedUsersByConnectedAccounts();
+      expect(relatedUsers).to.containSubset([{ id: user1.id }]);
+    });
+
+    it('should not include irrelevant services', async () => {
+      const relatedUsers = await user1.findRelatedUsersByConnectedAccounts();
+
+      expect(relatedUsers).to.not.containSubset([{ id: user3.id }]);
     });
   });
 });

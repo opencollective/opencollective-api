@@ -126,7 +126,7 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
   await expense.User.populateRoles();
 
   // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.
-  const relatedUsers = await expense.User.findRelatedUsersByIp({
+  const relatedUsersByIp = await expense.User.findRelatedUsersByIp({
     where: {
       [Op.or]: [
         // Same users that logged in around the time this expense was created
@@ -141,15 +141,31 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     },
     include: [{ association: 'collective' }],
   });
-  addBooleanCheck(checks, relatedUsers.length > 0, {
+  const relatedUsersByConnectedAccounts = await expense.User.findRelatedUsersByConnectedAccounts();
+  const details = [];
+  if (relatedUsersByIp.length > 0) {
+    details.push(
+      `${compact(
+        [expense.User, ...relatedUsersByIp].map(user =>
+          user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
+        ),
+      ).join(', ')} where all accessed from the same IP.`,
+    );
+  }
+  if (relatedUsersByConnectedAccounts.length > 0) {
+    details.push(
+      `${compact(
+        [expense.User, ...relatedUsersByConnectedAccounts].map(user =>
+          user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
+        ),
+      ).join(', ')} share similar connected account usernames.`,
+    );
+  }
+  addBooleanCheck(checks, relatedUsersByIp.length > 0 || relatedUsersByConnectedAccounts.length > 0, {
     scope: Scope.USER,
     level: Level.HIGH,
     message: `This user may be impersonating multiple profiles`,
-    details: `${compact(
-      [expense.User, ...relatedUsers].map(user =>
-        user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
-      ),
-    ).join(', ')} where all accessed from the same IP in the past week.`,
+    details: compact(details).join(' '),
   });
 
   // Author Security Check: Checks if the author of the expense has 2FA enabled or not.
