@@ -12,6 +12,7 @@ import {
   isNumber,
   keyBy,
   mapValues,
+  omit,
   omitBy,
   pick,
   set,
@@ -1857,6 +1858,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
         if (forceManual) {
+          await expense.update({
+            data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
+          });
           await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
         } else {
           const [connectedAccount] = await host.getConnectedAccounts({
