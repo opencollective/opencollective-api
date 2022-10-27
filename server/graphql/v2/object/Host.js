@@ -700,6 +700,7 @@ export const Host = new GraphQLObjectType({
             JOIN "Transactions" t ON t."OrderId" = o.id
             WHERE t."HostCollectiveId" = :hostCollectiveId
             AND o.status = 'DISPUTED'
+            AND t.kind = 'CONTRIBUTION'
             AND o."deletedAt" IS NULL
             AND t."deletedAt" IS NULL
             LIMIT 1;
