@@ -328,7 +328,7 @@ async function createDispute(event) {
       },
     ],
   });
-  // const creditTransaction = transactions.find(tx => tx.type === 'CREDIT');
+
   if (!chargeTransaction) {
     return;
   }
@@ -364,7 +364,7 @@ async function createDispute(event) {
   );
 }
 
-// Charge has been closed on Stripe (with status of: won/lost/closed)
+// Charge dispute has been closed on Stripe (with status of: won/lost/closed)
 async function closeDispute(event) {
   const stripeChargeId = event.data.object.charge;
   const chargeTransaction = await models.Transaction.findOne({
@@ -486,6 +486,152 @@ async function closeDispute(event) {
   }
 }
 
+// Charge on Stripe had a fraud review opened
+async function openReview(event) {
+  const stripePaymentIntentId = event.data.object.payment_intent;
+  const paymentIntentTransaction = await models.Transaction.findOne({
+    // eslint-disable-next-line camelcase
+    where: { data: { charge: { payment_intent: stripePaymentIntentId } } },
+    include: [
+      {
+        model: models.Order,
+        required: true,
+        include: [models.Subscription],
+      },
+    ],
+  });
+
+  if (!paymentIntentTransaction) {
+    return;
+  }
+
+  const transactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: paymentIntentTransaction.TransactionGroup,
+    },
+    include: {
+      model: models.Order,
+      required: true,
+      include: [models.Subscription],
+    },
+  });
+
+  await Promise.all(
+    transactions.map(async transaction => {
+      await transaction.update({ isInReview: true });
+      const order = transaction.Order;
+      if (order.status !== OrderStatuses.IN_REVIEW) {
+        await order.update({ status: OrderStatuses.IN_REVIEW });
+
+        if (order.SubscriptionId) {
+          await order.Subscription.deactivate();
+        }
+      }
+    }),
+  );
+}
+
+// Charge on Stripe had a fraud review closed (either approved/refunded)
+async function closeReview(event) {
+  const stripePaymentIntentId = event.data.object.payment_intent;
+  const closedReason = event.data.object.closed_reason;
+
+  const paymentIntentTransaction = await models.Transaction.findOne({
+    // eslint-disable-next-line camelcase
+    where: { data: { charge: { payment_intent: stripePaymentIntentId } } },
+    include: [
+      {
+        model: models.Order,
+        required: true,
+        include: [models.Subscription],
+      },
+      {
+        model: models.User,
+        required: true,
+        as: 'createdByUser',
+      },
+    ],
+  });
+
+  if (!paymentIntentTransaction) {
+    return;
+  }
+
+  const user = paymentIntentTransaction.createdByUser;
+
+  const transactions = await models.Transaction.findAll({
+    where: {
+      TransactionGroup: paymentIntentTransaction.TransactionGroup,
+    },
+    include: {
+      model: models.Order,
+      required: true,
+      include: [models.Subscription],
+    },
+  });
+
+  if (transactions.length > 0) {
+    const order = paymentIntentTransaction.Order;
+
+    // closedReasons: approved, refunded, refunded_as_fraud, disputed, redacted
+    if (closedReason === 'refunded_as_fraud' || closedReason === 'refunded') {
+      if (order.status === OrderStatuses.IN_REVIEW) {
+        if (order.SubscriptionId) {
+          await order.update({ status: OrderStatuses.CANCELLED });
+        } else {
+          await order.update({ status: OrderStatuses.REFUNDED });
+        }
+      }
+
+      // Create refund transaction for the fraudulent charge
+      const transactionGroup = uuid();
+      await createRefundTransaction(
+        paymentIntentTransaction,
+        0,
+        {
+          ...paymentIntentTransaction.data,
+          review: event,
+          refundTransactionId: paymentIntentTransaction.id,
+        },
+        null,
+        transactionGroup,
+      );
+
+      // charge review was determined to be fraudulent
+      if (closedReason === 'refunded_as_fraud') {
+        await user.limitFeature(FEATURE.ORDER);
+        await Promise.all(
+          transactions.map(async transaction => {
+            await transaction.update({ isInReview: false });
+          }),
+        );
+        // charge review was determined to not be fraudulent, but was refunded another reason
+      } else if (closedReason === 'refunded') {
+        await Promise.all(
+          transactions.map(async transaction => {
+            await transaction.update({ isInReview: false });
+          }),
+        );
+      }
+    } else {
+      if (order.status === OrderStatuses.IN_REVIEW) {
+        if (order.SubscriptionId) {
+          await order.update({ status: OrderStatuses.ACTIVE });
+          await order.Subscription.activate();
+        } else {
+          await order.update({ status: OrderStatuses.PAID });
+        }
+      }
+
+      await Promise.all(
+        transactions.map(async transaction => {
+          await transaction.update({ isInReview: false });
+        }),
+      );
+    }
+  }
+}
+
 export default {
   features: {
     recurring: true,
@@ -493,6 +639,8 @@ export default {
   },
   closeDispute,
   createDispute,
+  openReview,
+  closeReview,
 
   processOrder: async order => {
     const hostStripeAccount = await order.collective.getHostStripeAccount();

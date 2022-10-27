@@ -263,8 +263,13 @@ export default {
         // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
       } else if (event.type === 'charge.dispute.closed') {
         return creditcard.closeDispute(event);
+      } else if (event.type === 'review.opened') {
+        return creditcard.openReview(event);
+      } else if (event.type === 'review.closed') {
+        return creditcard.closeReview(event);
       } else {
-        logger.warn(`Stripe: Webhooks: Received an unsuported event type: ${event.type}`);
+        console.log(JSON.stringify(event, null, 4));
+        logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
         return;
       }
     });
