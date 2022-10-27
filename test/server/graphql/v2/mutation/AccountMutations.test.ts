@@ -1,13 +1,16 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
+import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { activities as ACTIVITY, roles } from '../../../../../server/constants';
+import FEATURE from '../../../../../server/constants/feature';
 import POLICIES from '../../../../../server/constants/policies';
 import { idEncode } from '../../../../../server/graphql/v2/identifiers';
+import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2 } from '../../../../utils';
+import { graphqlQueryV2, waitForCondition } from '../../../../utils';
 
 const editSettingsMutation = gqlV2/* GraphQL */ `
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -444,6 +447,241 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await collective.reload();
       expect(collective.data.policies).to.be.empty;
+    });
+  });
+
+  describe('sendMessage', () => {
+    const sendMessageMutation = gqlV2/* GraphQL */ `
+      mutation SendMessage($account: AccountReferenceInput!, $message: NonEmptyString!, $subject: String) {
+        sendMessage(account: $account, message: $message, subject: $subject) {
+          success
+        }
+      }
+    `;
+
+    const message = 'Hello collective, I am reaching out to you for testing purposes.';
+
+    let sandbox, sendEmailSpy, collectiveWithContact, collectiveWithoutContact;
+
+    before(async () => {
+      sandbox = createSandbox();
+      collectiveWithContact = await fakeCollective({
+        name: 'Test Collective',
+        admin: adminUser,
+        settings: { features: { contactForm: true } },
+      });
+      collectiveWithoutContact = await fakeCollective({
+        admin: adminUser,
+        settings: { features: { contactForm: false } },
+      });
+
+      sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
+    });
+
+    after(() => sandbox.restore());
+
+    afterEach(() => {
+      sendEmailSpy.resetHistory();
+    });
+
+    it('sends the message by email', async () => {
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message,
+          subject: 'Testing',
+        },
+        randomUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.sendMessage.success).to.equal(true);
+
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.args[0][1]).to.equal(
+        `New message from ${randomUser.collective.name} on Open Collective: Testing`,
+      );
+      expect(sendEmailSpy.args[0][2]).to.include(message);
+    });
+
+    it('cannot inject code in the email (XSS)', async () => {
+      const code = '<script>console.log("XSS")</script>';
+      const xssUser = await fakeUser({ name: 'XSS User' }, { name: 'XSS Collective', slug: 'xss-collective' });
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message: message + code,
+          subject: 'Testing',
+        },
+        xssUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.sendMessage.success).to.equal(true);
+
+      await waitForCondition(() => sendEmailSpy.callCount === 1);
+
+      const expectedMessage = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title></title>
+  <style>
+@media only screen and (min-device-width: 601px) {
+  .content {
+    width: 600px !important;
+  }
+}
+.btn.blue:hover {
+  background: linear-gradient(180deg,#297EFF 0%,#1869F5 100%);
+  background-color: #297EFF;
+  border-color: #297EFF;
+  color: #FFFFFF;
+}
+</style>
+</head>
+<body margin="0" padding="0" yahoo style="margin: 0; padding: 0; min-width: 100%;">
+
+<table bgcolor="white" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:14px;"><tr><td align="center" valign="top">
+  <!--[if (gte mso 9)|(IE)]>
+    <table width="600" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td>
+  <![endif]-->
+  <table class="content" border="0" width="100%" cellpadding="0" cellspacing="0" style="width: 100%; max-width: 600px; padding: 0 10px;">
+    <tr>
+      <td></td>
+      <td>
+
+<p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 17px; padding: 1em;">
+  Hi Test Collective,
+  <br><br>
+  <a href="http://localhost:3000/xss-collective" style="text-decoration: none; color: #297EFF;">XSS Collective</a> just sent you a message on Open
+  Collective. Simply reply to this email to reply to the sender.
+</p>
+
+<table style="width: 100%;">
+  <tbody>
+    <tr>
+      <td style="border: 1px solid #e8edee; border-radius: 6px; padding: 1em;">
+        <br>
+          <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 18px; font-weight: bold;">Subject</p>
+          <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">Testing</blockquote>
+          <br>
+        <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 18px; font-weight: bold;">Message</p>
+        <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">Hello collective, I am reaching out to you for testing purposes.</blockquote>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<p style="color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;">If this message is spam, please forward it to <a href="mailto:support@opencollective.com" style="text-decoration: none; color: #297EFF;">support@opencollective.com</a>.</p>
+
+</td>
+</tr>
+<tr>
+  <td colspan="3" height="40"></td>
+</tr>
+<tr>
+  <td colspan="3" align="center">
+    <table width="100%">
+      <tr>
+        <td></td>
+        <td width="200">
+          <a href="http://localhost:3000" style="text-decoration: none; color: #297EFF;">
+            <img width="220" height="28" src="http://localhost:3000/static/images/email/logo-email-footer@2x.png" style="max-width: 100%;">
+          </a>
+        </td>
+        <td></td>
+      </tr>
+    </table>
+  </td>
+</tr>
+<tr>
+  <td colspan="3" align="center" style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;box-sizing:border-box;font-size:12px;color:#999;">
+    We can do great things together<br><br>
+
+    You can also follow us on <a href="https://twitter.com/OpenCollect" style="text-decoration: none; color: #297EFF;">Twitter</a> or come chat with us on our public
+    <a href="https://slack.opencollective.com" style="text-decoration: none; color: #297EFF;">Slack channel</a>.
+    <br><br>
+    Made with ❤️ from <a href="https://docs.opencollective.com/help/about/team" style="text-decoration: none; color: #297EFF;">all over the world</a>
+  </td>
+</tr>
+<tr>
+  <td colspan="3" height="10"></td>
+</tr>
+</table><!-- 600px width content table -->
+
+<!--[if (gte mso 9)|(IE)]>
+  </td></tr></table>
+<![endif]-->
+
+</td>
+</tr>
+</table><!-- 100% width table -->
+<!-- OpenCollective.com -->
+</body>
+
+</html>`;
+
+      expect(sendEmailSpy.callCount).to.equal(1);
+      expect(sendEmailSpy.args[0][1]).to.equal(`New message from XSS Collective on Open Collective: Testing`);
+      expect(sendEmailSpy.args[0][2]).to.equal(expectedMessage);
+    });
+
+    it('returns an error if not authenticated', async () => {
+      const result = await graphqlQueryV2(sendMessageMutation, {
+        account: { id: idEncode(collectiveWithContact.id, 'account') },
+        message,
+      });
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
+    });
+
+    it('returns an error if collective cannot be contacted', async () => {
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithoutContact.id, 'account') },
+          message,
+        },
+        randomUser,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(`You can't contact this account`);
+    });
+
+    it('returns an error if the feature is blocked for user', async () => {
+      const userWithoutContact = await fakeUser();
+      await userWithoutContact.limitFeature(FEATURE.CONTACT_COLLECTIVE);
+
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message,
+        },
+        userWithoutContact,
+      );
+
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal(
+        'You are not authorized to contact Collectives. Please contact support@opencollective.com if you think this is an error.',
+      );
+    });
+
+    it('returns an error if the message is invalid', async () => {
+      const result = await graphqlQueryV2(
+        sendMessageMutation,
+        {
+          account: { id: idEncode(collectiveWithContact.id, 'account') },
+          message: 'short',
+        },
+        randomUser,
+      );
+      expect(result.errors).to.have.length(1);
+      expect(result.errors[0].message).to.equal('Message is too short');
     });
   });
 });
