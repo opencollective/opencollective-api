@@ -824,7 +824,7 @@ type Order {
   customData: JSON
 
   """
-  Memo attached to the order
+  Memo field which adds additional details about the order. For example in added funds this can be a note to mark what method (cheque, money order) the funds were received.
   """
   memo: String
 }
@@ -838,10 +838,12 @@ enum OrderStatus {
   DISPUTED
   ERROR
   EXPIRED
+  IN_REVIEW
   NEW
   PAID
   PENDING
   PLEDGED
+  REFUNDED
   REJECTED
   REQUIRE_CLIENT_CONFIRMATION
 }
@@ -927,6 +929,7 @@ interface Transaction {
   isRefunded: Boolean
   isRefund: Boolean
   isDisputed: Boolean
+  isInReview: Boolean
   paymentMethod: PaymentMethod
   payoutMethod: PayoutMethod
   permissions: TransactionPermissions
@@ -1186,6 +1189,7 @@ type Expense {
   requestedByAccount: Account
   quote: ExpenseQuote
   recurringExpense: RecurringExpense
+  securityChecks: [SecurityCheck]
 }
 
 """
@@ -4629,6 +4633,48 @@ enum RecurringExpenseInterval {
   year
 }
 
+type SecurityCheck {
+  """
+  The SecurityCheck scope
+  """
+  scope: SecurityCheckScope!
+
+  """
+  The SecurityCheck level
+  """
+  level: SecurityCheckLevel!
+
+  """
+  SecurityCheck description message
+  """
+  message: String!
+
+  """
+  SecurityCheck details
+  """
+  details: String
+}
+
+"""
+All supported SecurityCheck scopes
+"""
+enum SecurityCheckScope {
+  USER
+  COLLECTIVE
+  PAYEE
+  PAYOUT_METHOD
+}
+
+"""
+All supported SecurityCheck levels
+"""
+enum SecurityCheckLevel {
+  PASS
+  LOW
+  MEDIUM
+  HIGH
+}
+
 """
 Fields for the user permissions on an transaction
 """
@@ -5959,6 +6005,7 @@ type Credit implements Transaction {
   isRefunded: Boolean
   isRefund: Boolean
   isDisputed: Boolean
+  isInReview: Boolean
   paymentMethod: PaymentMethod
   payoutMethod: PayoutMethod
 
@@ -6066,6 +6113,7 @@ type Debit implements Transaction {
   isRefunded: Boolean
   isRefund: Boolean
   isDisputed: Boolean
+  isInReview: Boolean
   paymentMethod: PaymentMethod
   payoutMethod: PayoutMethod
 
