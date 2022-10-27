@@ -179,7 +179,7 @@ export const AccountStats = new GraphQLObjectType({
           if (args.useCache && !dateFrom && !dateTo && !args.includeChildren) {
             const cachedAmount = collective.dataValues['__stats_totalAmountReceivedInHostCurrency__'];
             if (!isNil(cachedAmount)) {
-              const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective.id));
+              const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
               if (!host?.currency || host.currency === collective.currency) {
                 return { value: cachedAmount, currency: collective.currency };
               }

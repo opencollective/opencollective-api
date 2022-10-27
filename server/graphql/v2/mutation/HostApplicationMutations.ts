@@ -234,7 +234,7 @@ const HostApplicationMutations = {
         throw new ValidationFailed(`Cannot unhost projects/events with a parent. Please unhost the parent instead.`);
       }
 
-      const host = await req.loaders.Collective.host.load(account.id);
+      const host = await req.loaders.Collective.host.load(account);
       if (!host) {
         return account;
       }

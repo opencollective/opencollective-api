@@ -36,10 +36,9 @@ export const AccountWithHostFields = {
       paymentMethodService: { type: PaymentMethodService },
       paymentMethodType: { type: PaymentMethodType },
     },
-    async resolve(account: typeof models.Collective, args): Promise<number> {
-      const parent = await account.getParentCollective();
-      const host = await account.getHostCollective();
-
+    async resolve(account: typeof models.Collective, args, req): Promise<number> {
+      const parent = await req.loaders.Collective.parent.load(account);
+      const host = await req.loaders.Collective.host.load(account);
       const possibleValues = [];
 
       if (args.paymentMethodType === 'host') {
