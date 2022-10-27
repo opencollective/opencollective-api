@@ -600,12 +600,6 @@ async function closeReview(event) {
       // charge review was determined to be fraudulent
       if (closedReason === 'refunded_as_fraud') {
         await user.limitFeature(FEATURE.ORDER);
-        await Promise.all(
-          transactions.map(async transaction => {
-            await transaction.update({ isInReview: false });
-          }),
-        );
-        // charge review was determined to not be fraudulent, but was refunded another reason
       } else if (closedReason === 'refunded') {
         await Promise.all(
           transactions.map(async transaction => {

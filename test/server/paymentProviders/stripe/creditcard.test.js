@@ -569,7 +569,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       );
     });
 
-    describe('when review is approved', () => {
+    describe('when review is "approved"', () => {
       it('updates isInReview status of all Transactions connected to the charge', async () => {
         await creditcard.openReview(stripeMocks.webhook_review_opened);
         await creditcard.closeReview(stripeMocks.webhook_review_closed_approved);
@@ -608,7 +608,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       });
     });
 
-    describe('when review is refunded as fraud', () => {
+    describe('when review is "refunded_as_fraud"', () => {
       describe('when the Order has a Subscription', () => {
         it('changes Order status to CANCELLED', async () => {
           await creditcard.openReview(stripeMocks.webhook_review_opened);
@@ -639,13 +639,60 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       });
 
       it('creates a refund transaction for the fraudulent transaction', async () => {
-        await creditcard.createDispute(stripeMocks.webhook_dispute_created);
-        await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
+        await creditcard.openReview(stripeMocks.webhook_review_opened);
+        await creditcard.closeReview(stripeMocks.webhook_review_closed_refunded_as_fraud);
 
         const transactions = await order.getTransactions();
-        console.log('TXS', transactions);
         const refundTransactions = transactions.filter(tx => tx.isRefund === true);
         expect(refundTransactions.length).to.eql(2);
+      });
+    });
+
+    describe('when review is "refunded"', () => {
+      describe('when the Order has a Subscription', () => {
+        it('changes Order status to CANCELLED', async () => {
+          await creditcard.openReview(stripeMocks.webhook_review_opened);
+          await creditcard.closeReview(stripeMocks.webhook_review_closed_refunded);
+
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.CANCELLED);
+        });
+      });
+
+      describe('when the Order does not have a Subscription', () => {
+        it('changes Order status back to REFUNDED', async () => {
+          await order.update({ SubscriptionId: null });
+          await creditcard.openReview(stripeMocks.webhook_review_opened);
+          await creditcard.closeReview(stripeMocks.webhook_review_closed_refunded);
+
+          await order.reload();
+          expect(order.status).to.eql(OrderStatuses.REFUNDED);
+        });
+      });
+
+      it('does not limit Orders for User account', async () => {
+        await creditcard.openReview(stripeMocks.webhook_review_opened);
+        await creditcard.closeReview(stripeMocks.webhook_review_closed_refunded);
+
+        await user.reload();
+        expect(user.data).to.eq(null);
+      });
+
+      it('creates a refund transaction for the fraudulent transaction', async () => {
+        await creditcard.openReview(stripeMocks.webhook_review_opened);
+        await creditcard.closeReview(stripeMocks.webhook_review_closed_refunded);
+
+        const transactions = await order.getTransactions();
+        const refundTransactions = transactions.filter(tx => tx.isRefund === true);
+        expect(refundTransactions.length).to.eql(2);
+      });
+
+      it('updates all related transactions to remove in review status', async () => {
+        await creditcard.openReview(stripeMocks.webhook_review_opened);
+        await creditcard.closeReview(stripeMocks.webhook_review_closed_refunded);
+
+        const transactions = await order.getTransactions();
+        expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
       });
     });
   });
