@@ -26,7 +26,7 @@ async function main(args) {
   const user = await models.User.findByPk(args.user_id);
   const lastLoginAt = user.lastLoginAt ? user.lastLoginAt.getTime() : null;
 
-  const jwt = user.jwt({ scope: 'login', lastLoginAt }, JWT_TOKEN_EXPIRATION);
+  const jwt = user.jwt({ scope: 'login', lastLoginAt, traceless: true }, JWT_TOKEN_EXPIRATION);
   console.log(jwt);
 }
 

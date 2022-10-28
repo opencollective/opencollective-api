@@ -233,6 +233,7 @@ function defineModel() {
    * Generate a JWT for user.
    *
    * @param {object} `payload` - data to attach to the token
+   * @param {Boolean} `payload.traceless` - if token should update lastLoginAt information
    * @param {Number} `expiration` - expiration period in seconds
    */
   User.prototype.jwt = function (payload, expiration) {

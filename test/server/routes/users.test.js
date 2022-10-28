@@ -91,6 +91,7 @@ describe('server/routes/users', () => {
       const response = await request(expressApp).post(updateTokenUrl);
       expect(response.statusCode).to.equal(401);
     });
+
     it('should fail if expired token is provided', async () => {
       // Given a user and an authentication token
       const user = await fakeUser({ email: 'test@mctesterson.com' });
@@ -102,6 +103,7 @@ describe('server/routes/users', () => {
       // Then the API rejects the request
       expect(response.statusCode).to.equal(401);
     });
+
     it("should fail if user's collective is marked as deleted", async () => {
       const user = await fakeUser({ email: 'test@mctesterson.com' });
       await user.collective.destroy(); // mark collective as deleted
@@ -109,6 +111,7 @@ describe('server/routes/users', () => {
       const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
       expect(response.statusCode).to.equal(401);
     });
+
     it('should validate received token', async () => {
       // Given a user and an authentication token
       const user = await fakeUser({ email: 'test@mctesterson.com' });
@@ -127,6 +130,7 @@ describe('server/routes/users', () => {
       // And then the token should have a long expiration
       expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
     });
+
     it('should respond with 2FA token if the user has 2FA enabled on account', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
@@ -166,6 +170,7 @@ describe('server/routes/users', () => {
       const response = await request(expressApp).post(twoFactorAuthUrl);
       expect(response.statusCode).to.equal(400);
     });
+
     it('should fail if token with wrong scope is provided', async () => {
       // Given a user and an authentication token
       const user = await fakeUser({ email: 'test@mctesterson.com' });
@@ -177,6 +182,7 @@ describe('server/routes/users', () => {
       // Then the API rejects the request
       expect(response.statusCode).to.equal(401);
     });
+
     it('should reject 2FA if invalid TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
       const secret = speakeasy.generateSecret({ length: 64 });
@@ -196,6 +202,7 @@ describe('server/routes/users', () => {
       expect(response.body.error).to.exist;
       expect(response.body.error.message).to.match(/Two-factor authentication code failed. Please try again/);
     });
+
     it('should validate 2FA if correct TOTP code is received', async () => {
       // Given a user and an authentication token and a TOTP
       const secret = speakeasy.generateSecret({ length: 64 });
