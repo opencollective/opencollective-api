@@ -7,6 +7,8 @@ import { getPolicy } from '../../../lib/policies';
 import { checkScope } from '../../common/scope-check';
 import { PolicyApplication } from '../enum/PolicyApplication';
 
+import { Amount } from './Amount';
+
 export const Policies = new GraphQLObjectType({
   name: 'Policies',
   fields: () => ({
@@ -36,17 +38,27 @@ export const Policies = new GraphQLObjectType({
       type: new GraphQLObjectType({
         name: POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
         fields: () => ({
-          [VirtualCardLimitIntervals.ALL_TIME]: { type: GraphQLInt },
-          [VirtualCardLimitIntervals.DAILY]: { type: GraphQLInt },
-          [VirtualCardLimitIntervals.MONTHLY]: { type: GraphQLInt },
-          [VirtualCardLimitIntervals.PER_AUTHORIZATION]: { type: GraphQLInt },
-          [VirtualCardLimitIntervals.WEEKLY]: { type: GraphQLInt },
-          [VirtualCardLimitIntervals.YEARLY]: { type: GraphQLInt },
+          [VirtualCardLimitIntervals.ALL_TIME]: { type: Amount },
+          [VirtualCardLimitIntervals.DAILY]: { type: Amount },
+          [VirtualCardLimitIntervals.MONTHLY]: { type: Amount },
+          [VirtualCardLimitIntervals.PER_AUTHORIZATION]: { type: Amount },
+          [VirtualCardLimitIntervals.WEEKLY]: { type: Amount },
+          [VirtualCardLimitIntervals.YEARLY]: { type: Amount },
         }),
       }),
       resolve(account) {
         if (get(account.settings, 'features.virtualCards')) {
-          return getPolicy(account, POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL);
+          const policy = getPolicy(account, POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL);
+          return Object.keys(policy).reduce(
+            (acc, policyKey: string) => ({
+              ...acc,
+              [policyKey]: {
+                value: policy[policyKey],
+                currency: account.currency,
+              },
+            }),
+            {},
+          );
         }
       },
     },
