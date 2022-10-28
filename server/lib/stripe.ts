@@ -93,32 +93,34 @@ export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
 };
 
 export const getSpendingLimitIntervalDates = (spendingLimitInterval: VirtualCardLimitIntervals) => {
-  let renewedOn: string, renewsOn: string;
-
   const now = moment().utc(true);
 
   // Stripe spending limit intervals start on UTC midnight for daily, Sunday at midnight UTC for weekly and 1st of the month or year
   // https://stripe.com/docs/api/issuing/cards/object#issuing_card_object-spending_controls-spending_limits-interval
   switch (spendingLimitInterval) {
     case VirtualCardLimitIntervals.DAILY:
-      renewedOn = now.startOf('day').toISOString();
-      renewsOn = now.add(1, 'day').startOf('day').toISOString();
-      break;
+      return {
+        renewedOn: now.startOf('day').toISOString(),
+        renewsOn: now.add(1, 'day').startOf('day').toISOString(),
+      };
     case VirtualCardLimitIntervals.WEEKLY:
-      renewedOn = now.startOf('isoWeek').toISOString();
-      renewsOn = now.add(1, 'week').startOf('isoWeek').toISOString();
-      break;
+      return {
+        renewedOn: now.startOf('isoWeek').toISOString(),
+        renewsOn: now.add(1, 'week').startOf('isoWeek').toISOString(),
+      };
     case VirtualCardLimitIntervals.MONTHLY:
-      renewedOn = now.startOf('month').toISOString();
-      renewsOn = now.add(1, 'month').startOf('month').toISOString();
-      break;
+      return {
+        renewedOn: now.startOf('month').toISOString(),
+        renewsOn: now.add(1, 'month').startOf('month').toISOString(),
+      };
     case VirtualCardLimitIntervals.YEARLY:
-      renewedOn = now.startOf('year').toISOString();
-      renewsOn = now.add(1, 'year').startOf('year').toISOString();
-      break;
+      return {
+        renewedOn: now.startOf('year').toISOString(),
+        renewsOn: now.add(1, 'year').startOf('year').toISOString(),
+      };
     case VirtualCardLimitIntervals.ALL_TIME:
     case VirtualCardLimitIntervals.PER_AUTHORIZATION:
+    default:
+      return {};
   }
-
-  return { renewedOn, renewsOn };
 };
