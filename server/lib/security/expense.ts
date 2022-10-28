@@ -147,23 +147,23 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     details.push(
       `${compact(
         [expense.User, ...relatedUsersByIp].map(user =>
-          user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
+          user.collective ? `${user.collective?.slug} <${user.email}>` : user.email,
         ),
-      ).join(', ')} where all accessed from the same IP.`,
+      ).join(', ')} were all accessed from the same IP.`,
     );
   }
   if (relatedUsersByConnectedAccounts.length > 0) {
     details.push(
       `${compact(
         [expense.User, ...relatedUsersByConnectedAccounts].map(user =>
-          user.Collective ? `${user.Collective?.slug} <${user.email}>` : user.email,
+          user.collective ? `${user.collective?.slug} <${user.email}>` : user.email,
         ),
-      ).join(', ')} share similar connected account usernames.`,
+      ).join(', ')} share connected account usernames.`,
     );
   }
   addBooleanCheck(checks, relatedUsersByIp.length > 0 || relatedUsersByConnectedAccounts.length > 0, {
     scope: Scope.USER,
-    level: Level.HIGH,
+    level: relatedUsersByConnectedAccounts.length ? Level.HIGH : Level.MEDIUM,
     message: `This user may be impersonating multiple profiles`,
     details: compact(details).join(' '),
   });
