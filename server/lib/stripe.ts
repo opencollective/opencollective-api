@@ -92,32 +92,33 @@ export const retrieveChargeWithRefund = async (chargeId, stripeAccount) => {
   return { charge, refund, dispute };
 };
 
-export const getSpendingLimitIntervalDates = spendingLimitInterval => {
+export const getSpendingLimitIntervalDates = (spendingLimitInterval: VirtualCardLimitIntervals) => {
+  let renewedOn: string, renewsOn: string;
+
   const now = moment().utc(true);
-  let renewedOn, renewsOn;
 
   // Stripe spending limit intervals start on UTC midnight for daily, Sunday at midnight UTC for weekly and 1st of the month or year
   // https://stripe.com/docs/api/issuing/cards/object#issuing_card_object-spending_controls-spending_limits-interval
   switch (spendingLimitInterval) {
     case VirtualCardLimitIntervals.DAILY:
-      renewedOn = now.startOf('day');
-      renewsOn = now.add(1, 'day').startOf('day');
+      renewedOn = now.startOf('day').toISOString();
+      renewsOn = now.add(1, 'day').startOf('day').toISOString();
       break;
     case VirtualCardLimitIntervals.WEEKLY:
-      renewedOn = now.startOf('isoWeek');
-      renewsOn = now.add(1, 'week').startOf('isoWeek');
+      renewedOn = now.startOf('isoWeek').toISOString();
+      renewsOn = now.add(1, 'week').startOf('isoWeek').toISOString();
       break;
     case VirtualCardLimitIntervals.MONTHLY:
-      renewedOn = now.startOf('month');
-      renewsOn = now.add(1, 'month').startOf('month');
+      renewedOn = now.startOf('month').toISOString();
+      renewsOn = now.add(1, 'month').startOf('month').toISOString();
       break;
     case VirtualCardLimitIntervals.YEARLY:
-      renewedOn = now.startOf('year');
-      renewsOn = now.add(1, 'year').startOf('year');
+      renewedOn = now.startOf('year').toISOString();
+      renewsOn = now.add(1, 'year').startOf('year').toISOString();
       break;
     case VirtualCardLimitIntervals.ALL_TIME:
     case VirtualCardLimitIntervals.PER_AUTHORIZATION:
   }
 
-  return { renewedOn: renewedOn?.toISOString(), renewsOn: renewsOn?.toISOString() };
+  return { renewedOn, renewsOn };
 };
