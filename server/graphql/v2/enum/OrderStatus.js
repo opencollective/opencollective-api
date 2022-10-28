@@ -9,6 +9,7 @@ export const OrderStatus = new GraphQLEnumType({
     DISPUTED: {},
     ERROR: {},
     EXPIRED: {},
+    IN_REVIEW: {},
     NEW: {},
     PAID: {},
     PENDING: {},
