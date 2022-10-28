@@ -21,6 +21,7 @@ import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import POLICIES from '../../../constants/policies';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import PermissionsLib from '../../../lib/permissions-lib';
 import { hasPolicy } from '../../../lib/policies';
 import {
   updateOrderSubscription,
@@ -78,11 +79,6 @@ const orderMutations = {
       },
     },
     async resolve(_, args, req) {
-      // Ok for non-authenticated users, we only check scope
-      if (!checkScope(req, 'orders')) {
-        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
-      }
-
       if (args.order.taxes?.length > 1) {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
@@ -138,9 +134,13 @@ const orderMutations = {
         platformTipAmount,
       };
 
-      // Check 2FA for non-guest contributions
       if (req.remoteUser) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective);
+        await PermissionsLib.validateRequest(req, {
+          mustBeLoggedIn: true,
+          oauthScope: 'orders',
+          mustBeAdminOf: fromCollective,
+          twoFactorAuthentication: 'SOFT',
+        });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);

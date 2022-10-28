@@ -188,12 +188,38 @@ async function shouldEnforceForAccount(req, account: typeof models.Collective): 
 }
 
 /**
+ * Returns true if 2FA should be enforced, depending on whether:
+ * - any the accounts have the policy enabled and the user is an admin
+ * - user has 2FA enabled on their account
+ */
+async function requiredForUserOnAccount(
+  req: Request,
+  accounts: typeof models.Collective | typeof models.Collective[],
+): Promise<boolean> {
+  if (!req.remoteUser) {
+    return false;
+  } else if (userHasTwoFactorAuthEnabled(req.remoteUser)) {
+    return true;
+  }
+
+  const accountsArray = Array.isArray(accounts) ? accounts : [accounts];
+  for (const account of accountsArray) {
+    if (req.remoteUser.isAdminOfCollective(account) && (await shouldEnforceForAccount(req, account))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Enforce 2FA if the remote user is an admin of `account` (or root) and this account has
  * the `REQUIRE_2FA_FOR_ADMINS policy` set on itself or its parent.
  *
  * Otherwise, this function will still check for 2FA if it's enabled on the user account.
  *
  * @returns true if 2FA was validated, false if not required
+ * @deprecated
  */
 async function enforceForAccountAdmins(
   req: Request,
@@ -214,6 +240,8 @@ async function enforceForAccountAdmins(
 const twoFactorAuthLib = {
   validateRequest,
   enforceForAccountAdmins,
+  requiredForUserOnAccount,
+  shouldEnforceForAccount,
   validateToken,
   getTwoFactorAuthTokenFromRequest,
   userHasTwoFactorAuthEnabled,

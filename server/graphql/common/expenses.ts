@@ -37,6 +37,7 @@ import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
+import PermissionsLib from '../../lib/permissions-lib';
 import { hasPolicy } from '../../lib/policies';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
@@ -1149,11 +1150,12 @@ export async function editExpense(
 
   // Check if 2FA is enforced on any of the account remote user is admin of, stop the loop if 2FA gets validated for any of them
   if (req.remoteUser) {
-    for (const account of [expense.fromCollective, collective, host].filter(Boolean)) {
-      if (await twoFactorAuthLib.enforceForAccountAdmins(req, account)) {
-        break;
-      }
-    }
+    await PermissionsLib.validateRequest(req, {
+      mustBeLoggedIn: true,
+      mustBeAdminOf: [expense.fromCollective, collective, host].filter(Boolean),
+      oauthScope: 'expenses',
+      twoFactorAuthentication: 'SOFT',
+    });
   }
 
   // When changing the type, we must make sure that the new type is allowed

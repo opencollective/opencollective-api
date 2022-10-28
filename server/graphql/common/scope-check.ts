@@ -1,7 +1,7 @@
 import express from 'express';
 
 import FEATURE from '../../constants/feature';
-import OAuthScopes from '../../constants/oauth-scopes';
+import { OAuthScope } from '../../constants/oauth-scopes';
 import { canUseFeature } from '../../lib/user-permissions';
 import models from '../../models';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
@@ -111,9 +111,6 @@ export const checkRemoteUserCanRoot = (req: express.Request): void => {
   }
   enforceScope(req, 'root');
 };
-
-// In many places we check the scope using a direct string. This type will ensure we still use values from the enum.
-type OAuthScope = keyof typeof OAuthScopes;
 
 export const checkScope = (req: express.Request, scope: OAuthScope): boolean => {
   return !req.userToken || req.userToken.hasScope(scope);
