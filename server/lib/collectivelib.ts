@@ -348,7 +348,17 @@ export async function isCollectiveDeletable(collective) {
       -- Transactions
       OR EXISTS (
         SELECT 1 FROM "Transactions"
-        WHERE ("CollectiveId" = :CollectiveId OR "FromCollectiveId" = :CollectiveId)
+        WHERE "CollectiveId" = :CollectiveId
+        AND "deletedAt" IS NULL
+      )
+      OR EXISTS (
+        SELECT 1 FROM "Transactions"
+        WHERE "FromCollectiveId" = :CollectiveId
+        AND "deletedAt" IS NULL
+      )
+      OR EXISTS (
+        SELECT 1 FROM "Transactions"
+        WHERE "HostCollectiveId" = :CollectiveId
         AND "deletedAt" IS NULL
       )
     ) AS "hasUndeletableData"
