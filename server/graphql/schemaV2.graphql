@@ -3095,9 +3095,14 @@ type Host implements Account & AccountWithContributions {
   isTrustedHost: Boolean!
 
   """
-  Returns whether the host has any disputed orders
+  Returns whether the host has any Stripe disputed orders
   """
   hasDisputedOrders: Boolean!
+
+  """
+  Returns whether the host has any Stripe in review orders
+  """
+  hasInReviewOrders: Boolean!
 }
 
 """

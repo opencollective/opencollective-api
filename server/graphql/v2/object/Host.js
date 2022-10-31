@@ -14,12 +14,12 @@ import moment from 'moment';
 import { roles } from '../../../constants';
 import { types as CollectiveType, types as CollectiveTypes } from '../../../constants/collectives';
 import expenseType from '../../../constants/expense_type';
+import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import queries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
-import sequelize, { QueryTypes } from '../../../lib/sequelize';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -692,28 +692,40 @@ export const Host = new GraphQLObjectType({
       },
       hasDisputedOrders: {
         type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Returns whether the host has any disputed orders',
+        description: 'Returns whether the host has any Stripe disputed orders',
         async resolve(host) {
-          const [results] = await sequelize.query(
-            `
-            SELECT o.id FROM "Orders" o
-            JOIN "Transactions" t ON t."OrderId" = o.id
-            WHERE t."HostCollectiveId" = :hostCollectiveId
-            AND o.status = 'DISPUTED'
-            AND t.kind = 'CONTRIBUTION'
-            AND o."deletedAt" IS NULL
-            AND t."deletedAt" IS NULL
-            LIMIT 1;
-            `,
-            {
-              type: QueryTypes.SELECT,
-              replacements: {
-                hostCollectiveId: host.id,
-              },
-            },
+          return Boolean(
+            await models.Order.findOne({
+              where: { status: OrderStatuses.DISPUTED },
+              include: [
+                {
+                  model: models.Transaction,
+                  required: true,
+                  where: { HostCollectiveId: host.id, kind: TransactionKind.CONTRIBUTION },
+                },
+              ],
+              attributes: [],
+            }),
           );
-
-          return !isEmpty(results);
+        },
+      },
+      hasInReviewOrders: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Returns whether the host has any Stripe in review orders',
+        async resolve(host) {
+          return Boolean(
+            await models.Order.findOne({
+              where: { status: OrderStatuses.IN_REVIEW },
+              include: [
+                {
+                  model: models.Transaction,
+                  required: true,
+                  where: { HostCollectiveId: host.id, kind: TransactionKind.CONTRIBUTION },
+                },
+              ],
+              attributes: [],
+            }),
+          );
         },
       },
     };
