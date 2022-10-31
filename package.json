@@ -116,7 +116,7 @@
     "redis": "3.1.2",
     "sanitize-html": "2.7.2",
     "sequelize": "6.25.3",
-    "sequelize-cli": "6.5.1",
+    "sequelize-cli": "6.5.2",
     "sequelize-temporal": "1.0.8",
     "showdown": "2.1.0",
     "spdx-license-list": "^6.6.0",
