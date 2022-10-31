@@ -132,18 +132,20 @@ function defineModel() {
     }
 
     const collective = await models.Collective.findByPk(this.CollectiveId);
-    if (collective) {
-      await collective.addUserWithRole(user, this.role, {
-        TierId: this.TierId,
-        CreatedByUserId: this.CreatedByUserId,
-        description: this.description,
-        since: this.since,
-      });
-      purgeCacheForCollective(collective.slug);
+    if (!collective) {
+      throw new Error(`No collective found for this invitation. Please contact support`);
     }
 
+    const member = await collective.addUserWithRole(user, this.role, {
+      TierId: this.TierId,
+      CreatedByUserId: this.CreatedByUserId,
+      description: this.description,
+      since: this.since,
+    });
+    purgeCacheForCollective(collective.slug);
+
     if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(this.role)) {
-      const member = await models.Collective.findByPk(this.MemberCollectiveId);
+      const memberCollective = await models.Collective.findByPk(this.MemberCollectiveId);
       await models.Activity.create({
         type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
         CollectiveId: this.CollectiveId,
@@ -151,8 +153,9 @@ function defineModel() {
         HostCollectiveId: collective.approvedAt ? collective.HostCollectiveId : null,
         data: {
           notify: false,
-          memberCollective: member.activity,
+          memberCollective: memberCollective.activity,
           collective: collective.activity,
+          member: member.info,
         },
       });
     }
@@ -173,6 +176,7 @@ function defineModel() {
         notify: false,
         memberCollective: memberCollective?.activity,
         collective: collective?.activity,
+        invitation: pick(this, ['id', 'role', 'description', 'since']),
       },
     });
   };
@@ -276,6 +280,7 @@ function defineModel() {
               notify: false,
               memberCollective: memberCollective.activity,
               collective: collective.activity,
+              invitation: pick(invitation, ['id', 'role', 'description', 'since']),
             },
           },
           sequelizeParams,

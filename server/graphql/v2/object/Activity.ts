@@ -112,7 +112,22 @@ export const Activity = new GraphQLObjectType({
           }
         } else if (activity.type === ACTIVITY.COLLECTIVE_EXPENSE_MOVED) {
           toPick.push('movedFromCollective');
-        } else if (activity.type === ACTIVITY.COLLECTIVE_MEMBER_CREATED) {
+        } else if (
+          [
+            ACTIVITY.COLLECTIVE_MEMBER_INVITED,
+            ACTIVITY.COLLECTIVE_CORE_MEMBER_INVITED,
+            ACTIVITY.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
+          ].includes(activity.type)
+        ) {
+          toPick.push('invitation.role');
+        } else if (
+          [
+            ACTIVITY.COLLECTIVE_MEMBER_CREATED,
+            ACTIVITY.COLLECTIVE_CORE_MEMBER_ADDED,
+            ACTIVITY.COLLECTIVE_CORE_MEMBER_REMOVED,
+            ACTIVITY.COLLECTIVE_CORE_MEMBER_EDITED,
+          ].includes(activity.type)
+        ) {
           toPick.push('member.role');
         } else if (activity.type === ACTIVITY.COLLECTIVE_EDITED) {
           const collective = await req.loaders.Collective.byId.load(activity.CollectiveId);
