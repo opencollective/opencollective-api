@@ -12,6 +12,7 @@ import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
@@ -2077,9 +2078,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const expenseMutationParams1 = {
         expenseId: expense1.id,
         action: 'PAY',
-        paymentParams: { twoFactorAuthenticatorCode },
       };
-      const result1 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams1, hostAdmin);
+      const result1 = await graphqlQueryV2(processExpenseMutation, expenseMutationParams1, hostAdmin, null, {
+        [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
+      });
 
       expect(result1.errors).to.not.exist;
       expect(result1.data.processExpense.status).to.eq('PROCESSING');
@@ -2160,9 +2162,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         {
           expenseId: expense1.id,
           action: 'PAY',
-          paymentParams: { twoFactorAuthenticatorCode },
         },
         hostAdmin,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
+        },
       );
       expect(result2.errors).to.not.exist;
       expect(result2.data.processExpense.status).to.eq('PROCESSING');
