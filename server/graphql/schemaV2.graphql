@@ -13805,12 +13805,7 @@ input ProcessExpensePaymentParams {
   forceManual: Boolean
 
   """
-  2FA code for if the host account has 2FA for payouts turned on.
-  """
-  twoFactorAuthenticatorCode: String
-
-  """
-  2FA code for if the host account has 2FA for payouts turned on.
+  Who is responsible for paying any due fees.
   """
   feesPayer: FeesPayer = COLLECTIVE
 }
