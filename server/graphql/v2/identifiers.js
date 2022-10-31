@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import config from 'config';
 import Hashids from 'hashids/cjs';
 
+import { BadRequest } from '../errors';
+
 const alphabet = '1234567890abcdefghijklmnopqrstuvwxyz';
 
 let salt = config.keys.opencollective.hashidSalt;
@@ -73,8 +75,12 @@ export const idEncode = (integer, type) => {
 };
 
 export const idDecode = (string, type) => {
-  const decoded = getInstance(type).decode(string.split('-').join(''));
-  return Number(decoded[0]);
+  const [decoded] = getInstance(type).decode(string.split('-').join(''));
+  if (decoded === undefined) {
+    throw new BadRequest(`Invalid ${type} id: ${string}`);
+  }
+
+  return Number(decoded);
 };
 
 /**
