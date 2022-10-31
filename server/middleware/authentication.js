@@ -157,7 +157,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
       await confirmGuestAccount(user);
     }
 
-    if (!parseToBoolean(config.database.readOnly)) {
+    if (!parseToBoolean(config.database.readOnly) && req.jwtPayload?.traceless !== true) {
       await user.update({
         // The login was accepted, we can update lastLoginAt. This will invalidate all older tokens.
         lastLoginAt: new Date(),
