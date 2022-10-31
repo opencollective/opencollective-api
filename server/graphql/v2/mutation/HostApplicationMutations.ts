@@ -295,7 +295,7 @@ const approveApplication = async (host, collective, req) => {
     type: activities.COLLECTIVE_APPROVED,
     UserId: req.remoteUser?.id,
     UserTokenId: req.userToken?.id,
-    CollectiveId: host.id, // TODO(InconsistentActivities): Should be collective.id
+    CollectiveId: collective.id,
     HostCollectiveId: host.id,
     data: {
       collective: collective.info,
@@ -333,7 +333,7 @@ const rejectApplication = async (host, collective, req, reason: string) => {
     type: activities.COLLECTIVE_REJECTED,
     UserId: remoteUser.id,
     UserTokenId: req.userToken?.id,
-    CollectiveId: host.id, // TODO(InconsistentActivities): Should be CollectiveId
+    CollectiveId: collective.id,
     HostCollectiveId: host.id,
     data: {
       collective: collective.info,
