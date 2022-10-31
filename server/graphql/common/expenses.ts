@@ -890,7 +890,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
     return taxes.forEach(({ type, rate }) => {
       if (rate < 0 || rate > 1) {
         throw new ValidationFailed(`Tax rate for ${type} must be between 0% and 100%`);
-      } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account)) {
+      } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account, host)) {
         throw new ValidationFailed(`This account does not have VAT enabled`);
       } else if (type === LibTaxes.TaxType.GST && !LibTaxes.accountHasGST(host)) {
         throw new ValidationFailed(`This host does not have GST enabled`);

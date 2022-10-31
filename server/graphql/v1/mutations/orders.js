@@ -161,7 +161,11 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
 
     // Load tax info from DB, ignore if amount is 0
     if (order.totalAmount !== 0 && tier && LibTaxes.isTierTypeSubjectToVAT(tier.type)) {
-      const vatType = get(collective, 'settings.VAT.type') ?? get(collective.parentCollective, 'settings.VAT.type');
+      const vatType =
+        get(collective, 'settings.VAT.type') ??
+        get(collective.parentCollective, 'settings.VAT.type') ??
+        VAT_OPTIONS.HOST;
+
       const baseCountry = collective.countryISO || get(parentCollective, 'countryISO');
       if (vatType === VAT_OPTIONS.OWN) {
         taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, baseCountry, baseCountry);
