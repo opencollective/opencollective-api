@@ -3,7 +3,6 @@ import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'grap
 import { GraphQLJSON } from 'graphql-type-json';
 import { get, pick } from 'lodash';
 
-import activities from '../../../constants/activities';
 import POLICIES from '../../../constants/policies';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -203,21 +202,14 @@ async function createCollective(_, args, req) {
       // - tell them the status of their host application
       if (!args.skipDefaultAdmin) {
         const remoteUserCollective = await loaders.Collective.byId.load(user.CollectiveId);
-        models.Activity.create({
-          type: activities.COLLECTIVE_CREATED,
-          UserId: user.id,
-          UserTokenId: req.userToken?.id,
-          CollectiveId: collective.id,
-          HostCollectiveId: get(host, 'id'),
-          data: {
-            collective: collective.info,
-            host: get(host, 'info'),
-            hostPending: collective.approvedAt ? false : true,
-            accountType: collective.type === 'FUND' ? 'fund' : 'collective',
-            user: {
-              email: user.email,
-              collective: remoteUserCollective.info,
-            },
+        collective.generateCollectiveCreatedActivity(req.remoteUser, req.userToken, {
+          collective: collective.info,
+          host: get(host, 'info'),
+          hostPending: collective.approvedAt ? false : true,
+          accountType: collective.type === 'FUND' ? 'fund' : 'collective',
+          user: {
+            email: user.email,
+            collective: remoteUserCollective.info,
           },
         });
       }

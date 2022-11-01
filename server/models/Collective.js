@@ -3380,11 +3380,27 @@ function defineModel() {
     return this.update({ data: { ...this.data, policies: policies } });
   };
 
+  Collective.prototype.generateCollectiveCreatedActivity = async function (user, userToken, data = null) {
+    let type = activities.COLLECTIVE_CREATED;
+    if (this.type === 'ORGANIZATION') {
+      type = activities.ORGANIZATION_COLLECTIVE_CREATED;
+    }
+
+    return models.Activity.create({
+      type,
+      UserId: user.id,
+      UserTokenId: userToken?.id,
+      CollectiveId: this.id,
+      HostCollectiveId: this.approvedAt ? this.HostCollectiveId : null,
+      data,
+    });
+  };
+
   /**
    * Class Methods
    */
-  Collective.createOrganization = async (collectiveData, adminUser, creator = {}) => {
-    const CreatedByUserId = creator.id || adminUser.id;
+  Collective.createOrganization = async (collectiveData, adminUser, creator) => {
+    const CreatedByUserId = creator?.id || adminUser.id;
     const collective = await Collective.create({
       CreatedByUserId,
       ...collectiveData,
@@ -3397,14 +3413,7 @@ function defineModel() {
       MemberCollectiveId: adminUser.CollectiveId,
       role: roles.ADMIN,
     });
-    await models.Activity.create({
-      type: activities.ORGANIZATION_COLLECTIVE_CREATED,
-      UserId: adminUser.id,
-      CollectiveId: collective.id,
-      data: {
-        collective: collective.info,
-      },
-    });
+    await collective.generateCollectiveCreatedActivity(creator || adminUser, null, { collective: collective.info });
     return collective;
   };
 
