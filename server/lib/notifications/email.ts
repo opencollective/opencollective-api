@@ -414,14 +414,14 @@ export const notifyByEmail = async (activity: Activity) => {
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         if (get(activity, 'data.host.slug') === 'foundation') {
           await notify.collective(activity, {
-            collectiveId: activity.data.collective.id,
+            collectiveId: activity.CollectiveId,
             template: 'fund.approved.foundation',
           });
         }
         break;
       }
       await notify.collective(activity, {
-        collectiveId: activity.data.collective.id,
+        collectiveId: activity.CollectiveId,
         replyTo: activity.data.host.data?.replyToEmail || undefined,
       });
       break;
@@ -432,7 +432,7 @@ export const notifyByEmail = async (activity: Activity) => {
         break;
       }
       await notify.collective(activity, {
-        collectiveId: activity.data.collective.id,
+        collectiveId: activity.CollectiveId,
         template: 'collective.rejected',
         replyTo: activity.data.host.data?.replyToEmail || undefined,
       });
@@ -461,7 +461,7 @@ export const notifyByEmail = async (activity: Activity) => {
       if (get(activity, 'data.collective.type') === 'FUND' || get(activity, 'data.collective.settings.fund') === true) {
         if (get(activity, 'data.host.slug') === 'foundation') {
           await notify.collective(activity, {
-            collectiveId: activity.data.collective.id,
+            collectiveId: activity.CollectiveId,
             template: 'fund.created.foundation',
           });
         }
