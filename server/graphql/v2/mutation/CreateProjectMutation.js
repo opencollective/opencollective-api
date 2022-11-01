@@ -74,6 +74,7 @@ async function createProject(_, args, req) {
     }
   }
 
+  project.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
   return project;
 }
 

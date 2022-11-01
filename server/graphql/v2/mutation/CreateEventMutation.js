@@ -50,7 +50,9 @@ async function createEvent(_, args, req) {
     throw new Error(`The slug '${eventData.slug}' is already taken. Please use another slug for the Event.`);
   }
 
-  return models.Collective.create(eventData);
+  const event = await models.Collective.create(eventData);
+  event.generateCollectiveCreatedActivity(req.remoteUser, req.userToken);
+  return event;
 }
 
 const createEventMutation = {

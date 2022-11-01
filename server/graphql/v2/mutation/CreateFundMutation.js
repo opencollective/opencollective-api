@@ -1,7 +1,6 @@
 import { GraphQLNonNull } from 'graphql';
 import { get, pick } from 'lodash';
 
-import activities from '../../../constants/activities';
 import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
@@ -85,21 +84,14 @@ async function createFund(_, args, req) {
   // - tell them which fiscal host they picked, if any
   // - tell them the status of their host application
   const remoteUserCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
-  models.Activity.create({
-    type: activities.COLLECTIVE_CREATED,
-    UserId: req.remoteUser.id,
-    UserTokenId: req.userToken?.id,
-    CollectiveId: fund.id,
-    HostCollectiveId: get(host, 'id'),
-    data: {
-      collective: fund.info,
-      host: get(host, 'info'),
-      hostPending: fund.approvedAt ? false : true,
-      accountType: 'fund',
-      user: {
-        email: req.remoteUser.email,
-        collective: remoteUserCollective.info,
-      },
+  fund.generateCollectiveCreatedActivity(req.remoteUser, req.userToken, {
+    collective: fund.info,
+    host: get(host, 'info'),
+    hostPending: fund.approvedAt ? false : true,
+    accountType: 'fund',
+    user: {
+      email: req.remoteUser.email,
+      collective: remoteUserCollective.info,
     },
   });
 
