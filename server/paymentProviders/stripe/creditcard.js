@@ -4,6 +4,7 @@ import { v4 as uuid } from 'uuid';
 
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
+import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
@@ -416,6 +417,11 @@ async function closeDispute(event) {
         } else {
           await order.update({ status: OrderStatuses.REFUNDED });
         }
+      }
+
+      const paymentMethod = await order.getPaymentMethod();
+      if (paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
+        await models.SuspendedAsset.suspendCreditCard(paymentMethod, `CreditCard was disputed in order ${order.id}`);
       }
 
       // Create refund transaction for the fraudulent charge
