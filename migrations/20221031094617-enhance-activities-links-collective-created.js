@@ -2,6 +2,7 @@
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
+  // Splitting the migration in three steps to reduce the cost of each query
   async up(queryInterface) {
     console.time('Linking for COLLECTIVE_CREATED activities');
     await queryInterface.sequelize.query(`
@@ -34,9 +35,13 @@ module.exports = {
     console.timeEnd('Linking for COLLECTIVE_REJECTED activities');
   },
 
-  async down() {
-    /**
-     * No rollback
-     */
+  async down(queryInterface) {
+    console.time('UnLinking for collective activities');
+    await queryInterface.sequelize.query(`
+      UPDATE "Activities" a
+      SET "CollectiveId" = a."HostCollectiveId"
+      WHERE a.type IN ('collective.created', 'collective.rejected', 'collective.approved')
+    `);
+    console.timeEnd('UnLinking for collective activities');
   },
 };
