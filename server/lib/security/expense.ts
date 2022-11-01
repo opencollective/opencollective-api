@@ -57,11 +57,7 @@ const checkExpenseStats = async (
   { expense, checks, scope, details }: { scope: Scope; details?: string; checks: Array<SecurityCheck>; expense },
 ) => {
   const platformStats = await getExpensesStats(where);
-  const collectiveStats = await getExpensesStats({
-    ...where,
-    CollectiveId: expense.CollectiveId,
-    currency: expense.currency,
-  });
+  const collectiveStats = await getExpensesStats({ ...where, CollectiveId: expense.CollectiveId });
 
   // Checks if there was any SPAM or rejects on the platform
   const spam = find(platformStats, { status: status.SPAM });
