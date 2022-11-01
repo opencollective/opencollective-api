@@ -176,6 +176,7 @@ const memberMutations = {
             memberCollective: memberAccount.activity,
             collective: account.activity,
             user: req.remoteUser.info,
+            member: members[0].info,
           },
         });
       }
