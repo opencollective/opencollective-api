@@ -4,6 +4,7 @@ import { omit, pick } from 'lodash';
 import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
@@ -47,7 +48,14 @@ export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, 
   return createCard(matchingCard, name, collectiveId, host.id, userId);
 };
 
-export const createVirtualCard = async (host, collective, userId, name, monthlyLimit) => {
+export const createVirtualCard = async (
+  host,
+  collective,
+  userId,
+  name,
+  limitAmount,
+  limitInterval = VirtualCardLimitIntervals.MONTHLY,
+) => {
   const stripe = await getStripeClient(host);
 
   const cardholders = await stripe.issuing.cardholders.list({ type: 'company', status: 'active' });
@@ -66,8 +74,8 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
       // eslint-disable-next-line camelcase
       spending_limits: [
         {
-          amount: monthlyLimit,
-          interval: 'monthly',
+          amount: limitAmount,
+          interval: limitInterval.toLowerCase(),
         },
       ],
     },
@@ -81,7 +89,11 @@ export const createVirtualCard = async (host, collective, userId, name, monthlyL
   return createCard(stripeCard, name, collective.id, host.id, userId);
 };
 
-export const updateVirtualCardMonthlyLimit = async (virtualCard, monthlyLimit) => {
+export const updateVirtualCardLimit = async (
+  virtualCard,
+  limitAmount,
+  limitInterval = VirtualCardLimitIntervals.MONTHLY,
+) => {
   const host = virtualCard.host;
   const stripe = await getStripeClient(host);
 
@@ -91,8 +103,8 @@ export const updateVirtualCardMonthlyLimit = async (virtualCard, monthlyLimit) =
       // eslint-disable-next-line camelcase
       spending_limits: [
         {
-          amount: monthlyLimit,
-          interval: 'monthly',
+          amount: limitAmount,
+          interval: limitInterval.toLowerCase(),
         },
       ],
     },
@@ -332,15 +344,15 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
 };
 
 export const processCardUpdate = async (stripeCard, stripeEvent) => {
-  if (stripeEvent) {
-    await checkStripeEvent(virtualCard.host, stripeEvent);
-  }
-
-  const virtualCard = await models.VirtualCard.findByPk(stripeCard.id);
+  const virtualCard = await models.VirtualCard.findByPk(stripeCard.id, { include: ['host'] });
   if (!virtualCard) {
     logger.error(`Stripe: could not find virtual card ${stripeCard.id}`, stripeEvent);
     reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeCard, stripeEvent } });
     return;
+  }
+
+  if (stripeEvent) {
+    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
   await virtualCard.update({

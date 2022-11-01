@@ -1,8 +1,9 @@
 import { get, isUndefined } from 'lodash';
 
-import POLICIES, { Policies } from '../constants/policies';
+import POLICIES, { DEFAULT_POLICIES, Policies } from '../constants/policies';
 
-export const hasPolicy = (collective, policy: POLICIES): boolean => !isUndefined(getPolicy(collective, policy));
+export const hasPolicy = (collective, policy: POLICIES): boolean =>
+  !isUndefined(get(collective, ['data', 'policies', policy]));
 
 export const getPolicy = <T extends POLICIES>(collective, policy: T): Policies[T] =>
-  get(collective, ['data', 'policies', policy]);
+  get(collective, ['data', 'policies', policy], DEFAULT_POLICIES[policy]);

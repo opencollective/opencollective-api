@@ -1,11 +1,10 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { assign, get, invert, isEmpty, isNull, merge, omitBy, pick } from 'lodash';
+import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
-import { PUBLIC_POLICIES } from '../../../constants/policies';
 import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
@@ -613,13 +612,8 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(Policies),
     description:
       'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
-    async resolve(account, _, req) {
-      const policies = account.data?.policies || {};
-      if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
-        return policies;
-      }
-
-      return pick(policies, PUBLIC_POLICIES);
+    async resolve(account) {
+      return account;
     },
   },
   activitySubscriptions: {

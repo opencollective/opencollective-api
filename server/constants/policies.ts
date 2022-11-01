@@ -1,8 +1,14 @@
+import config from 'config';
+
+import { VirtualCardLimitIntervals } from './virtual-cards';
+
 const enum POLICIES {
   // When enabled, the author (the user that submitted and not necessarily the benefactor) of an Expense, cannot Approve the same expense.
   EXPENSE_AUTHOR_CANNOT_APPROVE = 'EXPENSE_AUTHOR_CANNOT_APPROVE',
   // When enabled, restrict who can apply for fiscal host.
   COLLECTIVE_MINIMUM_ADMINS = 'COLLECTIVE_MINIMUM_ADMINS',
+  // Specifies the maximum virtual card limit amount per interval
+  MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL = 'MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL',
 }
 
 export type Policies = Partial<{
@@ -12,7 +18,29 @@ export type Policies = Partial<{
     applies: 'ALL_COLLECTIVES' | 'NEW_COLLECTIVES';
     freeze: boolean;
   }>;
+  [POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL]: Partial<{
+    [interval in VirtualCardLimitIntervals]: number;
+  }>;
 }>;
+
+export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
+  [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: false,
+  [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
+    numberOfAdmins: 0,
+    applies: 'NEW_COLLECTIVES',
+    freeze: false,
+  },
+  [POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL]: {
+    [VirtualCardLimitIntervals.ALL_TIME]:
+      config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.ALL_TIME],
+    [VirtualCardLimitIntervals.DAILY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.DAILY],
+    [VirtualCardLimitIntervals.MONTHLY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.MONTHLY],
+    [VirtualCardLimitIntervals.PER_AUTHORIZATION]:
+      config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.PER_AUTHORIZATION],
+    [VirtualCardLimitIntervals.WEEKLY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.WEEKLY],
+    [VirtualCardLimitIntervals.YEARLY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.YEARLY],
+  },
+};
 
 // List of Policies that can be seen by anyone
 export const PUBLIC_POLICIES = [POLICIES.COLLECTIVE_MINIMUM_ADMINS];

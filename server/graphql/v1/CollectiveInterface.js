@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNull, merge, omitBy, pick, sortBy } from 'lodash';
+import { get, has, isNull, merge, omitBy, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
@@ -19,7 +19,6 @@ import { types } from '../../constants/collectives';
 import FEATURE, { FeaturesList } from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
-import { PUBLIC_POLICIES } from '../../constants/policies';
 import roles from '../../constants/roles';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { getContributorsForCollective } from '../../lib/contributors';
@@ -29,7 +28,6 @@ import models, { Op } from '../../models';
 import { hostResolver } from '../common/collective';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
 import { getFeatureStatusResolver } from '../common/features';
-import { checkScope } from '../common/scope-check';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { Policies } from '../v2/object/Policies';
 
@@ -1937,13 +1935,8 @@ const CollectiveFields = () => {
     },
     policies: {
       type: new GraphQLNonNull(Policies),
-      async resolve(account, _, req) {
-        const policies = account.data?.policies || {};
-        if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
-          return policies;
-        }
-
-        return pick(policies, PUBLIC_POLICIES);
+      resolve(account) {
+        return account;
       },
     },
   };

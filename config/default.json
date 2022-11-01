@@ -214,5 +214,15 @@
       "ip": "[[\"5 day\", 10, 0.8, 0.8]]"
     },
     "enforceSuspendedAsset": true
+  },
+  "virtualCards": {
+    "maximumLimitForInterval": {
+      "PER_AUTHORIZATION": 5000,
+      "DAILY": 5000,
+      "WEEKLY": 5000,
+      "MONTHLY": 5000,
+      "YEARLY": 5000,
+      "ALL_TIME": 5000
+    }
   }
 }
