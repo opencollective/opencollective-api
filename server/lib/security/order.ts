@@ -3,6 +3,7 @@ import debugLib from 'debug';
 import Express from 'express';
 import { pick, toLower, toString } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { ValidationFailed } from '../../graphql/errors';
 import models, { sequelize } from '../../models';
 import SuspendedAsset, { AssetType } from '../../models/SuspendedAsset';
@@ -65,7 +66,13 @@ export const getIpStats = async (ip: string, interval?: string): Promise<FraudSt
 };
 
 export const getCreditCardStats = async (
-  { name, expYear, expMonth, country }: { name: string; expYear: number; expMonth: number; country: string },
+  {
+    name,
+    expYear,
+    expMonth,
+    country,
+    fingerprint,
+  }: { name: string; expYear: number; expMonth: number; country: string; fingerprint: string },
   interval?: string,
 ): Promise<FraudStats> => {
   return sequelize.query(
@@ -73,14 +80,16 @@ export const getCreditCardStats = async (
     ${BASE_STATS_QUERY} 
     WHERE pm."type" = 'creditcard'
     AND o."deletedAt" IS NULL
-    AND pm."name" = :name
-    AND pm."data"->>'expYear' = :expYear
-    AND pm."data"->>'expMonth' = :expMonth
-    AND pm."data"->>'country' = :country
+    ${
+      fingerprint
+        ? `AND pm."data"->>'fingerprint' = :fingerprint`
+        : `AND pm."name" = :name AND pm."data"->>'expYear' = :expYear AND pm."data"->>'expMonth' = :expMonth AND pm."data"->>'country' = :country`
+    }
+   
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     {
-      replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, interval },
+      replacements: { name, expYear: toString(expYear), expMonth: toString(expMonth), country, interval, fingerprint },
       type: sequelize.QueryTypes.SELECT,
       raw: true,
       plain: true,
@@ -164,18 +173,19 @@ export const checkUser = (user: typeof models.User) => {
 
 export const checkCreditCard = async (paymentMethod: {
   name: string;
-  creditCardInfo?: { expYear: number; expMonth: number; brand?: string; fingerprint?: string };
+  type: string;
+  data?: { expYear: number; expMonth: number; brand?: string; fingerprint?: string };
 }) => {
-  const { name, creditCardInfo } = paymentMethod;
+  const { name, data } = paymentMethod;
   const assetParams = {
     type: AssetType.CREDIT_CARD,
     fingerprint:
-      creditCardInfo.fingerprint ||
-      [name, ...Object.values(pick(creditCardInfo, ['brand', 'expMonth', 'expYear', 'funding']))].join('-'),
+      data.fingerprint || [name, ...Object.values(pick(data, ['brand', 'expMonth', 'expYear', 'funding']))].join('-'),
   };
+
   return validateStat(
     getCreditCardStats,
-    [{ name, ...creditCardInfo }],
+    [{ name, ...data }],
     config.fraud.order.card,
     `Fraud: Credit Card ${assetParams.fingerprint} failed fraud protection`,
     { assetParams },
@@ -208,9 +218,10 @@ export const orderFraudProtection = async (
     [key: string]: unknown;
     guestInfo?: { email?: string };
     paymentMethod?: {
-      type: string;
+      type: PAYMENT_METHOD_TYPE;
+      service: PAYMENT_METHOD_SERVICE;
       name: string;
-      creditCardInfo?: { expYear: number; expMonth: number; brand?: string; fingerprint?: string };
+      data?: { expYear: number; expMonth: number; brand?: string; fingerprint?: string };
     };
   },
 ) => {
@@ -221,7 +232,10 @@ export const orderFraudProtection = async (
     checks.push(checkIP(ip));
   }
 
-  if (order.paymentMethod?.creditCardInfo) {
+  if (
+    order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD &&
+    order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE
+  ) {
     checks.push(checkCreditCard(order.paymentMethod));
   }
 

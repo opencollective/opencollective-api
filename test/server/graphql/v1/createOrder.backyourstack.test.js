@@ -81,8 +81,10 @@ const constants = Object.freeze({
     service: 'stripe',
     type: 'creditcard',
     data: {
+      fingerprint: 'coolio',
       expMonth: 11,
       expYear: 2025,
+      country: 'cool',
     },
   },
 });

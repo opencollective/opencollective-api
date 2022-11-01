@@ -77,6 +77,8 @@ const constants = Object.freeze({
     data: {
       expMonth: 11,
       expYear: 2025,
+      country: 'USA',
+      fingerprint: 'dummy',
     },
   },
 });
