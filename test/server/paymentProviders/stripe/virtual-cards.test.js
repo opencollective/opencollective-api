@@ -1,5 +1,6 @@
 import Promise from 'bluebird';
 import { expect } from 'chai';
+import config from 'config';
 import { createSandbox } from 'sinon';
 
 import * as budget from '../../../../server/lib/budget';
@@ -74,11 +75,12 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
       created: new Date().getTime() / 1000,
     };
     const stripeEvent = {};
-    await processAuthorization(stripeAuthorization, stripeEvent);
+    const expense = await processAuthorization(stripeAuthorization, stripeEvent);
     await testUtils.waitForCondition(() => sendMessage.callCount === 1);
     const [emailTo, subject, body] = sendMessage.getCall(0).args;
     expect(emailTo).to.equal(collectiveAdmin.email);
     expect(subject).to.equal('Virtual Card Purchase');
     expect(body).to.contain('A card attached to Open Collective was charged $1.00.');
+    expect(body).to.contain(`<a href="${config.host.website}/${collective.slug}/expenses/${expense.id}"`);
   });
 });
