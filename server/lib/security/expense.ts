@@ -2,6 +2,7 @@ import { capitalize, compact, find, startCase } from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
+import expenseType from '../../constants/expense_type';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
@@ -31,7 +32,7 @@ const stringifyUserList = users => compact(users.map(stringifyUser)).join(', ');
 
 const getExpensesStats = where =>
   models.Expense.findAll({
-    where,
+    where: { ...where, type: { [Op.ne]: expenseType.CHARGE } },
     attributes: [
       'status',
       [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
@@ -165,13 +166,13 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
       scope: Scope.USER,
       level: Level.PASS,
       message: 'User has 2FA enabled',
-      details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
+      details: `Expense submitted by ${expense.User.collective.name} (${expense.User.collective.slug})`,
     },
     {
       scope: Scope.USER,
       level: Level.MEDIUM,
       message: 'User is not using 2FA',
-      details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
+      details: `Expense submitted by ${expense.User.collective.name} (${expense.User.collective.slug})`,
     },
   );
 
@@ -181,13 +182,13 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     scope: Scope.USER,
     level: Level.PASS,
     message: 'User is the admin of this fiscal host',
-    details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
+    details: `Expense submitted by ${expense.User.collective.name} (${expense.User.collective.slug})`,
   });
   addBooleanCheck(checks, !userIsHostAdmin && expense.User.isAdminOfCollective(expense.collective), {
     scope: Scope.USER,
     level: Level.LOW,
     message: `User is the admin of this collective`,
-    details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
+    details: `Expense submitted by ${expense.User.collective.name} (${expense.User.collective.slug})`,
   });
 
   // Statistical analysis of the user who submitted the expense.
@@ -197,7 +198,7 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
       expense,
       checks,
       scope: Scope.USER,
-      details: `Expense submitted by ${expense.User.collective.name} (${expense.User.email})`,
+      details: `Expense submitted by ${expense.User.collective.name} (${expense.User.collective.slug})`,
     },
   );
   // If the user sho submitted the expense is not the same being paid for the expense, run another statistical analysis of the payee.
