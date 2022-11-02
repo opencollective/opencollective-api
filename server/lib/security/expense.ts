@@ -2,6 +2,7 @@ import { capitalize, compact, find, startCase } from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
+import expenseType from '../../constants/expense_type';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
@@ -31,7 +32,7 @@ const stringifyUserList = users => compact(users.map(stringifyUser)).join(', ');
 
 const getExpensesStats = where =>
   models.Expense.findAll({
-    where,
+    where: { ...where, type: { [Op.ne]: expenseType.CHARGE } },
     attributes: [
       'status',
       [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
