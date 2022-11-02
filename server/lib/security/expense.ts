@@ -26,6 +26,9 @@ type SecurityCheck = {
   details?: string;
 };
 
+const stringifyUser = user => (user.collective ? user.collective.slug : `#${user.id}`);
+const stringifyUserList = users => compact(users.map(stringifyUser)).join(', ');
+
 const getExpensesStats = where =>
   models.Expense.findAll({
     where,
@@ -57,11 +60,7 @@ const checkExpenseStats = async (
   { expense, checks, scope, details }: { scope: Scope; details?: string; checks: Array<SecurityCheck>; expense },
 ) => {
   const platformStats = await getExpensesStats(where);
-  const collectiveStats = await getExpensesStats({
-    ...where,
-    CollectiveId: expense.CollectiveId,
-    currency: expense.currency,
-  });
+  const collectiveStats = await getExpensesStats({ ...where, CollectiveId: expense.CollectiveId });
 
   // Checks if there was any SPAM or rejects on the platform
   const spam = find(platformStats, { status: status.SPAM });
@@ -144,21 +143,11 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
   const relatedUsersByConnectedAccounts = await expense.User.findRelatedUsersByConnectedAccounts();
   const details = [];
   if (relatedUsersByIp.length > 0) {
-    details.push(
-      `${compact(
-        [expense.User, ...relatedUsersByIp].map(user =>
-          user.collective ? `${user.collective?.slug} <${user.email}>` : user.email,
-        ),
-      ).join(', ')} were all accessed from the same IP.`,
-    );
+    details.push(`${stringifyUserList([expense.User, ...relatedUsersByIp])} were all accessed from the same IP.`);
   }
   if (relatedUsersByConnectedAccounts.length > 0) {
     details.push(
-      `${compact(
-        [expense.User, ...relatedUsersByConnectedAccounts].map(user =>
-          user.collective ? `${user.collective?.slug} <${user.email}>` : user.email,
-        ),
-      ).join(', ')} share connected account usernames.`,
+      `${stringifyUserList([expense.User, ...relatedUsersByConnectedAccounts])} share connected account usernames.`,
     );
   }
   addBooleanCheck(checks, relatedUsersByIp.length > 0 || relatedUsersByConnectedAccounts.length > 0, {

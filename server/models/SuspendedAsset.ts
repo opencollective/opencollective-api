@@ -1,5 +1,7 @@
+import { pick } from 'lodash';
 import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../constants/paymentMethods';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export enum AssetType {
@@ -32,6 +34,22 @@ class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreatio
     const asset = await this.findOne({ where: { type, fingerprint } });
     if (asset) {
       throw new Error(`Asset ${fingerprint} of type ${type} is suspended.`);
+    }
+  }
+
+  static async suspendCreditCard(paymentMethod, reason) {
+    if (
+      paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD &&
+      paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE
+    ) {
+      const { name, data } = paymentMethod;
+      const assetParams = {
+        type: AssetType.CREDIT_CARD,
+        fingerprint:
+          data?.fingerprint ||
+          [name, ...Object.values(pick(data, ['brand', 'expMonth', 'expYear', 'funding']))].join('-'),
+      };
+      return await SuspendedAsset.create({ ...assetParams, reason });
     }
   }
 }

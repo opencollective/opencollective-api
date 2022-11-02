@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import type Express from 'express';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import {
   checkEmail,
   checkIP,
@@ -230,8 +231,9 @@ describe('lib/security/order', () => {
       const order = {
         paymentMethod: {
           name: '4242',
-          type: 'creditcard',
-          creditCardInfo: { expYear: 2022, expMonth: 13, brand: 'Visa' },
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          data: { expYear: 2022, expMonth: 13, brand: 'Visa' },
         },
       };
       before(() => {
