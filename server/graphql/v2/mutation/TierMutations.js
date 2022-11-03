@@ -48,11 +48,8 @@ const tierMutations = {
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
       };
-      let data;
       if (args.tier.singleTicket !== undefined) {
-        const tier = await models.Tier.findOne({ where: { id: tierId } });
-        data = { ...tier.data, singleTicket: args.tier.singleTicket };
-        tierUpdateData.data = data;
+        tierUpdateData.data = { ...tier.data, singleTicket: args.tier.singleTicket };
       }
 
       return await tier.update(tierUpdateData);
