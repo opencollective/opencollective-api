@@ -25,13 +25,13 @@ export class ExpenseAttachedFile extends Model {
    * @param expense: The linked expense
    */
   static async createFromData(
-    url: string,
+    { url, name }: { url: string; name?: string },
     user: typeof models.User,
     expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {
     return ExpenseAttachedFile.create(
-      { ExpenseId: expense.id, CreatedByUserId: user.id, url },
+      { ExpenseId: expense.id, CreatedByUserId: user.id, url, name },
       { transaction: dbTransaction },
     );
   }
