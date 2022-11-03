@@ -113,11 +113,6 @@ export async function processOrderWithSubscription(order, options) {
       csvEntry.error = 'The collective has been archived';
       collectiveIsArchived = true;
       cancelSubscription(order);
-    } else if (order.fromCollective.deactivatedAt) {
-      // This means the payee has been archived and the subscription should be cancelled.
-      orderProcessedStatus = 'failure';
-      csvEntry.error = 'The payee has been archived';
-      cancelSubscription(order);
     } else {
       try {
         transaction = await paymentsLib.processOrder(order);
