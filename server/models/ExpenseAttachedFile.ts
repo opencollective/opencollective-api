@@ -15,6 +15,7 @@ export class ExpenseAttachedFile extends Model {
   public declare ExpenseId: number;
   public declare CreatedByUserId: number;
   public declare url: string;
+  public declare name: string;
   public declare createdAt: Date;
 
   /**
@@ -80,6 +81,10 @@ ExpenseAttachedFile.init(
           }
         },
       },
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     createdAt: {
       type: DataTypes.DATE,
