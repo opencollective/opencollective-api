@@ -1155,7 +1155,7 @@ export async function editExpense(
   // Check if 2FA is enforced on any of the account remote user is admin of, stop the loop if 2FA gets validated for any of them
   if (req.remoteUser) {
     for (const account of [expense.fromCollective, collective, host].filter(Boolean)) {
-      if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { neverAskForToken: true })) {
+      if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
         break;
       }
     }
@@ -1836,7 +1836,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
     } else {
       // Not using rolling limit, but still enforcing 2FA for all admins
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { neverAskForToken: true });
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
     }
 
     try {

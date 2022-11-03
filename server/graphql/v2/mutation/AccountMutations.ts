@@ -392,7 +392,7 @@ const accountMutations = {
         throw new Forbidden();
       }
 
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { neverAskForToken: true });
+      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
 
       for (const key of Object.keys(args.account)) {
         switch (key) {

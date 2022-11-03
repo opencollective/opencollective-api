@@ -19,7 +19,7 @@ type ValidateRequestOptions = {
   // always ask for a token when using 2FA
   alwaysAskForToken?: boolean;
   // if true, will only check if the user has 2FA enabled (which means it's been validated on sign in)
-  neverAskForToken?: boolean;
+  onlyAskOnLogin?: boolean;
   // duration which we wont require a token after a successful use
   sessionDuration?: number;
   // identifier for the session, defaults to use the JWT token's session key
@@ -137,7 +137,7 @@ async function validateRequest(
     throw new ApolloError('Two factor authentication must be configured', '2FA_REQUIRED');
   }
 
-  if (!userHasTwoFactorAuth || options.neverAskForToken) {
+  if (!userHasTwoFactorAuth || options.onlyAskOnLogin) {
     return false;
   }
 

@@ -247,16 +247,16 @@ describe('lib/two-factor-authentication', () => {
       }
     });
 
-    it('does not check for any code if neverAskForToken is true', async () => {
+    it('does not check for any code if onlyAskOnLogin is true', async () => {
       const req = { remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }) };
-      await expect(twoFactorAuthLib.validateRequest(req, { neverAskForToken: true, requireTwoFactorAuthEnabled: true }))
+      await expect(twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }))
         .to.eventually.be.false;
     });
 
-    it('still throws if neverAskForToken is true and user has not 2FA enabled', async () => {
+    it('still throws if onlyAskOnLogin is true and user has not 2FA enabled', async () => {
       const req = { remoteUser: await fakeUser() };
       await expect(
-        twoFactorAuthLib.validateRequest(req, { neverAskForToken: true, requireTwoFactorAuthEnabled: true }),
+        twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }),
       ).to.eventually.be.rejected.and.deep.include({
         extensions: { code: '2FA_REQUIRED' },
       });

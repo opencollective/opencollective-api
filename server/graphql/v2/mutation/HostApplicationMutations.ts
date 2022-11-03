@@ -194,7 +194,7 @@ const HostApplicationMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { neverAskForToken: true });
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
 
       switch (args.action) {
         case 'APPROVE':

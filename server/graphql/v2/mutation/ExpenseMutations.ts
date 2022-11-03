@@ -72,7 +72,7 @@ const expenseMutations = {
       }
 
       const fromCollective = await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true });
-      await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { neverAskForToken: true });
+      await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -238,7 +238,7 @@ const expenseMutations = {
 
       // Check if 2FA is enforced on any of the account remote user is admin of
       for (const account of [expense.collective, expense.collective.host].filter(Boolean)) {
-        if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { neverAskForToken: true })) {
+        if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
           break;
         }
       }
@@ -305,7 +305,7 @@ const expenseMutations = {
       // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
       if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
         for (const account of [collective, host].filter(Boolean)) {
-          if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { neverAskForToken: true })) {
+          if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
             break;
           }
         }

@@ -105,7 +105,7 @@ const deleteWebhook = {
     }
 
     // Check 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, account, { neverAskForToken: true });
+    await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
 
     return notification.destroy();
   },
