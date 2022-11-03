@@ -5,7 +5,6 @@ import { isISO31661Alpha2 } from 'validator';
 import { roles } from '../constants';
 import status from '../constants/expense_status';
 import expenseType from '../constants/expense_type';
-import { TransactionTypes } from '../constants/transactions';
 import { reduceArrayToCurrency } from '../lib/currency';
 import logger from '../lib/logger';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
@@ -261,7 +260,7 @@ function defineModel() {
       getterMethods: {
         info() {
           return {
-            type: TransactionTypes.DEBIT,
+            type: this.type,
             id: this.id,
             UserId: this.UserId,
             CollectiveId: this.CollectiveId,
@@ -275,28 +274,6 @@ function defineModel() {
             legacyPayoutMethod: this.legacyPayoutMethod,
             vat: this.vat,
             privateMessage: this.privateMessage,
-            lastEditedById: this.lastEditedById,
-            status: this.status,
-            incurredAt: this.incurredAt,
-            createdAt: this.createdAt,
-            updatedAt: this.updatedAt,
-          };
-        },
-        public() {
-          return {
-            type: TransactionTypes.DEBIT,
-            id: this.id,
-            UserId: this.UserId,
-            CollectiveId: this.CollectiveId,
-            FromCollectiveId: this.FromCollectiveId,
-            HostCollectiveId: this.HostCollectiveId,
-            currency: this.currency,
-            amount: this.amount,
-            description: this.description,
-            category: this.tags?.[1],
-            tags: this.tags,
-            legacyPayoutMethod: this.legacyPayoutMethod,
-            vat: this.vat,
             lastEditedById: this.lastEditedById,
             status: this.status,
             incurredAt: this.incurredAt,
