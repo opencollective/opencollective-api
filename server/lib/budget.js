@@ -1,4 +1,5 @@
 import { isEmpty } from 'lodash';
+
 import expenseStatus from '../constants/expense_status';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
@@ -557,18 +558,17 @@ export async function getYearlyIncome(collective) {
 }
 
 export async function getCurrentBalance(collectiveId, hostId, currency) {
-  const [result, metadata] = await sequelize.query(
+  const result = await sequelize.query(
     `
-    select netAmountInHostCurrency, disputedNetAmountInHostCurrency from "CurrentCollectiveBalance"
-    where "CollectiveId" = :collectiveId AND "HostCollectiveId" = :hostId AND hostCurrency = :currency;
+    select "netAmountInHostCurrency", "disputedNetAmountInHostCurrency" from "CurrentCollectiveBalance"
+    where "CollectiveId" = :collectiveId AND "HostCollectiveId" = :hostId AND "hostCurrency" = :currency
+    limit 1;
   `,
     {
       replacements: { collectiveId, hostId, currency },
       type: sequelize.QueryTypes.SELECT,
     },
   );
-
-  console.log(metadata);
 
   if (isEmpty(result)) {
     throw new Error(`Could not find current balance for Collective ID: ${collectiveId}`);
