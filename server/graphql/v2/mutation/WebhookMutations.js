@@ -1,5 +1,6 @@
 import { GraphQLNonNull } from 'graphql';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseWebhooks } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
@@ -27,6 +28,9 @@ const createWebhook = {
     if (!req.remoteUser.isAdminOfCollective(account)) {
       throw new Forbidden("You don't have sufficient permissions to create a webhook on this account.");
     }
+
+    // Check 2FA
+    await twoFactorAuthLib.enforceForAccountAdmins(req, account);
 
     const createParams = {
       channel: 'webhook',
@@ -62,6 +66,9 @@ const updateWebhook = {
       throw new Forbidden("You don't have sufficient permissions to update this webhook");
     }
 
+    // Check 2FA
+    await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+
     const updateParams = {};
 
     if (args.webhook.activityType) {
@@ -96,6 +103,9 @@ const deleteWebhook = {
     if (!account || !req.remoteUser.isAdminOfCollective(account)) {
       throw new Forbidden("You don't have sufficient permissions to delete this webhook");
     }
+
+    // Check 2FA
+    await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
 
     return notification.destroy();
   },

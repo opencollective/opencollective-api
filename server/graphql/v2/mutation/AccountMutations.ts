@@ -17,6 +17,7 @@ import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
+import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { validateTOTPToken } from '../../../lib/two-factor-authentication/totp';
 import models, { sequelize } from '../../../models';
 import { sendMessage } from '../../common/collective';
@@ -88,6 +89,11 @@ const accountMutations = {
           checkRemoteUserCanUseHost(req);
         } else {
           checkRemoteUserCanUseAccount(req);
+        }
+
+        // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
+        if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
+          await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
         }
 
         if (
@@ -386,6 +392,8 @@ const accountMutations = {
         throw new Forbidden();
       }
 
+      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
+
       for (const key of Object.keys(args.account)) {
         switch (key) {
           case 'currency': {
@@ -434,8 +442,15 @@ const accountMutations = {
         throw new Unauthorized();
       }
 
+      // Merge submitted policies with existing ones
       const previousPolicies = account.data?.policies;
       const newPolicies = omitBy({ ...previousPolicies, ...args.policies }, isNull);
+
+      // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
+      if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
+        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+      }
+
       await account.setPolicies(newPolicies);
       await models.Activity.create({
         type: activities.COLLECTIVE_EDITED,
@@ -471,6 +486,8 @@ const accountMutations = {
       if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized('You need to be logged in as an Admin of the account.');
       }
+
+      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
 
       if (await account.isHost()) {
         throw new Error(

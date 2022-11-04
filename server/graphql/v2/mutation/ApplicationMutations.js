@@ -21,11 +21,13 @@ const createApplication = {
   },
   async resolve(_, args, req) {
     checkRemoteUserCanUseApplications(req);
-    await twoFactorAuthLib.validateRequest(req);
 
     const collective = args.application.account
       ? await fetchAccountWithReference(args.application.account, { throwIfMissing: true })
       : req.remoteUser.collective;
+
+    // Enforce 2FA
+    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
 
     if (!req.remoteUser.isAdminOfCollective(collective)) {
       throw new Forbidden();

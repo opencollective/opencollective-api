@@ -2,6 +2,7 @@ import { get } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
 import cache, { purgeCacheForCollective } from '../../lib/cache';
+import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { UPDATE_NOTIFICATION_AUDIENCE } from '../../models/Update';
 import { Forbidden, NotFound, ValidationFailed } from '../errors';
@@ -22,6 +23,8 @@ export async function createUpdate(_, args, req) {
     throw new Forbidden('Only root users can create changelog updates.');
   }
 
+  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+
   const update = await models.Update.create({
     title: args.update.title,
     html: args.update.html,
@@ -41,19 +44,21 @@ export async function createUpdate(_, args, req) {
 /**
  * Fetches the update. Throws if the update does not exists or if user is not allowed to edit it.
  */
-async function fetchUpdateForEdit(id, remoteUser) {
+async function fetchUpdateForEdit(id, req) {
   if (!id) {
     throw new ValidationFailed(`Update ID is required`);
   }
 
   const update = await models.Update.findByPk(idDecode(id, IDENTIFIER_TYPES.UPDATE), {
-    include: { association: 'collective' },
+    include: { association: 'collective', required: true },
   });
   if (!update) {
     throw new NotFound(`Update with id ${id} not found`);
-  } else if (!remoteUser.isAdminOfCollective(update.collective)) {
+  } else if (!req.remoteUser?.isAdminOfCollective(update.collective)) {
     throw new Forbidden("You don't have sufficient permissions to edit this update");
   }
+
+  await twoFactorAuthLib.enforceForAccountAdmins(req, update.collective, { onlyAskOnLogin: true });
 
   return update;
 }
@@ -61,7 +66,7 @@ async function fetchUpdateForEdit(id, remoteUser) {
 export async function editUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
 
-  let update = await fetchUpdateForEdit(args.update.id, req.remoteUser);
+  let update = await fetchUpdateForEdit(args.update.id, req);
   update = await update.edit(req.remoteUser, args.update);
   purgeCacheForCollective(update.collective.slug);
   return update;
@@ -70,7 +75,7 @@ export async function editUpdate(_, args, req) {
 export async function publishUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
 
-  let update = await fetchUpdateForEdit(args.id, req.remoteUser);
+  let update = await fetchUpdateForEdit(args.id, req);
   update = await update.publish(req.remoteUser, args.notificationAudience);
   if (update.isChangelog) {
     cache.del('latest_changelog_publish_date');
@@ -82,7 +87,7 @@ export async function publishUpdate(_, args, req) {
 export async function unpublishUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
 
-  let update = await fetchUpdateForEdit(args.id, req.remoteUser);
+  let update = await fetchUpdateForEdit(args.id, req);
   update = await update.unpublish(req.remoteUser);
   purgeCacheForCollective(update.collective.slug);
   return update;
@@ -91,7 +96,7 @@ export async function unpublishUpdate(_, args, req) {
 export async function deleteUpdate(_, args, req) {
   checkRemoteUserCanUseUpdates(req);
 
-  let update = await fetchUpdateForEdit(args.id, req.remoteUser);
+  let update = await fetchUpdateForEdit(args.id, req);
   update = await update.delete(req.remoteUser);
   purgeCacheForCollective(update.collective.slug);
   return update;

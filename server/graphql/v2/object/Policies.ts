@@ -20,6 +20,9 @@ export const Policies = new GraphQLObjectType({
         }
       },
     },
+    [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
+      type: GraphQLBoolean,
+    },
     [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
       type: new GraphQLObjectType({
         name: POLICIES.COLLECTIVE_MINIMUM_ADMINS,

@@ -2,6 +2,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { omit, pick } from 'lodash';
 
 import stripe from '../../../lib/stripe';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
@@ -55,6 +56,9 @@ const addCreditCard = {
     if (!req.remoteUser?.isAdminOfCollective(collective)) {
       throw new Forbidden(`Must be an admin of ${collective.name}`);
     }
+
+    // Check 2FA
+    await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
 
     const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
     const newPaymentMethodData = {

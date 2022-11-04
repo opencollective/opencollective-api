@@ -9,6 +9,8 @@ const enum POLICIES {
   COLLECTIVE_MINIMUM_ADMINS = 'COLLECTIVE_MINIMUM_ADMINS',
   // Specifies the maximum virtual card limit amount per interval
   MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL = 'MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL',
+  // When enabled, all admins of the account will have to enable 2FA before they can perform any action.
+  REQUIRE_2FA_FOR_ADMINS = 'REQUIRE_2FA_FOR_ADMINS',
 }
 
 export type Policies = Partial<{
@@ -21,6 +23,8 @@ export type Policies = Partial<{
   [POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL]: Partial<{
     [interval in VirtualCardLimitIntervals]: number;
   }>;
+
+  [POLICIES.REQUIRE_2FA_FOR_ADMINS]: boolean;
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
@@ -40,6 +44,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     [VirtualCardLimitIntervals.WEEKLY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.WEEKLY],
     [VirtualCardLimitIntervals.YEARLY]: config.virtualCards.maximumLimitForInterval[VirtualCardLimitIntervals.YEARLY],
   },
+  [POLICIES.REQUIRE_2FA_FOR_ADMINS]: false,
 };
 
 // List of Policies that can be seen by anyone
