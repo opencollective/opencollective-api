@@ -5,6 +5,7 @@ import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
+import { getCurrentBalance } from '../../lib/budget';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
@@ -157,10 +158,10 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   const currency = stripeAuthorization.pending_request.currency.toUpperCase();
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
-  const balance = await collective.getBalanceWithBlockedFundsAmount({ currency });
+  const balance = await getCurrentBalance(collective.id, host.id, currency);
   const stripe = await getStripeClient(host);
 
-  if (balance.value >= amount) {
+  if (balance >= amount) {
     await stripe.issuing.authorizations.approve(stripeAuthorization.id);
   } else {
     await stripe.issuing.authorizations.decline(stripeAuthorization.id, {
