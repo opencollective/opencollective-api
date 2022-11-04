@@ -12,12 +12,11 @@ import {
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
 import { fakeCollective, fakeUser, randStr } from '../../test-helpers/fake-data';
-import { resetTestDB, runSearchTsVectorMigration } from '../../utils';
+import { resetTestDB } from '../../utils';
 
 describe('server/lib/search', () => {
   before(async () => {
     await resetTestDB();
-    await runSearchTsVectorMigration();
   });
 
   describe('Search in DB', () => {

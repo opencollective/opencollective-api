@@ -295,7 +295,7 @@ describe('server/lib/payments', () => {
             }));
 
           it('successfully creates an order in the database', () =>
-            models.Order.findAndCountAll({}).then(res => {
+            models.Order.findAndCountAll({ order: [['id', 'ASC']] }).then(res => {
               expect(res.count).to.equal(2);
               expect(res.rows[1]).to.have.property('CreatedByUserId', user2.id);
               expect(res.rows[1]).to.have.property('CollectiveId', collective2.id);
