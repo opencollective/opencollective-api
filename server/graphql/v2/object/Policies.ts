@@ -22,6 +22,11 @@ export const Policies = new GraphQLObjectType({
     },
     [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
       type: GraphQLBoolean,
+      resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
+          return getPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
+        }
+      },
     },
     [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
       type: new GraphQLObjectType({
