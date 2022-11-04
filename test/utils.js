@@ -45,78 +45,28 @@ export const data = path => {
 export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
-  await sequelize.sync({ force: true }).catch(e => {
-    console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
-    process.exit(1);
-  });
-  // That could be an alternative but this doesn't work
-  // await sequelize.truncate({ force: true, cascade: true });
-};
+  const resetFn = async () => {
+    await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+  };
 
-/**
- * Our migrations use `sequelize.sync` rather than re-running the transactions, but we don't want to
- * add the searchTsVector column on the model.
- */
-export const runSearchTsVectorMigration = async () => {
-  try {
-    await sequelize.queryInterface.createFunction(
-      'array_to_string_immutable',
-      [
-        { type: 'text[]', name: 'textArray' },
-        { type: 'text', name: 'text' },
-      ],
-      'text',
-      'plpgsql',
-      'RETURN array_to_string(textArray, text);',
-      ['IMMUTABLE', 'STRICT', 'PARALLEL', 'SAFE'],
-    );
-  } catch {
-    // Ignore
+  let retryCount = 2;
+  let error;
+  while (retryCount-- > 0) {
+    try {
+      await resetFn();
+      error = undefined;
+      break;
+    } catch (e) {
+      error = e;
+    }
   }
 
-  await sequelize.query(`
-    ALTER TABLE "Collectives"
-    ADD COLUMN IF NOT EXISTS "searchTsVector" tsvector
-    GENERATED ALWAYS AS (
-      SETWEIGHT(to_tsvector('simple', "slug"), 'A')
-      || SETWEIGHT(to_tsvector('simple', "name"), 'B')
-      || SETWEIGHT(to_tsvector('english', "name"), 'B')
-      || SETWEIGHT(to_tsvector('english', COALESCE("description", '')), 'C')
-      || SETWEIGHT(to_tsvector('english', COALESCE("longDescription", '')), 'C')
-      || SETWEIGHT(to_tsvector('simple', array_to_string_immutable(COALESCE(tags, ARRAY[]::varchar[]), ' ')), 'C')
-    ) STORED
-  `);
-
-  await sequelize.query(`
-    CREATE INDEX CONCURRENTLY IF NOT EXISTS collective_search_index
-    ON "Collectives"
-    USING GIN("searchTsVector")
-    WHERE "deletedAt" IS NULL
-    AND "deactivatedAt" IS NULL
-    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
-    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
-    AND name != 'incognito'
-    AND name != 'anonymous'
-    AND "isIncognito" = FALSE
-  `);
-
-  await sequelize.query(`
-    CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
-      SELECT
-        c.id,
-        COUNT(DISTINCT t.id) AS "count",
-        SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'CREDIT') AS "totalAmountReceivedInHostCurrency",
-        SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'DEBIT') AS "totalAmountSpentInHostCurrency"
-      FROM "Collectives" c
-      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id AND t."deletedAt" IS NULL AND t."RefundTransactionId" IS NULL
-      WHERE c."deletedAt" IS NULL
-      AND c."deactivatedAt" IS NULL
-      AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
-      AND c.name != 'incognito'
-      AND c.name != 'anonymous'
-      AND c."isIncognito" = FALSE
-      GROUP BY c.id
-  `);
+  if (error) {
+    console.error(error);
+    process.exit(1);
+  }
 };
 
 export async function loadDB(dbname) {
