@@ -528,6 +528,9 @@ export async function archiveCollective(_, args, req) {
     },
   );
 
+  // Cancel all subscriptions which the collective is contributing
+  await models.Order.cancelActiveOrdersByCollective(collective.id);
+
   // Mark main account as archived
   return collective.update({ deactivatedAt });
 }

@@ -437,6 +437,24 @@ function defineModel() {
   };
 
   /**
+   * Cancels all subscription orders for the given collective
+   */
+  Order.cancelActiveOrdersByCollective = function (collectiveId) {
+    return Order.update(
+      { status: OrderStatuses.CANCELLED },
+      {
+        where: {
+          FromCollectiveId: collectiveId,
+          SubscriptionId: { [Op.not]: null },
+          status: {
+            [Op.not]: [OrderStatuses.PAID, OrderStatuses.CANCELLED, OrderStatuses.REJECTED, OrderStatuses.EXPIRED],
+          },
+        },
+      },
+    );
+  };
+
+  /**
    * Cancels all subscription orders in the given tier
    */
   Order.cancelActiveOrdersByTierId = function (tierId) {
