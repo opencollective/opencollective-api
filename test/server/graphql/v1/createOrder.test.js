@@ -626,6 +626,7 @@ describe('server/graphql/v1/createOrder', () => {
     const collective = orderCreated.collective;
     const transactions = await models.Transaction.findAll({
       where: { OrderId: orderCreated.id },
+      order: [['id', 'ASC']],
     });
     expect(fromCollective.website).to.equal('https://newco.com'); // api should prepend https://
     expect(transactions.length).to.equal(4);
@@ -686,6 +687,7 @@ describe('server/graphql/v1/createOrder', () => {
     const collective = orderCreated.collective;
     const transactions = await models.Transaction.findAll({
       where: { OrderId: orderCreated.id },
+      order: [['id', 'ASC']],
     });
     expect(orderCreated.createdByUser.id).to.equal(duc.id);
     expect(transactions.length).to.equal(4);
@@ -898,6 +900,7 @@ describe('server/graphql/v1/createOrder', () => {
     const orderCreated = res.data.createOrder;
     const transactions = await models.Transaction.findAll({
       where: { OrderId: orderCreated.id },
+      order: [['id', 'ASC']],
     });
     expect(orderCreated.createdByUser.id).to.equal(xdamman.id);
     expect(transactions.length).to.equal(2);

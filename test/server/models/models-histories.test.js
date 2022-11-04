@@ -22,7 +22,7 @@ const getHistoryTableName = tableName => {
 
 const tablesWithHistory = ['Collectives', 'Comments', 'Expenses', 'Subscriptions', 'Updates'];
 
-describe('server/models/models-histories', () => {
+describe.skip('server/models/models-histories', () => {
   before(async () => {
     await resetTestDB();
   });

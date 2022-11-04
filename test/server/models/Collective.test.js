@@ -44,6 +44,7 @@ describe('server/models/Collective', () => {
     name: 'tipbox',
     currency: 'USD',
     tags: ['#brusselstogether'],
+    CreatedByUserId: 1,
     tiers: [
       {
         name: 'backer',
@@ -149,6 +150,7 @@ describe('server/models/Collective', () => {
     hostUser = await User.createUserWithCollective(utils.data('host1'));
     collective = await Collective.create(collectiveData);
     opensourceCollective = await Collective.create({
+      name: 'Webpack',
       slug: 'webpack',
       tags: ['open source'],
       isActive: true,
@@ -214,7 +216,7 @@ describe('server/models/Collective', () => {
   });
 
   it('creates a unique slug', async () => {
-    const collective1 = await Collective.create({ slug: 'piamancini' });
+    const collective1 = await Collective.create({ name: 'Pia', slug: 'piamancini' });
     expect(collective1.slug).to.equal('piamancini');
 
     const collective2 = await Collective.create({ name: 'XavierDamman' });
@@ -222,7 +224,7 @@ describe('server/models/Collective', () => {
 
     await Collective.create({ name: 'piamancini2' });
 
-    const collective3 = await Collective.create({ twitterHandle: '@piamancini' });
+    const collective3 = await Collective.create({ name: 'PiaMancini', twitterHandle: '@piamancini' });
     expect(collective3.slug).to.equal('piamancini1');
     expect(collective3.twitterHandle).to.equal('piamancini');
 
@@ -242,7 +244,7 @@ describe('server/models/Collective', () => {
   });
 
   it('creates a unique slug for incognito profile', async () => {
-    const collective = await Collective.create({ isIncognito: true });
+    const collective = await Collective.create({ name: 'incognito', isIncognito: true });
     expect(collective.slug).to.contain('incognito-');
     expect(collective.slug.length).to.equal(18);
   });
@@ -845,15 +847,20 @@ describe('server/models/Collective', () => {
         await models.Member.destroy({ where: { CollectiveId: collective.id } });
 
         // Some fake data to fool the tests
-        await fakeMember();
-        await fakeMember();
-        await fakeMember({ CollectiveId: collective.id });
+        await fakeMember({ CreatedByUserId: user1.id });
+        await fakeMember({ CreatedByUserId: user1.id });
+        await fakeMember({ CollectiveId: collective.id, CreatedByUserId: user1.id });
 
         // Add some members
         const backer = await fakeUser();
         const admin = await fakeUser();
         const org = await fakeOrganization();
-        await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: org.id, role: 'BACKER' });
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: org.id,
+          CreatedByUserId: backer.id,
+          role: 'BACKER',
+        });
         await collective.addUserWithRole(backer, 'BACKER');
         await collective.addUserWithRole(admin, 'ADMIN');
 
@@ -978,6 +985,7 @@ describe('server/models/Collective', () => {
   describe('third party accounts handles', () => {
     it('stores Github handle and strip first @ character', async () => {
       const collective = await Collective.create({
+        name: 'test',
         slug: 'my-collective',
         githubHandle: '@test',
       });
@@ -1159,7 +1167,7 @@ describe('server/models/Collective', () => {
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
       const opencollective = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
       // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
-      await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
       await fakePayoutMethod({
         id: 2955,
         CollectiveId: opencollective.id,
