@@ -259,7 +259,8 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:setup
+      - run: npm run db:restore
+      - run: npm run db:migrate
 
       - run: npx nyc mocha --ignore "test/server/graphql/**"
 
@@ -315,7 +316,8 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:setup
+      - run: npm run db:restore
+      - run: npm run db:migrate
 
       - run: npm run test:graphql
 

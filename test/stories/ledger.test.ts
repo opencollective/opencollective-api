@@ -8,6 +8,7 @@ import express from 'express';
 import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
+import { createSandbox } from 'sinon';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../server/constants/transaction-kind';
@@ -121,7 +122,19 @@ const executeAllSettlement = async remoteUser => {
 };
 
 describe('test/stories/ledger', () => {
-  let collective, host, hostAdmin, ocInc, contributorUser, baseOrderData;
+  let collective, host, hostAdmin, ocInc, contributorUser, baseOrderData, sandbox;
+
+  beforeEach(() => {
+    sandbox = createSandbox();
+    // Transaction.createActivity is executed async when a transaction is created
+    // and due to a race condition with the resetTestDB function it might be
+    // executed after the database was cleared, causing a database error.
+    sandbox.stub(models.Transaction, 'createActivity').resolves();
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
 
   // Mock currency conversion rates, based on real rates from 2021-06-23
   before(() => {

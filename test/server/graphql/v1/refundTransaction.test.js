@@ -227,6 +227,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       // retrieved.
       const [tr1, tr2, tr3, tr4] = await models.Transaction.findAll({
         where: { OrderId: transaction.OrderId, kind: 'CONTRIBUTION' },
+        order: [['id', 'ASC']],
       });
 
       // And then the first two transactions (related to the order)
@@ -396,6 +397,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       // retrieved.
       const allTransactions = await models.Transaction.findAll({
         where: { OrderId: transaction.OrderId },
+        order: [['id', 'ASC']],
       });
 
       // Snapshot
