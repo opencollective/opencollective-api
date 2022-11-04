@@ -52,16 +52,7 @@ export const resetTestDB = async () => {
   };
 
   try {
-    await new Promise((resolve, reject) => {
-      process.nextTick(async () => {
-        try {
-          await resetFn();
-          resolve();
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
+    await resetFn();
   } catch (e) {
     console.error(e);
     process.exit(1);
