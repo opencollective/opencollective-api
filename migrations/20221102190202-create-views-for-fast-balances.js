@@ -85,7 +85,7 @@ module.exports = {
       DROP MATERIALIZED VIEW "CollectiveBalanceCheckpoint";
 
       DROP INDEX "transactions__collective_id_sorted";
-      DROP INDEX "transactions__is_disputed"
+      DROP INDEX "transactions__is_disputed";
     `);
   },
 };
