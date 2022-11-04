@@ -63,25 +63,11 @@ describe('lib/security/order', () => {
         expect(stats).to.have.property('numberOfOrders', 5);
         expect(stats).to.have.property('paymentMethodRate', 0.2);
       });
-
-      it('should return stats for any given domain expression', async () => {
-        const stats = await getEmailStats('%tempmail.com');
-        expect(stats).to.have.property('errorRate', 0.8);
-        expect(stats).to.have.property('numberOfOrders', 5);
-        expect(stats).to.have.property('paymentMethodRate', 0.2);
-      });
     });
 
     describe('getIpStats', () => {
       it('should return stats for any given IP address', async () => {
         const stats = await getIpStats('127.0.0.1');
-        expect(stats).to.have.property('errorRate', 0.8);
-        expect(stats).to.have.property('numberOfOrders', 5);
-        expect(stats).to.have.property('paymentMethodRate', 0.2);
-      });
-
-      it('should return stats for any given IP expression', async () => {
-        const stats = await getIpStats('127.0.%');
         expect(stats).to.have.property('errorRate', 0.8);
         expect(stats).to.have.property('numberOfOrders', 5);
         expect(stats).to.have.property('paymentMethodRate', 0.2);
@@ -136,11 +122,6 @@ describe('lib/security/order', () => {
       it('should throw if email stats hit the treshold', async () => {
         config.fraud.order.email = '[["1 month", 5, 0.8, 0.2]]';
         await expect(checkEmail('crook@tempmail.com')).to.be.rejectedWith('above treshold');
-      });
-
-      it('should throw if domain stats hit the treshold', async () => {
-        config.fraud.order.email = '[["1 month", 5, 0.8, 0.2]]';
-        await expect(checkEmail('%@tempmail.com')).to.be.rejectedWith('above treshold');
       });
     });
   });
