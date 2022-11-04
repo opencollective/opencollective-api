@@ -51,14 +51,21 @@ export const resetTestDB = async () => {
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
   };
 
-  process.nextTick(async () => {
-    try {
-      await resetFn();
-    } catch (e) {
-      console.error(e);
-      process.exit(1);
-    }
-  });
+  try {
+    await new Promise((resolve, reject) => {
+      process.nextTick(async () => {
+        try {
+          await resetFn();
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
+  }
 };
 
 export async function loadDB(dbname) {
