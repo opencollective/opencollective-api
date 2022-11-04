@@ -683,7 +683,7 @@ describe('server/models/Collective', () => {
     });
 
     it('gets the latest transactions of a user collective', () => {
-      return Collective.findOne({ where: { type: 'USER' } }).then(userCollective => {
+      return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {
         return userCollective
           .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'))
           .then(transactions => {
@@ -693,7 +693,8 @@ describe('server/models/Collective', () => {
     });
 
     it('gets the latest transactions of a user collective to open source', () => {
-      return Collective.findOne({ where: { type: 'USER' } }).then(userCollective => {
+      // we have like 4 users here
+      return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {
         return userCollective
           .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'), ['open source'])
           .then(transactions => {

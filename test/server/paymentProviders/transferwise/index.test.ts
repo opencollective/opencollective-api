@@ -26,7 +26,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     targetAmount: 90.44,
     rate: 0.9044,
     payOut: 'BANK_TRANSFER',
-    expirationTime: moment.utc().add(1, 'hour').format(),
+    expirationTime: moment().add(1, 'hour').format(),
     paymentOptions: [
       {
         formattedEstimatedDelivery: 'by March 18th',
