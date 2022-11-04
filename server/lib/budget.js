@@ -557,6 +557,36 @@ export async function getYearlyIncome(collective) {
   return parseInt(result[0].yearlyIncome, 10);
 }
 
+export async function getCollectiveBlockedFunds(collectiveId, hostId, currency) {
+  const blockedFundsWhere = {
+    CollectiveId: collectiveId,
+    HostCollectiveId: hostId,
+    [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING }],
+  };
+
+  const blockedFundResults = await models.Expense.findAll({
+    attributes: [
+      'CollectiveId',
+      'currency',
+      [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
+    ],
+    where: blockedFundsWhere,
+    group: ['CollectiveId', 'currency'],
+    raw: true,
+  });
+
+  let total = 0;
+
+  for (const blockedFundResult of blockedFundResults) {
+    const value = blockedFundResult['amount'];
+
+    const fxRate = await getFxRate(blockedFundResult['currency'], currency);
+    total += Math.round(value * fxRate);
+  }
+
+  return total;
+}
+
 export async function getCurrentBalance(collectiveId, hostId, currency) {
   const result = await sequelize.query(
     `
@@ -570,10 +600,22 @@ export async function getCurrentBalance(collectiveId, hostId, currency) {
     },
   );
 
-  if (isEmpty(result)) {
-    throw new Error(`Could not find current balance for Collective ID: ${collectiveId}`);
+  if (!isEmpty(result)) {
+    const blockedFundsInHostCurrency = await getCollectiveBlockedFunds(collectiveId, hostId, currency);
+    const { netAmountInHostCurrency, disputedNetAmountInHostCurrency } = result[0];
+    return netAmountInHostCurrency - disputedNetAmountInHostCurrency - blockedFundsInHostCurrency;
   }
 
-  const { netAmountInHostCurrency, disputedNetAmountInHostCurrency } = result[0];
-  return netAmountInHostCurrency - disputedNetAmountInHostCurrency;
+  const fallbackResult = await sumCollectiveTransactions(
+    { id: collectiveId },
+    {
+      currency: currency,
+      column: 'netAmountInHostCurrency',
+      excludeRefunds: false,
+      withBlockedFunds: true,
+      hostCollectiveId: hostId,
+    },
+  );
+
+  return fallbackResult.value;
 }
