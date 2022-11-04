@@ -43,7 +43,7 @@ export const getEmailStats = async (email: string, interval?: string): Promise<F
     `
     ${BASE_STATS_QUERY} 
     LEFT JOIN "Users" u ON u."id" = o."CreatedByUserId"
-    WHERE LOWER(u."email") LIKE LOWER(:email)
+    WHERE u."email" = LOWER(:email)
     AND o."deletedAt" IS NULL
     AND pm."type" = 'creditcard'
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
@@ -56,7 +56,7 @@ export const getIpStats = async (ip: string, interval?: string): Promise<FraudSt
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
-    WHERE o."data"->>'reqIp' LIKE :ip
+    WHERE o."data"#>>'{reqIp}' = :ip
     AND o."deletedAt" IS NULL
     AND pm."type" = 'creditcard'
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
@@ -82,7 +82,7 @@ export const getCreditCardStats = async (
     AND o."deletedAt" IS NULL
     ${
       fingerprint
-        ? `AND pm."data"->>'fingerprint' = :fingerprint`
+        ? `AND pm."data"#>>'{fingerprint}' = :fingerprint`
         : `AND pm."name" = :name AND pm."data"->>'expYear' = :expYear AND pm."data"->>'expMonth' = :expMonth AND pm."data"->>'country' = :country`
     }
    
