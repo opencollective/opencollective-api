@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 import moment from 'moment';
 
-import { getYearlyIncome, sumCollectivesTransactions } from '../../../server/lib/budget';
-import { fakeCollective, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
+import ExpenseStatuses from '../../../server/constants/expense_status';
+import { getCurrentBalance, getYearlyIncome, sumCollectivesTransactions } from '../../../server/lib/budget';
+import { sequelize } from '../../../server/models';
+import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -124,6 +126,142 @@ describe('server/lib/budget', () => {
           expect(sum.value).to.eq(50e2);
         });
       });
+    });
+  });
+
+  describe('getCurrentBalance', () => {
+    let collective;
+
+    beforeEach(async () => {
+      await resetTestDB();
+      collective = await fakeCollective();
+    });
+
+    it('sums correctly with materialized view and new transactions', async () => {
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 20e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 30e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 40e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          amount: 50e2,
+          currency: 'USD',
+          HostCollectiveId: collective.host.id,
+          isDisputed: true,
+        },
+        { createDoubleEntry: true },
+      );
+
+      await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.host.id,
+        amount: 10e2,
+        currency: 'USD',
+        status: ExpenseStatuses.PROCESSING,
+      });
+
+      await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.host.id,
+        amount: 10e2,
+        currency: 'BRL',
+        status: ExpenseStatuses.PROCESSING,
+      });
+
+      const balance = await getCurrentBalance(collective.id, collective.HostCollectiveId, collective.host.currency);
+      expect(balance).to.eq(69e2);
+    });
+
+    it('sums correctly without materialized view', async () => {
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 20e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 30e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 40e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          amount: 50e2,
+          currency: 'USD',
+          HostCollectiveId: collective.host.id,
+          isDisputed: true,
+        },
+        { createDoubleEntry: true },
+      );
+
+      await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.host.id,
+        amount: 10e2,
+        currency: 'USD',
+        status: ExpenseStatuses.PROCESSING,
+      });
+
+      await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.host.id,
+        amount: 10e2,
+        currency: 'BRL',
+        status: ExpenseStatuses.PROCESSING,
+      });
+
+      const balance = await getCurrentBalance(collective.id, collective.HostCollectiveId, collective.host.currency);
+      expect(balance).to.eq(69e2);
     });
   });
 });
