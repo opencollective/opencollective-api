@@ -45,7 +45,7 @@ describe('server/models/Update', () => {
         { id: 4, title: 'update 4', isPrivate: true, makePublicOn: null },
         { id: 5, title: 'unique-slug', isPrivate: false, makePublicOn: null },
       ],
-      { CreatedByUserId: user.id, CollectiveId: collective.id },
+      { CreatedByUserId: user.id, FromCollectiveId: collective.id, CollectiveId: collective.id },
     );
   });
 

@@ -1432,7 +1432,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         // Check individual transactions
         await Promise.all(allTransactions.map(t => t.validate()));
-        const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
+        const getTransaction = type =>
+          models.Transaction.findOne({ where: { type, ExpenseId: expense.id }, order: [['id', 'ASC']] });
 
         const debitTransaction = await getTransaction('DEBIT');
         const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
@@ -1512,7 +1513,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
         // Check transactions
         await Promise.all(allTransactions.map(t => t.validate()));
-        const getTransaction = type => models.Transaction.findOne({ where: { type, ExpenseId: expense.id } });
+        const getTransaction = type =>
+          models.Transaction.findOne({ where: { type, ExpenseId: expense.id }, order: [['id', 'ASC']] });
 
         const debitTransaction = await getTransaction('DEBIT');
         const expectedFee = Math.round(paymentProcessorFee * debitTransaction.hostCurrencyFxRate);
@@ -1935,7 +1937,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       await fakeTransaction({ type: 'CREDIT', CollectiveId: testCollective.id, amount: expense.amount });
       await payExpense(makeRequest(hostAdmin), { id: expense.id });
 
-      const newTransactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
+      const newTransactions = await models.Transaction.findAll({
+        where: { ExpenseId: expense.id },
+        order: [['id', 'ASC']],
+      });
       expect(newTransactions.slice(-2).every(tx => tx.PayoutMethodId === newPayoutMethod.id)).to.equal(true);
     });
   });

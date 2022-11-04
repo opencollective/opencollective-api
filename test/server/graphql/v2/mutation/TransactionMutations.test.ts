@@ -97,7 +97,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
       CollectiveId: collective.id,
       MemberCollectiveId: randomUser.id,
       role: 'BACKER',
-      CreatedByUserId: randomUser.CreatedByUserId,
+      CreatedByUserId: randomUser.id,
     });
   });
 
