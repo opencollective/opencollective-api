@@ -329,15 +329,9 @@ export async function isCollectiveDeletable(collective) {
         AND "deletedAt" IS NULL
       )
       -- Expenses
-      OR EXISTS (
-        SELECT 1 FROM "Expenses"
-        WHERE (
-          "CollectiveId" = :CollectiveId
-          OR "FromCollectiveId" = :CollectiveId
-          ${user ? `OR "UserId" = :UserId` : ''}
-        )
-        AND "deletedAt" IS NULL
-      )
+      OR EXISTS (SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL)
+      OR EXISTS (SELECT 1 FROM "Expenses" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL)
+      ${user ? `OR EXISTS (SELECT 1 FROM "Expenses" WHERE "UserId" = :UserId AND "deletedAt" IS NULL) ` : ''}
       -- Orders
       OR EXISTS (
         SELECT 1 FROM "Orders"
