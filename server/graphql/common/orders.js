@@ -75,6 +75,10 @@ export async function addFunds(order, remoteUser) {
     orderData.data.memo = order.memo;
   }
 
+  if (!isNil(order.fundReceivedDate)) {
+    orderData.data.fundReceivedDate = order.fundReceivedDate;
+  }
+
   const orderCreated = await models.Order.create(orderData);
 
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();

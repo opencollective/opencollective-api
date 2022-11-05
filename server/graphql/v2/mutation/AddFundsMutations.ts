@@ -1,5 +1,6 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
@@ -21,6 +22,7 @@ export const addFundsMutation = {
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     memo: { type: GraphQLString },
+    fundReceivedDate: { type: GraphQLDateTime },
     hostFeePercent: { type: GraphQLFloat },
     invoiceTemplate: { type: GraphQLString },
   },
@@ -75,6 +77,7 @@ export const addFundsMutation = {
         host,
         description: args.description,
         memo: args.memo,
+        fundReceivedDate: args.fundReceivedDate,
         hostFeePercent: args.hostFeePercent,
         tier,
         invoiceTemplate: args.invoiceTemplate,
