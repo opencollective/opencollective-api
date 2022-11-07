@@ -71,14 +71,6 @@ pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n
 
 echo "DB restored to postgres://localhost/${LOCALDBNAME}"
 
-# cool trick: all stdout ignored in this block
-{
-  set +e
-  # We make sure the user $LOCALDBUSER has access; could fail
-  psql -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
-  set -e
-} | tee >/dev/null
-
 # Note: I have to run after this script:
 # $> psql opencollective_test -c "REASSIGN OWNED BY xdamman TO opencollective;"
 # Because the views created by the CIS extension are not owned by the opencollective user
