@@ -68,8 +68,13 @@ export const PaymentMethod = new GraphQLObjectType({
         type: new GraphQLNonNull(Amount),
         description: 'Returns the balance amount and the currency of this paymentMethod',
         async resolve(paymentMethod, args, req) {
-          const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
-          return { value: balance.amount, currency: paymentMethod.currency };
+          if (!req.remoteUser) {
+            // We should return null here
+            return { value: 0, currency: paymentMethod.currency };
+          } else {
+            const balance = await paymentMethod.getBalanceForUser(req.remoteUser);
+            return { value: balance.amount, currency: paymentMethod.currency };
+          }
         },
       },
       account: {
