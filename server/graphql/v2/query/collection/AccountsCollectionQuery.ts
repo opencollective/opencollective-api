@@ -5,6 +5,7 @@ import models, { Op, sequelize } from '../../../../models';
 import { AccountCollection } from '../../collection/AccountCollection';
 import { AccountType, AccountTypeToModelMapping, CountryISO } from '../../enum';
 import { PaymentMethodService } from '../../enum/PaymentMethodService';
+import { AccountReferenceInput, fetchAccountsIdsWithReference } from '../../input/AccountReferenceInput';
 import { OrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -19,6 +20,10 @@ const AccountsCollectionQuery = {
     tag: {
       type: new GraphQLList(GraphQLString),
       description: 'Only accounts that match these tags',
+    },
+    host: {
+      type: new GraphQLList(AccountReferenceInput),
+      description: 'Host hosting the account',
     },
     type: {
       type: new GraphQLList(AccountType),
@@ -120,10 +125,15 @@ const AccountsCollectionQuery = {
     } else {
       const cleanTerm = args.searchTerm?.trim();
 
+      let hostCollectiveIds;
+      if (args.host) {
+        hostCollectiveIds = await fetchAccountsIdsWithReference(args.host);
+      }
+
       const extraParameters = {
         orderBy: args.orderBy || { field: 'RANK', direction: 'DESC' },
         types: args.type?.length ? args.type.map(value => AccountTypeToModelMapping[value]) : null,
-        hostCollectiveIds: null, // not supported
+        hostCollectiveIds: hostCollectiveIds,
         parentCollectiveIds: null,
         isHost: args.isHost ? true : null,
         onlyActive: args.isActive ? true : null,
