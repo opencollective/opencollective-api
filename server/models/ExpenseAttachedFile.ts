@@ -15,6 +15,7 @@ export class ExpenseAttachedFile extends Model {
   public declare ExpenseId: number;
   public declare CreatedByUserId: number;
   public declare url: string;
+  public declare name: string;
   public declare createdAt: Date;
 
   /**
@@ -24,13 +25,13 @@ export class ExpenseAttachedFile extends Model {
    * @param expense: The linked expense
    */
   static async createFromData(
-    url: string,
+    { url, name }: { url: string; name?: string },
     user: typeof models.User,
     expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {
     return ExpenseAttachedFile.create(
-      { ExpenseId: expense.id, CreatedByUserId: user.id, url },
+      { ExpenseId: expense.id, CreatedByUserId: user.id, url, name },
       { transaction: dbTransaction },
     );
   }
@@ -80,6 +81,10 @@ ExpenseAttachedFile.init(
           }
         },
       },
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     createdAt: {
       type: DataTypes.DATE,

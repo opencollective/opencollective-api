@@ -845,7 +845,7 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   if (size(attachedFilesData) > 0) {
     return Promise.all(
       attachedFilesData.map(attachedFile => {
-        return models.ExpenseAttachedFile.createFromData(attachedFile.url, remoteUser, expense, transaction);
+        return models.ExpenseAttachedFile.createFromData(attachedFile, remoteUser, expense, transaction);
       }),
     );
   } else {
@@ -1301,7 +1301,10 @@ export async function editExpense(
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
-          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+          models.ExpenseAttachedFile.update(
+            { url: file.url, name: file.name },
+            { where: { id: file.id, ExpenseId: expense.id } },
+          ),
         ),
       );
     }

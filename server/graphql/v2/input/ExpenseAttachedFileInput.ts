@@ -12,6 +12,10 @@ export const ExpenseAttachedFileInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'ID of the file',
     },
+    name: {
+      type: GraphQLString,
+      description: 'Original filename',
+    },
     url: {
       type: new GraphQLNonNull(URL),
       description: 'URL of the file',

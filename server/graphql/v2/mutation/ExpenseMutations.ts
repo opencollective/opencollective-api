@@ -152,6 +152,7 @@ const expenseMutations = {
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,
+          name: attachedFile.name,
         })),
         fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
       };
