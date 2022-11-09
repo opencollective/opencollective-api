@@ -98,6 +98,7 @@ describe('server/models/Collective', () => {
       createdAt: new Date('2016-06-15'),
       amount: 25000,
       amountInHostCurrency: 25000,
+      paymentProcessorFeeInHostCurrency: -2500,
       netAmountInCollectiveCurrency: 22500,
       currency: 'USD',
       type: 'CREDIT',
@@ -108,6 +109,7 @@ describe('server/models/Collective', () => {
       createdAt: new Date('2016-07-16'),
       amount: 50000,
       amountInHostCurrency: 50000,
+      paymentProcessorFeeInHostCurrency: -5000,
       netAmountInCollectiveCurrency: 45000,
       currency: 'USD',
       type: 'CREDIT',
@@ -116,8 +118,9 @@ describe('server/models/Collective', () => {
     },
     {
       createdAt: new Date('2016-08-18'),
-      amount: 500,
+      amount: 45000,
       amountInHostCurrency: 50000,
+      paymentProcessorFeeInHostCurrency: -5000,
       netAmountInCollectiveCurrency: 45000,
       currency: 'USD',
       type: 'CREDIT',
@@ -341,7 +344,7 @@ describe('server/models/Collective', () => {
         await collective.changeHost();
         throw new Error("Didn't throw expected error!");
       } catch (e) {
-        expect(e.message).to.contain('Unable to change host: you still have a balance of $965');
+        expect(e.message).to.contain('Unable to change host: you still have a balance of $1,125.00');
       }
     });
 
@@ -480,20 +483,52 @@ describe('server/models/Collective', () => {
     expect(collective.image).to.equal('https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404');
   });
 
-  it('computes the balance ', () =>
-    collective.getBalance().then(balance => {
+  it('computes the balance (v1)', () =>
+    collective.getBalance({ version: 'v1' }).then(balance => {
       let sum = 0;
       transactions.map(t => (sum += t.netAmountInCollectiveCurrency));
       expect(balance).to.equal(sum);
     }));
 
-  it('computes the balance until a certain month', done => {
+  it('computes the balance (v2 - default)', () =>
+    collective.getBalance().then(balance => {
+      let sum = 0;
+      transactions.map(
+        t =>
+          (sum +=
+            (t.amountInHostCurrency || 0) +
+            (t.hostFeeInHostCurrency || 0) +
+            (t.platformFeeInHostCurrency || 0) +
+            (t.paymentProcessorFeeInHostCurrency || 0)),
+      );
+      expect(balance).to.equal(sum);
+    }));
+
+  it('computes the balance until a certain month (v1)', done => {
+    const until = new Date('2016-07-01');
+    collective.getBalance({ version: 'v1', endDate: until }).then(balance => {
+      let sum = 0;
+      transactions.map(t => {
+        if (t.createdAt < until) {
+          sum += t.netAmountInCollectiveCurrency;
+        }
+      });
+      expect(balance).to.equal(sum);
+      done();
+    });
+  });
+
+  it('computes the balance until a certain month (v2 - default)', done => {
     const until = new Date('2016-07-01');
     collective.getBalance({ endDate: until }).then(balance => {
       let sum = 0;
       transactions.map(t => {
         if (t.createdAt < until) {
-          sum += t.netAmountInCollectiveCurrency;
+          sum +=
+            (t.amountInHostCurrency || 0) +
+            (t.hostFeeInHostCurrency || 0) +
+            (t.platformFeeInHostCurrency || 0) +
+            (t.paymentProcessorFeeInHostCurrency || 0);
         }
       });
       expect(balance).to.equal(sum);
@@ -506,10 +541,12 @@ describe('server/models/Collective', () => {
     await fakeTransaction({
       createdAt: new Date(),
       CollectiveId: collective.id,
-      amount: 500,
+      amount: 50000,
       amountInHostCurrency: 50000,
+      paymentProcessorFeeInHostCurrency: -5000,
       netAmountInCollectiveCurrency: 45000,
       currency: 'USD',
+      hostCurrency: 'USD',
       type: 'CREDIT',
       CreatedByUserId: 2,
       FromCollectiveId: 2,
@@ -528,8 +565,11 @@ describe('server/models/Collective', () => {
       data: { payout_batch_id: 1 },
     });
 
+    const balanceV1 = await collective.getBalanceWithBlockedFunds({ version: 'v1' });
+    expect(balanceV1).to.equal(50000 - 5000 - 20000 - 10000);
+
     const balance = await collective.getBalanceWithBlockedFunds();
-    expect(balance).to.equal(45000 - 30000);
+    expect(balance).to.equal(50000 - 5000 - 20000 - 10000);
   });
 
   it('computes the number of backers', () =>
@@ -907,9 +947,9 @@ describe('server/models/Collective', () => {
       const nextGoal = await collective.getNextGoal();
       expect(nextGoal.type).to.equal('balance');
       expect(nextGoal.amount).to.equal(200000);
-      expect(nextGoal.progress).to.equal(0.48);
-      expect(nextGoal.percentage).to.equal('48%');
-      expect(nextGoal.missing.amount).to.equal(103500);
+      expect(nextGoal.progress).to.equal(0.56);
+      expect(nextGoal.percentage).to.equal('56%');
+      expect(nextGoal.missing.amount).to.equal(87500);
     });
 
     it('returns the next goal based on yearlBudget', async () => {
@@ -1223,10 +1263,7 @@ describe('server/models/Collective', () => {
     });
 
     it('returns acurate metrics for requested month', async () => {
-      // We expect the value returned by getFxRate (fixer API), which is 1.1 in test environment
-      const usdToGbpFxRate = 1.1;
-
-      const expectedTotalMoneyManaged = 3000 - 600 + 5000 - 1000 + 100 + 100 + 81 + 1000 * usdToGbpFxRate;
+      const expectedTotalMoneyManaged = 3000 - 600 + 5000 - 1000 + 100 + 100 + 81 + 800;
 
       expect(metrics).to.deep.equal({
         hostFees: 1600,

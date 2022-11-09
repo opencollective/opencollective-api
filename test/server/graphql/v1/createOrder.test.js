@@ -811,9 +811,12 @@ describe('server/graphql/v1/createOrder', () => {
         CreatedByUserId: hostAdmin.id,
         HostCollectiveId: fromCollective.HostCollectiveId,
         CollectiveId: fromCollective.id,
+        amount: 746149,
+        amountInHostCurrency: 746149,
         netAmountInCollectiveCurrency: 746149,
         type: 'CREDIT',
         currency: 'USD',
+        hostCurrency: 'USD',
       });
     });
 
@@ -859,9 +862,12 @@ describe('server/graphql/v1/createOrder', () => {
       CreatedByUserId: xdamman.id,
       HostCollectiveId: fromCollective.HostCollectiveId,
       CollectiveId: fromCollective.id,
+      amount: 746149,
+      amountInHostCurrency: 746149,
       netAmountInCollectiveCurrency: 746149,
       type: 'CREDIT',
       currency: 'USD',
+      hostCurrency: 'USD',
     });
 
     order.fromCollective = { id: fromCollective.id };
