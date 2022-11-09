@@ -64,7 +64,8 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
     // Check the balances for these collectives. The following will emit an SQL like:
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
-    const balances = await getBalancesWithBlockedFunds(collectiveIds); // TODO: move to new balance calculation v2 when possible
+    // TODO: this can conflict for collectives stuck on balance v1 as this is now using balance v2 by default
+    const balances = await getBalancesWithBlockedFunds(collectiveIds);
     const fxRates = await loadFxRatesMap(
       uniq(
         expensesWithoutPendingTaxForm.map(expense => {
