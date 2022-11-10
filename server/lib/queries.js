@@ -1127,39 +1127,64 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
 
 /**
  * Returns the contribution or expense amounts over time.
- * @deprecated now using a query in `server/lib/host-metrics.js`
+ * NOTE: to query a specific host use getTransactionsTimeSeries from `server/lib/host-metrics.js`
  */
 const getTransactionsTimeSeries = async (
-  kind,
-  type,
-  hostCollectiveId,
   timeUnit,
-  collectiveIds,
-  startDate = null,
-  endDate = null,
+  { collectiveIds = [], type = null, kind = null, dateFrom = null, dateTo = null } = {},
 ) => {
   return sequelize.query(
     `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
-       FROM "Transactions"
-       WHERE kind = :kind
-         AND "HostCollectiveId" = :hostCollectiveId
-         AND type = :type
-         AND "deletedAt" IS NULL
-         ${ifStr(collectiveIds, `AND "CollectiveId" IN (:collectiveIds)`)}
-         ${ifStr(startDate, `AND "createdAt" >= :startDate`)}
-         ${ifStr(endDate, `AND "createdAt" <= :endDate`)}
-       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
-       ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
-      `,
+         FROM "Transactions"
+         WHERE "deletedAt" IS NULL
+           AND "CollectiveId" IN (:collectiveIds)
+           ${type ? `AND "type" = :type` : ``}
+           ${kind?.length ? `AND "kind" IN (:kind)` : ``}
+           ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
+           ${dateTo ? `AND "createdAt" <= :endDate` : ``}
+         GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
+         ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
+        `,
     {
       type: sequelize.QueryTypes.SELECT,
       replacements: {
-        kind,
+        kind: Array.isArray(kind) ? kind : [kind],
         type,
-        hostCollectiveId,
         timeUnit,
         collectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
+        ...computeDatesAsISOStrings(dateFrom, dateTo),
+      },
+    },
+  );
+};
+
+/**
+ * Returns the count of transactions over time.
+ */
+const getTransactionsCountTimeSeries = async (
+  timeUnit,
+  { collectiveIds = [], type = null, kind = null, dateFrom = null, dateTo = null } = {},
+) => {
+  return sequelize.query(
+    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", count("id") as "count"
+         FROM "Transactions"
+         WHERE "deletedAt" IS NULL
+           AND "CollectiveId" IN (:collectiveIds)
+           ${type ? `AND "type" = :type` : ``}
+           ${kind?.length ? `AND "kind" IN (:kind)` : ``}
+           ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
+           ${dateTo ? `AND "createdAt" <= :endDate` : ``}
+         GROUP BY DATE_TRUNC(:timeUnit, "createdAt")
+         ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
+        `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: {
+        kind: Array.isArray(kind) ? kind : [kind],
+        type,
+        timeUnit,
+        collectiveIds,
+        ...computeDatesAsISOStrings(dateFrom, dateTo),
       },
     },
   );
@@ -1209,6 +1234,7 @@ const queries = {
   getUniqueCollectiveTags,
   getGiftCardBatchesForCollective,
   getTransactionsTimeSeries,
+  getTransactionsCountTimeSeries,
 };
 
 export default queries;
