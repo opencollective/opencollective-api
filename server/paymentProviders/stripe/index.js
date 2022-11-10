@@ -13,6 +13,7 @@ import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
+import checkout from './checkout';
 import creditcard from './creditcard';
 import * as virtualcard from './virtual-cards';
 
@@ -51,6 +52,7 @@ export default {
   types: {
     default: creditcard,
     creditcard,
+    checkout,
   },
 
   oauth: {

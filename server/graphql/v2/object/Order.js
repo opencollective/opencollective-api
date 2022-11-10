@@ -3,6 +3,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import models from '../../../models';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
@@ -146,6 +147,12 @@ export const Order = new GraphQLObjectType({
         resolve(order, _, req) {
           if (order.PaymentMethodId) {
             return req.loaders.PaymentMethod.byId.load(order.PaymentMethodId);
+          } else if (order.data.session?.id) {
+            return {
+              type: PAYMENT_METHOD_TYPE.CHECKOUT,
+              service: PAYMENT_METHOD_SERVICE.STRIPE,
+              CollectiveId: order.FromCollectiveId,
+            };
           }
         },
       },

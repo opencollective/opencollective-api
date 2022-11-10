@@ -9,6 +9,7 @@ import * as connectedAccounts from './controllers/connectedAccounts';
 import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
+import * as stripe from './controllers/stripe';
 import * as transferwise from './controllers/transferwise';
 import * as users from './controllers/users';
 import {
@@ -282,6 +283,9 @@ export default async app => {
 
   /* TransferWise OTT Request Endpoint */
   app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);
+
+  /* TransferWise OTT Request Endpoint */
+  app.get('/services/stripe/checkout', noCache, stripe.checkoutCallback);
 
   /**
    * External services

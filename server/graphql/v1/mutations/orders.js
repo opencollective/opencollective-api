@@ -218,7 +218,11 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data?.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual' || paymentMethod.type === 'crypto',
+      paymentMethod.uuid ||
+        paymentMethod.token ||
+        paymentMethod.type === 'manual' ||
+        paymentMethod.type === 'crypto' ||
+        paymentMethod.type === 'checkout',
     );
   }
 };
@@ -529,7 +533,7 @@ export async function createOrder(order, req) {
     orderCreated = await models.Order.create(orderData);
 
     if (paymentRequired) {
-      if (get(order, 'paymentMethod.type') === 'manual') {
+      if (get(order, 'paymentMethod.type') === 'manual' || order.paymentMethod?.type === 'checkout') {
         orderCreated.paymentMethod = order.paymentMethod;
       } else {
         order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;
@@ -548,6 +552,10 @@ export async function createOrder(order, req) {
       }
       // also adds the user as a BACKER of collective
       await libPayments.executeOrder(remoteUser, orderCreated);
+      if (order.paymentMethod.type === 'checkout') {
+        await orderCreated.reload();
+        return { order: orderCreated, redirectUrl: orderCreated.data.session.url };
+      }
     } else if (!paymentRequired && order.interval && collective.type === types.COLLECTIVE) {
       // create inactive subscription to hold the interval info for the pledge
       const subscription = await models.Subscription.create({

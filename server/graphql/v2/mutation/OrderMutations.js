@@ -63,6 +63,11 @@ const OrderWithPayment = new GraphQLObjectType({
       description:
         'This field will be set if the order was created but there was an error with Stripe during the payment',
     },
+    redirectUrl: {
+      type: GraphQLString,
+      description:
+        'If donating through and external checkout flow, returns the next URL where the checkout form should be redirected to',
+    },
   }),
 });
 
@@ -142,7 +147,7 @@ const orderMutations = {
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
-      return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
+      return { ...pick(result, ['order', 'stripeError', 'redirectUrl']), guestToken: result.order.data?.guestToken };
     },
   },
   cancelOrder: {
