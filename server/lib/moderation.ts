@@ -59,6 +59,7 @@ type BanSummary = {
   transactionsCount: number;
   expensesCount: number;
   ordersCount: number;
+  newOrdersCount: number;
   usersCount: number;
 };
 
@@ -146,12 +147,17 @@ export const getBanSummary = async (accounts: typeof models.Collective[]): Promi
     ordersCount: await models.Order.count({
       where: { [Op.or]: [{ CollectiveId: collectiveIds }, { FromCollectiveId: collectiveIds }] },
     }),
+    newOrdersCount: await models.Order.count({
+      where: { [Op.or]: [{ CollectiveId: collectiveIds }, { FromCollectiveId: collectiveIds }], status: 'NEW' },
+    }),
   };
 };
 
 export const stringifyBanSummary = (banSummary: BanSummary) => {
   if (banSummary.undeletableTransactionsCount) {
     return `Can't proceed: there are ${banSummary.undeletableTransactionsCount} undeletable transactions in this batch`;
+  } else if (banSummary.newOrdersCount) {
+    return `Can't proceed: there are ${banSummary.newOrdersCount} orders with a pending payment not yet synchronized`;
   }
 
   const countFields = Object.keys(banSummary).filter(key => key.endsWith('Count'));

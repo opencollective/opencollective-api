@@ -198,7 +198,7 @@ export default {
       }
 
       const banSummary = await getBanSummary(accounts);
-      const isAllowed = !banSummary.undeletableTransactionsCount;
+      const isAllowed = !(banSummary.undeletableTransactionsCount || banSummary.newOrdersCount);
       if (args.dryRun) {
         return { isAllowed, accounts, message: stringifyBanSummary(banSummary) };
       }
