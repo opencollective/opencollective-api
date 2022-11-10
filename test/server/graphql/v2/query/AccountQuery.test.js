@@ -442,7 +442,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         expect(result1.data.account.stats.balance.valueInCents).to.eq(0);
         expect(result1.data.account.stats.balance.currency).to.eq('USD');
 
-        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, netAmountInCollectiveCurrency: 1000 });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000 });
         const result2 = await graphqlQueryV2(accountQuery, { slug: collective.slug });
         expect(result2.data.account.stats.balance.value).to.eq(10);
         expect(result2.data.account.stats.balance.valueInCents).to.eq(1000);
@@ -456,7 +456,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
             fakeTransaction({
               type: 'CREDIT',
               CollectiveId: collective.id,
-              netAmountInCollectiveCurrency: GRAPHQL_MAX_INT,
+              amount: GRAPHQL_MAX_INT,
             }),
           ),
         );

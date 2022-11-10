@@ -487,7 +487,9 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         ...transactionProps,
         kind: TransactionKind.CONTRIBUTION,
         amount: 3000,
+        amountInHostCurrency: 3000,
         hostFeeInHostCurrency: -600,
+        netAmountInCollectiveCurrency: 2400,
       });
 
       const result = await graphqlQueryV2(
@@ -502,7 +504,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('Unable to change host: you still have a balance of $30.00');
+      expect(result.errors[0].message).to.equal('Unable to change host: you still have a balance of $24.00');
     });
 
     it('validates if user is admin of target host collective', async () => {

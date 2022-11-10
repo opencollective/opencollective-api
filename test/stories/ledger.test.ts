@@ -428,11 +428,18 @@ describe('test/stories/ledger', () => {
         Math.round(expectedPlatformProfitInHostCurrency * hostToPlatformFxRate),
       );
 
-      expect(await collective.getBalance()).to.eq(
+      expect(await collective.getBalance({ version: 'v1' })).to.eq(
         orderAmountInCollectiveCurrency -
           platformTipInCollectiveCurrency -
           expectedHostFeeInCollectiveCurrency -
           processorFeeInCollectiveCurrency,
+      );
+
+      expect(await collective.getBalance()).to.eq(
+        Math.round(
+          (orderNetAmountInHostCurrency - processorFeeInHostCurrency - expectedHostFeeInHostCurrency) *
+            RATES[host.currency][collective.currency],
+        ),
       );
 
       // Check host metrics pre-refund

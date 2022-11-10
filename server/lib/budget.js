@@ -8,6 +8,8 @@ import { getFxRate } from './currency';
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
+const DEFAULT_BUDGET_VERSION = 'v2';
+
 async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
 
@@ -42,11 +44,11 @@ export async function getBalanceAmount(
   collective,
   { startDate, endDate, currency, version, loaders, includeChildren } = {},
 ) {
-  version = version || collective.settings?.budget?.version || 'v1';
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === 'v1' && !startDate && !endDate && !includeChildren) {
+  if (loaders && version === DEFAULT_BUDGET_VERSION && !startDate && !endDate && !includeChildren) {
     const result = await loaders.Collective.balance.load(collective.id);
     const fxRate = await getFxRate(result.currency, currency);
     return {
@@ -76,11 +78,11 @@ export async function getBalanceWithBlockedFundsAmount(
   collective,
   { startDate, endDate, currency, version, loaders } = {},
 ) {
-  version = version || collective.settings?.budget?.version || 'v1';
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === 'v1') {
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
     const result = await loaders.Collective.balanceWithBlockedFunds.load(collective.id);
     const fxRate = await getFxRate(result.currency, currency);
     return {
@@ -100,7 +102,7 @@ export async function getBalanceWithBlockedFundsAmount(
   });
 }
 
-export function getBalances(collectiveIds, { startDate, endDate, currency, version = 'v1' } = {}) {
+export function getBalances(collectiveIds, { startDate, endDate, currency, version = DEFAULT_BUDGET_VERSION } = {}) {
   return sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
@@ -112,7 +114,10 @@ export function getBalances(collectiveIds, { startDate, endDate, currency, versi
   });
 }
 
-export function getBalancesWithBlockedFunds(collectiveIds, { startDate, endDate, currency, version = 'v1' } = {}) {
+export function getBalancesWithBlockedFunds(
+  collectiveIds,
+  { startDate, endDate, currency, version = DEFAULT_BUDGET_VERSION } = {},
+) {
   return sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
@@ -128,7 +133,7 @@ export async function getTotalAmountReceivedAmount(
   collective,
   { startDate, endDate, currency, version, kind, includeChildren } = {},
 ) {
-  version = version || collective.settings?.budget?.version || 'v1';
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   const collectiveIds = await getCollectiveIds(collective, includeChildren);
@@ -154,7 +159,7 @@ export async function getTotalAmountSpentAmount(
   collective,
   { startDate, endDate, currency, version, kind, includeChildren, net } = {},
 ) {
-  version = version || collective.settings?.budget?.version || 'v1';
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   const collectiveIds = await getCollectiveIds(collective, includeChildren);
@@ -218,7 +223,7 @@ export async function getTotalNetAmountReceivedAmount(
   collective,
   { startDate, endDate, currency, version, includeChildren } = {},
 ) {
-  version = version || collective.settings?.budget?.version || 'v1';
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   const collectiveIds = await getCollectiveIds(collective, includeChildren);
@@ -250,7 +255,7 @@ export async function getTotalNetAmountReceivedAmount(
 }
 
 export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
-  version = version || host.settings?.budget?.version || 'v1';
+  version = version || host.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || host.currency;
 
   if (!collectiveIds) {
