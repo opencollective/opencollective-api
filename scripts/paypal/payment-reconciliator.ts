@@ -7,6 +7,7 @@ import { get } from 'lodash';
 import moment from 'moment';
 
 import OrderStatus from '../../server/constants/order_status';
+import OrderStatuses from '../../server/constants/order_status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import logger from '../../server/lib/logger';
 import { parseToBoolean } from '../../server/lib/utils';
@@ -26,6 +27,27 @@ import {
 const START_DATE = new Date(process.env.START_DATE || '2022-02-01');
 const END_DATE = new Date(process.env.END_DATE || moment(START_DATE).add(31, 'day').toDate());
 const SCRIPT_RUN_DATE = new Date();
+
+const getHostsSlugsFromOptions = async (options: Record<string, unknown>): Promise<string[]> => {
+  if (options['hosts']?.['length']) {
+    return <string[]>options['hosts'];
+  } else {
+    const hosts = await models.Collective.findAll({
+      where: { isHostAccount: true },
+      group: [sequelize.col('Collective.id')],
+      include: [
+        {
+          association: 'ConnectedAccounts',
+          required: true,
+          attributes: [],
+          where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
+        },
+      ],
+    });
+
+    return hosts.map(h => h.slug);
+  }
+};
 
 /**
  * A generator to paginate the fetch of orders to avoid loading too much at once
@@ -176,6 +198,117 @@ const showSubscriptionDetails = async paypalSubscriptionId => {
     );
     if (totalPages > 1) {
       throw new Error('Pagination not supported yet');
+    }
+  } while (currentPage++ < totalPages);
+};
+
+const reconcileSubscription = async (paypalSubscriptionId: string, _, commander) => {
+  const options = commander.optsWithGlobals();
+  let currentPage = 1;
+  let totalPages = 1;
+
+  // Try to find the subscription somewhere
+  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId }, paranoid: false });
+  if (!subscription) {
+    [subscription] = await sequelize.query(
+      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
+      {
+        replacements: { paypalSubscriptionId },
+        type: sequelize.QueryTypes.SELECT,
+        mapToModel: true,
+        model: models.Subscription,
+      },
+    );
+  }
+
+  if (!subscription) {
+    logger.error(`Could not find subscription ${paypalSubscriptionId}`);
+    return;
+  }
+
+  // Load host from subscription
+  const order = await models.Order.findOne({
+    where: { SubscriptionId: subscription.id },
+    include: [{ association: 'paymentMethod', required: false }],
+    paranoid: false,
+  });
+
+  const collective = await order?.getCollective({ paranoid: false });
+  const host = await collective?.getHostCollective({ paranoid: false });
+  if (!host) {
+    logger.error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
+    return;
+  } else if (subscription.deletedAt || order.deletedAt || collective.deletedAt || host.deletedAt) {
+    // TODO more data type can actually be deleted (e.g. payment method), investigate for I-XNHFUPYC1LFX
+    logger.error(
+      `Subscription has deleted entities, please restore them first. Subscription: ${Boolean(
+        subscription.deletedAt,
+      )}, Order: ${Boolean(order.deletedAt)}, Collective: ${Boolean(collective.deletedAt)}, Host: ${Boolean(
+        host.deletedAt,
+      )}`,
+    );
+  }
+
+  do {
+    const responseSubscription = await fetchPaypalSubscription(host, paypalSubscriptionId);
+    const responseTransactions = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
+    totalPages = <number>responseTransactions['totalPages'];
+
+    if (totalPages > 1) {
+      throw new Error('Pagination not supported yet');
+    }
+
+    // Reconcile transactions
+    const dbTransactions = await order.getTransactions({
+      where: { type: 'CREDIT', kind: 'CONTRIBUTION' },
+      order: [['createdAt', 'ASC']],
+    });
+    const paypalTransactions = responseTransactions['transactions'] as Record<string, unknown>[];
+    if (dbTransactions.length !== paypalTransactions.length) {
+      console.log(
+        `Order #${order.id} has ${dbTransactions.length} transactions in DB but ${paypalTransactions.length} in PayPal`,
+      );
+
+      const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.id === id);
+      const notRecordedPaypalTransactions = paypalTransactions.filter(
+        paypalTransaction => !hasPayPalSaleId(paypalTransaction.id),
+      );
+
+      for (const paypalTransaction of notRecordedPaypalTransactions) {
+        console.log(
+          `PayPal transaction ${paypalTransaction.id} to https://opencollective.com/${collective.slug} needs to be recorded in DB`,
+        );
+        if (options['fix']) {
+          await recordPaypalTransaction(order, paypalTransaction, {
+            data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
+            createdAt: new Date(paypalTransaction['time'] as string),
+          });
+        }
+      }
+    }
+
+    // Cancel the order / subscription
+    if (
+      // If it's cancelled in the API
+      responseSubscription.status === 'CANCELLED' &&
+      order.status !== OrderStatus.CANCELLED &&
+      // And it is not using another payment method
+      order.paymentMethod?.service === 'paypal' &&
+      order.paymentMethod.type === 'subscription' &&
+      order.paymentMethod.token === subscription.id
+    ) {
+      console.log(`Order #${order.id} cancelled in PayPal but not in DB`);
+      if (options['fix']) {
+        await order.update({ status: OrderStatuses.CANCELLED });
+        await subscription.update({
+          isActive: false,
+          deactivatedAt: new Date(responseSubscription['status_update_time'] as string),
+        });
+      }
+    }
+
+    if (options['fix']) {
+      console.log(`Subscription ${paypalSubscriptionId} reconciled`);
     }
   } while (currentPage++ < totalPages);
 };
@@ -399,27 +532,6 @@ const findRefundedContributions = async (_, commander) => {
   }
 };
 
-const getHostsSlugsFromOptions = async (options: Record<string, unknown>): Promise<string[]> => {
-  if (options['hosts']?.['length']) {
-    return <string[]>options['hosts'];
-  } else {
-    const hosts = await models.Collective.findAll({
-      where: { isHostAccount: true },
-      group: [sequelize.col('Collective.id')],
-      include: [
-        {
-          association: 'ConnectedAccounts',
-          required: true,
-          attributes: [],
-          where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
-        },
-      ],
-    });
-
-    return hosts.map(h => h.slug);
-  }
-};
-
 const main = async () => {
   const program = new Command();
   program.showSuggestionAfterError();
@@ -433,12 +545,13 @@ const main = async () => {
     commaSeparatedArgs,
   );
 
-  // Filters
+  // Commands
   program.command('refunds').action(findRefundedContributions);
   program.command('invalid-orders').option('--fix').action(findOrdersWithErroneousStatus);
   program.command('transactions').option('--fix').action(findMissingPaypalTransactions);
   program.command('orphan-subscriptions').option('--fix').action(findOrphanSubscriptions);
   program.command('subscription-details <subscriptionId>').action(showSubscriptionDetails);
+  program.command('subscription <subscriptionId>').option('--fix').action(reconcileSubscription);
 
   // Parse arguments
   await program.parseAsync();

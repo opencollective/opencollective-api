@@ -59,8 +59,8 @@ const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: str
 
   const order = await models.Order.findOne({
     include: [
-      { association: 'fromCollective' },
-      { association: 'createdByUser' },
+      { association: 'fromCollective', required: false },
+      { association: 'createdByUser', required: false },
       { association: 'collective', required: true },
       {
         association: 'Subscription',
