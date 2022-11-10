@@ -8,13 +8,6 @@ import { resultsToAmountNode } from '../object/HostMetricsTimeSeries';
 import { TimeSeriesAmount } from '../object/TimeSeriesAmount';
 import { TimeSeriesCount } from '../object/TimeSeriesCount';
 
-const resultsToCountNode = results => {
-  return results.map(result => ({
-    date: result.date,
-    count: result.count,
-  }));
-};
-
 export const AccountCollectionStats = new GraphQLObjectType({
   name: 'AccountCollectionStats',
   description: 'Account collection stats',
@@ -26,8 +19,10 @@ export const AccountCollectionStats = new GraphQLObjectType({
       resolve: async ({ collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const kind = [TransactionKind.CONTRIBUTION];
         const transactionParams = { type: TransactionTypes.CREDIT, kind, dateFrom, dateTo, collectiveIds };
-        const amountDataPoints = await queries.getTransactionsCountTimeSeries(timeUnit, transactionParams);
-        return { dateFrom, dateTo, timeUnit, nodes: resultsToCountNode(amountDataPoints) };
+        const countNodes = collectiveIds.length
+          ? await queries.getTransactionsCountTimeSeries(timeUnit, transactionParams)
+          : [];
+        return { dateFrom, dateTo, timeUnit, nodes: countNodes };
       },
     },
     totalReceivedTimeSeries: {
@@ -36,7 +31,9 @@ export const AccountCollectionStats = new GraphQLObjectType({
       resolve: async ({ collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const kind = [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS];
         const transactionParams = { type: TransactionTypes.CREDIT, kind, dateFrom, dateTo, collectiveIds };
-        const amountDataPoints = await queries.getTransactionsTimeSeries(timeUnit, transactionParams);
+        const amountDataPoints = collectiveIds.length
+          ? await queries.getTransactionsTimeSeries(timeUnit, transactionParams)
+          : [];
         return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountNode(amountDataPoints) };
       },
     },
