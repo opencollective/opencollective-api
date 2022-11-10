@@ -65,6 +65,9 @@ enum FEATURE {
   /** Whether this profile can receive donations using AliPay */
   ALIPAY = 'ALIPAY',
 
+  /** Whether this profile supports Stripe Checkout flow */
+  STRIPE_CHECKOUT = 'STRIPE_CHECKOUT',
+
   /** Whether an account can add and use payment methods */
   USE_PAYMENT_METHODS = 'USE_PAYMENT_METHODS',
 

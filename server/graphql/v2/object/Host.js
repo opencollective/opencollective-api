@@ -18,6 +18,7 @@ import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import queries from '../../../lib/queries';
 import { buildSearchConditions } from '../../../lib/search';
 import models, { Op } from '../../../models';
@@ -29,6 +30,7 @@ import { AccountCollection } from '../collection/AccountCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
+import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { TimeUnit } from '../enum/TimeUnit';
 import {
   AccountReferenceInput,
@@ -187,6 +189,9 @@ export const Host = new GraphQLObjectType({
 
           if (find(connectedAccounts, ['service', 'stripe'])) {
             supportedPaymentMethods.push('CREDIT_CARD');
+            if (hasFeature(collective, FEATURE.STRIPE_CHECKOUT)) {
+              supportedPaymentMethods.push(PaymentMethodLegacyTypeEnum.STRIPE_CHECKOUT);
+            }
           }
 
           if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {
