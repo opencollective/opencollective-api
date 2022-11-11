@@ -6,26 +6,22 @@ import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
-import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
-import {
-  createRefundTransaction,
-  getApplicationFee,
-  getHostFee,
-  getHostFeeSharePercent,
-  getPlatformTip,
-  isPlatformTipEligible,
-} from '../../lib/payments';
+import { createRefundTransaction, getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
-import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../lib/stripe';
+import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
 
-import { refundTransaction, refundTransactionOnlyInDatabase } from './common';
+import {
+  APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
+  createChargeTransactions,
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
+} from './common';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
-const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /**
  * Get or create a customer under the platform stripe account
@@ -129,8 +125,6 @@ const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMeth
  */
 const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
   const host = await order.collective.getHostCollective();
-  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
-  const isSharedRevenue = !!hostFeeSharePercent;
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
     ? false
     : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
@@ -205,75 +199,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   }
 
   const charge = paymentIntent.charges.data[0];
-
-  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
-    stripeAccount: hostStripeAccount.username,
-  });
-
-  // Create a Transaction
-  const amount = order.totalAmount;
-  const currency = order.currency;
-  const hostCurrency = balanceTransaction.currency.toUpperCase();
-  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
-  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
-
-  const hostFee = await getHostFee(order, host);
-  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
-
-  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
-
-  const platformTipEligible = await isPlatformTipEligible(order, host);
-  const platformTip = getPlatformTip(order);
-
-  let platformTipInHostCurrency, platformFeeInHostCurrency;
-  if (platformTip) {
-    platformTipInHostCurrency = isSharedRevenue
-      ? Math.round(platformTip * hostCurrencyFxRate) || 0
-      : fees.applicationFee;
-  } else if (config.env === 'test' || config.env === 'ci') {
-    // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
-    // TODO: we need to stop supporting this
-    platformFeeInHostCurrency = fees.applicationFee;
-  }
-
-  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
-
-  const data = {
-    charge,
-    balanceTransaction,
-    hasPlatformTip: platformTip ? true : false,
-    isSharedRevenue,
-    platformTipEligible,
-    platformTip,
-    platformTipInHostCurrency,
-    hostFeeSharePercent,
-    settled: true,
-    tax: order.data?.tax,
-  };
-
-  const transactionPayload = {
-    CreatedByUserId: order.CreatedByUserId,
-    FromCollectiveId: order.FromCollectiveId,
-    CollectiveId: order.CollectiveId,
-    PaymentMethodId: order.PaymentMethodId,
-    type: constants.TransactionTypes.CREDIT,
-    OrderId: order.id,
-    amount,
-    currency,
-    hostCurrency,
-    amountInHostCurrency,
-    hostCurrencyFxRate,
-    paymentProcessorFeeInHostCurrency,
-    platformFeeInHostCurrency,
-    taxAmount: order.taxAmount,
-    description: order.description,
-    hostFeeInHostCurrency,
-    data,
-  };
-
-  return models.Transaction.createFromContributionPayload(transactionPayload, {
-    isPlatformRevenueDirectlyCollected,
-  });
+  return createChargeTransactions(charge, { order });
 };
 
 export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {

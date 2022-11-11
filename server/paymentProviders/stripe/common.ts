@@ -1,8 +1,18 @@
-import { get, result } from 'lodash';
+import config from 'config';
+import { get, result, toUpper } from 'lodash';
 
-import { createRefundTransaction } from '../../lib/payments';
-import stripe, { extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
+import * as constants from '../../constants/transactions';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatformTipEligible,
+} from '../../lib/payments';
+import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models from '../../models';
+
+export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
@@ -91,4 +101,83 @@ export const refundTransactionOnlyInDatabase = async (
     { ...transaction.data, charge, refund, balanceTransaction: refundBalance },
     user,
   );
+};
+
+export const createChargeTransactions = async (charge, { order }) => {
+  const host = await order.collective.getHostCollective();
+  const hostStripeAccount = await order.collective.getHostStripeAccount();
+  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+    ? false
+    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+    stripeAccount: hostStripeAccount.username,
+  });
+
+  // Create a Transaction
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = balanceTransaction.currency.toUpperCase();
+  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+
+  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTip = getPlatformTip(order);
+
+  let platformTipInHostCurrency, platformFeeInHostCurrency;
+  if (platformTip) {
+    platformTipInHostCurrency = isSharedRevenue
+      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
+  } else if (config.env === 'test' || config.env === 'ci') {
+    // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
+    // TODO: we need to stop supporting this
+    platformFeeInHostCurrency = fees.applicationFee;
+  }
+
+  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
+
+  const data = {
+    charge,
+    balanceTransaction,
+    hasPlatformTip: platformTip ? true : false,
+    isSharedRevenue,
+    platformTipEligible,
+    platformTip,
+    platformTipInHostCurrency,
+    hostFeeSharePercent,
+    settled: true,
+    tax: order.data?.tax,
+  };
+
+  const transactionPayload = {
+    CreatedByUserId: order.CreatedByUserId,
+    FromCollectiveId: order.FromCollectiveId,
+    CollectiveId: order.CollectiveId,
+    PaymentMethodId: order.PaymentMethodId,
+    type: constants.TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount,
+    currency,
+    hostCurrency,
+    amountInHostCurrency,
+    hostCurrencyFxRate,
+    paymentProcessorFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    taxAmount: order.taxAmount,
+    description: order.description,
+    hostFeeInHostCurrency,
+    data,
+  };
+
+  return models.Transaction.createFromContributionPayload(transactionPayload, {
+    isPlatformRevenueDirectlyCollected,
+  });
 };
