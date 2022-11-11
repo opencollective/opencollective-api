@@ -16,6 +16,7 @@ import models from '../../models';
 import checkout from './checkout';
 import creditcard from './creditcard';
 import * as virtualcard from './virtual-cards';
+import * as webhook from './webhook';
 
 const debug = debugLib('stripe');
 
@@ -247,6 +248,10 @@ export default {
 
     if (requestBody.type === 'issuing_card.updated') {
       return virtualcard.processCardUpdate(requestBody.data.object, stripeEvent);
+    }
+
+    if (requestBody.type === 'payment_intent.succeeded') {
+      return webhook.handlePaymentIntent(requestBody);
     }
 
     /**
