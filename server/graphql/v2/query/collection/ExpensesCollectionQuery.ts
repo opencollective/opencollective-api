@@ -1,15 +1,17 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isEmpty, uniq } from 'lodash';
 
 import { expenseStatus } from '../../../../constants';
+import { types as CollectiveType } from '../../../../constants/collectives';
 import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
 import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
+import { NotFound } from '../../../errors';
 import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
 import { ExpenseCollection } from '../../collection/ExpenseCollection';
 import ExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
@@ -100,6 +102,10 @@ const ExpensesCollectionQuery = {
       type: AccountReferenceInput,
       description: 'Reference of an account that is the payer of an expense',
     },
+    returnSubmittedIfIndividual: {
+      description: 'If `account` is an individual and this param is true, the query will return submitted expenses',
+      type: GraphQLBoolean,
+    },
     host: {
       type: AccountReferenceInput,
       description: 'Return expenses only for this host',
@@ -172,7 +178,6 @@ const ExpensesCollectionQuery = {
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
-
     if (fromAccount) {
       const fromAccounts = [fromAccount.id];
       if (args.includeChildrenExpenses) {
@@ -182,13 +187,23 @@ const ExpensesCollectionQuery = {
       where['FromCollectiveId'] = fromAccounts;
     }
     if (account) {
-      const accounts = [account.id];
-      if (args.includeChildrenExpenses) {
-        const childIds = await account.getChildren().then(children => children.map(child => child.id));
-        accounts.push(...childIds);
+      if (args.returnSubmittedIfIndividual && account.type === CollectiveType.USER && !account.isHostAccount) {
+        const user = await req.loaders.User.byCollectiveId.load(account.id);
+        if (!user) {
+          throw new NotFound('User not found');
+        }
+
+        where['UserId'] = user.id;
+      } else {
+        const accounts = [account.id];
+        if (args.includeChildrenExpenses) {
+          const childIds = await account.getChildren().then(children => children.map(child => child.id));
+          accounts.push(...childIds);
+        }
+        where['CollectiveId'] = accounts;
       }
-      where['CollectiveId'] = accounts;
     }
+
     if (host) {
       include.push({
         association: 'collective',
