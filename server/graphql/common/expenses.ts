@@ -143,6 +143,13 @@ const isHostAdmin = async (req: express.Request, expense: typeof models.Expense)
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
+const isAdminOfHostWhoPaidExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+  return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
+};
+
 export type ExpensePermissionEvaluator = (
   req: express.Request,
   expense: typeof models.Expense,
@@ -183,12 +190,24 @@ const remoteUserMeetsOneCondition = async (
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 /** Checks if the user can see expense's payout method */
@@ -200,14 +219,20 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
   return remoteUserMeetsOneCondition(
     req,
     expense,
-    [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin],
+    [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin, isAdminOfHostWhoPaidExpense],
     options,
   );
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
@@ -507,7 +532,13 @@ export const canComment: ExpensePermissionEvaluator = async (req, expense, optio
 };
 
 export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin, isCollectiveAccountant, isOwner]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isHostAdmin,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isOwner,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 export const canUnschedulePayment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
