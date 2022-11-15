@@ -25,7 +25,7 @@ export const AccountCollectionStats = new GraphQLObjectType({
           description: 'The transaction type (DEBIT or CREDIT)',
         },
       },
-      description: 'Time series of the number of contributions to these accounts',
+      description: 'Time series of the number of transactions to these accounts',
       resolve: async ({ collectiveIds }, args) => {
         const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
         const dateTo = args.dateTo ? moment(args.dateTo) : null;
@@ -38,7 +38,7 @@ export const AccountCollectionStats = new GraphQLObjectType({
         return { dateFrom, dateTo, timeUnit, nodes: countNodes };
       },
     },
-    transactionsTimeSeries: {
+    transactionsAmountTimeSeries: {
       type: new GraphQLNonNull(TimeSeriesAmount),
       args: {
         ...TimeSeriesArgs,
@@ -51,7 +51,7 @@ export const AccountCollectionStats = new GraphQLObjectType({
           description: 'The transaction type (DEBIT or CREDIT)',
         },
       },
-      description: 'Time series of the total money received by these accounts',
+      description: 'Time series of the sum of transactions to these accounts',
       resolve: async ({ collectiveIds }, args) => {
         const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
         const dateTo = args.dateTo ? moment(args.dateTo) : null;
