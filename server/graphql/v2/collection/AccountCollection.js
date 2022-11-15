@@ -1,12 +1,10 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
-import moment from 'moment';
 import { Op } from 'sequelize';
 
 import models from '../../../models';
 import { Account } from '../interface/Account';
 import { Collection, CollectionFields } from '../interface/Collection';
 import { AccountCollectionStats } from '../object/AccountCollectionStats';
-import { getNumberOfDays, getTimeUnit, TimeSeriesArgs } from '../object/TimeSeriesAmount';
 
 const AccountCollection = new GraphQLObjectType({
   name: 'AccountCollection',
