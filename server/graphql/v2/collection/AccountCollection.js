@@ -21,14 +21,10 @@ const AccountCollection = new GraphQLObjectType({
       stats: {
         type: new GraphQLNonNull(AccountCollectionStats),
         args: {
-          ...TimeSeriesArgs,
           includeChildren: { type: GraphQLBoolean, defaultValue: false },
         },
+        description: 'Stats for the returned results (i.e. accounts within the limit)',
         async resolve(collection, args) {
-          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-          const dateTo = args.dateTo ? moment(args.dateTo) : null;
-          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, {}) || 1);
-
           const collectiveIds = collection.nodes.map(c => c.id);
 
           if (args.includeChildren) {
@@ -38,7 +34,7 @@ const AccountCollection = new GraphQLObjectType({
             });
             collectiveIds.push(...childCollectives.map(c => c.id));
           }
-          return { timeUnit, dateFrom, dateTo, collectiveIds };
+          return { collectiveIds };
         },
       },
     };
