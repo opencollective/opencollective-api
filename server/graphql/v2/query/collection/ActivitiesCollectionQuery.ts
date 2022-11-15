@@ -92,10 +92,6 @@ const ActivitiesCollectionQuery = {
       }
     }
 
-    if (accountOrConditions.length === 0) {
-      return { nodes: null, totalCount: 0, limit, offset };
-    }
-
     // Include all activities related to the account's children
     if (args.includeChildrenAccounts) {
       const parentIds = uniq(allowedAccounts.map(account => account.id));
@@ -107,6 +103,10 @@ const ActivitiesCollectionQuery = {
       childrenAccounts.forEach(childAccount => {
         accountOrConditions.push({ CollectiveId: childAccount.id }, { FromCollectiveId: childAccount.id });
       });
+    }
+
+    if (accountOrConditions.length === 0) {
+      return { nodes: null, totalCount: 0, limit, offset };
     }
 
     if (args.dateFrom) {

@@ -19,7 +19,6 @@ enum ActivityTypes {
   COLLECTIVE_FROZEN = 'collective.frozen',
   COLLECTIVE_UNFROZEN = 'collective.unfrozen',
   // Comments & conversations
-  COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   COLLECTIVE_CONVERSATION_CREATED = 'collective.conversation.created',
   UPDATE_COMMENT_CREATED = 'update.comment.created',
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
@@ -70,7 +69,6 @@ enum ActivityTypes {
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
-  SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   TICKET_CONFIRMED = 'ticket.confirmed',
   ORDER_CANCELED_ARCHIVED_COLLECTIVE = 'order.canceled.archived.collective',
@@ -112,6 +110,8 @@ enum ActivityTypes {
   COLLECTIVE_USER_ADDED = 'collective.user.added',
   COLLECTIVE_VIRTUAL_CARD_ASSIGNED = 'collective.virtualcard.assigned', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_CREATED = 'collective.virtualcard.created', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
+  SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
+  COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
