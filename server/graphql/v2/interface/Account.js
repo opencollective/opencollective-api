@@ -869,7 +869,7 @@ export const AccountFields = {
     description:
       'The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".',
     async resolve(collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'paymentMethods')) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
         return null;
       }
 
