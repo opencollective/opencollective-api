@@ -261,9 +261,43 @@ export const AccountStats = new GraphQLObjectType({
       totalNetAmountReceived: {
         description: 'Total net amount received',
         type: new GraphQLNonNull(Amount),
-        async resolve(collective) {
-          const value = await collective.getTotalNetAmountReceived();
-          return { value, currency: collective.currency };
+        args: {
+          kind: {
+            type: new GraphQLList(TransactionKind),
+            description: 'Filter by kind',
+          },
+          dateTo: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received before this date',
+          },
+          dateFrom: {
+            type: GraphQLDateTime,
+            description: 'Calculate total amount received after this date',
+          },
+          periodInMonths: {
+            type: GraphQLInt,
+            description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
+          },
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include money received in children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+          return collective.getTotalNetAmountReceivedAmount({
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            includeChildren: args.includeChildren,
+          });
         },
       },
       activeRecurringContributions: {
