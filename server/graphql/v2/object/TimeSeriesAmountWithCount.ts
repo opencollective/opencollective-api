@@ -5,7 +5,7 @@ import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
 
 import { Amount } from './Amount';
 
-const TimeSeriesAmountCountNodes = new GraphQLObjectType({
+const TimeSeriesAmountWithCountNodes = new GraphQLObjectType({
   name: 'TimeSeriesAmountWithCountNode',
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
@@ -21,7 +21,7 @@ export const TimeSeriesAmountWithCount = new GraphQLObjectType({
   fields: () => ({
     ...getTimeSeriesFields(),
     nodes: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(TimeSeriesAmountCountNodes))),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(TimeSeriesAmountWithCountNodes))),
       description: 'Time series data points',
     },
   }),
