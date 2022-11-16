@@ -3,22 +3,25 @@ import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
 
-const TimeSeriesCountNode = new GraphQLObjectType({
-  name: 'TimeSeriesCountNode',
+import { Amount } from './Amount';
+
+const TimeSeriesAmountCountNodes = new GraphQLObjectType({
+  name: 'TimeSeriesAmountWithCountNode',
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
+    amount: { type: new GraphQLNonNull(Amount) },
     count: { type: new GraphQLNonNull(GraphQLInt) },
   }),
 });
 
-export const TimeSeriesCount = new GraphQLObjectType({
-  name: 'TimeSeriesCount',
-  description: 'Count time series',
+export const TimeSeriesAmountWithCount = new GraphQLObjectType({
+  name: 'TimeSeriesAmountWithCount',
+  description: 'Amounts with count time series',
   interfaces: [TimeSeries],
   fields: () => ({
     ...getTimeSeriesFields(),
     nodes: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(TimeSeriesCountNode))),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(TimeSeriesAmountCountNodes))),
       description: 'Time series data points',
     },
   }),
