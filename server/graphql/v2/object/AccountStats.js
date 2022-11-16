@@ -65,10 +65,6 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Amount of money in cents in the currency of the collective',
         type: new GraphQLNonNull(Amount),
         args: {
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'Calculate balance beginning from this date.',
-          },
           dateTo: {
             type: GraphQLDateTime,
             description: 'Calculate balance until this date.',
@@ -82,7 +78,6 @@ export const AccountStats = new GraphQLObjectType({
         resolve(account, args, req) {
           return account.getBalanceAmount({
             loaders: req.loaders,
-            startDate: args.dateFrom,
             endDate: args.dateTo,
             includeChildren: args.includeChildren,
           });

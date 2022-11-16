@@ -42,15 +42,12 @@ export async function getCollectiveIds(collective, includeChildren) {
  - v3: sum by currency based on amountInHostCurrency, limit to entries with a HostCollectiveId, then convert Collective's currency using the Fx Rate of the day
 */
 
-export async function getBalanceAmount(
-  collective,
-  { startDate, endDate, currency, version, loaders, includeChildren } = {},
-) {
+export async function getBalanceAmount(collective, { endDate, currency, version, loaders, includeChildren } = {}) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === DEFAULT_BUDGET_VERSION && !startDate && !endDate && !includeChildren) {
+  if (loaders && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren) {
     const result = await loaders.Collective.balance.load(collective.id);
     const fxRate = await getFxRate(result.currency, currency);
     return {
@@ -62,7 +59,6 @@ export async function getBalanceAmount(
   const collectiveIds = await getCollectiveIds(collective, includeChildren);
 
   const results = await sumCollectivesTransactions(collectiveIds, {
-    startDate,
     endDate,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
@@ -76,10 +72,7 @@ export async function getBalanceAmount(
   return { value, currency };
 }
 
-export async function getBalanceWithBlockedFundsAmount(
-  collective,
-  { startDate, endDate, currency, version, loaders } = {},
-) {
+export async function getBalanceWithBlockedFundsAmount(collective, { currency, version, loaders } = {}) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
@@ -94,8 +87,6 @@ export async function getBalanceWithBlockedFundsAmount(
   }
 
   return sumCollectiveTransactions(collective, {
-    startDate,
-    endDate,
     currency: currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
@@ -104,11 +95,17 @@ export async function getBalanceWithBlockedFundsAmount(
   });
 }
 
-export function getBalances(collectiveIds, { startDate, endDate, currency, version = DEFAULT_BUDGET_VERSION } = {}) {
+// Only used by the loader?
+export function getBalances(collectiveIds) {
+  const version = DEFAULT_BUDGET_VERSION;
+
+  // TODO
+  // const fetchResults = fetchWithFastBalance(collectiveIds);
+  // if (fetchResults.length === collectiveIds.length) {
+  //   return fetchResults;
+  // }
+
   return sumCollectivesTransactions(collectiveIds, {
-    startDate,
-    endDate,
-    currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: false,
@@ -116,14 +113,17 @@ export function getBalances(collectiveIds, { startDate, endDate, currency, versi
   });
 }
 
-export function getBalancesWithBlockedFunds(
-  collectiveIds,
-  { startDate, endDate, currency, version = DEFAULT_BUDGET_VERSION } = {},
-) {
+// Only used by the loader?
+export function getBalancesWithBlockedFunds(collectiveIds) {
+  const version = DEFAULT_BUDGET_VERSION;
+
+  // TODO
+  // const fetchResults = fetchFastBalanceWithBlockedFunds(collectiveIds);
+  // if (fetchResults.length === collectiveIds.length) {
+  //   return fetchResults;
+  // }
+
   return sumCollectivesTransactions(collectiveIds, {
-    startDate,
-    endDate,
-    currency,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: true,
