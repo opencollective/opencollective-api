@@ -47,13 +47,18 @@ export async function getBalanceAmount(collective, { endDate, currency, version,
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren) {
-    const result = await loaders.Collective.balance.load(collective.id);
-    const fxRate = await getFxRate(result.currency, currency);
-    return {
-      value: Math.round(result.value * fxRate),
-      currency,
-    };
+  if (version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren) {
+    if (loaders) {
+      const result = await loaders.Collective.balance.load(collective.id);
+      const fxRate = await getFxRate(result.currency, currency);
+      return {
+        value: Math.round(result.value * fxRate),
+        currency,
+      };
+    } else {
+      // TODO: to make balance without loaders also fast
+      // fetchWithFastBalance ?
+    }
   }
 
   const collectiveIds = await getCollectiveIds(collective, includeChildren);
@@ -77,13 +82,18 @@ export async function getBalanceWithBlockedFundsAmount(collective, { currency, v
   currency = currency || collective.currency;
 
   // Optimized version using loaders
-  if (loaders && version === DEFAULT_BUDGET_VERSION) {
-    const result = await loaders.Collective.balanceWithBlockedFunds.load(collective.id);
-    const fxRate = await getFxRate(result.currency, currency);
-    return {
-      value: Math.round(result.value * fxRate),
-      currency,
-    };
+  if (version === DEFAULT_BUDGET_VERSION) {
+    if (loaders) {
+      const result = await loaders.Collective.balanceWithBlockedFunds.load(collective.id);
+      const fxRate = await getFxRate(result.currency, currency);
+      return {
+        value: Math.round(result.value * fxRate),
+        currency,
+      };
+    } else {
+      // TODO: to make balance without loaders also fast
+      // fetchWithFastBalance ?
+    }
   }
 
   return sumCollectiveTransactions(collective, {
