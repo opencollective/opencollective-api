@@ -22,6 +22,7 @@ declare global {
       };
       userToken?: UserToken;
       loaders: Record<string, DataLoader>;
+      rawBody?: string;
     }
   }
 }
