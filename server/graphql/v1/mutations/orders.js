@@ -516,7 +516,7 @@ export async function createOrder(order, req) {
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
-        paymentIntent: { id: order.paymentMethod.paymentIntentId },
+        paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
       },
       status: orderStatus,
     };
