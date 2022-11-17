@@ -62,6 +62,8 @@ function defineModel() {
           if (val && val.toLowerCase) {
             this.emailWaitingForValidationChanged = true;
             this.setDataValue('emailWaitingForValidation', val.toLowerCase());
+          } else if (val === null) {
+            this.setDataValue('emailWaitingForValidation', null);
           }
         },
         validate: {
