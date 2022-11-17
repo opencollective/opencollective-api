@@ -98,6 +98,13 @@ const Expense = new GraphQLObjectType({
           } else if (args.currencySource === 'HOST') {
             const host = await loadHostForExpense(expense, req);
             currency = host?.currency;
+          } else if (args.currencySource === 'CREATED_BY_ACCOUNT') {
+            expense.User = expense.User || (await req.loaders.User.byId.load(expense.UserId));
+            if (expense.User) {
+              expense.User.collective =
+                expense.User.collective || (await req.loaders.Collective.byId.load(expense.User.CollectiveId));
+              currency = expense.User?.collective?.currency || 'USD';
+            }
           }
 
           // Return null if the currency can't be looked up (e.g. asking for the host currency when the collective has no fiscal host)

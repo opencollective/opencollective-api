@@ -88,12 +88,12 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
     const expenseQuery = gqlV2/* GraphQL */ `
       query Expenses(
-        $createdBy: AccountReferenceInput
+        $createdByAccount: AccountReferenceInput
         $account: AccountReferenceInput
         $host: AccountReferenceInput
         $fromAccount: AccountReferenceInput
       ) {
-        expenses(createdByAccount: $createdBy, account: $account, host: $host, fromAccount: $fromAccount) {
+        expenses(createdByAccount: $createdByAccount, account: $account, host: $host, fromAccount: $fromAccount) {
           nodes {
             id
             legacyId
