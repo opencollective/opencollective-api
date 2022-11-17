@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLEnumType, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isEmpty, uniq } from 'lodash';
 
@@ -11,7 +11,6 @@ import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
-import { NotFound } from '../../../errors';
 import { loadFxRatesMap } from '../../../loaders/currency-exchange-rate';
 import { ExpenseCollection } from '../../collection/ExpenseCollection';
 import ExpenseStatusFilter from '../../enum/ExpenseStatusFilter';
@@ -102,13 +101,13 @@ const ExpensesCollectionQuery = {
       type: AccountReferenceInput,
       description: 'Reference of an account that is the payer of an expense',
     },
-    returnSubmittedIfIndividual: {
-      description: 'If `account` is an individual and this param is true, the query will return submitted expenses',
-      type: GraphQLBoolean,
-    },
     host: {
       type: AccountReferenceInput,
       description: 'Return expenses only for this host',
+    },
+    createdByAccount: {
+      type: AccountReferenceInput,
+      description: 'Return expenses only created by this INDIVIDUAL account',
     },
     status: {
       type: ExpenseStatusFilter,
@@ -173,8 +172,8 @@ const ExpensesCollectionQuery = {
 
     // Load accounts
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-    const [fromAccount, account, host] = await Promise.all(
-      [args.fromAccount, args.account, args.host].map(
+    const [fromAccount, account, host, createdByAccount] = await Promise.all(
+      [args.fromAccount, args.account, args.host, args.createdByAccount].map(
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
@@ -187,23 +186,13 @@ const ExpensesCollectionQuery = {
       where['FromCollectiveId'] = fromAccounts;
     }
     if (account) {
-      if (args.returnSubmittedIfIndividual && account.type === CollectiveType.USER && !account.isHostAccount) {
-        const user = await req.loaders.User.byCollectiveId.load(account.id);
-        if (!user) {
-          throw new NotFound('User not found');
-        }
-
-        where['UserId'] = user.id;
-      } else {
-        const accounts = [account.id];
-        if (args.includeChildrenExpenses) {
-          const childIds = await account.getChildren().then(children => children.map(child => child.id));
-          accounts.push(...childIds);
-        }
-        where['CollectiveId'] = accounts;
+      const accounts = [account.id];
+      if (args.includeChildrenExpenses) {
+        const childIds = await account.getChildren().then(children => children.map(child => child.id));
+        accounts.push(...childIds);
       }
+      where['CollectiveId'] = accounts;
     }
-
     if (host) {
       include.push({
         association: 'collective',
@@ -211,6 +200,20 @@ const ExpensesCollectionQuery = {
         required: true,
         where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
       });
+    }
+    if (createdByAccount) {
+      if (createdByAccount.type !== CollectiveType.USER) {
+        throw new Error('createdByAccount only accepts individual accounts');
+      } else if (createdByAccount.isIncognito) {
+        return { nodes: [], offset: 0, limit: 0, totalCount: 0 }; // Incognito cannot create expenses yet
+      }
+
+      const user = await req.loaders.User.byCollectiveId.load(createdByAccount.id);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      where['UserId'] = user.id;
     }
 
     // Add search filter
