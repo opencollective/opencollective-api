@@ -665,6 +665,7 @@ const orderMutations = {
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
       const hostStripeAccount = await toAccount.getHostStripeAccount();
+      const host = await toAccount.getHostCollective();
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
 
@@ -672,18 +673,21 @@ const orderMutations = {
 
       const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
+      const paymentMethodTypes =
+        host.settings.stripe?.payment_method_types ||
+        (paymentIntentInput.amount.currency === 'USD'
+          ? ['us_bank_account']
+          : paymentIntentInput.amount.currency === 'EUR'
+          ? ['sepa_debit']
+          : undefined);
+
       const paymentIntent = await stripe.paymentIntents.create(
         {
           description: `Contribution to ${toAccount.name}`,
           amount: convertToStripeAmount(currency, totalOrderAmount),
           currency: paymentIntentInput.amount.currency.toLowerCase(),
           // eslint-disable-next-line camelcase
-          payment_method_types:
-            paymentIntentInput.amount.currency === 'USD'
-              ? ['us_bank_account']
-              : paymentIntentInput.amount.currency === 'EUR'
-              ? ['sepa_debit']
-              : undefined,
+          payment_method_types: paymentMethodTypes,
           metadata: {
             from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
             to: `${config.host.website}/${toAccount.slug}`,
