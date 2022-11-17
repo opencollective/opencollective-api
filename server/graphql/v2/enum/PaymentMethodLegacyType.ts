@@ -14,6 +14,7 @@ export enum PaymentMethodLegacyTypeEnum {
   BANK_TRANSFER = 'BANK_TRANSFER',
   ADDED_FUNDS = 'ADDED_FUNDS',
   CRYPTO = 'CRYPTO',
+  PAYMENT_INTENT = 'PAYMENT_INTENT',
 }
 
 export const PaymentMethodLegacyType = new GraphQLEnumType({
