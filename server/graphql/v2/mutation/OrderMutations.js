@@ -146,7 +146,7 @@ const orderMutations = {
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
-      return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
+      return { ...pick(result, ['order', 'stripeError']), guestToken: result.order.data?.guestToken };
     },
   },
   cancelOrder: {
@@ -678,9 +678,12 @@ const orderMutations = {
           amount: convertToStripeAmount(currency, totalOrderAmount),
           currency: paymentIntentInput.amount.currency.toLowerCase(),
           // eslint-disable-next-line camelcase
-          automatic_payment_methods: {
-            enabled: true,
-          },
+          payment_method_types:
+            paymentIntentInput.amount.currency === 'USD'
+              ? ['us_bank_account']
+              : paymentIntentInput.amount.currency === 'EUR'
+              ? ['sepa_debit']
+              : undefined,
           metadata: {
             from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
             to: `${config.host.website}/${toAccount.slug}`,
@@ -694,6 +697,7 @@ const orderMutations = {
       );
 
       return {
+        id: paymentIntent.id,
         paymentIntentClientSecret: paymentIntent.client_secret,
         stripeAccount: hostStripeAccount.username,
         stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,

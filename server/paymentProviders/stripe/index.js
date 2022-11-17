@@ -14,7 +14,7 @@ import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
 import creditcard from './creditcard';
-import * as virtualcard from './virtual-cards';
+import paymentintent from './payment-intent';
 
 const debug = debugLib('stripe');
 
@@ -51,6 +51,7 @@ export default {
   types: {
     default: creditcard,
     creditcard,
+    paymentintent,
   },
 
   oauth: {
