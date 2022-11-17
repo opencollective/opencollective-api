@@ -79,7 +79,11 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const kind = [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS];
         const transactionParams = { type: TransactionTypes.CREDIT, kind, dateFrom, dateTo, collectiveIds };
-        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(host.id, timeUnit, transactionParams);
+        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeriesByKind(
+          host.id,
+          timeUnit,
+          transactionParams,
+        );
         return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithKindNode(amountDataPoints) };
       },
     },
@@ -89,7 +93,11 @@ export const HostMetricsTimeSeries = new GraphQLObjectType({
       resolve: async ({ host, collectiveIds, dateFrom, dateTo, timeUnit }) => {
         const kind = TransactionKind.EXPENSE;
         const transactionParams = { type: TransactionTypes.DEBIT, kind, dateFrom, dateTo, collectiveIds };
-        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(host.id, timeUnit, transactionParams);
+        const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeriesByKind(
+          host.id,
+          timeUnit,
+          transactionParams,
+        );
         return { dateFrom, dateTo, timeUnit, nodes: resultsToAmountWithKindNode(amountDataPoints) };
       },
     },
