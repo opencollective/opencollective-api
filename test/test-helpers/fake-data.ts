@@ -370,7 +370,7 @@ export const fakeComment = async (commentData: Record<string, unknown> = {}, seq
     ExpenseId = (await fakeExpense()).id;
   }
 
-  return models.Comment.create(
+  const comment = await models.Comment.create(
     {
       html: '<div><strong>Hello</strong> Test comment!</div>',
       ...commentData,
@@ -382,6 +382,10 @@ export const fakeComment = async (commentData: Record<string, unknown> = {}, seq
     },
     sequelizeParams,
   );
+
+  comment.fromCollective = await models.Collective.findByPk(FromCollectiveId);
+  comment.collective = await models.Collective.findByPk(CollectiveId);
+  return comment;
 };
 
 /**
