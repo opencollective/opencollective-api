@@ -7,7 +7,7 @@ import type Stripe from 'stripe';
 import OrderStatuses from '../../constants/order_status';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
-import { sendEmailNotifications } from '../../lib/payments';
+import { sendEmailNotifications, sendOrderFailedEmail } from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models from '../../models';
 
@@ -27,6 +27,7 @@ const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
     include: [
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
+      { association: 'createdByUser', required: true },
     ],
   });
 
@@ -57,13 +58,9 @@ const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => 
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
-      status: OrderStatuses.NEW,
+      status: [OrderStatuses.NEW, OrderStatuses.PROCESSING],
       data: { paymentIntent: { id: paymentIntent.id } },
     },
-    include: [
-      { association: 'collective', required: true },
-      { association: 'fromCollective', required: true },
-    ],
   });
 
   if (!order) {
@@ -87,6 +84,7 @@ const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) => {
     include: [
       { association: 'collective', required: true },
       { association: 'fromCollective', required: true },
+      { association: 'createdByUser', required: true },
     ],
   });
 
@@ -94,14 +92,15 @@ const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) => {
     logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
-  logger.info(
-    `Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${paymentIntent.last_payment_error.message}`,
-  );
+  const reason = paymentIntent.last_payment_error.message;
+  logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
   await order.update({
     status: OrderStatuses.ERROR,
     data: { ...order.data, paymentIntent },
   });
+
+  sendOrderFailedEmail(order, reason);
 };
 
 export const webhook = async (request: Request<unknown, Stripe.Event>) => {

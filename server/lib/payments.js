@@ -503,6 +503,8 @@ export const sendEmailNotifications = (order, transaction) => {
   } else if (order.status === status.PENDING) {
     sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
+  } else if (order.status === status.PROCESSING) {
+    sendOrderProcessingEmail(order);
   }
 };
 
@@ -772,6 +774,55 @@ export const sendOrderPendingEmail = async order => {
   }
   await models.Activity.create({
     type: activities.ORDER_PENDING,
+    UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
+    data,
+  });
+};
+
+export const sendOrderProcessingEmail = async order => {
+  const { collective, fromCollective } = order;
+  const user = order.createdByUser;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    user: user.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+  };
+
+  await models.Activity.create({
+    type: activities.ORDER_PROCESSING,
+    UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
+    data,
+  });
+};
+
+export const sendOrderFailedEmail = async (order, reason) => {
+  const user = order.createdByUser;
+  const { collective, fromCollective } = order;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    user: user.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+    reason,
+  };
+
+  await models.Activity.create({
+    type: activities.ORDER_PAYMENT_FAILED,
     UserId: user.id,
     CollectiveId: collective.id,
     FromCollectiveId: fromCollective.id,

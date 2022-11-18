@@ -78,6 +78,8 @@ export const templateNames = [
   'order.pending.crypto',
   'order.new.pendingFinancialContribution',
   'order.reminder.pendingFinancialContribution',
+  'order.processing',
+  'order.payment.failed',
   'report.platform',
   'report.platform.weekly',
   'subscription.canceled',

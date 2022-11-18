@@ -1,0 +1,38 @@
+Subject: Your {{{currency order.totalAmount
+currency=order.currency}}} {{order.type}} to {{collective.name}} is being processed
+
+{{> header}}
+
+{{> toplogo}}
+
+{{#if fromCollective.name}}
+<p>Hi {{fromCollective.name}},</p>
+{{else}}
+<p>Hi!</p>
+{{/if}}
+
+<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on {{moment order.createdAt}}.</p>
+
+<p>Your contribution is currently being processed and once it is confirmed, the amount will be credited to {{collective.name}}.</p>
+
+{{#if order.isGuest}}
+<p>
+  If you need help with this contribution, please <a href="mailto:support@opencollective.com">contact support</a>.
+</p>
+{{/if}}
+
+{{#if fromCollective.isIncognito}}
+{{else}}
+<h2>Help {{collective.name}}!</h2>
+<p>Share our link to help us get more contributions: <a
+    href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
+</p>
+{{/if}}
+
+<p>Thank you again for your support!</p>
+
+<p>
+  – {{collective.name}}
+</p>
+
+{{> footer}}
