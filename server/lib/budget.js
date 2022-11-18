@@ -608,7 +608,12 @@ export async function getCollectivesBlockedFunds(collectiveIds, hostId, currency
 // Uses CurrentCollectiveBalance view which sums recent transactions on top
 // of the last materialized view checkpoint for a Collective's balance,
 // ensuring that we get a fast response and one that is accurate
-export async function getCurrentFastBalances(collectiveIds, hostCollectiveId, currency, removeBlockedFunds = false) {
+export async function getCurrentFastBalances(
+  collectiveIds,
+  hostCollectiveId,
+  hostCurrency,
+  removeBlockedFunds = false,
+) {
   const collectivesBalances = await sequelize.query(
     `
     SELECT "CollectiveId",
@@ -617,11 +622,11 @@ export async function getCurrentFastBalances(collectiveIds, hostCollectiveId, cu
     FROM "CurrentCollectiveBalance"
     WHERE "CollectiveId" IN (:collectiveIds)
     ${hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ''}
-    AND "hostCurrency" = :currency
+    ${hostCurrency ? `AND "hostCurrency" = :hostCurrency` : ''}
     GROUP BY "CollectiveId";
   `,
     {
-      replacements: { collectiveIds, hostCollectiveId, currency },
+      replacements: { collectiveIds, hostCollectiveId, hostCurrency },
       type: sequelize.QueryTypes.SELECT,
     },
   );
@@ -632,6 +637,7 @@ export async function getCurrentFastBalances(collectiveIds, hostCollectiveId, cu
   }
 
   if (!isEmpty(collectivesBalances)) {
+    // TODO: we should not enter this code block and fetch getCollectivesBlockedFunds at all if removeBlockedFunds is false
     const blockedFundsInHostCurrency = await getCollectivesBlockedFunds(collectiveIds, hostCollectiveId, currency);
 
     for (const collectiveBalances of collectivesBalances) {
