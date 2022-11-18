@@ -501,7 +501,7 @@ export const sendEmailNotifications = (order, transaction) => {
   } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
     sendCryptoOrderProcessingEmail(order);
   } else if (order.status === status.PENDING) {
-    sendOrderProcessingEmail(order); // This is the one for the Contributor
+    sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
   }
 };
@@ -721,7 +721,7 @@ const sendCryptoOrderProcessingEmail = async order => {
     };
 
     await models.Activity.create({
-      type: activities.ORDER_PROCESSING_CRYPTO,
+      type: activities.ORDER_PENDING_CRYPTO,
       CollectiveId: collective.id,
       FromCollectiveId: fromCollective.id,
       OrderId: order.id,
@@ -733,7 +733,7 @@ const sendCryptoOrderProcessingEmail = async order => {
 };
 
 // Assumes one-time payments,
-export const sendOrderProcessingEmail = async order => {
+export const sendOrderPendingEmail = async order => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -771,7 +771,7 @@ export const sendOrderProcessingEmail = async order => {
     });
   }
   await models.Activity.create({
-    type: activities.ORDER_PROCESSING,
+    type: activities.ORDER_PENDING,
     UserId: user.id,
     CollectiveId: collective.id,
     FromCollectiveId: fromCollective.id,

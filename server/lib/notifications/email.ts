@@ -158,8 +158,8 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity);
       break;
 
-    case ActivityTypes.ORDER_PROCESSING_CRYPTO:
-    case ActivityTypes.ORDER_PROCESSING:
+    case ActivityTypes.ORDER_PENDING_CRYPTO:
+    case ActivityTypes.ORDER_PENDING:
       await notify.user(activity, {
         from: emailLib.generateFromEmailHeader(activity.data.collective.name),
       });
