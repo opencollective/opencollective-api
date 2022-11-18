@@ -8,7 +8,16 @@ import { times } from 'lodash';
 
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../server/constants/transactions';
 import models, { sequelize } from '../../server/models';
-import { fakeCollective, fakeEvent, fakeHost, fakeTransaction, fakeUpdate, fakeUser } from '../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeComment,
+  fakeEvent,
+  fakeExpense,
+  fakeHost,
+  fakeTransaction,
+  fakeUpdate,
+  fakeUser,
+} from '../test-helpers/fake-data';
 import { resetTestDB } from '../utils';
 
 const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
@@ -239,5 +248,26 @@ describe('sql/ban-collectives', () => {
     const updatedCollective = await collective.reload({ paranoid: false });
     expect(updatedCollective.data.isBanned).to.eq(true);
     expect(updatedCollective.data.hello).to.eq('world');
+  });
+
+  it('deletes comments on other profiles when banned', async () => {
+    const update = await fakeUpdate();
+    const comment = await fakeComment({ UpdateId: update.id });
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [comment.fromCollective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(comment).to.be.softDeleted;
+  });
+
+  it('deletes the expense even if not banning the submitter', async () => {
+    const expense = await fakeExpense();
+    await sequelize.query(banCollectivesQuery, {
+      bind: { collectiveSlugs: [expense.collective.slug] },
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    await expect(expense).to.be.softDeleted;
   });
 });
