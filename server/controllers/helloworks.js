@@ -131,7 +131,11 @@ function uploadTaxFormToS3(buffer, { id, year, documentType }) {
 }
 
 function createTaxFormFilename({ id, year, documentType }) {
-  return `${documentType}_${year}_${id}.pdf`;
+  if (year >= 2023) {
+    return `${documentType}/${year}/${id}.pdf`;
+  } else {
+    return `${documentType}_${year}_${id}.pdf`;
+  }
 }
 
 export default {
