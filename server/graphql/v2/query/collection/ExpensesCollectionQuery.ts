@@ -4,6 +4,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { isEmpty, uniq } from 'lodash';
 
 import { expenseStatus } from '../../../../constants';
+import { types as CollectiveType } from '../../../../constants/collectives';
 import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
 import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
@@ -104,6 +105,10 @@ const ExpensesCollectionQuery = {
       type: AccountReferenceInput,
       description: 'Return expenses only for this host',
     },
+    createdByAccount: {
+      type: AccountReferenceInput,
+      description: 'Return expenses only created by this INDIVIDUAL account',
+    },
     status: {
       type: ExpenseStatusFilter,
       description: 'Use this field to filter expenses on their statuses',
@@ -167,12 +172,11 @@ const ExpensesCollectionQuery = {
 
     // Load accounts
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-    const [fromAccount, account, host] = await Promise.all(
-      [args.fromAccount, args.account, args.host].map(
+    const [fromAccount, account, host, createdByAccount] = await Promise.all(
+      [args.fromAccount, args.account, args.host, args.createdByAccount].map(
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
-
     if (fromAccount) {
       const fromAccounts = [fromAccount.id];
       if (args.includeChildrenExpenses) {
@@ -196,6 +200,20 @@ const ExpensesCollectionQuery = {
         required: true,
         where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
       });
+    }
+    if (createdByAccount) {
+      if (createdByAccount.type !== CollectiveType.USER) {
+        throw new Error('createdByAccount only accepts individual accounts');
+      } else if (createdByAccount.isIncognito) {
+        return { nodes: [], offset: 0, limit: 0, totalCount: 0 }; // Incognito cannot create expenses yet
+      }
+
+      const user = await req.loaders.User.byCollectiveId.load(createdByAccount.id);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      where['UserId'] = user.id;
     }
 
     // Add search filter

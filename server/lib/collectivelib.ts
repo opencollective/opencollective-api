@@ -205,6 +205,7 @@ export const collectiveSlugReservedList = [
   'events',
   'expense',
   'expenses',
+  'submitted-expenses',
   'faq',
   'fund',
   'gift-card',

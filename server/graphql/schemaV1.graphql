@@ -287,6 +287,7 @@ type UserDetails {
   """
   isLimited: Boolean
   hasSeenLatestChangelogEntry: Boolean!
+  hasTwoFactorAuth: Boolean
 }
 
 """
@@ -1168,6 +1169,7 @@ type PlanType {
 
 type Policies {
   EXPENSE_AUTHOR_CANNOT_APPROVE: Boolean
+  REQUIRE_2FA_FOR_ADMINS: Boolean
   COLLECTIVE_MINIMUM_ADMINS: COLLECTIVE_MINIMUM_ADMINS
   MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL: MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL
 }
