@@ -2326,7 +2326,6 @@ enum ActivityType {
   ORGANIZATION_COLLECTIVE_CREATED
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
-  COLLECTIVE_COMMENT_CREATED
   COLLECTIVE_CONVERSATION_CREATED
   UPDATE_COMMENT_CREATED
   EXPENSE_COMMENT_CREATED
@@ -2370,7 +2369,6 @@ enum ActivityType {
   HOST_APPLICATION_CONTACT
   CONTRIBUTION_REJECTED
   SUBSCRIPTION_ACTIVATED
-  SUBSCRIPTION_CONFIRMED
   SUBSCRIPTION_CANCELED
   TICKET_CONFIRMED
   ORDER_CANCELED_ARCHIVED_COLLECTIVE
@@ -2404,6 +2402,8 @@ enum ActivityType {
   COLLECTIVE_USER_ADDED
   COLLECTIVE_VIRTUAL_CARD_ASSIGNED
   COLLECTIVE_VIRTUAL_CARD_CREATED
+  SUBSCRIPTION_CONFIRMED
+  COLLECTIVE_COMMENT_CREATED
 }
 
 """
@@ -3459,6 +3459,105 @@ type AccountCollection implements Collection {
   limit: Int
   totalCount: Int
   nodes: [Account]
+
+  """
+  Stats for the returned results (i.e. accounts within the limit)
+  """
+  stats: AccountCollectionStats!
+}
+
+"""
+Account collection stats
+"""
+type AccountCollectionStats {
+  """
+  Time series of the transaction count and sum of amount for these accounts
+  """
+  transactionsTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    To filter by transaction kind
+    """
+    kind: [TransactionKind]
+
+    """
+    The transaction type (DEBIT or CREDIT)
+    """
+    type: TransactionType
+    includeChildren: Boolean = false
+  ): TimeSeriesAmountWithCount!
+}
+
+"""
+Amounts with count time series
+"""
+type TimeSeriesAmountWithCount implements TimeSeries {
+  """
+  The start date of the time series
+  """
+  dateFrom: DateTime!
+
+  """
+  The end date of the time series
+  """
+  dateTo: DateTime!
+
+  """
+  The interval between two data points
+  """
+  timeUnit: TimeUnit!
+
+  """
+  Time series data points
+  """
+  nodes: [TimeSeriesAmountWithCountNode!]!
+}
+
+interface TimeSeries {
+  """
+  The start date of the time series
+  """
+  dateFrom: DateTime!
+
+  """
+  The end date of the time series
+  """
+  dateTo: DateTime!
+
+  """
+  The interval between two data points
+  """
+  timeUnit: TimeUnit!
+}
+
+enum TimeUnit {
+  SECOND
+  MINUTE
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+type TimeSeriesAmountWithCountNode {
+  date: DateTime!
+  amount: Amount!
+  count: Int!
 }
 
 type ConversationStats {
@@ -3492,7 +3591,7 @@ type TagStat {
   """
   Total amount for this tag
   """
-  amount: Amount!
+  amount: Amount
 }
 
 """
@@ -3879,33 +3978,6 @@ type TimeSeriesAmount implements TimeSeries {
   Time series data points
   """
   nodes: [TimeSeriesAmountNode!]!
-}
-
-interface TimeSeries {
-  """
-  The start date of the time series
-  """
-  dateFrom: DateTime!
-
-  """
-  The end date of the time series
-  """
-  dateTo: DateTime!
-
-  """
-  The interval between two data points
-  """
-  timeUnit: TimeUnit!
-}
-
-enum TimeUnit {
-  SECOND
-  MINUTE
-  HOUR
-  DAY
-  WEEK
-  MONTH
-  YEAR
 }
 
 type TimeSeriesAmountNode {
@@ -10556,7 +10628,6 @@ enum ActivityAndClassesType {
   ORGANIZATION_COLLECTIVE_CREATED
   COLLECTIVE_FROZEN
   COLLECTIVE_UNFROZEN
-  COLLECTIVE_COMMENT_CREATED
   COLLECTIVE_CONVERSATION_CREATED
   UPDATE_COMMENT_CREATED
   EXPENSE_COMMENT_CREATED
@@ -10600,7 +10671,6 @@ enum ActivityAndClassesType {
   HOST_APPLICATION_CONTACT
   CONTRIBUTION_REJECTED
   SUBSCRIPTION_ACTIVATED
-  SUBSCRIPTION_CONFIRMED
   SUBSCRIPTION_CANCELED
   TICKET_CONFIRMED
   ORDER_CANCELED_ARCHIVED_COLLECTIVE
@@ -10634,6 +10704,8 @@ enum ActivityAndClassesType {
   COLLECTIVE_USER_ADDED
   COLLECTIVE_VIRTUAL_CARD_ASSIGNED
   COLLECTIVE_VIRTUAL_CARD_CREATED
+  SUBSCRIPTION_CONFIRMED
+  COLLECTIVE_COMMENT_CREATED
   COLLECTIVE
   EXPENSES
   CONTRIBUTIONS
