@@ -83,25 +83,26 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
     const paymentMethod = {
       service: PAYMENT_METHOD_SERVICE.STRIPE,
       type: PAYMENT_METHOD_TYPE.CREDITCARD,
-      name: pm.name,
+      name: token.card.last4,
       save: pm.isSavedForLater,
       token: pm.creditCardInfo.token,
       data: {
-        ...pick(token.card, ['brand', 'country', 'fullName', 'funding', 'zip', 'fingerprint']),
+        ...pick(pm.creditCardInfo, ['zip']), // Not returned by Stripe
+        ...pick(token.card, ['brand', 'country', 'funding', 'fingerprint', 'last4']), // Returned by Stripe
         name: token.card.name,
         expMonth: token.card.exp_month,
         expYear: token.card.exp_year,
       },
     };
-    if (pm.creditCardInfo.expYear && pm.creditCardInfo.expMonth) {
-      const { expYear, expMonth } = pm.creditCardInfo;
+    if (paymentMethod.data.expYear && paymentMethod.data.expMonth) {
+      const { expYear, expMonth } = paymentMethod.data;
       paymentMethod['expiryDate'] = moment.utc(`${expYear}-${expMonth}`, 'YYYY-MM').endOf('month');
     }
     // Internal fallback for card fingerprint
     if (!paymentMethod.data?.fingerprint) {
       paymentMethod.data.fingerprint = [
-        pm.name,
-        ...Object.values(pick(pm.creditCardInfo, ['brand', 'expMonth', 'expYear', 'funding'])),
+        paymentMethod.name,
+        ...Object.values(pick(paymentMethod.data, ['brand', 'expMonth', 'expYear', 'funding'])),
       ].join('-');
     }
     return paymentMethod;
