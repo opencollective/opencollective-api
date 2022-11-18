@@ -59,7 +59,11 @@ module.exports = {
               sum(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) + 
               sum(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
           from "Transactions" t 
-          where t."CollectiveId" = b."CollectiveId" and t."HostCollectiveId" = b."HostCollectiveId" and t."hostCurrency" = b."hostCurrency" and t.id > b."lastTransactionId" and t."deletedAt" is null
+          where t."CollectiveId" = b."CollectiveId"
+            and t."HostCollectiveId" = b."HostCollectiveId"
+            and t."hostCurrency" = b."hostCurrency"
+            and t.id > b."lastTransactionId"
+            and t."deletedAt" is null
           group by t."CollectiveId"
         ) as t on true
         left join lateral (
@@ -72,7 +76,12 @@ module.exports = {
               sum(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) + 
               sum(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
           from "Transactions" t 
-          where t."CollectiveId" = b."CollectiveId" and t."HostCollectiveId" = b."HostCollectiveId" and t."hostCurrency" = b."hostCurrency" and t."deletedAt" is null and t."isDisputed" and t."RefundTransactionId" is null
+          where t."CollectiveId" = b."CollectiveId"
+            and t."HostCollectiveId" = b."HostCollectiveId"
+            and t."hostCurrency" = b."hostCurrency"
+            and t."deletedAt" is null
+            and t."isDisputed"
+            and t."RefundTransactionId" is null
           group by t."CollectiveId"
         ) as disputed on true 
       );
