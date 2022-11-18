@@ -1,5 +1,6 @@
 import config from 'config';
 import { get, toUpper } from 'lodash';
+import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
 import FEATURE from '../../constants/feature';
@@ -30,12 +31,20 @@ const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 /**
  * Get or create a customer under the platform stripe account
  */
-const getOrCreateCustomerOnPlatformAccount = async ({ paymentMethod, user, collective }) => {
+const getOrCreateCustomerOnPlatformAccount = async ({
+  paymentMethod,
+  user,
+  collective,
+}: {
+  paymentMethod: typeof models.PaymentMethod;
+  user?: typeof models.User;
+  collective?: typeof models.Collective;
+}) => {
   if (paymentMethod.customerId) {
     return stripe.customers.retrieve(paymentMethod.customerId);
   }
 
-  const payload = { source: paymentMethod.token };
+  const payload: Stripe.CustomerCreateParams = { source: paymentMethod.token };
   if (user) {
     payload.email = user.email;
   }
@@ -143,9 +152,9 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
   /* eslint-disable camelcase */
 
-  let paymentIntent = order.data.paymentIntent;
+  let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
   if (!paymentIntent) {
-    const createPayload = {
+    const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
       customer: hostStripeCustomer.id,
@@ -182,6 +191,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
       stripeAccount: hostStripeAccount.username,
     });
   }
+
   paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
     stripeAccount: hostStripeAccount.username,
   });
@@ -192,8 +202,8 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     order.data.paymentIntent = { id: paymentIntent.id, status: paymentIntent.status };
     await order.update({ data: order.data });
     const paymentIntentError = new Error('Payment Intent require action');
-    paymentIntentError.stripeAccount = hostStripeAccount.username;
-    paymentIntentError.stripeResponse = { paymentIntent };
+    paymentIntentError['stripeAccount'] = hostStripeAccount.username;
+    paymentIntentError['stripeResponse'] = { paymentIntent };
     throw paymentIntentError;
   }
 
@@ -204,9 +214,11 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     throw new Error(UNKNOWN_ERROR_MSG);
   }
 
-  const charge = paymentIntent.charges.data[0];
+  // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
+  // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
+  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
 
-  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction as string, {
     stripeAccount: hostStripeAccount.username,
   });
 
@@ -276,12 +288,15 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
   });
 };
 
-export const setupCreditCard = async (paymentMethod, { user, collective } = {}) => {
-  const platformStripeCustomer = await getOrCreateCustomerOnPlatformAccount({
+export const setupCreditCard = async (
+  paymentMethod: typeof models.PaymentMethod,
+  { user, collective }: { user?: typeof models.User; collective?: typeof models.Collective } = {},
+) => {
+  const platformStripeCustomer = (await getOrCreateCustomerOnPlatformAccount({
     paymentMethod,
     user,
     collective,
-  });
+  })) as Stripe.Response<Stripe.Customer>;
 
   const paymentMethodId = platformStripeCustomer.sources.data[0].id;
 
@@ -309,7 +324,7 @@ export const setupCreditCard = async (paymentMethod, { user, collective } = {}) 
 
   if (setupIntent.next_action) {
     const setupIntentError = new Error('Setup Intent require action');
-    setupIntentError.stripeResponse = { setupIntent };
+    setupIntentError['stripeResponse'] = { setupIntent };
     throw setupIntentError;
   }
 
