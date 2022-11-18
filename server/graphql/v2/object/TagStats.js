@@ -19,7 +19,7 @@ export const TagStats = new GraphQLObjectType({
       description: 'Number of entries for this tag',
     },
     amount: {
-      type: new GraphQLNonNull(Amount),
+      type: Amount,
       description: 'Total amount for this tag',
       resolve(entry) {
         if (entry.amount) {
