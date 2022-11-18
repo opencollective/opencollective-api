@@ -18,7 +18,7 @@ import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
-import queries from '../../../lib/queries';
+import * as HostMetricsLib from '../../../lib/host-metrics';
 import { buildSearchConditions } from '../../../lib/search';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -626,15 +626,13 @@ export const Host = new GraphQLObjectType({
             const dateTo = args.dateTo ? moment(args.dateTo) : null;
             const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
 
-            const amountDataPoints = await queries.getTransactionsTimeSeries(
-              TransactionKind.EXPENSE,
-              TransactionTypes.DEBIT,
-              host.id,
-              timeUnit,
+            const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(host.id, timeUnit, {
+              type: TransactionTypes.DEBIT,
+              kind: TransactionKind.EXPENSE,
               collectiveIds,
               dateFrom,
               dateTo,
-            );
+            });
 
             return {
               dateFrom: args.dateFrom || host.createdAt,

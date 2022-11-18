@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import { differenceBy } from 'lodash';
+import { differenceBy, times } from 'lodash';
 import { createSandbox } from 'sinon';
 
 import { US_TAX_FORM_THRESHOLD } from '../../../../../server/constants/tax-form';
@@ -80,6 +80,48 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
 
       result = await graphqlQueryV2(expensesQuery, { ...queryParams, status: 'REJECTED' });
       expect(result.data.expenses.totalCount).to.eq(1);
+    });
+  });
+
+  describe('Filter by accounts', async () => {
+    let expenses;
+
+    const expenseQuery = gqlV2/* GraphQL */ `
+      query Expenses(
+        $createdByAccount: AccountReferenceInput
+        $account: AccountReferenceInput
+        $host: AccountReferenceInput
+        $fromAccount: AccountReferenceInput
+      ) {
+        expenses(createdByAccount: $createdByAccount, account: $account, host: $host, fromAccount: $fromAccount) {
+          nodes {
+            id
+            legacyId
+            account {
+              legacyId
+            }
+            payee {
+              legacyId
+            }
+            createdByAccount {
+              legacyId
+            }
+          }
+        }
+      }
+    `;
+
+    before(async () => {
+      expenses = await Promise.all(times(3, () => fakeExpense()));
+    });
+
+    it('with createdByAccount', async () => {
+      const result = await graphqlQueryV2(expenseQuery, {
+        createdByAccount: { legacyId: expenses[0].fromCollective.id },
+      });
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.nodes.length).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expenses[0].id);
     });
   });
 
@@ -203,9 +245,13 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.expenses.totalCount).to.eq(expensesReadyToPay.length);
 
-      const missingExpenses = differenceBy(expensesReadyToPay, result.data.expenses.nodes, e => e.legacyId || e.id);
+      const missingExpenses = differenceBy(
+        expensesReadyToPay,
+        result.data.expenses.nodes,
+        e => e['legacyId'] || e['id'],
+      );
       if (missingExpenses.length) {
-        throw new Error(`Missing expenses: ${missingExpenses.map(e => JSON.stringify(e.info))}`);
+        throw new Error(`Missing expenses: ${missingExpenses.map(e => JSON.stringify(e['info']))}`);
       }
     });
   });

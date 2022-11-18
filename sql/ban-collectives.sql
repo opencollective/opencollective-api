@@ -6,19 +6,19 @@
 -- ---------------------------------------------------------------------------------
 
 
-WITH banned_collectives AS (
+WITH requested_collectives AS (
   SELECT   id 
   FROM    "Collectives"
   WHERE   slug = ANY($collectiveSlugs)
 ), deleted_profiles AS (
-  -- Delete the actual collectives and their events
+  -- Delete all requested collectives and their children
   UPDATE ONLY "Collectives" c
   SET         "deletedAt" = NOW(),
               "slug" = c.slug || '-' || extract(epoch from NOW())::text,
               data = (COALESCE(to_jsonb(data), '{}' :: jsonb) || '{"isBanned": true}' :: jsonb)
-  FROM        banned_collectives
-  WHERE       c."id" = banned_collectives.id
-  OR          c."ParentCollectiveId" = banned_collectives.id
+  FROM        requested_collectives
+  WHERE       c."id" = requested_collectives.id
+  OR          c."ParentCollectiveId" = requested_collectives.id
   RETURNING   c.id
 ), deleted_users AS (
   -- Delete the users (with their email preserved, they will be banned permanently)
@@ -118,24 +118,33 @@ WITH banned_collectives AS (
 ), deleted_expenses AS (
   -- Delete expenses
   UPDATE ONLY "Expenses" e SET "deletedAt" = NOW()
-  FROM        deleted_users, deleted_profiles
-  WHERE       e."UserId" = deleted_users.id
-  OR          e."CollectiveId" = deleted_profiles.id
+  WHERE       e."deletedAt" IS NULL
+  AND         id IN (
+    SELECT id FROM "Expenses" e WHERE "CollectiveId" IN (SELECT id FROM deleted_profiles)
+    UNION DISTINCT SELECT id FROM "Expenses" e WHERE "FromCollectiveId" IN (SELECT id FROM deleted_profiles)
+    UNION DISTINCT SELECT id FROM "Expenses" e WHERE "UserId" IN (SELECT id FROM deleted_users)
+  )
   RETURNING   e.id
 ), deleted_comments AS (
   -- Delete comments
   UPDATE ONLY "Comments" com SET "deletedAt" = NOW()
-  FROM        deleted_profiles, deleted_conversations, deleted_expenses
-  WHERE       com."CollectiveId" = deleted_profiles.id 
-  OR          com."FromCollectiveId" = deleted_profiles.id
-  OR          com."ConversationId" = deleted_conversations.id
-  OR          com."ExpenseId" = deleted_expenses.id
+  WHERE "deletedAt" IS NULL
+  AND id IN (
+    SELECT id FROM "Comments" WHERE "CollectiveId" IN (SELECT id FROM deleted_profiles)
+    UNION DISTINCT SELECT id FROM "Comments" WHERE "FromCollectiveId" IN (SELECT id FROM deleted_profiles)
+    UNION DISTINCT SELECT id FROM "Comments" WHERE "ConversationId" IN (SELECT id FROM deleted_conversations)
+    UNION DISTINCT SELECT id FROM "Comments" WHERE "ExpenseId" IN (SELECT id FROM deleted_expenses)
+    UNION DISTINCT SELECT id FROM "Comments" WHERE "UpdateId" IN (SELECT id FROM deleted_updates)
+  )
   RETURNING   com.id
 ), deleted_applications AS (
   -- Delete applications
   UPDATE ONLY "Applications" app SET "deletedAt" = NOW()
-  FROM        deleted_users
-  WHERE       app."CreatedByUserId" = deleted_users.id
+  WHERE       app."deletedAt" IS NULL
+  AND         id IN (
+    SELECT id FROM "Applications" WHERE "CollectiveId" IN (SELECT id FROM deleted_profiles)
+    UNION DISTINCT SELECT id FROM "Applications" WHERE "CreatedByUserId" IN (SELECT id FROM deleted_users)
+  )
   RETURNING   app.id
 ), deleted_orders AS (
   -- Delete orders

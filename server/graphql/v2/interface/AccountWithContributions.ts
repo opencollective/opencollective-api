@@ -87,7 +87,7 @@ export const AccountWithContributionsFields = {
       if (!isNil(account.data?.platformTips)) {
         return account.data.platformTips;
       }
-      const host = await req.loaders.Collective.host.load(account.id);
+      const host = await req.loaders.Collective.host.load(account);
       if (host) {
         const plan = await host.getPlan();
         return plan.platformTips;

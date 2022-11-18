@@ -46,7 +46,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
 const loadHostForExpense = async (expense, req) => {
   return expense.HostCollectiveId
     ? req.loaders.Collective.byId.load(expense.HostCollectiveId)
-    : req.loaders.Collective.host.load(expense.CollectiveId);
+    : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
 const Expense = new GraphQLObjectType({
@@ -98,6 +98,13 @@ const Expense = new GraphQLObjectType({
           } else if (args.currencySource === 'HOST') {
             const host = await loadHostForExpense(expense, req);
             currency = host?.currency;
+          } else if (args.currencySource === 'CREATED_BY_ACCOUNT') {
+            expense.User = expense.User || (await req.loaders.User.byId.load(expense.UserId));
+            if (expense.User) {
+              expense.User.collective =
+                expense.User.collective || (await req.loaders.Collective.byId.load(expense.User.CollectiveId));
+              currency = expense.User?.collective?.currency || 'USD';
+            }
           }
 
           // Return null if the currency can't be looked up (e.g. asking for the host currency when the collective has no fiscal host)
@@ -234,7 +241,7 @@ const Expense = new GraphQLObjectType({
           if (expense.HostCollectiveId) {
             return req.loaders.Collective.byId.load(expense.HostCollectiveId);
           } else {
-            return req.loaders.Collective.host.load(expense.CollectiveId);
+            return req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
           }
         },
       },

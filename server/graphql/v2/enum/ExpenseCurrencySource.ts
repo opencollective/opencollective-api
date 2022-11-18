@@ -13,5 +13,8 @@ export const ExpenseCurrencySource = new GraphQLEnumType({
     EXPENSE: {
       description: 'The expense currency expressed as the expense currency',
     },
+    CREATED_BY_ACCOUNT: {
+      description: 'The expense currency expressed as the expense currency',
+    },
   },
 });

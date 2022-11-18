@@ -15,7 +15,7 @@ import commentsLoader from './comments';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
-import { sortResults, sortResultsSimple } from './helpers';
+import { buildLoaderForAssociation, sortResults, sortResultsSimple } from './helpers';
 import { generateAdminUsersEmailsForCollectiveLoader, generateRemoteUserIsAdminOfHostedAccountLoader } from './members';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
@@ -76,10 +76,10 @@ export const loaders = req => {
   context.loaders.Collective.mainProfileFromIncognito = collectiveLoaders.mainProfileFromIncognito(req, cache);
 
   // Collective - Host
-  context.loaders.Collective.host = new DataLoader(ids =>
+  context.loaders.Collective.hostByCollectiveId = new DataLoader(ids =>
     models.Collective.findAll({
       attributes: ['id'],
-      where: { id: { [Op.in]: ids } },
+      where: { id: { [Op.in]: ids }, isActive: true },
       include: [{ model: models.Collective, as: 'host' }],
     }).then(results => {
       const resultsById = {};
@@ -89,6 +89,15 @@ export const loaders = req => {
       return ids.map(id => resultsById[id] || null);
     }),
   );
+
+  context.loaders.Collective.host = buildLoaderForAssociation(models.Collective, 'host', {
+    filter: collective => collective.isActive,
+    loader: hostIds => context.loaders.Collective.byId.loadMany(hostIds),
+  });
+
+  context.loaders.Collective.parent = buildLoaderForAssociation(models.Collective, 'parent', {
+    loader: parentIds => context.loaders.Collective.byId.loadMany(parentIds),
+  });
 
   // Collective - Balance
   context.loaders.Collective.balance = new DataLoader(ids =>
