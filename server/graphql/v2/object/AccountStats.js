@@ -337,8 +337,8 @@ export const AccountStats = new GraphQLObjectType({
         },
         description: 'History of the expense tags used by this collective.',
         resolve: async (collective, args) => {
-          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : moment(collective.createdAt || new Date(2015, 1, 1));
+          const dateTo = args.dateTo ? moment(args.dateTo) : moment();
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
           const includeChildren = args.includeChildren;
           const results = await models.Expense.getCollectiveExpensesTagsTimeSeries(collective, timeUnit, {
@@ -425,8 +425,8 @@ export const AccountStats = new GraphQLObjectType({
           },
         },
         async resolve(collective, args) {
-          const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-          const dateTo = args.dateTo ? moment(args.dateTo) : null;
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : moment(collective.createdAt || new Date(2015, 1, 1));
+          const dateTo = args.dateTo ? moment(args.dateTo) : moment();
           const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
           const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
           const results = await sequelize.query(
