@@ -46,7 +46,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
 const loadHostForExpense = async (expense, req) => {
   return expense.HostCollectiveId
     ? req.loaders.Collective.byId.load(expense.HostCollectiveId)
-    : req.loaders.Collective.host.load(expense.CollectiveId);
+    : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
 const Expense = new GraphQLObjectType({
@@ -241,7 +241,7 @@ const Expense = new GraphQLObjectType({
           if (expense.HostCollectiveId) {
             return req.loaders.Collective.byId.load(expense.HostCollectiveId);
           } else {
-            return req.loaders.Collective.host.load(expense.CollectiveId);
+            return req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
           }
         },
       },
