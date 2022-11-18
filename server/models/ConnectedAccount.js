@@ -5,94 +5,86 @@ import { supportedServices } from '../constants/connected_account';
 import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
-function defineModel() {
-  const ConnectedAccount = sequelize.define(
-    'ConnectedAccount',
-    {
-      service: {
-        type: DataTypes.STRING,
-        validate: {
-          isIn: {
-            args: [supportedServices],
-            msg: `Must be in ${supportedServices}`,
-          },
-        },
-      },
-
-      username: DataTypes.STRING, // paypal email / Stripe UserId / Twitter username / ...
-
-      clientId: DataTypes.STRING, // paypal app id
-
-      // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
-      token: {
-        type: DataTypes.STRING,
-        get() {
-          const encrypted = this.getDataValue('token');
-          return isNil(encrypted) ? null : crypto.decrypt(encrypted);
-        },
-        set(value) {
-          this.setDataValue('token', crypto.encrypt(value));
-        },
-      },
-      // used for Stripe
-      refreshToken: {
-        type: DataTypes.STRING,
-        get() {
-          const encrypted = this.getDataValue('refreshToken');
-          return isNil(encrypted) ? null : crypto.decrypt(encrypted);
-        },
-        set(value) {
-          this.setDataValue('refreshToken', crypto.encrypt(value));
-        },
-      },
-
-      data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
-      settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
-
-      createdAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-
-      updatedAt: {
-        type: DataTypes.DATE,
-        defaultValue: DataTypes.NOW,
-      },
-
-      hash: {
-        type: DataTypes.STRING,
-      },
-    },
-    {
-      paranoid: true,
-
-      getterMethods: {
-        info() {
-          return {
-            id: this.id,
-            service: this.service,
-            username: this.username,
-            createdAt: this.createdAt,
-            updatedAt: this.updatedAt,
-          };
-        },
-
-        paypalConfig() {
-          return {
-            client_id: this.clientId, // eslint-disable-line camelcase
-            client_secret: this.token, // eslint-disable-line camelcase
-            mode: config.paypal.rest.mode,
-          };
+const ConnectedAccount = sequelize.define(
+  'ConnectedAccount',
+  {
+    service: {
+      type: DataTypes.STRING,
+      validate: {
+        isIn: {
+          args: [supportedServices],
+          msg: `Must be in ${supportedServices}`,
         },
       },
     },
-  );
 
-  return ConnectedAccount;
-}
+    username: DataTypes.STRING, // paypal email / Stripe UserId / Twitter username / ...
 
-// We're using the defineModel function to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-const ConnectedAccount = defineModel();
+    clientId: DataTypes.STRING, // paypal app id
+
+    // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
+    token: {
+      type: DataTypes.STRING,
+      get() {
+        const encrypted = this.getDataValue('token');
+        return isNil(encrypted) ? null : crypto.decrypt(encrypted);
+      },
+      set(value) {
+        this.setDataValue('token', crypto.encrypt(value));
+      },
+    },
+    // used for Stripe
+    refreshToken: {
+      type: DataTypes.STRING,
+      get() {
+        const encrypted = this.getDataValue('refreshToken');
+        return isNil(encrypted) ? null : crypto.decrypt(encrypted);
+      },
+      set(value) {
+        this.setDataValue('refreshToken', crypto.encrypt(value));
+      },
+    },
+
+    data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
+    settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
+
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+
+    updatedAt: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+    },
+
+    hash: {
+      type: DataTypes.STRING,
+    },
+  },
+  {
+    paranoid: true,
+
+    getterMethods: {
+      info() {
+        return {
+          id: this.id,
+          service: this.service,
+          username: this.username,
+          createdAt: this.createdAt,
+          updatedAt: this.updatedAt,
+        };
+      },
+
+      paypalConfig() {
+        return {
+          client_id: this.clientId, // eslint-disable-line camelcase
+          client_secret: this.token, // eslint-disable-line camelcase
+          mode: config.paypal.rest.mode,
+        };
+      },
+    },
+  },
+);
 
 export default ConnectedAccount;
