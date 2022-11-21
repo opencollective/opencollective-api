@@ -222,7 +222,7 @@ const mutations = {
       connectedAccount: { type: new GraphQLNonNull(ConnectedAccountInputType) },
     },
     resolve(_, args, req) {
-      return editConnectedAccount(req.remoteUser, args.connectedAccount);
+      return editConnectedAccount(req, args.connectedAccount);
     },
   },
   editTier: {
@@ -263,6 +263,8 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+
         await collective.editMembers(args.members, {
           CreatedByUserId: req.remoteUser.id,
           remoteUserCollectiveId: req.remoteUser.CollectiveId,
@@ -350,7 +352,7 @@ const mutations = {
       monthlyLimitPerMember: { type: GraphQLInt },
     },
     resolve: async (_, args, req) => {
-      return paymentMethodsMutation.updatePaymentMethod(args, req.remoteUser);
+      return paymentMethodsMutation.updatePaymentMethod(args, req);
     },
   },
   replaceCreditCard: {
@@ -364,7 +366,7 @@ const mutations = {
       data: { type: new GraphQLNonNull(StripeCreditCardDataInputType) },
     },
     resolve: async (_, args, req) => {
-      return paymentMethodsMutation.replaceCreditCard(args, req.remoteUser);
+      return paymentMethodsMutation.replaceCreditCard(args, req);
     },
   },
   createGiftCards: {
@@ -415,7 +417,7 @@ const mutations = {
       },
       expiryDate: { type: GraphQLString },
     },
-    resolve: async (_, { emails, numberOfGiftCards, ...args }, { remoteUser }) => {
+    resolve: async (_, { emails, numberOfGiftCards, ...args }, req) => {
       if (numberOfGiftCards && emails && numberOfGiftCards !== emails.length) {
         throw Error("numberOfGiftCards and emails counts doesn't match");
       } else if (args.limitedToOpenSourceCollectives && args.limitedToHostCollectiveIds) {
@@ -435,10 +437,19 @@ const mutations = {
         args.limitedToHostCollectiveIds = [openSourceHost.id];
       }
 
+      const collective = await models.Collective.findByPk(args.CollectiveId);
+      if (!collective) {
+        throw new Error('Collective does not exist');
+      } else if (!req.remoteUser.isAdminOfCollective(collective)) {
+        throw new Error('User must be admin of collective');
+      }
+
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+
       if (numberOfGiftCards) {
-        return await bulkCreateGiftCards(args, remoteUser, numberOfGiftCards);
+        return bulkCreateGiftCards(collective, args, req.remoteUser, numberOfGiftCards);
       } else if (emails) {
-        return await createGiftCardsForEmails(args, remoteUser, emails, args.customMessage);
+        return createGiftCardsForEmails(collective, args, req.remoteUser, emails, args.customMessage);
       }
 
       throw new Error('You must either pass numberOfGiftCards of an email list');
@@ -462,7 +473,7 @@ const mutations = {
       },
     },
     resolve: async (_, args, req) => {
-      return paymentMethodsMutation.removePaymentMethod(args.id, req.remoteUser);
+      return paymentMethodsMutation.removePaymentMethod(args.id, req);
     },
   },
   editWebhooks: {
@@ -479,7 +490,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
-      return editWebhooks(args, req.remoteUser);
+      return editWebhooks(args, req);
     },
   },
   createWebhook: {
@@ -496,7 +507,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
-      return createWebhook(args, req.remoteUser);
+      return createWebhook(args, req);
     },
   },
   deleteNotification: {
@@ -509,7 +520,7 @@ const mutations = {
       },
     },
     resolve(_, args, req) {
-      return deleteNotification(args, req.remoteUser);
+      return deleteNotification(args, req);
     },
   },
   backyourstackDispatchOrder: {

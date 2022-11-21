@@ -1,6 +1,7 @@
 import config from 'config';
 import { get } from 'lodash';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { Forbidden, NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 
@@ -33,6 +34,8 @@ export async function createApplication(_, args, req) {
     throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
   }
 
+  await twoFactorAuthLib.enforceForAccountAdmins(req, req.remoteUser.collective);
+
   const app = await Application.create({
     ...args.application,
     CreatedByUserId: req.remoteUser.id,
@@ -47,12 +50,14 @@ export async function deleteApplication(_, args, req) {
     throw new Unauthorized('You need to be authenticated to delete an application.');
   }
 
-  const app = await Application.findByPk(args.id);
+  const app = await Application.findByPk(args.id, { include: [{ association: 'collective', required: true }] });
   if (!app) {
     throw new NotFound(`Application with id ${args.id} not found`);
   } else if (req.remoteUser.CollectiveId !== app.CollectiveId) {
     throw new Forbidden('Authenticated user is not the application owner.');
   }
+
+  await twoFactorAuthLib.enforceForAccountAdmins(req, app.collective, { onlyAskOnLogin: true });
 
   return await app.destroy();
 }

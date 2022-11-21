@@ -6,6 +6,7 @@ import { activities } from '../../../constants';
 import ORDER_STATUS from '../../../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import logger from '../../../lib/logger';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op } from '../../../models';
 import GiftCard from '../../../paymentProviders/opencollective/giftcard';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
@@ -162,17 +163,21 @@ const PaymentMethodPermissionError = new Forbidden(
   "This payment method does not exist or you don't have the permission to edit it.",
 );
 
-export async function removePaymentMethod(paymentMethodId, remoteUser) {
-  if (!remoteUser) {
+export async function removePaymentMethod(paymentMethodId, req) {
+  if (!req.remoteUser) {
     throw PaymentMethodPermissionError;
   }
 
   // Try to load payment method. Throw permission error if it doesn't exist
   // to prevent attackers from guessing which id is valid and which one is not
-  const paymentMethod = await models.PaymentMethod.findByPk(paymentMethodId);
-  if (!paymentMethod || !remoteUser.isAdmin(paymentMethod.CollectiveId)) {
+  const paymentMethod = await models.PaymentMethod.findByPk(paymentMethodId, {
+    include: [{ model: models.Collective, required: true }],
+  });
+  if (!paymentMethod || !req.remoteUser.isAdmin(paymentMethod.CollectiveId)) {
     throw PaymentMethodPermissionError;
   }
+
+  await twoFactorAuthLib.enforceForAccountAdmins(req, paymentMethod.Collective);
 
   // Block the removal if the payment method has subscriptions linked
   const subscriptions = await paymentMethod.getOrders({
@@ -194,23 +199,31 @@ export async function removePaymentMethod(paymentMethodId, remoteUser) {
 }
 
 /** Update payment method with given args */
-export async function updatePaymentMethod(args, remoteUser) {
+export async function updatePaymentMethod(args, req) {
   const allowedFields = ['name', 'monthlyLimitPerMember'];
-  const paymentMethod = await models.PaymentMethod.findByPk(args.id);
-  if (!paymentMethod || !remoteUser || !remoteUser.isAdmin(paymentMethod.CollectiveId)) {
+  const paymentMethod = await models.PaymentMethod.findByPk(args.id, {
+    include: [{ model: models.Collective, required: true }],
+  });
+  if (!paymentMethod || !req.remoteUser || !req.remoteUser.isAdminOfCollective(paymentMethod.Collective)) {
     throw PaymentMethodPermissionError;
   }
+
+  await twoFactorAuthLib.enforceForAccountAdmins(req, paymentMethod.Collective, { onlyAskOnLogin: true });
 
   return paymentMethod.update(pick(args, allowedFields));
 }
 
 /** Update payment method with given args */
-export async function replaceCreditCard(args, remoteUser) {
-  logger.info(`Replacing Credit Card: ${args.id} ${remoteUser?.id}`);
-  const oldPaymentMethod = await models.PaymentMethod.findByPk(args.id);
-  if (!oldPaymentMethod || !remoteUser || !remoteUser.isAdmin(oldPaymentMethod.CollectiveId)) {
+export async function replaceCreditCard(args, req) {
+  logger.info(`Replacing Credit Card: ${args.id} ${req.remoteUser?.id}`);
+  const oldPaymentMethod = await models.PaymentMethod.findByPk(args.id, {
+    include: [{ model: models.Collective, required: true }],
+  });
+  if (!oldPaymentMethod || !req.remoteUser || !req.remoteUser.isAdminOfCollective(oldPaymentMethod.Collective)) {
     throw PaymentMethodPermissionError;
   }
+
+  await twoFactorAuthLib.enforceForAccountAdmins(req, oldPaymentMethod.Collective, { onlyAskOnLogin: true });
 
   const createArgs = {
     ...pick(args, ['CollectiveId', 'name', 'token', 'data']),
@@ -218,7 +231,7 @@ export async function replaceCreditCard(args, remoteUser) {
     type: 'creditcard',
   };
 
-  const newPaymentMethod = await createPaymentMethod(createArgs, remoteUser);
+  const newPaymentMethod = await createPaymentMethod(createArgs, req.remoteUser);
 
   // Update orders (using Sequelize)
   // first arg in new thing, second arg is old thing it's replacing
