@@ -58,6 +58,10 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
       type: PaypalPaymentInput,
       description: 'To pass when type is PAYPAL',
     },
+    paymentIntentId: {
+      type: GraphQLString,
+      description: 'The Payment Intent ID used in this checkout',
+    },
   }),
 });
 
@@ -119,6 +123,8 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
         },
       };
     }
+  } else if (pm.paymentIntentId) {
+    return { service: pm.service, type: pm.newType, paymentIntentId: pm.paymentIntentId };
   } else if (pm.legacyType) {
     return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
   } else if (pm.service && pm.newType) {

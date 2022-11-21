@@ -64,6 +64,8 @@ enum FEATURE {
   CONNECTED_ACCOUNTS = 'CONNECTED_ACCOUNTS',
   /** Whether this profile can receive donations using AliPay */
   ALIPAY = 'ALIPAY',
+  /** Wheter this profile accepts SEPA or ACH payments through Stripe */
+  STRIPE_PAYMENT_INTENT = 'STRIPE_PAYMENT_INTENT',
 
   /** Whether an account can add and use payment methods */
   USE_PAYMENT_METHODS = 'USE_PAYMENT_METHODS',
