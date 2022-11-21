@@ -8,7 +8,7 @@ import { getApplicationFee } from '../../lib/payments';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
 
-import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES } from './common';
+import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
 const processOrder = async (order: typeof models.Order): Promise<void> => {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
@@ -49,4 +49,6 @@ export default {
     waitToCharge: false,
   },
   processOrder,
+  refundTransaction,
+  refundTransactionOnlyInDatabase,
 };
