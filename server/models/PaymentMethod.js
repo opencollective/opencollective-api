@@ -408,7 +408,7 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
 
   // Independently of the balance of the external source, the owner of the payment method
   // may have set up a monthlyLimitPerMember or an initialBalance
-  if (!this.initialBalance && (!this.monthlyLimitPerMember || (user && user.isAdmin(this.CollectiveId)))) {
+  if (!this.initialBalance && !this.monthlyLimitPerMember) {
     return { amount: balanceAmount, currency: this.currency };
   }
 
