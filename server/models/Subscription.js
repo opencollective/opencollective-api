@@ -5,84 +5,76 @@ import { cancelPaypalSubscription } from '../paymentProviders/paypal/subscriptio
 
 import CustomDataTypes from './DataTypes';
 
-function defineModel() {
-  const Subscription = sequelize.define(
-    'Subscription',
-    {
-      amount: {
-        type: DataTypes.INTEGER,
-        validate: { min: 0 },
-      },
+const Subscription = sequelize.define(
+  'Subscription',
+  {
+    amount: {
+      type: DataTypes.INTEGER,
+      validate: { min: 0 },
+    },
 
-      currency: CustomDataTypes(DataTypes).currency,
+    currency: CustomDataTypes(DataTypes).currency,
 
-      interval: {
-        type: DataTypes.STRING(8),
-        validate: {
-          isIn: {
-            args: [['month', 'year']],
-            msg: 'Must be month or year',
-          },
+    interval: {
+      type: DataTypes.STRING(8),
+      validate: {
+        isIn: {
+          args: [['month', 'year']],
+          msg: 'Must be month or year',
         },
       },
-
-      isActive: {
-        type: DataTypes.BOOLEAN,
-        defaultValue: false,
-      },
-
-      nextChargeDate: DataTypes.DATE,
-
-      nextPeriodStart: DataTypes.DATE,
-
-      chargeRetryCount: DataTypes.INTEGER,
-
-      quantity: DataTypes.INTEGER,
-
-      chargeNumber: DataTypes.INTEGER,
-
-      data: DataTypes.JSONB,
-
-      stripeSubscriptionId: DataTypes.STRING,
-
-      paypalSubscriptionId: { type: DataTypes.STRING, allowNull: true },
-
-      isManagedExternally: { type: DataTypes.BOOLEAN, defaultValue: false },
-
-      activatedAt: DataTypes.DATE,
-
-      deactivatedAt: DataTypes.DATE,
     },
-    {
-      paranoid: true,
+
+    isActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
-  );
 
-  Subscription.prototype.activate = function () {
-    this.isActive = true;
-    this.activatedAt = new Date();
+    nextChargeDate: DataTypes.DATE,
 
-    return this.save();
-  };
+    nextPeriodStart: DataTypes.DATE,
 
-  Subscription.prototype.deactivate = async function (reason, host) {
-    // If subscription exists on a third party, cancel it there
-    if (this.paypalSubscriptionId) {
-      const order = await this.getOrder();
-      order.Subscription = this;
-      await cancelPaypalSubscription(order, reason, host);
-    }
+    chargeRetryCount: DataTypes.INTEGER,
 
-    return this.update({ isActive: false, deactivatedAt: new Date() });
-  };
+    quantity: DataTypes.INTEGER,
 
-  Temporal(Subscription, sequelize);
+    chargeNumber: DataTypes.INTEGER,
 
-  return Subscription;
-}
+    data: DataTypes.JSONB,
 
-// We're using the defineModel method to keep the indentation and have a clearer git history.
-// Please consider this if you plan to refactor.
-const Subscription = defineModel();
+    stripeSubscriptionId: DataTypes.STRING,
+
+    paypalSubscriptionId: { type: DataTypes.STRING, allowNull: true },
+
+    isManagedExternally: { type: DataTypes.BOOLEAN, defaultValue: false },
+
+    activatedAt: DataTypes.DATE,
+
+    deactivatedAt: DataTypes.DATE,
+  },
+  {
+    paranoid: true,
+  },
+);
+
+Subscription.prototype.activate = function () {
+  this.isActive = true;
+  this.activatedAt = new Date();
+
+  return this.save();
+};
+
+Subscription.prototype.deactivate = async function (reason, host) {
+  // If subscription exists on a third party, cancel it there
+  if (this.paypalSubscriptionId) {
+    const order = await this.getOrder();
+    order.Subscription = this;
+    await cancelPaypalSubscription(order, reason, host);
+  }
+
+  return this.update({ isActive: false, deactivatedAt: new Date() });
+};
+
+Temporal(Subscription, sequelize);
 
 export default Subscription;
