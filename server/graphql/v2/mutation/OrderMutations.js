@@ -21,6 +21,7 @@ import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import logger from '../../../lib/logger';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import {
   updateOrderSubscription,
@@ -681,31 +682,36 @@ const orderMutations = {
           ? ['sepa_debit']
           : undefined);
 
-      const paymentIntent = await stripe.paymentIntents.create(
-        {
-          description: `Contribution to ${toAccount.name}`,
-          amount: convertToStripeAmount(currency, totalOrderAmount),
-          currency: paymentIntentInput.amount.currency.toLowerCase(),
-          // eslint-disable-next-line camelcase
-          payment_method_types: paymentMethodTypes,
-          metadata: {
-            from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
-            to: `${config.host.website}/${toAccount.slug}`,
+      try {
+        const paymentIntent = await stripe.paymentIntents.create(
+          {
+            description: `Contribution to ${toAccount.name}`,
+            amount: convertToStripeAmount(currency, totalOrderAmount),
+            currency: paymentIntentInput.amount.currency.toLowerCase(),
+            // eslint-disable-next-line camelcase
+            payment_method_types: paymentMethodTypes,
+            metadata: {
+              from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
+              to: `${config.host.website}/${toAccount.slug}`,
+            },
           },
-        },
-        !isPlatformHost
-          ? {
-              stripeAccount: hostStripeAccount.username,
-            }
-          : undefined,
-      );
+          !isPlatformHost
+            ? {
+                stripeAccount: hostStripeAccount.username,
+              }
+            : undefined,
+        );
 
-      return {
-        id: paymentIntent.id,
-        paymentIntentClientSecret: paymentIntent.client_secret,
-        stripeAccount: hostStripeAccount.username,
-        stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
-      };
+        return {
+          id: paymentIntent.id,
+          paymentIntentClientSecret: paymentIntent.client_secret,
+          stripeAccount: hostStripeAccount.username,
+          stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
+        };
+      } catch (e) {
+        logger.error(e);
+        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
+      }
     },
   },
 };
