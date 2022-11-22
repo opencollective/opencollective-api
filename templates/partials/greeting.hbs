@@ -1,4 +1,6 @@
-{{#if recipientName ~}}
+{{#if recipient ~}}
+Hi{{#if recipient.name}} {{recipient.name}}{{/if}},
+{{else if recipientName ~}}
 Hi {{recipientName}},
 {{else ~}}
 Hi,

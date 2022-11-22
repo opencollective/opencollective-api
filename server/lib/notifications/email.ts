@@ -45,6 +45,8 @@ export const notify = {
   ) {
     const userId = options?.user?.id || options?.userId || activity.UserId;
     const user = options?.user || (await models.User.findByPk(userId, { include: [models.Collective] }));
+
+    // TODO We're not using the `unsubscribed` option here, we should
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       UserId: user.id,

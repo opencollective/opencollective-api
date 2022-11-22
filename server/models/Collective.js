@@ -1952,9 +1952,6 @@ Collective.prototype.sendNewMemberEmail = async function (user, role, member, se
         name: this.name,
         type: lowercaseType,
       },
-      recipient: {
-        collective: memberUser.collective.activity,
-      },
       loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/admin`,
     },
     { bcc: remoteUser.email },
