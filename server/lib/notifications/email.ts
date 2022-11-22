@@ -52,7 +52,7 @@ export const notify = {
 
     if (!activity.data.recipientName) {
       const userCollective = await models.Collective.findByPk(user.CollectiveId);
-      activity.data.recipientName = userCollective.name;
+      activity.data.recipientName = userCollective.name || userCollective.legalName;
     }
 
     const isTransactional = TransactionalActivities.includes(activity.type);
