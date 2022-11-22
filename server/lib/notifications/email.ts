@@ -43,21 +43,26 @@ export const notify = {
       userId?: number;
     },
   ) {
-    const user = options?.user || (await models.User.findByPk(options?.userId || activity.UserId));
+    const userId = options?.user?.id || options?.userId || activity.UserId;
+    const user = options?.user || (await models.User.findByPk(userId, { include: [models.Collective] }));
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       UserId: user.id,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
     });
 
-    if (!activity.data.recipientName) {
-      const userCollective = await models.Collective.findByPk(user.CollectiveId);
-      activity.data.recipientName = userCollective.name || userCollective.legalName;
-    }
-
     const isTransactional = TransactionalActivities.includes(activity.type);
     if (unsubscribed.length === 0) {
       debug('notifying.user', user.id, user && user.email, activity.type);
+
+      // Add recipient name to data
+      if (!activity.data.recipientName) {
+        user.collective = user.collective || (await user.getCollective());
+        if (user.collective) {
+          activity.data.recipientName = user.collective.name || user.collective.legalName;
+        }
+      }
+
       return emailLib.send(options?.template || activity.type, options?.to || user.email, activity.data, {
         ...options,
         isTransactional,
@@ -121,8 +126,6 @@ export const notify = {
           CollectiveId: collective.ParentCollectiveId ? [collective.ParentCollectiveId, collective.id] : collective.id,
           role,
         });
-
-    activity.data.recipientName = activity.data.fromCollective ? activity.data.fromCollective : collective.name;
 
     return notify.users(users, activity, { ...options, collective });
   },
