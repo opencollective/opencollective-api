@@ -530,7 +530,7 @@ export async function createOrder(order, req) {
     orderCreated = await models.Order.create(orderData);
 
     if (paymentRequired) {
-      if (get(order, 'paymentMethod.type') === 'manual' || order.paymentMethod?.type === 'paymentintent') {
+      if (get(order, 'paymentMethod.type') === 'manual') {
         orderCreated.paymentMethod = order.paymentMethod;
       } else {
         order.paymentMethod.CollectiveId = orderCreated.FromCollectiveId;

@@ -116,6 +116,9 @@ export async function refundTransaction(transaction, user, message) {
   // If no payment method was used, it means that we're using a manual payment method
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
+    : // TODO: Drop this in favor of findPaymentMethodProvider when persisting PaymentIntents as Payment Methods
+    ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
+    ? paymentProviders.stripe.types.paymentintent
     : paymentProviders.opencollective.types.manual;
 
   if (!paymentMethodProvider.refundTransaction) {
