@@ -368,21 +368,13 @@ export async function createOrder(order, req) {
         throw new FeatureNotSupportedForCollective();
       }
 
-      const possibleRoles = [];
-      if (fromCollective.type === types.ORGANIZATION) {
-        possibleRoles.push(roles.MEMBER);
-      }
-
-      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.hasRole(possibleRoles, fromCollective.id)) {
+      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.isAdminOfCollective(host)) {
         // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
-        const HostId = await collective.getHostCollectiveId();
-        if (!remoteUser?.isAdmin(HostId)) {
-          throw new Error(
-            `You don't have sufficient permissions to create an order on behalf of the ${
-              fromCollective.name
-            } ${fromCollective.type.toLowerCase()}`,
-          );
-        }
+        throw new Error(
+          `You don't have sufficient permissions to create an order on behalf of the ${
+            fromCollective.name
+          } ${fromCollective.type.toLowerCase()}`,
+        );
       }
     }
 
