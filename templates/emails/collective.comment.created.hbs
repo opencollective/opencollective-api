@@ -12,19 +12,22 @@ Subject: {{{collective.name}}}: New comment
 
 {{#if expense}}
   <p style="padding: 1em;">
-    {{> greeting}}
+    Hi,
+    <br /><br />
     {{> linkCollective collective=fromCollective}} just posted
     a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:
   </p>
 {{else if conversation}}
   <p style="font-size: 17px; padding: 1em;">
-    {{> greeting}}
+    Hi {{collective.name}},
+    <br /><br />
     {{> linkCollective collective=fromCollective}} just posted
     a new comment on a Conversation, <a href="{{config.host.website}}{{path}}">{{conversation.title}}</a>:
   </p>
 {{else if update}}
   <p style="font-size: 17px; padding: 1em;">
-    {{> greeting}}
+    Hi {{collective.name}},
+    <br /><br />
     {{> linkCollective collective=fromCollective}} just posted
     a new comment on an Update, <a href="{{config.host.website}}{{path}}">{{update.title}}</a>:
   </p>

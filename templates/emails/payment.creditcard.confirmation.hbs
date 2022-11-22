@@ -4,7 +4,11 @@ Subject: Confirm your credit card to continue supporting {{{collective.name}}}
 
 {{> toplogo}}
 
-{{> greeting}}
+{{#if fromCollective.name}}
+<p>Dear {{fromCollective.name}},</p>
+{{else}}
+<p>Hi!</p>
+{{/if}}
 
 <p>To comply with banking regulations, we are required to confirm your credit card in order to process your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
 

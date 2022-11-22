@@ -4,7 +4,11 @@ Subject: Thank you for your contribution to {{{collective.name}}}
 
 {{> toplogo}}
 
-{{> greeting}}
+{{#if fromCollective.name}}
+<p>Dear {{fromCollective.name}},</p>
+{{else}}
+<p>Hi!</p>
+{{/if}}
 
 {{#if interval}}
   {{#if firstPayment }}

@@ -2,7 +2,11 @@ Subject: Invitation to join {{{collective.name}}} on Open Collective
 
 {{> header}}
 
-{{> greeting}}
+{{#if memberCollective.name}}
+<p>Dear {{memberCollective.name}},</p>
+{{else}}
+<p>Hi,</p>
+{{/if}}
 
 <p>
   {{#if skipDefaultAdmin}}

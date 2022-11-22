@@ -16,7 +16,12 @@ Subject: Your {{brand}} card ending in {{name}} is about to expire
 
 {{> header}}
 
-{{> greeting}}
+{{#if collectiveName}}
+<p>Hi {{collectiveName}},</p>
+{{else}}
+<p>Hello,</p>
+{{/if}}
+
 
 {{#if reminder}}
 <p>

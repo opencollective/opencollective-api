@@ -5,7 +5,11 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is being proces
 
 {{> toplogo}}
 
-{{> greeting}}
+{{#if fromCollective.name}}
+<p>Hi {{fromCollective.name}},</p>
+{{else}}
+<p>Hi!</p>
+{{/if}}
 
 <p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on {{moment order.createdAt}}.</p>
 

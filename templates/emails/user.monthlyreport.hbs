@@ -219,7 +219,7 @@ Subject: {{capitalize month}} Open Collective Report
       <a class="ContainerLogo" href="//opencollective.com"></a>
       <div class="ContainerLogoName"></div>
       <div class="Section Intro">
-        <h2>{{> greeting}}👋</h2>
+        <h2>Hi {{fromCollective.name}} 👋</h2>
         <ul class="intro">
           <li>In {{month}}, you have backed {{stats.collectives}} {{pluralize "collective" n=stats.collectives}} for a total of {{stats.totalDonatedString}}. Thank you for your {{pluralize "contribution" n=stats.collectives}}! 🙌
           {{#if stats.expenses}}<br />These Collectives have spent a total of {{stats.totalSpentString}} in expenses.{{/if}}

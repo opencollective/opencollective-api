@@ -17,7 +17,11 @@ Subject: Payment failed: Update info to keep supporting {{{collective.name}}}
 
 {{> toplogo}}
 
-{{> greeting}}
+{{#if fromCollective.name}}
+<p>Hi {{fromCollective.name}},</p>
+{{else}}
+<p>Hello,</p>
+{{/if}}
 
 {{#if lastAttempt}}
 

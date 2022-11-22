@@ -2,7 +2,11 @@ Subject: Action required: Submit tax form for {{{accountName}}}
 
 {{> header}}
 
-{{> greeting}}
+{{#if recipientName}}
+<p>Hi {{recipientName}},</p>
+{{else}}
+<p>Hi,</p>
+{{/if}}
 
 <p>
   US regulations require US entities to collect certain information about payees for tax reporting purposes. The button below will take you to HelloWorks, the service we use to collect your tax information securely.

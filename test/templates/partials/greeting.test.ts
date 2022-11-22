@@ -1,19 +1,34 @@
+import '../../../server/lib/emailTemplates'; // To make sure templates are loaded
+
 import { expect } from 'chai';
 
 import handlebars from '../../../server/lib/handlebars';
-import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
 
 const template = handlebars.compile('{{> greeting}}');
+const templateWithRecipient = handlebars.compile('{{> greeting recipient=recipient}}');
 
 describe('templates/partials/greeting', () => {
-  it('should render a generic greeting without a recipient', async () => {
-    const result = template({});
-    expect(result).to.eq(`<p>Hi,</p>\n`);
+  describe('base', () => {
+    it('should render a generic greeting without a recipient', async () => {
+      const result = template({});
+      expect(result).to.eq(`Hi,\n`);
+    });
+
+    it('should render a collective name', async () => {
+      const result = template({ recipientName: 'Test Collective' });
+      expect(result).to.eq(`Hi Test Collective,\n`);
+    });
   });
 
-  it('should render a collective name in greeting', async () => {
-    const result = template({ recipientName: 'Test Collective' });
-    expect(result).to.eq(`<p>Hi Test Collective,</p>\n`);
-  });
+  describe('with a recipient', () => {
+    it('should render a generic greeting without a recipient', async () => {
+      const result = templateWithRecipient({});
+      expect(result).to.eq(`Hi,\n`);
+    });
 
+    it('should render a collective name', async () => {
+      const result = templateWithRecipient({ recipient: { name: 'Test Collective' } });
+      expect(result).to.eq(`Hi Test Collective,\n`);
+    });
+  });
 });
