@@ -91,7 +91,7 @@ export const loaders = req => {
   );
 
   context.loaders.Collective.host = buildLoaderForAssociation(models.Collective, 'host', {
-    filter: collective => collective.isActive,
+    filter: collective => Boolean(collective.approvedAt),
     loader: hostIds => context.loaders.Collective.byId.loadMany(hostIds),
   });
 
