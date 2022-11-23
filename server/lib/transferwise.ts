@@ -275,6 +275,29 @@ export const getProfiles = async (token: string): Promise<Profile[]> => {
   );
 };
 
+export const listTransfers = async (token: string, params) => {
+  return requestDataAndThrowParsedError(
+    axios.get,
+    `/v1/transfers`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      params,
+    },
+    'There was an error fetching transfers from Wise',
+  );
+};
+
+export const getRecipient = async (token: string, accountId) => {
+  return requestDataAndThrowParsedError(
+    axios.get,
+    `/v1/accounts/${accountId}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    'There was an error fetching the recipient information from Wise',
+  );
+};
+
 interface GetTemporaryQuote {
   sourceCurrency: string;
   targetCurrency: string;
