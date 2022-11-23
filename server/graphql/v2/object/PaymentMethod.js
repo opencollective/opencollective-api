@@ -119,6 +119,10 @@ export const PaymentMethod = new GraphQLObjectType({
             allowedFields = ['depositAddress'];
           }
 
+          if (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE) {
+            allowedFields.push('stripeAccount', 'paymentMethodId');
+          }
+
           return pick(paymentMethod.data, allowedFields);
         },
       },

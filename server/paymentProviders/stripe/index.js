@@ -53,6 +53,10 @@ export default {
     default: creditcard,
     creditcard,
     paymentintent,
+    // eslint-disable-next-line camelcase
+    us_bank_account: paymentintent,
+    // eslint-disable-next-line camelcase
+    sepa_debit: paymentintent,
   },
 
   oauth: {

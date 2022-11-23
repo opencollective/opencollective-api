@@ -1,5 +1,6 @@
 /* eslint-disable camelcase */
 
+import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
 import type Stripe from 'stripe';
@@ -7,7 +8,7 @@ import { v4 as uuid } from 'uuid';
 
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
@@ -15,7 +16,7 @@ import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
 import { createRefundTransaction, sendEmailNotifications, sendOrderFailedEmail } from '../../lib/payments';
 import stripe from '../../lib/stripe';
-import models from '../../models';
+import models, { sequelize } from '../../models';
 
 import { createChargeTransactions } from './common';
 import * as virtualcard from './virtual-cards';
@@ -424,6 +425,75 @@ export const reviewClosed = async (event: Stripe.Response<Stripe.Event>) => {
   }
 };
 
+function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
+  switch (paymentMethod.type) {
+    case PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT: {
+      return `${paymentMethod.us_bank_account.bank_name} ****${paymentMethod.us_bank_account.last4}`;
+    }
+    case PAYMENT_METHOD_TYPE.SEPA_DEBIT: {
+      return `${paymentMethod.sepa_debit.bank_code} ****${paymentMethod.sepa_debit.last4}`;
+    }
+    default: {
+      return '';
+    }
+  }
+}
+
+async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
+  const paymentMethod = event.data.object as Stripe.PaymentMethod;
+
+  const stripeAccount = event.account ?? config.stripe.accountId;
+
+  const stripeCustomerId = paymentMethod.customer;
+
+  await sequelize.transaction(async transaction => {
+    const stripeCustomer = await models.PaymentMethod.findOne({
+      where: {
+        customerId: stripeCustomerId,
+        type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!stripeCustomer) {
+      return;
+    }
+
+    const pm = await models.PaymentMethod.findOne({
+      where: {
+        data: {
+          paymentMethodId: paymentMethod.id,
+          stripeAccount,
+        },
+      },
+      transaction,
+    });
+
+    if (pm) {
+      return;
+    }
+
+    await models.PaymentMethod.create(
+      {
+        name: formatPaymentMethodName(paymentMethod),
+        customerId: stripeCustomerId,
+        CollectiveId: stripeCustomer.CollectiveId,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: paymentMethod.type,
+        confirmedAt: new Date(),
+        saved: true,
+        data: {
+          paymentMethodId: paymentMethod.id,
+          stripeAccount,
+        },
+      },
+      { transaction },
+    );
+  });
+}
+
 export const webhook = async (request: Request<unknown, Stripe.Event>) => {
   const requestBody = request.body;
 
@@ -490,6 +560,8 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
           return paymentIntentProcessing(event);
         case 'payment_intent.payment_failed':
           return paymentIntentFailed(event);
+        case 'payment_method.attached':
+          return paymentMethodAttached(event);
         default:
           // console.log(JSON.stringify(event, null, 4));
           logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);

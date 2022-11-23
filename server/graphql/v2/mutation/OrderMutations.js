@@ -19,7 +19,7 @@ import {
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import logger from '../../../lib/logger';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
@@ -108,6 +108,9 @@ const orderMutations = {
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      if (order.paymentMethod?.paymentIntentId) {
+        paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
+      }
 
       // Ensure amounts are provided with the right currency
       ['platformTipAmount', 'amount', 'tax.amount'].forEach(field => {
@@ -653,6 +656,13 @@ const orderMutations = {
     async resolve(_, args, req) {
       const paymentIntentInput = args.paymentIntent;
 
+      const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
+      const hostStripeAccount = await toAccount.getHostStripeAccount();
+      const host = await toAccount.getHostCollective();
+
+      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+
+      let stripeCustomerId;
       let fromAccount;
       if (req.remoteUser) {
         fromAccount =
@@ -662,17 +672,49 @@ const orderMutations = {
         if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
           throw new Unauthorized();
         }
-      }
 
-      const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
-      const hostStripeAccount = await toAccount.getHostStripeAccount();
-      const host = await toAccount.getHostCollective();
+        let pm = await models.PaymentMethod.findOne({
+          where: {
+            CollectiveId: fromAccount.id,
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+            data: {
+              stripeAccount: hostStripeAccount.username,
+            },
+          },
+        });
+
+        const customer = await stripe.customers.create(
+          {
+            email: req.remoteUser.email,
+            description: `${config.host.website}/${fromAccount.slug}`,
+          },
+          !isPlatformHost
+            ? {
+                stripeAccount: hostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        if (!pm) {
+          pm = await models.PaymentMethod.create({
+            customerId: customer.id,
+            CreatedByUserId: req.remoteUser.id,
+            CollectiveId: fromAccount.id,
+            service: PAYMENT_METHOD_SERVICE.STRIPE,
+            type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+            data: {
+              stripeAccount: hostStripeAccount.username,
+            },
+          });
+        }
+
+        stripeCustomerId = pm.customerId;
+      }
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
 
       const currency = paymentIntentInput.currency;
-
-      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
       const paymentMethodTypes =
         host.settings.stripe?.payment_method_types ||
@@ -685,6 +727,9 @@ const orderMutations = {
       try {
         const paymentIntent = await stripe.paymentIntents.create(
           {
+            customer: stripeCustomerId,
+            // eslint-disable-next-line camelcase
+            setup_future_usage: 'off_session',
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
             currency: paymentIntentInput.amount.currency.toLowerCase(),
