@@ -356,7 +356,7 @@ export async function sumCollectivesTransactions(
   }
   if (excludeInternals) {
     // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
-    where.data = { internal: { [Op.not]: true } };
+    where.isInternal = { [Op.not]: true };
   }
   if (kind) {
     where.kind = kind;
