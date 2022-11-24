@@ -19,6 +19,30 @@ import { Amount } from '../object/Amount';
 import { AmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, TimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
 
+const TransactionArgs = {
+  kind: {
+    type: new GraphQLList(TransactionKind),
+    description: 'Filter by kind',
+  },
+  dateTo: {
+    type: GraphQLDateTime,
+    description: 'Calculate total amount spent before this date',
+  },
+  dateFrom: {
+    type: GraphQLDateTime,
+    description: 'Calculate total amount spent after this date',
+  },
+  periodInMonths: {
+    type: GraphQLInt,
+    description: 'Calculate total amount spent in the last x months. Cannot be used with startDate/endDate',
+  },
+  includeChildren: {
+    type: GraphQLBoolean,
+    description: 'Include money spent in children (Projects and Events)',
+    defaultValue: false,
+  },
+};
+
 export const AccountStats = new GraphQLObjectType({
   name: 'AccountStats',
   description: 'Stats for the Account',
@@ -96,27 +120,7 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Total amount spent',
         type: new GraphQLNonNull(Amount),
         args: {
-          kind: {
-            type: new GraphQLList(TransactionKind),
-            description: 'Filter by kind',
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'Calculate total amount spent before this date',
-          },
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'Calculate total amount spent after this date',
-          },
-          periodInMonths: {
-            type: GraphQLInt,
-            description: 'Calculate total amount spent in the last x months. Cannot be used with startDate/endDate',
-          },
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include money spent in children (Projects and Events)',
-            defaultValue: false,
-          },
+          ...TransactionArgs,
         },
         async resolve(collective, args) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
@@ -139,30 +143,10 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Total amount received',
         type: new GraphQLNonNull(Amount),
         args: {
-          kind: {
-            type: new GraphQLList(TransactionKind),
-            description: 'Filter by kind',
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'Calculate total amount received before this date',
-          },
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'Calculate total amount received after this date',
-          },
-          periodInMonths: {
-            type: GraphQLInt,
-            description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
-          },
+          ...TransactionArgs,
           useCache: {
             type: new GraphQLNonNull(GraphQLBoolean),
             description: 'Set this to true to use cached data',
-            defaultValue: false,
-          },
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include money received in children (Projects and Events)',
             defaultValue: false,
           },
         },
@@ -261,9 +245,23 @@ export const AccountStats = new GraphQLObjectType({
       totalNetAmountReceived: {
         description: 'Total net amount received',
         type: new GraphQLNonNull(Amount),
-        async resolve(collective) {
-          const value = await collective.getTotalNetAmountReceived();
-          return { value, currency: collective.currency };
+        args: {
+          ...TransactionArgs,
+        },
+        async resolve(collective, args) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+          return collective.getTotalNetAmountReceivedAmount({
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            includeChildren: args.includeChildren,
+          });
         },
       },
       activeRecurringContributions: {
