@@ -187,6 +187,7 @@ export const searchCollectivesInDB = async (
     hasCustomContributionsEnabled,
     countries,
     tags,
+    tagSearchOperator,
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -243,7 +244,11 @@ export const searchCollectivesInDB = async (
 
   if (tags?.length) {
     searchedTags = tags.map(tag => tag.toLowerCase());
-    dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
+    if (tagSearchOperator === 'OR') {
+      dynamicConditions += `AND c."tags" && Array[:searchedTags]::varchar[] `;
+    } else {
+      dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
+    }
   }
 
   const searchTermConditions = getSearchTermSQLConditions(term, 'c');
