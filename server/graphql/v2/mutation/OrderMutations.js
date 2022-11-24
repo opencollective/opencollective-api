@@ -684,19 +684,19 @@ const orderMutations = {
           },
         });
 
-        const customer = await stripe.customers.create(
-          {
-            email: req.remoteUser.email,
-            description: `${config.host.website}/${fromAccount.slug}`,
-          },
-          !isPlatformHost
-            ? {
-                stripeAccount: hostStripeAccount.username,
-              }
-            : undefined,
-        );
-
         if (!pm) {
+          const customer = await stripe.customers.create(
+            {
+              email: req.remoteUser.email,
+              description: `${config.host.website}/${fromAccount.slug}`,
+            },
+            !isPlatformHost
+              ? {
+                  stripeAccount: hostStripeAccount.username,
+                }
+              : undefined,
+          );
+
           pm = await models.PaymentMethod.create({
             customerId: customer.id,
             CreatedByUserId: req.remoteUser.id,
