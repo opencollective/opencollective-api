@@ -163,7 +163,14 @@ const model: OauthModel = {
     const userToken = await models.UserToken.findOne({
       where: { ApplicationId: application.id, UserId: user.id },
     });
-    if (!userToken) {
+
+    // Look if extra scope are requested
+    let extraScope;
+    if (userToken) {
+      extraScope = Array.from(scope).filter(x => !Array.from(userToken.scope).includes(x)).length !== 0;
+    }
+
+    if (!userToken || extraScope) {
       await models.Activity.create({
         type: activities.OAUTH_APPLICATION_AUTHORIZED,
         UserId: user.id,
