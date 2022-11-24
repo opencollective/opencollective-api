@@ -1,3 +1,4 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import {
   difference,
@@ -20,6 +21,8 @@ import activities from '../../../constants/activities';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import logger from '../../../lib/logger';
+import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
@@ -40,11 +43,13 @@ import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput 
 import { OrderCreateInput } from '../input/OrderCreateInput';
 import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
+import PaymentIntentInput from '../input/PaymentIntentInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 import { canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
+import PaymentIntent from '../object/PaymentIntent';
 import { StripeError } from '../object/StripeError';
 
 const OrderWithPayment = new GraphQLObjectType({
@@ -142,7 +147,7 @@ const orderMutations = {
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
-      return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
+      return { ...pick(result, ['order', 'stripeError']), guestToken: result.order.data?.guestToken };
     },
   },
   cancelOrder: {
@@ -635,6 +640,78 @@ const orderMutations = {
       uniqueCollectivesToPurge.forEach(purgeAllCachesForAccount);
 
       return result;
+    },
+  },
+  createPaymentIntent: {
+    type: new GraphQLNonNull(PaymentIntent),
+    description: 'Creates a Stripe payment intent',
+    args: {
+      paymentIntent: {
+        type: new GraphQLNonNull(PaymentIntentInput),
+      },
+    },
+    async resolve(_, args, req) {
+      const paymentIntentInput = args.paymentIntent;
+
+      let fromAccount;
+      if (req.remoteUser) {
+        fromAccount =
+          paymentIntentInput.fromAccount &&
+          (await fetchAccountWithReference(paymentIntentInput.fromAccount, { throwIfMissing: true }));
+
+        if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
+          throw new Unauthorized();
+        }
+      }
+
+      const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
+      const hostStripeAccount = await toAccount.getHostStripeAccount();
+      const host = await toAccount.getHostCollective();
+
+      const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
+
+      const currency = paymentIntentInput.currency;
+
+      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+
+      const paymentMethodTypes =
+        host.settings.stripe?.payment_method_types ||
+        (paymentIntentInput.amount.currency === 'USD'
+          ? ['us_bank_account']
+          : paymentIntentInput.amount.currency === 'EUR'
+          ? ['sepa_debit']
+          : undefined);
+
+      try {
+        const paymentIntent = await stripe.paymentIntents.create(
+          {
+            description: `Contribution to ${toAccount.name}`,
+            amount: convertToStripeAmount(currency, totalOrderAmount),
+            currency: paymentIntentInput.amount.currency.toLowerCase(),
+            // eslint-disable-next-line camelcase
+            payment_method_types: paymentMethodTypes,
+            metadata: {
+              from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
+              to: `${config.host.website}/${toAccount.slug}`,
+            },
+          },
+          !isPlatformHost
+            ? {
+                stripeAccount: hostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        return {
+          id: paymentIntent.id,
+          paymentIntentClientSecret: paymentIntent.client_secret,
+          stripeAccount: hostStripeAccount.username,
+          stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
+        };
+      } catch (e) {
+        logger.error(e);
+        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
+      }
     },
   },
 };

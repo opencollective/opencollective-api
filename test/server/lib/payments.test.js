@@ -463,7 +463,7 @@ describe('server/lib/payments', () => {
     });
   }); /* createRefundTransaction */
 
-  describe('sendOrderProcessingEmail', () => {
+  describe('sendOrderPendingEmail', () => {
     let order;
 
     beforeEach(async () => {
@@ -504,7 +504,7 @@ describe('server/lib/payments', () => {
     });
 
     it('should include account information', async () => {
-      await payments.sendOrderProcessingEmail(order);
+      await payments.sendOrderPendingEmail(order);
       await utils.waitForCondition(() => emailSendSpy.callCount > 0);
 
       expect(emailSendSpy.lastCall.args[2]).to.have.property('account');

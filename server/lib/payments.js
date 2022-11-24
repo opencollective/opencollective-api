@@ -116,6 +116,9 @@ export async function refundTransaction(transaction, user, message) {
   // If no payment method was used, it means that we're using a manual payment method
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
+    : // TODO: Drop this in favor of findPaymentMethodProvider when persisting PaymentIntents as Payment Methods
+    ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
+    ? paymentProviders.stripe.types.paymentintent
     : paymentProviders.opencollective.types.manual;
 
   if (!paymentMethodProvider.refundTransaction) {
@@ -501,8 +504,10 @@ export const sendEmailNotifications = (order, transaction) => {
   } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
     sendCryptoOrderProcessingEmail(order);
   } else if (order.status === status.PENDING) {
-    sendOrderProcessingEmail(order); // This is the one for the Contributor
+    sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
+  } else if (order.status === status.PROCESSING) {
+    sendOrderProcessingEmail(order);
   }
 };
 
@@ -721,7 +726,7 @@ const sendCryptoOrderProcessingEmail = async order => {
     };
 
     await models.Activity.create({
-      type: activities.ORDER_PROCESSING_CRYPTO,
+      type: activities.ORDER_PENDING_CRYPTO,
       CollectiveId: collective.id,
       FromCollectiveId: fromCollective.id,
       OrderId: order.id,
@@ -733,7 +738,7 @@ const sendCryptoOrderProcessingEmail = async order => {
 };
 
 // Assumes one-time payments,
-export const sendOrderProcessingEmail = async order => {
+export const sendOrderPendingEmail = async order => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -771,7 +776,56 @@ export const sendOrderProcessingEmail = async order => {
     });
   }
   await models.Activity.create({
+    type: activities.ORDER_PENDING,
+    UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
+    data,
+  });
+};
+
+export const sendOrderProcessingEmail = async order => {
+  const { collective, fromCollective } = order;
+  const user = order.createdByUser;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    user: user.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+  };
+
+  await models.Activity.create({
     type: activities.ORDER_PROCESSING,
+    UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
+    data,
+  });
+};
+
+export const sendOrderFailedEmail = async (order, reason) => {
+  const user = order.createdByUser;
+  const { collective, fromCollective } = order;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    user: user.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+    reason,
+  };
+
+  await models.Activity.create({
+    type: activities.ORDER_PAYMENT_FAILED,
     UserId: user.id,
     CollectiveId: collective.id,
     FromCollectiveId: fromCollective.id,

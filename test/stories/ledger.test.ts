@@ -19,7 +19,7 @@ import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/exp
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
-import creditcard from '../../server/paymentProviders/stripe/creditcard';
+import * as webhook from '../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../mocks/stripe';
 import {
   fakeCollective,
@@ -590,7 +590,7 @@ describe('test/stories/ledger', () => {
         },
         { where: { OrderId: order.id } },
       );
-      await creditcard.createDispute(stripeMocks.webhook_dispute_created);
+      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
     };
 
     it('1. Dispute is created', async () => {
@@ -605,7 +605,7 @@ describe('test/stories/ledger', () => {
     it('2. Dispute is created and then closed as lost', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      await creditcard.closeDispute(stripeMocks.webhook_dispute_lost);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance(), 'Total Balance').to.eq(0);
@@ -615,7 +615,7 @@ describe('test/stories/ledger', () => {
     it('3. Dispute is created and then closed as won', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      await creditcard.closeDispute(stripeMocks.webhook_dispute_won);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance(), 'Total Balance').to.eq(9500);

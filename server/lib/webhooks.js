@@ -103,6 +103,7 @@ export const sanitizeActivity = activity => {
       'expense.currency',
     ]);
     cleanActivity.data.fromCollective = getCollectiveInfo(activity.data.fromCollective);
+    cleanActivity.data.collective = getCollectiveInfo(activity.data.collective);
   } else if (type === activities.COLLECTIVE_MEMBER_CREATED) {
     cleanActivity.data = pick(activity.data, ['member.role', 'member.description', 'member.since']);
     cleanActivity.data.order = getOrderInfo(activity.data.order);

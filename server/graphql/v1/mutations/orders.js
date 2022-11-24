@@ -222,7 +222,11 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data?.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual' || paymentMethod.type === 'crypto',
+      paymentMethod.uuid ||
+        paymentMethod.token ||
+        paymentMethod.type === 'manual' ||
+        paymentMethod.type === 'crypto' ||
+        paymentMethod.type === 'paymentintent',
     );
   }
 };
@@ -364,21 +368,13 @@ export async function createOrder(order, req) {
         throw new FeatureNotSupportedForCollective();
       }
 
-      const possibleRoles = [];
-      if (fromCollective.type === types.ORGANIZATION) {
-        possibleRoles.push(roles.MEMBER);
-      }
-
-      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.hasRole(possibleRoles, fromCollective.id)) {
+      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.isAdminOfCollective(host)) {
         // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
-        const HostId = await collective.getHostCollectiveId();
-        if (!remoteUser?.isAdmin(HostId)) {
-          throw new Error(
-            `You don't have sufficient permissions to create an order on behalf of the ${
-              fromCollective.name
-            } ${fromCollective.type.toLowerCase()}`,
-          );
-        }
+        throw new Error(
+          `You don't have sufficient permissions to create an order on behalf of the ${
+            fromCollective.name
+          } ${fromCollective.type.toLowerCase()}`,
+        );
       }
     }
 
@@ -512,6 +508,7 @@ export async function createOrder(order, req) {
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
+        paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
       },
       status: orderStatus,
     };
@@ -552,6 +549,10 @@ export async function createOrder(order, req) {
       }
       // also adds the user as a BACKER of collective
       await libPayments.executeOrder(remoteUser, orderCreated);
+      if (order.paymentMethod.type === 'paymentintent') {
+        await orderCreated.reload();
+        return { order: orderCreated };
+      }
     } else if (!paymentRequired && order.interval && collective.type === types.COLLECTIVE) {
       // create inactive subscription to hold the interval info for the pledge
       const subscription = await models.Subscription.create({

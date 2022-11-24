@@ -729,7 +729,7 @@ describe('server/graphql/v1/createOrder', () => {
     await models.Member.create({
       CollectiveId: newco.id,
       MemberCollectiveId: duc.CollectiveId,
-      role: 'MEMBER',
+      role: 'ADMIN',
       CreatedByUserId: duc.id,
     });
 
