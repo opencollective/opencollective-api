@@ -120,7 +120,7 @@ export const PaymentMethod = new GraphQLObjectType({
           }
 
           if (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE) {
-            allowedFields.push('stripeAccount', 'paymentMethodId');
+            allowedFields.push('stripeAccount', 'stripePaymentMethodId');
           }
 
           return pick(paymentMethod.data, allowedFields);
