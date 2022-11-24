@@ -6,6 +6,7 @@ import { Request } from 'express';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
+import { Service } from '../../constants/connected_account';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
@@ -66,17 +67,17 @@ const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => 
   const stripeAccount = event.account ?? config.stripe.accountId;
 
   await sequelize.transaction(async transaction => {
-    const stripePaymentMethodCustomer = await models.PaymentMethod.findOne({
+    const stripeCustomerAccount = await models.ConnectedAccount.findOne({
       where: {
-        customerId: paymentIntent.customer,
-        type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
-        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        username: paymentIntent.customer,
+        clientId: stripeAccount,
+        service: Service.STRIPE_CUSTOMER,
       },
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
 
-    if (!stripePaymentMethodCustomer) {
+    if (!stripeCustomerAccount) {
       return;
     }
 
@@ -113,7 +114,7 @@ const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => 
         {
           name: formatPaymentMethodName(stripePaymentMethod),
           customerId: paymentIntent.customer,
-          CollectiveId: order.FromCollectiveId,
+          CollectiveId: stripeCustomerAccount.CollectiveId,
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           type: stripePaymentMethod.type,
           confirmedAt: new Date(),
@@ -505,17 +506,17 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
   const stripeCustomerId = stripePaymentMethod.customer;
 
   await sequelize.transaction(async transaction => {
-    const stripeCustomerPaymentMethod = await models.PaymentMethod.findOne({
+    const stripeCustomerAccount = await models.ConnectedAccount.findOne({
       where: {
-        customerId: stripeCustomerId,
-        type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
-        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        clientId: stripeAccount,
+        username: stripeCustomerId,
+        service: Service.STRIPE_CUSTOMER,
       },
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
 
-    if (!stripeCustomerPaymentMethod) {
+    if (!stripeCustomerAccount) {
       return;
     }
 
@@ -537,7 +538,7 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
       {
         name: formatPaymentMethodName(stripePaymentMethod),
         customerId: stripeCustomerId,
-        CollectiveId: stripeCustomerPaymentMethod.CollectiveId,
+        CollectiveId: stripeCustomerAccount.CollectiveId,
         service: PAYMENT_METHOD_SERVICE.STRIPE,
         type: stripePaymentMethod.type,
         confirmedAt: new Date(),

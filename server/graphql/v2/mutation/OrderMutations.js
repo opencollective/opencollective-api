@@ -18,8 +18,9 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
+import { Service } from '../../../constants/connected_account';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import logger from '../../../lib/logger';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
@@ -673,18 +674,9 @@ const orderMutations = {
           throw new Unauthorized();
         }
 
-        let pm = await models.PaymentMethod.findOne({
-          where: {
-            CollectiveId: fromAccount.id,
-            service: PAYMENT_METHOD_SERVICE.STRIPE,
-            type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
-            data: {
-              stripeAccount: hostStripeAccount.username,
-            },
-          },
-        });
+        let stripeCustomerAccount = await fromAccount.getCustomerStripeAccount(hostStripeAccount.username);
 
-        if (!pm) {
+        if (!stripeCustomerAccount) {
           const customer = await stripe.customers.create(
             {
               email: req.remoteUser.email,
@@ -697,19 +689,15 @@ const orderMutations = {
               : undefined,
           );
 
-          pm = await models.PaymentMethod.create({
-            customerId: customer.id,
-            CreatedByUserId: req.remoteUser.id,
+          stripeCustomerAccount = await models.ConnectedAccount.create({
+            clientId: hostStripeAccount.username,
+            username: customer.id,
             CollectiveId: fromAccount.id,
-            service: PAYMENT_METHOD_SERVICE.STRIPE,
-            type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
-            data: {
-              stripeAccount: hostStripeAccount.username,
-            },
+            service: Service.STRIPE_CUSTOMER,
           });
         }
 
-        stripeCustomerId = pm.customerId;
+        stripeCustomerId = stripeCustomerAccount.username;
       }
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
