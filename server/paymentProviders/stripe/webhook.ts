@@ -15,7 +15,12 @@ import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
-import { createRefundTransaction, sendEmailNotifications, sendOrderFailedEmail } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  createSubscription,
+  sendEmailNotifications,
+  sendOrderFailedEmail,
+} from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 
@@ -28,7 +33,6 @@ const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
-      status: OrderStatuses.PROCESSING,
       data: { paymentIntent: { id: paymentIntent.id } },
     },
     include: [
@@ -49,10 +53,14 @@ const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
   const transaction = await createChargeTransactions(charge, { order });
 
   await order.update({
-    status: OrderStatuses.PAID,
+    status: !order.SubscriptionId ? OrderStatuses.PAID : undefined,
     processedAt: new Date(),
     data: { ...order.data, paymentIntent },
   });
+
+  if (order.interval && !order.SubscriptionId) {
+    await createSubscription(order);
+  }
 
   if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
     await order.getOrCreateMembers();

@@ -141,7 +141,7 @@ export async function processOrderWithSubscription(order, options) {
         }
         order.status = status.ACTIVE;
         // TODO: we should consolidate on error and remove latestError
-        order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
+        order.data = omit(order.data, ['error', 'latestError']);
       }
     }
   } else if (options.simulate) {
