@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { cloneDeep, compact, difference, find, has, isNil, omit, pick, set, split, toNumber } from 'lodash';
+import { cloneDeep, compact, difference, find, has, omit, pick, set, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -38,18 +38,13 @@ export const blockedCurrenciesForBusinessProfiles = splitCSV(config.transferwise
 export const blockedCurrenciesForNonProfits = splitCSV(config.transferwise.blockedCurrenciesForNonProfits);
 export const currenciesThatRequireReference = ['RUB'];
 
-async function getToken(connectedAccount: ConnectedAccount): Promise<string> {
-  // Old token, does not expires
-  // eslint-disable-next-line camelcase
-  if (isNil(connectedAccount.data?.expires_in)) {
-    return connectedAccount.token;
-  }
+async function getToken(connectedAccount: ConnectedAccount, refresh = false): Promise<string> {
   // OAuth token, require us to refresh every 12 hours
   await connectedAccount.reload();
-  const updatedAt = moment(connectedAccount.updatedAt);
-  const diff = moment.duration(moment().diff(updatedAt)).asSeconds();
+  const tokenCreation = moment.utc(connectedAccount.data.created_at);
+  const diff = moment.duration(moment.utc().diff(tokenCreation)).asSeconds();
   const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
-  if (isOutdated) {
+  if (refresh || isOutdated) {
     const newToken = await transferwise.getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
     if (!newToken) {
       throw new Error('There was an error refreshing the Transferwise token');
