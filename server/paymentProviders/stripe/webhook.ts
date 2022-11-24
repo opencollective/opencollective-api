@@ -440,14 +440,14 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
 }
 
 async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
-  const paymentMethod = event.data.object as Stripe.PaymentMethod;
+  const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
   const stripeAccount = event.account ?? config.stripe.accountId;
 
-  const stripeCustomerId = paymentMethod.customer;
+  const stripeCustomerId = stripePaymentMethod.customer;
 
   await sequelize.transaction(async transaction => {
-    const stripeCustomer = await models.PaymentMethod.findOne({
+    const stripeCustomerPaymentMethod = await models.PaymentMethod.findOne({
       where: {
         customerId: stripeCustomerId,
         type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
@@ -457,14 +457,14 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
       lock: transaction.LOCK.UPDATE,
     });
 
-    if (!stripeCustomer) {
+    if (!stripeCustomerPaymentMethod) {
       return;
     }
 
     const pm = await models.PaymentMethod.findOne({
       where: {
         data: {
-          paymentMethodId: paymentMethod.id,
+          paymentMethodId: stripePaymentMethod.id,
           stripeAccount,
         },
       },
@@ -477,15 +477,15 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
 
     await models.PaymentMethod.create(
       {
-        name: formatPaymentMethodName(paymentMethod),
+        name: formatPaymentMethodName(stripePaymentMethod),
         customerId: stripeCustomerId,
-        CollectiveId: stripeCustomer.CollectiveId,
+        CollectiveId: stripeCustomerPaymentMethod.CollectiveId,
         service: PAYMENT_METHOD_SERVICE.STRIPE,
-        type: paymentMethod.type,
+        type: stripePaymentMethod.type,
         confirmedAt: new Date(),
         saved: true,
         data: {
-          paymentMethodId: paymentMethod.id,
+          stripePaymentMethodId: stripePaymentMethod.id,
           stripeAccount,
         },
       },
