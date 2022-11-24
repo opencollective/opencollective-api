@@ -96,7 +96,7 @@ const main = async (): Promise<void> => {
     // Save
     if (!IS_DRY) {
       console.log(`Saving transaction group ${group}...`);
-      // TODO await Promise.all(transactions.map(t => t.save()));
+      await Promise.all(transactions.map(t => t.save()));
     } else {
       console.log(
         `DRY: would have updated transaction group ${group} (host=${collective.host.slug}, collective=${collective.slug})`,

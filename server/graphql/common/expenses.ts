@@ -1430,7 +1430,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
 
   if (expense.currency !== expense.collective.currency) {
     throw new Error(
-      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts.',
+      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
     );
   }
 
@@ -1876,6 +1876,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     try {
       // Pay expense based on chosen payout method
       if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+        if (expense.collective.currency !== host.currency) {
+          throw new Error(
+            'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
+          );
+        }
+
         const paypalEmail = payoutMethod.data.email;
         let paypalPaymentMethod = null;
         try {
@@ -1887,9 +1893,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         // then we simply mark the expense as paid
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else if (forceManual) {
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPalAdaptive(
             remoteUser,
@@ -1907,7 +1913,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           await expense.update({
             data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
           });
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else {
           const [connectedAccount] = await host.getConnectedAccounts({
             where: { service: 'transferwise', deletedAt: null },
