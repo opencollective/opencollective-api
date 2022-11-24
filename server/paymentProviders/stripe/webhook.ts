@@ -62,21 +62,75 @@ const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
 
 const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
-  const order = await models.Order.findOne({
-    where: {
-      status: [OrderStatuses.NEW, OrderStatuses.PROCESSING],
-      data: { paymentIntent: { id: paymentIntent.id } },
-    },
-  });
 
-  if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
-    return;
-  }
+  const stripeAccount = event.account ?? config.stripe.accountId;
 
-  await order.update({
-    status: OrderStatuses.PROCESSING,
-    data: { ...order.data, paymentIntent },
+  await sequelize.transaction(async transaction => {
+    await models.PaymentMethod.findOne({
+      where: {
+        customerId: paymentIntent.customer,
+        type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    const order = await models.Order.findOne({
+      where: {
+        status: [OrderStatuses.NEW, OrderStatuses.PROCESSING],
+        data: { paymentIntent: { id: paymentIntent.id } },
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!order) {
+      logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+      return;
+    }
+
+    let pm = await models.PaymentMethod.findOne({
+      where: {
+        data: {
+          stripePaymentMethodId: paymentIntent.payment_method,
+          stripeAccount,
+        },
+      },
+      transaction,
+    });
+
+    if (!pm) {
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(paymentIntent.payment_method as string, {
+        stripeAccount,
+      });
+
+      pm = await models.PaymentMethod.create(
+        {
+          name: formatPaymentMethodName(stripePaymentMethod),
+          customerId: paymentIntent.customer,
+          CollectiveId: order.FromCollectiveId,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: stripePaymentMethod.type,
+          confirmedAt: new Date(),
+          saved: true,
+          data: {
+            stripePaymentMethodId: paymentIntent.payment_method,
+            stripeAccount,
+          },
+        },
+        { transaction },
+      );
+    }
+
+    await order.update(
+      {
+        status: OrderStatuses.PROCESSING,
+        PaymentMethodId: pm.id,
+        data: { ...order.data, paymentIntent },
+      },
+      { transaction },
+    );
   });
 };
 
@@ -464,7 +518,7 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
     const pm = await models.PaymentMethod.findOne({
       where: {
         data: {
-          paymentMethodId: stripePaymentMethod.id,
+          stripePaymentMethodId: stripePaymentMethod.id,
           stripeAccount,
         },
       },
