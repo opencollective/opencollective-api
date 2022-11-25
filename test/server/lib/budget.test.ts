@@ -1,8 +1,15 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense_status';
-import { getCurrentFastBalances, getYearlyIncome, sumCollectivesTransactions } from '../../../server/lib/budget';
+import {
+  getBalances,
+  getCurrentFastBalances,
+  getYearlyIncome,
+  sumCollectivesTransactions,
+} from '../../../server/lib/budget';
+import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
@@ -116,8 +123,6 @@ describe('server/lib/budget', () => {
 
           const txs = await sumCollectivesTransactions([collective.id], {
             column: 'netAmountInHostCurrency',
-            startDate: moment().subtract(1, 'day'),
-            endDate: moment(),
             kind: null,
             withBlockedFunds: true,
             excludeRefunds: false,
@@ -129,13 +134,32 @@ describe('server/lib/budget', () => {
     });
   });
 
-  describe.only('getCurrentFastBalances', () => {
-    let collective, otherCollective;
+  describe('getCurrentFastBalances', () => {
+    let collective, otherCollective, sandbox;
 
     beforeEach(async () => {
       await resetTestDB();
       collective = await fakeCollective();
       otherCollective = await fakeCollective();
+    });
+
+    before(async () => {
+      sandbox = createSandbox();
+
+      sandbox
+        .stub(libcurrency, 'getFxRate')
+        .withArgs('BRL', 'USD')
+        .resolves(1 / 1.1)
+        .withArgs('USD', 'BRL')
+        .resolves(1.1)
+        .withArgs('USD', 'USD')
+        .resolves(1)
+        .withArgs('BRL', 'BRL')
+        .resolves(1);
+    });
+
+    after(() => {
+      sandbox.restore();
     });
 
     async function createBalanceData(refreshView) {
@@ -182,7 +206,8 @@ describe('server/lib/budget', () => {
       );
 
       if (refreshView) {
-        await sequelize.query('REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"');
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query(`REFRESH MATERIALIZED VIEW "LatestBalances"`);
       }
 
       await fakeTransaction(
@@ -248,40 +273,31 @@ describe('server/lib/budget', () => {
     it('sums correctly with materialized view and new transactions', async () => {
       await createBalanceData(true);
 
-      const balances = await getCurrentFastBalances(
-        [collective.id, otherCollective.id],
-        null,
-        collective.host.currency,
-        true,
-      );
-      expect(balances[collective.id].value).to.eq(69e2);
+      const balances = await getCurrentFastBalances([collective.id, otherCollective.id], { withBlockedFunds: true });
+      expect(balances[collective.id].value).to.eq(7091);
       expect(balances[otherCollective.id].value).to.eq(130e2);
     });
 
     it('sums correctly without materialized view', async () => {
       await createBalanceData(false);
 
-      const balances = await getCurrentFastBalances(
-        [collective.id, otherCollective.id],
-        null,
-        collective.host.currency,
-        true,
-      );
+      const fastBalances = await getCurrentFastBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: true,
+      });
+      expect(fastBalances).to.be.empty;
 
-      console.log(balances);
-      expect(balances[collective.id].value).to.eq(69e2);
+      const balances = await getBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: true,
+      });
+
+      expect(balances[collective.id].value).to.eq(7091);
       expect(balances[otherCollective.id].value).to.eq(130e2);
     });
 
     it('sums correctly when not excluding blocked balances', async () => {
       await createBalanceData(true);
 
-      const balances = await getCurrentFastBalances(
-        [collective.id, otherCollective.id],
-        null,
-        collective.host.currency,
-        false,
-      );
+      const balances = await getCurrentFastBalances([collective.id, otherCollective.id], { withBlockedFunds: false });
       expect(balances[collective.id].value).to.eq(140e2);
       expect(balances[otherCollective.id].value).to.eq(130e2);
     });

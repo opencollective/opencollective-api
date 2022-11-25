@@ -47,8 +47,8 @@ export const resetCaches = () => cache.clear();
 export const resetTestDB = async () => {
   const resetFn = async () => {
     await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
-    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "LatestBalances"`);
   };
 
   try {

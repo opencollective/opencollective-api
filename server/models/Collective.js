@@ -44,7 +44,6 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/allowed-features';
 import {
   getBalanceAmount,
-  getBalanceWithBlockedFundsAmount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalAmountSpentAmount,
@@ -2743,11 +2742,11 @@ Collective.prototype.getPaymentMethod = async function (where, mustBeConfirmed =
 };
 
 Collective.prototype.getBalanceWithBlockedFundsAmount = function (options) {
-  return getBalanceWithBlockedFundsAmount(this, options);
+  return getBalanceAmount(this, { ...options, withBlockedFunds: true });
 };
 
 Collective.prototype.getBalanceWithBlockedFunds = function (options) {
-  return getBalanceWithBlockedFundsAmount(this, options).then(result => result.value);
+  return getBalanceAmount(this, { ...options, withBlockedFunds: true }).then(result => result.value);
 };
 
 Collective.prototype.getBalanceAmount = function (options) {

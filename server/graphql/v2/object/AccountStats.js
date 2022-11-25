@@ -74,12 +74,18 @@ export const AccountStats = new GraphQLObjectType({
             description: 'Include balance from children (Projects and Events)',
             defaultValue: false,
           },
+          withBlockedFunds: {
+            type: GraphQLBoolean,
+            description: 'Remove blocked funds from the balance',
+            defaultValue: false,
+          },
         },
         resolve(account, args, req) {
           return account.getBalanceAmount({
             loaders: req.loaders,
             endDate: args.dateTo,
             includeChildren: args.includeChildren,
+            withBlockedFunds: args.withBlockedFunds,
           });
         },
       },

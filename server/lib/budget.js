@@ -1,4 +1,4 @@
-import { isEmpty, isNil } from 'lodash';
+import { difference } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
 import { TransactionKind } from '../constants/transaction-kind';
@@ -42,21 +42,29 @@ export async function getCollectiveIds(collective, includeChildren) {
  - v3: sum by currency based on amountInHostCurrency, limit to entries with a HostCollectiveId, then convert Collective's currency using the Fx Rate of the day
 */
 
-export async function getBalanceAmount(collective, { endDate, currency, version, loaders, includeChildren } = {}) {
+export async function getBalanceAmount(
+  collective,
+  { endDate, currency, version, loaders, includeChildren, fast = true, withBlockedFunds = false } = {},
+) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   // Optimized version using loaders
   if (version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren) {
+    let result;
     if (loaders) {
-      const result = await loaders.Collective.balance.load(collective.id);
+      const loader = withBlockedFunds ? 'balanceWithBlockedFunds' : 'balance';
+      result = await loaders.Collective[loader].load(collective.id);
+    } else if (fast) {
+      const results = await getCurrentFastBalances([collective.id], { withBlockedFunds });
+      result = results[collective.id];
+    }
+    if (result) {
       const fxRate = await getFxRate(result.currency, currency);
       return {
         value: Math.round(result.value * fxRate),
         currency,
       };
-    } else {
-      return await getCurrentFastBalances(collective.id, collective.HostCollectiveId, currency, false);
     }
   }
 
@@ -66,7 +74,7 @@ export async function getBalanceAmount(collective, { endDate, currency, version,
     endDate,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
-    withBlockedFunds: false,
+    withBlockedFunds: withBlockedFunds,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
 
@@ -76,66 +84,24 @@ export async function getBalanceAmount(collective, { endDate, currency, version,
   return { value, currency };
 }
 
-export async function getBalanceWithBlockedFundsAmount(collective, { currency, version, loaders } = {}) {
-  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
-  currency = currency || collective.currency;
+export async function getBalances(collectiveIds, { withBlockedFunds = false, fast = true } = {}) {
+  const version = DEFAULT_BUDGET_VERSION;
 
-  // Optimized version using loaders
-  if (version === DEFAULT_BUDGET_VERSION) {
-    if (loaders) {
-      const result = await loaders.Collective.balanceWithBlockedFunds.load(collective.id);
-      const fxRate = await getFxRate(result.currency, currency);
-      return {
-        value: Math.round(result.value * fxRate),
-        currency,
-      };
-    } else {
-      return await getCurrentFastBalancesWithBlockedFunds(collective.id, collective.HostCollectiveId, currency);
-    }
+  const fastResults = fast ? await getCurrentFastBalances(collectiveIds, { withBlockedFunds, fast }) : {};
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
+
+  if (missingCollectiveIds.length === 0) {
+    return fastResults;
   }
 
-  return sumCollectiveTransactions(collective, {
-    currency: currency,
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
-    withBlockedFunds: true,
+    withBlockedFunds: withBlockedFunds,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
-}
 
-export function getBalances(collectiveIds) {
-  const version = DEFAULT_BUDGET_VERSION;
-
-  // TODO: what should the host id and currency be here?
-  // const fetchResults = getCurrentFastBalances(collectiveIds, null, ??);
-  // if (fetchResults.length === collectiveIds.length) {
-  //   return fetchResults;
-  // }
-
-  return sumCollectivesTransactions(collectiveIds, {
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: false,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-  });
-}
-
-// Only used by the loader?
-export function getBalancesWithBlockedFunds(collectiveIds) {
-  const version = DEFAULT_BUDGET_VERSION;
-
-  // TODO: what should the host id and currency be here?
-  // const fetchResults = getCurrentFastBalancesWithBlockedFunds(collectiveIds, null, ??);
-  // if (fetchResults.length === collectiveIds.length) {
-  //   return fetchResults;
-  // }
-
-  return sumCollectivesTransactions(collectiveIds, {
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: true,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-  });
+  return { ...fastResults, ...results };
 }
 
 export async function getTotalAmountReceivedAmount(
@@ -291,20 +257,6 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   return { value, currency };
 }
 
-async function sumCollectiveTransactions(collective, options) {
-  const results = await sumCollectivesTransactions([collective.id], options);
-
-  const result = results[collective.id];
-
-  if (options.currency) {
-    const fxRate = await getFxRate(result.currency, options.currency);
-    result.value = Math.round(result.value * fxRate);
-    result.currency = options.currency;
-  }
-
-  return result;
-}
-
 export async function sumCollectivesTransactions(
   ids,
   {
@@ -371,6 +323,17 @@ export async function sumCollectivesTransactions(
     where.kind = kind;
   }
 
+  // Remove transactions that are disputed but not refunded yet
+  if (withBlockedFunds) {
+    where = {
+      ...where,
+      [Op.not]: {
+        isDisputed: { [Op.eq]: true },
+        RefundTransactionId: { [Op.eq]: null },
+      },
+    };
+  }
+
   const totals = {};
 
   // Initialize totals
@@ -424,85 +387,18 @@ export async function sumCollectivesTransactions(
   }
 
   if (withBlockedFunds) {
-    // BLOCKED EXPENSES
-    const blockedFundsWhere = {
-      CollectiveId: ids,
-      [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING }],
-    };
-    if (startDate) {
-      blockedFundsWhere.createdAt = blockedFundsWhere.createdAt || {};
-      blockedFundsWhere.createdAt[Op.gte] = startDate;
-    }
-    if (endDate) {
-      blockedFundsWhere.createdAt = blockedFundsWhere.createdAt || {};
-      blockedFundsWhere.createdAt[Op.lt] = endDate;
+    if (startDate || endDate) {
+      throw new Error('withBlockedFunds should not be used together with startDate or endDate');
     }
 
-    const blockedFundResults = await models.Expense.findAll({
-      attributes: [
-        'CollectiveId',
-        'currency',
-        [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
-      ],
-      where: blockedFundsWhere,
-      group: ['CollectiveId', 'currency'],
-      raw: true,
-    });
+    const blockedFundsResults = await getBlockedFunds(ids);
+    for (const collectiveId of ids) {
+      if (blockedFundsResults[collectiveId]) {
+        const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
 
-    for (const blockedFundResult of blockedFundResults) {
-      const CollectiveId = blockedFundResult['CollectiveId'];
-      const value = blockedFundResult['amount'];
-
-      // Initialize Collective total
-      if (!totals[CollectiveId]) {
-        totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+        const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
+        totals[CollectiveId].value -= Math.round(value * fxRate);
       }
-      // If it's the first total collected, set the currency
-      if (totals[CollectiveId].value === 0) {
-        totals[CollectiveId].currency = blockedFundResult['currency'];
-      }
-
-      const fxRate = await getFxRate(blockedFundResult['currency'], totals[CollectiveId].currency);
-      totals[CollectiveId].value -= Math.round(value * fxRate);
-    }
-
-    // BLOCKED TRANSACTIONS
-    const disputedTransactions = await models.Transaction.findAll({
-      attributes: [
-        'CollectiveId',
-        groupBy,
-        [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
-        [
-          sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
-          'netAmountInCollectiveCurrency',
-        ],
-        [
-          sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amountInHostCurrency')), 0),
-          'amountInHostCurrency',
-        ],
-        [
-          sequelize.fn(
-            'COALESCE',
-            sequelize.literal(
-              'SUM(COALESCE("amountInHostCurrency", 0)) + SUM(COALESCE("platformFeeInHostCurrency", 0)) + SUM(COALESCE("hostFeeInHostCurrency", 0)) + SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) + SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0))',
-            ),
-            0,
-          ),
-          'netAmountInHostCurrency',
-        ],
-      ],
-      // only consider disputed txs that don't have associated refunds
-      where: { ...where, isDisputed: { [Op.eq]: true }, RefundTransactionId: { [Op.eq]: null } },
-      group: ['CollectiveId', groupBy],
-      raw: true,
-    });
-
-    for (const disputedTransaction of disputedTransactions) {
-      const CollectiveId = disputedTransaction['CollectiveId'];
-      const value = disputedTransaction[column];
-
-      const fxRate = await getFxRate(disputedTransaction[groupBy], totals[CollectiveId].currency);
-      totals[CollectiveId].value -= Math.round(value * fxRate);
     }
   }
 
@@ -566,102 +462,73 @@ export async function getYearlyIncome(collective) {
 
 // Calculate the total "blocked funds" for each collective
 // Expenses that are PROCESSING or SCHEDULED_FOR_PAYMENT are considered "blocked funds"
-export async function getCollectivesBlockedFunds(collectiveIds, hostId, currency) {
-  const blockedFundsWhere = {
-    CollectiveId: { [Op.in]: collectiveIds },
-    [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING }],
-  };
-
-  if (hostId) {
-    blockedFundsWhere.HostCollectiveId = hostId;
-  }
-
+export async function getBlockedFunds(collectiveIds) {
   const blockedFundResults = await models.Expense.findAll({
     attributes: [
       'CollectiveId',
       'currency',
       [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amount'],
     ],
-    where: blockedFundsWhere,
+    where: {
+      CollectiveId: { [Op.in]: collectiveIds },
+      [Op.or]: [{ status: SCHEDULED_FOR_PAYMENT }, { status: PROCESSING }],
+    },
     group: ['CollectiveId', 'currency'],
     raw: true,
   });
 
   const totals = {};
-  for (const collectiveId of collectiveIds) {
-    totals[collectiveId] = { CollectiveId: collectiveId, currency, value: 0 };
-  }
 
-  for (const blockedFundResult of blockedFundResults) {
-    const collectiveId = blockedFundResult['CollectiveId'];
-    const blockedFundValue = blockedFundResult['amount'];
-    const blockedFundCurrency = blockedFundResult['currency'];
+  // In case we have results in multiple currencies, we consolidate on the first currency found
+  for (const result of blockedFundResults) {
+    const collectiveId = result['CollectiveId'];
 
-    const fxRate = await getFxRate(blockedFundCurrency, currency);
-    totals[collectiveId].value += Math.round(blockedFundValue * fxRate);
+    // Initialize Collective total
+    if (!totals[collectiveId]) {
+      totals[collectiveId] = { CollectiveId: collectiveId, currency: result['currency'], value: 0 };
+    }
+
+    const fxRate = await getFxRate(result['currency'], totals[collectiveId].currency);
+    totals[collectiveId].value += Math.round(result['amount'] * fxRate);
   }
 
   return totals;
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
-// Uses CurrentCollectiveBalance view which sums recent transactions on top
-// of the last materialized view checkpoint for a Collective's balance,
-// ensuring that we get a fast response and one that is accurate
-export async function getCurrentFastBalances(
-  collectiveIds,
-  hostCollectiveId,
-  hostCurrency,
-  removeBlockedFunds = false,
-) {
-  const collectivesBalances = await sequelize.query(
-    `
-    SELECT "CollectiveId",
-      MAX("netAmountInHostCurrency") as "netAmountInHostCurrency",
-      MAX("disputedNetAmountInHostCurrency") as "disputedNetAmountInHostCurrency"
+export async function getCurrentFastBalances(collectiveIds, { withBlockedFunds = false } = {}) {
+  const fastResults = await sequelize.query(
+    `SELECT *
     FROM "CurrentCollectiveBalance"
-    WHERE "CollectiveId" IN (:collectiveIds)
-    ${hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ''}
-    ${hostCurrency ? `AND "hostCurrency" = :hostCurrency` : ''}
-    GROUP BY "CollectiveId";
-  `,
+    WHERE "CollectiveId" IN (:collectiveIds)`,
     {
-      replacements: { collectiveIds, hostCollectiveId, hostCurrency },
+      replacements: { collectiveIds },
       type: sequelize.QueryTypes.SELECT,
     },
   );
 
   const totals = {};
-  for (const collectiveId of collectiveIds) {
-    totals[collectiveId] = { CollectiveId: collectiveId, currency, value: 0 };
+
+  for (const result of fastResults) {
+    const CollectiveId = result['CollectiveId'];
+
+    totals[CollectiveId] = { CollectiveId, currency: result['hostCurrency'], value: result['netAmountInHostCurrency'] };
+    if (withBlockedFunds) {
+      totals[CollectiveId].value -= result['disputedNetAmountInHostCurrency'];
+    }
   }
 
-  if (!isEmpty(collectivesBalances)) {
-    // TODO: we should not enter this code block and fetch getCollectivesBlockedFunds at all if removeBlockedFunds is false
-    const blockedFundsInHostCurrency = await getCollectivesBlockedFunds(collectiveIds, hostCollectiveId, currency);
+  if (withBlockedFunds) {
+    const blockedFundsResults = await getBlockedFunds(Object.keys(totals));
+    for (const collectiveId of Object.keys(totals)) {
+      if (blockedFundsResults[collectiveId]) {
+        const { CollectiveId, currency, value } = blockedFundsResults[collectiveId];
 
-    for (const collectiveBalances of collectivesBalances) {
-      const { CollectiveId, netAmountInHostCurrency, disputedNetAmountInHostCurrency } = collectiveBalances;
-
-      if (removeBlockedFunds) {
-        totals[CollectiveId].value =
-          netAmountInHostCurrency - disputedNetAmountInHostCurrency - blockedFundsInHostCurrency[CollectiveId].value;
-      } else {
-        totals[CollectiveId].value = netAmountInHostCurrency;
+        const fxRate = await getFxRate(currency, totals[CollectiveId].currency);
+        totals[CollectiveId].value -= Math.round(value * fxRate);
       }
     }
-    console.log(totals);
-    return totals;
   }
 
-  return await sumCollectivesTransactions(collectiveIds, {
-    column: 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: removeBlockedFunds,
-    hostCollectiveId,
-  });
-}
-
-export async function getCurrentFastBalancesWithBlockedFunds(collectiveIds, hostCollectiveId, currency) {
-  return await getCurrentFastBalances(collectiveIds, hostCollectiveId, currency, true);
+  return totals;
 }

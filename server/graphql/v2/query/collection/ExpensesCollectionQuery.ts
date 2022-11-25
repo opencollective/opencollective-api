@@ -6,7 +6,7 @@ import { isEmpty, uniq } from 'lodash';
 import { expenseStatus } from '../../../../constants';
 import { types as CollectiveType } from '../../../../constants/collectives';
 import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
-import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
+import { getBalances } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
@@ -66,7 +66,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
     // TODO: this can conflict for collectives stuck on balance v1 as this is now using balance v2 by default
-    const balances = await getBalancesWithBlockedFunds(collectiveIds);
+    const balances = await getBalances(collectiveIds, { withBlockedFunds: true });
     const fxRates = await loadFxRatesMap(
       uniq(
         expensesWithoutPendingTaxForm.map(expense => {

@@ -6,7 +6,7 @@ import moment from 'moment';
 
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
-import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
+import { getBalances } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
@@ -104,7 +104,9 @@ export const loaders = req => {
     getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
   context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
-    getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+    getBalances(ids, { withBlockedFunds: true }).then(results =>
+      sortResults(ids, Object.values(results), 'CollectiveId'),
+    ),
   );
 
   // Collective - ConnectedAccounts
