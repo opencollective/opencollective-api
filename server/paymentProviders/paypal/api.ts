@@ -36,16 +36,26 @@ export async function retrieveOAuthToken({ clientId, clientSecret }): Promise<st
 const parsePaypalError = async (
   response: Response,
   defaultMessage = 'PayPal request failed',
-): Promise<{ message: string; metadata: { response: Response; error: Error | Record<string, unknown> } }> => {
+): Promise<{
+  message: string;
+  metadata: { response: Response; error: Error | Record<string, unknown>; status: number; url: string };
+}> => {
   let error = null;
   let message = defaultMessage;
 
   // Parse error
   try {
-    error = await response.json();
-    message = `${message}: ${error.message}`;
+    const rawBody = await response.text();
+    if (rawBody) {
+      error = JSON.parse(rawBody);
+      message = `${message} (${response.status}): ${error.message}`;
+    } else {
+      error = null;
+      message = `${message} (${response.status}): ${response.statusText}`;
+    }
   } catch (e) {
     error = e;
+    message = `PayPal request failed (${response.status}): unable to parse error`;
   }
 
   // Known errors
@@ -55,7 +65,7 @@ const parsePaypalError = async (
     }
   }
 
-  return { message, metadata: { response, error } };
+  return { message, metadata: { response, error, status: response.status, url: response.url } };
 };
 
 /** Assemble POST requests for communicating with PayPal API */
@@ -114,8 +124,8 @@ export async function paypalRequestV2(
   const result = await fetch(url, params);
   if (!result.ok) {
     const { message, metadata } = await parsePaypalError(result);
-    logger.error('PayPal request failed', metadata);
-    reportMessageToSentry('PayPal request V2 failed', { extra: metadata });
+    logger.error(`PayPal request V2 failed`, metadata);
+    reportMessageToSentry(`PayPal request V2 failed`, { extra: metadata });
     throw new Error(message);
   } else if (result.status === 204) {
     return null;

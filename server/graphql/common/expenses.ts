@@ -39,6 +39,7 @@ import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { hasPolicy } from '../../lib/policies';
+import { reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
@@ -1475,7 +1476,23 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     }
 
     // Warning senderFees can be null
-    const senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
+    let senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
+    if (!senderFees) {
+      // PayPal stopped providing senderFees in the response, we need to compute it ourselves
+      // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
+      const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
+      const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
+      const amountReceivedByPayee = expense.amount;
+      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee);
+
+      // No example yet, but we want to know if this ever happens
+      if (fundingAmount.code !== expense.currency) {
+        reportMessageToSentry(`PayPal adaptive got a funding amount with a different currency than the expense`, {
+          severity: 'error',
+        });
+      }
+    }
+
     const paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
