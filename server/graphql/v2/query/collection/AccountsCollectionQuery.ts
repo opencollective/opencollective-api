@@ -23,7 +23,7 @@ const AccountsCollectionQuery = {
       description: 'Only accounts that match these tags',
     },
     tagSearchOperator: {
-      type: TagSearchOperator,
+      type: new GraphQLNonNull(TagSearchOperator),
       defaultValue: 'AND',
       description: "Operator to use when searching with tags. Defaults to 'AND'",
     },
