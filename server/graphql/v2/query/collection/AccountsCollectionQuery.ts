@@ -82,7 +82,7 @@ const AccountsCollectionQuery = {
       // Bind arguments
       if (args.tag?.length) {
         if (args.tagSearchOperator === 'OR') {
-          where['tags'] = { [Op.in]: args.tag };
+          where['tags'] = { [Op.overlap]: args.tag };
         } else {
           where['tags'] = { [Op.contains]: args.tag };
         }
