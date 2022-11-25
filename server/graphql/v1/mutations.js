@@ -297,7 +297,7 @@ const mutations = {
   },
   confirmOrder: {
     type: OrderType,
-    deprecationReason: '2022-11-18: This endpoint has been moved to GQLV2',
+    deprecationReason: '2022-11-18: This mutation has been moved to GQLV2',
     args: {
       order: {
         type: new GraphQLNonNull(ConfirmOrderInputType),
