@@ -1,11 +1,12 @@
+/* eslint-disable camelcase */
 import { URLSearchParams } from 'url';
 
-import axios from 'axios';
 import config from 'config';
 import debugLib from 'debug';
 import jwt from 'jsonwebtoken';
 import { get } from 'lodash';
 
+import FEATURE from '../../constants/feature';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
@@ -20,35 +21,9 @@ import { webhook } from './webhook';
 const debug = debugLib('stripe');
 
 const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
-const TOKEN_URI = 'https://connect.stripe.com/oauth/token';
-
-/* eslint-disable camelcase */
-const getToken = code => () =>
-  axios
-    .post(TOKEN_URI, {
-      grant_type: 'authorization_code',
-      client_id: config.stripe.clientId,
-      client_secret: config.stripe.secret,
-      code,
-    })
-    .then(res => res.data);
-/* eslint-enable camelcase */
-
-const getAccountInformation = data => {
-  return new Promise((resolve, reject) => {
-    return stripe.accounts.retrieve(data.stripe_user_id, (err, account) => {
-      if (err) {
-        return reject(err);
-      }
-      data.account = account;
-      return resolve(data);
-    });
-  });
-};
 
 export default {
-  // payment method types
-  // like cc, btc, etc.
+  // Payment Method types implemented using Stripe
   types: {
     default: creditcard,
     creditcard,
@@ -61,7 +36,7 @@ export default {
 
   oauth: {
     // Returns the redirectUrl to connect the Stripe Account to the Host Collective Id
-    redirectUrl: (remoteUser, CollectiveId, query) => {
+    redirectUrl: async (remoteUser, CollectiveId, query) => {
       // Since we pass the redirectUrl in clear to the frontend, we cannot pass the CollectiveId in the state query variable
       // It would be trivial to change that value and attach a Stripe Account to someone else's collective
       // That's why we encode the state in a JWT
@@ -77,7 +52,6 @@ export default {
         },
       );
 
-      /* eslint-disable camelcase */
       const params = new URLSearchParams({
         response_type: 'code',
         scope: 'read_write',
@@ -85,14 +59,13 @@ export default {
         redirect_uri: config.stripe.redirectUri,
         state,
       });
-      /* eslint-enable camelcase */
 
-      return Promise.resolve(`${AUTHORIZE_URI}?${params.toString()}`);
+      return `${AUTHORIZE_URI}?${params.toString()}`;
     },
 
     // callback called by Stripe after the user approves the connection
-    callback: (req, res, next) => {
-      let state, collective;
+    callback: async (req, res, next) => {
+      let state;
       debug('req.query', JSON.stringify(req.query, null, '  '));
       try {
         state = jwt.verify(req.query.state, config.keys.opencollective.jwtSecret);
@@ -111,37 +84,36 @@ export default {
       }
 
       let redirectUrl = redirect;
-
-      const deleteStripeAccounts = () =>
-        models.ConnectedAccount.destroy({
+      try {
+        const collective = await models.Collective.findByPk(CollectiveId);
+        redirectUrl = redirectUrl || `${config.host.website}/${collective.slug}`;
+        await models.ConnectedAccount.destroy({
           where: {
             service: 'stripe',
             CollectiveId,
           },
         });
 
-      const createStripeAccount = data =>
-        models.ConnectedAccount.create({
+        const token = await stripe.oauth.token({
+          grant_type: 'authorization_code',
+          code: req.query.code,
+        });
+        const data = await stripe.accounts.retrieve(token.stripe_user_id);
+        const connectedAccount = await models.ConnectedAccount.create({
           service: 'stripe',
           CollectiveId,
           CreatedByUserId,
-          username: data.stripe_user_id,
-          token: data.access_token,
-          refreshToken: data.refresh_token,
+          username: token.stripe_user_id,
+          token: token.access_token,
+          refreshToken: token.refresh_token,
           data: {
-            publishableKey: data.stripe_publishable_key,
-            tokenType: data.token_type,
-            scope: data.scope,
-            account: data.account,
+            publishableKey: token.stripe_publishable_key,
+            tokenType: token.token_type,
+            scope: token.scope,
+            account: data,
           },
         });
 
-      /**
-       * Update the Host Collective
-       * with the default currency of the bank account connected to the stripe account and legal address
-       * @param {*} connectedAccount
-       */
-      const updateHost = async connectedAccount => {
         if (!connectedAccount) {
           console.error('>>> updateHost: error: no connectedAccount');
           reportMessageToSentry(`updateHost: error: no connectedAccount`, { extra: { CollectiveId } });
@@ -175,34 +147,22 @@ export default {
 
         collective.timezone = collective.timezone || account.timezone;
 
-        return collective.save();
-      };
-
-      return models.Collective.findByPk(CollectiveId)
-        .then(c => {
-          collective = c;
-          redirectUrl = redirectUrl || `${config.host.website}/${collective.slug}`;
-        })
-        .then(deleteStripeAccounts)
-        .then(getToken(req.query.code))
-        .then(getAccountInformation)
-        .then(createStripeAccount)
-        .then(updateHost)
-        .then(() => {
-          redirectUrl = addParamsToUrl(redirectUrl, {
-            message: 'StripeAccountConnected',
-            CollectiveId: collective.id,
-          });
-          debug('redirectUrl', redirectUrl);
-          return res.redirect(redirectUrl);
-        })
-        .catch(e => {
-          if (get(e, 'data.error_description')) {
-            return next(new errors.BadRequest(e.data.error_description));
-          } else {
-            return next(e);
-          }
+        await collective.save();
+        redirectUrl = addParamsToUrl(redirectUrl, {
+          message: 'StripeAccountConnected',
+          CollectiveId: collective.id,
         });
+        debug('redirectUrl', redirectUrl);
+        return res.redirect(redirectUrl);
+      } catch (e) {
+        logger.error('Failed to connect Stripe account', e);
+        reportErrorToSentry(e, { extra: { CollectiveId }, feature: FEATURE.CONNECTED_ACCOUNTS });
+        if (get(e, 'data.error_description')) {
+          return next(new errors.BadRequest(e.data.error_description));
+        } else {
+          return next(e);
+        }
+      }
     },
   },
 
