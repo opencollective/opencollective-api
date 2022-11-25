@@ -53,6 +53,9 @@ if [ -z "$LOCALDBNAME" ]; then usage; fi;
 dropdb -U postgres -h localhost --if-exists $LOCALDBNAME;
 createdb -U postgres -h localhost $LOCALDBNAME 2> /dev/null
 
+# When restoring old backups, you may need to enable Postgis
+# psql "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
+
 # cool trick: all stdout ignored in this block
 {
   set +e

@@ -91,7 +91,6 @@
   },
   "paypal": {
     "classic": {
-      "email": "xdamman+opencollective-facilitator@gmail.com",
       "appId": "APP-80W284485P519543T",
       "userId": "xdamman+opencollective-facilitator_api1.gmail.com",
       "password": "UYRFFTDG3TYML68L",
