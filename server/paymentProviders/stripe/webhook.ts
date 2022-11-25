@@ -22,7 +22,7 @@ import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
-const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
+export const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
@@ -59,7 +59,7 @@ const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
   sendEmailNotifications(order, transaction);
 };
 
-const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => {
+export const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
@@ -79,7 +79,7 @@ const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => 
   });
 };
 
-const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) => {
+export const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
