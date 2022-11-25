@@ -52,15 +52,15 @@ const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
   const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const transaction = await createChargeTransactions(charge, { order });
 
-  await order.update({
-    status: !order.SubscriptionId ? OrderStatuses.PAID : undefined,
-    processedAt: new Date(),
-    data: { ...order.data, paymentIntent },
-  });
-
   if (order.interval && !order.SubscriptionId) {
     await createSubscription(order);
   }
+
+  await order.update({
+    status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
+    processedAt: new Date(),
+    data: { ...order.data, paymentIntent },
+  });
 
   if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
     await order.getOrCreateMembers();

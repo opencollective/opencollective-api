@@ -11,10 +11,17 @@ import models from '../../models';
 
 import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
-  createChargeTransactions,
   refundTransaction,
   refundTransactionOnlyInDatabase,
 } from './common';
+
+const processOrder = async (order: typeof models.Order): Promise<void> => {
+  if (order.SubscriptionId) {
+    return processRecurringOrder(order);
+  }
+
+  return processNewOrder(order);
+};
 
 async function processNewOrder(order: typeof models.Order) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
@@ -92,17 +99,11 @@ async function processRecurringOrder(order: typeof models.Order) {
       stripeAccount: hostStripeAccount.username,
     });
 
-    if (paymentIntent.next_action) {
-      const paymentIntentError = new Error('Payment Intent require action');
-      paymentIntentError['stripeAccount'] = hostStripeAccount.username;
-      paymentIntentError['stripeResponse'] = { paymentIntent };
-      throw paymentIntentError;
-    }
+    order.data = { ...order.data, paymentIntent };
+    order.update({ data: { ...order.data, paymentIntent } });
+    await order.save();
 
     if (paymentIntent.status === 'processing') {
-      order.data = { ...order.data, paymentIntent };
-      order.update({ data: { ...order.data, paymentIntent } });
-      await order.save();
       return;
     } else if (paymentIntent.status !== 'succeeded') {
       logger.error('Unknown error with Stripe Payment Intent.');
@@ -110,11 +111,6 @@ async function processRecurringOrder(order: typeof models.Order) {
       reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
       throw new Error('Something went wrong with the payment, please contact support@opencollective.com.');
     }
-
-    // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
-    // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
-    const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
-    return createChargeTransactions(charge, { order });
   } catch (e) {
     const sanitizedError = pick(e, ['code', 'message', 'requestId', 'statusCode']);
     const errorMessage = `Error processing Stripe Payment Intent: ${e.message}`;
@@ -123,14 +119,6 @@ async function processRecurringOrder(order: typeof models.Order) {
     throw new Error(errorMessage);
   }
 }
-
-const processOrder = async (order: typeof models.Order): Promise<void> => {
-  if (order.SubscriptionId) {
-    return processRecurringOrder(order);
-  }
-
-  return processNewOrder(order);
-};
 
 export default {
   features: {
