@@ -226,7 +226,9 @@ const hasPaymentMethod = order => {
         paymentMethod.token ||
         paymentMethod.type === 'manual' ||
         paymentMethod.type === 'crypto' ||
-        paymentMethod.type === 'paymentintent',
+        paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.SEPA_DEBIT,
     );
   }
 };

@@ -28,6 +28,11 @@ const processOrder = async (order: typeof models.Order): Promise<void> => {
     paymentIntentParams.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
   }
 
+  if (order.data?.savePaymentMethod) {
+    // eslint-disable-next-line camelcase
+    paymentIntentParams.setup_future_usage = 'off_session';
+  }
+
   try {
     const paymentIntent = await stripe.paymentIntents.update(order.data.paymentIntent.id, paymentIntentParams, {
       stripeAccount: hostStripeAccount.username,

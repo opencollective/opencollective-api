@@ -18,6 +18,7 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
+import { Service } from '../../../constants/connected_account';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
@@ -108,6 +109,9 @@ const orderMutations = {
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      if (order.paymentMethod?.paymentIntentId) {
+        paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
+      }
 
       // Ensure amounts are provided with the right currency
       ['platformTipAmount', 'amount', 'tax.amount'].forEach(field => {
@@ -653,6 +657,13 @@ const orderMutations = {
     async resolve(_, args, req) {
       const paymentIntentInput = args.paymentIntent;
 
+      const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
+      const hostStripeAccount = await toAccount.getHostStripeAccount();
+      const host = await toAccount.getHostCollective();
+
+      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+
+      let stripeCustomerId;
       let fromAccount;
       if (req.remoteUser) {
         fromAccount =
@@ -662,17 +673,36 @@ const orderMutations = {
         if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
           throw new Unauthorized();
         }
-      }
 
-      const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
-      const hostStripeAccount = await toAccount.getHostStripeAccount();
-      const host = await toAccount.getHostCollective();
+        let stripeCustomerAccount = await fromAccount.getCustomerStripeAccount(hostStripeAccount.username);
+
+        if (!stripeCustomerAccount) {
+          const customer = await stripe.customers.create(
+            {
+              email: req.remoteUser.email,
+              description: `${config.host.website}/${fromAccount.slug}`,
+            },
+            !isPlatformHost
+              ? {
+                  stripeAccount: hostStripeAccount.username,
+                }
+              : undefined,
+          );
+
+          stripeCustomerAccount = await models.ConnectedAccount.create({
+            clientId: hostStripeAccount.username,
+            username: customer.id,
+            CollectiveId: fromAccount.id,
+            service: Service.STRIPE_CUSTOMER,
+          });
+        }
+
+        stripeCustomerId = stripeCustomerAccount.username;
+      }
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
 
       const currency = paymentIntentInput.currency;
-
-      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
       const paymentMethodTypes =
         host.settings.stripe?.payment_method_types ||
@@ -685,6 +715,7 @@ const orderMutations = {
       try {
         const paymentIntent = await stripe.paymentIntents.create(
           {
+            customer: stripeCustomerId,
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
             currency: paymentIntentInput.amount.currency.toLowerCase(),

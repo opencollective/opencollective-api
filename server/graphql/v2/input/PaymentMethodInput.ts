@@ -124,7 +124,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
       };
     }
   } else if (pm.paymentIntentId) {
-    return { service: pm.service, type: pm.newType, paymentIntentId: pm.paymentIntentId };
+    return { service: pm.service, type: pm.newType, paymentIntentId: pm.paymentIntentId, save: pm.isSavedForLater };
   } else if (pm.legacyType) {
     return getServiceTypeFromLegacyPaymentMethodType(pm.legacyType);
   } else if (pm.service && pm.newType) {
