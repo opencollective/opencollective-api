@@ -7,6 +7,7 @@ import sinon from 'sinon';
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order_status';
 import * as libPayments from '../../../../server/lib/payments';
+import stripe from '../../../../server/lib/stripe';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
@@ -536,6 +537,14 @@ describe('webhook', () => {
       });
 
       it('updates order.data.paymentIntent', async () => {
+        sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+          type: 'us_bank_account',
+          us_bank_account: {
+            name: 'Test Bank',
+            last4: '1234',
+          },
+        });
+
         await webhook.paymentIntentProcessing(event);
         await order.reload();
         expect(order.status).to.equal(OrderStatuses.PROCESSING);

@@ -66,20 +66,6 @@ export const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Even
   const stripeAccount = event.account ?? config.stripe.accountId;
 
   await sequelize.transaction(async transaction => {
-    const stripeCustomerAccount = await models.ConnectedAccount.findOne({
-      where: {
-        username: paymentIntent.customer,
-        clientId: stripeAccount,
-        service: Service.STRIPE_CUSTOMER,
-      },
-      transaction,
-      lock: transaction.LOCK.UPDATE,
-    });
-
-    if (!stripeCustomerAccount) {
-      return;
-    }
-
     const order = await models.Order.findOne({
       where: {
         status: [OrderStatuses.NEW, OrderStatuses.PROCESSING],
@@ -113,7 +99,7 @@ export const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Even
         {
           name: formatPaymentMethodName(stripePaymentMethod),
           customerId: paymentIntent.customer,
-          CollectiveId: stripeCustomerAccount.CollectiveId,
+          CollectiveId: order.FromCollectiveId,
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           type: stripePaymentMethod.type,
           confirmedAt: new Date(),
