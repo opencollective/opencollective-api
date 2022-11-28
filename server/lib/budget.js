@@ -1,3 +1,4 @@
+import config from 'config';
 import { difference } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
@@ -6,11 +7,14 @@ import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
 import { getFxRate } from './currency';
+import { parseToBoolean } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 const { PROCESSING, SCHEDULED_FOR_PAYMENT } = expenseStatus;
 
 const DEFAULT_BUDGET_VERSION = 'v2';
+
+const FAST_BALANCE = parseToBoolean(config.ledger.fastBalance);
 
 async function sumTransactionsInCurrency(results, currency) {
   let total = 0;
@@ -44,7 +48,7 @@ export async function getCollectiveIds(collective, includeChildren) {
 
 export async function getBalanceAmount(
   collective,
-  { endDate, currency, version, loaders, includeChildren, fast = true, withBlockedFunds = false } = {},
+  { endDate, currency, version, loaders, includeChildren, fastBalance = FAST_BALANCE, withBlockedFunds = false } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -55,7 +59,7 @@ export async function getBalanceAmount(
     if (loaders) {
       const loader = withBlockedFunds ? 'balanceWithBlockedFunds' : 'balance';
       result = await loaders.Collective[loader].load(collective.id);
-    } else if (fast) {
+    } else if (fastBalance === true) {
       const results = await getCurrentFastBalances([collective.id], { withBlockedFunds });
       result = results[collective.id];
     }
@@ -84,10 +88,11 @@ export async function getBalanceAmount(
   return { value, currency };
 }
 
-export async function getBalances(collectiveIds, { withBlockedFunds = false, fast = true } = {}) {
+export async function getBalances(collectiveIds, { withBlockedFunds = false, fastBalance = FAST_BALANCE } = {}) {
   const version = DEFAULT_BUDGET_VERSION;
 
-  const fastResults = fast ? await getCurrentFastBalances(collectiveIds, { withBlockedFunds, fast }) : {};
+  const fastResults =
+    fastBalance === true ? await getCurrentFastBalances(collectiveIds, { withBlockedFunds, fastBalance }) : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {

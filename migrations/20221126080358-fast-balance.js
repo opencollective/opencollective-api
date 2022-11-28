@@ -4,7 +4,7 @@
 module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "transaction_balances_collective_id"
+      CREATE INDEX CONCURRENTLY IF NOT EXISTS "transaction_balances__collective_id"
       ON "TransactionBalances"("CollectiveId")
     `);
 
@@ -21,7 +21,7 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE MATERIALIZED VIEW IF NOT EXISTS "LatestBalances" AS (
+      CREATE MATERIALIZED VIEW IF NOT EXISTS "CollectiveBalanceCheckpoint" AS (
         WITH "LatestTransactionIds" AS (
           SELECT MAX("id") as "id"
           FROM "TransactionBalances"
@@ -34,8 +34,8 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "latest_balances_collective_id"
-      ON "LatestBalances"("CollectiveId")
+      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "collective_balance_checkpoint__collective_id"
+      ON "CollectiveBalanceCheckpoint"("CollectiveId")
     `);
 
     await queryInterface.sequelize.query(`
@@ -45,42 +45,42 @@ module.exports = {
           tb."balance" + coalesce(t."netAmountInHostCurrency", 0) "netAmountInHostCurrency",
           coalesce(disputed."netAmountInHostCurrency", 0) "disputedNetAmountInHostCurrency",
           tb."hostCurrency"
-        from "TransactionBalances" tb
-        inner JOIN "LatestBalances" lb ON tb."id" = lb."id"
-        left join lateral (
-          select
-            sum(t."amountInHostCurrency") +
-              sum(coalesce(t."platformFeeInHostCurrency", 0)) +
-              sum(coalesce(t."hostFeeInHostCurrency", 0)) +
-              sum(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
-              sum(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
-          from "Transactions" t
+        FROM "TransactionBalances" tb
+        INNER JOIN "CollectiveBalanceCheckpoint" cbc ON tb."id" = cbc."id"
+        LEFT JOIN LATERAL (
+          SELECT
+            SUM(t."amountInHostCurrency") +
+              SUM(coalesce(t."platformFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."hostFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
+          FROM "Transactions" t
+          WHERE t."CollectiveId" = tb."CollectiveId"
+            AND t.id > tb."id"
+            AND t."deletedAt" is null
+          GROUP by t."CollectiveId"
+        ) as t ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT
+            SUM(t."amountInHostCurrency") +
+              SUM(coalesce(t."platformFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."hostFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
+          FROM "Transactions" t
           where t."CollectiveId" = tb."CollectiveId"
-            and t.id > tb."id"
-            and t."deletedAt" is null
-          group by t."CollectiveId"
-        ) as t on true
-        left join lateral (
-          select
-            sum(t."amountInHostCurrency") +
-              sum(coalesce(t."platformFeeInHostCurrency", 0)) +
-              sum(coalesce(t."hostFeeInHostCurrency", 0)) +
-              sum(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
-              sum(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "netAmountInHostCurrency"
-          from "Transactions" t
-          where t."CollectiveId" = tb."CollectiveId"
-            and t."deletedAt" is null
-            and t."isDisputed"
-            and t."RefundTransactionId" is null
-          group by t."CollectiveId"
-        ) as disputed on true
+            AND t."deletedAt" is null
+            AND t."isDisputed"
+            AND t."RefundTransactionId" is null
+          GROUP BY t."CollectiveId"
+        ) as disputed ON TRUE
       );
     `);
   },
 
   async down(queryInterface) {
     await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "transaction_balances_collective_id"
+      DROP INDEX IF EXISTS "transaction_balances__collective_id"
     `);
 
     await queryInterface.sequelize.query(`
@@ -91,7 +91,8 @@ module.exports = {
       DROP INDEX IF EXISTS "transactions__is_disputed"
     `);
 
-    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "LatestBalances"`);
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "LatestBalances"`); // Older name in dev, just in case
 
     await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CurrentCollectiveBalance"`);
   },

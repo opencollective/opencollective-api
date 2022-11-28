@@ -195,6 +195,7 @@
     "apiUrl": "PRIVACY_API_URL"
   },
   "ledger": {
+    "fastBalance": "LEDGER_FAST_BALANCE",
     "separateHostFees": "LEDGER_SEPARATE_HOST_FEES"
   },
   "activities": {

@@ -193,6 +193,7 @@
     "apiUrl": "https://sandbox.privacy.com"
   },
   "ledger": {
+    "fastBalance": true,
     "separateHostFees": true
   },
   "thegivingblock": {

@@ -207,7 +207,7 @@ describe('server/lib/budget', () => {
 
       if (refreshView) {
         await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
-        await sequelize.query(`REFRESH MATERIALIZED VIEW "LatestBalances"`);
+        await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
       }
 
       await fakeTransaction(
