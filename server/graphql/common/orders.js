@@ -75,8 +75,8 @@ export async function addFunds(order, remoteUser) {
     orderData.data.memo = order.memo;
   }
 
-  if (!isNil(order.fundReceivedDate)) {
-    orderData.data.fundReceivedDate = order.fundReceivedDate;
+  if (!isNil(order.processedAt)) {
+    orderData.processedAt = order.processedAt;
   }
 
   const orderCreated = await models.Order.create(orderData);
@@ -84,7 +84,10 @@ export async function addFunds(order, remoteUser) {
   const hostPaymentMethod = await host.getOrCreateHostPaymentMethod();
   await orderCreated.setPaymentMethod({ uuid: hostPaymentMethod.uuid });
 
-  await libPayments.executeOrder(remoteUser || user, orderCreated, { invoiceTemplate: order.invoiceTemplate });
+  await libPayments.executeOrder(remoteUser || user, orderCreated, {
+    invoiceTemplate: order.invoiceTemplate,
+    isAddedFund: true,
+  });
 
   // Invalidate Cloudflare cache for the collective pages
   purgeCacheForCollective(collective.slug);

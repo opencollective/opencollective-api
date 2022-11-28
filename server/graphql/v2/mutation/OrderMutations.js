@@ -389,7 +389,7 @@ const orderMutations = {
 
         const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasAmounts) {
-          const { amount, paymentProcessorFee, platformTip, hostFeePercent, fundReceivedDate } = args.order;
+          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt } = args.order;
 
           // Ensure amounts are provided with the right currency
           ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
@@ -420,8 +420,8 @@ const orderMutations = {
             order.set('data.hostFeePercent', hostFeePercent);
           }
 
-          if (!isNil(fundReceivedDate)) {
-            order.set('data.fundReceivedDate', fundReceivedDate);
+          if (!isNil(processedAt)) {
+            order.set('processedAt', processedAt);
           }
           await order.save();
         }

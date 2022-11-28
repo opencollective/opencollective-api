@@ -236,11 +236,11 @@ export const Order = new GraphQLObjectType({
         },
       },
 
-      fundReceivedDate: {
+      processedAt: {
         type: GraphQLDateTime,
         description: 'Date the funds were received.',
         async resolve(order) {
-          return order.data?.fundReceivedDate;
+          return order?.processedAt;
         },
       },
     };

@@ -30,7 +30,7 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
       type: GraphQLFloat,
       description: 'Host fee percent to be applied to the order',
     },
-    fundReceivedDate: {
+    processedAt: {
       type: GraphQLDateTime,
       description: 'Date the funds were received',
     },
