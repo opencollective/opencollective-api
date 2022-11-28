@@ -716,8 +716,6 @@ const orderMutations = {
         const paymentIntent = await stripe.paymentIntents.create(
           {
             customer: stripeCustomerId,
-            // eslint-disable-next-line camelcase
-            setup_future_usage: 'off_session',
             description: `Contribution to ${toAccount.name}`,
             amount: convertToStripeAmount(currency, totalOrderAmount),
             currency: paymentIntentInput.amount.currency.toLowerCase(),

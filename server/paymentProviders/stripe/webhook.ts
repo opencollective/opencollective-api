@@ -15,12 +15,7 @@ import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
-import {
-  createRefundTransaction,
-  createSubscription,
-  sendEmailNotifications,
-  sendOrderFailedEmail,
-} from '../../lib/payments';
+import { createRefundTransaction, sendEmailNotifications, sendOrderFailedEmail } from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 
@@ -122,10 +117,11 @@ const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => 
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           type: stripePaymentMethod.type,
           confirmedAt: new Date(),
-          saved: true,
+          saved: paymentIntent.setup_future_usage === 'off_session',
           data: {
             stripePaymentMethodId: paymentIntent.payment_method,
             stripeAccount,
+            ...stripePaymentMethod[stripePaymentMethod.type],
           },
         },
         { transaction },
@@ -550,6 +546,7 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
         data: {
           stripePaymentMethodId: stripePaymentMethod.id,
           stripeAccount,
+          ...stripePaymentMethod[stripePaymentMethod.type],
         },
       },
       { transaction },
