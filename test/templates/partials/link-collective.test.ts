@@ -1,3 +1,5 @@
+import '../../../server/lib/emailTemplates'; // To make sure templates are loaded
+
 import { expect } from 'chai';
 
 import handlebars from '../../../server/lib/handlebars';

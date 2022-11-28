@@ -85,7 +85,7 @@ Subject: {{#if erratumMessage}}Erratum{{#if erratumNumber}} {{erratumNumber}}{{/
       <strong>Erratum:</strong> <span style="white-space: pre-wrap;">{{erratumMessage}}</span>
     </p>
   {{/if}}
-  <p>Hi {{recipient.name}}!</p>
+  <p>{{> greeting}}</p>
   <p>Here is your {{#if month}}monthly{{else}}yearly{{/if}} stats report, from {{moment startDate}} to
     {{moment endDateIncluded}}.</p>
   <center>

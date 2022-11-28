@@ -5,11 +5,7 @@ Subject: {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} confirmed 
 
 {{> toplogo}}
 
-{{#if recipient.name}}
-<p>Hi {{recipient.name}},</p>
-{{else}}
-<p>Hi!</p>
-{{/if}}
+<p>{{> greeting}}</p>
 
 <p>You have booked {{ order.quantity }} {{pluralize "ticket" n=order.quantity}} to {{ event.name }}{{#if order.totalAmount}} for a total of {{currency order.totalAmount currency=order.currency}}{{/if}}.</p>
 
