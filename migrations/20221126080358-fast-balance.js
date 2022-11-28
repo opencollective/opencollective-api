@@ -21,7 +21,7 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
-      CREATE MATERIALIZED VIEW IF NOT EXISTS "LatestBalances" AS (
+      CREATE MATERIALIZED VIEW IF NOT EXISTS "CollectiveBalanceCheckpoint" AS (
         WITH "LatestTransactionIds" AS (
           SELECT MAX("id") as "id"
           FROM "TransactionBalances"
@@ -35,7 +35,7 @@ module.exports = {
 
     await queryInterface.sequelize.query(`
       CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "latest_balances_collective_id"
-      ON "LatestBalances"("CollectiveId")
+      ON "CollectiveBalanceCheckpoint"("CollectiveId")
     `);
 
     await queryInterface.sequelize.query(`
@@ -46,7 +46,7 @@ module.exports = {
           coalesce(disputed."netAmountInHostCurrency", 0) "disputedNetAmountInHostCurrency",
           tb."hostCurrency"
         from "TransactionBalances" tb
-        inner JOIN "LatestBalances" lb ON tb."id" = lb."id"
+        inner JOIN "CollectiveBalanceCheckpoint" cbc ON tb."id" = cbc."id"
         left join lateral (
           select
             sum(t."amountInHostCurrency") +
@@ -91,7 +91,7 @@ module.exports = {
       DROP INDEX IF EXISTS "transactions__is_disputed"
     `);
 
-    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "LatestBalances"`);
+    await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
 
     await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CurrentCollectiveBalance"`);
   },

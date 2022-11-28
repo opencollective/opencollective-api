@@ -19,11 +19,13 @@ export async function run() {
   const [runSeconds, runMilliSeconds] = process.hrtime(startTime);
   logger.info(`TransactionBalances materialized view refreshed in ${runSeconds}.${runMilliSeconds} seconds`);
 
-  logger.info('Refreshing LatestBalances materialized view...');
+  logger.info('Refreshing CollectiveBalanceCheckpoint materialized view...');
   const startTimeLb = process.hrtime();
-  await sequelize.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY "LatestBalances"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW CONCURRENTLY "CollectiveBalanceCheckpoint"`);
   const [runSecondsLb, runMilliSecondsLb] = process.hrtime(startTimeLb);
-  logger.info(`LatestBalances materialized view refreshed in ${runSecondsLb}.${runMilliSecondsLb} seconds`);
+  logger.info(
+    `CollectiveBalanceCheckpoint materialized view refreshed in ${runSecondsLb}.${runMilliSecondsLb} seconds`,
+  );
 }
 
 if (require.main === module) {
