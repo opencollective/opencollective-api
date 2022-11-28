@@ -1,35 +1,28 @@
 import { pick } from 'lodash';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { Unauthorized } from '../../errors';
 
-const ediableAttributes = ['settings'];
+const editableAttributes = ['settings'];
 
-/** connectedAccount
- * Only the author or an admin of the collective can edit a connectedAccount
- */
-function canEditConnectedAccount(remoteUser, connectedAccount) {
-  if (remoteUser.isAdmin(connectedAccount.CollectiveId)) {
-    return true;
-  }
-  return false;
-}
-
-export async function editConnectedAccount(remoteUser, connectedAccountData) {
-  if (!remoteUser) {
+export async function editConnectedAccount(req, connectedAccountData) {
+  if (!req.remoteUser) {
     throw new Unauthorized('You need to be logged in to edit a connected account');
   }
 
-  const connectedAccount = await models.ConnectedAccount.findByPk(connectedAccountData.id);
+  const connectedAccount = await models.ConnectedAccount.findByPk(connectedAccountData.id, {
+    include: [{ association: 'collective', required: true }],
+  });
 
   if (!connectedAccount) {
     throw new Unauthorized('Connected account not found');
-  }
-
-  if (!canEditConnectedAccount(remoteUser, connectedAccount)) {
+  } else if (!req.remoteUser.isAdmin(connectedAccount.CollectiveId)) {
     throw new Unauthorized("You don't have permission to edit this connected account");
   }
 
-  await connectedAccount.update(pick(connectedAccountData, ediableAttributes));
+  await twoFactorAuthLib.enforceForAccountAdmins(req, connectedAccount.collective, { onlyAskOnLogin: true });
+
+  await connectedAccount.update(pick(connectedAccountData, editableAttributes));
   return connectedAccount;
 }
