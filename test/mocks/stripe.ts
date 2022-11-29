@@ -1,3 +1,5 @@
+import Stripe from 'stripe';
+
 export default {
   accounts: {
     create: {
@@ -425,15 +427,15 @@ export default {
         charge: 'ch_3LpDOFJKGTeo5jKp0PfknYNd',
         created: 1664898640,
         currency: 'usd',
-        evidence: [],
-        evidence_details: [],
+        evidence: null,
+        evidence_details: null,
         is_charge_refundable: true,
         livemode: false,
         metadata: {},
         payment_intent: null,
         reason: 'fraudulent',
         status: 'warning_needs_response',
-      },
+      } as Stripe.Dispute,
     },
     livemode: false,
     pending_webhooks: 0,
@@ -442,7 +444,7 @@ export default {
       idempotency_key: 'b1b89be2-8b91-4af0-92f4-611130deea26',
     },
     type: 'charge.dispute.created',
-  },
+  } as Stripe.Event,
 
   webhook_dispute_lost: {
     id: 'evt_3LpcvEJKGTeo5jKp1P6hkDxm',
@@ -491,7 +493,7 @@ export default {
       idempotency_key: 'edac8120-a02b-4136-9e4d-295c2f506b95',
     },
     type: 'charge.dispute.closed',
-  },
+  } as Stripe.Event,
 
   webhook_dispute_won: {
     id: 'evt_3LpcvEJKGTeo5jKp1P6hkDxm',
@@ -526,7 +528,7 @@ export default {
       idempotency_key: 'edac8120-a02b-4136-9e4d-295c2f506b95',
     },
     type: 'charge.dispute.closed',
-  },
+  } as Stripe.Event,
 
   webhook_review_opened: {
     id: 'evt_1LxBZNJKGTeo5jKpolE0e9UC',
@@ -549,7 +551,7 @@ export default {
         payment_intent: 'pi_3LxBZLJKGTeo5jKp1gkxl8fZ',
         reason: 'rule',
         session: null,
-      },
+      } as Stripe.Review,
     },
     livemode: false,
     pending_webhooks: 0,
@@ -558,7 +560,7 @@ export default {
       idempotency_key: 'stripe-node-retry-2422a1ef-6f8a-4c0d-aa84-a321ac2ffe86',
     },
     type: 'review.opened',
-  },
+  } as Stripe.Event,
 
   webhook_review_closed_approved: {
     id: 'evt_1LxEqyJKGTeo5jKpxdR6BOHy',
@@ -590,7 +592,7 @@ export default {
       idempotency_key: 'f84e30db-86d8-4690-80ad-309f9a17e5d7',
     },
     type: 'review.closed',
-  },
+  } as Stripe.Event,
 
   webhook_review_closed_refunded_as_fraud: {
     id: 'evt_1LxGJgJKGTeo5jKpnnjocxf9',
@@ -633,7 +635,7 @@ export default {
       idempotency_key: '17564838-36c1-4042-8f68-11573a6da999',
     },
     type: 'review.closed',
-  },
+  } as Stripe.Event,
 
   webhook_review_closed_refunded: {
     id: 'evt_1LxGWeJKGTeo5jKplp4QrJGt',
@@ -676,5 +678,5 @@ export default {
       idempotency_key: '744656f9-94ad-491e-a5ad-3f604444f268',
     },
     type: 'review.closed',
-  },
+  } as Stripe.Event,
 };
