@@ -15,7 +15,12 @@ import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
-import { createRefundTransaction, sendEmailNotifications, sendOrderFailedEmail } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  createSubscription,
+  sendEmailNotifications,
+  sendOrderFailedEmail,
+} from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 
@@ -47,8 +52,14 @@ export const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event
   const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const transaction = await createChargeTransactions(charge, { order });
 
+  // after successful first payment of a recurring subscription where the payment confirmation is async
+  // and the subscription is managed by us.
+  if (order.interval && !order.SubscriptionId) {
+    await createSubscription(order);
+  }
+
   await order.update({
-    status: OrderStatuses.PAID,
+    status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
     processedAt: new Date(),
     data: { ...order.data, paymentIntent },
   });
