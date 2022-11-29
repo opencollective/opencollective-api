@@ -154,7 +154,7 @@ export const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) 
   sendOrderFailedEmail(order, reason);
 };
 
-export const chargeDisputeCreated = async (event: Stripe.Response<Stripe.Event>) => {
+export const chargeDisputeCreated = async (event: Stripe.Event) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: dispute.charge } } },
@@ -203,7 +203,7 @@ export const chargeDisputeCreated = async (event: Stripe.Response<Stripe.Event>)
 };
 
 // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
-export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) => {
+export const chargeDisputeClosed = async (event: Stripe.Event) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: dispute.charge } }, isDisputed: true },
@@ -330,7 +330,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
 };
 
 // Charge on Stripe had a fraud review opened
-export const reviewOpened = async (event: Stripe.Response<Stripe.Event>) => {
+export const reviewOpened = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
   const paymentIntentTransaction = await models.Transaction.findOne({
     // eslint-disable-next-line camelcase
@@ -375,7 +375,7 @@ export const reviewOpened = async (event: Stripe.Response<Stripe.Event>) => {
 };
 
 // Charge on Stripe had a fraud review closed (either approved/refunded)
-export const reviewClosed = async (event: Stripe.Response<Stripe.Event>) => {
+export const reviewClosed = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
   const stripePaymentIntentId = review.payment_intent;
   const closedReason = review.closed_reason;
