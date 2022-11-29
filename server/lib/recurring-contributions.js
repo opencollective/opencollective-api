@@ -441,13 +441,27 @@ export async function createPaymentCreditCardConfirmationActivity(order) {
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
-    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    HostCollectiveId: order.collective.approvedAt ? order.collective.HostCollectiveId : null,
     OrderId: order.id,
     data: {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
+      confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/orders/${order.id}/confirm`,
+      paymentMethod: order.paymentMethod?.info,
     },
   });
 }
+
+// TODO: Remove me
+setTimeout(async () => {
+  const order = await models.Order.findByPk(6435, {
+    include: [
+      { model: models.Collective, as: 'collective' },
+      { model: models.Collective, as: 'fromCollective' },
+      { model: models.PaymentMethod, as: 'paymentMethod' },
+      { model: models.Subscription, as: 'Subscription' },
+    ],
+  });
+  await createPaymentCreditCardConfirmationActivity(order);
+}, 2000);

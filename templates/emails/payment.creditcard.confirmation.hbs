@@ -1,20 +1,62 @@
-Subject: Confirm your credit card to continue supporting {{{collective.name}}}
+Subject: Action required: Verify your credit card to continue supporting {{{collective.name}}} on Open Collective
 
 {{> header}}
 
 {{> toplogo}}
 
-{{#if fromCollective.name}}
-<p>Dear {{fromCollective.name}},</p>
-{{else}}
-<p>Hi!</p>
-{{/if}}
+<p>{{> greeting}}</p>
 
-<p>To comply with banking regulations, we are required to confirm your credit card in order to process your payment of {{currency order.totalAmount currency=order.currency}} to {{collective.name}}.</p>
+<p>
+  To comply with banking regulations, we are required to verify your credit card
+  {{#if paymentMethod}}(<small>{{toUpperCase paymentMethod.data.brand}} <i>**** {{paymentMethod.name}}</i></small>) {{/if}}
+  in order to process your {{order.interval}}ly payment of {{currency order.totalAmount currency=order.currency}}
+  {{#ifCond fromCollective.id '!==' recipientCollective.id}}
+    {{#unless fromCollective.isIncognito}}
+      from {{> linkCollective collective=fromCollective}}
+    {{/unless}}
+  {{/ifCond}}
+  to {{> linkCollective collective=collective}}.
+</p>
 
-<p>Please <a href="{{confirmOrderLink}}">confirm your credit card now</a> to continue supporting {{collective.name}}.</p>
+<center style="margin: 32px 0;">
+  <a class="btn" style="margin-right: 8px;" href="https://docs.opencollective.com/help/financial-contributors/payments#credit-cards-verification">
+    <div style="font-size: 15px;">Learn more</div>
+  </a>
+  <a class="btn blue" href="{{confirmOrderLink}}">
+    <div style="font-size: 15px;">Verify your credit card</div>
+  </a>
+</center>
 
-<p>If you have questions, <a href="mailto:support@opencollective.com?Subject=Confirm%20credit%20card">contact support</a>.</p>
+<div style="border: 1px solid #efefef;padding: 12px 16px;margin: 32px 16px;border-radius: 8px;">
+  <p style="font-size: 14px; font-weight: bold;">FAQ</p>
+  <ul>
+    <li>
+      Why should I trust this email?
+      <p style="font-size: 14px; margin-top: 4px;">
+        This email was sent by Open Collective, the platform that processes the financial contributions for {{> linkCollective collective=collective}}.
+        You can verify that the email is from us by checking the email address in your inbox and all links point toward our official domain, <a href="https://opencollective.com">https://opencollective.com</a>. This process, along with other payment-related topics, is explained
+        in details on our <a href="https://docs.opencollective.com/help/financial-contributors/payments#credit-cards-verification">public documentation</a>.<br/> 
+      </p>
+    </li>
+    <li>
+      Why does this happen?
+      <p style="font-size: 14px; margin-top: 4px;">
+        To secure online payments, it is sometimes required to confirm payments with a second factor authentication. This happens today mostly in Europe but this is being deployed in more countries over time.
+        In Europe, the policy is named <a href="https://en.wikipedia.org/wiki/Strong_customer_authentication">Strong Customer Authentication (SCA)</a> and the most common way of authenticating
+        an online card payment relies on 3D Secure, which asks you to confirm the payment through your phone, banking app, or dedicated device.<br/> 
+      </p>
+    </li>
+    <li>
+      What will happen if I don't verify my credit card?
+      <p style="font-size: 14px; margin-top: 4px;">
+        If you don't verify your credit card, we will not be able to process your {{order.interval}}ly payment to {{> linkCollective collective=collective}}.
+        We will retry in the coming days, then after 6 attempts your recurring contribution will be cancelled.<br/> 
+      </p>
+    </li>
+  </ul>
+</div>
+
+<p>If you have questions, you can reach out to <a href="mailto:support@opencollective.com?Subject=Confirm%20credit%20card">our support</a>.</p>
 
 <p>Warmly,</p>
 
