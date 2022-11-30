@@ -170,6 +170,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'hostFeeInHostCurrency',
     'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
+    'taxAmount',
     'data.hasPlatformTip',
     'data.isFeesOnTop', // deprecated form, replaced by hasPlatformTip
     'data.tax',
@@ -189,6 +190,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
   refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
   refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
+  refund.taxAmount = -refund.taxAmount;
 
   /* Amount fields. Must be calculated after tweaking all the fees */
   refund.amount = -t.amount;
