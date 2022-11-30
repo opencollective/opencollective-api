@@ -11,7 +11,6 @@ import { toNumber } from 'lodash';
 import { Service } from '../server/constants/connected_account';
 import * as transferwiseLib from '../server/lib/transferwise';
 import models, { sequelize } from '../server/models';
-import transferwise from '../server/paymentProviders/transferwise/index';
 
 const program = new Command();
 
@@ -44,7 +43,7 @@ program.command('check-expense <expenseId>').action(async expenseId => {
   const profileId = connectedAccount.data.id;
   console.info(`${expense.host.slug} connected to Wise with profileId ${profileId}`);
 
-  const token = await transferwise.getToken(connectedAccount);
+  const token = await transferwiseLib.getToken(connectedAccount);
   const transfer = await transferwiseLib.getTransfer(token, expense.data.transfer.id);
   const recipient = await transferwiseLib.getRecipient(token, transfer.targetAccount);
   console.dir({ transfer, recipient }, { depth: null });

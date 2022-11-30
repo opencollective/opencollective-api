@@ -90,8 +90,24 @@ const parseError = (
   return new TransferwiseError(message, code);
 };
 
-export const requestDataAndThrowParsedError = (
-  fn: Function,
+export async function getToken(connectedAccount: ConnectedAccount, refresh = false): Promise<string> {
+  // OAuth token, require us to refresh every 12 hours
+  const tokenCreation = moment.utc(connectedAccount.data.created_at);
+  const diff = moment.duration(moment.utc().diff(tokenCreation)).asSeconds();
+  const isOutdated = diff > <number>connectedAccount.data.expires_in - 60;
+  if (refresh || isOutdated) {
+    const newToken = await getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
+    if (!newToken) {
+      throw new Error('There was an error refreshing the Transferwise token');
+    }
+    const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
+    await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });
+    return token;
+  } else {
+    return connectedAccount.token;
+  }
+}
+
   url: string,
   {
     data,
