@@ -25,8 +25,7 @@ async function processExpense(expense) {
   if (!connectedAccount) {
     throw new Error(`Host #${host.id} is not connected to Transferwise.`);
   }
-  const token = await transferwiseLib.getToken(connectedAccount);
-  const transfer = await transferwiseLib.getTransfer(token, expense.data.transfer.id);
+  const transfer = await transferwiseLib.getTransfer(connectedAccount, expense.data.transfer.id);
   if (
     (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') ||
     transfer.status === 'funds_refunded'
