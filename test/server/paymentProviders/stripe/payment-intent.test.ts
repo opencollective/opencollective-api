@@ -10,8 +10,11 @@ import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
 import paymentIntent from '../../../../server/paymentProviders/stripe/payment-intent';
 import { fakeConnectedAccount, fakeOrder, fakePaymentMethod, randStr } from '../../../test-helpers/fake-data';
+import * as utils from '../../../utils';
 
 describe('stripe/payment-intent', () => {
+  before(utils.resetTestDB);
+
   describe('processOrder', () => {
     describe('new order', () => {
       let order;
