@@ -93,8 +93,7 @@ async function processRecurringOrder(order: typeof models.Order) {
       stripeAccount: hostStripeAccount.username,
     });
 
-    order.update({ data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } } });
-    await order.save();
+    await order.update({ data: { ...order.data, paymentIntent: { id: paymentIntent.id, status: paymentIntent.status } } });
 
     paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
       stripeAccount: hostStripeAccount.username,
