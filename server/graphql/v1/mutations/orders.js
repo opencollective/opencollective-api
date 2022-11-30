@@ -226,7 +226,9 @@ const hasPaymentMethod = order => {
         paymentMethod.token ||
         paymentMethod.type === 'manual' ||
         paymentMethod.type === 'crypto' ||
-        paymentMethod.type === 'paymentintent',
+        paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.SEPA_DEBIT,
     );
   }
 };
@@ -368,8 +370,12 @@ export async function createOrder(order, req) {
         throw new FeatureNotSupportedForCollective();
       }
 
-      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.isAdminOfCollective(host)) {
-        // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
+      // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
+      if (remoteUser?.isAdminOfCollective(fromCollective)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+      } else if (remoteUser?.isAdminOfCollective(host)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      } else {
         throw new Error(
           `You don't have sufficient permissions to create an order on behalf of the ${
             fromCollective.name

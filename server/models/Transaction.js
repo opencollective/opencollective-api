@@ -218,6 +218,12 @@ const Transaction = sequelize.define(
       defaultValue: false,
     },
 
+    isInternal: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+    },
+
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

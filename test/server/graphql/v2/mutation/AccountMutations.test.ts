@@ -10,7 +10,7 @@ import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, waitForCondition } from '../../../../utils';
+import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
 const editSettingsMutation = gqlV2/* GraphQL */ `
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -59,7 +59,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, randomUser, hostAdminUser, backerUser, collective;
 
   before(async () => {
-    adminUser = await fakeUser();
+    await resetTestDB();
+    adminUser = await fakeUser(null, { name: 'Admin Name' });
     randomUser = await fakeUser();
     backerUser = await fakeUser();
     hostAdminUser = await fakeUser();
@@ -467,6 +468,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       sandbox = createSandbox();
       collectiveWithContact = await fakeCollective({
         name: 'Test Collective',
+        slug: 'test-collective-with-contact',
         admin: adminUser,
         settings: { features: { contactForm: true } },
       });
@@ -508,7 +510,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('cannot inject code in the email (XSS)', async () => {
       const code = '<script>console.log("XSS")</script>';
-      const xssUser = await fakeUser({ name: 'XSS User' }, { name: 'XSS Collective', slug: 'xss-collective' });
+      const xssUser = await fakeUser(null, { name: 'Tester', slug: 'tester' });
       const result = await graphqlQueryV2(
         sendMessageMutation,
         {
@@ -555,9 +557,9 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       <td>
 
 <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 17px; padding: 1em;">
-  Hi Test Collective,
+  Hi Admin Name,
   <br><br>
-  <a href="http://localhost:3000/xss-collective" style="text-decoration: none; color: #297EFF;">XSS Collective</a> just sent you a message on Open
+  <a href="http://localhost:3000/tester" style="text-decoration: none; color: #297EFF;">Tester</a> just sent a message to <a href="http://localhost:3000/test-collective-with-contact" style="text-decoration: none; color: #297EFF;">Test Collective</a> on Open
   Collective. Simply reply to this email to reply to the sender.
 </p>
 
@@ -626,7 +628,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 </html>`;
 
       expect(sendEmailSpy.callCount).to.equal(1);
-      expect(sendEmailSpy.args[0][1]).to.equal(`New message from XSS Collective on Open Collective: Testing`);
+      expect(sendEmailSpy.args[0][1]).to.equal(`New message from Tester on Open Collective: Testing`);
       expect(sendEmailSpy.args[0][2]).to.equal(expectedMessage);
     });
 

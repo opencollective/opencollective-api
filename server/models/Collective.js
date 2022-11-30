@@ -34,6 +34,7 @@ import { isISO31661Alpha2 } from 'validator';
 
 import activities from '../constants/activities';
 import { CollectiveTypesList, types } from '../constants/collectives';
+import { Service } from '../constants/connected_account';
 import expenseStatus from '../constants/expense_status';
 import expenseTypes from '../constants/expense_type';
 import FEATURE from '../constants/feature';
@@ -3034,6 +3035,17 @@ Collective.prototype.getHostCollectiveId = function () {
   return models.Collective.getHostCollectiveId(this.ParentCollectiveId || this.id).then(HostCollectiveId => {
     this.HostCollectiveId = HostCollectiveId;
     return HostCollectiveId;
+  });
+};
+
+Collective.prototype.getCustomerStripeAccount = function (hostStripeAccount, sequelizeOptions = {}) {
+  return models.ConnectedAccount.findOne({
+    where: {
+      clientId: hostStripeAccount,
+      CollectiveId: this.id,
+      service: Service.STRIPE_CUSTOMER,
+    },
+    ...sequelizeOptions,
   });
 };
 

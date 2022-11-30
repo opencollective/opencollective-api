@@ -116,7 +116,7 @@ describe('server/lib/allowed-features', () => {
       expect(isFeatureAllowedForCollectiveType('ORGANIZATION', FEATURE.CONTACT_FORM, true)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('USER', FEATURE.CONTACT_FORM)).to.be.false;
       expect(isFeatureAllowedForCollectiveType('EVENT', FEATURE.CONTACT_FORM)).to.be.true;
-      expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.CONTACT_FORM)).to.be.false;
+      expect(isFeatureAllowedForCollectiveType('FUND', FEATURE.CONTACT_FORM)).to.be.true;
       expect(isFeatureAllowedForCollectiveType('PROJECT', FEATURE.CONTACT_FORM)).to.be.false;
     });
     it('TRANSFERWISE', () => {

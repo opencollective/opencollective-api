@@ -1,17 +1,24 @@
 /* eslint-disable camelcase */
 
 import { expect } from 'chai';
+import { set } from 'lodash';
+import sinon from 'sinon';
 
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order_status';
+import * as libPayments from '../../../../server/lib/payments';
+import stripe from '../../../../server/lib/stripe';
+import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
 import {
   fakeCollective,
+  fakeConnectedAccount,
   fakeOrder,
   fakePaymentMethod,
   fakeTransaction,
   fakeUser,
+  randStr,
 } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
@@ -437,6 +444,145 @@ describe('webhook', () => {
 
         const transactions = await order.getTransactions();
         expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
+      });
+    });
+  });
+
+  describe('paymentIntent', () => {
+    let order, event;
+    const sandbox = sinon.createSandbox();
+
+    beforeEach(async () => {
+      const paymentMethod = await fakePaymentMethod({ type: 'paymentintent', service: 'stripe' });
+      order = await fakeOrder({
+        PaymentMethodId: paymentMethod.id,
+        FromCollectiveId: paymentMethod.CollectiveId,
+        status: OrderStatuses.PROCESSING,
+        totalAmount: 100e2,
+        description: 'Do you even donate, brah?!',
+        data: { paymentIntent: { id: randStr('pi_fake') } },
+      });
+      const hostId = order.collective.HostCollectiveId;
+      await fakeConnectedAccount({
+        CollectiveId: hostId,
+        service: 'stripe',
+        username: 'testUserName',
+        token: 'faketoken',
+      });
+
+      event = {
+        data: {
+          object: {
+            id: order.data.paymentIntent.id,
+            charges: {
+              data: [
+                {
+                  amount: 100e2,
+                  amount_captured: 100e2,
+                  amount_refunded: 0,
+                  application_fee: null,
+                  application_fee_amount: null,
+                },
+              ],
+            },
+          },
+        },
+      };
+    });
+
+    afterEach(sandbox.restore);
+
+    describe('paymentIntentSucceeded()', () => {
+      it('returns if no order is found', async () => {
+        sandbox.stub(common, 'createChargeTransactions').throws();
+        set(event, 'data.object.id', 'pi_notfound');
+        await webhook.paymentIntentSucceeded(event);
+        await order.reload();
+
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        sinon.assert.notCalled(common.createChargeTransactions);
+      });
+
+      it('create transactions, send notifications, and updates the order', async () => {
+        sandbox.stub(common, 'createChargeTransactions').resolves();
+        sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
+        await webhook.paymentIntentSucceeded(event);
+
+        sinon.assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
+          order: {
+            dataValues: { id: order.id },
+          },
+        });
+        sinon.assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
+          dataValues: { id: order.id },
+        });
+
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PAID);
+        expect(order.processedAt).to.not.be.null;
+      });
+    });
+
+    describe('paymentIntentProcessing()', () => {
+      it('returns if no order is found', async () => {
+        set(event, 'data.object.id', 'pi_notfound');
+        await webhook.paymentIntentProcessing(event);
+        await order.reload();
+
+        sandbox.stub(order, 'update').throws();
+
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        expect(order.data.paymentIntent).to.have.property('id').not.equal('pi_notfound');
+        sinon.assert.notCalled(order.update);
+      });
+
+      it('updates order.data.paymentIntent', async () => {
+        sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+          type: 'us_bank_account',
+          us_bank_account: {
+            name: 'Test Bank',
+            last4: '1234',
+          },
+        });
+
+        await webhook.paymentIntentProcessing(event);
+        await order.reload();
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        expect(order.data.paymentIntent.charges).to.not.be.null;
+      });
+    });
+
+    describe('paymentIntentFailed()', () => {
+      it('returns if no order is found', async () => {
+        set(event, 'data.object.id', 'pi_notfound');
+        await webhook.paymentIntentFailed(event);
+        await order.reload();
+
+        sandbox.stub(order, 'update').throws();
+
+        expect(order.status).to.equal(OrderStatuses.PROCESSING);
+        expect(order.data.paymentIntent).to.have.property('id').not.equal('pi_notfound');
+        sinon.assert.notCalled(order.update);
+      });
+
+      it('send email notification and updates order.status', async () => {
+        sandbox.stub(libPayments, 'sendOrderFailedEmail').resolves();
+        set(event, 'data.object.last_payment_error', {
+          message: "You invested all your money on FTX and now you don't have anything left",
+        });
+
+        await webhook.paymentIntentFailed(event);
+        await order.reload();
+
+        expect(order.status).to.equal(OrderStatuses.ERROR);
+        expect(order.data.paymentIntent.charges).to.not.be.null;
+        sinon.assert.calledOnceWithMatch(
+          libPayments.sendOrderFailedEmail,
+          {
+            dataValues: { id: order.id },
+          },
+          "You invested all your money on FTX and now you don't have anything left",
+        );
       });
     });
   });

@@ -5,6 +5,7 @@ import models, { Op, sequelize } from '../../../../models';
 import { AccountCollection } from '../../collection/AccountCollection';
 import { AccountType, AccountTypeToModelMapping, CountryISO } from '../../enum';
 import { PaymentMethodService } from '../../enum/PaymentMethodService';
+import { TagSearchOperator } from '../../enum/TagSearchOperator';
 import { AccountReferenceInput, fetchAccountsIdsWithReference } from '../../input/AccountReferenceInput';
 import { OrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
@@ -20,6 +21,11 @@ const AccountsCollectionQuery = {
     tag: {
       type: new GraphQLList(GraphQLString),
       description: 'Only accounts that match these tags',
+    },
+    tagSearchOperator: {
+      type: new GraphQLNonNull(TagSearchOperator),
+      defaultValue: 'AND',
+      description: "Operator to use when searching with tags. Defaults to 'AND'",
     },
     host: {
       type: new GraphQLList(AccountReferenceInput),
@@ -75,7 +81,11 @@ const AccountsCollectionQuery = {
 
       // Bind arguments
       if (args.tag?.length) {
-        where['tags'] = { [Op.contains]: args.tag };
+        if (args.tagSearchOperator === 'OR') {
+          where['tags'] = { [Op.overlap]: args.tag };
+        } else {
+          where['tags'] = { [Op.contains]: args.tag };
+        }
       }
 
       if (args.type?.length) {
@@ -141,6 +151,7 @@ const AccountsCollectionQuery = {
         hasCustomContributionsEnabled: args.hasCustomContributionsEnabled,
         countries: args.country,
         tags: args.tag,
+        tagSearchOperator: args.tagSearchOperator,
         includeArchived: args.includeArchived,
       };
 

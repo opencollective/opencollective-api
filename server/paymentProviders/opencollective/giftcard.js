@@ -191,17 +191,14 @@ async function create(args, remoteUser) {
  * @param {object} remoteUser
  * @param {integer} count
  */
-export async function bulkCreateGiftCards(args, remoteUser, count) {
+export async function bulkCreateGiftCards(collective, args, remoteUser, count) {
   if (!count) {
     return [];
   }
 
   // Check rate limit
   const totalAmount = (args.amount || args.monthlyLimitPerMember) * count;
-  const collective = await models.Collective.findByPk(args.CollectiveId);
-  if (!collective) {
-    throw new Error('Collective does not exist');
-  } else if (!(await checkCreateLimit(collective, count))) {
+  if (!(await checkCreateLimit(collective, count))) {
     throw new Error(LIMIT_REACHED_ERROR);
   }
 
@@ -226,16 +223,13 @@ export async function bulkCreateGiftCards(args, remoteUser, count) {
  * @param {integer} count
  * @param {string} customMessage A message that will be sent in the invitation email
  */
-export async function createGiftCardsForEmails(args, remoteUser, emails, customMessage) {
+export async function createGiftCardsForEmails(collective, args, remoteUser, emails, customMessage) {
   if (emails.length === 0) {
     return [];
   }
   // Check rate limit
   const totalAmount = (args.amount || args.monthlyLimitPerMember) * emails.length;
-  const collective = await models.Collective.findByPk(args.CollectiveId);
-  if (!collective) {
-    throw new Error('Collective does not exist');
-  } else if (!(await checkCreateLimit(collective, emails.length))) {
+  if (!(await checkCreateLimit(collective, emails.length))) {
     throw new Error(LIMIT_REACHED_ERROR);
   }
 
@@ -415,11 +409,6 @@ function getCurrencyFromCreateArgs(args, collective) {
  * @param {object} sourcePaymentMethod
  */
 function getCreateParams(args, collective, sourcePaymentMethod, remoteUser) {
-  // Make sure user is admin of collective
-  if (!remoteUser.isAdminOfCollective(collective)) {
-    throw new Error('User must be admin of collective');
-  }
-
   // Make sure currency is a string, trim and uppercase it.
   args.currency = getCurrencyFromCreateArgs(args, collective);
 
