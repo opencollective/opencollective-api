@@ -121,7 +121,7 @@ describe('server/models/Transaction', () => {
     };
 
     return Transaction.createFromContributionPayload(transactionPayload).then(() => {
-      return Transaction.findAll().then(transactions => {
+      return Transaction.findAll({ order: [['id', 'ASC']] }).then(transactions => {
         utils.snapshotTransactions(transactions, { columns: SNAPSHOT_COLUMNS });
 
         expect(transactions.length).to.equal(4);
@@ -283,7 +283,7 @@ describe('server/models/Transaction', () => {
       // - 2 for contributions
       // - 2 for platform tip (contributor -> Open Collective)
       // - 2 for platform tip debt (host -> Open Collective)
-      const sqlOrder = [['createdAt', 'ASC']];
+      const sqlOrder = [['id', 'ASC']];
       const include = [{ association: 'host' }];
       const allTransactions = await Transaction.findAll({ where: { OrderId: order.id }, order: sqlOrder, include });
       await models.TransactionSettlement.attachStatusesToTransactions(allTransactions);

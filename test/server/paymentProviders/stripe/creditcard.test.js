@@ -97,7 +97,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
       await fakeHost({ id: 8686, slug: 'opencollectiveinc', CreatedByUserId: user.id });
       // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
-      await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
     });
 
     afterEach(() => nock.cleanAll());

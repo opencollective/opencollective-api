@@ -974,16 +974,16 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           tags: ['meetup'],
         }).then(c => (collective2 = c)),
       );
-      before('add hosts', async () => {
-        await collective1.addHost(host1, user1, { shouldAutomaticallyApprove: true });
-        await collective2.addHost(host2, user1, { shouldAutomaticallyApprove: true });
-      });
       before('creates User 1', () =>
         models.User.createUserWithCollective({
           email: store.randEmail(),
           name: 'User 1',
         }).then(u => (user1 = u)),
       );
+      before('add hosts', async () => {
+        await collective1.addHost(host1, user1, { shouldAutomaticallyApprove: true });
+        await collective2.addHost(host2, user1, { shouldAutomaticallyApprove: true });
+      });
       before('user1 to become Admin of collective1', () => {
         return models.Member.create({
           CreatedByUserId: user1.id,

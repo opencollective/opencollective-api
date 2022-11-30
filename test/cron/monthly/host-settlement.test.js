@@ -26,7 +26,7 @@ describe('cron/monthly/host-settlement', () => {
     const oc = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
 
     // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
-    await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
+    await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
     const payoutProto = {
       data: {
         details: {},
