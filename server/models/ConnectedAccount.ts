@@ -1,13 +1,38 @@
 import config from 'config';
 import { isNil } from 'lodash';
+import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import { supportedServices } from '../constants/connected_account';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes } from '../lib/sequelize';
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-const ConnectedAccount = sequelize.define(
-  'ConnectedAccount',
+export class ConnectedAccount extends Model<
+  InferAttributes<ConnectedAccount>,
+  InferCreationAttributes<ConnectedAccount>
+> {
+  public declare readonly id: CreationOptional<number>;
+  public declare service: string;
+  public declare username: string;
+  public declare clientId: string;
+  public declare token: string;
+  public declare refreshToken: string;
+  public declare hash: string;
+  public declare data: CreationOptional<Record<string, any>>;
+  public declare settings: CreationOptional<Record<string, any>>;
+
+  public declare CollectiveId: CreationOptional<number>;
+  public declare CreatedByUserId: CreationOptional<number>;
+  public declare createdAt: CreationOptional<Date>;
+  public declare updatedAt: CreationOptional<Date>;
+}
+
+ConnectedAccount.init(
   {
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+    },
     service: {
       type: DataTypes.STRING,
       validate: {
@@ -17,11 +42,8 @@ const ConnectedAccount = sequelize.define(
         },
       },
     },
-
     username: DataTypes.STRING, // paypal email / Stripe UserId / Twitter username / ...
-
     clientId: DataTypes.STRING, // paypal app id
-
     // either paypal secret OR an accessToken to do requests to the provider on behalf of the user
     token: {
       type: DataTypes.STRING,
@@ -29,42 +51,51 @@ const ConnectedAccount = sequelize.define(
         const encrypted = this.getDataValue('token');
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
       },
-      set(value) {
+      set(value: string) {
         this.setDataValue('token', crypto.encrypt(value));
       },
     },
-    // used for Stripe
     refreshToken: {
       type: DataTypes.STRING,
       get() {
         const encrypted = this.getDataValue('refreshToken');
         return isNil(encrypted) ? null : crypto.decrypt(encrypted);
       },
-      set(value) {
+      set(value: string) {
         this.setDataValue('refreshToken', crypto.encrypt(value));
       },
     },
-
     data: DataTypes.JSONB, // Extra service provider specific data, e.g. Stripe: { publishableKey, scope, tokenType }
     settings: DataTypes.JSONB, // configuration settings, e.g. defining templates for auto-tweeting
-
     createdAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
-
     updatedAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
-
     hash: {
       type: DataTypes.STRING,
     },
+    CollectiveId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Collectives',
+        key: 'id',
+      },
+    },
+    CreatedByUserId: {
+      type: DataTypes.INTEGER,
+      references: {
+        model: 'Users',
+        key: 'id',
+      },
+    },
   },
   {
+    sequelize,
     paranoid: true,
-
     getterMethods: {
       info() {
         return {
@@ -75,7 +106,6 @@ const ConnectedAccount = sequelize.define(
           updatedAt: this.updatedAt,
         };
       },
-
       paypalConfig() {
         return {
           client_id: this.clientId, // eslint-disable-line camelcase
