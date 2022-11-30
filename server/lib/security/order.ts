@@ -78,14 +78,14 @@ export const getCreditCardStats = async (
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
-    WHERE pm."type" = 'creditcard'
-    AND o."deletedAt" IS NULL
+    WHERE 
+    o."deletedAt" IS NULL
+    AND pm."deletedAt" IS NULL
     ${
       fingerprint
         ? `AND pm."data"#>>'{fingerprint}' = :fingerprint`
         : `AND pm."name" = :name AND pm."data"->>'expYear' = :expYear AND pm."data"->>'expMonth' = :expMonth AND pm."data"->>'country' = :country`
     }
-   
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     {
