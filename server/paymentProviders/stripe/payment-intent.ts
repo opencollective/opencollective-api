@@ -105,7 +105,6 @@ async function processRecurringOrder(order: typeof models.Order) {
       return;
     } else if (paymentIntent.status !== 'succeeded') {
       logger.error('Unknown error with Stripe Payment Intent.');
-      logger.error(paymentIntent);
       reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
       throw new Error('Something went wrong with the payment, please contact support@opencollective.com.');
     }
