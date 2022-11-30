@@ -159,16 +159,29 @@ const model: OauthModel = {
       scope,
     });
 
-    await models.Activity.create({
-      type: activities.OAUTH_APPLICATION_AUTHORIZED,
-      UserId: user.id,
-      CollectiveId: user.CollectiveId,
-      data: {
-        application: application.publicInfo,
-        collective: collective.minimal,
-        scope,
-      },
+    // Only send the email if there is no active user token right now
+    const userToken = await models.UserToken.findOne({
+      where: { ApplicationId: application.id, UserId: user.id },
     });
+
+    // Look if extra scope are requested
+    let extraScope;
+    if (userToken) {
+      extraScope = Array.from(scope).filter(x => !Array.from(userToken.scope).includes(x)).length !== 0;
+    }
+
+    if (!userToken || extraScope) {
+      await models.Activity.create({
+        type: activities.OAUTH_APPLICATION_AUTHORIZED,
+        UserId: user.id,
+        CollectiveId: user.CollectiveId,
+        data: {
+          application: application.publicInfo,
+          collective: collective.minimal,
+          scope,
+        },
+      });
+    }
 
     authorization.application = application;
     authorization.user = user;
