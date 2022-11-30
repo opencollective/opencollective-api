@@ -53,7 +53,7 @@ const main = async (): Promise<void> => {
     const { defaultFundingPlan } = debitTransaction.data.createPaymentResponse;
 
     // First approach was to fetch the transaction details from PayPal, but upon further verification
-    // all amounts (paymentInfo.receiver.amount) are equal to the gross expense amount, so we can't use that
+    // all amounts (paymentInfo.receiver.amount) are equal to the gross expense amount, so we can use that
     // const paymentDetails = await paypalAdaptive.paymentDetails({ payKey: debitTransaction.data.createPaymentResponse });
     // const paymentInfo = paymentDetails.paymentInfoList.paymentInfo[0];
     // const amountReceivedByPayee = floatAmountToCents(parseFloat(paymentInfo.receiver.amount));
