@@ -1435,7 +1435,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     );
   }
 
-  if (parseToBoolean(process.env.DISABLE_PAYPAL_ADAPTIVE)) {
+  if (parseToBoolean(process.env.DISABLE_PAYPAL_ADAPTIVE) && !remoteUser.isRoot()) {
     throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
   }
 
