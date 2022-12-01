@@ -39,12 +39,12 @@ import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { hasPolicy } from '../../lib/policies';
-import { reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
@@ -1435,6 +1435,10 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     );
   }
 
+  if (parseToBoolean(process.env.DISABLE_PAYPAL_ADAPTIVE)) {
+    throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
+  }
+
   try {
     const paymentResponse = await paymentProviders.paypal.types['adaptive'].pay(
       expense.collective,
@@ -1443,6 +1447,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       paymentMethod.token,
     );
 
+    debug(JSON.stringify(paymentResponse));
     const { createPaymentResponse, executePaymentResponse } = paymentResponse;
 
     switch (executePaymentResponse.paymentExecStatus) {
@@ -1483,7 +1488,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
       const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
       const amountReceivedByPayee = expense.amount;
-      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee);
+      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
 
       // No example yet, but we want to know if this ever happens
       if (fundingAmount.code !== expense.currency) {
@@ -1514,6 +1519,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
         'Not enough funds in your existing Paypal preapproval. Please refill your PayPal payment balance.',
       );
     } else {
+      reportErrorToSentry(err);
       throw new BadRequest(err.message);
     }
   }
