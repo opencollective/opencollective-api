@@ -1488,7 +1488,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
       const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
       const amountReceivedByPayee = expense.amount;
-      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee);
+      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
 
       // No example yet, but we want to know if this ever happens
       if (fundingAmount.code !== expense.currency) {
