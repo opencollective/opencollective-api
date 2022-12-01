@@ -8,7 +8,7 @@ import Axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
-import { isNull, omitBy, pick, set, startCase, toInteger, toUpper } from 'lodash';
+import { cloneDeep, isNull, omitBy, pick, set, startCase, toInteger, toUpper } from 'lodash';
 import moment from 'moment';
 
 import { TransferwiseError } from '../graphql/errors';
@@ -31,6 +31,7 @@ import {
 import { FEATURE } from './allowed-features';
 import logger from './logger';
 import { reportErrorToSentry } from './sentry';
+import { sleep } from './utils';
 
 const debug = Debug('transferwise');
 const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
@@ -66,7 +67,7 @@ const getData = <T extends { data?: Record<string, unknown> }>(obj: T | undefine
   obj && obj.data;
 
 const parseError = (
-  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[] }>,
+  error: AxiosError<{ errorCode?: TransferwiseErrorCodes; errors?: Record<string, unknown>[]; error?: string }>,
   defaultMessage?: string,
   defaultCode?: string,
 ): string | Error => {
@@ -78,6 +79,8 @@ const parseError = (
   }
   if (error.response?.data?.errors) {
     message = error.response.data.errors.map(e => e.message).join(' ');
+  } else if (error.response?.data?.error) {
+    message = error.response.data.error;
   }
   if (error.response?.status === 422) {
     message = `TransferWise validation error: ${message}`;
@@ -112,6 +115,7 @@ export const requestDataAndThrowParsedError = async (
     data,
     requestPath,
     connectedAccount,
+    retries = 0,
     ...options
   }: {
     data?: Record<string, unknown>;
@@ -120,24 +124,32 @@ export const requestDataAndThrowParsedError = async (
     auth?: Record<string, unknown>;
     requestPath?: string;
     connectedAccount?: ConnectedAccount;
+    retries?: number;
   },
   defaultErrorMessage?: string,
 ): Promise<any> => {
   const start = process.hrtime.bigint();
-  debug(`calling ${config.transferwise.apiUrl}${url}: ${JSON.stringify({ data, params: options.params }, null, 2)}`);
 
   if (connectedAccount) {
     const token = await getToken(connectedAccount);
     set(options, 'headers.Authorization', `Bearer ${token}`);
   }
 
+  debug(
+    `calling ${config.transferwise.apiUrl}${url}: ${JSON.stringify(
+      { data, params: options.params, retries },
+      null,
+      2,
+    )}`,
+  );
+
   try {
     const pRequest = data ? fn(url, data, options) : fn(url, options);
     const response = await pRequest;
     return getData(response);
   } catch (e: any) {
-    const signatureFailed = e?.response?.headers['x-2fa-approval-result'] === 'REJECTED';
-    const hadSignature = e?.response?.headers['X-Signature'];
+    const signatureFailed = e?.response?.headers?.['x-2fa-approval-result'] === 'REJECTED';
+    const hadSignature = e?.response?.headers?.['X-Signature'];
     if (signatureFailed && !hadSignature) {
       const ott = e.response.headers['x-2fa-approval'];
       const signature = signString(ott);
@@ -145,16 +157,23 @@ export const requestDataAndThrowParsedError = async (
       return requestDataAndThrowParsedError(
         fn,
         url,
-        { data, requestPath, connectedAccount, ...options },
+        { data, requestPath, connectedAccount, retries, ...cloneDeep(options) },
         defaultErrorMessage,
       );
-    } else if (connectedAccount && e?.response?.status === 401 && e?.response?.data?.['error'] === 'invalid_token') {
-      debug('invalid_token: refreshing token and trying again...');
+    } else if (
+      connectedAccount &&
+      retries < 4 &&
+      e?.response?.status === 401 &&
+      e?.response?.data?.['error'] === 'invalid_token'
+    ) {
+      const delay = retries * 300;
+      debug(`invalid_token: waiting ${delay}ms, refreshing the token and trying again (retries: ${retries})...`);
+      await sleep(delay);
       await getToken(connectedAccount, true);
       return requestDataAndThrowParsedError(
         fn,
         url,
-        { data, requestPath, connectedAccount, ...options },
+        { data, requestPath, connectedAccount, retries: retries + 1, ...cloneDeep(options) },
         defaultErrorMessage,
       );
     } else {
