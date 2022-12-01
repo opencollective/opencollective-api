@@ -10,6 +10,7 @@ import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models from '../../models';
 import PaypalPlan from '../../models/PaypalPlan';
+import Tier from '../../models/Tier';
 import User from '../../models/User';
 import { PaymentProviderService } from '../types';
 
@@ -49,7 +50,7 @@ type PaypalProductCategory = 'MERCHANDISE' | 'MEMBERSHIP_CLUBS_AND_ORGANIZATIONS
 /**
  * See https://developer.paypal.com/docs/api/catalog-products/v1/#products-create-response
  */
-export const getProductTypeAndCategory = (tier: typeof models.Tier): [PaypalProductType, PaypalProductCategory?] => {
+export const getProductTypeAndCategory = (tier: Tier): [PaypalProductType, PaypalProductCategory?] => {
   switch (tier?.type) {
     case TierType.TICKET:
       return ['DIGITAL'];
@@ -137,7 +138,7 @@ export async function getOrCreatePlan(
   interval: INTERVALS,
   amount: number,
   currency: string,
-  tier = null,
+  tier: Tier = null,
 ): Promise<PaypalPlan> {
   const product = await models.PaypalProduct.findOne({
     where: { CollectiveId: collective.id, TierId: tier?.id || null },

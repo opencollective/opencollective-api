@@ -445,8 +445,8 @@ export const fakeConversation = async (
  */
 export const fakeTier = async (tierData: Record<string, unknown> = {}) => {
   const name = randStr('tier');
-  const interval = sample(['month', 'year']);
-  const currency = tierData.currency || sample(['USD', 'EUR']);
+  const interval = <'month' | 'year'>sample(['month', 'year']);
+  const currency = <string>tierData.currency || sample(['USD', 'EUR']);
   const amount = <number>tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
@@ -476,7 +476,11 @@ export const fakeOrder = async (
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
-  const tier = orderData.TierId ? await models.Tier.findByPk(orderData.TierId) : withTier ? await fakeTier() : null;
+  const tier = orderData.TierId
+    ? await models.Tier.findByPk(<number>orderData.TierId)
+    : withTier
+    ? await fakeTier()
+    : null;
 
   const order = await models.Order.create({
     quantity: 1,

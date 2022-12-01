@@ -5,6 +5,7 @@ import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
 import models, { sequelize } from '../models';
+import Tier from '../models/Tier';
 import User from '../models/User';
 
 import { findPaymentMethodProvider } from './payments';
@@ -72,7 +73,7 @@ export const updatePaymentMethodForSubscription = async (
   return updatedOrder;
 };
 
-const checkSubscriptionDetails = (order, tier, amountInCents) => {
+const checkSubscriptionDetails = (order, tier: Tier, amountInCents) => {
   if (tier && tier.CollectiveId !== order.CollectiveId) {
     throw new Error(`This tier (#${tier.id}) doesn't belong to the given Collective #${order.CollectiveId}`);
   }
@@ -137,7 +138,7 @@ export const updateOrderSubscription = async (
 
 export const updateSubscriptionDetails = async (
   order: typeof models.Order,
-  tier: typeof models.Tier,
+  tier: Tier,
   member: typeof models.Member,
   amountInCents: number,
 ): Promise<OrderSubscriptionUpdate> => {
