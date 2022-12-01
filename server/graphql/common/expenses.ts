@@ -1481,8 +1481,10 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     }
 
     // Warning senderFees can be null
-    let senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
-    if (!senderFees) {
+    let senderFees = createPaymentResponse.defaultFundingPlan.senderFees?.amount;
+    if (senderFees) {
+      senderFees = floatAmountToCents(parseFloat(senderFees));
+    } else {
       // PayPal stopped providing senderFees in the response, we need to compute it ourselves
       // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
       const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
@@ -1498,12 +1500,9 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       }
     }
 
-    const paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
-    fees['paymentProcessorFeeInHostCurrency'] = Math.round(
-      hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency,
-    );
+    fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
     await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse, paymentMethod);
