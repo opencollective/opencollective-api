@@ -10,6 +10,7 @@ import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models from '../../models';
 import PaypalPlan from '../../models/PaypalPlan';
+import User from '../../models/User';
 import { PaymentProviderService } from '../types';
 
 import { paypalRequest } from './api';
@@ -28,7 +29,7 @@ export const cancelPaypalSubscription = async (
 
 export const createPaypalPaymentMethodForSubscription = (
   order: typeof models.Order,
-  user: typeof models.User,
+  user: User,
   paypalSubscriptionId: string,
 ): Promise<typeof models.PaymentMethod> => {
   return models.PaymentMethod.create({
@@ -261,7 +262,7 @@ export const setupPaypalSubscriptionForOrder = async (
 };
 
 export const updateSubscriptionWithPaypal = async (
-  user: typeof models.User,
+  user: User,
   order: typeof models.Order,
   paypalSubscriptionId: string,
 ): Promise<typeof models.Order> => {

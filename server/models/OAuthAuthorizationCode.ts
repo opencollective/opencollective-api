@@ -1,8 +1,9 @@
-import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 class OAuthAuthorizationCode extends Model<
@@ -18,11 +19,11 @@ class OAuthAuthorizationCode extends Model<
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
   public declare ApplicationId: number;
-  public declare UserId: number;
+  public declare UserId: ForeignKey<User['id']>;
   public declare scope: string[];
 
   public declare application?: NonAttribute<typeof models.Application>;
-  public declare user?: NonAttribute<typeof models.User>;
+  public declare user?: NonAttribute<User>;
 }
 
 OAuthAuthorizationCode.init(

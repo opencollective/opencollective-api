@@ -3,6 +3,7 @@ import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequ
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 export enum HostApplicationStatus {
@@ -44,7 +45,7 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
   static async recordApplication(
     host: typeof models.Collective,
     collective: typeof models.Collective,
-    user: typeof models.User,
+    user: User,
     data: Record<string, unknown>,
   ): Promise<HostApplication> {
     const existingApplication = await this.getByStatus(host, collective, HostApplicationStatus.PENDING);

@@ -5,6 +5,7 @@ import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import sequelize from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 /**
@@ -26,7 +27,7 @@ export class ExpenseAttachedFile extends Model {
    */
   static async createFromData(
     { url, name }: { url: string; name?: string },
-    user: typeof models.User,
+    user: User,
     expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {

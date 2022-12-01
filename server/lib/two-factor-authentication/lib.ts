@@ -40,7 +40,7 @@ export type Token = {
 };
 
 export interface TwoFactorAuthProvider {
-  validateToken(user: typeof User, token: Token): Promise<void>;
+  validateToken(user: User, token: Token): Promise<void>;
 }
 
 export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
@@ -67,7 +67,7 @@ function getTwoFactorAuthTokenFromRequest(req: Request): Token {
   };
 }
 
-async function validateToken(user: typeof User, token: Token): Promise<void> {
+async function validateToken(user: User, token: Token): Promise<void> {
   if (!SupportedTwoFactorMethods.includes(token.type)) {
     throw new Error(`Unsupported 2FA type ${token.type}`);
   }
@@ -161,7 +161,7 @@ async function validateRequest(
   return true;
 }
 
-function twoFactorMethodsSupportedByUser(remoteUser: typeof User): TwoFactorMethod[] {
+function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
   const methods = [];
   if (remoteUser.twoFactorAuthToken) {
     methods.push(TwoFactorMethod.TOTP);
@@ -170,7 +170,7 @@ function twoFactorMethodsSupportedByUser(remoteUser: typeof User): TwoFactorMeth
   return methods;
 }
 
-function userHasTwoFactorAuthEnabled(user: typeof User) {
+function userHasTwoFactorAuthEnabled(user: User) {
   return Boolean(user.twoFactorAuthToken);
 }
 

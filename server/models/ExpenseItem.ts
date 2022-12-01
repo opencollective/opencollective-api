@@ -7,6 +7,7 @@ import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
@@ -46,7 +47,7 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
    */
   static async createFromData(
     itemData: Record<string, unknown>,
-    user: typeof models.User,
+    user: User,
     expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseItem> {

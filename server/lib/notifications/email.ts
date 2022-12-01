@@ -11,6 +11,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
 import Activity from '../../models/Activity';
+import User from '../../models/User';
 import emailLib from '../email';
 import { getTransactionPdf } from '../pdf';
 import twitter from '../twitter';
@@ -31,7 +32,7 @@ type NotifySubscribersOptions = {
   sendEvenIfNotProduction?: boolean;
   template?: string;
   to?: string;
-  unsubscribed?: Array<typeof models.User>;
+  unsubscribed?: Array<User>;
 };
 
 export const notify = {
@@ -39,7 +40,7 @@ export const notify = {
   async user(
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions & {
-      user?: typeof models.User;
+      user?: User;
       userId?: number;
     },
   ) {
@@ -72,7 +73,7 @@ export const notify = {
     }
   },
 
-  async users(users: Array<typeof models.User>, activity: Partial<Activity>, options?: NotifySubscribersOptions) {
+  async users(users: Array<User>, activity: Partial<Activity>, options?: NotifySubscribersOptions) {
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
@@ -302,7 +303,7 @@ export const notifyByEmail = async (activity: Activity) => {
         return;
       }
 
-      const usersToNotify: Array<{ id: number; email: string }> = await conversation.getUsersFollowing();
+      const usersToNotify: Array<User> = await conversation.getUsersFollowing();
       notify.users(usersToNotify, activity, {
         from: config.email.noReply,
         exclude: [activity.UserId], // Don't notify the person who commented

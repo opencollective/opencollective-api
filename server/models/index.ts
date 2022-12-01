@@ -75,7 +75,7 @@ const models = {
   User: User,
   UserToken: UserToken,
   VirtualCard: VirtualCard,
-};
+} as const;
 
 /**
  * Relationships

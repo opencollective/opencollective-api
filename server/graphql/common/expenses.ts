@@ -50,6 +50,7 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
 import {
   Quote as WiseQuote,
@@ -931,10 +932,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
   }
 };
 
-export async function createExpense(
-  remoteUser: typeof models.User | null,
-  expenseData: ExpenseData,
-): Promise<typeof models.Expense> {
+export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<typeof models.Expense> {
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
