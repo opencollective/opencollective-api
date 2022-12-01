@@ -12,6 +12,10 @@ In production, we're currently running 13.7.
 
 `brew install postgresql`
 
+Then:
+
+`createuser -s postgres -U <os-username>`
+
 #### With Postgres.app
 
 Get the app from [Postgres.app](http://postgresapp.com/). Install it.
