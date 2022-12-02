@@ -16,6 +16,7 @@ import { getPolicy, hasPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
+import ConversationModel from '../../../models/Conversation';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
@@ -378,7 +379,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
   );
 };
 
-const sendPublicMessage = async (host, collective, user, message: string): Promise<typeof models.Conversation> => {
+const sendPublicMessage = async (host, collective, user, message: string): Promise<ConversationModel> => {
   const title = `About your application to ${host.name}`;
   const tags = ['host'];
   return models.Conversation.createWithComment(user, collective, title, message, tags);

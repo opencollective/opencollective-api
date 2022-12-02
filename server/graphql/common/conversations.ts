@@ -4,6 +4,7 @@ import { pick } from 'lodash';
 import FEATURE from '../../constants/feature';
 import { hasFeature } from '../../lib/allowed-features';
 import models from '../../models';
+import Conversation from '../../models/Conversation';
 import { FeatureNotSupportedForCollective, NotFound, Unauthorized } from '../errors';
 
 import { checkRemoteUserCanUseConversations } from './scope-check';
@@ -21,10 +22,7 @@ interface CreateConversationParams {
  *
  * @returns the conversation
  */
-export const createConversation = async (
-  req: Request,
-  params: CreateConversationParams,
-): Promise<typeof models.Conversation> => {
+export const createConversation = async (req: Request, params: CreateConversationParams): Promise<Conversation> => {
   // For now any authenticated user can create a conversation to any collective
   checkRemoteUserCanUseConversations(req);
 
@@ -38,7 +36,7 @@ export const createConversation = async (
     throw new FeatureNotSupportedForCollective();
   }
 
-  return models.Conversation.createWithComment(req.remoteUser, collective, title, html, tags);
+  return Conversation.createWithComment(req.remoteUser, collective, title, html, tags);
 };
 
 interface EditConversationParams {
@@ -51,10 +49,7 @@ interface EditConversationParams {
  *
  * @returns the conversation
  */
-export const editConversation = async (
-  req: Request,
-  params: EditConversationParams,
-): Promise<typeof models.Conversation> => {
+export const editConversation = async (req: Request, params: EditConversationParams): Promise<Conversation> => {
   checkRemoteUserCanUseConversations(req);
 
   // Collective must exist and use be author or collective admin

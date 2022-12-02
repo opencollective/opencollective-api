@@ -20,6 +20,7 @@ import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
 import models from '../../server/models';
 import Comment from '../../server/models/Comment';
+import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
@@ -427,7 +428,7 @@ export const fakeEmojiReaction = async (
 export const fakeConversation = async (
   conversationData: Record<string, unknown> = {},
   sequelizeParams: CreateOptions = {},
-) => {
+): Promise<Conversation> => {
   const RootCommentId = <number>conversationData.RootCommentId || (await fakeComment({}, sequelizeParams)).id;
   const rootComment = await models.Comment.findByPk(RootCommentId);
   return models.Conversation.create(
@@ -436,8 +437,8 @@ export const fakeConversation = async (
       summary: rootComment.html,
       FromCollectiveId: conversationData.FromCollectiveId || (await fakeCollective()).id,
       CollectiveId: conversationData.CollectiveId || (await fakeCollective()).id,
-      CreatedByUserId: conversationData.CreatedByUserId || (await fakeUser()).id,
-      RootCommentId: conversationData.RootCommentId || (await fakeComment()).id,
+      CreatedByUserId: <number>conversationData.CreatedByUserId || (await fakeUser()).id,
+      RootCommentId: <number>conversationData.RootCommentId || (await fakeComment()).id,
       ...conversationData,
     },
     sequelizeParams,
