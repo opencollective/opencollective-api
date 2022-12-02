@@ -14,9 +14,9 @@ export default {
         attributes: ['ExpenseId'],
         where: { ExpenseId: { [Op.in]: ExpenseIds } },
         group: ['ExpenseId'],
-      })
-        .then(results => sortResults(ExpenseIds, results, 'ExpenseId', { count: 0 }))
-        .map(result => result.count),
+      }).then(results =>
+        sortResults(ExpenseIds, results, 'ExpenseId', { count: 0 }).map(result => <number>result.count),
+      ),
     ),
   reactionsByCommentId: (): DataLoader<number, EmojiReaction> => {
     return new DataLoader(async commentIds => {

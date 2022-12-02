@@ -3,7 +3,7 @@ import express from 'express';
 import FEATURE from '../../constants/feature';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { canUseFeature } from '../../lib/user-permissions';
-import models from '../../models';
+import Comment from '../../models/Comment';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
 export const checkRemoteUserCanUseVirtualCards = (req: express.Request): void => {
@@ -92,7 +92,7 @@ export const checkRemoteUserCanUseWebhooks = (req: express.Request): void => {
   enforceScope(req, 'webhooks');
 };
 
-export const checkRemoteUserCanUseComment = (comment: typeof models.Comment, req: express.Request): void => {
+export const checkRemoteUserCanUseComment = (comment: Comment, req: express.Request): void => {
   if (comment.ConversationId) {
     checkRemoteUserCanUseConversations(req);
   } else if (comment.UpdateId) {
