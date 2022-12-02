@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 
 import { maxInteger } from '../../../../server/constants/math';
 import emailLib from '../../../../server/lib/email';
+import stripe from '../../../../server/lib/stripe';
 import twitter from '../../../../server/lib/twitter';
 import models from '../../../../server/models';
 import * as store from '../../../stores';
@@ -467,6 +468,7 @@ describe('server/graphql/v1/createOrder', () => {
     const remoteUser = await models.User.createUserWithCollective({
       email: store.randEmail('rejectedcard@protonmail.ch'),
     });
+    stripe.paymentIntents.confirm.rejects(new Error('Your card was declined.'));
     const res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, remoteUser);
     expect(res.errors[0].message).to.equal('Your card was declined.');
     const pm = await models.PaymentMethod.findOne({ where: { name: uniqueName } });

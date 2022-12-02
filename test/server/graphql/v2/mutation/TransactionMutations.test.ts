@@ -51,6 +51,14 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     sandbox.stub(stripe.balanceTransactions, 'retrieve').callsFake(() => Promise.resolve(stripeMocks.balance));
     sandbox.stub(stripe.refunds, 'create').callsFake(() => Promise.resolve('foo'));
     sandbox.stub(stripe.charges, 'retrieve').callsFake(() => Promise.resolve('foo'));
+
+    sandbox
+      .stub(stripe.paymentMethods, 'create')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+    sandbox
+      .stub(stripe.paymentMethods, 'attach')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+
     sendEmailSpy = sandbox.spy(emailLib, 'send');
     refundTransactionSpy = sandbox.spy(orders, 'refundTransaction');
   });
