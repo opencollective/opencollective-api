@@ -61,6 +61,7 @@ export const notify = {
       if (!activity.data.recipientName) {
         user.collective = user.collective || (await user.getCollective());
         if (user.collective) {
+          activity.data.recipientCollective = user.collective.info;
           activity.data.recipientName = user.collective.name || user.collective.legalName;
         }
       }

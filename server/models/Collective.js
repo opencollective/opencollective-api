@@ -685,6 +685,7 @@ const Collective = sequelize.define(
           name: this.name,
           image: this.image,
           slug: this.slug,
+          isIncognito: this.isIncognito,
           twitterHandle: this.twitterHandle,
           githubHandle: this.githubHandle,
           repositoryUrl: this.repositoryUrl,
