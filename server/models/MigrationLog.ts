@@ -1,6 +1,8 @@
-import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+import User from './User';
 
 export enum MigrationLogType {
   MIGRATION = 'MIGRATION',
@@ -28,7 +30,7 @@ class MigrationLog extends Model<InferAttributes<MigrationLog>, InferCreationAtt
   public declare createdAt: CreationOptional<Date>;
   public declare description: string;
   public declare data: MigrationLogData;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
 
   static async getDataForMergeAccounts(
     fromAccountId: number,

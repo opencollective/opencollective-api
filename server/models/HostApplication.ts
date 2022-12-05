@@ -1,5 +1,5 @@
 import { pick } from 'lodash';
-import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
@@ -17,7 +17,7 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
   public declare readonly id: CreationOptional<number>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare status: HostApplicationStatus;
   public declare customData: Record<string, unknown> | null;
   public declare message: string;

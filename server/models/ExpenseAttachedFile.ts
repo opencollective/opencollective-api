@@ -1,5 +1,5 @@
 import config from 'config';
-import { DataTypes, Model, Transaction } from 'sequelize';
+import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
@@ -14,7 +14,7 @@ import models from '.';
 export class ExpenseAttachedFile extends Model {
   public declare readonly id: number;
   public declare ExpenseId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare url: string;
   public declare name: string;
   public declare createdAt: Date;

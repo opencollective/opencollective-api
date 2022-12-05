@@ -3,6 +3,7 @@ import {
   CreationOptional,
   DataTypes,
   FindOptions,
+  ForeignKey,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -83,7 +84,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   public declare name: string;
   public declare isSaved: boolean;
   public declare CollectiveId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
 
   private static editableFields = ['data', 'name', 'isSaved'];
 

@@ -1,5 +1,5 @@
 import { pick } from 'lodash';
-import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
@@ -19,7 +19,7 @@ type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string
 export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
   public declare readonly id: CreationOptional<number>;
   public declare ExpenseId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare amount: number;
   public declare url: string;
   public declare createdAt: CreationOptional<Date>;
