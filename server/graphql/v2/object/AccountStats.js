@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, initial, isNil } from 'lodash';
+import { get, has, isNil } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
