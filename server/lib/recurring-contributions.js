@@ -452,16 +452,3 @@ export async function createPaymentCreditCardConfirmationActivity(order) {
     },
   });
 }
-
-// TODO: Remove me
-setTimeout(async () => {
-  const order = await models.Order.findByPk(6435, {
-    include: [
-      { model: models.Collective, as: 'collective' },
-      { model: models.Collective, as: 'fromCollective' },
-      { model: models.PaymentMethod, as: 'paymentMethod' },
-      { model: models.Subscription, as: 'Subscription' },
-    ],
-  });
-  await createPaymentCreditCardConfirmationActivity(order);
-}, 2000);
