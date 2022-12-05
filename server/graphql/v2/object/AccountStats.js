@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNil } from 'lodash';
+import { get, has, initial, isNil } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
@@ -18,6 +18,7 @@ import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { AmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, TimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
+import { TimeSeriesCombined } from '../object/TimeSeriesCombined';
 
 const TransactionArgs = {
   kind: {
@@ -409,6 +410,96 @@ export const AccountStats = new GraphQLObjectType({
               },
             },
           );
+        },
+      },
+      combinedTimeSeries: {
+        type: new GraphQLNonNull(TimeSeriesCombined),
+        description: 'Return combined time series for totalNetRaised, totalSpent, contributions and contributors',
+        args: {
+          ...TimeSeriesArgs,
+          includeChildren: {
+            type: GraphQLBoolean,
+            description: 'Include contributions to children (Projects and Events)',
+            defaultValue: false,
+          },
+        },
+        async resolve(collective, args) {
+          const dateFrom = args.dateFrom ? moment(args.dateFrom) : moment(collective.createdAt);
+          const dateTo = args.dateTo ? moment(args.dateTo) : moment();
+          const timeUnit = args.timeUnit || getTimeUnit(getNumberOfDays(dateFrom, dateTo, collective) || 1);
+          const collectiveIds = await getCollectiveIds(collective, args.includeChildren);
+          const results = await sequelize.query(
+            `
+            SELECT
+              DATE_TRUNC(:timeUnit, t."createdAt") AS "date",
+              sum(t."amountInHostCurrency") as "amount",
+              t."hostCurrency" as "currency",
+              count(t."id") as "count",
+              count(DISTINCT t."FromCollectiveId") as "countDistinctFromCollectiveId",
+              t."kind" as "kind",
+              t."type" as "type"
+            FROM "Transactions" t
+            LEFT JOIN "Orders" o
+              ON t."OrderId" = o."id"
+            INNER JOIN "Collectives" c
+              ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
+            WHERE
+              t."deletedAt" IS NULL
+              AND t."CollectiveId" IN (:collectiveIds)
+              AND t."RefundTransactionId" IS NULL
+              AND t."isInternal" IS NOT TRUE
+              AND t."FromCollectiveId" NOT IN (:collectiveIds)
+              ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
+              ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
+            GROUP BY "date", t."hostCurrency", t."type", t."kind"
+            ORDER BY "date", ABS(SUM(t."amount")) DESC
+            `,
+            {
+              type: QueryTypes.SELECT,
+              replacements: {
+                collectiveIds,
+                timeUnit,
+                ...computeDatesAsISOStrings(dateFrom, dateTo),
+              },
+            },
+          );
+
+          const merged = results.reduce((acc, val) => {
+            const key = val.date.toISOString();
+            const isContribution = val.type === 'CREDIT' && (val.kind === 'CONTRIBUTION' || val.kind === 'ADDED_FUNDS');
+            const isHostFee = val.type === 'DEBIT' && val.kind === 'HOST_FEE';
+            const isSpent = val.type === 'DEBIT' && val.kind !== 'HOST_FEE';
+
+            if (!acc[key]) {
+              acc[key] = {
+                date: val.date,
+                totalNetRaised: { value: 0, currency: val.currency },
+                totalSpent: { value: 0, currency: val.currency },
+                contributions: 0,
+                contributors: 0,
+              };
+            }
+
+            if (isSpent) {
+              acc[key].totalSpent.value += Math.abs(val.amount);
+            } else if (isContribution || isHostFee) {
+              acc[key].totalNetRaised.value += val.amount;
+            }
+
+            if (isContribution) {
+              acc[key].contributions += val.count;
+              acc[key].contributors += val.countDistinctFromCollectiveId;
+            }
+
+            return acc;
+          }, {});
+
+          return {
+            dateFrom,
+            dateTo,
+            timeUnit,
+            nodes: Object.values(merged),
+          };
         },
       },
       contributionsAmountTimeSeries: {
