@@ -422,6 +422,10 @@ export const AccountStats = new GraphQLObjectType({
             description: 'Include contributions to children (Projects and Events)',
             defaultValue: false,
           },
+          currency: {
+            type: Currency,
+            description: "The currency to use for the time series, defaults to collective's currency",
+          },
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : moment(collective.createdAt);
@@ -463,36 +467,45 @@ export const AccountStats = new GraphQLObjectType({
               },
             },
           );
+          const currency = args.currency || collective.currency;
+          const merged = {};
 
-          const merged = results.reduce((acc, val) => {
+          for (const val of results) {
             const key = val.date.toISOString();
             const isContribution = val.type === 'CREDIT' && (val.kind === 'CONTRIBUTION' || val.kind === 'ADDED_FUNDS');
             const isHostFee = val.type === 'DEBIT' && val.kind === 'HOST_FEE';
             const isSpent = val.type === 'DEBIT' && val.kind !== 'HOST_FEE';
 
-            if (!acc[key]) {
-              acc[key] = {
+            if (!merged[key]) {
+              merged[key] = {
                 date: val.date,
-                totalNetRaised: { value: 0, currency: val.currency },
-                totalSpent: { value: 0, currency: val.currency },
+                totalNetRaised: { value: 0, currency },
+                totalSpent: { value: 0, currency },
                 contributions: 0,
                 contributors: 0,
               };
             }
 
+            let amount;
+
+            if (val.currency !== currency) {
+              const fxRate = await getFxRate(val.currency, currency, val.date);
+              amount = val.amount * fxRate;
+            } else {
+              amount = val.amount;
+            }
+
             if (isSpent) {
-              acc[key].totalSpent.value += Math.abs(val.amount);
+              merged[key].totalSpent.value += Math.abs(amount);
             } else if (isContribution || isHostFee) {
-              acc[key].totalNetRaised.value += val.amount;
+              merged[key].totalNetRaised.value += amount;
             }
 
             if (isContribution) {
-              acc[key].contributions += val.count;
-              acc[key].contributors += val.countDistinctFromCollectiveId;
+              merged[key].contributions += val.count;
+              merged[key].contributors += val.countDistinctFromCollectiveId;
             }
-
-            return acc;
-          }, {});
+          }
 
           return {
             dateFrom,
