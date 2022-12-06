@@ -23,6 +23,7 @@ import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
@@ -246,7 +247,14 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
-  await orderFraudProtection(req, order);
+  await orderFraudProtection(req, order).catch(error => {
+    reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
+    throw new ValidationFailed(
+      "There's something wrong with the payment, please contact support@opencollective.com.",
+      undefined,
+      { includeId: true },
+    );
+  });
 
   let orderCreated, isGuest, guestToken;
   try {
