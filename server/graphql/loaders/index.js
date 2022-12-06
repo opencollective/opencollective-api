@@ -6,7 +6,12 @@ import moment from 'moment';
 
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
-import { getBalances, getBalancesWithBlockedFunds, getMultipleTotalNetAmountReceived } from '../../lib/budget';
+import {
+  getBalances,
+  getBalancesWithBlockedFunds,
+  getMultipleTotalNetAmountReceived,
+  getMultipleTotalNetAmountReceivedTimeSeries,
+} from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
@@ -120,6 +125,22 @@ export const loaders = req => {
         );
       }
       return context.loaders.Collective.netAmountReceived[key];
+    },
+  };
+
+  // Collective - Net Amount Received Time Series
+  context.loaders.Collective.netAmountReceivedTimeSeries = {
+    buildLoader({ startDate, endDate, includeChildren, timeUnit } = {}) {
+      const key = `${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
+      console.log(key);
+      if (!context.loaders.Collective.netAmountReceivedTimeSeries[key]) {
+        context.loaders.Collective.netAmountReceivedTimeSeries[key] = new DataLoader(ids =>
+          getMultipleTotalNetAmountReceivedTimeSeries(ids, { startDate, endDate, timeUnit, includeChildren }).then(
+            results => sortResults(ids, Object.values(results), 'CollectiveId'),
+          ),
+        );
+      }
+      return context.loaders.Collective.netAmountReceivedTimeSeries[key];
     },
   };
 

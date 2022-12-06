@@ -13,6 +13,7 @@ import models from '../../../models';
 import { ContributionFrequency } from '../enum/ContributionFrequency';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
+import { TimeUnit } from '../enum/TimeUnit';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
@@ -262,6 +263,40 @@ export const AccountStats = new GraphQLObjectType({
             startDate: dateFrom,
             endDate: dateTo,
             includeChildren: args.includeChildren,
+          });
+        },
+      },
+      totalNetAmountReceivedTimeSeries: {
+        description: 'Total net amount received time series',
+        // TODO: include total?
+        type: new GraphQLNonNull(TimeSeriesAmount),
+        args: {
+          // TODO: remove Kind from args?
+          ...TransactionArgs,
+          timeUnit: {
+            type: new GraphQLNonNull(TimeUnit),
+            description: 'The time unit of the time series',
+          },
+          currency: {
+            type: Currency,
+          },
+        },
+        async resolve(collective, args, req) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+          return collective.getTotalNetAmountReceivedTimeSeries({
+            loaders: req.loaders,
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            timeUnit: args.timeUnit,
+            includeChildren: args.includeChildren,
+            currency: args.currency,
           });
         },
       },

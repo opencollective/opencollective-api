@@ -271,6 +271,83 @@ export function getMultipleTotalNetAmountReceived(
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: false,
+    includeChildren,
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+  });
+}
+
+export async function getTotalNetAmountReceivedTimeSeries(
+  collective,
+  { loaders, startDate, endDate, timeUnit, currency, version, includeChildren } = {},
+) {
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
+  currency = currency || collective.currency;
+
+  // Optimized version using loaders
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
+    const netAmountReceivedTimeSeriesLoader = loaders.Collective.netAmountReceivedTimeSeries.buildLoader({
+      includeChildren,
+      startDate,
+      endDate,
+      timeUnit,
+    });
+    const result = await netAmountReceivedTimeSeriesLoader.load(collective.id);
+    const fxRate = await getFxRate(result.currency, currency);
+    const nodes = Object.values(result.timeSeries).map(node => ({
+      date: node.date.toISOString(),
+      amount: { value: Math.round(node.value * fxRate), currency },
+    }));
+
+    return {
+      dateFrom: startDate,
+      dateTo: endDate,
+      timeUnit,
+      nodes,
+    };
+  }
+
+  const results = await sumCollectivesTransactions([collective.id], {
+    includeTimeSeries: true,
+    timeUnit,
+    startDate,
+    endDate,
+    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+    transactionType: 'NET_CREDIT',
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    excludeInternals: true,
+    includeChildren,
+  });
+
+  const result = results[collective.id];
+
+  const fxRate = await getFxRate(result.currency, currency);
+  const nodes = Object.values(result.timeSeries).map(node => ({
+    date: node.date.toISOString(),
+    amount: { value: Math.round(node.value * fxRate), currency },
+  }));
+
+  return {
+    dateFrom: startDate,
+    dateTo: endDate,
+    timeUnit,
+    nodes,
+  };
+}
+
+export function getMultipleTotalNetAmountReceivedTimeSeries(
+  collectiveIds,
+  { startDate, endDate, timeUnit, currency, version = DEFAULT_BUDGET_VERSION, includeChildren = false } = {},
+) {
+  return sumCollectivesTransactions(collectiveIds, {
+    includeTimeSeries: true,
+    timeUnit,
+    transactionType: 'NET_CREDIT',
+    startDate,
+    endDate,
+    currency,
+    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+    excludeRefunds: false,
+    withBlockedFunds: false,
     includeChildren: includeChildren,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
@@ -333,9 +410,13 @@ export async function sumCollectivesTransactions(
     includeGiftCards = false,
     includeChildren = false,
     kind,
+    includeTimeSeries = false,
+    timeUnit = 'YEAR',
   } = {},
 ) {
-  const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
+  const currencyField = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column)
+    ? 'hostCurrency'
+    : 'currency';
 
   const include = [];
 
@@ -431,7 +512,7 @@ export async function sumCollectivesTransactions(
   // Initialize totals
   if (ids) {
     for (const CollectiveId of ids) {
-      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0, timeSeries: {} };
     }
   }
 
@@ -442,34 +523,41 @@ export async function sumCollectivesTransactions(
       ]
     : sequelize.col('CollectiveId');
 
-  const conditions = {
-    attributes: [
-      CollectiveId,
-      groupBy,
-      [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
-      [
-        sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
-        'netAmountInCollectiveCurrency',
-      ],
-      [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amountInHostCurrency')), 0), 'amountInHostCurrency'],
-      [
-        sequelize.fn(
-          'COALESCE',
-          sequelize.literal(
-            'SUM(COALESCE("amountInHostCurrency", 0)) + SUM(COALESCE("platformFeeInHostCurrency", 0)) + SUM(COALESCE("hostFeeInHostCurrency", 0)) + SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) + SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0))',
-          ),
-          0,
-        ),
-        'netAmountInHostCurrency',
-      ],
+  const attributes = [
+    CollectiveId,
+    currencyField,
+    [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
+    [
+      sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
+      'netAmountInCollectiveCurrency',
     ],
+    [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amountInHostCurrency')), 0), 'amountInHostCurrency'],
+    [
+      sequelize.fn(
+        'COALESCE',
+        sequelize.literal(
+          'SUM(COALESCE("amountInHostCurrency", 0)) + SUM(COALESCE("platformFeeInHostCurrency", 0)) + SUM(COALESCE("hostFeeInHostCurrency", 0)) + SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) + SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0))',
+        ),
+        0,
+      ),
+      'netAmountInHostCurrency',
+    ],
+  ];
+
+  const group = [CollectiveId, currencyField];
+
+  if (includeTimeSeries) {
+    attributes.push([sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']);
+    group.push('date');
+  }
+
+  const results = await models.Transaction.findAll({
+    attributes,
     where,
     include,
-    group: [CollectiveId, groupBy],
+    group,
     raw: true,
-  };
-
-  const results = await models.Transaction.findAll(conditions);
+  });
 
   for (const result of results) {
     const CollectiveId = result['CollectiveId'];
@@ -477,17 +565,29 @@ export async function sumCollectivesTransactions(
 
     // Initialize Collective total
     if (!totals[CollectiveId]) {
-      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0, timeSeries: {} };
     }
     // If it's the first total collected, set the currency
     if (totals[CollectiveId].value === 0) {
-      totals[CollectiveId].currency = result[groupBy];
+      totals[CollectiveId].currency = result[currencyField];
     }
 
-    const fxRate = await getFxRate(result[groupBy], totals[CollectiveId].currency);
-    totals[CollectiveId].value += Math.round(value * fxRate);
+    const fxRate = await getFxRate(result[currencyField], totals[CollectiveId].currency);
+    const amount = Math.round(value * fxRate);
+    totals[CollectiveId].value += amount;
+
+    if (includeTimeSeries) {
+      const date = result['date'];
+      if (!totals[CollectiveId].timeSeries[date]) {
+        totals[CollectiveId].timeSeries[date] = { date, value: 0 };
+      }
+      totals[CollectiveId].timeSeries[date].value += amount;
+    }
   }
 
+  if (includeTimeSeries && withBlockedFunds) {
+    throw new Error('This is not supported');
+  }
   if (withBlockedFunds) {
     // BLOCKED EXPENSES
     const blockedFundsWhere = {
@@ -535,7 +635,7 @@ export async function sumCollectivesTransactions(
     const disputedTransactions = await models.Transaction.findAll({
       attributes: [
         'CollectiveId',
-        groupBy,
+        currencyField,
         [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
         [
           sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
@@ -558,7 +658,7 @@ export async function sumCollectivesTransactions(
       ],
       // only consider disputed txs that don't have associated refunds
       where: { ...where, isDisputed: { [Op.eq]: true }, RefundTransactionId: { [Op.eq]: null } },
-      group: ['CollectiveId', groupBy],
+      group: ['CollectiveId', currencyField],
       raw: true,
     });
 
@@ -566,7 +666,7 @@ export async function sumCollectivesTransactions(
       const CollectiveId = disputedTransaction['CollectiveId'];
       const value = disputedTransaction[column];
 
-      const fxRate = await getFxRate(disputedTransaction[groupBy], totals[CollectiveId].currency);
+      const fxRate = await getFxRate(disputedTransaction[currencyField], totals[CollectiveId].currency);
       totals[CollectiveId].value -= Math.round(value * fxRate);
     }
   }
