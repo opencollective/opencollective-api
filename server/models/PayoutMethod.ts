@@ -3,6 +3,7 @@ import {
   CreationOptional,
   DataTypes,
   FindOptions,
+  ForeignKey,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -16,6 +17,7 @@ import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
+import User from './User';
 import models from '.';
 
 /**
@@ -82,7 +84,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   public declare name: string;
   public declare isSaved: boolean;
   public declare CollectiveId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
 
   private static editableFields = ['data', 'name', 'isSaved'];
 
@@ -112,7 +114,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
    */
   static async createFromData(
     payoutMethodData: Record<string, unknown>,
-    user: typeof models.User,
+    user: User,
     collective: typeof models.Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
@@ -135,7 +137,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
    */
   static async getOrCreateFromData(
     payoutMethodData: Record<string, unknown>,
-    user: typeof models.User,
+    user: User,
     collective: typeof models.Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {

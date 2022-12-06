@@ -5,6 +5,7 @@ import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
 import models, { sequelize } from '../models';
+import User from '../models/User';
 
 import { findPaymentMethodProvider } from './payments';
 
@@ -34,7 +35,7 @@ const getNextChargeDateForUpdateContribution = (baseNextChargeDate, newInterval)
 };
 
 export const updatePaymentMethodForSubscription = async (
-  user: typeof models.User,
+  user: User,
   order: typeof models.Order,
   newPaymentMethod: typeof models.PaymentMethod,
 ): Promise<typeof models.Order> => {

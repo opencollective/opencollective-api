@@ -7,7 +7,7 @@ import { crypto } from '../encryption';
 import { Token } from './lib';
 
 export default {
-  async validateToken(user: typeof User, token: Token): Promise<void> {
+  async validateToken(user: User, token: Token): Promise<void> {
     if (!user.twoFactorAuthToken) {
       throw new Error('User is not configured with TOPT 2FA');
     }

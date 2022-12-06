@@ -1,13 +1,15 @@
-import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import { REACTION_EMOJI, ReactionEmoji } from '../constants/reaction-emoji';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+import User from './User';
 
 const { models } = sequelize;
 
 class EmojiReaction extends Model<InferAttributes<EmojiReaction>, InferCreationAttributes<EmojiReaction>> {
   public declare readonly id: CreationOptional<number>;
-  public declare UserId: number;
+  public declare UserId: ForeignKey<User['id']>;
   public declare FromCollectiveId: number;
   public declare CommentId: number;
   public declare UpdateId: number;

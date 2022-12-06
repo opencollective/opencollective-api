@@ -1,4 +1,4 @@
-import type { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import VirtualCardProviders from '../constants/virtual_card_providers';
 import { crypto } from '../lib/encryption';
@@ -6,11 +6,13 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
+import User from './User';
+
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
   public declare id: CreationOptional<string>;
   public declare CollectiveId: number;
   public declare HostCollectiveId: number;
-  public declare UserId: number;
+  public declare UserId: ForeignKey<User['id']>;
   public declare name: string;
   public declare last4: string;
   public declare data: Record<string, any>;

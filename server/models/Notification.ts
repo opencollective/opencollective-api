@@ -11,6 +11,7 @@ import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { getRootDomain } from '../lib/url-utils';
 
+import User from './User';
 import models from '.';
 
 const debug = debugLib('models:Notification');
@@ -32,7 +33,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare CollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
   public declare webhookUrl: CreationOptional<string>;
-  public declare User?: typeof models.User;
+  public declare User?: User;
   public declare Collective?: typeof models.Collective;
 
   getUser() {
@@ -297,7 +298,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   /**
    * Check if notification with `notificationType` and `user` is active.
    */
-  static isActive(notificationType: string, user: typeof models.User, collective?: typeof models.Collective) {
+  static isActive(notificationType: string, user: User, collective?: typeof models.Collective) {
     debug('isActive', notificationType, user.id);
     const where = {
       type: notificationType,
