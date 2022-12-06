@@ -46,6 +46,7 @@ import { hasOptedOutOfFeature, isFeatureAllowedForCollectiveType } from '../lib/
 import {
   getBalanceAmount,
   getBalanceWithBlockedFundsAmount,
+  getContributionsAndContributorsCount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
   getTotalAmountSpentAmount,
@@ -2798,6 +2799,10 @@ Collective.prototype.getTotalNetAmountReceived = function (options) {
 
 Collective.prototype.getTotalNetAmountReceivedTimeSeries = function (options) {
   return getTotalNetAmountReceivedTimeSeries(this, options);
+};
+
+Collective.prototype.getContributionsAndContributorsCount = function (options) {
+  return getContributionsAndContributorsCount(this, options);
 };
 
 Collective.prototype.getTotalMoneyManaged = function (options) {

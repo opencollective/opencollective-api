@@ -7,10 +7,11 @@ import moment from 'moment';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
+  countTransactionsAndDistinctFromCollectives,
   getBalances,
   getBalancesWithBlockedFunds,
-  getMultipleTotalNetAmountReceived,
-  getMultipleTotalNetAmountReceivedTimeSeries,
+  getSumCollectivesAmountSpent,
+  getSumCollectivesNetAmountReceived,
 } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
@@ -116,10 +117,12 @@ export const loaders = req => {
   context.loaders.Collective.netAmountReceived = {
     buildLoader({ startDate, endDate, includeChildren } = {}) {
       const key = `${startDate}-${endDate}-${includeChildren}`;
-      console.log(key);
+
       if (!context.loaders.Collective.netAmountReceived[key]) {
+        console.log('netAmount', key);
+
         context.loaders.Collective.netAmountReceived[key] = new DataLoader(ids =>
-          getMultipleTotalNetAmountReceived(ids, { startDate, endDate, includeChildren }).then(results =>
+          getSumCollectivesNetAmountReceived(ids, { startDate, endDate, includeChildren }).then(results =>
             sortResults(ids, Object.values(results), 'CollectiveId'),
           ),
         );
@@ -132,15 +135,60 @@ export const loaders = req => {
   context.loaders.Collective.netAmountReceivedTimeSeries = {
     buildLoader({ startDate, endDate, includeChildren, timeUnit } = {}) {
       const key = `${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
-      console.log(key);
       if (!context.loaders.Collective.netAmountReceivedTimeSeries[key]) {
+        console.log('netReceivedTimeSeries', key);
+
         context.loaders.Collective.netAmountReceivedTimeSeries[key] = new DataLoader(ids =>
-          getMultipleTotalNetAmountReceivedTimeSeries(ids, { startDate, endDate, timeUnit, includeChildren }).then(
-            results => sortResults(ids, Object.values(results), 'CollectiveId'),
-          ),
+          getSumCollectivesNetAmountReceived(ids, {
+            startDate,
+            endDate,
+            timeUnit,
+            includeChildren,
+            withTimeSeries: true,
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
       return context.loaders.Collective.netAmountReceivedTimeSeries[key];
+    },
+  };
+
+  // Collective -  Amount Spent
+  context.loaders.Collective.amountSpent = {
+    buildLoader({ startDate, endDate, includeChildren, net, kind } = {}) {
+      const key = `${startDate}-${endDate}-${includeChildren}-${net}-${kind}`;
+
+      if (!context.loaders.Collective.amountSpent[key]) {
+        console.log('amountSpent', key);
+
+        context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
+          getSumCollectivesAmountSpent(ids, { startDate, endDate, includeChildren, net, kind }).then(results =>
+            sortResults(ids, Object.values(results), 'CollectiveId'),
+          ),
+        );
+      }
+      return context.loaders.Collective.amountSpent[key];
+    },
+  };
+
+  // Collective -  Count of contributions and contributors
+  context.loaders.Collective.contributionsAndContributorsCount = {
+    buildLoader({ startDate, endDate, includeChildren } = {}) {
+      const key = `${startDate}-${endDate}-${includeChildren}`;
+
+      if (!context.loaders.Collective.contributionsAndContributorsCount[key]) {
+        console.log('contributionsAndContributorsCount', key);
+
+        context.loaders.Collective.contributionsAndContributorsCount[key] = new DataLoader(ids =>
+          countTransactionsAndDistinctFromCollectives(ids, {
+            startDate,
+            endDate,
+            includeChildren,
+            kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
+            transactionType: 'CREDIT',
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+        );
+      }
+      return context.loaders.Collective.contributionsAndContributorsCount[key];
     },
   };
 

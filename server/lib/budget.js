@@ -1,5 +1,4 @@
 import expenseStatus from '../constants/expense_status';
-import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
@@ -157,34 +156,62 @@ export async function getTotalAmountReceivedAmount(
 
 export async function getTotalAmountSpentAmount(
   collective,
-  { startDate, endDate, currency, version, kind, includeChildren, net } = {},
+  { loaders, startDate, endDate, currency, version, kind, includeChildren, net } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
+  let result;
 
-  const collectiveIds = await getCollectiveIds(collective, includeChildren);
-
-  let column = ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency';
-  if (net === true) {
-    column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
+    const amountSpentLoader = loaders.Collective.amountSpent.buildLoader({
+      includeChildren,
+      startDate,
+      endDate,
+      kind,
+      net,
+    });
+    result = await amountSpentLoader.load(collective.id);
+  } else {
+    const results = await getSumCollectivesAmountSpent([collective.id], {
+      startDate,
+      endDate,
+      currency,
+      version,
+      includeChildren,
+      kind,
+      net,
+    });
+    result = results[collective.id];
   }
 
-  const results = await sumCollectivesTransactions(collectiveIds, {
+  const fxRate = await getFxRate(result.currency, currency);
+  return {
+    value: Math.round(result.value * fxRate),
+    currency,
+  };
+}
+
+export function getSumCollectivesAmountSpent(
+  collectiveIds,
+  { startDate, endDate, currency, net, version = DEFAULT_BUDGET_VERSION, includeChildren = false, kind } = {},
+) {
+  let column = ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency';
+  if (net === true) {
+    // TODO: expose net option to API?
+    column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
+  }
+  return sumCollectivesTransactions(collectiveIds, {
     startDate,
     endDate,
-    column: column,
+    column,
+    currency,
     transactionType: DEBIT,
-    kind: kind,
+    kind,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
-    excludeCrossCollectiveTransactions: includeChildren,
-    includeGiftCards: true,
+    includeChildren,
+    includeGiftCards: false, // TODO: was TRUE, fix conflict between includeGiftCards and children
   });
-
-  // Sum and convert to final currency
-  const value = await sumTransactionsInCurrency(results, currency);
-
-  return { value, currency };
 }
 
 export async function getTotalAmountPaidExpenses(collective, { startDate, endDate, expenseType, currency } = {}) {
@@ -225,6 +252,7 @@ export async function getTotalNetAmountReceivedAmount(
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
+  let result;
 
   // Optimized version using loaders
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
@@ -233,47 +261,182 @@ export async function getTotalNetAmountReceivedAmount(
       startDate,
       endDate,
     });
-    const result = await netAmountReceivedLoader.load(collective.id);
-    const fxRate = await getFxRate(result.currency, currency);
-    return {
-      value: Math.round(result.value * fxRate),
-      currency,
-    };
+    result = await netAmountReceivedLoader.load(collective.id);
+  } else {
+    const results = await getSumCollectivesNetAmountReceived([collective.id], {
+      startDate,
+      endDate,
+      version,
+      includeChildren,
+    });
+
+    result = results[collective.id];
   }
 
-  const collectiveIds = await getCollectiveIds(collective, includeChildren);
-
-  const results = await sumCollectivesTransactions(collectiveIds, {
-    startDate,
-    endDate,
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    transactionType: 'NET_CREDIT',
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-    excludeInternals: true,
-    excludeCrossCollectiveTransactions: includeChildren,
-  });
-
-  // Sum and convert to final currency
-  const value = await sumTransactionsInCurrency(results, currency);
-
-  return { value, currency };
+  const fxRate = await getFxRate(result.currency, currency);
+  return {
+    value: Math.round(result.value * fxRate),
+    currency,
+  };
 }
 
-export function getMultipleTotalNetAmountReceived(
-  collectiveIds,
-  { startDate, endDate, currency, version = DEFAULT_BUDGET_VERSION, includeChildren = false } = {},
+export async function getContributionsAndContributorsCount(
+  collective,
+  { loaders, startDate, endDate, includeChildren } = {},
 ) {
-  return sumCollectivesTransactions(collectiveIds, {
-    transactionType: 'NET_CREDIT',
-    startDate,
-    endDate,
-    currency,
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: false,
-    includeChildren,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+  let result;
+
+  if (loaders) {
+    const contributionsAndContributorsCountLoader = loaders.Collective.contributionsAndContributorsCount.buildLoader({
+      startDate,
+      endDate,
+      includeChildren,
+    });
+    result = await contributionsAndContributorsCountLoader.load(collective.id);
+  } else {
+    const results = await countTransactionsAndDistinctFromCollectives([collective.id], {
+      startDate,
+      endDate,
+      includeChildren,
+      kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
+      transactionType: CREDIT,
+    });
+
+    result = results[collective.id];
+  }
+
+  return { contributions: result.count, contributors: result.countDistinctFromCollective };
+}
+
+export async function countTransactionsAndDistinctFromCollectives(
+  ids,
+  {
+    startDate = null,
+    endDate = null,
+    excludeRefunds = true,
+    hostCollectiveId = null,
+    excludeInternals = false,
+    includeChildren = false,
+    transactionType = null,
+    kind = null,
+  } = {},
+) {
+  const include = [];
+
+  const where = {};
+
+  if (ids) {
+    if (includeChildren) {
+      include.push({
+        model: models.Collective,
+        as: 'collective',
+        where: {
+          [Op.or]: {
+            id: ids,
+            ParentCollectiveId: ids,
+          },
+        },
+        attributes: [],
+      });
+      // TODO: exclude internal transactions to avoid double counting
+      // include.push({
+      //   model: models.Collective,
+      //   as: 'fromCollective',
+      //   // where: {
+      //   //   [Op.not]: {
+      //   //     [Op.and]: {
+      //   //     id: ids,
+      //   //     ParentCollectiveId: ids,
+      //   //     },
+      //   //   },
+      //   // },
+      //   attributes: [],
+      // });
+    } else {
+      where.CollectiveId = ids;
+    }
+  }
+  if (transactionType) {
+    where.type = transactionType;
+  }
+
+  if (startDate) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt[Op.gte] = startDate;
+  }
+  if (endDate) {
+    where.createdAt = where.createdAt || {};
+    where.createdAt[Op.lt] = endDate;
+  }
+  if (excludeRefunds) {
+    // Exclude refunded transactions
+    where.RefundTransactionId = { [Op.is]: null };
+    // Also exclude anything with isRefund=true (PAYMENT_PROCESSOR_COVER doesn't have RefundTransactionId set)
+    where.isRefund = { [Op.not]: true };
+  }
+
+  if (hostCollectiveId) {
+    // Only transactions that are marked under a Fiscal Host
+    where.HostCollectiveId = hostCollectiveId;
+  }
+  if (excludeInternals) {
+    // Exclude internal transactions (we can tag some Transactions like "Switching Host" as internal)
+    where.isInternal = { [Op.not]: true };
+  }
+  if (kind) {
+    where.kind = kind;
+  }
+
+  const totals = {};
+
+  // Initialize totals
+  if (ids) {
+    for (const CollectiveId of ids) {
+      totals[CollectiveId] = { CollectiveId, count: 0, countDistinctFromCollective: 0 };
+    }
+  }
+
+  const CollectiveId = includeChildren
+    ? [
+        sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id')),
+        'CollectiveId',
+      ]
+    : sequelize.col('CollectiveId');
+
+  const attributes = [
+    CollectiveId,
+    [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
+    [
+      sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Transaction.FromCollectiveId'))),
+      'countDistinctFromCollective',
+    ],
+  ];
+
+  const group = [CollectiveId];
+
+  const results = await models.Transaction.findAll({
+    attributes,
+    where,
+    include,
+    group,
+    raw: true,
   });
+
+  for (const result of results) {
+    const CollectiveId = result['CollectiveId'];
+    const count = result['count'];
+    const countDistinctFromCollective = result['countDistinctFromCollective'];
+
+    // Initialize Collective total
+    if (!totals[CollectiveId]) {
+      totals[CollectiveId] = { CollectiveId, count: 0, countDistinctFromCollective: 0 };
+    }
+
+    totals[CollectiveId].count += count;
+    totals[CollectiveId].countDistinctFromCollective += countDistinctFromCollective;
+  }
+
+  return totals;
 }
 
 export async function getTotalNetAmountReceivedTimeSeries(
@@ -282,6 +445,7 @@ export async function getTotalNetAmountReceivedTimeSeries(
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
+  let result;
 
   // Optimized version using loaders
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
@@ -291,34 +455,19 @@ export async function getTotalNetAmountReceivedTimeSeries(
       endDate,
       timeUnit,
     });
-    const result = await netAmountReceivedTimeSeriesLoader.load(collective.id);
-    const fxRate = await getFxRate(result.currency, currency);
-    const nodes = Object.values(result.timeSeries).map(node => ({
-      date: node.date.toISOString(),
-      amount: { value: Math.round(node.value * fxRate), currency },
-    }));
-
-    return {
-      dateFrom: startDate,
-      dateTo: endDate,
+    result = await netAmountReceivedTimeSeriesLoader.load(collective.id);
+  } else {
+    const results = await getSumCollectivesNetAmountReceived([collective.id], {
+      withTimeSeries: true,
       timeUnit,
-      nodes,
-    };
+      startDate,
+      endDate,
+      version,
+      includeChildren,
+    });
+
+    result = results[collective.id];
   }
-
-  const results = await sumCollectivesTransactions([collective.id], {
-    includeTimeSeries: true,
-    timeUnit,
-    startDate,
-    endDate,
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    transactionType: 'NET_CREDIT',
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-    excludeInternals: true,
-    includeChildren,
-  });
-
-  const result = results[collective.id];
 
   const fxRate = await getFxRate(result.currency, currency);
   const nodes = Object.values(result.timeSeries).map(node => ({
@@ -326,6 +475,7 @@ export async function getTotalNetAmountReceivedTimeSeries(
     amount: { value: Math.round(node.value * fxRate), currency },
   }));
 
+  // TODO: include the total value in the response?
   return {
     dateFrom: startDate,
     dateTo: endDate,
@@ -334,22 +484,30 @@ export async function getTotalNetAmountReceivedTimeSeries(
   };
 }
 
-export function getMultipleTotalNetAmountReceivedTimeSeries(
+export function getSumCollectivesNetAmountReceived(
   collectiveIds,
-  { startDate, endDate, timeUnit, currency, version = DEFAULT_BUDGET_VERSION, includeChildren = false } = {},
+  {
+    startDate,
+    endDate,
+    version = DEFAULT_BUDGET_VERSION,
+    includeChildren = false,
+    withTimeSeries = false,
+    timeUnit,
+  } = {},
 ) {
   return sumCollectivesTransactions(collectiveIds, {
-    includeTimeSeries: true,
-    timeUnit,
     transactionType: 'NET_CREDIT',
     startDate,
     endDate,
-    currency,
+    // NOTE: What is netAmount vs amount? with and without host fees?
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
     excludeRefunds: false,
     withBlockedFunds: false,
-    includeChildren: includeChildren,
+    // NOTE: If we include children, we miss contributions coming from FUND's in the same host?
+    includeChildren,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
+    withTimeSeries,
+    timeUnit,
   });
 }
 
@@ -410,7 +568,7 @@ export async function sumCollectivesTransactions(
     includeGiftCards = false,
     includeChildren = false,
     kind,
-    includeTimeSeries = false,
+    withTimeSeries = false,
     timeUnit = 'YEAR',
   } = {},
 ) {
@@ -546,7 +704,7 @@ export async function sumCollectivesTransactions(
 
   const group = [CollectiveId, currencyField];
 
-  if (includeTimeSeries) {
+  if (withTimeSeries) {
     attributes.push([sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']);
     group.push('date');
   }
@@ -576,7 +734,7 @@ export async function sumCollectivesTransactions(
     const amount = Math.round(value * fxRate);
     totals[CollectiveId].value += amount;
 
-    if (includeTimeSeries) {
+    if (withTimeSeries) {
       const date = result['date'];
       if (!totals[CollectiveId].timeSeries[date]) {
         totals[CollectiveId].timeSeries[date] = { date, value: 0 };
@@ -585,7 +743,7 @@ export async function sumCollectivesTransactions(
     }
   }
 
-  if (includeTimeSeries && withBlockedFunds) {
+  if (withTimeSeries && withBlockedFunds) {
     throw new Error('This is not supported');
   }
   if (withBlockedFunds) {
