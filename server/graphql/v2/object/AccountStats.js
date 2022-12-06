@@ -248,7 +248,7 @@ export const AccountStats = new GraphQLObjectType({
         args: {
           ...TransactionArgs,
         },
-        async resolve(collective, args) {
+        async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
           let { dateFrom, dateTo } = args;
 
@@ -257,6 +257,7 @@ export const AccountStats = new GraphQLObjectType({
             dateTo = null;
           }
           return collective.getTotalNetAmountReceivedAmount({
+            loaders: req.loaders,
             kind,
             startDate: dateFrom,
             endDate: dateTo,

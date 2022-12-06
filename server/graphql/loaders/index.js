@@ -6,7 +6,7 @@ import moment from 'moment';
 
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
-import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
+import { getBalances, getBalancesWithBlockedFunds, getMultipleTotalNetAmountReceived } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
@@ -106,6 +106,22 @@ export const loaders = req => {
   context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
     getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
+
+  // Collective - Net Amount Received
+  context.loaders.Collective.netAmountReceived = {
+    buildLoader({ startDate, endDate, includeChildren } = {}) {
+      const key = `${startDate}-${endDate}-${includeChildren}`;
+      console.log(key);
+      if (!context.loaders.Collective.netAmountReceived[key]) {
+        context.loaders.Collective.netAmountReceived[key] = new DataLoader(ids =>
+          getMultipleTotalNetAmountReceived(ids, { startDate, endDate, includeChildren }).then(results =>
+            sortResults(ids, Object.values(results), 'CollectiveId'),
+          ),
+        );
+      }
+      return context.loaders.Collective.netAmountReceived[key];
+    },
+  };
 
   // Collective - ConnectedAccounts
   context.loaders.Collective.connectedAccounts = new DataLoader(ids =>
