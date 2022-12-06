@@ -473,8 +473,6 @@ export const AccountStats = new GraphQLObjectType({
           for (const val of results) {
             const key = val.date.toISOString();
             const isContribution = val.type === 'CREDIT' && (val.kind === 'CONTRIBUTION' || val.kind === 'ADDED_FUNDS');
-            const isHostFee = val.type === 'DEBIT' && val.kind === 'HOST_FEE';
-            const isSpent = val.type === 'DEBIT' && val.kind !== 'HOST_FEE';
 
             if (!merged[key]) {
               merged[key] = {
@@ -487,7 +485,6 @@ export const AccountStats = new GraphQLObjectType({
             }
 
             let amount;
-
             if (val.currency !== currency) {
               const fxRate = await getFxRate(val.currency, currency, val.date);
               amount = val.amount * fxRate;
@@ -495,9 +492,9 @@ export const AccountStats = new GraphQLObjectType({
               amount = val.amount;
             }
 
-            if (isSpent) {
+            if (val.type === 'DEBIT' && val.kind !== 'HOST_FEE') {
               merged[key].totalSpent.value += Math.abs(amount);
-            } else if (isContribution || isHostFee) {
+            } else if (val.type === 'CREDIT' || (val.type === 'DEBIT' && val.kind === 'HOST_FEE')) {
               merged[key].totalNetRaised.value += amount;
             }
 
