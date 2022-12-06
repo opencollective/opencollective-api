@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { compact, get } from 'lodash';
+import { cloneDeep, compact, get } from 'lodash';
 
 import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
@@ -54,19 +54,20 @@ export const notify = {
     });
 
     const isTransactional = TransactionalActivities.includes(activity.type);
+    const emailData = cloneDeep(activity.data || {});
     if (unsubscribed.length === 0) {
       debug('notifying.user', user.id, user && user.email, activity.type);
 
       // Add recipient name to data
-      if (!activity.data.recipientName) {
+      if (!emailData.recipientName) {
         user.collective = user.collective || (await user.getCollective());
         if (user.collective) {
-          activity.data.recipientCollective = user.collective.info;
-          activity.data.recipientName = user.collective.name || user.collective.legalName;
+          emailData.recipientCollective = user.collective.info;
+          emailData.recipientName = user.collective.name || user.collective.legalName;
         }
       }
 
-      return emailLib.send(options?.template || activity.type, options?.to || user.email, activity.data, {
+      return emailLib.send(options?.template || activity.type, options?.to || user.email, emailData, {
         ...options,
         isTransactional,
       });
