@@ -1,5 +1,5 @@
 import expenseStatus from '../constants/expense_status';
-import { TransactionKind } from '../constants/transaction-kind';
+// import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import models, { Op, sequelize } from '../models';
 
@@ -223,6 +223,8 @@ export async function getTotalNetAmountReceivedAmount(
   collective,
   { loaders, startDate, endDate, currency, version, includeChildren } = {},
 ) {
+  // console.log('getTotalNetAmountReceivedAmount', { startDate, endDate });
+
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
@@ -335,7 +337,44 @@ export async function sumCollectivesTransactions(
     kind,
   } = {},
 ) {
-  const groupBy = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column) ? 'hostCurrency' : 'currency';
+  const collectiveId = includeChildren
+    ? [
+        sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id')),
+        'CollectiveId',
+      ]
+    : sequelize.col('CollectiveId');
+
+  // const fromCollectiveId = includeChildren
+  //   ? [
+  //       sequelize.fn(
+  //         'COALESCE',
+  //         sequelize.col('fromCollective.ParentCollectiveId'),
+  //         sequelize.col('fromCollective.id'),
+  //       ),
+  //       'FromCollectiveId',
+  //     ]
+  //   : sequelize.col('FromCollectiveId');
+
+  const amountColumns = {
+    amountInCollectiveCurrency: sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0),
+    netAmountInCollectiveCurrency: sequelize.fn(
+      'COALESCE',
+      sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')),
+      0,
+    ),
+    amountInHostCurrency: sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amountInHostCurrency')), 0),
+    netAmountInHostCurrency: sequelize.fn(
+      'COALESCE',
+      sequelize.literal(
+        'SUM(COALESCE("amountInHostCurrency", 0)) + SUM(COALESCE("platformFeeInHostCurrency", 0)) + SUM(COALESCE("hostFeeInHostCurrency", 0)) + SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) + SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0))',
+      ),
+      0,
+    ),
+  };
+
+  const currencyColumn = ['amountInHostCurrency', 'netAmountInHostCurrency'].includes(column)
+    ? 'hostCurrency'
+    : 'currency';
 
   const include = [];
 
@@ -367,26 +406,26 @@ export async function sumCollectivesTransactions(
         },
         attributes: [],
       });
+      include.push({
+        model: models.Collective,
+        as: 'fromCollective',
+        attributes: [],
+      });
       // TODO: exclude internal transactions to avoid double counting
-      // include.push({
-      //   model: models.Collective,
-      //   as: 'fromCollective',
-      //   // where: {
-      //   //   [Op.not]: {
-      //   //     [Op.and]: {
-      //   //     id: ids,
-      //   //     ParentCollectiveId: ids,
-      //   //     },
-      //   //   },
-      //   // },
-      //   attributes: [],
-      // });
+      where = {
+        ...where,
+        [Op.and]: [
+          sequelize.literal(
+            'COALESCE("collective"."ParentCollectiveId", "collective"."id") != COALESCE("fromCollective"."ParentCollectiveId", "fromCollective"."id")',
+          ),
+        ],
+      };
     } else {
       where.CollectiveId = ids;
-    }
-    // TODO: make sure it works with includeChildren
-    if (excludeCrossCollectiveTransactions) {
-      where.FromCollectiveId = { [Op.notIn]: ids };
+      // TODO: make sure it works with includeChildren
+      if (excludeCrossCollectiveTransactions) {
+        where.FromCollectiveId = { [Op.notIn]: ids };
+      }
     }
   }
   if (transactionType) {
@@ -435,37 +474,11 @@ export async function sumCollectivesTransactions(
     }
   }
 
-  const CollectiveId = includeChildren
-    ? [
-        sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id')),
-        'CollectiveId',
-      ]
-    : sequelize.col('CollectiveId');
-
   const conditions = {
-    attributes: [
-      CollectiveId,
-      groupBy,
-      [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
-      [
-        sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
-        'netAmountInCollectiveCurrency',
-      ],
-      [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amountInHostCurrency')), 0), 'amountInHostCurrency'],
-      [
-        sequelize.fn(
-          'COALESCE',
-          sequelize.literal(
-            'SUM(COALESCE("amountInHostCurrency", 0)) + SUM(COALESCE("platformFeeInHostCurrency", 0)) + SUM(COALESCE("hostFeeInHostCurrency", 0)) + SUM(COALESCE("paymentProcessorFeeInHostCurrency", 0)) + SUM(COALESCE("taxAmount" * "hostCurrencyFxRate", 0))',
-          ),
-          0,
-        ),
-        'netAmountInHostCurrency',
-      ],
-    ],
+    attributes: [collectiveId, currencyColumn, [amountColumns[column], column]],
     where,
     include,
-    group: [CollectiveId, groupBy],
+    group: [collectiveId, currencyColumn],
     raw: true,
   };
 
@@ -481,10 +494,10 @@ export async function sumCollectivesTransactions(
     }
     // If it's the first total collected, set the currency
     if (totals[CollectiveId].value === 0) {
-      totals[CollectiveId].currency = result[groupBy];
+      totals[CollectiveId].currency = result[currencyColumn];
     }
 
-    const fxRate = await getFxRate(result[groupBy], totals[CollectiveId].currency);
+    const fxRate = await getFxRate(result[currencyColumn], totals[CollectiveId].currency);
     totals[CollectiveId].value += Math.round(value * fxRate);
   }
 
@@ -535,7 +548,7 @@ export async function sumCollectivesTransactions(
     const disputedTransactions = await models.Transaction.findAll({
       attributes: [
         'CollectiveId',
-        groupBy,
+        currencyColumn,
         [sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0), 'amountInCollectiveCurrency'],
         [
           sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0),
@@ -558,7 +571,7 @@ export async function sumCollectivesTransactions(
       ],
       // only consider disputed txs that don't have associated refunds
       where: { ...where, isDisputed: { [Op.eq]: true }, RefundTransactionId: { [Op.eq]: null } },
-      group: ['CollectiveId', groupBy],
+      group: ['CollectiveId', currencyColumn],
       raw: true,
     });
 
@@ -566,7 +579,7 @@ export async function sumCollectivesTransactions(
       const CollectiveId = disputedTransaction['CollectiveId'];
       const value = disputedTransaction[column];
 
-      const fxRate = await getFxRate(disputedTransaction[groupBy], totals[CollectiveId].currency);
+      const fxRate = await getFxRate(disputedTransaction[currencyColumn], totals[CollectiveId].currency);
       totals[CollectiveId].value -= Math.round(value * fxRate);
     }
   }

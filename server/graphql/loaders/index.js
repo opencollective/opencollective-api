@@ -110,7 +110,8 @@ export const loaders = req => {
   // Collective - Net Amount Received
   context.loaders.Collective.netAmountReceived = {
     buildLoader({ startDate, endDate, includeChildren } = {}) {
-      const key = `${startDate}-${endDate}-${includeChildren}`;
+      console.log('buildLoader', { startDate, endDate, includeChildren });
+      const key = `${startDate?.toISOString()}-${endDate?.toISOString()}-includeChildren-${includeChildren}`;
       console.log(key);
       if (!context.loaders.Collective.netAmountReceived[key]) {
         context.loaders.Collective.netAmountReceived[key] = new DataLoader(ids =>

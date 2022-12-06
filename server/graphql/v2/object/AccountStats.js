@@ -26,11 +26,11 @@ const TransactionArgs = {
   },
   dateTo: {
     type: GraphQLDateTime,
-    description: 'Calculate total amount spent before this date',
+    description: 'Calculate amount before this date',
   },
   dateFrom: {
     type: GraphQLDateTime,
-    description: 'Calculate total amount spent after this date',
+    description: 'Calculate amount after this date',
   },
   periodInMonths: {
     type: GraphQLInt,
@@ -249,6 +249,7 @@ export const AccountStats = new GraphQLObjectType({
           ...TransactionArgs,
         },
         async resolve(collective, args, req) {
+          console.log('totalNetAmountReceived', args);
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
           let { dateFrom, dateTo } = args;
 
