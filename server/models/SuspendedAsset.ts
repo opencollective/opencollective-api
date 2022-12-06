@@ -89,6 +89,7 @@ SuspendedAsset.init(
   },
   {
     sequelize,
+    paranoid: true,
     tableName: 'SuspendedAssets',
   },
 );
