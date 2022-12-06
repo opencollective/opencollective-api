@@ -55,7 +55,10 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         currency: 'USD',
       });
 
-      sandbox.stub(common, 'resolvePaymentMethodForOrder').resolves(paymentMethod);
+      sandbox.stub(common, 'resolvePaymentMethodForOrder').resolves({
+        id: 'pm_test',
+        customer: 'cus_test',
+      });
       sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pm_test', status: 'requires_confirmation' });
       sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
         id: 'pm_test',

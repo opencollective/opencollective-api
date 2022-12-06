@@ -107,9 +107,8 @@ describe('server/paymentProviders/stripe/common', () => {
       );
 
       expect(paymentMethod).to.exist;
-      expect(paymentMethod.customerId).to.equal('cus_host_test');
-      expect(paymentMethod.data?.fingerprint).to.equal('fingerprint');
-      expect(paymentMethod.data?.stripePaymentMethodId).to.equal('pm_aclonedcardinhostaccount');
+      expect(paymentMethod.customer).to.equal('cus_host_test');
+      expect(paymentMethod.id).to.equal('pm_aclonedcardinhostaccount');
 
       assert.calledWithMatch(stripe.tokens.retrieve, platformPaymentMethod.token);
       assert.calledWithMatch(
@@ -132,18 +131,9 @@ describe('server/paymentProviders/stripe/common', () => {
           ...platformPaymentMethod.data,
           fingerprint: 'fingerprint',
           stripePaymentMethodId: 'card_platform',
-        },
-      });
-
-      await fakePaymentMethod({
-        CollectiveId: collective.id,
-        service: PAYMENT_METHOD_SERVICE.STRIPE,
-        type: PAYMENT_METHOD_TYPE.CREDITCARD,
-        customerId: 'cus_host_test',
-        data: {
-          stripeAccount: 'acc_host_test',
-          fingerprint: 'fingerprint',
-          stripePaymentMethodId: 'pm_aclonedcardinhostaccount',
+          stripePaymentMethodByHostCustomer: {
+            cus_host_test: 'pm_aclonedcardinhostaccount',
+          },
         },
       });
 
@@ -155,9 +145,8 @@ describe('server/paymentProviders/stripe/common', () => {
       );
 
       expect(paymentMethod).to.exist;
-      expect(paymentMethod.customerId).to.equal('cus_host_test');
-      expect(paymentMethod.data?.fingerprint).to.equal('fingerprint');
-      expect(paymentMethod.data?.stripePaymentMethodId).to.equal('pm_aclonedcardinhostaccount');
+      expect(paymentMethod.customer).to.equal('cus_host_test');
+      expect(paymentMethod.id).to.equal('pm_aclonedcardinhostaccount');
 
       assert.notCalled(stripe.tokens.retrieve);
       assert.notCalled(stripe.paymentMethods.create);
@@ -285,9 +274,8 @@ describe('server/paymentProviders/stripe/common', () => {
       paymentMethod = await common.resolvePaymentMethodForOrder('acc_host', order);
 
       expect(paymentMethod).to.exist;
-      expect(paymentMethod.customerId).to.equal('cus_hostcustomer');
-      expect(paymentMethod.data?.fingerprint).to.equal('fingerprint');
-      expect(paymentMethod.data?.stripePaymentMethodId).to.equal('pm_clonedcard12345678901234');
+      expect(paymentMethod.customer).to.equal('cus_hostcustomer');
+      expect(paymentMethod.id).to.equal('pm_clonedcard12345678901234');
 
       assert.calledWithMatch(stripe.paymentMethods.create, {
         customer: 'cus_platformcustomer',
@@ -300,24 +288,21 @@ describe('server/paymentProviders/stripe/common', () => {
     });
 
     it('return existing cloned card', async () => {
-      await fakePaymentMethod({
-        customerId: 'cus_hostcustomer',
-        service: PAYMENT_METHOD_SERVICE.STRIPE,
-        type: PAYMENT_METHOD_TYPE.CREDITCARD,
-        CollectiveId: collective.id,
+      await paymentMethod.update({
         data: {
-          stripeAccount: 'acc_host',
-          stripePaymentMethodId: 'pm_clonedcard12345678901234',
-          fingerprint: 'fingerprint',
+          ...paymentMethod.data,
+          stripePaymentMethodByHostCustomer: {
+            cus_hostcustomer: 'pm_clonedcard12345678901234',
+          },
         },
       });
+      order.paymentMethod = paymentMethod;
 
       paymentMethod = await common.resolvePaymentMethodForOrder('acc_host', order);
 
       expect(paymentMethod).to.exist;
-      expect(paymentMethod.customerId).to.equal('cus_hostcustomer');
-      expect(paymentMethod.data?.fingerprint).to.equal('fingerprint');
-      expect(paymentMethod.data?.stripePaymentMethodId).to.equal('pm_clonedcard12345678901234');
+      expect(paymentMethod.customer).to.equal('cus_hostcustomer');
+      expect(paymentMethod.id).to.equal('pm_clonedcard12345678901234');
 
       assert.notCalled(stripe.paymentMethods.create);
       assert.notCalled(stripe.paymentMethods.attach);
@@ -326,7 +311,7 @@ describe('server/paymentProviders/stripe/common', () => {
     it('return platform card for platform host', async () => {
       const resolvedPM = await common.resolvePaymentMethodForOrder(config.stripe.accountId, order);
 
-      expect(resolvedPM.id).to.equal(paymentMethod.id);
+      expect(resolvedPM.id).to.equal(paymentMethod.data.stripePaymentMethodId);
 
       assert.notCalled(stripe.paymentMethods.create);
       assert.notCalled(stripe.paymentMethods.attach);
@@ -347,7 +332,7 @@ describe('server/paymentProviders/stripe/common', () => {
 
       const resolvedPM = await common.resolvePaymentMethodForOrder('acc_host', order);
 
-      expect(resolvedPM.id).to.equal(order.paymentMethod.id);
+      expect(resolvedPM.id).to.equal(order.paymentMethod.data.stripePaymentMethodId);
 
       assert.notCalled(stripe.paymentMethods.create);
       assert.notCalled(stripe.paymentMethods.attach);

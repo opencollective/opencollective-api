@@ -7,6 +7,7 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
+import Order from '../../models/Order';
 import User from '../../models/User';
 
 import {
@@ -24,7 +25,10 @@ const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact
  * Returns a Promise with the transaction created
  * Creates and confirms a payment intent, on success creates associated transactions
  */
-const createChargeAndTransactions = async (hostStripeAccount, { order, paymentMethod }) => {
+const createChargeAndTransactions = async (
+  hostStripeAccount,
+  { order, stripePaymentMethod }: { order: typeof Order; stripePaymentMethod: { id: string; customer: string } },
+) => {
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
     ? false
@@ -43,7 +47,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, paymentMe
     const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
-      customer: paymentMethod.customerId,
+      customer: stripePaymentMethod.customer,
       description: order.description,
       confirm: false,
       confirmation_method: 'manual',
@@ -66,12 +70,12 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, paymentMe
       createPayload.setup_future_usage = 'on_session';
     }
 
-    const stripePaymentMethodId = paymentMethod.data?.stripePaymentMethodId;
+    const stripePaymentMethodId = stripePaymentMethod?.id;
     if (stripePaymentMethodId) {
       createPayload.payment_method = stripePaymentMethodId;
     } else {
       logger.info('paymentMethod is missing in paymentMethod to pass to Payment Intent.');
-      logger.info(JSON.stringify(paymentMethod));
+      logger.info(JSON.stringify(stripePaymentMethod));
     }
     paymentIntent = await stripe.paymentIntents.create(createPayload, {
       stripeAccount: hostStripeAccount.username,
@@ -154,10 +158,10 @@ export default {
 
     let transactions;
     try {
-      const paymentMethod = await resolvePaymentMethodForOrder(hostStripeAccount.username, order);
+      const stripePaymentMethod = await resolvePaymentMethodForOrder(hostStripeAccount.username, order);
       transactions = await createChargeAndTransactions(hostStripeAccount, {
         order,
-        paymentMethod,
+        stripePaymentMethod,
       });
     } catch (error) {
       // Here, we check strictly the error message

@@ -2,7 +2,6 @@ import config from 'config';
 import { get, result, toUpper } from 'lodash';
 
 import { Service } from '../../constants/connected_account';
-import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import * as constants from '../../constants/transactions';
 import {
   createRefundTransaction,
@@ -13,6 +12,7 @@ import {
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models from '../../models';
+import PaymentMethod from '../../models/PaymentMethod';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
@@ -191,7 +191,7 @@ export const createChargeTransactions = async (charge, { order }) => {
 export async function resolvePaymentMethodForOrder(
   hostStripeAccount: string,
   order: typeof models.Order,
-): Promise<typeof models.PaymentMethod> {
+): Promise<{ id: string; customer: string }> {
   const isPlatformHost = hostStripeAccount === config.stripe.accountId;
 
   const user = await order.getUser();
@@ -213,17 +213,15 @@ export async function resolvePaymentMethodForOrder(
     throw new Error('Cannot clone payment method that are not attached to the platform account');
   }
 
-  if (isPlatformPaymentMethod && !isPlatformHost) {
-    const hostCustomer = await getOrCreateStripeCustomer(hostStripeAccount, order.fromCollective, user);
-    paymentMethod = await getOrCloneCardPaymentMethod(
-      paymentMethod,
-      order.fromCollective,
-      hostStripeAccount,
-      hostCustomer,
-    );
+  if ((isPlatformHost && isPlatformPaymentMethod) || paymentMethod?.data?.stripeAccount === hostStripeAccount) {
+    return {
+      id: paymentMethod.data?.stripePaymentMethodId,
+      customer: paymentMethod.customerId,
+    };
   }
 
-  return paymentMethod;
+  const hostCustomer = await getOrCreateStripeCustomer(hostStripeAccount, order.fromCollective, user);
+  return await getOrCloneCardPaymentMethod(paymentMethod, order.fromCollective, hostStripeAccount, hostCustomer);
 }
 
 export async function getOrCreateStripeCustomer(
@@ -259,7 +257,7 @@ export async function attachCardToPlatformCustomer(
   paymentMethod: typeof models.PaymentMethod,
   collective: typeof models.Collective,
   user: User,
-): Promise<typeof models.PaymentMethod> {
+): Promise<PaymentMethod> {
   const platformCustomer = await getOrCreateStripeCustomer(config.stripe.accountId, collective, user);
 
   let stripePaymentMethod = await stripe.paymentMethods.create({
@@ -288,7 +286,7 @@ export async function getOrCloneCardPaymentMethod(
   collective: typeof models.Collective,
   hostStripeAccount: string,
   hostCustomer: string,
-) {
+): Promise<{ id: string; customer: string }> {
   let platformCardTokenCardId = platformPaymentMethod.data?.stripePaymentMethodId;
   let platformCardFingerprint = platformPaymentMethod.data?.fingerprint;
 
@@ -307,21 +305,11 @@ export async function getOrCloneCardPaymentMethod(
     });
   }
 
-  const cardPaymentMethodOnHostAccount = await models.PaymentMethod.findOne({
-    where: {
-      service: PAYMENT_METHOD_SERVICE.STRIPE,
-      type: PAYMENT_METHOD_TYPE.CREDITCARD,
-      CollectiveId: collective.id,
-      data: {
-        stripeAccount: hostStripeAccount,
-        fingerprint: platformCardFingerprint,
-      },
-    },
-  });
-
-  // card was already cloned to fiscal host customer account
-  if (cardPaymentMethodOnHostAccount) {
-    return cardPaymentMethodOnHostAccount;
+  if (platformPaymentMethod.data?.stripePaymentMethodByHostCustomer?.[hostCustomer]) {
+    return {
+      id: platformPaymentMethod.data?.stripePaymentMethodByHostCustomer[hostCustomer],
+      customer: hostCustomer,
+    };
   }
 
   // clone payment method to host stripe account
@@ -348,17 +336,18 @@ export async function getOrCloneCardPaymentMethod(
     },
   );
 
-  return await models.PaymentMethod.create({
-    customerId: hostCustomer,
-    CollectiveId: collective.id,
-    service: PAYMENT_METHOD_SERVICE.STRIPE,
-    type: PAYMENT_METHOD_TYPE.CREDITCARD,
-    confirmedAt: new Date(),
-    token: clonedPaymentMethod.id,
+  await platformPaymentMethod.update({
     data: {
-      stripePaymentMethodId: clonedPaymentMethod.id,
-      stripeAccount: hostStripeAccount,
-      ...clonedPaymentMethod[clonedPaymentMethod.type],
+      ...platformPaymentMethod.data,
+      stripePaymentMethodByHostCustomer: {
+        ...platformPaymentMethod.data?.stripePaymentMethodByHostCustomer,
+        [hostCustomer]: clonedPaymentMethod.id,
+      },
     },
   });
+
+  return {
+    id: platformPaymentMethod.data?.stripePaymentMethodByHostCustomer[hostCustomer],
+    customer: hostCustomer,
+  };
 }
