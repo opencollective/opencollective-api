@@ -23,11 +23,11 @@ import { getNumberOfDays, getTimeUnit, TimeSeriesAmount, TimeSeriesArgs } from '
 const DateArgs = {
   dateFrom: {
     type: GraphQLDateTime,
-    description: 'Start date',
+    description: 'Calculate amount before this date',
   },
   dateTo: {
     type: GraphQLDateTime,
-    description: 'End date',
+    description: 'Calculate amount after this date',
   },
 };
 
@@ -261,6 +261,7 @@ export const AccountStats = new GraphQLObjectType({
           ...TransactionArgs,
         },
         async resolve(collective, args, req) {
+          console.log('totalNetAmountReceived', args);
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
           let { dateFrom, dateTo } = args;
 
