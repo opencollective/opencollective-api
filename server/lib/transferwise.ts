@@ -136,7 +136,7 @@ export const requestDataAndThrowParsedError = async (
     return getData(response);
   } catch (e: any) {
     const signatureFailed = e?.response?.headers?.['x-2fa-approval-result'] === 'REJECTED';
-    const hadSignature = e?.response?.headers?.['X-Signature'];
+    const hadSignature = options?.headers?.['X-Signature'];
     if (signatureFailed && !hadSignature) {
       const ott = e.response.headers['x-2fa-approval'];
       const signature = signString(ott);
