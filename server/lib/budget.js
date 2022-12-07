@@ -210,7 +210,7 @@ export function getSumCollectivesAmountSpent(
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     excludeInternals: true,
     includeChildren,
-    includeGiftCards: false, // TODO: was TRUE, fix conflict between includeGiftCards and children
+    includeGiftCards: includeChildren ? false : true, // TODO: was TRUE, fix conflict between includeGiftCards and children
   });
 }
 
