@@ -27,7 +27,8 @@ const ExpenseQuery = {
       if (
         expense?.status === expenseStatus.DRAFT &&
         expense.data?.draftKey !== args.draftKey &&
-        !req.remoteUser?.isAdmin(expense.FromCollectiveId)
+        !req.remoteUser?.isAdmin(expense.FromCollectiveId) &&
+        !req.remoteUser?.isAdmin(expense.CollectiveId)
       ) {
         return null;
       }

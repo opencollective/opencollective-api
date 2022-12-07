@@ -285,6 +285,7 @@ const ExpensesCollectionQuery = {
           [Op.or]: [
             { status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } },
             { status: expenseStatus.DRAFT, UserId: req.remoteUser.id },
+            { [Op.and]: [{ status: expenseStatus.DRAFT }, req.remoteUser.isAdminOfCollective(account)] },
             // TODO: we should ideally display SPAM expenses in some circumstances
           ],
         });
