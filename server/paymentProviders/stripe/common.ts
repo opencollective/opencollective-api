@@ -88,7 +88,7 @@ export const refundTransactionOnlyInDatabase = async (
     throw new Error('No refund or dispute found in Stripe.');
   }
   const refundBalance = await stripe.balanceTransactions.retrieve(
-    (refund.balance_transaction || dispute.balance_transactions[0].id) as string,
+    (refund?.balance_transaction || dispute?.balance_transactions[0].id) as string,
     {
       stripeAccount: hostStripeAccount.username,
     },
