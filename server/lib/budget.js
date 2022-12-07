@@ -307,7 +307,7 @@ export async function getContributionsAndContributorsCount(
     result = results[collective.id];
   }
 
-  return { contributions: result.count, contributors: result.countDistinctFromCollective };
+  return { contributionsCount: result.count, contributorsCount: result.countDistinctFromCollective };
 }
 
 export async function countTransactionsAndDistinctFromCollectives(
