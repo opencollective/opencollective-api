@@ -186,6 +186,8 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
         },
       });
 
+      await utils.waitForCondition(() => sendEmailSpy.calledWith('contribution.rejected'));
+
       expect(result.errors).to.not.exist;
       expect(result.data.rejectTransaction.id).to.exist;
       expect(sendEmailSpy.calledWith('contribution.rejected')).to.be.true;

@@ -11,6 +11,7 @@ import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
@@ -206,7 +207,7 @@ export const chargeDisputeCreated = async (event: Stripe.Response<Stripe.Event>)
 export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
-    where: { data: { charge: { id: dispute.charge } }, isDisputed: true },
+    where: { data: { charge: { id: dispute.charge } }, isDisputed: true, type: TransactionTypes.CREDIT },
     include: [
       {
         model: models.Order,
