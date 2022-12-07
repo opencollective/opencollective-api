@@ -161,7 +161,6 @@
     "currenciesThatRequireReference": "RUB",
     "blockedCountries": "SS, SD, BI, CF, TD, CG, CD, SO"
   },
-  "fixie": {},
   "hyperwatch": {
     "enabled": false,
     "path": "/_hyperwatch",

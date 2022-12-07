@@ -8,7 +8,7 @@ import Axios, { AxiosError, AxiosResponse } from 'axios';
 import config from 'config';
 import Debug from 'debug';
 import { Request } from 'express';
-import { cloneDeep, isNull, omitBy, pick, set, startCase, toInteger, toUpper } from 'lodash';
+import { cloneDeep, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash';
 import moment from 'moment';
 
 import { TransferwiseError } from '../graphql/errors';
@@ -34,21 +34,8 @@ import { reportErrorToSentry } from './sentry';
 import { sleep } from './utils';
 
 const debug = Debug('transferwise');
-const fixieUrl = config.fixie.url && new url.URL(config.fixie.url);
-const proxyOptions = fixieUrl
-  ? {
-      proxy: {
-        host: fixieUrl.host,
-        port: toInteger(fixieUrl.port),
-      },
-      headers: {
-        'Proxy-Authorization': `Basic ${Buffer.from(`${fixieUrl.username}:${fixieUrl.password}`).toString('base64')}`,
-      },
-    }
-  : {};
 const axios = Axios.create({
   baseURL: config.transferwise.apiUrl,
-  ...proxyOptions,
 });
 
 type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
