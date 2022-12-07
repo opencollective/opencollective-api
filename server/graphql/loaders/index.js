@@ -7,11 +7,11 @@ import moment from 'moment';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
-  countTransactionsAndDistinctFromCollectives,
   getBalances,
   getBalancesWithBlockedFunds,
   getSumCollectivesAmountSpent,
   getSumCollectivesNetAmountReceived,
+  sumCollectivesTransactions,
 } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
@@ -177,7 +177,8 @@ export const loaders = req => {
         console.log('contributionsAndContributorsCount', key);
 
         context.loaders.Collective.contributionsAndContributorsCount[key] = new DataLoader(ids =>
-          countTransactionsAndDistinctFromCollectives(ids, {
+          sumCollectivesTransactions(ids, {
+            column: 'amountInHostCurrency',
             startDate,
             endDate,
             includeChildren,
