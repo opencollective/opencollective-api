@@ -637,10 +637,10 @@ export async function sumCollectivesTransactions(
         as: 'fromCollective',
         attributes: [],
       });
-      // TODO: exclude internal transactions to avoid double counting
       where = {
         ...where,
         [Op.and]: [
+          // TODO: always acount when "collective"."id" = "fromCollective"."id" or "CollectiveId" = "FromCollectiveId"
           sequelize.literal(
             'COALESCE("collective"."ParentCollectiveId", "collective"."id") != COALESCE("fromCollective"."ParentCollectiveId", "fromCollective"."id")',
           ),
