@@ -551,6 +551,7 @@ export const executeOrder = async (user, order, options = {}) => {
   if (!order) {
     return Promise.reject(new Error('No order provided'));
   }
+  // Added funds have a processedAt date by default because they are processed immediately
   if (order.processedAt && !options.isAddedFund) {
     return Promise.reject(new Error(`This order (#${order.id}) has already been processed at ${order.processedAt}`));
   }
