@@ -183,9 +183,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   isRoot = function () {
-    const result = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
-    debug('isRoot?', result);
-    return result;
+    const hasAdminRole = this.hasRole([roles.ADMIN], 1) || this.hasRole([roles.ADMIN], 8686);
+    return hasAdminRole && this.data?.isRoot;
   };
 
   isMember = function (CollectiveId) {
