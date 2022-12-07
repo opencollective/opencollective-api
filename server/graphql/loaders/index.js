@@ -141,9 +141,8 @@ export const loaders = req => {
           getSumCollectivesNetAmountReceived(ids, {
             startDate,
             endDate,
-            timeUnit,
             includeChildren,
-            withTimeSeries: true,
+            groupByAttributes: [[sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']],
           }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
@@ -184,6 +183,13 @@ export const loaders = req => {
             includeChildren,
             kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
             transactionType: 'CREDIT',
+            extraAttributes: [
+              [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
+              [
+                sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Transaction.FromCollectiveId'))),
+                'countDistinctFromCollective',
+              ],
+            ],
           }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
