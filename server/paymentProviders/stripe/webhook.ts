@@ -220,7 +220,6 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
       },
     ],
   });
-
   if (!chargeTransaction) {
     return;
   }
@@ -276,7 +275,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
         0,
         {
           ...chargeTransaction.data,
-          dispute: event,
+          dispute,
           refundTransactionId: chargeTransaction.id,
         },
         null,
@@ -309,7 +308,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
         platformFeeInHostCurrency: 0,
         hostCurrencyFxRate,
         kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
-        data: event.data,
+        data: { dispute },
       });
 
       // A won dispute means it was decided as not fraudulent
@@ -323,6 +322,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
         }
       }
 
+      const user = chargeTransaction.createdByUser;
       const userHasDisputedOrders = await user.hasDisputedOrders();
       if (!userHasDisputedOrders) {
         await user.unlimitFeature(FEATURE.ORDER);
