@@ -165,9 +165,6 @@
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT"
   },
-  "fixie": {
-    "url": "FIXIE_URL"
-  },
   "hyperwatch": {
     "enabled": "HYPERWATCH_ENABLED",
     "path": "HYPERWATCH_PATH",

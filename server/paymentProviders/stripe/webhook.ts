@@ -495,7 +495,7 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
     const stripeCustomerAccount = await models.ConnectedAccount.findOne({
       where: {
         clientId: stripeAccount,
-        username: stripeCustomerId,
+        username: stripeCustomerId as string,
         service: Service.STRIPE_CUSTOMER,
       },
       transaction,
