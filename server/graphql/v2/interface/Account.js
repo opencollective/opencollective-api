@@ -866,6 +866,11 @@ export const AccountFields = {
         description:
           'Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
       },
+      includeUnsaved: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether to include payment methods that have not been saved',
+        defaultValue: false,
+      },
     },
     description:
       'The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".',
@@ -886,7 +891,7 @@ export const AccountFields = {
           return false;
         } else if (pm.data?.hidden) {
           return false;
-        } else if (pm.service === 'stripe' && !pm.saved) {
+        } else if (pm.service === 'stripe' && !pm.saved && !args.includeUnsaved) {
           return false;
         } else if (!args.includeExpired && pm.expiryDate && pm.expiryDate <= now) {
           return false;
