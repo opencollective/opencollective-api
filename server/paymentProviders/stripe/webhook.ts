@@ -225,7 +225,15 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
     return;
   }
 
-  const user = chargeTransaction.createdByUser;
+  const disputeTransaction = await models.Transaction.findOne({
+    where: { data: { dispute: { id: dispute.id } } },
+  });
+  if (disputeTransaction) {
+    logger.info(
+      `Stripe Webhook: Dispute ${dispute.id} already processed in transaction #${disputeTransaction.id}. Skipping...`,
+    );
+    return;
+  }
 
   const transactions = await models.Transaction.findAll({
     where: {
