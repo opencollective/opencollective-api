@@ -11,7 +11,9 @@ import { Request } from 'express';
 import { cloneDeep, isNull, omitBy, pick, set, startCase, toUpper } from 'lodash';
 import moment from 'moment';
 
+import ActivityTypes from '../constants/activities';
 import { TransferwiseError } from '../graphql/errors';
+import models from '../models';
 import { ConnectedAccount } from '../models/ConnectedAccount';
 import {
   AccessToken,
@@ -85,7 +87,12 @@ export async function getToken(connectedAccount: ConnectedAccount, refresh = fal
   if (refresh || isOutdated) {
     const newToken = await getOrRefreshToken({ refreshToken: connectedAccount.refreshToken });
     if (!newToken) {
-      throw new Error('There was an error refreshing the Transferwise token');
+      models.Activity.create({
+        type: ActivityTypes.CONNECTED_ACCOUNT_ERROR,
+        data: { connectedAccount: connectedAccount.activity, error: 'There was an error refreshing the Wise token' },
+        CollectiveId: connectedAccount.CollectiveId,
+      });
+      throw new Error('There was an error refreshing the Wise token');
     }
     const { access_token: token, refresh_token: refreshToken, ...data } = newToken;
     await connectedAccount.update({ token, refreshToken, data: { ...connectedAccount.data, ...data } });

@@ -7,7 +7,7 @@ import { crypto } from '../lib/encryption';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 export class ConnectedAccount extends Model<
-  InferAttributes<ConnectedAccount>,
+  InferAttributes<ConnectedAccount, { omit: 'info' | 'activity' | 'paypalConfig' }>,
   InferCreationAttributes<ConnectedAccount>
 > {
   public declare readonly id: CreationOptional<number>;
@@ -24,6 +24,35 @@ export class ConnectedAccount extends Model<
   public declare CreatedByUserId: CreationOptional<number>;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
+
+  get info() {
+    return {
+      id: this.id,
+      service: this.service,
+      username: this.username,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
+  get activity() {
+    return {
+      id: this.id,
+      service: this.service,
+      CollectiveId: this.CollectiveId,
+      CreatedByUserId: this.CreatedByUserId,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
+    };
+  }
+
+  get paypalConfig() {
+    return {
+      client_id: this.clientId, // eslint-disable-line camelcase
+      client_secret: this.token, // eslint-disable-line camelcase
+      mode: config.paypal.rest.mode,
+    };
+  }
 }
 
 ConnectedAccount.init(
@@ -96,24 +125,6 @@ ConnectedAccount.init(
   {
     sequelize,
     paranoid: true,
-    getterMethods: {
-      info() {
-        return {
-          id: this.id,
-          service: this.service,
-          username: this.username,
-          createdAt: this.createdAt,
-          updatedAt: this.updatedAt,
-        };
-      },
-      paypalConfig() {
-        return {
-          client_id: this.clientId, // eslint-disable-line camelcase
-          client_secret: this.token, // eslint-disable-line camelcase
-          mode: config.paypal.rest.mode,
-        };
-      },
-    },
   },
 );
 
