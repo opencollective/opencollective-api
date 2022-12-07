@@ -108,7 +108,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
   });
 
   before(async () => {
-    rootUser = await fakeUser();
+    rootUser = await fakeUser({ data: { isRoot: true } });
     await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: roles.ADMIN });
   });
 
