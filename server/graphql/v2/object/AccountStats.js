@@ -414,7 +414,7 @@ export const AccountStats = new GraphQLObjectType({
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
           const dateTo = args.dateTo ? moment(args.dateTo) : null;
 
-          const { contributions } = await collective.getContributionsAndContributorsCount({
+          const { contributionsCount } = await collective.getContributionsAndContributorsCount({
             loaders: req.loaders,
             startDate: dateFrom,
             endDate: dateTo,
