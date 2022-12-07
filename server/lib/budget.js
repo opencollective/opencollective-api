@@ -315,7 +315,7 @@ export async function getContributionsAndContributorsCount(
     result = results[collective.id];
   }
 
-  return { contributionsCount: result.count, contributorsCount: result.countDistinctFromCollective };
+  return { contributionsCount: result.count ?? 0, contributorsCount: result.countDistinctFromCollective ?? 0 };
 }
 
 export async function getTotalNetAmountReceivedTimeSeries(
@@ -349,10 +349,12 @@ export async function getTotalNetAmountReceivedTimeSeries(
 
   const fxRate = await getFxRate(result.currency, currency);
 
-  const nodes = Object.values(result.groupBy.date).map(node => ({
-    date: node.date,
-    amount: { value: Math.round(node.amount * fxRate), currency },
-  }));
+  const nodes = result.groupBy.date
+    ? Object.values(result.groupBy.date).map(node => ({
+        date: node.date,
+        amount: { value: Math.round(node.amount * fxRate), currency },
+      }))
+    : [];
 
   return {
     dateFrom: startDate,
