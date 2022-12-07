@@ -43,13 +43,15 @@ class SuspendedAsset extends Model<InferAttributes<SuspendedAsset>, InferCreatio
       paymentMethod?.service === PAYMENT_METHOD_SERVICE.STRIPE
     ) {
       const { name, data } = paymentMethod;
-      const assetParams = {
+      const where = {
         type: AssetType.CREDIT_CARD,
         fingerprint:
           data?.fingerprint ||
           [name, ...Object.values(pick(data, ['brand', 'expMonth', 'expYear', 'funding']))].join('-'),
       };
-      return await SuspendedAsset.create({ ...assetParams, reason });
+
+      const [asset] = await SuspendedAsset.findOrCreate({ where, defaults: { reason }, paranoid: false });
+      return asset;
     }
   }
 }
