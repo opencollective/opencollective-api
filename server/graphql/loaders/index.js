@@ -118,7 +118,7 @@ export const loaders = req => {
     buildLoader({ startDate, endDate, includeChildren } = {}) {
       const key = `${startDate}-${endDate}-${includeChildren}`;
       if (!context.loaders.Collective.netAmountReceived[key]) {
-        console.log('netAmount', key);
+        // console.log('netAmount', key);
 
         context.loaders.Collective.netAmountReceived[key] = new DataLoader(ids =>
           getSumCollectivesNetAmountReceived(ids, { startDate, endDate, includeChildren }).then(results =>
@@ -135,7 +135,7 @@ export const loaders = req => {
     buildLoader({ startDate, endDate, includeChildren, timeUnit } = {}) {
       const key = `${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
       if (!context.loaders.Collective.netAmountReceivedTimeSeries[key]) {
-        console.log('netReceivedTimeSeries', key);
+        // console.log('netReceivedTimeSeries', key);
 
         context.loaders.Collective.netAmountReceivedTimeSeries[key] = new DataLoader(ids =>
           getSumCollectivesNetAmountReceived(ids, {
@@ -152,14 +152,14 @@ export const loaders = req => {
 
   // Collective -  Amount Spent
   context.loaders.Collective.amountSpent = {
-    buildLoader({ startDate, endDate, includeChildren, net, kind } = {}) {
-      const key = `${startDate}-${endDate}-${includeChildren}-${net}-${kind}`;
+    buildLoader({ startDate, endDate, includeChildren, kind } = {}) {
+      const key = `${startDate}-${endDate}-${includeChildren}-${kind}`;
 
       if (!context.loaders.Collective.amountSpent[key]) {
-        console.log('amountSpent', key);
+        // console.log('amountSpent', key);
 
         context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
-          getSumCollectivesAmountSpent(ids, { startDate, endDate, includeChildren, net, kind }).then(results =>
+          getSumCollectivesAmountSpent(ids, { startDate, endDate, includeChildren, kind }).then(results =>
             sortResults(ids, Object.values(results), 'CollectiveId'),
           ),
         );
@@ -174,7 +174,7 @@ export const loaders = req => {
       const key = `${startDate}-${endDate}-${includeChildren}`;
 
       if (!context.loaders.Collective.contributionsAndContributorsCount[key]) {
-        console.log('contributionsAndContributorsCount', key);
+        // console.log('contributionsAndContributorsCount', key);
 
         context.loaders.Collective.contributionsAndContributorsCount[key] = new DataLoader(ids =>
           sumCollectivesTransactions(ids, {
