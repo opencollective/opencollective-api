@@ -26,6 +26,7 @@ import {
   generateCountAdminMembersOfCollective,
   generateRemoteUserIsAdminOfHostedAccountLoader,
 } from './members';
+import { generatePaymentMethodNeedsConfirmationLoader } from './payment-methods';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
@@ -596,6 +597,8 @@ export const loaders = req => {
       order: [['id', 'DESC']],
     }).then(results => sortResults(CollectiveIds, results, 'CollectiveId', [])),
   );
+
+  context.loaders.PaymentMethod.needsConfirmation = generatePaymentMethodNeedsConfirmationLoader();
 
   /** *** Order *****/
   // Order - findByMembership

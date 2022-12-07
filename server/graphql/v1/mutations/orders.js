@@ -691,7 +691,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await libPayments.processOrder(order);
 
       order.status = status.ACTIVE;
-      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
+      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {

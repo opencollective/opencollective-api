@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { get, pick } from 'lodash';
@@ -158,6 +158,17 @@ export const PaymentMethod = new GraphQLObjectType({
       },
       createdAt: {
         type: GraphQLDateTime,
+      },
+      needsConfirmation: {
+        type: GraphQLBoolean,
+        async resolve(paymentMethod, _, req) {
+          const collective = await req.loaders.Collective.byId.load(paymentMethod.CollectiveId);
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
+            return null;
+          } else {
+            return req.loaders.PaymentMethod.needsConfirmation.load(paymentMethod.id);
+          }
+        },
       },
     };
   },
