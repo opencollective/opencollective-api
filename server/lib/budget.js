@@ -317,7 +317,10 @@ export async function getTotalAmountReceivedTimeSeries(
 
   // Optimized version using loaders
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
-    const amountReceivedTimeSeriesLoader = loaders.Collective.amountReceivedTimeSeries.buildLoader(transactionArgs);
+    const amountReceivedTimeSeriesLoader = loaders.Collective.amountReceivedTimeSeries.buildLoader({
+      ...transactionArgs,
+      timeUnit,
+    });
     result = await amountReceivedTimeSeriesLoader.load(collective.id);
   } else {
     const results = await getSumCollectivesAmountReceived([collective.id], {
@@ -331,7 +334,7 @@ export async function getTotalAmountReceivedTimeSeries(
 
   const fxRate = await getFxRate(result.currency, currency);
 
-  const nodes = result.groupBy.date
+  const nodes = result.groupBy?.date
     ? Object.values(result.groupBy.date).map(node => ({
         date: node.date,
         amount: { value: Math.round(node.amount * fxRate), currency },
