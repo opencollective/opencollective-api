@@ -2,6 +2,7 @@ import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import RateLimit from '../../../lib/rate-limit';
 import PaypalPlanModel from '../../../models/PaypalPlan';
+import Tier from '../../../models/Tier';
 import { getOrCreatePlan } from '../../../paymentProviders/paypal/subscription';
 import { RateLimitExceeded } from '../../errors';
 import { ContributionFrequency } from '../enum';
@@ -51,7 +52,8 @@ const PaypalPlanQuery = {
     }
 
     const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-    const tier = args.tier && (await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true }));
+    const tier =
+      args.tier && <Tier>await fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: true });
     const expectedCurrency = tier?.currency || collective?.currency;
     const amount = getValueInCentsFromAmountInput(args.amount, { expectedCurrency, allowNilCurrency: false });
     const currency = args.amount.currency;

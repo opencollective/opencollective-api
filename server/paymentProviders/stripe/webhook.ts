@@ -11,6 +11,7 @@ import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
+import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
@@ -206,7 +207,7 @@ export const chargeDisputeCreated = async (event: Stripe.Response<Stripe.Event>)
 export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
-    where: { data: { charge: { id: dispute.charge } }, isDisputed: true },
+    where: { data: { charge: { id: dispute.charge } }, isDisputed: true, type: TransactionTypes.CREDIT },
     include: [
       {
         model: models.Order,
@@ -220,12 +221,19 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
       },
     ],
   });
-
   if (!chargeTransaction) {
     return;
   }
 
-  const user = chargeTransaction.createdByUser;
+  const disputeTransaction = await models.Transaction.findOne({
+    where: { data: { dispute: { id: dispute.id } } },
+  });
+  if (disputeTransaction) {
+    logger.info(
+      `Stripe Webhook: Dispute ${dispute.id} already processed in transaction #${disputeTransaction.id}. Skipping...`,
+    );
+    return;
+  }
 
   const transactions = await models.Transaction.findAll({
     where: {
@@ -268,7 +276,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
         0,
         {
           ...chargeTransaction.data,
-          dispute: event,
+          dispute,
           refundTransactionId: chargeTransaction.id,
         },
         null,
@@ -301,7 +309,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
         platformFeeInHostCurrency: 0,
         hostCurrencyFxRate,
         kind: TransactionKind.PAYMENT_PROCESSOR_DISPUTE_FEE,
-        data: event.data,
+        data: { dispute },
       });
 
       // A won dispute means it was decided as not fraudulent
@@ -315,6 +323,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
         }
       }
 
+      const user = chargeTransaction.createdByUser;
       const userHasDisputedOrders = await user.hasDisputedOrders();
       if (!userHasDisputedOrders) {
         await user.unlimitFeature(FEATURE.ORDER);
@@ -495,7 +504,7 @@ async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
     const stripeCustomerAccount = await models.ConnectedAccount.findOne({
       where: {
         clientId: stripeAccount,
-        username: stripeCustomerId,
+        username: stripeCustomerId as string,
         service: Service.STRIPE_CUSTOMER,
       },
       transaction,

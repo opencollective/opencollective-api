@@ -11,13 +11,14 @@ import {
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models from '../../models';
+import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
   transaction: typeof models.Transaction,
-  user: typeof models.User,
+  user: User,
   options?: { checkRefundStatus: boolean },
 ): Promise<typeof models.Transaction> => {
   /* What's going to be refunded */
@@ -70,7 +71,7 @@ export const refundTransaction = async (
  */
 export const refundTransactionOnlyInDatabase = async (
   transaction: typeof models.Transaction,
-  user: typeof models.User,
+  user: User,
 ): Promise<typeof models.Transaction> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
@@ -87,7 +88,7 @@ export const refundTransactionOnlyInDatabase = async (
     throw new Error('No refund or dispute found in Stripe.');
   }
   const refundBalance = await stripe.balanceTransactions.retrieve(
-    (refund.balance_transaction || dispute.balance_transactions[0].id) as string,
+    (refund?.balance_transaction || dispute?.balance_transactions[0].id) as string,
     {
       stripeAccount: hostStripeAccount.username,
     },

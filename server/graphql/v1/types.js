@@ -260,6 +260,12 @@ export const UserType = new GraphQLObjectType({
           }
         },
       },
+      isRoot: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        resolve(user) {
+          return user.isRoot();
+        },
+      },
     };
   },
 });

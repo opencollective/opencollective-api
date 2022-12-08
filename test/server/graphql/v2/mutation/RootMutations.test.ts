@@ -36,7 +36,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     await resetTestDB();
 
     // Create user & add as root
-    rootUser = await fakeUser(null, null, { enable2FA: true });
+    rootUser = await fakeUser({ data: { isRoot: true } }, null, { enable2FA: true });
     await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: roles.ADMIN });
   });
 

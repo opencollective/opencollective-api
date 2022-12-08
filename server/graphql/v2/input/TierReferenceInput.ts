@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
+import Tier from '../../../models/Tier';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
@@ -29,8 +30,8 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchTierWithReference = async (
   input,
-  { loaders = null, throwIfMissing, allowCustomTier = false } = {},
-) => {
+  { loaders = null, throwIfMissing = false, allowCustomTier = false } = {},
+): Promise<Tier | 'custom' | null> => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : models.Tier.findByPk(id));
   let tier;
   if (input.id) {

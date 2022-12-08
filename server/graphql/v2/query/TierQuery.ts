@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
-import models from '../../../models';
+import TierModel from '../../../models/Tier';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Tier } from '../object/Tier';
 
@@ -18,8 +18,10 @@ const TierQuery = {
       defaultValue: true,
     },
   },
-  async resolve(_: void, args, req: express.Request): Promise<typeof models.Tier | null> {
-    return fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: args.throwIfMissing });
+  async resolve(_: void, args, req: express.Request): Promise<TierModel | null> {
+    return <Promise<TierModel>>(
+      fetchTierWithReference(args.tier, { loaders: req.loaders, throwIfMissing: args.throwIfMissing })
+    );
   },
 };
 

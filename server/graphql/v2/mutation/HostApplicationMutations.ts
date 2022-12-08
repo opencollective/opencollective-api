@@ -130,7 +130,7 @@ const HostApplicationMutations = {
             }
           }
           const { allValidationsPassed } = validatedRepositoryInfo || {};
-          shouldAutomaticallyApprove = allValidationsPassed || bypassGithubValidation;
+          shouldAutomaticallyApprove = Boolean(allValidationsPassed || bypassGithubValidation);
         } catch (error) {
           throw new ValidationFailed(error.message);
         }

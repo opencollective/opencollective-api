@@ -228,7 +228,7 @@ export const Order = new GraphQLObjectType({
         async resolve(order, _, { loaders, remoteUser }) {
           const collective = order.collective || (await loaders.Collective.byId.load(order.CollectiveId));
           const hostCollectiveId = collective?.HostCollectiveId;
-          if (remoteUser && hostCollectiveId && remoteUser.isAdmin(hostCollectiveId)) {
+          if (remoteUser && remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
             return order.data?.memo;
           } else {
             return null;

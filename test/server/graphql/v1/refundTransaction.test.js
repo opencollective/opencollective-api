@@ -196,12 +196,6 @@ describe('server/graphql/v1/refundTransaction', () => {
   });
 
   describe('Save CreatedByUserId', () => {
-    let userStub;
-    beforeEach(() => {
-      userStub = stub(models.User.prototype, 'isRoot').callsFake(() => true);
-    });
-    afterEach(() => userStub.restore());
-
     // eslint-disable-next-line camelcase
     beforeEach(() => initStripeNock({ amount: -5000, fee: 0, fee_details: [], net: -5000 }));
 
@@ -216,7 +210,9 @@ describe('server/graphql/v1/refundTransaction', () => {
       const anotherUser = await models.User.createUserWithCollective(utils.data('user3'));
 
       // When a refunded attempt happens from the above user
+      const userStub = stub(anotherUser, 'isRoot').returns(true);
       const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, anotherUser);
+      userStub.restore();
 
       // Then there should be no errors
       if (result.errors) {
@@ -248,12 +244,6 @@ describe('server/graphql/v1/refundTransaction', () => {
    * complete but we really don't use the other fields retrieved from
    * Stripe. */
   describe('Stripe Transaction - for hosts created before September 17th 2017', () => {
-    let userStub;
-    beforeEach(() => {
-      userStub = stub(models.User.prototype, 'isRoot').callsFake(() => true);
-    });
-    afterEach(() => userStub.restore());
-
     beforeEach(() =>
       initStripeNock({
         amount: -5000,
@@ -369,12 +359,6 @@ describe('server/graphql/v1/refundTransaction', () => {
    * complete but we really don't use the other fields retrieved from
    * Stripe. */
   describe('Stripe Transaction - for hosts created after September 17th 2017', () => {
-    let userStub;
-    beforeEach(() => {
-      userStub = stub(models.User.prototype, 'isRoot').callsFake(() => true);
-    });
-    afterEach(() => userStub.restore());
-
     // eslint-disable-next-line camelcase
     beforeEach(() => initStripeNock({ amount: -5000, fee: 0, fee_details: [], net: -5000 }));
 

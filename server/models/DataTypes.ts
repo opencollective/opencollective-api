@@ -5,7 +5,7 @@ export default function (DataTypes) {
       type: DataTypes.STRING(3),
       defaultValue: 'USD',
       validate: {
-        len: [3, 3],
+        len: [3, 3] as [number, number],
       },
       allowNull: false,
       set(val) {

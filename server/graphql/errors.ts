@@ -1,8 +1,27 @@
 import { ApolloError } from 'apollo-server-express';
+import config from 'config';
+import { v4 as uuid } from 'uuid';
 
-export { ApolloError };
+class IdentifiableApolloError extends ApolloError {
+  constructor(
+    message?: string,
+    code?: string,
+    additionalProperties?: { includeId?: boolean } & Record<string, unknown>,
+  ) {
+    const id = uuid();
+    if (additionalProperties?.includeId) {
+      message = `${message} (${id})`;
+    }
+    if (!['ci', 'test'].includes(config.env)) {
+      additionalProperties = { ...additionalProperties, id };
+    }
+    super(message, code, additionalProperties);
+  }
+}
 
-export class Unauthorized extends ApolloError {
+export { IdentifiableApolloError as ApolloError };
+
+export class Unauthorized extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
       message || 'You need to be authenticated to perform this action',
@@ -12,7 +31,7 @@ export class Unauthorized extends ApolloError {
   }
 }
 
-export class Forbidden extends ApolloError {
+export class Forbidden extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
       message || 'You are authenticated but forbidden to perform this action',
@@ -22,37 +41,37 @@ export class Forbidden extends ApolloError {
   }
 }
 
-export class RateLimitExceeded extends ApolloError {
+export class RateLimitExceeded extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(message || 'Rate limit exceeded', code || 'RateLimitExceeded', additionalProperties);
   }
 }
 
-export class ValidationFailed extends ApolloError {
+export class ValidationFailed extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(message || 'Please verify the input data', code || 'ValidationFailed', additionalProperties);
   }
 }
 
-export class BadRequest extends ApolloError {
+export class BadRequest extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(message || 'Please verify the input data', code || 'BadRequest', additionalProperties);
   }
 }
 
-export class NotFound extends ApolloError {
+export class NotFound extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(message || 'Item not found', code || 'NotFound', additionalProperties);
   }
 }
 
-export class InvalidToken extends ApolloError {
+export class InvalidToken extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(message || 'The provided token is not valid', code || 'InvalidToken', additionalProperties);
   }
 }
 
-export class FeatureNotSupportedForCollective extends ApolloError {
+export class FeatureNotSupportedForCollective extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
       message || 'This feature is not supported by the Collective',
@@ -63,7 +82,7 @@ export class FeatureNotSupportedForCollective extends ApolloError {
 }
 
 /** An error to throw when `canUseFeature` returns false (user is not allowed to use this) */
-export class FeatureNotAllowedForUser extends ApolloError {
+export class FeatureNotAllowedForUser extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
       message || "You're not allowed to use this feature",
@@ -73,7 +92,7 @@ export class FeatureNotAllowedForUser extends ApolloError {
   }
 }
 
-export class PlanLimit extends ApolloError {
+export class PlanLimit extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
       message ||
@@ -84,7 +103,7 @@ export class PlanLimit extends ApolloError {
   }
 }
 
-export class TransferwiseError extends ApolloError {
+export class TransferwiseError extends IdentifiableApolloError {
   constructor(message?: string, code?: string, additionalProperties?: Record<string, unknown>) {
     super(
       message

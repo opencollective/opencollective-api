@@ -7,6 +7,7 @@ import cache, { fetchCollectiveId } from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
 import models, { Op, sequelize } from '../../models';
+import User from '../../models/User';
 import { ValidationFailed } from '../errors';
 
 type CreateUserOptions = {
@@ -36,9 +37,9 @@ export const createUser = (
     location: Record<string, unknown>;
   },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
-): Promise<{ user: typeof models.User; organization?: typeof models.Collective }> => {
+): Promise<{ user: User; organization?: typeof models.Collective }> => {
   return sequelize.transaction(async transaction => {
-    let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() } }, { transaction });
+    let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
 
     if (throwIfExists && user) {
       throw new ValidationFailed(
@@ -94,7 +95,7 @@ export const createUser = (
   });
 };
 
-export const hasSeenLatestChangelogEntry = async (user: typeof models.User): Promise<boolean> => {
+export const hasSeenLatestChangelogEntry = async (user: User): Promise<boolean> => {
   const cacheKey = 'latest_changelog_publish_date';
   let latestChangelogUpdatePublishDate = await cache.get(cacheKey);
   // Make sure we don't show the changelog notifications for newly confirmed users

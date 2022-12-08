@@ -381,7 +381,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     before(async () => {
       await resetTestDB();
-      rootUser = await fakeUser();
+      rootUser = await fakeUser({ data: { isRoot: true } });
       await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
     });
     beforeEach(async () => {

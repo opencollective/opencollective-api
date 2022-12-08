@@ -1,4 +1,5 @@
 import models from '../models';
+import User from '../models/User';
 import VirtualCardModel from '../models/VirtualCard';
 
 export interface PaymentProvider {
@@ -32,7 +33,7 @@ export interface PaymentProviderService {
    */
   refundTransaction(
     transaction: typeof models.Transaction,
-    user: typeof models.User,
+    user: User,
     reason?: string,
   ): Promise<typeof models.Transaction>;
 }

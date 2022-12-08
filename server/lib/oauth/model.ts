@@ -21,6 +21,7 @@ import debugLib from 'debug';
 import activities from '../../constants/activities';
 import models from '../../models';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
+import User from '../../models/User';
 import UserToken, { TokenType } from '../../models/UserToken';
 
 const debug = debugLib('oAuth');
@@ -60,7 +61,7 @@ const model: OauthModel = {
     return `${prefix}_${crypto.randomBytes(64).toString('hex')}`.slice(0, TOKEN_LENGTH);
   },
 
-  async saveToken(token: OAuth2Server.Token, client: Client, user: typeof models.User): Promise<Token> {
+  async saveToken(token: OAuth2Server.Token, client: Client, user: User): Promise<Token> {
     debug('model.saveToken', token, client, user);
     try {
       const application = await models.Application.findOne({ where: { clientId: client.id } });
@@ -140,11 +141,7 @@ const model: OauthModel = {
     return dbOAuthAuthorizationCodeToAuthorizationCode(authorization);
   },
 
-  async saveAuthorizationCode(
-    code: AuthorizationCode,
-    client: Client,
-    user: typeof models.User,
-  ): Promise<AuthorizationCode> {
+  async saveAuthorizationCode(code: AuthorizationCode, client: Client, user: User): Promise<AuthorizationCode> {
     debug('model.saveAuthorizationCode', code, client);
     const application = await models.Application.findOne({ where: { clientId: client.id } });
     const collective = await user.getCollective();
@@ -218,7 +215,7 @@ const model: OauthModel = {
   // We're not validating scope at this point, because due to internal library implementation
   // that would disallow any connection attempt without scope
   /*
-  async validateScope(user: typeof models.User, client: Client, scope: string | string[]): Promise<string | string[]> {
+  async validateScope(user: User, client: Client, scope: string | string[]): Promise<string | string[]> {
     debug('model.validateScope', user, client, scope);
 
     return scope) // Scope validation is not implemented yet, and is not required by the library

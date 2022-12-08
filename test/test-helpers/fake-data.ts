@@ -23,6 +23,7 @@ import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
+import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
@@ -60,7 +61,7 @@ export const fakeUser = async (
   userData: Record<string, unknown> = {},
   collectiveData: Record<string, unknown> = {},
   { enable2FA = false } = {},
-) => {
+): Promise<User> => {
   const generate2FAAuthToken = () => {
     const twoFactorAuthSecret = speakeasy.generateSecret({ length: 64 });
     return crypto.encrypt(twoFactorAuthSecret.base32).toString();
@@ -255,7 +256,7 @@ export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = 
     description: randStr(),
     ...attachmentData,
     ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,
-    CreatedByUserId: attachmentData.CreatedByUserId || (await fakeUser()).id,
+    CreatedByUserId: <number>attachmentData.CreatedByUserId || (await fakeUser()).id,
   });
 };
 
@@ -287,7 +288,7 @@ export const fakePayoutMethod = async (data: Record<string, unknown> = {}) => {
     ...data,
     type: type as PayoutMethodTypes,
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
-    CreatedByUserId: data.CreatedByUserId || (await fakeUser()).id,
+    CreatedByUserId: <number>data.CreatedByUserId || (await fakeUser()).id,
   });
 };
 
@@ -309,7 +310,7 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
 
   const payoutMethod = await models.PayoutMethod.findByPk(PayoutMethodId);
   const legacyPayoutMethod = models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod);
-  const user = await (expenseData.UserId ? models.User.findByPk(expenseData.UserId) : fakeUser());
+  const user = await (expenseData.UserId ? models.User.findByPk(<number>expenseData.UserId) : fakeUser());
   const expense = await models.Expense.create({
     amount: randAmount(),
     currency: 'USD',
@@ -395,7 +396,7 @@ export const fakeEmojiReaction = async (
   reactionData: Record<string, unknown> = {},
   opts: Record<string, unknown> = {},
 ) => {
-  const UserId = reactionData.UserId || (await fakeUser()).id;
+  const UserId = <number>reactionData.UserId || (await fakeUser()).id;
   const user = await models.User.findByPk(UserId);
   const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
   if (opts.isComment) {
@@ -444,8 +445,8 @@ export const fakeConversation = async (
  */
 export const fakeTier = async (tierData: Record<string, unknown> = {}) => {
   const name = randStr('tier');
-  const interval = sample(['month', 'year']);
-  const currency = tierData.currency || sample(['USD', 'EUR']);
+  const interval = <'month' | 'year'>sample(['month', 'year']);
+  const currency = <string>tierData.currency || sample(['USD', 'EUR']);
   const amount = <number>tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
@@ -470,12 +471,16 @@ export const fakeOrder = async (
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
-  const user = await models.User.findByPk(CreatedByUserId);
+  const user = await models.User.findByPk(<number>CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
-  const tier = orderData.TierId ? await models.Tier.findByPk(orderData.TierId) : withTier ? await fakeTier() : null;
+  const tier = orderData.TierId
+    ? await models.Tier.findByPk(<number>orderData.TierId)
+    : withTier
+    ? await fakeTier()
+    : null;
 
   const order = await models.Order.create({
     quantity: 1,
@@ -561,7 +566,7 @@ export const fakeNotification = async (data: Record<string, unknown> = {}) => {
     type: sample(Object.values(activities)),
     active: true,
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
-    UserId: data.UserId || (await fakeUser()).id,
+    UserId: <number>data.UserId || (await fakeUser()).id,
     webhookUrl: randUrl('example.com/webhooks'),
     ...data,
   });
@@ -579,7 +584,7 @@ export const fakeActivity = async (
       CollectiveId: data.CollectiveId || (await optionally(() => fakeCollective().then(c => c.id))),
       FromCollectiveId: data.FromCollectiveId || (await optionally(() => fakeCollective().then(c => c.id))),
       HostCollectiveId: data.HostCollectiveId || (await optionally(() => fakeHost().then(c => c.id))),
-      UserId: data.UserId || (await fakeUser()).id,
+      UserId: <number>data.UserId || (await fakeUser()).id,
       type: sample(Object.values(activities)),
       ...data,
     },
@@ -787,11 +792,11 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
-    const user = data.user as typeof models.User;
+    const user = data.user as User;
     CollectiveId = user.CollectiveId;
     CreatedByUserId = user.id;
   } else {
-    const user = data.CreatedByUserId ? await models.User.findByPk(data.CreatedByUserId) : await fakeUser();
+    const user = data.CreatedByUserId ? await models.User.findByPk(<number>data.CreatedByUserId) : await fakeUser();
     CreatedByUserId = user.id;
     CollectiveId = data.CollectiveId || user.CollectiveId;
   }
@@ -813,7 +818,7 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
 };
 
 export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
-  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
     accessToken: randStr('Token-'),
@@ -830,7 +835,7 @@ export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
 };
 
 export const fakeOAuthAuthorizationCode = async (data: Record<string, unknown> = {}) => {
-  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const application =
     data.application ||
     (data.ApplicationId ? await models.Application.findByPk(data.ApplicationId) : await fakeApplication({ user }));

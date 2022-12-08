@@ -7,6 +7,7 @@ import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
 import models, { Op, sequelize } from '../models';
+import Tier from '../models/Tier';
 
 import { getFxRate } from './currency';
 
@@ -316,7 +317,8 @@ export async function generateDescription(transaction, { req = null, full = fals
     }
   }
 
-  let order, expense, subscription, tier;
+  let order, expense, subscription;
+  let tier: Tier;
 
   if (transaction.OrderId) {
     order = await (req ? req.loaders.Order.byId.load(transaction.OrderId) : models.Order.findByPk(transaction.OrderId));

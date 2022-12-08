@@ -7,6 +7,7 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
+import User from '../../models/User';
 
 import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
@@ -26,7 +27,7 @@ const getOrCreateCustomerOnPlatformAccount = async ({
   collective,
 }: {
   paymentMethod: typeof models.PaymentMethod;
-  user?: typeof models.User;
+  user?: User;
   collective?: typeof models.Collective;
 }) => {
   if (paymentMethod.customerId) {
@@ -209,7 +210,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
 
 export const setupCreditCard = async (
   paymentMethod: typeof models.PaymentMethod,
-  { user, collective }: { user?: typeof models.User; collective?: typeof models.Collective } = {},
+  { user, collective }: { user?: User; collective?: typeof models.Collective } = {},
 ) => {
   const platformStripeCustomer = (await getOrCreateCustomerOnPlatformAccount({
     paymentMethod,
