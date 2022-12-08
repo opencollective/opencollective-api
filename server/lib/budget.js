@@ -568,11 +568,11 @@ export async function sumCollectivesTransactions(
     ...groupByAttributes,
   ];
 
-  const group = [
-    collectiveId,
-    currencyColumn,
-    ...groupByAttributes.map(attr => (Array.isArray(attr) ? attr[1] : attr)),
-  ];
+  // An attribute can either be an array where the second value is the alias, or a single value which is the column name, so we need to extract the aliases/names
+  const groupBy = groupByAttributes.map(attr => (Array.isArray(attr) ? attr[1] : attr));
+  const extra = extraAttributes.map(attr => (Array.isArray(attr) ? attr[1] : attr));
+
+  const group = [collectiveId, currencyColumn, ...groupBy];
 
   const results = await models.Transaction.findAll({
     attributes,
@@ -601,35 +601,32 @@ export async function sumCollectivesTransactions(
     totals[CollectiveId].value += amount;
 
     // Add extra attributes if any
-    for (const attr of extraAttributes) {
-      const field = Array.isArray(attr) ? attr[1] : attr;
+    for (const field of extra) {
       if (!totals[CollectiveId][field]) {
         totals[CollectiveId][field] = 0;
       }
       totals[CollectiveId][field] += result[field];
     }
 
-    // Add group by attributes if any, with amount and extra attributes
-    for (let attr of groupByAttributes) {
-      attr = Array.isArray(attr) ? attr[1] : attr;
+    // Add grouped by if any, with amount and extra attributes
+    for (const group of groupBy) {
       if (!totals[CollectiveId].groupBy) {
         totals[CollectiveId].groupBy = {};
       }
-      if (!totals[CollectiveId].groupBy[attr]) {
-        totals[CollectiveId].groupBy[attr] = {};
+      if (!totals[CollectiveId].groupBy[group]) {
+        totals[CollectiveId].groupBy[group] = {};
       }
-      const key = result[attr];
-      if (!totals[CollectiveId].groupBy[attr][key]) {
-        totals[CollectiveId].groupBy[attr][key] = { amount: 0, [attr]: key };
+      const key = result[group];
+      if (!totals[CollectiveId].groupBy[group][key]) {
+        totals[CollectiveId].groupBy[group][key] = { amount: 0, [group]: key };
       }
-      totals[CollectiveId].groupBy[attr][key].amount += amount;
+      totals[CollectiveId].groupBy[group][key].amount += amount;
 
-      for (let extraAttr of extraAttributes) {
-        extraAttr = Array.isArray(extraAttr) ? extraAttr[1] : extraAttr;
-        if (!totals[CollectiveId].groupBy[attr][key][extraAttr]) {
-          totals[CollectiveId].groupBy[attr][key][extraAttr] = 0;
+      for (const field of extra) {
+        if (!totals[CollectiveId].groupBy[group][key][field]) {
+          totals[CollectiveId].groupBy[group][key][field] = 0;
         }
-        totals[CollectiveId].groupBy[attr][key][extraAttr] += result[extraAttr];
+        totals[CollectiveId].groupBy[group][key][field] += result[field];
       }
     }
   }
