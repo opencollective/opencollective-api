@@ -14,7 +14,7 @@ export const Policies = new GraphQLObjectType({
   fields: () => ({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
       type: GraphQLBoolean,
-      resolve(account, req) {
+      resolve(account, _, req) {
         if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
           return getPolicy(account, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
         }
