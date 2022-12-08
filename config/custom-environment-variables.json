@@ -75,7 +75,6 @@
   },
   "paypal": {
     "classic": {
-      "email": "PAYPAL_EMAIL",
       "appId": "PAYPAL_APP_ID",
       "userId": "PAYPAL_USER_ID",
       "password": "PAYPAL_PASSWORD",
@@ -165,9 +164,6 @@
     "blockedCurrencies": "TRANSFERWISE_BLOCKED_CURRENCIES",
     "blockedCurrenciesForBusinessProfiles": "TRANSFERWISE_BLOCKED_CURRENCIES_BUSINESS",
     "blockedCurrenciesForNonProfits": "TRANSFERWISE_BLOCKED_CURRENCIES_NONPROFIT"
-  },
-  "fixie": {
-    "url": "FIXIE_URL"
   },
   "hyperwatch": {
     "enabled": "HYPERWATCH_ENABLED",

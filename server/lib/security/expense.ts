@@ -88,8 +88,8 @@ const checkExpenseStats = async (
       scope,
       level: Level.PASS,
       message: `${startCase(capitalize(scope))} was successfully paid ${
-        paidInTheCollective.count
-      } times by this collective and ${paidOnThePlatform.count} times on the platform`,
+        paidInTheCollective?.count
+      } times by this collective and ${paidOnThePlatform?.count} times on the platform`,
       details,
     });
   }

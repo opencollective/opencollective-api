@@ -1,11 +1,15 @@
 import { expect } from 'chai';
+import nock from 'nock';
 import { assert, createSandbox } from 'sinon';
 
-import { formatAccountDetails, requestDataAndThrowParsedError } from '../../../server/lib/transferwise';
+import * as transferwise from '../../../server/lib/transferwise';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data';
 
 const sandbox = createSandbox();
 
 describe('server/lib/transferwise', () => {
+  after(sandbox.restore);
+
   describe('formatAccountDetails', () => {
     const accountData = {
       type: 'sort_code',
@@ -27,7 +31,7 @@ describe('server/lib/transferwise', () => {
     };
 
     it('should format account details', () => {
-      const f = formatAccountDetails(accountData);
+      const f = transferwise.formatAccountDetails(accountData);
 
       expect(f).to.include('Account Holder Name: John Malkovich');
       expect(f).to.include('IBAN: DE893219828398123');
@@ -41,7 +45,7 @@ describe('server/lib/transferwise', () => {
     });
 
     it('should format using custom labels', () => {
-      const f = formatAccountDetails({
+      const f = transferwise.formatAccountDetails({
         type: 'aba',
         details: {
           abartn: '026049293',
@@ -59,7 +63,7 @@ describe('server/lib/transferwise', () => {
     });
 
     it('should omit irrelevant information', () => {
-      const f = formatAccountDetails(accountData);
+      const f = transferwise.formatAccountDetails(accountData);
 
       expect(f).to.not.include('Is Manual Bank Transfer');
       expect(f).to.not.include('Type: sort_code');
@@ -75,27 +79,29 @@ describe('server/lib/transferwise', () => {
     });
 
     it('should request using passing parameters', async () => {
-      await requestDataAndThrowParsedError(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
-      assert.calledWith(stub, 'fake-url', { headers: { Authentication: 'Bearer fake-tokinzes' } });
+      await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
+        headers: { Authorization: 'Bearer fake-tokinzes' },
+      });
+      assert.calledWith(stub, 'fake-url', { headers: { Authorization: 'Bearer fake-tokinzes' } });
     });
 
     it('should inject post data, if passed', async () => {
-      await requestDataAndThrowParsedError(stub, 'fake-url', {
+      await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
         data: { hasBody: true },
-        headers: { Authentication: 'Bearer fake-tokinzes' },
+        headers: { Authorization: 'Bearer fake-tokinzes' },
       });
-      assert.calledWith(stub, 'fake-url', { hasBody: true }, { headers: { Authentication: 'Bearer fake-tokinzes' } });
+      assert.calledWith(stub, 'fake-url', { hasBody: true }, { headers: { Authorization: 'Bearer fake-tokinzes' } });
     });
 
     it('should extract data from the response', async () => {
       stub.resolves({ data: { fake: true } });
-      const response = await requestDataAndThrowParsedError(stub, 'fake-url', {
-        headers: { Authentication: 'Bearer fake-tokinzes' },
+      const response = await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
+        headers: { Authorization: 'Bearer fake-tokinzes' },
       });
       expect(response).to.deep.equal({ fake: true });
     });
 
-    it('should implement strong user authentication if requested', async () => {
+    it('should implement strong user authorization if requested', async () => {
       stub.onFirstCall().rejects({
         response: {
           headers: {
@@ -106,18 +112,71 @@ describe('server/lib/transferwise', () => {
       });
       stub.onSecondCall().resolves({ data: true });
 
-      await requestDataAndThrowParsedError(stub, 'fake-url', {
+      await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
         data: { cool: 'beans' },
-        headers: { Authentication: 'Bearer fake-tokinzes' },
+        headers: { Authorization: 'Bearer fake-tokinzes' },
       });
 
       const [url, data, options] = stub.secondCall.args;
       expect(url).to.equal('fake-url');
       expect(data).to.deep.equal({ cool: 'beans' });
       expect(options).to.have.property('headers');
-      expect(options.headers).to.have.property('Authentication').equal('Bearer fake-tokinzes');
+      expect(options.headers).to.have.property('Authorization').equal('Bearer fake-tokinzes');
       expect(options.headers).to.have.property('x-2fa-approval').equal('fake-token');
       expect(options.headers).to.have.property('X-Signature');
+    });
+
+    describe('with options.connectedAccount', () => {
+      let connectedAccount;
+      beforeEach(async () => {
+        connectedAccount = await fakeConnectedAccount({
+          token: 'cool',
+          refreshToken: 'refresh-cool',
+          // eslint-disable-next-line camelcase
+          data: { created_at: new Date(), expires_in: 10000 },
+        });
+
+        nock('https://api.sandbox.transferwise.tech', { encodedQueryParams: true })
+          .persist()
+          .post('/oauth/token')
+          .reply(200, { access_token: 'fresh-token', created_at: new Date(), expires_in: 10000 }); // eslint-disable-line camelcase
+      });
+
+      it('works with connectedAccount option', async () => {
+        stub.resolves({ data: { fake: true } });
+        await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
+          connectedAccount,
+        });
+
+        const [, options] = stub.firstCall.args;
+        expect(options.headers).to.have.property('Authorization').equal('Bearer cool');
+      });
+
+      it('automatically renew and retries if token is invalid', async () => {
+        stub.onCall(0).rejects({ response: { status: 401, data: { error: 'invalid_token' } } });
+        stub.onCall(1).resolves({ data: { fake: true } });
+
+        await transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
+          connectedAccount,
+        });
+
+        expect(stub.firstCall.lastArg.headers).to.have.property('Authorization').equal('Bearer cool');
+        expect(stub.secondCall.lastArg.headers).to.have.property('Authorization').equal('Bearer fresh-token');
+      });
+
+      it('gives up after 5 retries', async () => {
+        stub.rejects({ response: { status: 401, data: { error: 'invalid_token' } } });
+
+        const p = transferwise.requestDataAndThrowParsedError(stub, 'fake-url', {
+          connectedAccount,
+        });
+
+        await expect(p).to.eventually.rejectedWith(Error, 'Wise: invalid_token');
+
+        expect(stub.callCount).to.equal(5);
+        expect(stub.firstCall.lastArg.headers).to.have.property('Authorization').equal('Bearer cool');
+        expect(stub.secondCall.lastArg.headers).to.have.property('Authorization').equal('Bearer fresh-token');
+      });
     });
   });
 });

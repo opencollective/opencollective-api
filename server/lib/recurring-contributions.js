@@ -441,13 +441,14 @@ export async function createPaymentCreditCardConfirmationActivity(order) {
     type: activities.PAYMENT_CREDITCARD_CONFIRMATION,
     CollectiveId: order.CollectiveId,
     FromCollectiveId: order.FromCollectiveId,
-    HostCollectiveId: order.collective?.approvedAt ? order.collective.HostCollectiveId : null,
+    HostCollectiveId: order.collective.approvedAt ? order.collective.HostCollectiveId : null,
     OrderId: order.id,
     data: {
       order: order.info,
       collective: order.collective.info,
       fromCollective: order.fromCollective.minimal,
-      confirmOrderLink: `${config.host.website}/orders/${order.id}/confirm`,
+      confirmOrderLink: `${config.host.website}/${order.fromCollective.slug}/orders/${order.id}/confirm`,
+      paymentMethod: order.paymentMethod?.info,
     },
   });
 }

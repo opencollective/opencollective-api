@@ -1,10 +1,11 @@
 import config from 'config';
-import { DataTypes, Model, Transaction } from 'sequelize';
+import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import sequelize from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 /**
@@ -13,7 +14,7 @@ import models from '.';
 export class ExpenseAttachedFile extends Model {
   public declare readonly id: number;
   public declare ExpenseId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare url: string;
   public declare name: string;
   public declare createdAt: Date;
@@ -26,7 +27,7 @@ export class ExpenseAttachedFile extends Model {
    */
   static async createFromData(
     { url, name }: { url: string; name?: string },
-    user: typeof models.User,
+    user: User,
     expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {

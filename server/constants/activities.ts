@@ -5,6 +5,7 @@
 enum ActivityTypes {
   ACTIVITY_ALL = 'all',
   CONNECTED_ACCOUNT_CREATED = 'connected_account.created', // Not used yet
+  CONNECTED_ACCOUNT_ERROR = 'connected_account.error', // Not used yet
   // Collective creation & applications
   COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17
   COLLECTIVE_APPLY = 'collective.apply',

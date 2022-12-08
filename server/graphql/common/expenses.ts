@@ -39,16 +39,18 @@ import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
 import { hasPolicy } from '../../lib/policies';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { sequelize } from '../../models';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
 import {
   Quote as WiseQuote,
@@ -930,10 +932,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
   }
 };
 
-export async function createExpense(
-  remoteUser: typeof models.User | null,
-  expenseData: ExpenseData,
-): Promise<typeof models.Expense> {
+export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<typeof models.Expense> {
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -1430,8 +1429,12 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
 
   if (expense.currency !== expense.collective.currency) {
     throw new Error(
-      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts.',
+      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
     );
+  }
+
+  if (parseToBoolean(process.env.DISABLE_PAYPAL_ADAPTIVE) && !remoteUser.isRoot()) {
+    throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
   }
 
   try {
@@ -1442,6 +1445,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       paymentMethod.token,
     );
 
+    debug(JSON.stringify(paymentResponse));
     const { createPaymentResponse, executePaymentResponse } = paymentResponse;
 
     switch (executePaymentResponse.paymentExecStatus) {
@@ -1475,13 +1479,28 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     }
 
     // Warning senderFees can be null
-    const senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
-    const paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
+    let senderFees = createPaymentResponse.defaultFundingPlan.senderFees?.amount;
+    if (senderFees) {
+      senderFees = floatAmountToCents(parseFloat(senderFees));
+    } else {
+      // PayPal stopped providing senderFees in the response, we need to compute it ourselves
+      // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
+      const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
+      const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
+      const amountReceivedByPayee = expense.amount;
+      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
+
+      // No example yet, but we want to know if this ever happens
+      if (fundingAmount.code !== expense.currency) {
+        reportMessageToSentry(`PayPal adaptive got a funding amount with a different currency than the expense`, {
+          severity: 'error',
+        });
+      }
+    }
+
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
-    fees['paymentProcessorFeeInHostCurrency'] = Math.round(
-      hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency,
-    );
+    fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
     await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse, paymentMethod);
@@ -1497,6 +1516,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
         'Not enough funds in your existing Paypal preapproval. Please refill your PayPal payment balance.',
       );
     } else {
+      reportErrorToSentry(err);
       throw new BadRequest(err.message);
     }
   }
@@ -1876,6 +1896,12 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     try {
       // Pay expense based on chosen payout method
       if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+        if (expense.collective.currency !== host.currency) {
+          throw new Error(
+            'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
+          );
+        }
+
         const paypalEmail = payoutMethod.data.email;
         let paypalPaymentMethod = null;
         try {
@@ -1887,9 +1913,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         // then we simply mark the expense as paid
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else if (forceManual) {
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPalAdaptive(
             remoteUser,
@@ -1907,7 +1933,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           await expense.update({
             data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
           });
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else {
           const [connectedAccount] = await host.getConnectedAccounts({
             where: { service: 'transferwise', deletedAt: null },

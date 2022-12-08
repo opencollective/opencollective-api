@@ -538,7 +538,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
     beforeEach(async () => {
       await resetTestDB();
       const rootOrg = await fakeOrganization({ id: 8686, slug: 'opencollective' });
-      rootUser = await fakeUser(null, { name: 'Root user' }, { enable2FA: true });
+      rootUser = await fakeUser({ data: { isRoot: true } }, { name: 'Root user' }, { enable2FA: true });
       await rootOrg.addUserWithRole(rootUser, 'ADMIN');
     });
 

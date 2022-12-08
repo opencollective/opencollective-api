@@ -90,9 +90,17 @@ describe('server/graphql/v1/tiers', () => {
 
   before(() => {
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_B5s4wkqxtUtNyM' }));
+    sandbox.stub(stripe.tokens, 'retrieve').callsFake(() => Promise.resolve({ id: 'tok_B5s4wkqxtUtNyM', card: {} }));
 
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
+
+    sandbox
+      .stub(stripe.paymentMethods, 'create')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+    sandbox
+      .stub(stripe.paymentMethods, 'attach')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
 
     /* eslint-disable camelcase */
 

@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { toNumber } from 'lodash';
 import moment from 'moment';
 import { assert, createSandbox } from 'sinon';
 
@@ -251,17 +250,13 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('creates a new batchGroup', () => {
-      expect(createBatchGroup.called).to.be.true;
-      const [token, , batchGroupOptions] = createBatchGroup.firstCall.args;
-
-      expect(token).to.equal(connectedAccount.token);
-      expect(batchGroupOptions.currency).to.equal(host.currnecy);
+      assert.calledOnceWithMatch(createBatchGroup, { id: connectedAccount.id }, { sourceCurrency: host.currency });
     });
 
     it('creates a transaction for the expense in the batchGroup ', () => {
-      const call = createBatchGroupTransfer.firstCall;
-      expect(toNumber(call.lastArg.details.reference)).to.equal(expense.id);
-      expect(call).to.have.nested.property('args[2]', batchGroupId);
+      assert.calledOnceWithMatch(createBatchGroupTransfer, { id: connectedAccount.id }, batchGroupId, {
+        details: { reference: expense.id.toString() },
+      });
     });
 
     it('reuses existing batchGroup if available', async () => {
@@ -280,9 +275,9 @@ describe('server/paymentProviders/transferwise/index', () => {
       newExpense.PayoutMethod = payoutMethod;
       await transferwise.scheduleExpenseForPayment(newExpense);
 
-      const call = createBatchGroupTransfer.secondCall;
-      expect(toNumber(call.lastArg.details.reference)).to.equal(newExpense.id);
-      expect(call).to.have.nested.property('args[2]', batchGroupId);
+      assert.calledWithMatch(createBatchGroupTransfer, { id: connectedAccount.id }, batchGroupId, {
+        details: { reference: newExpense.id.toString() },
+      });
     });
   });
 
@@ -322,10 +317,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('should cancel existing batchGroup', () => {
-      const { args } = cancelBatchGroup.getCall(0);
-      expect(args).to.have.property('0', connectedAccount.token);
-      expect(args).to.have.property('2', batchGroupId);
-      expect(args).to.have.property('3', 6);
+      assert.calledOnceWithMatch(cancelBatchGroup, { id: connectedAccount.id }, batchGroupId, 6);
     });
 
     it('should update status and data of all expenses in the same batch', () => {
@@ -382,8 +374,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('should complete and fund batch group', () => {
-      expect(completeBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
-      expect(completeBatchGroup.firstCall).to.have.nested.property('args[3]', 1);
+      assert.calledOnceWithMatch(completeBatchGroup, { id: connectedAccount.id }, batchGroupId, 1);
 
       expect(fundBatchGroup.firstCall).to.have.nested.property('args[2]', batchGroupId);
       expect(fundBatchGroup.firstCall).to.not.have.nested.property('args[3]');
@@ -492,18 +483,22 @@ describe('server/paymentProviders/transferwise/index', () => {
     });
 
     it('should request account requirements with transaction params', () => {
-      assert.calledWithMatch(getAccountRequirements, connectedAccount.token, {
-        sourceCurrency: host.currency,
-        targetCurrency: 'EUR',
-        sourceAmount: 20,
-      });
+      assert.calledWithMatch(
+        getAccountRequirements,
+        { id: connectedAccount.id },
+        {
+          sourceCurrency: host.currency,
+          targetCurrency: 'EUR',
+          sourceAmount: 20,
+        },
+      );
     });
 
     it('should validate account requirements if accountDetails is passed as argument', async () => {
       await transferwise.getRequiredBankInformation(host, 'EUR', { details: { bankAccount: 'fake' } });
       assert.calledWithMatch(
         validateAccountRequirements,
-        connectedAccount.token,
+        { id: connectedAccount.id },
         {
           sourceCurrency: host.currency,
           targetCurrency: 'EUR',

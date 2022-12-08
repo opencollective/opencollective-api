@@ -5,8 +5,9 @@ import { pick, toLower, toString } from 'lodash';
 
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import { ValidationFailed } from '../../graphql/errors';
-import models, { sequelize } from '../../models';
+import { sequelize } from '../../models';
 import SuspendedAsset, { AssetType } from '../../models/SuspendedAsset';
+import User from '../../models/User';
 import logger from '../logger';
 import { ifStr, parseToBoolean } from '../utils';
 
@@ -25,7 +26,7 @@ const BASE_STATS_QUERY = `
     LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
 `;
 
-export const getUserStats = async (user: typeof models.User, interval?: string): Promise<FraudStats> => {
+export const getUserStats = async (user: User, interval?: string): Promise<FraudStats> => {
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
@@ -78,14 +79,14 @@ export const getCreditCardStats = async (
   return sequelize.query(
     `
     ${BASE_STATS_QUERY} 
-    WHERE pm."type" = 'creditcard'
-    AND o."deletedAt" IS NULL
+    WHERE 
+    o."deletedAt" IS NULL
+    AND pm."deletedAt" IS NULL
     ${
       fingerprint
         ? `AND pm."data"#>>'{fingerprint}' = :fingerprint`
         : `AND pm."name" = :name AND pm."data"->>'expYear' = :expYear AND pm."data"->>'expMonth' = :expMonth AND pm."data"->>'country' = :country`
     }
-   
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     {
@@ -98,10 +99,7 @@ export const getCreditCardStats = async (
 };
 
 const makeStatLimitChecker =
-  (
-    statFn: (...any) => Promise<FraudStats>,
-    args: Parameters<typeof getUserStats | typeof getIpStats | typeof getEmailStats>,
-  ) =>
+  (statFn: (...any) => Promise<FraudStats>, args: Parameters<typeof statFn>) =>
   async (limitParams: [string, number, number, number]) => {
     const [interval, ...limits] = limitParams;
     args.push(interval);
@@ -122,7 +120,7 @@ type ValidateStatOptions = {
 
 export const validateStat = async (
   statFn: (...any) => Promise<FraudStats>,
-  args: Parameters<typeof getUserStats | typeof getIpStats | typeof getEmailStats>,
+  args: Parameters<typeof statFn>,
   limitParamsString: string,
   errorMessage: string,
   options: ValidateStatOptions = {},
@@ -151,7 +149,7 @@ export const validateStat = async (
   }
 };
 
-export const checkUser = (user: typeof models.User) => {
+export const checkUser = (user: User) => {
   const assetParams = { type: AssetType.USER, fingerprint: toString(user.id) };
   return validateStat(
     getUserStats,

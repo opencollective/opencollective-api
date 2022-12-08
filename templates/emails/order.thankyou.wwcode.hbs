@@ -16,13 +16,13 @@ Subject: Thank you for your {{currency order.totalAmount currency=order.currency
 
 {{#if interval}}
   {{#if firstPayment}}
-    <p>Thank you for your donation of {{currency order.totalAmount currency=order.currency}} per {{interval}} on {{moment order.createdAt}} to {{{collective.name}}}.</p>
+    <p>Thank you for your donation of {{currency order.totalAmount currency=order.currency}} per {{interval}} on {{moment order.createdAt}} to {{collective.name}}.</p>
     {{> charge_date_notice }}
   {{else}}
     <p>Thank you for your continued support of {{{collective.name}}}, with your latest {{interval}}ly donation of {{currency order.totalAmount currency=order.currency}} on {{moment transaction.createdAt}}.</p>
   {{/if}}
 {{else}}
-<p>Thank you for your donation of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}} to {{{collective.name}}}.</p>
+<p>Thank you for your donation of {{currency order.totalAmount currency=order.currency}} on {{moment order.createdAt}} to {{collective.name}}.</p>
 {{/if}}
 
 <p>Double your impact by submitting a matching gift request through your employer. (Not sure if your employer matches, <a href="https://www.charitynavigator.org/index.cfm?bay=content.view&amp;cpid=1799">check here!</a>)</p>

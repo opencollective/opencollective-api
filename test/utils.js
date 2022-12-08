@@ -256,6 +256,7 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
     paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
     paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
+    paymentMethod: { id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
@@ -263,17 +264,12 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
   const factory = name => async () => values[name];
   sandbox.stub(stripe.tokens, 'create').callsFake(factory('token'));
 
-  sandbox.stub(stripe.customers, 'create').callsFake(async ({ source }) => {
-    if (source.startsWith('tok_chargeDeclined')) {
-      throw new Error('Your card was declined.');
-    }
-
-    return values.customer;
-  });
-
+  sandbox.stub(stripe.customers, 'create').callsFake(factory('customer'));
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
   sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
   sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
+  sandbox.stub(stripe.paymentMethods, 'create').callsFake(factory('paymentMethod'));
+  sandbox.stub(stripe.paymentMethods, 'attach').callsFake(factory('paymentMethod'));
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {

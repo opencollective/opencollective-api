@@ -2,6 +2,7 @@ import config from 'config';
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
+import { OrderItem } from 'sequelize';
 
 import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
 import models from '../../../models';
@@ -53,9 +54,9 @@ export const AccountWithContributionsFields = {
 
       const query = {
         where: { CollectiveId: account.id },
-        order: [['amount', 'ASC']],
-        limit: args.limit,
-        offset: args.offset,
+        order: [['amount', 'ASC']] as OrderItem[],
+        limit: <number>args.limit,
+        offset: <number>args.offset,
       };
       const result = await models.Tier.findAndCountAll(query);
       return { nodes: result.rows, totalCount: result.count, limit: args.limit, offset: args.offset };

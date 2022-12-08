@@ -1,5 +1,5 @@
 import { pick } from 'lodash';
-import type { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import { DataTypes, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
@@ -7,6 +7,7 @@ import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
@@ -18,7 +19,7 @@ type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string
 export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
   public declare readonly id: CreationOptional<number>;
   public declare ExpenseId: number;
-  public declare CreatedByUserId: number;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare amount: number;
   public declare url: string;
   public declare createdAt: CreationOptional<Date>;
@@ -46,7 +47,7 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
    */
   static async createFromData(
     itemData: Record<string, unknown>,
-    user: typeof models.User,
+    user: User,
     expense: typeof models.Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseItem> {
