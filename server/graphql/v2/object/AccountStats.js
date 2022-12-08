@@ -128,6 +128,11 @@ export const AccountStats = new GraphQLObjectType({
         type: new GraphQLNonNull(Amount),
         args: {
           ...TransactionArgs,
+          includeGiftCards: {
+            type: GraphQLBoolean,
+            description: 'Include transactions using Gift Cards (not working together with includeChildren)',
+            defaultValue: true,
+          },
           currency: {
             type: Currency,
           },
@@ -147,6 +152,7 @@ export const AccountStats = new GraphQLObjectType({
             startDate: dateFrom,
             endDate: dateTo,
             includeChildren: args.includeChildren,
+            includeGiftCards: args.includeChildren ? false : args.includeGiftCards,
             currency: args.currency,
           });
         },

@@ -158,15 +158,15 @@ export const loaders = req => {
 
   // Collective -  Amount Spent
   context.loaders.Collective.amountSpent = {
-    buildLoader({ net, kind, startDate, endDate, includeChildren } = {}) {
-      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
+    buildLoader({ net, kind, startDate, endDate, includeChildren, includeGiftCards } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${includeGiftCards}`;
 
       if (!context.loaders.Collective.amountSpent[key]) {
         // console.log('amountSpent', key);
 
         context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
-          getSumCollectivesAmountSpent(ids, { net, kind, startDate, endDate, includeChildren }).then(results =>
-            sortResults(ids, Object.values(results), 'CollectiveId'),
+          getSumCollectivesAmountSpent(ids, { net, kind, startDate, endDate, includeChildren, includeGiftCards }).then(
+            results => sortResults(ids, Object.values(results), 'CollectiveId'),
           ),
         );
       }

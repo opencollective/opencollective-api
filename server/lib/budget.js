@@ -131,7 +131,7 @@ export function getBalancesWithBlockedFunds(
 
 export async function getTotalAmountReceivedAmount(
   collective,
-  { loaders, net = false, kind, startDate, endDate, includeChildren, version, currency } = {},
+  { loaders, net, kind, startDate, endDate, includeChildren, version, currency } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -169,7 +169,7 @@ export async function getTotalAmountReceivedAmount(
 
 export async function getTotalAmountSpentAmount(
   collective,
-  { loaders, net = false, kind, startDate, endDate, includeChildren, version, currency } = {},
+  { loaders, net, kind, startDate, endDate, includeChildren, includeGiftCards, version, currency } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
@@ -182,6 +182,7 @@ export async function getTotalAmountSpentAmount(
     startDate,
     endDate,
     includeChildren,
+    includeGiftCards,
   };
 
   if (loaders && version === DEFAULT_BUDGET_VERSION && !net) {
@@ -206,7 +207,7 @@ export async function getTotalAmountSpentAmount(
 
 export function getSumCollectivesAmountSpent(
   collectiveIds,
-  { net = false, kind, startDate, endDate, includeChildren = false, version = DEFAULT_BUDGET_VERSION } = {},
+  { net, kind, startDate, endDate, includeChildren, includeGiftCards, version = DEFAULT_BUDGET_VERSION } = {},
 ) {
   const column = ['v0', 'v1'].includes(version)
     ? net
@@ -224,7 +225,7 @@ export function getSumCollectivesAmountSpent(
     startDate,
     endDate,
     includeChildren,
-    includeGiftCards: includeChildren ? false : true, // TODO: was TRUE, fix conflict between includeGiftCards and children
+    includeGiftCards,
     excludeInternals: true,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
@@ -442,11 +443,14 @@ export async function sumCollectivesTransactions(
   } = {},
 ) {
   const collectiveId = includeChildren
-    ? [
-        sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id')),
-        'CollectiveId',
-      ]
-    : sequelize.col('CollectiveId');
+    ? sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id'))
+    : includeGiftCards
+    ? sequelize.fn(
+        'COALESCE',
+        sequelize.col('Transaction.UsingGiftCardFromCollectiveId'),
+        sequelize.col('Transaction.CollectiveId'),
+      )
+    : sequelize.col('Transaction.CollectiveId');
 
   const amountColumns = {
     amountInCollectiveCurrency: sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('amount')), 0),
@@ -561,7 +565,7 @@ export async function sumCollectivesTransactions(
   }
 
   const attributes = [
-    collectiveId,
+    [collectiveId, 'CollectiveId'],
     [currencyColumn, 'currency'],
     [amountColumns[column], column],
     ...extraAttributes,
