@@ -1,5 +1,5 @@
 import config from 'config';
-import { get, toUpper } from 'lodash';
+import { toUpper } from 'lodash';
 import type Stripe from 'stripe';
 
 import logger from '../../lib/logger';
@@ -7,126 +7,28 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
+import Order from '../../models/Order';
 import User from '../../models/User';
 
 import {
   APPLICATION_FEE_INCOMPATIBLE_CURRENCIES,
+  attachCardToPlatformCustomer,
   createChargeTransactions,
   refundTransaction,
   refundTransactionOnlyInDatabase,
+  resolvePaymentMethodForOrder,
 } from './common';
 
 const UNKNOWN_ERROR_MSG = 'Something went wrong with the payment, please contact support@opencollective.com.';
 
 /**
- * Get or create a customer under the platform stripe account
- */
-const getOrCreateCustomerOnPlatformAccount = async ({
-  paymentMethod,
-  user,
-  collective,
-}: {
-  paymentMethod: typeof models.PaymentMethod;
-  user?: User;
-  collective?: typeof models.Collective;
-}) => {
-  if (paymentMethod.customerId) {
-    return stripe.customers.retrieve(paymentMethod.customerId);
-  }
-
-  const payload: Stripe.CustomerCreateParams = { source: paymentMethod.token };
-  if (user) {
-    payload.email = user.email;
-  }
-  if (collective) {
-    payload.description = `https://opencollective.com/${collective.slug}`;
-  }
-
-  const customer = await stripe.customers.create(payload);
-
-  paymentMethod.customerId = customer.id;
-  await paymentMethod.update({ customerId: customer.id });
-
-  return customer;
-};
-
-/**
- * Get the customerId for the Stripe Account of the Host
- * Or create one using the Stripe token associated with the platform (paymentMethod.token)
- * and saves it under PaymentMethod.data[hostStripeAccount.username]
- * @param {*} hostStripeAccount
- */
-const getOrCreateCustomerOnHostAccount = async (hostStripeAccount, { paymentMethod, user }) => {
-  // Customers pre-migration will have their stripe user connected
-  // to the platform stripe account, not to the host's stripe
-  // account. Since payment methods had no name before that
-  // migration, we're using it to test for pre-migration users;
-
-  // Well, DISCARD what is written above, these customers are coming from the Host
-  if (!paymentMethod.name) {
-    const customer = await stripe.customers.retrieve(paymentMethod.customerId, {
-      stripeAccount: hostStripeAccount.username,
-    });
-
-    if (customer) {
-      logger.info(`Pre-migration customer found: ${paymentMethod.customerId}`);
-      logger.info(JSON.stringify(customer));
-      return customer;
-    }
-
-    logger.info(`Pre-migration customer not found: ${paymentMethod.customerId}`);
-    return { id: paymentMethod.customerId };
-  }
-
-  const data = paymentMethod.data || {};
-  data.customerIdForHost = data.customerIdForHost || {};
-  if (data.customerIdForHost[hostStripeAccount.username]) {
-    return stripe.customers.retrieve(data.customerIdForHost[hostStripeAccount.username], {
-      stripeAccount: hostStripeAccount.username,
-    });
-  } else {
-    const platformStripeCustomer = await getOrCreateCustomerOnPlatformAccount({
-      paymentMethod,
-      user,
-    });
-
-    let customer;
-
-    // This is a special case where the account is the root account
-    if (hostStripeAccount.username === config.stripe.accountId) {
-      customer = platformStripeCustomer;
-    }
-
-    // This is the normal case where we create a customer on the host connected account
-    if (!customer) {
-      // More info about that
-      // - Documentation: https://stripe.com/docs/connect/shared-customers
-      // - API: https://stripe.com/docs/api/tokens/create_card
-      const token = await stripe.tokens.create(
-        { customer: platformStripeCustomer.id },
-        { stripeAccount: hostStripeAccount.username },
-      );
-
-      customer = await stripe.customers.create(
-        { source: token.id, email: user.email },
-        { stripeAccount: hostStripeAccount.username },
-      );
-    }
-
-    data.customerIdForHost[hostStripeAccount.username] = customer.id;
-    paymentMethod.data = data;
-    await paymentMethod.update({ data });
-
-    return customer;
-  }
-};
-
-/**
  * Returns a Promise with the transaction created
- * Note: we need to create a token for hostStripeAccount because paymentMethod.customerId is a customer of the platform
- * See: Shared Customers: https://stripe.com/docs/connect/shared-customers
+ * Creates and confirms a payment intent, on success creates associated transactions
  */
-const createChargeAndTransactions = async (hostStripeAccount, { order, hostStripeCustomer }) => {
+const createChargeAndTransactions = async (
+  hostStripeAccount,
+  { order, stripePaymentMethod }: { order: typeof Order; stripePaymentMethod: { id: string; customer: string } },
+) => {
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
     ? false
@@ -145,7 +47,7 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
-      customer: hostStripeCustomer.id,
+      customer: stripePaymentMethod.customer,
       description: order.description,
       confirm: false,
       confirmation_method: 'manual',
@@ -167,13 +69,13 @@ const createChargeAndTransactions = async (hostStripeAccount, { order, hostStrip
     } else if (!order.processedAt && order.data.savePaymentMethod) {
       createPayload.setup_future_usage = 'on_session';
     }
-    // Add Payment Method ID if it's available
-    const paymentMethodId = get(hostStripeCustomer, 'default_source', get(hostStripeCustomer, 'sources.data[0].id'));
-    if (paymentMethodId) {
-      createPayload.payment_method = paymentMethodId;
+
+    const stripePaymentMethodId = stripePaymentMethod?.id;
+    if (stripePaymentMethodId) {
+      createPayload.payment_method = stripePaymentMethodId;
     } else {
-      logger.info('paymentMethod is missing in hostStripeCustomer to pass to Payment Intent.');
-      logger.info(JSON.stringify(hostStripeCustomer));
+      logger.info('paymentMethod is missing in paymentMethod to pass to Payment Intent.');
+      logger.info(JSON.stringify(stripePaymentMethod));
     }
     paymentIntent = await stripe.paymentIntents.create(createPayload, {
       stripeAccount: hostStripeAccount.username,
@@ -212,13 +114,7 @@ export const setupCreditCard = async (
   paymentMethod: typeof models.PaymentMethod,
   { user, collective }: { user?: User; collective?: typeof models.Collective } = {},
 ) => {
-  const platformStripeCustomer = (await getOrCreateCustomerOnPlatformAccount({
-    paymentMethod,
-    user,
-    collective,
-  })) as Stripe.Response<Stripe.Customer>;
-
-  const paymentMethodId = platformStripeCustomer.sources.data[0].id;
+  paymentMethod = await attachCardToPlatformCustomer(paymentMethod, collective, user);
 
   let setupIntent;
   if (paymentMethod.data.setupIntent) {
@@ -227,8 +123,8 @@ export const setupCreditCard = async (
   }
   if (!setupIntent) {
     setupIntent = await stripe.setupIntents.create({
-      customer: platformStripeCustomer.id,
-      payment_method: paymentMethodId, // eslint-disable-line camelcase
+      customer: paymentMethod.customerId,
+      payment_method: paymentMethod.data?.stripePaymentMethodId, // eslint-disable-line camelcase
       confirm: true,
     });
   }
@@ -262,14 +158,10 @@ export default {
 
     let transactions;
     try {
-      const hostStripeCustomer = await getOrCreateCustomerOnHostAccount(hostStripeAccount, {
-        paymentMethod: order.paymentMethod,
-        user: order.createdByUser,
-      });
-
+      const stripePaymentMethod = await resolvePaymentMethodForOrder(hostStripeAccount.username, order);
       transactions = await createChargeAndTransactions(hostStripeAccount, {
         order,
-        hostStripeCustomer,
+        stripePaymentMethod,
       });
     } catch (error) {
       // Here, we check strictly the error message
