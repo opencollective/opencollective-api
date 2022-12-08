@@ -556,7 +556,7 @@ export async function sumCollectivesTransactions(
   // Initialize totals
   if (ids) {
     for (const CollectiveId of ids) {
-      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0, groupBy: {} };
+      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
     }
   }
 
@@ -612,8 +612,8 @@ export async function sumCollectivesTransactions(
     // Add group by attributes if any, with amount and extra attributes
     for (let attr of groupByAttributes) {
       attr = Array.isArray(attr) ? attr[1] : attr;
-      if (!totals[CollectiveId]['groupBy']) {
-        totals[CollectiveId]['groupBy'] = {};
+      if (!totals[CollectiveId].groupBy) {
+        totals[CollectiveId].groupBy = {};
       }
       if (!totals[CollectiveId].groupBy[attr]) {
         totals[CollectiveId].groupBy[attr] = {};
