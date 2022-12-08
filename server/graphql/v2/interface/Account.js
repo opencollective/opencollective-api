@@ -1,4 +1,12 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
@@ -15,6 +23,7 @@ import { BadRequest } from '../../errors';
 import { CollectiveFeatures } from '../../v1/CollectiveInterface.js';
 import { AccountCollection } from '../collection/AccountCollection';
 import { ConversationCollection } from '../collection/ConversationCollection';
+import { ExpenseCollection } from '../collection/ExpenseCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { OrderCollection } from '../collection/OrderCollection';
@@ -46,6 +55,7 @@ import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
+import { ExpensesCollectionArgs, ExpensesCollectionResolver } from '../query/collection/ExpensesCollectionQuery';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
@@ -670,6 +680,31 @@ const accountOrders = {
   },
 };
 
+const accountExpenses = {
+  type: new GraphQLNonNull(ExpenseCollection),
+  args: {
+    ...ExpensesCollectionArgs,
+    direction: new GraphQLEnumType({
+      name: 'AccountExpenseDirection',
+      values: {
+        SUBMITTED: { description: 'Only return authored expenses' },
+        RECEIVED: { description: 'Only return received expenses' },
+        AUTO: { description: 'Will return RECEIVED for user profiles, SUBMITTED for all others' },
+      },
+    }),
+  },
+  async resolve(collective, args, req) {
+    const accountArgs = {};
+    if (args.direction === 'SUBMITTED' || (args.direction === 'AUTO' && collective.type === 'USER')) {
+      accountArgs.fromAccount = { legacyId: collective.id };
+    } else {
+      accountArgs.account = { legacyId: collective.id };
+    }
+
+    return ExpensesCollectionResolver({ ...accountArgs, ...args }, req);
+  },
+};
+
 const accountWebhooks = {
   type: new GraphQLNonNull(WebhookCollection),
   args: {
@@ -772,6 +807,7 @@ export const AccountFields = {
   },
   transactions: accountTransactions,
   orders: accountOrders,
+  expenses: accountExpenses,
   conversations: {
     type: new GraphQLNonNull(ConversationCollection),
     args: {
