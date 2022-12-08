@@ -131,55 +131,66 @@ export function getBalancesWithBlockedFunds(
 
 export async function getTotalAmountReceivedAmount(
   collective,
-  { startDate, endDate, currency, version, kind, includeChildren } = {},
-) {
-  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
-  currency = currency || collective.currency;
-
-  const collectiveIds = await getCollectiveIds(collective, includeChildren);
-
-  const results = await sumCollectivesTransactions(collectiveIds, {
-    startDate,
-    endDate,
-    column: ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency',
-    transactionType: CREDIT,
-    kind: kind,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-    excludeInternals: true,
-  });
-
-  // Sum and convert to final currency
-  const value = await sumTransactionsInCurrency(results, currency);
-
-  return { value, currency };
-}
-
-export async function getTotalAmountSpentAmount(
-  collective,
-  { loaders, startDate, endDate, currency, version, kind, includeChildren, net } = {},
+  { loaders, net = false, kind, startDate, endDate, includeChildren, version, currency } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
   let result;
 
-  if (loaders && version === DEFAULT_BUDGET_VERSION && !net) {
-    const amountSpentLoader = loaders.Collective.amountSpent.buildLoader({
-      includeChildren,
-      startDate,
-      endDate,
-      kind,
+  const transactionArgs = {
+    net,
+    kind,
+    startDate,
+    endDate,
+    includeChildren,
+  };
+
+  // Optimized version using loaders
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
+    const amountReceivedLoader = loaders.Collective.amountReceived.buildLoader(transactionArgs);
+    result = await amountReceivedLoader.load(collective.id);
+  } else {
+    const results = await getSumCollectivesAmountReceived([collective.id], {
+      ...transactionArgs,
+      version,
     });
+    // Coming from sumCollectivesTransactions, we're guaranteed to have only one result per Collective
+    result = results[collective.id];
+  }
+
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  const fxRate = await getFxRate(result.currency, currency);
+  return {
+    value: Math.round(result.value * fxRate),
+    currency,
+  };
+}
+
+export async function getTotalAmountSpentAmount(
+  collective,
+  { loaders, net = false, kind, startDate, endDate, includeChildren, version, currency } = {},
+) {
+  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
+  currency = currency || collective.currency;
+
+  let result;
+
+  const transactionArgs = {
+    net,
+    kind,
+    startDate,
+    endDate,
+    includeChildren,
+  };
+
+  if (loaders && version === DEFAULT_BUDGET_VERSION && !net) {
+    const amountSpentLoader = loaders.Collective.amountSpent.buildLoader(transactionArgs);
     result = await amountSpentLoader.load(collective.id);
   } else {
     const results = await getSumCollectivesAmountSpent([collective.id], {
-      startDate,
-      endDate,
-      currency,
+      ...transactionArgs,
       version,
-      includeChildren,
-      kind,
-      net,
     });
     // Coming from sumCollectivesTransactions, we're guaranteed to have only one result per Collective
     result = results[collective.id];
@@ -195,24 +206,27 @@ export async function getTotalAmountSpentAmount(
 
 export function getSumCollectivesAmountSpent(
   collectiveIds,
-  { startDate, endDate, currency, net, version = DEFAULT_BUDGET_VERSION, includeChildren = false, kind } = {},
+  { net = false, kind, startDate, endDate, includeChildren = false, version = DEFAULT_BUDGET_VERSION } = {},
 ) {
-  let column = ['v0', 'v1'].includes(version) ? 'amountInCollectiveCurrency' : 'amountInHostCurrency';
-  // NOTE: net === true, this is a deprecated behavior that we're keeping for totalAmountSpent in GraphQL v1
-  if (net === true) {
-    column = ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency';
-  }
+  const column = ['v0', 'v1'].includes(version)
+    ? net
+      ? 'netAmountInCollectiveCurrency'
+      : 'amountInCollectiveCurrency'
+    : net
+    ? 'netAmountInHostCurrency'
+    : 'amountInHostCurrency';
+  const transactionType = DEBIT;
+
   return sumCollectivesTransactions(collectiveIds, {
+    column,
+    transactionType,
+    kind,
     startDate,
     endDate,
-    column,
-    currency,
-    transactionType: DEBIT,
-    kind,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-    excludeInternals: true,
     includeChildren,
     includeGiftCards: includeChildren ? false : true, // TODO: was TRUE, fix conflict between includeGiftCards and children
+    excludeInternals: true,
+    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
 }
 
@@ -248,42 +262,6 @@ export async function getTotalAmountPaidExpenses(collective, { startDate, endDat
   return { value, currency };
 }
 
-export async function getTotalNetAmountReceivedAmount(
-  collective,
-  { loaders, startDate, endDate, currency, version, includeChildren } = {},
-) {
-  version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
-  currency = currency || collective.currency;
-
-  let result;
-
-  // Optimized version using loaders
-  if (loaders && version === DEFAULT_BUDGET_VERSION) {
-    const netAmountReceivedLoader = loaders.Collective.netAmountReceived.buildLoader({
-      includeChildren,
-      startDate,
-      endDate,
-    });
-    result = await netAmountReceivedLoader.load(collective.id);
-  } else {
-    const results = await getSumCollectivesNetAmountReceived([collective.id], {
-      startDate,
-      endDate,
-      version,
-      includeChildren,
-    });
-    // Coming from sumCollectivesTransactions, we're guaranteed to have only one result per Collective
-    result = results[collective.id];
-  }
-
-  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
-  const fxRate = await getFxRate(result.currency, currency);
-  return {
-    value: Math.round(result.value * fxRate),
-    currency,
-  };
-}
-
 export async function getContributionsAndContributorsCount(
   collective,
   { loaders, startDate, endDate, includeChildren } = {},
@@ -299,12 +277,12 @@ export async function getContributionsAndContributorsCount(
     result = await contributionsAndContributorsCountLoader.load(collective.id);
   } else {
     const results = await sumCollectivesTransactions([collective.id], {
-      column: 'amountInHostCurrency',
+      column: 'amountInHostCurrency', // one expected but doesn't matter
+      transactionType: CREDIT,
+      kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
       startDate,
       endDate,
       includeChildren,
-      kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
-      transactionType: CREDIT,
       extraAttributes: [
         [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
         [
@@ -320,29 +298,30 @@ export async function getContributionsAndContributorsCount(
   return { contributionsCount: result.count ?? 0, contributorsCount: result.countDistinctFromCollective ?? 0 };
 }
 
-export async function getTotalNetAmountReceivedTimeSeries(
+export async function getTotalAmountReceivedTimeSeries(
   collective,
-  { loaders, startDate, endDate, timeUnit, currency, version, includeChildren } = {},
+  { loaders, net, startDate, endDate, timeUnit, currency, version, includeChildren } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
+
   let result;
+
+  const transactionArgs = {
+    net,
+    startDate,
+    endDate,
+    includeChildren,
+  };
 
   // Optimized version using loaders
   if (loaders && version === DEFAULT_BUDGET_VERSION) {
-    const netAmountReceivedTimeSeriesLoader = loaders.Collective.netAmountReceivedTimeSeries.buildLoader({
-      includeChildren,
-      startDate,
-      endDate,
-      timeUnit,
-    });
-    result = await netAmountReceivedTimeSeriesLoader.load(collective.id);
+    const amountReceivedTimeSeriesLoader = loaders.Collective.amountReceivedTimeSeries.buildLoader(transactionArgs);
+    result = await amountReceivedTimeSeriesLoader.load(collective.id);
   } else {
-    const results = await getSumCollectivesNetAmountReceived([collective.id], {
-      startDate,
-      endDate,
+    const results = await getSumCollectivesAmountReceived([collective.id], {
+      ...transactionArgs,
       version,
-      includeChildren,
       groupByAttributes: [[sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']],
     });
 
@@ -366,25 +345,36 @@ export async function getTotalNetAmountReceivedTimeSeries(
   };
 }
 
-export function getSumCollectivesNetAmountReceived(
+export function getSumCollectivesAmountReceived(
   collectiveIds,
   {
+    net = false,
+    kind,
     startDate,
     endDate,
-    version = DEFAULT_BUDGET_VERSION,
     includeChildren = false,
+    version = DEFAULT_BUDGET_VERSION,
     groupByAttributes,
     extraAttributes,
   } = {},
 ) {
+  const column = ['v0', 'v1'].includes(version)
+    ? net
+      ? 'netAmountInCollectiveCurrency'
+      : 'amountInCollectiveCurrency'
+    : net
+    ? 'netAmountInHostCurrency'
+    : 'amountInHostCurrency';
+  const transactionType = net ? 'NET_CREDIT' : CREDIT;
+
   return sumCollectivesTransactions(collectiveIds, {
-    transactionType: 'NET_CREDIT',
+    column,
+    transactionType,
+    kind,
     startDate,
     endDate,
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: false,
     includeChildren,
+    excludeRefunds: false,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     groupByAttributes,
     extraAttributes,
@@ -437,16 +427,16 @@ export async function sumCollectivesTransactions(
   ids,
   {
     column,
+    transactionType = null,
+    kind = null,
     startDate = null,
     endDate = null,
-    transactionType = null,
     excludeRefunds = true,
     withBlockedFunds = false,
     hostCollectiveId = null,
     excludeInternals = false,
     includeGiftCards = false,
     includeChildren = false,
-    kind,
     groupByAttributes = [],
     extraAttributes = [],
   } = {},
@@ -528,7 +518,7 @@ export async function sumCollectivesTransactions(
     if (transactionType === 'NET_CREDIT') {
       where = {
         ...where,
-        [Op.or]: [{ type: 'CREDIT' }, { type: 'DEBIT', kind: 'HOST_FEE' }],
+        [Op.or]: [{ type: CREDIT }, { type: DEBIT, kind: 'HOST_FEE' }],
       };
     } else {
       where.type = transactionType;

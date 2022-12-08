@@ -192,6 +192,8 @@ export const AccountStats = new GraphQLObjectType({
           }
 
           return collective.getTotalAmountReceivedAmount({
+            loaders: req.loaders,
+            net: false,
             kind,
             startDate: dateFrom,
             endDate: dateTo,
@@ -261,7 +263,6 @@ export const AccountStats = new GraphQLObjectType({
           ...TransactionArgs,
         },
         async resolve(collective, args, req) {
-          console.log('totalNetAmountReceived', args);
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
           let { dateFrom, dateTo } = args;
 
@@ -269,8 +270,9 @@ export const AccountStats = new GraphQLObjectType({
             dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
             dateTo = null;
           }
-          return collective.getTotalNetAmountReceivedAmount({
+          return collective.getTotalAmountReceivedAmount({
             loaders: req.loaders,
+            net: true,
             kind,
             startDate: dateFrom,
             endDate: dateTo,
@@ -299,8 +301,9 @@ export const AccountStats = new GraphQLObjectType({
             dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
             dateTo = null;
           }
-          return collective.getTotalNetAmountReceivedTimeSeries({
+          return collective.getTotalAmountReceivedTimeSeries({
             loaders: req.loaders,
+            net: true,
             kind,
             startDate: dateFrom,
             endDate: dateTo,

@@ -49,10 +49,9 @@ import {
   getContributionsAndContributorsCount,
   getTotalAmountPaidExpenses,
   getTotalAmountReceivedAmount,
+  getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
   getTotalMoneyManagedAmount,
-  getTotalNetAmountReceivedAmount,
-  getTotalNetAmountReceivedTimeSeries,
   getYearlyIncome,
 } from '../lib/budget';
 import { purgeCacheForCollective } from '../lib/cache';
@@ -2789,16 +2788,8 @@ Collective.prototype.getTotalPaidExpenses = function (options) {
   return getTotalAmountPaidExpenses(this, options).then(result => result.value);
 };
 
-Collective.prototype.getTotalNetAmountReceivedAmount = function (options) {
-  return getTotalNetAmountReceivedAmount(this, options);
-};
-
-Collective.prototype.getTotalNetAmountReceived = function (options) {
-  return getTotalNetAmountReceivedAmount(this, options).then(result => result.value);
-};
-
-Collective.prototype.getTotalNetAmountReceivedTimeSeries = function (options) {
-  return getTotalNetAmountReceivedTimeSeries(this, options);
+Collective.prototype.getTotalAmountReceivedTimeSeries = function (options) {
+  return getTotalAmountReceivedTimeSeries(this, options);
 };
 
 Collective.prototype.getContributionsAndContributorsCount = function (options) {

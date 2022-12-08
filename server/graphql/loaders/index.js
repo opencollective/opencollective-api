@@ -9,8 +9,8 @@ import { TransactionTypes } from '../../constants/transactions';
 import {
   getBalances,
   getBalancesWithBlockedFunds,
+  getSumCollectivesAmountReceived,
   getSumCollectivesAmountSpent,
-  getSumCollectivesNetAmountReceived,
   sumCollectivesTransactions,
 } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
@@ -113,32 +113,38 @@ export const loaders = req => {
     getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
 
-  // Collective - Net Amount Received
-  context.loaders.Collective.netAmountReceived = {
-    buildLoader({ startDate, endDate, includeChildren } = {}) {
-      const key = `${startDate}-${endDate}-${includeChildren}`;
-      if (!context.loaders.Collective.netAmountReceived[key]) {
-        // console.log('netAmount', key);
+  // Collective - Amount Received
+  context.loaders.Collective.amountReceived = {
+    buildLoader({ net, kind, startDate, endDate, includeChildren } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
+      if (!context.loaders.Collective.amountReceived[key]) {
+        // console.log('amountReceived', key);
 
-        context.loaders.Collective.netAmountReceived[key] = new DataLoader(ids =>
-          getSumCollectivesNetAmountReceived(ids, { startDate, endDate, includeChildren }).then(results =>
-            sortResults(ids, Object.values(results), 'CollectiveId'),
-          ),
+        context.loaders.Collective.amountReceived[key] = new DataLoader(ids =>
+          getSumCollectivesAmountReceived(ids, {
+            net,
+            kind,
+            startDate,
+            endDate,
+            includeChildren,
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
-      return context.loaders.Collective.netAmountReceived[key];
+      return context.loaders.Collective.amountReceived[key];
     },
   };
 
-  // Collective - Net Amount Received Time Series
-  context.loaders.Collective.netAmountReceivedTimeSeries = {
-    buildLoader({ startDate, endDate, includeChildren, timeUnit } = {}) {
-      const key = `${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
-      if (!context.loaders.Collective.netAmountReceivedTimeSeries[key]) {
-        // console.log('netReceivedTimeSeries', key);
+  // Collective - Amount Received Time Series
+  context.loaders.Collective.amountReceivedTimeSeries = {
+    buildLoader({ net, kind, startDate, endDate, includeChildren, timeUnit } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
+      if (!context.loaders.Collective.amountReceivedTimeSeries[key]) {
+        // console.log('amountReceivedTimeSeries', key);
 
-        context.loaders.Collective.netAmountReceivedTimeSeries[key] = new DataLoader(ids =>
-          getSumCollectivesNetAmountReceived(ids, {
+        context.loaders.Collective.amountReceivedTimeSeries[key] = new DataLoader(ids =>
+          getSumCollectivesAmountReceived(ids, {
+            net,
+            kind,
             startDate,
             endDate,
             includeChildren,
@@ -146,20 +152,20 @@ export const loaders = req => {
           }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
-      return context.loaders.Collective.netAmountReceivedTimeSeries[key];
+      return context.loaders.Collective.amountReceivedTimeSeries[key];
     },
   };
 
   // Collective -  Amount Spent
   context.loaders.Collective.amountSpent = {
-    buildLoader({ startDate, endDate, includeChildren, kind } = {}) {
-      const key = `${startDate}-${endDate}-${includeChildren}-${kind}`;
+    buildLoader({ net, kind, startDate, endDate, includeChildren } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
 
       if (!context.loaders.Collective.amountSpent[key]) {
         // console.log('amountSpent', key);
 
         context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
-          getSumCollectivesAmountSpent(ids, { startDate, endDate, includeChildren, kind }).then(results =>
+          getSumCollectivesAmountSpent(ids, { net, kind, startDate, endDate, includeChildren }).then(results =>
             sortResults(ids, Object.values(results), 'CollectiveId'),
           ),
         );
