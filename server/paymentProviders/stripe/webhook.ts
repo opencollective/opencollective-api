@@ -507,6 +507,10 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
 async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
+  if (!['us_bank_account', 'sepa_debit'].includes(stripePaymentMethod.type)) {
+    return;
+  }
+
   const stripeAccount = event.account ?? config.stripe.accountId;
 
   const stripeCustomerId = stripePaymentMethod.customer;
