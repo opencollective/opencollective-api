@@ -200,6 +200,7 @@ export const searchCollectivesInDB = async (
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
+    dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
   }
 
   if (parentCollectiveIds && parentCollectiveIds.length > 0) {
