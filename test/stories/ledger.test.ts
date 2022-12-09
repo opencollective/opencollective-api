@@ -9,6 +9,7 @@ import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
+import Stripe from 'stripe';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../server/constants/transaction-kind';
@@ -598,12 +599,12 @@ describe('test/stories/ledger', () => {
 
       await models.Transaction.update(
         {
-          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
           HostCollectiveId: host.id,
         },
         { where: { OrderId: order.id } },
       );
-      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
+      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
     };
 
     it('1. Dispute is created', async () => {
@@ -618,7 +619,7 @@ describe('test/stories/ledger', () => {
     it('2. Dispute is created and then closed as lost', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance(), 'Total Balance').to.eq(0);
@@ -628,7 +629,7 @@ describe('test/stories/ledger', () => {
     it('3. Dispute is created and then closed as won', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance(), 'Total Balance').to.eq(9500);
