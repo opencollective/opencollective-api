@@ -216,7 +216,7 @@ export function getSumCollectivesAmountSpent(
     : net
     ? 'netAmountInHostCurrency'
     : 'amountInHostCurrency';
-  const transactionType = DEBIT;
+  const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
 
   return sumCollectivesTransactions(collectiveIds, {
     column,
@@ -226,6 +226,7 @@ export function getSumCollectivesAmountSpent(
     endDate,
     includeChildren,
     includeGiftCards,
+    excludeRefunds: true, // default, make it explicit
     excludeInternals: true,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
@@ -369,7 +370,7 @@ export function getSumCollectivesAmountReceived(
     : net
     ? 'netAmountInHostCurrency'
     : 'amountInHostCurrency';
-  const transactionType = net ? 'NET_CREDIT' : CREDIT;
+  const transactionType = net ? 'CREDIT_WITH_HOST_FEE' : CREDIT;
 
   return sumCollectivesTransactions(collectiveIds, {
     column,
@@ -378,7 +379,8 @@ export function getSumCollectivesAmountReceived(
     startDate,
     endDate,
     includeChildren,
-    excludeRefunds: false,
+    excludeRefunds: true, // default, make it explicit
+    excludeInternals: true,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
     groupByAttributes,
     extraAttributes,
@@ -522,7 +524,12 @@ export async function sumCollectivesTransactions(
     }
   }
   if (transactionType) {
-    if (transactionType === 'NET_CREDIT') {
+    if (transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
+      where = {
+        ...where,
+        [Op.and]: [{ type: DEBIT, kind: { [Op.not]: 'HOST_FEE' } }],
+      };
+    } else if (transactionType === 'CREDIT_WITH_HOST_FEE') {
       where = {
         ...where,
         [Op.or]: [{ type: CREDIT }, { type: DEBIT, kind: 'HOST_FEE' }],
