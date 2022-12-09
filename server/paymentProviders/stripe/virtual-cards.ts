@@ -1,14 +1,17 @@
 import config from 'config';
 import { omit, pick } from 'lodash';
+import type Stripe from 'stripe';
 
 import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import VirtualCardProviders from '../../constants/virtual_card_providers';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
 import models from '../../models';
+import VirtualCard from '../../models/VirtualCard';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
@@ -75,7 +78,9 @@ export const createVirtualCard = async (
       spending_limits: [
         {
           amount: limitAmount,
-          interval: limitInterval.toLowerCase(),
+          interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
+            limitInterval.toLowerCase()
+          ),
         },
       ],
     },
@@ -104,14 +109,16 @@ export const updateVirtualCardLimit = async (
       spending_limits: [
         {
           amount: limitAmount,
-          interval: limitInterval.toLowerCase(),
+          interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
+            limitInterval.toLowerCase()
+          ),
         },
       ],
     },
   });
 };
 
-const setCardStatus = async (virtualCard, status = 'canceled' | 'active' | 'inactive') => {
+const setCardStatus = async (virtualCard: VirtualCard, status: Stripe.Issuing.CardUpdateParams.Status) => {
   const host = await virtualCard.getHost();
   const stripe = await getStripeClient(host);
 
@@ -335,7 +342,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
     CollectiveId: collectiveId,
     HostCollectiveId: hostId,
     UserId: userId,
-    provider: 'STRIPE',
+    provider: VirtualCardProviders.STRIPE,
     spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
     currency: stripeCard.currency.toUpperCase(),
