@@ -535,8 +535,9 @@ export const ContributorType = new GraphQLObjectType({
       description: 'True if the contributor is a financial contributor',
     },
     isFundraiser: {
-      type: new GraphQLNonNull(GraphQLBoolean),
+      type: GraphQLBoolean,
       description: 'True if the contributor is a fundraiser',
+      deprecationReason: '2022-09-12: This role does not exist anymore',
     },
     tiersIds: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLInt)),
