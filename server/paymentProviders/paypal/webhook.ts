@@ -18,6 +18,7 @@ import { PayoutWebhookRequest } from '../../types/paypal';
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON } from './subscription';
 
 const debug = Debug('paypal:webhook');
 
@@ -59,8 +60,8 @@ const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: str
 
   const order = await models.Order.findOne({
     include: [
-      { association: 'fromCollective' },
-      { association: 'createdByUser' },
+      { association: 'fromCollective', required: false },
+      { association: 'createdByUser', required: false },
       { association: 'collective', required: true },
       {
         association: 'Subscription',
@@ -254,6 +255,11 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
  */
 async function handleSubscriptionCancelled(req: Request): Promise<void> {
   const subscription = req.body.resource;
+  if (subscription['status_change_note'] === CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON) {
+    // Ignore, this is a subscription that was updated by the user through the edit subscription page
+    return;
+  }
+
   const { order } = await loadSubscriptionForWebhookEvent(req, subscription.id);
   if (order.status !== OrderStatus.CANCELLED) {
     await order.update({

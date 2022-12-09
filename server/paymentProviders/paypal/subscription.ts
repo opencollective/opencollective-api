@@ -17,6 +17,8 @@ import { PaymentProviderService } from '../types';
 import { paypalRequest } from './api';
 import { refundPaypalCapture } from './payment';
 
+export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
+
 export const cancelPaypalSubscription = async (
   order: typeof models.Order,
   reason = undefined,
@@ -218,7 +220,7 @@ export const setupPaypalSubscriptionForOrder = async (
     if (existingSubscription) {
       // Cancel existing PayPal subscription
       if (existingSubscription.paypalSubscriptionId) {
-        await cancelPaypalSubscription(order, 'Updated subscription');
+        await cancelPaypalSubscription(order, CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON);
       }
 
       // Update the subscription with the new params
