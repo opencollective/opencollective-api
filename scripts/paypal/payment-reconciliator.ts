@@ -227,26 +227,40 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
   }
 
   // Load host from subscription
+  const requiredAssociations = ['paymentMethod', 'createdByUser', 'collective', 'fromCollective'];
   const order = await models.Order.findOne({
-    where: { SubscriptionId: subscription.id },
-    include: [{ association: 'paymentMethod', required: false }],
     paranoid: false,
+    where: { SubscriptionId: subscription.id },
+    include: requiredAssociations.map(association => ({ association, required: false, paranoid: false })),
   });
 
-  const collective = await order?.getCollective({ paranoid: false });
-  const host = await collective?.getHostCollective({ paranoid: false });
-  if (!host) {
+  if (!order) {
+    logger.error(`Could not find order for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
+    return;
+  }
+
+  const host = await order.collective?.getHostCollective({ paranoid: false });
+  if (!host || host.deletedAt) {
     logger.error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
     return;
-  } else if (subscription.deletedAt || order.deletedAt || collective.deletedAt || host.deletedAt) {
-    // TODO more data type can actually be deleted (e.g. payment method), investigate for I-XNHFUPYC1LFX
+  } else if (!requiredAssociations.every(association => order[association] && !order[association].deletedAt)) {
     logger.error(
-      `Subscription has deleted entities, please restore them first. Subscription: ${Boolean(
-        subscription.deletedAt,
-      )}, Order: ${Boolean(order.deletedAt)}, Collective: ${Boolean(collective.deletedAt)}, Host: ${Boolean(
-        host.deletedAt,
+      `Could not find all required entities for PayPal subscription ${paypalSubscriptionId} (#${
+        subscription.id
+      }): ${requiredAssociations.map(association => `${association}: ${Boolean(order[association])}`)}`,
+    );
+    return;
+  } else if (
+    subscription.deletedAt ||
+    order.deletedAt ||
+    !requiredAssociations.every(association => !order[association].deletedAt)
+  ) {
+    logger.error(
+      `Subscription ${subscription.id} has deleted entities, please restore them first: ${requiredAssociations.map(
+        association => `${association}: ${Boolean(order[association])}`,
       )}`,
     );
+    return;
   }
 
   do {
@@ -276,7 +290,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
 
       for (const paypalTransaction of notRecordedPaypalTransactions) {
         console.log(
-          `PayPal transaction ${paypalTransaction.id} to https://opencollective.com/${collective.slug} needs to be recorded in DB`,
+          `PayPal transaction ${paypalTransaction.id} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB`,
         );
         if (options['fix']) {
           await recordPaypalTransaction(order, paypalTransaction, {
@@ -287,9 +301,8 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       }
     }
 
-    // Cancel the order / subscription
     if (
-      // If it's cancelled in the API
+      // Cancel the order / subscription if it's cancelled in the API
       responseSubscription.status === 'CANCELLED' &&
       order.status !== OrderStatus.CANCELLED &&
       // And it is not using another payment method
@@ -304,6 +317,14 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
           isActive: false,
           deactivatedAt: new Date(responseSubscription['status_update_time'] as string),
         });
+      }
+    } else if (responseSubscription.status === 'ACTIVE' && order.status !== OrderStatus.ACTIVE) {
+      console.log(`Order #${order.id} active in PayPal but not in DB`);
+      if (options['fix']) {
+        await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
+        if (!subscription.activatedAt || !subscription.isActive) {
+          await subscription.update({ activatedAt: new Date(), isActive: true });
+        }
       }
     }
 
