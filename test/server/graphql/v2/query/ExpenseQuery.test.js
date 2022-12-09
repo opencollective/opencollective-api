@@ -163,7 +163,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
               id
               html
               createdAt
-              collective {
+              account {
                 id
                 slug
                 currency

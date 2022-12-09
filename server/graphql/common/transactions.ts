@@ -5,7 +5,10 @@ import { roles } from '../../constants';
 import orderStatus from '../../constants/order_status';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
+import * as libPayments from '../../lib/payments';
+import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
+import { Forbidden, NotFound } from '../errors';
 
 const getPayee = async (req, transaction) => {
   let column;
@@ -175,3 +178,54 @@ export const canReject = async (
     return remoteUserMeetsOneCondition(req, transaction, [isRoot, isPayeeHostAdmin, isPayeeCollectiveAdmin]);
   }
 };
+
+export async function refundTransaction(
+  passedTransaction: typeof models.Transaction,
+  req: express.Request,
+  args: { message?: string } = {},
+) {
+  // 0. Retrieve transaction from database
+  const transaction = await models.Transaction.findByPk(passedTransaction.id, {
+    include: [
+      models.Order,
+      models.PaymentMethod,
+      { association: 'collective', required: false },
+      { association: 'fromCollective', required: false },
+    ],
+  });
+
+  if (!transaction) {
+    throw new NotFound('Transaction not found');
+  }
+
+  // 1a. Verify user permission using canRefund. User must be either
+  //   a. Admin of the collective that received the donation
+  //   b. Admin of the Host Collective that received the donation
+  //   c. Admin of opencollective.com/opencollective
+  // 1b. Check transaction age - only Host admins can refund transactions older than 30 days
+  // 1c. The transaction type must be CREDIT to prevent users from refunding their own DEBITs
+
+  const canUserRefund = await canRefund(transaction, undefined, req);
+  if (!canUserRefund) {
+    throw new Forbidden('Cannot refund this transaction');
+  }
+
+  // Check 2FA
+  const collective = transaction.type === 'CREDIT' ? transaction.collective : transaction.fromCollective;
+  if (collective && req.remoteUser.isAdminOfCollective(collective)) {
+    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+  } else {
+    const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
+    if (req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId)) {
+      await twoFactorAuthLib.enforceForAccountAdmins(req, await creditTransaction.getHostCollective());
+    }
+  }
+
+  // 2. Refund via payment method
+  // 3. Create new transactions with the refund value in our database
+  const result = await libPayments.refundTransaction(transaction, req.remoteUser, args.message);
+
+  // Return the transaction passed to the `refundTransaction` method
+  // after it was updated.
+  return result;
+}

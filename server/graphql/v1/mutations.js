@@ -3,7 +3,6 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
-import { sendMessage } from '../common/collective';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
 import { NotFound, Unauthorized } from '../errors';
@@ -24,7 +23,7 @@ import {
 } from './mutations/collectives';
 import { editConnectedAccount } from './mutations/connectedAccounts';
 import { createWebhook, deleteNotification, editWebhooks } from './mutations/notifications';
-import { confirmOrder, createOrder, refundTransaction } from './mutations/orders';
+import { createOrder } from './mutations/orders';
 import * as paymentMethodsMutation from './mutations/paymentMethods';
 import { editTier, editTiers } from './mutations/tiers';
 import { confirmUserEmail, updateUserEmail } from './mutations/users';
@@ -32,7 +31,6 @@ import { ApplicationInputType, ApplicationType } from './Application';
 import { CollectiveInterfaceType } from './CollectiveInterface';
 import {
   CollectiveInputType,
-  ConfirmOrderInputType,
   ConnectedAccountInputType,
   MemberInputType,
   NotificationInputType,
@@ -41,7 +39,6 @@ import {
   TierInputType,
   UserInputType,
 } from './inputTypes';
-import { TransactionInterfaceType } from './TransactionInterface';
 import {
   ConnectedAccountType,
   MemberType,
@@ -115,26 +112,6 @@ const mutations = {
     },
     resolve(_, args, req) {
       return unarchiveCollective(_, args, req);
-    },
-  },
-
-  sendMessageToCollective: {
-    type: new GraphQLObjectType({
-      name: 'SendMessageToCollectiveResult',
-      fields: {
-        success: { type: GraphQLBoolean },
-      },
-    }),
-    deprecationReason: '2022-08-01: Please use the sendMessage mutation from GraphQL v2 instead.',
-    args: {
-      collectiveId: { type: new GraphQLNonNull(GraphQLInt) },
-      message: { type: new GraphQLNonNull(GraphQLString) },
-      subject: { type: GraphQLString },
-    },
-    async resolve(_, args, req) {
-      const collective = await models.Collective.findByPk(args.collectiveId);
-
-      return sendMessage({ req, args, collective, isGqlV2: false });
     },
   },
   createUser: {
@@ -286,7 +263,7 @@ const mutations = {
   },
   createOrder: {
     type: OrderType,
-    deprecationReason: '2020-10-13: This endpoint has been moved to GQLV2',
+    deprecationReason: '2020-10-13: This mutation has been moved to GQLV2',
     args: {
       order: {
         type: new GraphQLNonNull(OrderInputType),
@@ -295,30 +272,6 @@ const mutations = {
     async resolve(_, args, req) {
       const { order } = await createOrder(args.order, req);
       return order;
-    },
-  },
-  confirmOrder: {
-    type: OrderType,
-    deprecationReason: '2022-11-18: This mutation has been moved to GQLV2',
-    args: {
-      order: {
-        type: new GraphQLNonNull(ConfirmOrderInputType),
-      },
-    },
-    resolve(_, args, req) {
-      return confirmOrder(args.order, req.remoteUser);
-    },
-  },
-  refundTransaction: {
-    type: TransactionInterfaceType,
-    deprecationReason: '2022-01-27: Please use refundTransaction from GQLV2',
-    args: {
-      id: {
-        type: new GraphQLNonNull(GraphQLInt),
-      },
-    },
-    async resolve(_, args, req) {
-      return await refundTransaction(_, args, req);
     },
   },
   createApplication: {

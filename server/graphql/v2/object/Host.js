@@ -19,7 +19,6 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
-import * as HostMetricsLib from '../../../lib/host-metrics';
 import { buildSearchConditions } from '../../../lib/search';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -48,7 +47,7 @@ import { Amount } from './Amount';
 import { ContributionStats } from './ContributionStats';
 import { ExpenseStats } from './ExpenseStats';
 import { HostMetrics } from './HostMetrics';
-import { HostMetricsTimeSeries, resultsToAmountNode } from './HostMetricsTimeSeries';
+import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -626,31 +625,9 @@ export const Host = new GraphQLObjectType({
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
-          const expenseAmountOverTime = async () => {
-            const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-            const dateTo = args.dateTo ? moment(args.dateTo) : null;
-            const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
-
-            const amountDataPoints = await HostMetricsLib.getTransactionsTimeSeries(host.id, timeUnit, {
-              type: TransactionTypes.DEBIT,
-              kind: TransactionKind.EXPENSE,
-              collectiveIds,
-              dateFrom,
-              dateTo,
-            });
-
-            return {
-              dateFrom: args.dateFrom || host.createdAt,
-              dateTo: args.dateTo || new Date(),
-              timeUnit,
-              nodes: resultsToAmountNode(amountDataPoints),
-            };
-          };
-
           const distinct = { distinct: true, col: 'ExpenseId' };
 
           return {
-            expenseAmountOverTime,
             expensesCount: () =>
               models.Transaction.count({
                 where,
