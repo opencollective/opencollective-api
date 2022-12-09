@@ -336,6 +336,7 @@ export const prettifyTransactionsData = (transactions, columns) => {
     TransactionGroup: 'Group',
     paymentProcessorFeeInHostCurrency: 'paymentFee',
     platformFeeInHostCurrency: 'platformFee',
+    taxAmount: 'tax',
   };
 
   // Prettify values
