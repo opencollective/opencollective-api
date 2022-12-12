@@ -16,7 +16,12 @@ import { getFxRate } from '../../lib/currency';
 import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
-import { createRefundTransaction, sendEmailNotifications, sendOrderFailedEmail } from '../../lib/payments';
+import {
+  createRefundTransaction,
+  createSubscription,
+  sendEmailNotifications,
+  sendOrderFailedEmail,
+} from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 
@@ -48,8 +53,14 @@ export const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event
   const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const transaction = await createChargeTransactions(charge, { order });
 
+  // after successful first payment of a recurring subscription where the payment confirmation is async
+  // and the subscription is managed by us.
+  if (order.interval && !order.SubscriptionId) {
+    await createSubscription(order);
+  }
+
   await order.update({
-    status: OrderStatuses.PAID,
+    status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
     processedAt: new Date(),
     data: { ...order.data, paymentIntent },
   });
@@ -155,7 +166,7 @@ export const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) 
   sendOrderFailedEmail(order, reason);
 };
 
-export const chargeDisputeCreated = async (event: Stripe.Response<Stripe.Event>) => {
+export const chargeDisputeCreated = async (event: Stripe.Event) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: dispute.charge } } },
@@ -204,7 +215,7 @@ export const chargeDisputeCreated = async (event: Stripe.Response<Stripe.Event>)
 };
 
 // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
-export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) => {
+export const chargeDisputeClosed = async (event: Stripe.Event) => {
   const dispute = event.data.object as Stripe.Dispute;
   const chargeTransaction = await models.Transaction.findOne({
     where: { data: { charge: { id: dispute.charge } }, isDisputed: true, type: TransactionTypes.CREDIT },
@@ -339,7 +350,7 @@ export const chargeDisputeClosed = async (event: Stripe.Response<Stripe.Event>) 
 };
 
 // Charge on Stripe had a fraud review opened
-export const reviewOpened = async (event: Stripe.Response<Stripe.Event>) => {
+export const reviewOpened = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
   const paymentIntentTransaction = await models.Transaction.findOne({
     // eslint-disable-next-line camelcase
@@ -384,7 +395,7 @@ export const reviewOpened = async (event: Stripe.Response<Stripe.Event>) => {
 };
 
 // Charge on Stripe had a fraud review closed (either approved/refunded)
-export const reviewClosed = async (event: Stripe.Response<Stripe.Event>) => {
+export const reviewClosed = async (event: Stripe.Event) => {
   const review = event.data.object as Stripe.Review;
   const stripePaymentIntentId = review.payment_intent;
   const closedReason = review.closed_reason;
@@ -495,6 +506,10 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
 
 async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
+
+  if (!['us_bank_account', 'sepa_debit'].includes(stripePaymentMethod.type)) {
+    return;
+  }
 
   const stripeAccount = event.account ?? config.stripe.accountId;
 

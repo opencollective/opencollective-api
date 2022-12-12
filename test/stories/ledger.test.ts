@@ -9,6 +9,7 @@ import { set } from 'lodash';
 import moment from 'moment';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
+import Stripe from 'stripe';
 
 import { run as runSettlementScript } from '../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../server/constants/transaction-kind';
@@ -166,6 +167,8 @@ describe('test/stories/ledger', () => {
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(10000);
       expect(await host.getTotalMoneyManaged()).to.eq(10000);
       expect(await host.getBalance()).to.eq(0);
       expect(await ocInc.getBalance()).to.eq(0);
@@ -178,6 +181,8 @@ describe('test/stories/ledger', () => {
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(9500); // 1000 - 5% host fee
+      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
       expect(await host.getTotalMoneyManaged()).to.eq(10000);
       expect(await host.getBalance()).to.eq(500); // 5% host fee
       expect(await ocInc.getBalance()).to.eq(0);
@@ -190,6 +195,8 @@ describe('test/stories/ledger', () => {
 
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
+      expect(await collective.getTotalAmountReceived()).to.eq(9000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8550);
       expect(await host.getTotalMoneyManaged()).to.eq(10000); // Tip is still on host's account
       expect(await host.getBalance()).to.eq(1450);
       expect(await host.getBalanceWithBlockedFunds()).to.eq(1450);
@@ -209,6 +216,8 @@ describe('test/stories/ledger', () => {
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(8550); // (10000 Total - 1000 platform tip) - 5% host fee (450)
+      expect(await collective.getTotalAmountReceived()).to.eq(9000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8550);
       expect(await host.getTotalMoneyManaged()).to.eq(8932); // 10000 - 1000 (platform tip) - 68 (host fee share)
       expect(await host.getBalance()).to.eq(382); // 450 (host fee) - 68 (host fee share)
       expect(await host.getBalanceWithBlockedFunds()).to.eq(382);
@@ -231,6 +240,8 @@ describe('test/stories/ledger', () => {
 
       // New checks for payment processor fees
       expect(await collective.getBalance()).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
+      expect(await collective.getTotalAmountReceived()).to.eq(9000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
       expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 (tip) - 200 (processor fee) - 68 (host fee share)
 
       // Check host metrics pre-refund
@@ -258,6 +269,8 @@ describe('test/stories/ledger', () => {
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(0);
+      expect(await collective.getTotalAmountReceived()).to.eq(0);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
       expect(await host.getTotalMoneyManaged()).to.eq(-1268);
       expect(await host.getBalance()).to.eq(-1268); // Will be -200 after settlement (platform tip)
       expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
@@ -304,10 +317,21 @@ describe('test/stories/ledger', () => {
         forceManual: true,
         paymentProcessorFeeInCollectiveCurrency: 500,
       });
+      expect(await collective.getBalance()).to.eq(150000 - 100000 - 500);
+      expect(await collective.getTotalAmountSpent()).to.eq(100000);
+      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(100000 + 500);
+
       await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
+      // TODO: to be double checked, why would the collective have more money after?
+      // TODO: create an issue to follow up
       expect(await collective.getBalance()).to.eq(150000 + 500);
+      expect(await collective.getTotalAmountReceived()).to.eq(150000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(150000);
+      expect(await collective.getTotalAmountSpent()).to.eq(0);
+      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(0);
+
       expect(await host.getTotalMoneyManaged()).to.eq(150000);
       expect(await host.getBalance()).to.eq(-500);
     });
@@ -338,6 +362,8 @@ describe('test/stories/ledger', () => {
       expect(await ocInc.getBalance()).to.eq(Math.round(1068 * hostToPlatformFxRate));
       expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
       expect(await collective.getBalance()).to.eq(8350); // (10000 Total - 1000 platform tip) - 5% host fee (450) - 200 processor fees
+      expect(await collective.getTotalAmountReceived()).to.eq(9000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(8350);
       expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 - 200 - 68
 
       // Check host metrics pre-refund
@@ -365,6 +391,8 @@ describe('test/stories/ledger', () => {
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
       expect(await collective.getBalance()).to.eq(0);
+      expect(await collective.getTotalAmountReceived()).to.eq(0); // refunds should not count in amountReceived
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
       expect(await host.getTotalMoneyManaged()).to.eq(-1268);
       expect(await host.getBalance()).to.eq(-1268); // Will be +200 after settlement (platform tip refund) +68 (host fee share refund)
       expect(await host.getBalanceWithBlockedFunds()).to.eq(-1268);
@@ -455,6 +483,17 @@ describe('test/stories/ledger', () => {
         ),
       );
 
+      expect(await collective.getTotalAmountReceived()).to.eq(
+        Math.round(orderNetAmountInHostCurrency * RATES[host.currency][collective.currency]),
+      );
+
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(
+        Math.round(
+          (orderNetAmountInHostCurrency - processorFeeInHostCurrency - expectedHostFeeInHostCurrency) *
+            RATES[host.currency][collective.currency],
+        ),
+      );
+
       // Check host metrics pre-refund
       let hostMetrics = await host.getHostMetrics();
       expect(hostMetrics).to.deep.equal({
@@ -480,6 +519,9 @@ describe('test/stories/ledger', () => {
       // Check data
       await snapshotLedger(SNAPSHOT_COLUMNS_MULTI_CURRENCIES);
       expect(await collective.getBalance()).to.eq(0);
+      expect(await collective.getTotalAmountReceived()).to.eq(0);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
+
       expect(await host.getTotalMoneyManaged()).to.eq(
         -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       );
@@ -521,6 +563,9 @@ describe('test/stories/ledger', () => {
       order.paymentMethod = { service: 'opencollective', type: 'host', CollectiveId: host.id };
       await executeOrder(contributorUser, order);
 
+      expect(await collective.getBalance()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+
       // ---- Refund transaction -----
       const contributionTransaction = await models.Transaction.findOne({
         where: { OrderId: order.id, kind: TransactionKind.ADDED_FUNDS, type: 'CREDIT' },
@@ -530,6 +575,8 @@ describe('test/stories/ledger', () => {
       await paymentMethod.refundTransaction(contributionTransaction, 0, null, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
       expect(await collective.getBalance()).to.eq(0);
+      expect(await collective.getTotalAmountReceived()).to.eq(0);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(0);
     };
 
     it('Refund added funds with same collective', async () => {
@@ -549,6 +596,10 @@ describe('test/stories/ledger', () => {
       order.paymentMethod = { service: 'opencollective', type: 'manual', paid: true };
       await executeOrder(contributorUser, order);
 
+      expect(await collective.getBalance()).to.eq(9500);
+      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
+
       const expense = await fakeExpense({
         description: `Invoice #2`,
         amount: 1000,
@@ -565,6 +616,12 @@ describe('test/stories/ledger', () => {
         paymentProcessorFeeInCollectiveCurrency: 0,
       });
 
+      expect(await collective.getBalance()).to.eq(8500);
+      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
+      expect(await collective.getTotalAmountSpent()).to.eq(1000);
+      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(1000);
+
       // ---- Refund transaction -----
       const expenseTransaction = await models.Transaction.findOne({
         where: { ExpenseId: expense.id, kind: TransactionKind.EXPENSE, type: 'DEBIT' },
@@ -573,6 +630,12 @@ describe('test/stories/ledger', () => {
       const paymentMethod = libPayments.findPaymentMethodProvider(expense.PaymentMethod);
       await paymentMethod.refundTransaction(expenseTransaction, 0, null, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
+
+      expect(await collective.getBalance()).to.eq(9500);
+      expect(await collective.getTotalAmountReceived()).to.eq(10000);
+      expect(await collective.getTotalAmountReceived({ net: true })).to.eq(9500);
+      expect(await collective.getTotalAmountSpent()).to.eq(0);
+      expect(await collective.getTotalAmountSpent({ net: true })).to.eq(0);
     };
 
     it('Refund expense with same collective', async () => {
@@ -598,12 +661,12 @@ describe('test/stories/ledger', () => {
 
       await models.Transaction.update(
         {
-          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
           HostCollectiveId: host.id,
         },
         { where: { OrderId: order.id } },
       );
-      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
+      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
     };
 
     it('1. Dispute is created', async () => {
@@ -618,7 +681,7 @@ describe('test/stories/ledger', () => {
     it('2. Dispute is created and then closed as lost', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance(), 'Total Balance').to.eq(0);
@@ -628,7 +691,7 @@ describe('test/stories/ledger', () => {
     it('3. Dispute is created and then closed as won', async () => {
       const { collective, host, hostAdmin, contributorUser, baseOrderData } = await setupTestData('USD', 'USD');
       await disputeTransaction(collective, collective, host, hostAdmin, contributorUser, baseOrderData);
-      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+      await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance(), 'Total Balance').to.eq(9500);

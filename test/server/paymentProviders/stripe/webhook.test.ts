@@ -2,7 +2,8 @@
 
 import { expect } from 'chai';
 import { set } from 'lodash';
-import sinon from 'sinon';
+import { assert, createSandbox } from 'sinon';
+import Stripe from 'stripe';
 
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order_status';
@@ -44,7 +45,7 @@ describe('webhook', () => {
           CreatedByUserId: user.id,
           OrderId: order.id,
           amount: 10,
-          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
         },
         { createDoubleEntry: true },
       );
@@ -58,7 +59,7 @@ describe('webhook', () => {
         { createDoubleEntry: true },
       );
 
-      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
+      await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
     });
 
     it('limits Orders for User account', async () => {
@@ -105,7 +106,7 @@ describe('webhook', () => {
           OrderId: order.id,
           HostCollectiveId: collective.id,
           amount: 10,
-          data: { charge: { id: stripeMocks.webhook_dispute_created.data.object.charge } },
+          data: { charge: { id: (stripeMocks.webhook_dispute_created.data.object as Stripe.Dispute).charge } },
         },
         { createDoubleEntry: true },
       );
@@ -122,8 +123,8 @@ describe('webhook', () => {
 
     describe('the dispute was won and is not fraud', () => {
       it('un-disputes all Transactions connected to the charge', async () => {
-        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
         const transactions = await order.getTransactions();
         expect(transactions.map(tx => tx.isDisputed)).to.eql([false, false, false, false]);
@@ -131,16 +132,16 @@ describe('webhook', () => {
 
       describe('when the Order has a Subscription', () => {
         it('resets the Order connected to the charge to ACTIVE', async () => {
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.ACTIVE);
         });
 
         it('reactivates the Subscription', async () => {
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           const subscription = await order.getSubscription();
           expect(subscription.isActive).to.eql(true);
@@ -150,8 +151,8 @@ describe('webhook', () => {
       describe('when the Order does not have a Subscription', () => {
         it('resets the Order connected to the charge to PAID', async () => {
           await order.update({ SubscriptionId: null });
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.PAID);
@@ -169,8 +170,8 @@ describe('webhook', () => {
             },
             { withSubscription: true },
           );
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           await user.reload();
           expect(user.data.features[FEATURE.ORDER]).to.eq(false);
@@ -179,8 +180,8 @@ describe('webhook', () => {
 
       describe('when the User does not have other disputed Orders', () => {
         it('removes the Order limit from the User', async () => {
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_won);
 
           await user.reload();
           expect(user.data.features[FEATURE.ORDER]).to.eq(true);
@@ -190,8 +191,8 @@ describe('webhook', () => {
 
     describe('the dispute was lost and is fraud', () => {
       it('creates a refund transaction for the fraudulent transaction', async () => {
-        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
+        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
 
         const transactions = await order.getTransactions();
         const refundTransactions = transactions.filter(tx => tx.isRefund === true);
@@ -199,8 +200,8 @@ describe('webhook', () => {
       });
 
       it('creates a dispute fee DEBIT transaction for the host collective', async () => {
-        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
+        await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+        await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
 
         const transactions = await order.getTransactions();
         const disputeFeeTransaction = transactions.find(tx => tx.description === 'Stripe Transaction Dispute Fee');
@@ -209,8 +210,8 @@ describe('webhook', () => {
 
       describe('when the Order has a Subscription', () => {
         it('resets the Order connected to the charge to CANCELLED', async () => {
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.CANCELLED);
@@ -220,8 +221,8 @@ describe('webhook', () => {
       describe('when the Order does not have a Subscription', () => {
         it('resets the Order connected to the charge to REFUNDED', async () => {
           await order.update({ SubscriptionId: null });
-          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created as any);
-          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost as any);
+          await webhook.chargeDisputeCreated(stripeMocks.webhook_dispute_created);
+          await webhook.chargeDisputeClosed(stripeMocks.webhook_dispute_lost);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.REFUNDED);
@@ -251,7 +252,9 @@ describe('webhook', () => {
           CreatedByUserId: user.id,
           OrderId: order.id,
           amount: 10,
-          data: { charge: { payment_intent: stripeMocks.webhook_review_opened.data.object.payment_intent } },
+          data: {
+            charge: { payment_intent: (stripeMocks.webhook_review_opened.data.object as Stripe.Review).payment_intent },
+          },
         },
         { createDoubleEntry: true },
       );
@@ -265,7 +268,7 @@ describe('webhook', () => {
         { createDoubleEntry: true },
       );
 
-      await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
+      await webhook.reviewOpened(stripeMocks.webhook_review_opened);
     });
 
     it('updates isInReview status of all Transactions connected to the charge', async () => {
@@ -305,7 +308,9 @@ describe('webhook', () => {
           CreatedByUserId: user.id,
           OrderId: order.id,
           amount: 10,
-          data: { charge: { payment_intent: stripeMocks.webhook_review_opened.data.object.payment_intent } },
+          data: {
+            charge: { payment_intent: (stripeMocks.webhook_review_opened.data.object as Stripe.Review).payment_intent },
+          },
         },
         { createDoubleEntry: true },
       );
@@ -322,8 +327,8 @@ describe('webhook', () => {
 
     describe('when review is "approved"', () => {
       it('updates isInReview status of all Transactions connected to the charge', async () => {
-        await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-        await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved as any);
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
 
         const transactions = await order.getTransactions();
         expect(transactions.map(tx => tx.isInReview)).to.eql([false, false, false, false]);
@@ -331,16 +336,16 @@ describe('webhook', () => {
 
       describe('when the Order has a Subscription', () => {
         it('reactivates the Subscription connected to the charge', async () => {
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
 
           const subscription = await order.getSubscription();
           expect(subscription.isActive).to.eql(true);
         });
 
         it('changes Order status back to ACTIVE', async () => {
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.ACTIVE);
@@ -350,8 +355,8 @@ describe('webhook', () => {
       describe('when the Order does not have a Subscription', () => {
         it('changes Order status back to PAID', async () => {
           await order.update({ SubscriptionId: null });
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_approved);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.PAID);
@@ -362,8 +367,8 @@ describe('webhook', () => {
     describe('when review is "refunded_as_fraud"', () => {
       describe('when the Order has a Subscription', () => {
         it('changes Order status to CANCELLED', async () => {
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.CANCELLED);
@@ -373,8 +378,8 @@ describe('webhook', () => {
       describe('when the Order does not have a Subscription', () => {
         it('changes Order status back to REFUNDED', async () => {
           await order.update({ SubscriptionId: null });
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.REFUNDED);
@@ -382,16 +387,16 @@ describe('webhook', () => {
       });
 
       it('limits Orders for User account', async () => {
-        await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud as any);
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
 
         await user.reload();
         expect(user.data.features[FEATURE.ORDER]).to.eq(false);
       });
 
       it('creates a refund transaction for the fraudulent transaction', async () => {
-        await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud as any);
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded_as_fraud);
 
         const transactions = await order.getTransactions();
         const refundTransactions = transactions.filter(tx => tx.isRefund === true);
@@ -402,8 +407,8 @@ describe('webhook', () => {
     describe('when review is "refunded"', () => {
       describe('when the Order has a Subscription', () => {
         it('changes Order status to CANCELLED', async () => {
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.CANCELLED);
@@ -413,8 +418,8 @@ describe('webhook', () => {
       describe('when the Order does not have a Subscription', () => {
         it('changes Order status back to REFUNDED', async () => {
           await order.update({ SubscriptionId: null });
-          await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded as any);
+          await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+          await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
 
           await order.reload();
           expect(order.status).to.eql(OrderStatuses.REFUNDED);
@@ -422,16 +427,16 @@ describe('webhook', () => {
       });
 
       it('does not limit Orders for User account', async () => {
-        await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded as any);
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
 
         await user.reload();
         expect(user.data).to.eq(null);
       });
 
       it('creates a refund transaction for the fraudulent transaction', async () => {
-        await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded as any);
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
 
         const transactions = await order.getTransactions();
         const refundTransactions = transactions.filter(tx => tx.isRefund === true);
@@ -439,8 +444,8 @@ describe('webhook', () => {
       });
 
       it('updates all related transactions to remove in review status', async () => {
-        await webhook.reviewOpened(stripeMocks.webhook_review_opened as any);
-        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded as any);
+        await webhook.reviewOpened(stripeMocks.webhook_review_opened);
+        await webhook.reviewClosed(stripeMocks.webhook_review_closed_refunded);
 
         const transactions = await order.getTransactions();
         expect(transactions.every(tx => tx.isInReview === false)).to.eql(true);
@@ -450,7 +455,7 @@ describe('webhook', () => {
 
   describe('paymentIntent', () => {
     let order, event;
-    const sandbox = sinon.createSandbox();
+    const sandbox = createSandbox();
 
     beforeEach(async () => {
       const paymentMethod = await fakePaymentMethod({ type: 'paymentintent', service: 'stripe' });
@@ -500,7 +505,7 @@ describe('webhook', () => {
         await order.reload();
 
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
-        sinon.assert.notCalled(common.createChargeTransactions);
+        assert.notCalled(common.createChargeTransactions);
       });
 
       it('create transactions, send notifications, and updates the order', async () => {
@@ -508,12 +513,12 @@ describe('webhook', () => {
         sandbox.stub(libPayments, 'sendEmailNotifications').resolves();
         await webhook.paymentIntentSucceeded(event);
 
-        sinon.assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
+        assert.calledOnceWithMatch(common.createChargeTransactions, event.data.object.charges.data[0], {
           order: {
             dataValues: { id: order.id },
           },
         });
-        sinon.assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
+        assert.calledOnceWithMatch(libPayments.sendEmailNotifications, {
           dataValues: { id: order.id },
         });
 
@@ -533,7 +538,7 @@ describe('webhook', () => {
 
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
         expect(order.data.paymentIntent).to.have.property('id').not.equal('pi_notfound');
-        sinon.assert.notCalled(order.update);
+        assert.notCalled(order.update);
       });
 
       it('updates order.data.paymentIntent', async () => {
@@ -562,7 +567,7 @@ describe('webhook', () => {
 
         expect(order.status).to.equal(OrderStatuses.PROCESSING);
         expect(order.data.paymentIntent).to.have.property('id').not.equal('pi_notfound');
-        sinon.assert.notCalled(order.update);
+        assert.notCalled(order.update);
       });
 
       it('send email notification and updates order.status', async () => {
@@ -576,7 +581,7 @@ describe('webhook', () => {
 
         expect(order.status).to.equal(OrderStatuses.ERROR);
         expect(order.data.paymentIntent.charges).to.not.be.null;
-        sinon.assert.calledOnceWithMatch(
+        assert.calledOnceWithMatch(
           libPayments.sendOrderFailedEmail,
           {
             dataValues: { id: order.id },
