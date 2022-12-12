@@ -190,9 +190,6 @@
   "privacy": {
     "apiUrl": "PRIVACY_API_URL"
   },
-  "ledger": {
-    "separateHostFees": "LEDGER_SEPARATE_HOST_FEES"
-  },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
   },
