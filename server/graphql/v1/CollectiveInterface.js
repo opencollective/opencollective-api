@@ -493,8 +493,8 @@ export const CollectiveStatsType = new GraphQLObjectType({
       totalAmountSpent: {
         description: 'Total amount spent',
         type: GraphQLInt,
-        resolve(collective) {
-          return collective.getTotalAmountSpent({ net: true });
+        resolve(collective, _, req) {
+          return collective.getTotalAmountSpent({ loaders: req.loaders, net: true });
         },
       },
       totalAmountReceived: {
@@ -508,7 +508,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
             description: 'Computes contributions from the last x months. Cannot be used with startDate/endDate',
           },
         },
-        resolve(collective, args) {
+        resolve(collective, args, req) {
           let startDate = args.startDate ? new Date(args.startDate) : null;
           let endDate = args.endDate ? new Date(args.endDate) : null;
 
@@ -517,14 +517,14 @@ export const CollectiveStatsType = new GraphQLObjectType({
             endDate = null;
           }
 
-          return collective.getTotalAmountReceived({ startDate, endDate });
+          return collective.getTotalAmountReceived({ loaders: req.loaders, startDate, endDate });
         },
       },
       totalNetAmountReceived: {
         description: 'Total net amount received',
         type: GraphQLInt,
-        resolve(collective) {
-          return collective.getTotalNetAmountReceived();
+        resolve(collective, _, req) {
+          return collective.getTotalAmountReceived({ loaders: req.loaders, net: true });
         },
       },
       yearlyBudget: {

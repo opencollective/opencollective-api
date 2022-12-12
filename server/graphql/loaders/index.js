@@ -6,7 +6,13 @@ import moment from 'moment';
 
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
-import { getBalances, getBalancesWithBlockedFunds } from '../../lib/budget';
+import {
+  getBalances,
+  getBalancesWithBlockedFunds,
+  getSumCollectivesAmountReceived,
+  getSumCollectivesAmountSpent,
+  sumCollectivesTransactions,
+} from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
@@ -106,6 +112,97 @@ export const loaders = req => {
   context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
     getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
+
+  // Collective - Amount Received
+  context.loaders.Collective.amountReceived = {
+    buildLoader({ net, kind, startDate, endDate, includeChildren } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
+      if (!context.loaders.Collective.amountReceived[key]) {
+        // console.log('amountReceived', key);
+
+        context.loaders.Collective.amountReceived[key] = new DataLoader(ids =>
+          getSumCollectivesAmountReceived(ids, {
+            net,
+            kind,
+            startDate,
+            endDate,
+            includeChildren,
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+        );
+      }
+      return context.loaders.Collective.amountReceived[key];
+    },
+  };
+
+  // Collective - Amount Received Time Series
+  context.loaders.Collective.amountReceivedTimeSeries = {
+    buildLoader({ net, kind, startDate, endDate, includeChildren, timeUnit } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
+      if (!context.loaders.Collective.amountReceivedTimeSeries[key]) {
+        // console.log('amountReceivedTimeSeries', key);
+
+        context.loaders.Collective.amountReceivedTimeSeries[key] = new DataLoader(ids =>
+          getSumCollectivesAmountReceived(ids, {
+            net,
+            kind,
+            startDate,
+            endDate,
+            includeChildren,
+            groupByAttributes: [[sequelize.fn('DATE_TRUNC', timeUnit, sequelize.col('Transaction.createdAt')), 'date']],
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+        );
+      }
+      return context.loaders.Collective.amountReceivedTimeSeries[key];
+    },
+  };
+
+  // Collective -  Amount Spent
+  context.loaders.Collective.amountSpent = {
+    buildLoader({ net, kind, startDate, endDate, includeChildren, includeGiftCards } = {}) {
+      const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${includeGiftCards}`;
+
+      if (!context.loaders.Collective.amountSpent[key]) {
+        // console.log('amountSpent', key);
+
+        context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
+          getSumCollectivesAmountSpent(ids, { net, kind, startDate, endDate, includeChildren, includeGiftCards }).then(
+            results => sortResults(ids, Object.values(results), 'CollectiveId'),
+          ),
+        );
+      }
+      return context.loaders.Collective.amountSpent[key];
+    },
+  };
+
+  // Collective -  Count of contributions and contributors
+  context.loaders.Collective.contributionsAndContributorsCount = {
+    buildLoader({ startDate, endDate, includeChildren } = {}) {
+      const key = `${startDate}-${endDate}-${includeChildren}`;
+
+      if (!context.loaders.Collective.contributionsAndContributorsCount[key]) {
+        // console.log('contributionsAndContributorsCount', key);
+
+        context.loaders.Collective.contributionsAndContributorsCount[key] = new DataLoader(ids =>
+          sumCollectivesTransactions(ids, {
+            column: 'amountInHostCurrency',
+            startDate,
+            endDate,
+            includeChildren,
+            kind: ['CONTRIBUTION', 'ADDED_FUNDS'],
+            transactionType: 'CREDIT',
+            extraAttributes: [
+              [sequelize.fn('COUNT', sequelize.col('Transaction.id')), 'count'],
+              [
+                sequelize.fn('COUNT', sequelize.fn('DISTINCT', sequelize.col('Transaction.FromCollectiveId'))),
+                'countDistinctFromCollective',
+              ],
+            ],
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+        );
+      }
+      return context.loaders.Collective.contributionsAndContributorsCount[key];
+    },
+  };
 
   // Collective - ConnectedAccounts
   context.loaders.Collective.connectedAccounts = new DataLoader(ids =>
