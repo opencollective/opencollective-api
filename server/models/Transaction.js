@@ -1,7 +1,6 @@
 import assert from 'assert';
 
 import Promise from 'bluebird';
-import config from 'config';
 import debugLib from 'debug';
 import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
@@ -20,7 +19,7 @@ import { calcFee, getHostFeeSharePercent, getPlatformTip } from '../lib/payments
 import { stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
-import { exportToCSV, parseToBoolean } from '../lib/utils';
+import { exportToCSV } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import { TransactionSettlementStatus } from './TransactionSettlement';
@@ -1004,7 +1003,7 @@ Transaction.createFromContributionPayload = async (
   }
 
   // Create Host Fee transaction
-  if (transaction.hostFeeInHostCurrency && parseToBoolean(config.ledger.separateHostFees) === true) {
+  if (transaction.hostFeeInHostCurrency) {
     const result = await Transaction.createHostFeeTransactions(transaction, host);
     if (result) {
       if (result.hostFeeTransaction) {
