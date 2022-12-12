@@ -191,8 +191,7 @@
     "apiUrl": "https://sandbox.privacy.com"
   },
   "ledger": {
-    "fastBalance": true,
-    "separateHostFees": true
+    "fastBalance": true
   },
   "thegivingblock": {
     "username": "opencollective",

@@ -29,7 +29,7 @@ import { reportMessageToSentry } from './sentry';
 import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { getEditRecurringContributionsUrl } from './url-utils';
-import { formatCurrency, parseToBoolean, toIsoDateStr } from './utils';
+import { formatCurrency, toIsoDateStr } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
@@ -190,44 +190,34 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
   refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
 
-  /* If the payment processor doesn't refund the fee, the equivalent
-   * of the fee will be transferred from the host to the user so the
-   * user can get the full refund. */
-  if (refundedPaymentProcessorFee === 0 && !parseToBoolean(config.ledger.separateHostFees)) {
-    refund.hostFeeInHostCurrency += refund.paymentProcessorFeeInHostCurrency;
-    refund.paymentProcessorFeeInHostCurrency = 0;
-  }
-
   /* Amount fields. Must be calculated after tweaking all the fees */
   refund.amount = -t.amount;
   refund.amountInHostCurrency = -t.amountInHostCurrency;
   refund.netAmountInCollectiveCurrency = -netAmount(t);
   refund.isRefund = true;
 
-  if (parseToBoolean(config.ledger.separateHostFees)) {
-    // We're handling host fees in separate transactions
-    refund.hostFeeInHostCurrency = 0;
+  // We're handling host fees in separate transactions
+  refund.hostFeeInHostCurrency = 0;
 
-    // Adjust refunded payment processor fee based on the fees payer
-    const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+  // Adjust refunded payment processor fee based on the fees payer
+  const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+  if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+    refund.paymentProcessorFeeInHostCurrency = 0;
+  } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
+    if (refundedPaymentProcessorFee) {
+      // If the fee gets refunded, we add it as a positive value on the refund transactions
+      refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
+    } else {
+      // Otherwise, payment processor fees are deducted from the refunded amount which means
+      // the collective will receive the original expense amount minus payment processor fees
+      refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
+      refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
       refund.paymentProcessorFeeInHostCurrency = 0;
-    } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
-      if (refundedPaymentProcessorFee) {
-        // If the fee gets refunded, we add it as a positive value on the refund transactions
-        refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
-      } else {
-        // Otherwise, payment processor fees are deducted from the refunded amount which means
-        // the collective will receive the original expense amount minus payment processor fees
-        refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
-        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
-        refund.paymentProcessorFeeInHostCurrency = 0;
-      }
     }
-
-    // Re-compute the net amount
-    refund.netAmountInCollectiveCurrency = netAmount(refund);
   }
+
+  // Re-compute the net amount
+  refund.netAmountInCollectiveCurrency = netAmount(refund);
 
   return refund;
 };
@@ -356,25 +346,23 @@ export async function createRefundTransaction(
   }
 
   // Refund Payment Processor Fee
-  if (parseToBoolean(config.ledger.separateHostFees)) {
-    if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
-      logger.error(
-        `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
-      );
-      reportMessageToSentry('Partial processor fees refunds are not supported', {
-        extra: { refundedPaymentProcessorFee, transaction: transaction.info },
-      });
-    } else if (transaction.paymentProcessorFeeInHostCurrency) {
-      // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
-      const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
-        ? await transaction.getRelatedTransaction({ type: DEBIT })
-        : transaction;
+  if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
+    logger.error(
+      `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
+    );
+    reportMessageToSentry('Partial processor fees refunds are not supported', {
+      extra: { refundedPaymentProcessorFee, transaction: transaction.info },
+    });
+  } else if (transaction.paymentProcessorFeeInHostCurrency) {
+    // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
+    const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
+      ? await transaction.getRelatedTransaction({ type: DEBIT })
+      : transaction;
 
-      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-      if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-        // Host take at their charge the payment processor fee that is lost when refunding a transaction
-        await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
-      }
+    const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      // Host take at their charge the payment processor fee that is lost when refunding a transaction
+      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
     }
   }
 

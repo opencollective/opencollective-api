@@ -5,7 +5,7 @@ import { sequelize } from '../models';
 
 import { getTotalMoneyManagedAmount } from './budget';
 import { getFxRate } from './currency';
-import { computeDatesAsISOStrings, parseToBoolean } from './utils';
+import { computeDatesAsISOStrings } from './utils';
 
 function oppositeTotal(total) {
   return total !== 0 ? -total : total;
@@ -157,10 +157,8 @@ GROUP BY t."hostCurrency"`,
 }
 
 export async function getHostFees(host, { startDate = null, endDate = null, fromCollectiveIds = null } = {}) {
-  let newResults;
-  if (parseToBoolean(config.ledger.separateHostFees) === true) {
-    newResults = await sequelize.query(
-      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
+  const newResults = await sequelize.query(
+    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."CollectiveId" = :CollectiveId
 ${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
@@ -169,16 +167,15 @@ ${startDate ? `AND t1."createdAt" >= :startDate` : ``}
 ${endDate ? `AND t1."createdAt" <= :endDate` : ``}
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency"`,
-      {
-        replacements: {
-          CollectiveId: host.id,
-          FromCollectiveIds: fromCollectiveIds,
-          ...computeDatesAsISOStrings(startDate, endDate),
-        },
-        type: sequelize.QueryTypes.SELECT,
+    {
+      replacements: {
+        CollectiveId: host.id,
+        FromCollectiveIds: fromCollectiveIds,
+        ...computeDatesAsISOStrings(startDate, endDate),
       },
-    );
-  }
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
 
   // TODO(Ledger): We should only run the query below if startDate < newHostFeeDeployDate
   const legacyResults = await sequelize.query(
@@ -327,9 +324,8 @@ export async function getHostFeeShare(host, { startDate = null, endDate = null, 
     return 0;
   }
 
-  if (parseToBoolean(config.ledger.separateHostFees) === true) {
-    const results = await sequelize.query(
-      `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
+  const results = await sequelize.query(
+    `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 ${
   collectiveIds
@@ -346,30 +342,22 @@ ${startDate ? `AND t1."createdAt" >= :startDate` : ``}
 ${endDate ? `AND t1."createdAt" <= :endDate` : ``}
 AND t1."deletedAt" IS NULL
 GROUP BY t1."hostCurrency"`,
-      {
-        replacements: {
-          CollectiveId: host.id,
-          CollectiveIds: collectiveIds,
-          ...computeDatesAsISOStrings(startDate, endDate),
-        },
-        type: sequelize.QueryTypes.SELECT,
+    {
+      replacements: {
+        CollectiveId: host.id,
+        CollectiveIds: collectiveIds,
+        ...computeDatesAsISOStrings(startDate, endDate),
       },
-    );
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
 
-    let total = await computeTotal(results, host.currency);
+  let total = await computeTotal(results, host.currency);
 
-    // we're looking at the DEBIT, so it's a negative number
-    total = oppositeTotal(total);
+  // we're looking at the DEBIT, so it's a negative number
+  total = oppositeTotal(total);
 
-    return total;
-  }
-
-  const hostFees = await getHostFees(host, { startDate, endDate, collectiveIds });
-
-  const plan = await host.getPlan();
-  const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
-
-  return Math.round((hostFees * hostFeeSharePercent) / 100);
+  return total;
 }
 
 export async function getHostFeeShareTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {
@@ -405,9 +393,8 @@ export async function getPendingHostFeeShare(
   host,
   { startDate = null, endDate = null, collectiveIds = null, status = ['OWED', 'INVOICED'] } = {},
 ) {
-  if (parseToBoolean(config.ledger.separateHostFees) === true) {
-    const results = await sequelize.query(
-      `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
+  const results = await sequelize.query(
+    `SELECT SUM(t."amountInHostCurrency") AS "_amount", t."hostCurrency" as "_currency"
         FROM "Transactions" t
         INNER JOIN "TransactionSettlements" ts
           ON t."TransactionGroup" = ts."TransactionGroup"
@@ -428,55 +415,18 @@ export async function getPendingHostFeeShare(
           ${startDate ? `AND t."createdAt" >= :startDate` : ``}
           ${endDate ? `AND t."createdAt" <= :endDate` : ``}
         GROUP BY t."hostCurrency"`,
-      {
-        replacements: {
-          CollectiveId: host.id,
-          FromCollectiveIds: collectiveIds,
-          status: status,
-          ...computeDatesAsISOStrings(startDate, endDate),
-        },
-        type: sequelize.QueryTypes.SELECT,
-      },
-    );
-
-    return computeTotal(results, host.currency);
-  }
-
-  const results = await sequelize.query(
-    `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
-FROM "Transactions" as t1
-LEFT JOIN "PaymentMethods" pm ON
-  t1."PaymentMethodId" = pm.id
-LEFT JOIN "PaymentMethods" spm ON
-  spm.id = pm."SourcePaymentMethodId"
-WHERE t1."HostCollectiveId" = :HostCollectiveId
-${startDate ? `AND t1."createdAt" >= :startDate` : ``}
-${endDate ? `AND t1."createdAt" <= :endDate` : ``}
-AND t1."deletedAt" IS NULL
-AND (
-  pm."service" != 'stripe'
-  OR pm.service IS NULL
-)
-AND (
-  spm.service IS NULL
-  OR spm.service != 'stripe'
-)
-GROUP BY t1."hostCurrency"`,
     {
-      replacements: { HostCollectiveId: host.id, ...computeDatesAsISOStrings(startDate, endDate) },
+      replacements: {
+        CollectiveId: host.id,
+        FromCollectiveIds: collectiveIds,
+        status: status,
+        ...computeDatesAsISOStrings(startDate, endDate),
+      },
       type: sequelize.QueryTypes.SELECT,
     },
   );
 
-  let total = await computeTotal(results, host.currency);
-
-  // amount/hostFeeInHostCurrency is expressed as a negative number
-  total = oppositeTotal(total);
-
-  const plan = await host.getPlan();
-  const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
-
-  return Math.round((total * hostFeeSharePercent) / 100);
+  return computeTotal(results, host.currency);
 }
 
 /**
