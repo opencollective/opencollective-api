@@ -100,8 +100,9 @@ export const AccountStats = new GraphQLObjectType({
         description: 'The consolidated amount of all the events and projects combined.',
         deprecationReason: '2022-09-02: Use balance + includeChildren instead',
         type: new GraphQLNonNull(Amount),
-        resolve(account) {
+        resolve(account, args, req) {
           return account.getBalanceAmount({
+            loaders: req.loaders,
             includeChildren: true,
           });
         },

@@ -47,52 +47,54 @@ export async function getCollectiveIds(collective, includeChildren) {
 
 export async function getBalanceAmount(
   collective,
-  { endDate, currency, version, loaders, includeChildren, fastBalance = FAST_BALANCE, withBlockedFunds = false } = {},
+  { loaders, endDate, includeChildren, withBlockedFunds, version, currency } = {},
 ) {
   version = version || collective.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || collective.currency;
 
+  let result;
+
+  const transactionArgs = {
+    endDate,
+    includeChildren,
+    withBlockedFunds,
+  };
+
   // Optimized version using loaders
-  if (version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren) {
-    let result;
-    if (loaders) {
-      const loader = withBlockedFunds ? 'balanceWithBlockedFunds' : 'balance';
-      result = await loaders.Collective[loader].load(collective.id);
-    } else if (fastBalance === true) {
-      const results = await getCurrentFastBalances([collective.id], { withBlockedFunds });
-      result = results[collective.id];
-    }
-    if (result) {
-      const fxRate = await getFxRate(result.currency, currency);
-      return {
-        value: Math.round(result.value * fxRate),
-        currency,
-      };
-    }
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
+    const balanceLoader = loaders.Collective.balance.buildLoader(transactionArgs);
+    result = await balanceLoader.load(collective.id);
+  } else {
+    const results = await getBalances([collective.id], {
+      ...transactionArgs,
+      version,
+    });
+    // Coming from sumCollectivesTransactions, we're guaranteed to have only one result per Collective
+    result = results[collective.id];
   }
 
-  // TODO: refactor to latest implementation of sumCollectivesTransactions that is supporting includeChildren
-  const collectiveIds = await getCollectiveIds(collective, includeChildren);
-
-  const results = await sumCollectivesTransactions(collectiveIds, {
-    endDate,
-    column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
-    excludeRefunds: false,
-    withBlockedFunds: withBlockedFunds,
-    hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
-  });
-
-  // Sum and convert to final currency
-  const value = await sumTransactionsInCurrency(results, currency);
-
-  return { value, currency };
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  const fxRate = await getFxRate(result.currency, currency);
+  return {
+    value: Math.round(result.value * fxRate),
+    currency,
+  };
 }
 
-export async function getBalances(collectiveIds, { withBlockedFunds = false, fastBalance = FAST_BALANCE } = {}) {
-  const version = DEFAULT_BUDGET_VERSION;
-
+export async function getBalances(
+  collectiveIds,
+  {
+    endDate,
+    includeChildren = false,
+    withBlockedFunds = false,
+    version = DEFAULT_BUDGET_VERSION,
+    fastBalance = FAST_BALANCE,
+  } = {},
+) {
   const fastResults =
-    fastBalance === true ? await getCurrentFastBalances(collectiveIds, { withBlockedFunds, fastBalance }) : {};
+    fastBalance === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
+      ? await getCurrentFastBalances(collectiveIds, { withBlockedFunds })
+      : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
   if (missingCollectiveIds.length === 0) {
@@ -101,8 +103,10 @@ export async function getBalances(collectiveIds, { withBlockedFunds = false, fas
 
   const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
+    endDate,
+    includeChildren,
+    withBlockedFunds,
     excludeRefunds: false,
-    withBlockedFunds: withBlockedFunds,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
 
@@ -413,6 +417,15 @@ export async function sumCollectivesTransactions(
     extraAttributes = [],
   } = {},
 ) {
+  if (withBlockedFunds) {
+    if (startDate || endDate || groupByAttributes.length) {
+      throw new Error('withBlockedFunds is not supported together with startDate, endDate or groupByAttributes');
+    }
+  }
+  if (includeChildren && includeGiftCards) {
+    throw new Error('includeChildren is not supported together with includeGiftCards');
+  }
+
   const collectiveId = includeChildren
     ? sequelize.fn('COALESCE', sequelize.col('collective.ParentCollectiveId'), sequelize.col('collective.id'))
     : includeGiftCards
@@ -449,9 +462,6 @@ export async function sumCollectivesTransactions(
   let where = {};
 
   if (ids) {
-    if (includeChildren && includeGiftCards) {
-      throw new Error('includeChildren is not supported together with includeGiftCards');
-    }
     if (includeGiftCards) {
       where = {
         ...where,
@@ -622,15 +632,7 @@ export async function sumCollectivesTransactions(
     }
   }
 
-  if (groupByAttributes.length && withBlockedFunds) {
-    throw new Error('This is not supported');
-  }
-
   if (withBlockedFunds) {
-    if (startDate || endDate) {
-      throw new Error('withBlockedFunds should not be used together with startDate or endDate');
-    }
-
     const blockedFundsResults = await getBlockedFunds(ids);
     for (const collectiveId of ids) {
       if (blockedFundsResults[collectiveId]) {
