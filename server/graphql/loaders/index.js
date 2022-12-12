@@ -8,7 +8,6 @@ import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
   getBalances,
-  getBalancesWithBlockedFunds,
   getSumCollectivesAmountReceived,
   getSumCollectivesAmountSpent,
   sumCollectivesTransactions,
@@ -110,7 +109,9 @@ export const loaders = req => {
     getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
   );
   context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
-    getBalancesWithBlockedFunds(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+    getBalances(ids, { withBlockedFunds: true }).then(results =>
+      sortResults(ids, Object.values(results), 'CollectiveId'),
+    ),
   );
 
   // Collective - Amount Received

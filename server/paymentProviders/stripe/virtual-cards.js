@@ -157,7 +157,7 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   const currency = stripeAuthorization.pending_request.currency.toUpperCase();
   const amount = convertToStripeAmount(currency, Math.abs(stripeAuthorization.pending_request.amount));
   const collective = virtualCard.collective;
-  const balance = await collective.getBalanceWithBlockedFundsAmount({ currency });
+  const balance = await collective.getBalanceAmount({ currency, withBlockedFunds: true });
   const stripe = await getStripeClient(host);
 
   if (balance.value >= amount) {

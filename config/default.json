@@ -190,6 +190,9 @@
   "privacy": {
     "apiUrl": "https://sandbox.privacy.com"
   },
+  "ledger": {
+    "fastBalance": true
+  },
   "thegivingblock": {
     "username": "opencollective",
     "password": "",

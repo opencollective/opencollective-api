@@ -190,6 +190,9 @@
   "privacy": {
     "apiUrl": "PRIVACY_API_URL"
   },
+  "ledger": {
+    "fastBalance": "LEDGER_FAST_BALANCE"
+  },
   "activities": {
     "skipTransactions": "SKIP_TRANSACTION_ACTIVITIES"
   },

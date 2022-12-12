@@ -20,7 +20,7 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
   beforeEach(async () => {
     sandbox.stub(stripe.webhooks, 'constructEvent').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox
-      .stub(budget, 'getBalanceWithBlockedFundsAmount')
+      .stub(budget, 'getBalanceAmount')
       .callsFake(() => Promise.resolve({ CollectiveId: 7, currency: 'USD', value: 200 }));
     sandbox.stub(stripe.issuing.authorizations, 'approve').callsFake(() =>
       Promise.resolve({
