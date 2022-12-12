@@ -104,6 +104,16 @@ export const loaders = req => {
     loader: parentIds => context.loaders.Collective.byId.loadMany(parentIds),
   });
 
+  context.loaders.Collective.currentCollectiveBalance = new DataLoader(collectiveIds =>
+    sequelize
+      .query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
+        replacements: { collectiveIds },
+        type: sequelize.QueryTypes.SELECT,
+        raw: true,
+      })
+      .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+  );
+
   // Collective - Balance
   context.loaders.Collective.balance = {
     buildLoader({ endDate = null, includeChildren = false, withBlockedFunds = false } = {}) {
@@ -114,6 +124,7 @@ export const loaders = req => {
             endDate,
             includeChildren,
             withBlockedFunds,
+            loaders: context.loaders,
           }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }

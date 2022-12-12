@@ -1,3 +1,4 @@
+import Promise from 'bluebird';
 import config from 'config';
 import { difference } from 'lodash';
 
@@ -89,11 +90,12 @@ export async function getBalances(
     withBlockedFunds = false,
     version = DEFAULT_BUDGET_VERSION,
     fastBalance = FAST_BALANCE,
+    loaders,
   } = {},
 ) {
   const fastResults =
     fastBalance === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
-      ? await getCurrentFastBalances(collectiveIds, { withBlockedFunds })
+      ? await getCurrentFastBalances(collectiveIds, { loaders, withBlockedFunds })
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -738,16 +740,14 @@ export async function getBlockedFunds(collectiveIds) {
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
-export async function getCurrentFastBalances(collectiveIds, { withBlockedFunds = false } = {}) {
-  const fastResults = await sequelize.query(
-    `SELECT *
-    FROM "CurrentCollectiveBalance"
-    WHERE "CollectiveId" IN (:collectiveIds)`,
-    {
-      replacements: { collectiveIds },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
+export async function getCurrentFastBalances(collectiveIds, { loaders, withBlockedFunds = false } = {}) {
+  const fastResults = loaders
+    ? await Promise.map(collectiveIds, collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId))
+    : await sequelize.query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
+        replacements: { collectiveIds },
+        type: sequelize.QueryTypes.SELECT,
+        raw: true,
+      });
 
   const totals = {};
 
