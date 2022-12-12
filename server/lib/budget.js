@@ -85,12 +85,12 @@ export async function getBalanceAmount(
 export async function getBalances(
   collectiveIds,
   {
-    endDate,
+    endDate = null,
     includeChildren = false,
     withBlockedFunds = false,
     version = DEFAULT_BUDGET_VERSION,
     fastBalance = FAST_BALANCE,
-    loaders,
+    loaders = null,
   } = {},
 ) {
   const fastResults =
@@ -740,7 +740,7 @@ export async function getBlockedFunds(collectiveIds) {
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
-export async function getCurrentFastBalances(collectiveIds, { loaders, withBlockedFunds = false } = {}) {
+export async function getCurrentFastBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
   const fastResults = loaders
     ? await Promise.map(collectiveIds, collectiveId => loaders.Collective.currentCollectiveBalance.load(collectiveId))
     : await sequelize.query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
