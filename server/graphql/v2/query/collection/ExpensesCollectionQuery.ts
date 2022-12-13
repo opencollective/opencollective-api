@@ -281,13 +281,15 @@ const ExpensesCollectionQuery = {
       }
     } else {
       if (req.remoteUser) {
-        where[Op.and].push({
-          [Op.or]: [
-            { status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } },
-            { status: expenseStatus.DRAFT, UserId: req.remoteUser.id },
-            // TODO: we should ideally display SPAM expenses in some circumstances
-          ],
-        });
+        const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+
+        if (req.remoteUser.isAdminOfCollective(account)) {
+          userClause.push({ status: expenseStatus.DRAFT });
+        } else {
+          userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
+        }
+
+        where[Op.and].push({ [Op.or]: userClause });
       } else {
         where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
       }
