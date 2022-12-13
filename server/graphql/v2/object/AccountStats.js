@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNil, omit } from 'lodash';
+import { get, has, isNil, pick } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
@@ -13,14 +13,26 @@ import models from '../../../models';
 import { ContributionFrequency } from '../enum/ContributionFrequency';
 import { Currency } from '../enum/Currency';
 import { ExpenseType } from '../enum/ExpenseType';
-import { TimeUnit } from '../enum/TimeUnit';
 import { TransactionKind } from '../enum/TransactionKind';
 import { idEncode } from '../identifiers';
 import { Amount } from '../object/Amount';
 import { AmountStats } from '../object/AmountStats';
 import { getNumberOfDays, getTimeUnit, TimeSeriesAmount, TimeSeriesArgs } from '../object/TimeSeriesAmount';
 
-const TimePeriodArgs = {
+const TransactionArgs = {
+  net: {
+    type: GraphQLBoolean,
+    description: 'Return the net amount (with payment processor fees removed)',
+    defaultValue: false,
+  },
+  kind: {
+    type: new GraphQLList(TransactionKind),
+    description: 'Filter by kind',
+  },
+  periodInMonths: {
+    type: GraphQLInt,
+    description: 'Calculate amount for the last x months. Cannot be used with startDate/endDate',
+  },
   dateFrom: {
     type: GraphQLDateTime,
     description: 'Calculate amount after this date',
@@ -29,25 +41,15 @@ const TimePeriodArgs = {
     type: GraphQLDateTime,
     description: 'Calculate amount before this date',
   },
-};
-
-const includeChildren = {
-  type: GraphQLBoolean,
-  description: 'Include transactions from children (Projects and Events)',
-  defaultValue: false,
-};
-
-const TransactionArgs = {
-  kind: {
-    type: new GraphQLList(TransactionKind),
-    description: 'Filter by kind',
+  includeChildren: {
+    type: GraphQLBoolean,
+    description: 'Include transactions from children (Projects and Events)',
+    defaultValue: false,
   },
-  periodInMonths: {
-    type: GraphQLInt,
-    description: 'Calculate total amount spent in the last x months. Cannot be used with startDate/endDate',
+  currency: {
+    type: Currency,
+    description: 'An optional currency. If not provided, will use the collective currency.',
   },
-  includeChildren,
-  ...TimePeriodArgs,
 };
 
 export const AccountStats = new GraphQLObjectType({
@@ -63,24 +65,17 @@ export const AccountStats = new GraphQLObjectType({
       },
       balanceWithBlockedFunds: {
         description: 'Amount of money in cents in the currency of the collective currently available to spend',
+        deprecationReason: '2022-12-13: Use balance + withBlockedFunds instead',
         type: new GraphQLNonNull(Amount),
         resolve(account, args, req) {
-          return account.getBalanceWithBlockedFundsAmount({ loaders: req.loaders });
+          return account.getBalanceAmount({ loaders: req.loaders, withBlockedFunds: true });
         },
       },
       balance: {
         description: 'Amount of money in cents in the currency of the collective',
         type: new GraphQLNonNull(Amount),
         args: {
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'Calculate balance until this date.',
-          },
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include balance from children (Projects and Events)',
-            defaultValue: false,
-          },
+          ...pick(TransactionArgs, ['dateTo', 'includeChildren', 'currency']),
           withBlockedFunds: {
             type: GraphQLBoolean,
             description: 'Remove blocked funds from the balance',
@@ -93,6 +88,7 @@ export const AccountStats = new GraphQLObjectType({
             endDate: args.dateTo,
             includeChildren: args.includeChildren,
             withBlockedFunds: args.withBlockedFunds,
+            currency: args.currency,
           });
         },
       },
@@ -129,14 +125,19 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Total amount spent',
         type: new GraphQLNonNull(Amount),
         args: {
-          ...TransactionArgs,
+          ...pick(TransactionArgs, [
+            'net',
+            'kind',
+            'dateFrom',
+            'dateTo',
+            'periodInMonths',
+            'includeChildren',
+            'currency',
+          ]),
           includeGiftCards: {
             type: GraphQLBoolean,
             description: 'Include transactions using Gift Cards (not working together with includeChildren)',
             defaultValue: true,
-          },
-          currency: {
-            type: Currency,
           },
         },
         async resolve(collective, args, req) {
@@ -150,6 +151,7 @@ export const AccountStats = new GraphQLObjectType({
 
           return collective.getTotalAmountSpentAmount({
             loaders: req.loaders,
+            net: args.net,
             kind,
             startDate: dateFrom,
             endDate: dateTo,
@@ -163,7 +165,15 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Total amount received',
         type: new GraphQLNonNull(Amount),
         args: {
-          ...TransactionArgs,
+          ...pick(TransactionArgs, [
+            'net',
+            'kind',
+            'dateFrom',
+            'dateTo',
+            'periodInMonths',
+            'includeChildren',
+            'currency',
+          ]),
           useCache: {
             type: new GraphQLNonNull(GraphQLBoolean),
             description: 'Set this to true to use cached data',
@@ -180,7 +190,7 @@ export const AccountStats = new GraphQLObjectType({
           }
 
           // Search query joins "CollectiveTransactionStats" on this field, so we can use the cache
-          if (args.useCache && !dateFrom && !dateTo && !args.includeChildren) {
+          if (args.useCache && !dateFrom && !dateTo && !args.includeChildren && !args.net) {
             const cachedAmount = collective.dataValues['__stats_totalAmountReceivedInHostCurrency__'];
             if (!isNil(cachedAmount)) {
               const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
@@ -189,7 +199,7 @@ export const AccountStats = new GraphQLObjectType({
               }
 
               return {
-                currency: collective.currency,
+                currency: args.currency || collective.currency,
                 value: await req.loaders.CurrencyExchangeRate.convert.load({
                   amount: cachedAmount,
                   fromCurrency: host.currency,
@@ -201,11 +211,39 @@ export const AccountStats = new GraphQLObjectType({
 
           return collective.getTotalAmountReceivedAmount({
             loaders: req.loaders,
-            net: false,
+            net: args.net,
             kind,
             startDate: dateFrom,
             endDate: dateTo,
             includeChildren: args.includeChildren,
+            currency: args.currency,
+          });
+        },
+      },
+      totalAmountReceivedTimeSeries: {
+        description: 'Total amount received time series',
+        type: new GraphQLNonNull(TimeSeriesAmount),
+        args: {
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          ...pick(TransactionArgs, ['net', 'kind', 'periodInMonths', 'includeChildren', 'currency']),
+        },
+        async resolve(collective, args, req) {
+          const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
+          let { dateFrom, dateTo } = args;
+
+          if (args.periodInMonths) {
+            dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
+            dateTo = null;
+          }
+          return collective.getTotalAmountReceivedTimeSeries({
+            loaders: req.loaders,
+            net: args.net,
+            kind,
+            startDate: dateFrom,
+            endDate: dateTo,
+            timeUnit: args.timeUnit,
+            includeChildren: args.includeChildren,
+            currency: args.currency,
           });
         },
       },
@@ -213,29 +251,18 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Total of paid expenses to the account, filter per expense type',
         type: new GraphQLNonNull(Amount),
         args: {
+          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'currency']),
           expenseType: {
             type: new GraphQLList(ExpenseType),
             description: 'Filter by ExpenseType',
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'Calculate total amount received before this date',
-          },
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'Calculate total amount received after this date',
-          },
-          currency: {
-            type: Currency,
-            description: 'An optional currency. If not provided, will use the collective currency.',
           },
         },
         async resolve(collective, args) {
           return collective.getTotalPaidExpensesAmount({
             startDate: args.dateFrom,
             endDate: args.dateTo,
-            expenseType: args.expenseType,
             currency: args.currency,
+            expenseType: args.expenseType,
           });
         },
       },
@@ -266,9 +293,10 @@ export const AccountStats = new GraphQLObjectType({
       },
       totalNetAmountReceived: {
         description: 'Total net amount received',
+        deprecationReason: '2022-12-13: Use totalAmountReceived + net=true instead',
         type: new GraphQLNonNull(Amount),
         args: {
-          ...TransactionArgs,
+          ...pick(TransactionArgs, ['kind', 'dateFrom', 'dateTo', 'periodInMonths', 'includeChildren']),
         },
         async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
@@ -290,16 +318,11 @@ export const AccountStats = new GraphQLObjectType({
       },
       totalNetAmountReceivedTimeSeries: {
         description: 'Total net amount received time series',
+        deprecationReason: '2022-12-13: Use totalAmountReceivedTimeSeries + net=true instead',
         type: new GraphQLNonNull(TimeSeriesAmount),
         args: {
-          ...omit(TransactionArgs, ['kind']),
-          timeUnit: {
-            type: new GraphQLNonNull(TimeUnit),
-            description: 'The time unit of the time series',
-          },
-          currency: {
-            type: Currency,
-          },
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          ...pick(TransactionArgs, ['kind', 'periodInMonths', 'includeChildren', 'currency']),
         },
         async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
@@ -358,19 +381,7 @@ export const AccountStats = new GraphQLObjectType({
         description: 'Returns expense tags for collective sorted by popularity',
         args: {
           limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'The start date of the time series',
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'The end date of the time series',
-          },
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include contributions to children (Projects and Events)',
-            defaultValue: false,
-          },
+          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
         },
         async resolve(collective, args) {
           const limit = args.limit;
@@ -383,12 +394,8 @@ export const AccountStats = new GraphQLObjectType({
       expensesTagsTimeSeries: {
         type: new GraphQLNonNull(TimeSeriesAmount),
         args: {
-          ...TimeSeriesArgs,
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include expense to children (Projects and Events)',
-            defaultValue: false,
-          },
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          includeChildren: TransactionArgs.includeChildren,
         },
         description: 'History of the expense tags used by this collective.',
         resolve: async (collective, args) => {
@@ -416,8 +423,7 @@ export const AccountStats = new GraphQLObjectType({
       contributionsCount: {
         type: new GraphQLNonNull(GraphQLInt),
         args: {
-          ...TimePeriodArgs,
-          includeChildren,
+          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
         },
         async resolve(collective, args, req) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
@@ -435,8 +441,7 @@ export const AccountStats = new GraphQLObjectType({
       contributorsCount: {
         type: new GraphQLNonNull(GraphQLInt),
         args: {
-          ...TimePeriodArgs,
-          includeChildren,
+          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
         },
         async resolve(collective, args, req) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
@@ -455,19 +460,7 @@ export const AccountStats = new GraphQLObjectType({
         type: new GraphQLList(AmountStats),
         description: 'Return amount stats for contributions (default, and only for now: one-time vs recurring)',
         args: {
-          dateFrom: {
-            type: GraphQLDateTime,
-            description: 'The start date of the time series',
-          },
-          dateTo: {
-            type: GraphQLDateTime,
-            description: 'The end date of the time series',
-          },
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include contributions to children (Projects and Events)',
-            defaultValue: false,
-          },
+          ...pick(TransactionArgs, ['dateFrom', 'dateTo', 'includeChildren']),
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
@@ -510,12 +503,8 @@ export const AccountStats = new GraphQLObjectType({
         type: new GraphQLNonNull(TimeSeriesAmount),
         description: 'Return amount time series for contributions (default, and only for now: one-time vs recurring)',
         args: {
-          ...TimeSeriesArgs,
-          includeChildren: {
-            type: GraphQLBoolean,
-            description: 'Include contributions to children (Projects and Events)',
-            defaultValue: false,
-          },
+          ...TimeSeriesArgs, // dateFrom / dateTo / timeUnit
+          includeChildren: TransactionArgs.includeChildren,
         },
         async resolve(collective, args) {
           const dateFrom = args.dateFrom ? moment(args.dateFrom) : moment(collective.createdAt || new Date(2015, 1, 1));
