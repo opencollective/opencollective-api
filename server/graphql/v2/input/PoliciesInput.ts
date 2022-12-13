@@ -13,7 +13,7 @@ export const PoliciesInput = new GraphQLInputObjectType({
           amountInCents: { type: GraphQLInt },
           enabled: { type: GraphQLBoolean },
           appliesToHostedCollectives: { type: GraphQLBoolean },
-          appliesToSingleAdminCollective: { type: GraphQLBoolean },
+          appliesToSingleAdminCollectives: { type: GraphQLBoolean },
         }),
       }),
     },

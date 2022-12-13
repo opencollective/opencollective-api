@@ -19,7 +19,7 @@ module.exports = {
                   0,
                   'appliesToHostedCollectives',
                   false,
-                  'appliesToSingleAdminCollective',
+                  'appliesToSingleAdminCollectives',
                   false
                 )
               )

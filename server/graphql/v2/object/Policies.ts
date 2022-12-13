@@ -19,7 +19,7 @@ export const Policies = new GraphQLObjectType({
           amountInCents: { type: GraphQLInt },
           enabled: { type: GraphQLBoolean },
           appliesToHostedCollectives: { type: GraphQLBoolean },
-          appliesToSingleAdminCollective: { type: GraphQLBoolean },
+          appliesToSingleAdminCollectives: { type: GraphQLBoolean },
         }),
       }),
       resolve(account, _, req) {

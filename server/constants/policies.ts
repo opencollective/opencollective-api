@@ -18,7 +18,7 @@ export type Policies = Partial<{
     enabled: boolean;
     amountInCents: number;
     appliesToHostedCollectives: boolean;
-    appliesToSingleAdminCollective: boolean;
+    appliesToSingleAdminCollectives: boolean;
   };
   [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: Partial<{
     numberOfAdmins: number;
@@ -37,7 +37,7 @@ export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
     enabled: false,
     amountInCents: 0,
     appliesToHostedCollectives: false,
-    appliesToSingleAdminCollective: false,
+    appliesToSingleAdminCollectives: false,
   },
   [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
     numberOfAdmins: 0,
