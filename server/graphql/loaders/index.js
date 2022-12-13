@@ -21,7 +21,11 @@ import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { buildLoaderForAssociation, sortResults, sortResultsSimple } from './helpers';
-import { generateAdminUsersEmailsForCollectiveLoader, generateRemoteUserIsAdminOfHostedAccountLoader } from './members';
+import {
+  generateAdminUsersEmailsForCollectiveLoader,
+  generateCountAdminMembersOfCollective,
+  generateRemoteUserIsAdminOfHostedAccountLoader,
+} from './members';
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
@@ -637,6 +641,7 @@ export const loaders = req => {
 
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
   context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
+  context.loaders.Member.countAdminMembersOfCollective = generateCountAdminMembersOfCollective();
 
   /** *** Transaction *****/
   context.loaders.Transaction = {
