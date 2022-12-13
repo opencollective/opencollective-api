@@ -137,7 +137,7 @@ export const AccountStats = new GraphQLObjectType({
           includeGiftCards: {
             type: GraphQLBoolean,
             description: 'Include transactions using Gift Cards (not working together with includeChildren)',
-            defaultValue: true,
+            defaultValue: false,
           },
         },
         async resolve(collective, args, req) {
@@ -174,11 +174,6 @@ export const AccountStats = new GraphQLObjectType({
             'includeChildren',
             'currency',
           ]),
-          useCache: {
-            type: new GraphQLNonNull(GraphQLBoolean),
-            description: 'Set this to true to use cached data',
-            defaultValue: false,
-          },
         },
         async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
@@ -187,26 +182,6 @@ export const AccountStats = new GraphQLObjectType({
           if (args.periodInMonths) {
             dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
             dateTo = null;
-          }
-
-          // Search query joins "CollectiveTransactionStats" on this field, so we can use the cache
-          if (args.useCache && !dateFrom && !dateTo && !args.includeChildren && !args.net) {
-            const cachedAmount = collective.dataValues['__stats_totalAmountReceivedInHostCurrency__'];
-            if (!isNil(cachedAmount)) {
-              const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
-              if (!host?.currency || host.currency === collective.currency) {
-                return { value: cachedAmount, currency: collective.currency };
-              }
-
-              return {
-                currency: args.currency || collective.currency,
-                value: await req.loaders.CurrencyExchangeRate.convert.load({
-                  amount: cachedAmount,
-                  fromCurrency: host.currency,
-                  toCurrency: collective.currency,
-                }),
-              };
-            }
           }
 
           return collective.getTotalAmountReceivedAmount({

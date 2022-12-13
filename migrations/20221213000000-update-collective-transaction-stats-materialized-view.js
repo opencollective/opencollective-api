@@ -3,7 +3,7 @@
 module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
-      DROP MATERIALIZED VIEW "CollectiveTransactionStats";
+      DROP MATERIALIZED VIEW IF EXISTS  "CollectiveTransactionStats";
       CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
 
         WITH "ActiveCollectives" AS (
@@ -133,7 +133,7 @@ module.exports = {
   async down(queryInterface) {
     // Reinstate previous version
     await queryInterface.sequelize.query(`
-      DROP MATERIALIZED VIEW "CollectiveTransactionStats";
+      DROP MATERIALIZED VIEW IF EXISTS "CollectiveTransactionStats";
       CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
         SELECT
           c.id,

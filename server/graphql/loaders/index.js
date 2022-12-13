@@ -114,6 +114,16 @@ export const loaders = req => {
       .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
   );
 
+  context.loaders.Collective.currentCollectiveTransactionStats = new DataLoader(collectiveIds =>
+    sequelize
+      .query(`SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`, {
+        replacements: { collectiveIds },
+        type: sequelize.QueryTypes.SELECT,
+        raw: true,
+      })
+      .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+  );
+
   // Collective - Balance
   context.loaders.Collective.balance = {
     buildLoader({ endDate = null, includeChildren = false, withBlockedFunds = false } = {}) {
@@ -144,6 +154,7 @@ export const loaders = req => {
             startDate,
             endDate,
             includeChildren,
+            loaders: context.loaders,
           }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
@@ -177,9 +188,15 @@ export const loaders = req => {
       const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${includeGiftCards}`;
       if (!context.loaders.Collective.amountSpent[key]) {
         context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
-          getSumCollectivesAmountSpent(ids, { net, kind, startDate, endDate, includeChildren, includeGiftCards }).then(
-            results => sortResults(ids, Object.values(results), 'CollectiveId'),
-          ),
+          getSumCollectivesAmountSpent(ids, {
+            net,
+            kind,
+            startDate,
+            endDate,
+            includeChildren,
+            includeGiftCards,
+            loaders: context.loaders,
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
         );
       }
       return context.loaders.Collective.amountSpent[key];
