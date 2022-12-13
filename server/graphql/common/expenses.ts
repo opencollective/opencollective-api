@@ -382,16 +382,28 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     return false;
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+    const host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
+
+    const hostPolicy = getPolicy(host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
 
-    if (collectivePolicy.enabled && req.remoteUser.id === expense.UserId) {
-      if (options?.throw) {
-        throw new Forbidden(
-          'User cannot approve their own expenses',
-          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
-        );
+    const policy = hostPolicy.enabled && hostPolicy.appliesToHostedCollectives ? hostPolicy : collectivePolicy;
+
+    if (policy.enabled && expense.amount >= policy.amountInCents) {
+      const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+
+      const shouldEnforcePolicy =
+        collectiveAdminCount >= 2 || (collectiveAdminCount === 1 && hostPolicy.appliesToSingleAdminCollective);
+
+      if (shouldEnforcePolicy && req.remoteUser.id === expense.UserId) {
+        if (options?.throw) {
+          throw new Forbidden(
+            'User cannot approve their own expenses',
+            EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+          );
+        }
+        return false;
       }
-      return false;
     }
     if (expense.status === expenseStatus.INCOMPLETE) {
       return isHostAdmin(req, expense);
