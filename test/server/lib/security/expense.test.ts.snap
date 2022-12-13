@@ -2,11 +2,11 @@
 
 exports[`lib/security/expense checkExpense() returns potential threats related to the expense payment 1`] = `
 "
-| scope         | level  | message                                            |
-| ------------- | ------ | -------------------------------------------------- |
-| USER          | HIGH   | This user may be impersonating multiple profiles   |
-| USER          | MEDIUM | User is not using 2FA                              |
-| USER          | HIGH   | User was never been paid on the platform           |
-| PAYOUT_METHOD | HIGH   | Payout Method was never been paid on the platform  |
-| PAYOUT_METHOD | MEDIUM | Payout Method is also being used by other accounts |"
+| scope         | level  | message                                                          |
+| ------------- | ------ | ---------------------------------------------------------------- |
+| USER          | HIGH   | This user may be impersonating multiple profiles                 |
+| USER          | MEDIUM | User is not using 2FA                                            |
+| USER          | HIGH   | User was never been paid on the platform                         |
+| PAYOUT_METHOD | HIGH   | Payout Method was never been paid on the platform                |
+| PAYOUT_METHOD | HIGH   | Payout Method details is being used by other user or collectives |"
 `;
