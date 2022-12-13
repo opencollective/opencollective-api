@@ -324,15 +324,13 @@ describe('test/stories/ledger', () => {
       await markExpenseAsUnpaid({ remoteUser: hostAdmin } as any, expense.id, false);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
-      // TODO: to be double checked, why would the collective have more money after?
-      // TODO: create an issue to follow up
-      expect(await collective.getBalance()).to.eq(150000 + 500);
+      expect(await collective.getBalance()).to.eq(150000);
       expect(await collective.getTotalAmountReceived()).to.eq(150000);
       expect(await collective.getTotalAmountReceived({ net: true })).to.eq(150000);
       expect(await collective.getTotalAmountSpent()).to.eq(0);
       expect(await collective.getTotalAmountSpent({ net: true })).to.eq(0);
 
-      expect(await host.getTotalMoneyManaged()).to.eq(150000);
+      expect(await host.getTotalMoneyManaged()).to.eq(150000 - 500);
       expect(await host.getBalance()).to.eq(-500);
     });
   });

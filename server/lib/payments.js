@@ -200,20 +200,28 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.hostFeeInHostCurrency = 0;
 
   // Adjust refunded payment processor fee based on the fees payer
-  const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-  if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-    refund.paymentProcessorFeeInHostCurrency = 0;
-  } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
-    if (refundedPaymentProcessorFee) {
-      // If the fee gets refunded, we add it as a positive value on the refund transactions
-      refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
-    } else {
-      // Otherwise, payment processor fees are deducted from the refunded amount which means
-      // the collective will receive the original expense amount minus payment processor fees
+  if (refund.kind === TransactionKind.EXPENSE) {
+    const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+    if (feesPayer === ExpenseFeesPayer.PAYEE) {
+      if (refundedPaymentProcessorFee) {
+        // If the fee gets refunded, we add it as a positive value on the refund transactions
+        refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
+      } else {
+        // Otherwise, payment processor fees are deducted from the refunded amount which means
+        // the collective will receive the original expense amount minus payment processor fees
+        refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
+        refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+        refund.paymentProcessorFeeInHostCurrency = 0;
+      }
+    } else if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
       refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
       refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
       refund.paymentProcessorFeeInHostCurrency = 0;
+    } else {
+      throw new Error(`Refund not supported for feesPayer = '${feesPayer}'`);
     }
+  } else {
+    refund.paymentProcessorFeeInHostCurrency = 0;
   }
 
   // Re-compute the net amount
