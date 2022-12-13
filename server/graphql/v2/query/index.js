@@ -8,6 +8,7 @@ import HostsCollectionQuery from './collection/HostsCollectionQuery';
 import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
+import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
 import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
@@ -48,6 +49,7 @@ const query = {
   tier: TierQuery,
   transactions: TransactionsCollectionQuery,
   update: UpdateQuery,
+  updates: UpdatesCollectionQuery,
   paypalPlan: PaypalPlanQuery,
   loggedInAccount: {
     type: Individual,

@@ -833,20 +833,20 @@ type Order {
 All order statuses
 """
 enum OrderStatus {
+  NEW
+  REQUIRE_CLIENT_CONFIRMATION
+  PAID
+  ERROR
+  PROCESSING
   ACTIVE
   CANCELLED
-  DISPUTED
-  ERROR
-  EXPIRED
-  IN_REVIEW
-  NEW
-  PAID
   PENDING
-  PROCESSING
+  EXPIRED
   PLEDGED
-  REFUNDED
   REJECTED
-  REQUIRE_CLIENT_CONFIRMATION
+  DISPUTED
+  REFUNDED
+  IN_REVIEW
 }
 
 enum ContributionFrequency {
@@ -2316,6 +2316,7 @@ type Activity {
 enum ActivityType {
   ACTIVITY_ALL
   CONNECTED_ACCOUNT_CREATED
+  CONNECTED_ACCOUNT_ERROR
   COLLECTIVE_CREATED_GITHUB
   COLLECTIVE_APPLY
   COLLECTIVE_APPROVED
@@ -3395,6 +3396,8 @@ enum PaymentMethodType {
   manual @deprecated(reason: "Please use uppercase values")
   crypto @deprecated(reason: "Please use uppercase values")
   paymentintent @deprecated(reason: "Please use uppercase values")
+  us_bank_account @deprecated(reason: "Please use uppercase values")
+  sepa_debit @deprecated(reason: "Please use uppercase values")
   ALIPAY
   CREDITCARD
   PREPAID
@@ -3407,6 +3410,8 @@ enum PaymentMethodType {
   MANUAL
   CRYPTO
   PAYMENT_INTENT
+  US_BANK_ACCOUNT
+  SEPA_DEBIT
 }
 
 """
@@ -3649,6 +3654,8 @@ enum PaymentMethodLegacyType {
   ADDED_FUNDS
   CRYPTO
   PAYMENT_INTENT
+  US_BANK_ACCOUNT
+  SEPA_DEBIT
 }
 
 """
@@ -3684,6 +3691,7 @@ All supported services a user can connect with
 enum ConnectedAccountService {
   paypal
   stripe
+  stripe_customer
   github
   twitter
   transferwise
@@ -3711,26 +3719,31 @@ type AccountStats {
   """
   Amount of money in cents in the currency of the collective currently available to spend
   """
-  balanceWithBlockedFunds: Amount!
+  balanceWithBlockedFunds: Amount! @deprecated(reason: "2022-12-13: Use balance + withBlockedFunds instead")
 
   """
   Amount of money in cents in the currency of the collective
   """
   balance(
     """
-    Calculate balance beginning from this date.
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate balance until this date.
+    Calculate amount before this date
     """
     dateTo: DateTime
 
     """
-    Include balance from children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+
+    """
+    Remove blocked funds from the balance
+    """
+    withBlockedFunds: Boolean = false
   ): Amount!
 
   """
@@ -3748,29 +3761,44 @@ type AccountStats {
   """
   totalAmountSpent(
     """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
     Filter by kind
     """
     kind: [TransactionKind]
 
     """
-    Calculate total amount spent before this date
-    """
-    dateTo: DateTime
-
-    """
-    Calculate total amount spent after this date
+    Calculate amount after this date
     """
     dateFrom: DateTime
 
     """
-    Calculate total amount spent in the last x months. Cannot be used with startDate/endDate
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
     """
     periodInMonths: Int
 
     """
-    Include money spent in children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+
+    """
+    Include transactions using Gift Cards (not working together with includeChildren)
+    """
+    includeGiftCards: Boolean = true
   ): Amount!
 
   """
@@ -3778,29 +3806,39 @@ type AccountStats {
   """
   totalAmountReceived(
     """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
     Filter by kind
     """
     kind: [TransactionKind]
 
     """
-    Calculate total amount spent before this date
-    """
-    dateTo: DateTime
-
-    """
-    Calculate total amount spent after this date
+    Calculate amount after this date
     """
     dateFrom: DateTime
 
     """
-    Calculate total amount spent in the last x months. Cannot be used with startDate/endDate
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
     """
     periodInMonths: Int
 
     """
-    Include money spent in children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
 
     """
     Set this to true to use cached data
@@ -3809,28 +3847,73 @@ type AccountStats {
   ): Amount!
 
   """
-  Total of paid expenses to the account, filter per expense type
+  Total amount received time series
   """
-  totalPaidExpenses(
+  totalAmountReceivedTimeSeries(
     """
-    Filter by ExpenseType
+    The start date of the time series
     """
-    expenseType: [ExpenseType]
+    dateFrom: DateTime
 
     """
-    Calculate total amount received before this date
+    The end date of the time series
     """
     dateTo: DateTime
 
     """
-    Calculate total amount received after this date
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
     """
-    dateFrom: DateTime
+    timeUnit: TimeUnit
+
+    """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
 
     """
     An optional currency. If not provided, will use the collective currency.
     """
     currency: Currency
+  ): TimeSeriesAmount!
+
+  """
+  Total of paid expenses to the account, filter per expense type
+  """
+  totalPaidExpenses(
+    """
+    Calculate amount after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+
+    """
+    Filter by ExpenseType
+    """
+    expenseType: [ExpenseType]
   ): Amount!
   yearlyBudget: Amount!
   yearlyBudgetManaged: Amount!
@@ -3845,25 +3928,65 @@ type AccountStats {
     kind: [TransactionKind]
 
     """
-    Calculate total amount spent before this date
-    """
-    dateTo: DateTime
-
-    """
-    Calculate total amount spent after this date
+    Calculate amount after this date
     """
     dateFrom: DateTime
 
     """
-    Calculate total amount spent in the last x months. Cannot be used with startDate/endDate
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
     """
     periodInMonths: Int
 
     """
-    Include money spent in children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
-  ): Amount!
+  ): Amount! @deprecated(reason: "2022-12-13: Use totalAmountReceived + net=true instead")
+
+  """
+  Total net amount received time series
+  """
+  totalNetAmountReceivedTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+  ): TimeSeriesAmount! @deprecated(reason: "2022-12-13: Use totalAmountReceivedTimeSeries + net=true instead")
   activeRecurringContributions: JSON
     @deprecated(reason: "2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.")
   activeRecurringContributionsV2(
@@ -3880,17 +4003,17 @@ type AccountStats {
     limit: Int! = 30
 
     """
-    The start date of the time series
+    Calculate amount after this date
     """
     dateFrom: DateTime
 
     """
-    The end date of the time series
+    Calculate amount before this date
     """
     dateTo: DateTime
 
     """
-    Include contributions to children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
   ): [AmountStats]
@@ -3915,27 +4038,59 @@ type AccountStats {
     timeUnit: TimeUnit
 
     """
-    Include expense to children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
   ): TimeSeriesAmount!
+  contributionsCount(
+    """
+    Calculate amount after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+  ): Int!
+  contributorsCount(
+    """
+    Calculate amount after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+  ): Int!
 
   """
   Return amount stats for contributions (default, and only for now: one-time vs recurring)
   """
   contributionsAmount(
     """
-    The start date of the time series
+    Calculate amount after this date
     """
     dateFrom: DateTime
 
     """
-    The end date of the time series
+    Calculate amount before this date
     """
     dateTo: DateTime
 
     """
-    Include contributions to children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
   ): [AmountStats]
@@ -3960,30 +4115,10 @@ type AccountStats {
     timeUnit: TimeUnit
 
     """
-    Include contributions to children (Projects and Events)
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
   ): TimeSeriesAmount!
-}
-
-"""
-Statistics aith amounts
-"""
-type AmountStats {
-  """
-  Name/Label for the amount
-  """
-  label: String!
-
-  """
-  Total amount for this label
-  """
-  amount: Amount!
-
-  """
-  Number of entries for this label
-  """
-  count: Int
 }
 
 """
@@ -4015,6 +4150,26 @@ type TimeSeriesAmountNode {
   date: DateTime!
   amount: Amount!
   label: String
+}
+
+"""
+Statistics aith amounts
+"""
+type AmountStats {
+  """
+  Name/Label for the amount
+  """
+  label: String!
+
+  """
+  Total amount for this label
+  """
+  amount: Amount!
+
+  """
+  Number of entries for this label
+  """
+  count: Int
 }
 
 """
@@ -8733,7 +8888,7 @@ type Query {
     """
     Operator to use when searching with tags. Defaults to 'AND'
     """
-    tagSearchOperator: TagSearchOperator = AND
+    tagSearchOperator: TagSearchOperator! = AND
 
     """
     Host hosting the account
@@ -9385,6 +9540,27 @@ type Query {
     """
     account: AccountReferenceInput
   ): Update
+  updates(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only from accounts that have one of these tags
+    """
+    tag: [String]
+
+    """
+    Host for the account for which to get updates
+    """
+    host: [AccountReferenceInput]
+  ): UpdatesCollection!
   paypalPlan(
     """
     The account that serves as a payment target
@@ -10662,6 +10838,7 @@ type ActivityCollection implements Collection {
 enum ActivityAndClassesType {
   ACTIVITY_ALL
   CONNECTED_ACCOUNT_CREATED
+  CONNECTED_ACCOUNT_ERROR
   COLLECTIVE_CREATED_GITHUB
   COLLECTIVE_APPLY
   COLLECTIVE_APPROVED
@@ -12007,6 +12184,16 @@ input TierReferenceInput {
   Pass this flag to reference the custom tier (/donate)
   """
   isCustom: Boolean
+}
+
+"""
+A collection of "Updates"
+"""
+type UpdatesCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Update!]
 }
 
 """
