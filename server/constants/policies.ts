@@ -14,7 +14,12 @@ const enum POLICIES {
 }
 
 export type Policies = Partial<{
-  [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: boolean;
+  [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+    enabled: boolean;
+    amountInCents: number;
+    appliesToHostedCollectives: boolean;
+    appliesToSingleAdminCollective: boolean;
+  };
   [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: Partial<{
     numberOfAdmins: number;
     applies: 'ALL_COLLECTIVES' | 'NEW_COLLECTIVES';
@@ -28,7 +33,12 @@ export type Policies = Partial<{
 }>;
 
 export const DEFAULT_POLICIES: { [T in POLICIES]: Policies[T] } = {
-  [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: false,
+  [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+    enabled: false,
+    amountInCents: 0,
+    appliesToHostedCollectives: false,
+    appliesToSingleAdminCollective: false,
+  },
   [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: {
     numberOfAdmins: 0,
     applies: 'NEW_COLLECTIVES',
