@@ -104,23 +104,39 @@ export const loaders = req => {
     loader: parentIds => context.loaders.Collective.byId.loadMany(parentIds),
   });
 
+  context.loaders.Collective.currentCollectiveBalance = new DataLoader(collectiveIds =>
+    sequelize
+      .query(`SELECT * FROM "CurrentCollectiveBalance" WHERE "CollectiveId" IN (:collectiveIds)`, {
+        replacements: { collectiveIds },
+        type: sequelize.QueryTypes.SELECT,
+        raw: true,
+      })
+      .then(results => sortResults(collectiveIds, Object.values(results), 'CollectiveId')),
+  );
+
   // Collective - Balance
-  context.loaders.Collective.balance = new DataLoader(ids =>
-    getBalances(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
-  );
-  context.loaders.Collective.balanceWithBlockedFunds = new DataLoader(ids =>
-    getBalances(ids, { withBlockedFunds: true }).then(results =>
-      sortResults(ids, Object.values(results), 'CollectiveId'),
-    ),
-  );
+  context.loaders.Collective.balance = {
+    buildLoader({ endDate = null, includeChildren = false, withBlockedFunds = false } = {}) {
+      const key = `${endDate}-${includeChildren}-${withBlockedFunds}`;
+      if (!context.loaders.Collective.balance[key]) {
+        context.loaders.Collective.balance[key] = new DataLoader(ids =>
+          getBalances(ids, {
+            endDate,
+            includeChildren,
+            withBlockedFunds,
+            loaders: context.loaders,
+          }).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+        );
+      }
+      return context.loaders.Collective.balance[key];
+    },
+  };
 
   // Collective - Amount Received
   context.loaders.Collective.amountReceived = {
-    buildLoader({ net, kind, startDate, endDate, includeChildren } = {}) {
+    buildLoader({ net = false, kind = undefined, startDate = null, endDate = null, includeChildren = false } = {}) {
       const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}`;
       if (!context.loaders.Collective.amountReceived[key]) {
-        // console.log('amountReceived', key);
-
         context.loaders.Collective.amountReceived[key] = new DataLoader(ids =>
           getSumCollectivesAmountReceived(ids, {
             net,
@@ -140,8 +156,6 @@ export const loaders = req => {
     buildLoader({ net, kind, startDate, endDate, includeChildren, timeUnit } = {}) {
       const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${timeUnit}`;
       if (!context.loaders.Collective.amountReceivedTimeSeries[key]) {
-        // console.log('amountReceivedTimeSeries', key);
-
         context.loaders.Collective.amountReceivedTimeSeries[key] = new DataLoader(ids =>
           getSumCollectivesAmountReceived(ids, {
             net,
@@ -161,10 +175,7 @@ export const loaders = req => {
   context.loaders.Collective.amountSpent = {
     buildLoader({ net, kind, startDate, endDate, includeChildren, includeGiftCards } = {}) {
       const key = `${net}-${kind}-${startDate}-${endDate}-${includeChildren}-${includeGiftCards}`;
-
       if (!context.loaders.Collective.amountSpent[key]) {
-        // console.log('amountSpent', key);
-
         context.loaders.Collective.amountSpent[key] = new DataLoader(ids =>
           getSumCollectivesAmountSpent(ids, { net, kind, startDate, endDate, includeChildren, includeGiftCards }).then(
             results => sortResults(ids, Object.values(results), 'CollectiveId'),
@@ -179,10 +190,7 @@ export const loaders = req => {
   context.loaders.Collective.contributionsAndContributorsCount = {
     buildLoader({ startDate, endDate, includeChildren } = {}) {
       const key = `${startDate}-${endDate}-${includeChildren}`;
-
       if (!context.loaders.Collective.contributionsAndContributorsCount[key]) {
-        // console.log('contributionsAndContributorsCount', key);
-
         context.loaders.Collective.contributionsAndContributorsCount[key] = new DataLoader(ids =>
           sumCollectivesTransactions(ids, {
             column: 'amountInHostCurrency',
