@@ -1,4 +1,4 @@
-import { capitalize, compact, find, startCase } from 'lodash';
+import { capitalize, compact, find, startCase, uniq } from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
@@ -232,11 +232,11 @@ export const checkExpense = async (expense: typeof models.Expense): Promise<Secu
     if (similarPayoutMethods) {
       addBooleanCheck(checks, similarPayoutMethods.length > 0, {
         scope: Scope.PAYOUT_METHOD,
-        level: Level.MEDIUM,
-        message: `Payout Method is also being used by other accounts`,
-        details: `${compact(similarPayoutMethods.map(pm => pm.Collective?.slug)).join(
-          ', ',
-        )} are also using the same information on their payout method.`,
+        level: Level.HIGH,
+        message: `Payout Method details is being used by other user or collectives`,
+        details: `This same account information is being used by ${uniq(
+          compact(similarPayoutMethods.map(pm => pm.Collective?.slug)),
+        ).join(', ')}. This may be a sock puppet account.`,
       });
     }
   }
