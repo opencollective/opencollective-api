@@ -20,6 +20,12 @@ const UpdatesCollectionQuery = {
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
     const { offset, limit } = args;
+    const where = {
+      // Only return published updates
+      publishedAt: { [Op.ne]: null },
+      // Only return updates that are public
+      isPrivate: false,
+    };
     let include;
 
     if (args.host || args.tag) {
@@ -38,8 +44,8 @@ const UpdatesCollectionQuery = {
       }
     }
 
-    const order = [['createdAt', 'DESC']];
-    const result = await models.Update.findAndCountAll({ order, offset, limit, include });
+    const order = [['publishedAt', 'DESC']];
+    const result = await models.Update.findAndCountAll({ where, order, offset, limit, include });
     return { nodes: result.rows, totalCount: result.count, limit, offset };
   },
 };
