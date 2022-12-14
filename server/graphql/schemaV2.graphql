@@ -9468,6 +9468,27 @@ type Query {
     """
     account: AccountReferenceInput
   ): Update
+  updates(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Only from accounts that have one of these tags
+    """
+    tag: [String]
+
+    """
+    Host for the account for which to get updates
+    """
+    host: [AccountReferenceInput]
+  ): UpdatesCollection!
   paypalPlan(
     """
     The account that serves as a payment target
@@ -12091,6 +12112,16 @@ input TierReferenceInput {
   Pass this flag to reference the custom tier (/donate)
   """
   isCustom: Boolean
+}
+
+"""
+A collection of "Updates"
+"""
+type UpdatesCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Update!]
 }
 
 """
