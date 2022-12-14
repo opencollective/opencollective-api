@@ -402,7 +402,7 @@ export async function getSumCollectivesAmountReceived(
     : 'amountInHostCurrency';
   const transactionType = net ? 'CREDIT_WITH_HOST_FEE' : CREDIT;
 
-  const results = sumCollectivesTransactions(missingCollectiveIds, {
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
     transactionType,
     kind,

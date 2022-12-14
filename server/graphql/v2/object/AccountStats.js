@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNil, pick } from 'lodash';
+import { get, has, pick } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
@@ -174,6 +174,12 @@ export const AccountStats = new GraphQLObjectType({
             'includeChildren',
             'currency',
           ]),
+          useCache: {
+            type: new GraphQLNonNull(GraphQLBoolean),
+            description: 'Set this to true to use cached data',
+            deprecationReason: '2022-12-14: this is not used anymore as results should be fast by default',
+            defaultValue: false,
+          },
         },
         async resolve(collective, args, req) {
           const kind = args.kind && args.kind.length > 0 ? args.kind : undefined;
