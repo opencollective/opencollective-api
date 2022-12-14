@@ -389,6 +389,7 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
 
     const policy = hostPolicy.enabled && hostPolicy.appliesToHostedCollectives ? hostPolicy : collectivePolicy;
+    const currency = hostPolicy.enabled ? expense.collective.host.currency : expense.collective.currency;
 
     if (policy.enabled && expense.amount >= policy.amountInCents) {
       const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
@@ -403,6 +404,12 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
           throw new Forbidden(
             'User cannot approve their own expenses',
             EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+            {
+              reasonDetails: {
+                amount: policy.amountInCents / 100,
+                currency,
+              },
+            },
           );
         }
         return false;
