@@ -13,7 +13,7 @@ import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
-import { computeDatesAsISOStrings, ifStr } from './utils';
+import { ifStr } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;
@@ -1125,39 +1125,6 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
   return getTaxFormsOverTheLimit(results, 'collectiveId');
 };
 
-/**
- * Returns the contribution or expense amounts over time.
- * NOTE: to query a specific host use getTransactionsTimeSeries from `server/lib/host-metrics.js`
- */
-const getTransactionsTimeSeries = async (
-  timeUnit,
-  { collectiveIds = [], type = null, kind = null, dateFrom = null, dateTo = null } = {},
-) => {
-  return sequelize.query(
-    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency", count("id") as "count"
-         FROM "Transactions"
-         WHERE "deletedAt" IS NULL
-           AND "CollectiveId" IN (:collectiveIds)
-           ${type ? `AND "type" = :type` : ``}
-           ${kind?.length ? `AND "kind" IN (:kind)` : ``}
-           ${dateFrom ? `AND "createdAt" >= :startDate` : ``}
-           ${dateTo ? `AND "createdAt" <= :endDate` : ``}
-         GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
-         ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
-        `,
-    {
-      type: sequelize.QueryTypes.SELECT,
-      replacements: {
-        kind: Array.isArray(kind) ? kind : [kind],
-        type,
-        timeUnit,
-        collectiveIds,
-        ...computeDatesAsISOStrings(dateFrom, dateTo),
-      },
-    },
-  );
-};
-
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1201,7 +1168,6 @@ const queries = {
   getTotalNumberOfDonors,
   getUniqueCollectiveTags,
   getGiftCardBatchesForCollective,
-  getTransactionsTimeSeries,
 };
 
 export default queries;
