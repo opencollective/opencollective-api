@@ -226,7 +226,7 @@ export async function getSumCollectivesAmountSpent(
     : 'amountInHostCurrency';
   const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
 
-  const results = await sumCollectivesTransactions(collectiveIds, {
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
     transactionType,
     kind,

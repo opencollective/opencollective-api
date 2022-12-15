@@ -3,13 +3,13 @@
 module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
-      DROP MATERIALIZED VIEW IF EXISTS  "CollectiveTransactionStats";
+      DROP MATERIALIZED VIEW IF EXISTS "CollectiveTransactionStats";
       CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
 
         WITH "ActiveCollectives" AS (
           SELECT c."id" as "CollectiveId"
           FROM "Transactions" t
-          LEFT JOIN  "Collectives" c ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
+          LEFT JOIN "Collectives" c ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
           WHERE t."deletedAt" IS NULL
             AND t."hostCurrency" IS NOT NULL
             AND c."deactivatedAt" IS NULL
@@ -54,11 +54,11 @@ module.exports = {
             FILTER (WHERE t.type = 'DEBIT' AND t.kind != 'HOST_FEE')
             AS "totalNetAmountSpentInHostCurrency",
 
-          MAX(t."hostCurrency") as  "hostCurrency"
+          MAX(t."hostCurrency") as "hostCurrency"
 
         FROM "ActiveCollectives" ac
 
-        LEFT JOIN "Transactions" t ON t."CollectiveId" = ac."CollectiveId"
+        INNER JOIN "Transactions" t ON t."CollectiveId" = ac."CollectiveId"
           AND t."deletedAt" IS NULL
           AND t."RefundTransactionId" IS NULL
           AND t."isRefund" IS NOT TRUE
