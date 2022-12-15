@@ -14,7 +14,7 @@ module.exports = {
                 'EXPENSE_AUTHOR_CANNOT_APPROVE',
                 jsonb_build_object(
                   'enabled', 
-                  data#>'{policies,EXPENSE_AUTHOR_CANNOT_APPROVE}', 
+                  CASE WHEN data#>'{policies,EXPENSE_AUTHOR_CANNOT_APPROVE}' = 'null'::jsonb THEN false WHEN data#>'{policies,EXPENSE_AUTHOR_CANNOT_APPROVE}' = 'false'::jsonb THEN false ELSE true END,
                   'amountInCents',
                   0,
                   'appliesToHostedCollectives',
