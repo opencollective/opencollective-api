@@ -95,7 +95,7 @@ export async function getBalances(
 ) {
   const fastResults =
     fastBalance === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
-      ? await getCurrentFastBalances(collectiveIds, { loaders, withBlockedFunds })
+      ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -786,7 +786,7 @@ export async function getBlockedFunds(collectiveIds) {
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
-export async function getCurrentFastBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
+export async function getCurrentCollectiveBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
   const fastResults = loaders
     ? await Promise.map(collectiveIds, collectiveId =>
         loaders.Collective.currentCollectiveBalance.load(collectiveId),
