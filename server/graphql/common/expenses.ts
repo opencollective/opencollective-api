@@ -387,33 +387,34 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
 
     const hostPolicy = getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const currency = expense.collective.host.currency;
 
-    const policy = hostPolicy.enabled && hostPolicy.appliesToHostedCollectives ? hostPolicy : collectivePolicy;
-    const currency = hostPolicy.enabled ? expense.collective.host.currency : expense.collective.currency;
+    let policy = collectivePolicy;
+    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
+      policy = hostPolicy;
 
-    if (policy.enabled && expense.amount >= policy.amountInCents) {
-      const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
-
-      const shouldEnforcePolicy =
-        collectiveAdminCount >= 2 ||
-        (collectivePolicy.enabled && !hostPolicy.enabled) ||
-        (collectiveAdminCount === 1 && hostPolicy.appliesToSingleAdminCollectives);
-
-      if (shouldEnforcePolicy && req.remoteUser.id === expense.UserId) {
-        if (options?.throw) {
-          throw new Forbidden(
-            'User cannot approve their own expenses',
-            EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
-            {
-              reasonDetails: {
-                amount: policy.amountInCents / 100,
-                currency,
-              },
-            },
-          );
+      if (!hostPolicy.appliesToSingleAdminCollectives) {
+        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+        if (collectiveAdminCount === 1) {
+          policy = collectivePolicy;
         }
-        return false;
       }
+    }
+
+    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
+      if (options?.throw) {
+        throw new Forbidden(
+          'User cannot approve their own expenses',
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+          {
+            reasonDetails: {
+              amount: policy.amountInCents / 100,
+              currency,
+            },
+          },
+        );
+      }
+      return false;
     }
     if (expense.status === expenseStatus.INCOMPLETE) {
       return isHostAdmin(req, expense);
