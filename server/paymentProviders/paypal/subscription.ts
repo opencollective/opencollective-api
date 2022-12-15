@@ -15,7 +15,7 @@ import User from '../../models/User';
 import { PaymentProviderService } from '../types';
 
 import { paypalRequest } from './api';
-import { refundPaypalCapture } from './payment';
+import {getCaptureIdFromPaypalTransaction, refundPaypalCapture} from './payment';
 
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 
@@ -344,8 +344,7 @@ const PayPalSubscription: PaymentProviderService = {
   },
 
   async refundTransaction(transaction, user, reason) {
-    // Subscription's transactions are always recorded with paypalSale
-    const captureId = transaction.data.paypalSale?.id;
+    const captureId = getCaptureIdFromPaypalTransaction(transaction);
     if (!captureId) {
       throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);
     }
