@@ -7,7 +7,7 @@ import config from 'config';
 import logger from './lib/logger';
 
 if (config.env === 'development') {
-  logger.info('opentelemetry tracing enabled')
+  logger.info('opentelemetry tracing enabled');
 
   const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
   const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-proto');
@@ -16,7 +16,6 @@ if (config.env === 'development') {
   const { BatchSpanProcessor } = require('@opentelemetry/sdk-trace-base');
   const { NodeTracerProvider } = require('@opentelemetry/sdk-trace-node');
   const { SequelizeInstrumentation } = require('opentelemetry-instrumentation-sequelize');
-
 
   registerInstrumentations({
     instrumentations: [getNodeAutoInstrumentations(), new SequelizeInstrumentation()],
