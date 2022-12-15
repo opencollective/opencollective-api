@@ -378,7 +378,7 @@ export async function deleteCollective(collective) {
       [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
     },
   });
-  await map(members, member => member.destroy(), { concurrency: 3 });
+  await map(members, (member: typeof models.Member) => member.destroy(), { concurrency: 3 });
 
   const orders = await models.Order.findAll({
     where: {
@@ -386,7 +386,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
     },
   });
-  await map(orders, order => order.destroy(), { concurrency: 3 });
+  await map(orders, (order: typeof models.Order) => order.destroy(), { concurrency: 3 });
 
   const expenses = await models.Expense.findAll({
     where: {
@@ -394,7 +394,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
     },
   });
-  await map(expenses, expense => expense.destroy(), { concurrency: 3 });
+  await map(expenses, (expense: typeof models.Expense) => expense.destroy(), { concurrency: 3 });
 
   const tiers = await models.Tier.findAll({
     where: { CollectiveId: collective.id },
@@ -404,7 +404,9 @@ export async function deleteCollective(collective) {
   const paymentMethods = await models.PaymentMethod.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(paymentMethods, paymentMethod => paymentMethod.destroy(), { concurrency: 3 });
+  await map(paymentMethods, (paymentMethod: typeof models.PaymentMethod) => paymentMethod.destroy(), {
+    concurrency: 3,
+  });
 
   const connectedAccounts = await models.ConnectedAccount.findAll({
     where: { CollectiveId: collective.id },
@@ -414,7 +416,9 @@ export async function deleteCollective(collective) {
   const memberInvitations = await models.MemberInvitation.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(memberInvitations, memberInvitation => memberInvitation.destroy(), { concurrency: 3 });
+  await map(memberInvitations, (memberInvitation: typeof models.MemberInvitation) => memberInvitation.destroy(), {
+    concurrency: 3,
+  });
 
   await collective.destroy();
 

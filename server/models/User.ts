@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
@@ -310,7 +309,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    * Static Methods
    */
   static createMany = (users, defaultValues = {}) => {
-    return Promise.map(users, u => User.create(defaults({}, u, defaultValues)), { concurrency: 1 });
+    return Promise.all(users.map(u => User.create(defaults({}, u, defaultValues))));
   };
 
   static findOrCreateByEmail = (email, otherAttributes) => {
@@ -393,7 +392,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   // Getters
   // Collective of type USER corresponding to this user
   // @deprecated use user.getCollective()
-  get userCollective(): NonAttribute<unknown> {
+  get userCollective(): NonAttribute<Promise<typeof models.Collective>> {
     return models.Collective.findByPk(this.CollectiveId).then(userCollective => {
       if (!userCollective) {
         logger.info(`No Collective attached to this user id ${this.id} (User.CollectiveId: ${this.CollectiveId})`);
@@ -408,43 +407,43 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   }
 
   // @deprecated
-  get name(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.name);
+  get name(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.name);
   }
 
   // @deprecated
-  get twitterHandle(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.twitterHandle);
+  get twitterHandle(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.twitterHandle);
   }
 
   // @deprecated
-  get githubHandle(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.githubHandle);
+  get githubHandle(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.githubHandle);
   }
 
   // @deprecated
-  get repositoryUrl(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.repositoryUrl);
+  get repositoryUrl(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.repositoryUrl);
   }
 
   // @deprecated
-  get website(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.website);
+  get website(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.website);
   }
 
   // @deprecated
-  get description(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.description);
+  get description(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.description);
   }
 
   // @deprecated
-  get longDescription(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.longDescription);
+  get longDescription(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.longDescription);
   }
 
   // @deprecated
-  get image(): NonAttribute<string> {
-    return (<Promise<typeof models.Collective>>this.userCollective).then(collective => collective.image);
+  get image(): NonAttribute<Promise<string>> {
+    return this.userCollective.then(c => c.image);
   }
 
   // Info (private).

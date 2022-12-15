@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import debugLib from 'debug';
 import { compact, defaults, isNil, keys, pick, pickBy, reject } from 'lodash';
 import prependHttp from 'prepend-http';
@@ -40,11 +39,11 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     return models.User.findByPk(this.UserId);
   }
 
-  static createMany(
+  static async createMany(
     notifications: InferCreationAttributes<Notification>[],
     defaultValues?: InferCreationAttributes<Notification>,
-  ): Notification[] {
-    return Promise.map(notifications, u => Notification.create(defaults({}, u, defaultValues))).catch(console.error);
+  ): Promise<Notification[]> {
+    return Promise.all(notifications.map(u => Notification.create(defaults({}, u, defaultValues))));
   }
 
   static async unsubscribe(
