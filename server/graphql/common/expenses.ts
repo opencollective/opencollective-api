@@ -387,7 +387,7 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
 
     const hostPolicy = getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const currency = expense.collective.host.currency;
+    const currency = expense.collective.host?.currency || 'USD';
 
     let policy = collectivePolicy;
     if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
