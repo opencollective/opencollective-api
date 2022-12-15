@@ -151,10 +151,10 @@ export async function createTransactionsFromPaidExpense(
   fees = { ...DEFAULT_FEES, ...fees };
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
 
-  // Get the right FX rate for the expense
+  // Use the supplied FX rate or fetch a new one for the time of payment
   const expenseToHostFxRate =
     expenseToHostFxRateConfig === 'auto'
-      ? await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt)
+      ? await getFxRate(expense.currency, host.currency, new Date())
       : expenseToHostFxRateConfig;
 
   const expenseDataForTransaction: Record<string, unknown> = { expenseToHostFxRate };
