@@ -1,6 +1,13 @@
 import config from 'config';
 import express from 'express';
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
@@ -292,6 +299,10 @@ const expenseMutations = {
               description: 'Who is responsible for paying any due fees.',
               defaultValue: 'COLLECTIVE',
             },
+            customExchangeRate: {
+              type: GraphQLFloat,
+              description: 'Custom exchange rate to use for the payment',
+            },
           }),
         }),
       },
@@ -341,6 +352,7 @@ const expenseMutations = {
             paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
+            customExchangeRate: args.paymentParams?.customExchangeRate,
           });
         default:
           return expense;

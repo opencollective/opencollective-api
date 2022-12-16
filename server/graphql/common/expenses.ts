@@ -18,6 +18,7 @@ import {
   set,
   size,
   sumBy,
+  toNumber,
   uniq,
 } from 'lodash';
 
@@ -1642,7 +1643,7 @@ type FeesArgs = {
 export const getExpenseFees = async (
   expense,
   host,
-  { fees = {}, payoutMethod, forceManual, useExistingWiseData = false },
+  { fees = {}, payoutMethod, forceManual, useExistingWiseData = false, customExchangeRate = undefined },
 ): Promise<{
   feesInHostCurrency: {
     paymentProcessorFeeInHostCurrency: number;
@@ -1722,7 +1723,8 @@ export const getExpenseFees = async (
       platformFee: resultFees['platformFeeInCollectiveCurrency'],
     };
   } else {
-    const collectiveToExpenseFxRate = await getFxRate(expense.collective.currency, expense.currency);
+    const collectiveToExpenseFxRate =
+      customExchangeRate || (await getFxRate(expense.collective.currency, expense.currency));
     const applyCollectiveToExpenseFxRate = (amount: number) => Math.round((amount || 0) * collectiveToExpenseFxRate);
     feesInExpenseCurrency = {
       paymentProcessorFee: applyCollectiveToExpenseFxRate(resultFees['paymentProcessorFeeInCollectiveCurrency']),
@@ -1741,7 +1743,7 @@ export const checkHasBalanceToPayExpense = async (
   host,
   expense,
   payoutMethod,
-  { forceManual = false, manualFees = {}, useExistingWiseData = false } = {},
+  { forceManual = false, manualFees = {}, useExistingWiseData = false, customExchangeRate = undefined } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
   const balanceInCollectiveCurrency = await expense.collective.getBalanceWithBlockedFunds();
@@ -1769,7 +1771,7 @@ export const checkHasBalanceToPayExpense = async (
         throw new ValidationFailed(`${defaultErrorMessage}.`);
       }
     } else if (isNumber(exchangeStats?.latestRate)) {
-      const rate = exchangeStats.latestRate - exchangeStats.stddev * 2;
+      const rate = 1 / customExchangeRate || exchangeStats.latestRate - exchangeStats.stddev * 2;
       const safeAmount = Math.round(amountToPayInExpenseCurrency / rate);
       if (balanceInCollectiveCurrency < safeAmount) {
         throw new ValidationFailed(
@@ -1800,6 +1802,7 @@ export const checkHasBalanceToPayExpense = async (
     payoutMethod,
     forceManual,
     useExistingWiseData,
+    customExchangeRate,
   });
 
   // Estimate the total amount to pay from the collective, based on who's supposed to pay the fee
@@ -1851,6 +1854,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         { model: models.Collective, as: 'fromCollective' },
       ],
     });
+    const isCrossCurrency = expense.currency !== expense.collective.currency;
+    const customExchangeRate = isCrossCurrency && toNumber(args.customExchangeRate);
+
     if (!expense) {
       throw new Unauthorized('Expense not found');
     }
@@ -1889,6 +1895,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
       forceManual,
+      customExchangeRate,
       manualFees: <FeesArgs>(
         pick(args, [
           'paymentProcessorFeeInCollectiveCurrency',
@@ -1938,9 +1945,13 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         // then we simply mark the expense as paid
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, customExchangeRate || 'auto', {
+            isManual: true,
+          });
         } else if (forceManual) {
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, customExchangeRate || 'auto', {
+            isManual: true,
+          });
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPalAdaptive(
             remoteUser,
@@ -1958,7 +1969,9 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           await expense.update({
             data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
           });
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, customExchangeRate || 'auto', {
+            isManual: true,
+          });
         } else {
           const [connectedAccount] = await host.getConnectedAccounts({
             where: { service: 'transferwise', deletedAt: null },
@@ -1992,7 +2005,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       } else if (expense.legacyPayoutMethod === 'manual' || expense.legacyPayoutMethod === 'other') {
         // note: we need to check for manual and other for legacy reasons
-        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+        await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, customExchangeRate || 'auto');
       }
     } catch (error) {
       if (use2FARollingLimit) {
