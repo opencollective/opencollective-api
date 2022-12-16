@@ -184,6 +184,7 @@ const accountFieldsDefinition = () => ({
   },
   parentAccount: {
     type: Account,
+    deprecationReason: '2022-12-16: use parent on AccountWithParent instead',
     async resolve(collective, _, req) {
       if (!collective.ParentCollectiveId) {
         return null;
