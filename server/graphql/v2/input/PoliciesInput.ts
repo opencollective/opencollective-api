@@ -7,7 +7,15 @@ export const PoliciesInput = new GraphQLInputObjectType({
   name: 'PoliciesInput',
   fields: () => ({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
-      type: GraphQLBoolean,
+      type: new GraphQLInputObjectType({
+        name: 'PoliciesCollectiveExpenseAuthorCannotApprove',
+        fields: () => ({
+          amountInCents: { type: GraphQLInt },
+          enabled: { type: GraphQLBoolean },
+          appliesToHostedCollectives: { type: GraphQLBoolean },
+          appliesToSingleAdminCollectives: { type: GraphQLBoolean },
+        }),
+      }),
     },
     [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
       type: GraphQLBoolean,

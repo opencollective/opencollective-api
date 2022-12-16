@@ -38,7 +38,7 @@ import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
-import { hasPolicy } from '../../lib/policies';
+import { getPolicy } from '../../lib/policies';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
@@ -382,11 +382,36 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     return false;
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-    if (hasPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE) && req.remoteUser.id === expense.UserId) {
+    expense.collective.host =
+      expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+
+    const hostPolicy = getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const currency = expense.collective.host?.currency || 'USD';
+
+    let policy = collectivePolicy;
+    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
+      policy = hostPolicy;
+
+      if (!hostPolicy.appliesToSingleAdminCollectives) {
+        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+        if (collectiveAdminCount === 1) {
+          policy = collectivePolicy;
+        }
+      }
+    }
+
+    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
       if (options?.throw) {
         throw new Forbidden(
           'User cannot approve their own expenses',
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+          {
+            reasonDetails: {
+              amount: policy.amountInCents / 100,
+              currency,
+            },
+          },
         );
       }
       return false;

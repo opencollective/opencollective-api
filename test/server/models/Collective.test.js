@@ -1296,9 +1296,9 @@ describe('server/models/Collective', () => {
     });
 
     it('should set policies', async () => {
-      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
+      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
 
-      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
+      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
     });
 
     it('should fail setting policies if policy does not exists', async () => {

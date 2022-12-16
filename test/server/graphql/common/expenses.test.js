@@ -313,21 +313,100 @@ describe('server/graphql/common/expenses', () => {
       );
     });
 
-    it('throws if author is trying to approve and EXPENSE_AUTHOR_CANNOT_APPROVE policy is set', async () => {
-      const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
-      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
-      const newExpense = await fakeExpense({
-        CollectiveId: collective.id,
-        FromCollectiveId: collectiveAdmin.CollectiveId,
-        PayoutMethodId: payoutMethod.id,
-        UserId: collectiveAdmin.id,
+    describe('enforces EXPENSE_AUTHOR_CANNOT_APPROVE policy', () => {
+      let newExpense;
+      before(async () => {
+        const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
+        newExpense = await fakeExpense({
+          CollectiveId: collective.id,
+          FromCollectiveId: collectiveAdmin.CollectiveId,
+          PayoutMethodId: payoutMethod.id,
+          UserId: collectiveAdmin.id,
+        });
+
+        await expense.update({ status: 'PENDING' });
       });
 
-      await expense.update({ status: 'PENDING' });
-      expect(await getApolloErrorCode(canApprove(collectiveAdminReq, newExpense, { throw: true }))).to.be.equal(
-        EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
-      );
-      expect(await canApprove(collectiveAdminReq, newExpense)).to.be.false;
+      beforeEach(async () => {
+        await collective.host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: false, amountInCents: 0 },
+        });
+        await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: false, amountInCents: 0 },
+        });
+        await newExpense.update({ amount: 10e2 });
+      });
+
+      it('by collective', async () => {
+        newExpense.collective = await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 0 },
+        });
+        expect(await getApolloErrorCode(canApprove(collectiveAdminReq, newExpense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.false;
+
+        newExpense.collective = await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true, amountInCents: 20e2 },
+        });
+
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.true;
+
+        await newExpense.update({ amount: 20e2 });
+
+        expect(await getApolloErrorCode(canApprove(collectiveAdminReq, newExpense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.false;
+      });
+
+      it('by host', async () => {
+        collective = await collective.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: false, amountInCents: 0 },
+        });
+        collective.host = await collective.host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 0,
+            appliesToHostedCollectives: true,
+          },
+        });
+        newExpense.collective = collective;
+
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.true;
+
+        newExpense.collective.host = await collective.host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 0,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: true,
+          },
+        });
+
+        expect(await getApolloErrorCode(canApprove(collectiveAdminReq, newExpense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.false;
+
+        newExpense.collective.host = await collective.host.setPolicies({
+          [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
+            enabled: true,
+            amountInCents: 20e2,
+            appliesToHostedCollectives: true,
+            appliesToSingleAdminCollectives: true,
+          },
+        });
+
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.true;
+
+        await newExpense.update({ amount: 20e2 });
+
+        expect(await getApolloErrorCode(canApprove(collectiveAdminReq, newExpense, { throw: true }))).to.be.equal(
+          EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+        );
+        expect(await canApprove(collectiveAdminReq, newExpense)).to.be.false;
+      });
     });
   });
 

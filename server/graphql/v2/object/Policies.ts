@@ -13,7 +13,15 @@ export const Policies = new GraphQLObjectType({
   name: 'Policies',
   fields: () => ({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
-      type: GraphQLBoolean,
+      type: new GraphQLObjectType({
+        name: POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE,
+        fields: () => ({
+          amountInCents: { type: GraphQLInt },
+          enabled: { type: GraphQLBoolean },
+          appliesToHostedCollectives: { type: GraphQLBoolean },
+          appliesToSingleAdminCollectives: { type: GraphQLBoolean },
+        }),
+      }),
       resolve(account, _, req) {
         if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
           return getPolicy(account, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
