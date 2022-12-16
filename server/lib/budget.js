@@ -95,7 +95,7 @@ export async function getBalances(
 ) {
   const fastResults =
     fastBalance === true && version === DEFAULT_BUDGET_VERSION && !endDate && !includeChildren
-      ? await getCurrentFastBalances(collectiveIds, { loaders, withBlockedFunds })
+      ? await getCurrentCollectiveBalances(collectiveIds, { loaders, withBlockedFunds })
       : {};
   const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
 
@@ -191,10 +191,32 @@ export async function getTotalAmountSpentAmount(
   };
 }
 
-export function getSumCollectivesAmountSpent(
+export async function getSumCollectivesAmountSpent(
   collectiveIds,
-  { net, kind, startDate, endDate, includeChildren, includeGiftCards, version = DEFAULT_BUDGET_VERSION } = {},
+  {
+    net,
+    kind,
+    startDate,
+    endDate,
+    includeChildren,
+    includeGiftCards,
+    version = DEFAULT_BUDGET_VERSION,
+    loaders = null,
+  } = {},
 ) {
+  const fastResults =
+    version === DEFAULT_BUDGET_VERSION && !kind && !startDate && !endDate && !includeChildren && !includeGiftCards
+      ? await getCurrentCollectiveTransactionStats(collectiveIds, {
+          loaders,
+          column: net ? 'totalNetAmountSpentInHostCurrency' : 'totalAmountSpentInHostCurrency',
+        })
+      : {};
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
+
+  if (missingCollectiveIds.length === 0) {
+    return fastResults;
+  }
+
   const column = ['v0', 'v1'].includes(version)
     ? net
       ? 'netAmountInCollectiveCurrency'
@@ -204,7 +226,7 @@ export function getSumCollectivesAmountSpent(
     : 'amountInHostCurrency';
   const transactionType = 'DEBIT_WITHOUT_HOST_FEE';
 
-  return sumCollectivesTransactions(collectiveIds, {
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
     transactionType,
     kind,
@@ -216,6 +238,8 @@ export function getSumCollectivesAmountSpent(
     excludeInternals: true,
     hostCollectiveId: version === 'v3' ? { [Op.not]: null } : null,
   });
+
+  return { ...fastResults, ...results };
 }
 
 export async function getTotalAmountPaidExpenses(collective, { startDate, endDate, expenseType, currency } = {}) {
@@ -336,7 +360,7 @@ export async function getTotalAmountReceivedTimeSeries(
   };
 }
 
-export function getSumCollectivesAmountReceived(
+export async function getSumCollectivesAmountReceived(
   collectiveIds,
   {
     net = false,
@@ -347,8 +371,28 @@ export function getSumCollectivesAmountReceived(
     version = DEFAULT_BUDGET_VERSION,
     groupByAttributes,
     extraAttributes,
+    loaders = null,
   } = {},
 ) {
+  const fastResults =
+    version === DEFAULT_BUDGET_VERSION &&
+    !kind &&
+    !startDate &&
+    !endDate &&
+    !includeChildren &&
+    !groupByAttributes?.length &&
+    !extraAttributes?.length
+      ? await getCurrentCollectiveTransactionStats(collectiveIds, {
+          loaders,
+          column: net ? 'totalNetAmountReceivedInHostCurrency' : 'totalAmountReceivedInHostCurrency',
+        })
+      : {};
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
+
+  if (missingCollectiveIds.length === 0) {
+    return fastResults;
+  }
+
   const column = ['v0', 'v1'].includes(version)
     ? net
       ? 'netAmountInCollectiveCurrency'
@@ -358,7 +402,7 @@ export function getSumCollectivesAmountReceived(
     : 'amountInHostCurrency';
   const transactionType = net ? 'CREDIT_WITH_HOST_FEE' : CREDIT;
 
-  return sumCollectivesTransactions(collectiveIds, {
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
     column,
     transactionType,
     kind,
@@ -371,6 +415,8 @@ export function getSumCollectivesAmountReceived(
     groupByAttributes,
     extraAttributes,
   });
+
+  return { ...fastResults, ...results };
 }
 
 export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
@@ -670,7 +716,7 @@ export async function getYearlyIncome(collective) {
           AND s.interval = 'month'
         )
         +
-        ( 
+        (
           SELECT COALESCE(SUM(o."totalAmount"), 0)
           FROM "Orders" o
           INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
@@ -740,7 +786,7 @@ export async function getBlockedFunds(collectiveIds) {
 }
 
 // Get current balance for collective using a combination of speed and accuracy.
-export async function getCurrentFastBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
+export async function getCurrentCollectiveBalances(collectiveIds, { loaders = null, withBlockedFunds = false } = {}) {
   const fastResults = loaders
     ? await Promise.map(collectiveIds, collectiveId =>
         loaders.Collective.currentCollectiveBalance.load(collectiveId),
@@ -772,6 +818,30 @@ export async function getCurrentFastBalances(collectiveIds, { loaders = null, wi
         totals[CollectiveId].value -= Math.round(value * fxRate);
       }
     }
+  }
+
+  return totals;
+}
+
+export async function getCurrentCollectiveTransactionStats(collectiveIds, { loaders = null, column } = {}) {
+  const results = loaders
+    ? await Promise.map(collectiveIds, collectiveId =>
+        loaders.Collective.currentCollectiveTransactionStats.load(collectiveId),
+      ).then(results => results.filter(el => !!el))
+    : await sequelize.query(
+        `SELECT * FROM "CurrentCollectiveTransactionStats" WHERE "CollectiveId" IN (:collectiveIds)`,
+        {
+          replacements: { collectiveIds },
+          type: sequelize.QueryTypes.SELECT,
+          raw: true,
+        },
+      );
+
+  const totals = {};
+
+  for (const result of results) {
+    const CollectiveId = result['CollectiveId'];
+    totals[CollectiveId] = { CollectiveId, currency: result['hostCurrency'], value: result[column] };
   }
 
   return totals;

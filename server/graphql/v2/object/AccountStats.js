@@ -1,7 +1,7 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { get, has, isNil, pick } from 'lodash';
+import { get, has, pick } from 'lodash';
 import moment from 'moment';
 
 import { getCollectiveIds } from '../../../lib/budget';
@@ -137,7 +137,7 @@ export const AccountStats = new GraphQLObjectType({
           includeGiftCards: {
             type: GraphQLBoolean,
             description: 'Include transactions using Gift Cards (not working together with includeChildren)',
-            defaultValue: true,
+            defaultValue: false,
           },
         },
         async resolve(collective, args, req) {
@@ -177,6 +177,7 @@ export const AccountStats = new GraphQLObjectType({
           useCache: {
             type: new GraphQLNonNull(GraphQLBoolean),
             description: 'Set this to true to use cached data',
+            deprecationReason: '2022-12-14: this is not used anymore as results should be fast by default',
             defaultValue: false,
           },
         },
@@ -187,26 +188,6 @@ export const AccountStats = new GraphQLObjectType({
           if (args.periodInMonths) {
             dateFrom = moment().subtract(args.periodInMonths, 'months').seconds(0).milliseconds(0).toDate();
             dateTo = null;
-          }
-
-          // Search query joins "CollectiveTransactionStats" on this field, so we can use the cache
-          if (args.useCache && !dateFrom && !dateTo && !args.includeChildren && !args.net) {
-            const cachedAmount = collective.dataValues['__stats_totalAmountReceivedInHostCurrency__'];
-            if (!isNil(cachedAmount)) {
-              const host = collective.HostCollectiveId && (await req.loaders.Collective.host.load(collective));
-              if (!host?.currency || host.currency === collective.currency) {
-                return { value: cachedAmount, currency: collective.currency };
-              }
-
-              return {
-                currency: args.currency || collective.currency,
-                value: await req.loaders.CurrencyExchangeRate.convert.load({
-                  amount: cachedAmount,
-                  fromCurrency: host.currency,
-                  toCurrency: collective.currency,
-                }),
-              };
-            }
           }
 
           return collective.getTotalAmountReceivedAmount({

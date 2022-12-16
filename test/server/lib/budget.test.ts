@@ -5,7 +5,7 @@ import { createSandbox } from 'sinon';
 import ExpenseStatuses from '../../../server/constants/expense_status';
 import {
   getBalances,
-  getCurrentFastBalances,
+  getCurrentCollectiveBalances,
   getYearlyIncome,
   sumCollectivesTransactions,
 } from '../../../server/lib/budget';
@@ -134,7 +134,7 @@ describe('server/lib/budget', () => {
     });
   });
 
-  describe('getCurrentFastBalances', () => {
+  describe('getCurrentCollectiveBalances', () => {
     let collective, otherCollective, sandbox;
 
     beforeEach(async () => {
@@ -273,7 +273,9 @@ describe('server/lib/budget', () => {
     it('sums correctly with materialized view and new transactions', async () => {
       await createBalanceData(true);
 
-      const balances = await getCurrentFastBalances([collective.id, otherCollective.id], { withBlockedFunds: true });
+      const balances = await getCurrentCollectiveBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: true,
+      });
       expect(balances[collective.id].value).to.eq(7091);
       expect(balances[otherCollective.id].value).to.eq(130e2);
     });
@@ -281,7 +283,7 @@ describe('server/lib/budget', () => {
     it('sums correctly without materialized view', async () => {
       await createBalanceData(false);
 
-      const fastBalances = await getCurrentFastBalances([collective.id, otherCollective.id], {
+      const fastBalances = await getCurrentCollectiveBalances([collective.id, otherCollective.id], {
         withBlockedFunds: true,
       });
       expect(fastBalances).to.be.empty;
@@ -297,7 +299,9 @@ describe('server/lib/budget', () => {
     it('sums correctly when not excluding blocked balances', async () => {
       await createBalanceData(true);
 
-      const balances = await getCurrentFastBalances([collective.id, otherCollective.id], { withBlockedFunds: false });
+      const balances = await getCurrentCollectiveBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: false,
+      });
       expect(balances[collective.id].value).to.eq(140e2);
       expect(balances[otherCollective.id].value).to.eq(130e2);
     });
