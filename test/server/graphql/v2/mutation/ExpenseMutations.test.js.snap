@@ -16,6 +16,14 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 | DEBIT  | -1100  | -1200                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |"
 `;
 
+exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY With transferwise use customExchangeRate when marking as paid 1`] = `
+"
+| type   | kind    | isRefund | To                | From              | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |
+| ------ | ------- | -------- | ----------------- | ----------------- | ------ | -------------------- | ---------- | ----------------------------- |
+| DEBIT  | EXPENSE | false    | Babel             | User Namee757d621 | -1700  | -1700                | -200       | -1900                         |
+| CREDIT | EXPENSE | false    | User Namee757d621 | Babel             | 1900   | 1900                 | -200       | 1700                          |"
+`;
+
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee 1`] = `
 "
 | type   | kind    | isRefund | To       | From     | amount | amountInHostCurrency | paymentFee | netAmountInCollectiveCurrency |

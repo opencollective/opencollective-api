@@ -1116,6 +1116,38 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(membership).to.exist;
       });
 
+      it('pays the expense manually with customExchangeRate', async () => {
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          amount: 2000e2,
+          currency: 'BRL',
+          PayoutMethodId: payoutMethod.id,
+        });
+
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 3000e2 });
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'PAY',
+          paymentParams: { customExchangeRate: 0.17, forceManual: true, paymentProcessorFee: 200 },
+        };
+        const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        res.errors && console.error(res.errors);
+        expect(res.errors).to.not.exist;
+        const debit = await models.Transaction.findOne({
+          where: { ExpenseId: expense.id, type: 'DEBIT' },
+        });
+
+        expect(debit)
+          .to.have.property('amountInHostCurrency')
+          .equal(-2000e2 * 0.17);
+        expect(debit)
+          .to.have.property('netAmountInCollectiveCurrency')
+          .equal(-2000e2 * 0.17 - 200);
+        expect(debit).to.have.property('paymentProcessorFeeInHostCurrency').equal(-200);
+      });
+
       it('attaches the PayoutMethod to the associated Transactions', async () => {
         const paymentProcessorFee = 100;
         const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
@@ -1206,6 +1238,48 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           expect(res.errors).to.not.exist;
           expect(res.data.processExpense.status).to.equal('PAID');
           expect(callPaypal.called).to.be.false;
+        });
+
+        it('use customExchangeRate when marking as paid', async () => {
+          const fromUser = await fakeUser();
+          const payoutMethod = await fakePayoutMethod({
+            type: 'PAYPAL',
+            CollectiveId: fromUser.CollectiveId,
+          });
+          await fakeTransaction({
+            type: 'CREDIT',
+            CollectiveId: collective.id,
+            amount: 3000e2,
+          });
+          const expense = await fakeExpense({
+            description: 'customExchangeRate test',
+            amount: 2000e2,
+            currency: 'BRL',
+            CollectiveId: collective.id,
+            status: 'APPROVED',
+            PayoutMethodId: payoutMethod.id,
+            UserId: fromUser.id,
+            FromCollectiveId: fromUser.CollectiveId,
+          });
+          const mutationParams = {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: { customExchangeRate: 0.17, forceManual: true, paymentProcessorFee: 200 },
+          };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          const debit = await models.Transaction.findOne({
+            where: { ExpenseId: expense.id, type: 'DEBIT' },
+          });
+
+          expect(debit)
+            .to.have.property('amountInHostCurrency')
+            .equal(-2000e2 * 0.17);
+          expect(debit)
+            .to.have.property('netAmountInCollectiveCurrency')
+            .equal(-2000e2 * 0.17 - 200);
+          expect(debit).to.have.property('paymentProcessorFeeInHostCurrency').equal(-200);
         });
       });
 
@@ -1311,6 +1385,33 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
           const transactions = await models.Transaction.findAll({ where: { ExpenseId: expense.id } });
 
           expect(transactions.every(tx => tx.PayoutMethodId === expense.PayoutMethodId)).to.equal(true);
+        });
+
+        it('use customExchangeRate when marking as paid', async () => {
+          await expense.update({
+            description: 'customExchangeRate test',
+            amount: 2000e2,
+            currency: 'BRL',
+          });
+          const mutationParams = {
+            expenseId: expense.id,
+            action: 'PAY',
+            paymentParams: { customExchangeRate: 0.17, forceManual: true, paymentProcessorFee: 200 },
+          };
+          const res = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+          res.errors && console.error(res.errors);
+          expect(res.errors).to.not.exist;
+          const debit = await models.Transaction.findOne({
+            where: { ExpenseId: expense.id, type: 'DEBIT' },
+          });
+
+          expect(debit)
+            .to.have.property('amountInHostCurrency')
+            .equal(-2000e2 * 0.17);
+          expect(debit)
+            .to.have.property('netAmountInCollectiveCurrency')
+            .equal(-2000e2 * 0.17 - 200);
+          expect(debit).to.have.property('paymentProcessorFeeInHostCurrency').equal(-200);
         });
       });
 
