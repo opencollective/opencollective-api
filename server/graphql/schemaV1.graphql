@@ -987,7 +987,7 @@ A social link
 """
 type SocialLink {
   type: SocialLinkType!
-  url: String!
+  url: URL!
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -1007,8 +1007,13 @@ enum SocialLinkType {
   GITHUB
   GITLAB
   GIT_REPOSITORY
-  OTHER
+  WEBSITE
 }
+
+"""
+A field whose value conforms to the standard URL format as specified in RFC3986: https://www.ietf.org/rfc/rfc3986.txt.
+"""
+scalar URL
 
 """
 A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
@@ -4796,13 +4801,8 @@ input CollectiveInputType {
 
 input SocialLinkInput {
   type: SocialLinkType!
-  url: NonEmptyString
+  url: URL!
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Input type for Location

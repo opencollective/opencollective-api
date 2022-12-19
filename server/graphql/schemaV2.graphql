@@ -666,7 +666,7 @@ A social link
 """
 type SocialLink {
   type: SocialLinkType!
-  url: String!
+  url: URL!
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -686,7 +686,7 @@ enum SocialLinkType {
   GITHUB
   GITLAB
   GIT_REPOSITORY
-  OTHER
+  WEBSITE
 }
 
 enum ImageFormat {
@@ -15235,5 +15235,5 @@ input PersonalTokenReferenceInput {
 
 input SocialLinkInput {
   type: SocialLinkType!
-  url: NonEmptyString
+  url: URL!
 }

@@ -16,7 +16,7 @@ export enum SocialLinkType {
   GITHUB = 'GITHUB',
   GITLAB = 'GITLAB',
   GIT_REPOSITORY = 'GIT_REPOSITORY',
-  OTHER = 'OTHER',
+  WEBSITE = 'WEBSITE',
 }
 
 class SocialLink extends Model<InferAttributes<SocialLink>, InferCreationAttributes<SocialLink>> {
@@ -44,7 +44,7 @@ SocialLink.init(
       type: DataTypes.STRING,
       allowNull: false,
       primaryKey: true,
-      defaultValue: SocialLinkType.OTHER,
+      defaultValue: SocialLinkType.WEBSITE,
     },
     url: {
       type: DataTypes.STRING,

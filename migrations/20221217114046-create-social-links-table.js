@@ -17,7 +17,7 @@ module.exports = {
       type: {
         type: Sequelize.STRING,
         allowNull: false,
-        defaultValue: SocialLinkType.OTHER,
+        defaultValue: SocialLinkType.WEBSITE,
         primaryKey: true,
       },
       url: {
@@ -45,7 +45,7 @@ module.exports = {
 
     await queryInterface.sequelize.query(`
       INSERT INTO "SocialLinks"("CollectiveId", type, url, "order")
-      SELECT c.id, 'OTHER', trim(c."website"), 0
+      SELECT c.id, 'WEBSITE', trim(c."website"), 0
       FROM "Collectives" c
       WHERE c."deletedAt" is NULL and trim(coalesce(c."website", '')) <> ''
       ON CONFLICT DO NOTHING
