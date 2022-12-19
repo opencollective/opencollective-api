@@ -858,6 +858,61 @@ Collective.prototype.getNextGoal = async function (until) {
   return nextGoal;
 };
 
+Collective.prototype.updateSocialLinks = async function (socialLinks) {
+  if (socialLinks.length > 10) {
+    throw new Error('account cannot set more than 10 social links');
+  }
+
+  if (socialLinks.length === 0) {
+    await models.SocialLink.destroy({
+      where: {
+        CollectiveId: this.id,
+      },
+    });
+    return [];
+  }
+
+  return await sequelize.transaction(async transaction => {
+    const existingLinks = await models.SocialLink.findAll({
+      where: {
+        CollectiveId: this.id,
+      },
+      transaction,
+      lock: true,
+    });
+
+    const removedLinks = differenceBy(existingLinks, socialLinks, sl => sl.url + sl.type);
+
+    if (removedLinks.length !== 0) {
+      await models.SocialLink.destroy({
+        where: {
+          CollectiveId: this.id,
+          [Op.and]: {
+            [Op.or]: removedLinks.map(rl => ({
+              url: rl.url,
+              type: rl.type,
+            })),
+          },
+        },
+        transaction,
+      });
+    }
+
+    return await models.SocialLink.bulkCreate(
+      socialLinks.map((socialLink, order) => ({
+        url: socialLink.url,
+        type: socialLink.type,
+        CollectiveId: this.id,
+        order,
+      })),
+      {
+        updateOnDuplicate: ['order'],
+        transaction,
+      },
+    );
+  });
+};
+
 Collective.prototype.getParentCollective = function (options) {
   if (!this.ParentCollectiveId) {
     return Promise.resolve(null);
