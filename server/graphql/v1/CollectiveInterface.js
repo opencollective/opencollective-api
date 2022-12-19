@@ -30,6 +30,7 @@ import { getContextPermission, PERMISSION_TYPE } from '../common/context-permiss
 import { getFeatureStatusResolver } from '../common/features';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../v2/identifiers';
 import { Policies } from '../v2/object/Policies';
+import { SocialLink } from '../v2/object/SocialLink';
 
 import { ApplicationType } from './Application';
 import { TransactionInterfaceType } from './TransactionInterface';
@@ -789,6 +790,9 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
       repositoryUrl: { type: GraphQLString },
       website: { type: GraphQLString },
+      socialLinks: {
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+      },
       updates: {
         type: new GraphQLList(UpdateType),
         deprecationReason: '2022-09-09: Updates moved to GQLV2',
@@ -1662,6 +1666,12 @@ const CollectiveFields = () => {
       type: GraphQLString,
       resolve(collective) {
         return collective.website;
+      },
+    },
+    socialLinks: {
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+      async resolve(collective, _, req) {
+        return req.loaders.SocialLink.byCollectiveId.load(collective.id);
       },
     },
     updates: {
