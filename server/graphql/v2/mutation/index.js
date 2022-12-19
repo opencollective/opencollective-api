@@ -21,6 +21,7 @@ import oAuthAuthorizationMutations from './OAuthAuthorizationMutations';
 import orderMutations from './OrderMutations';
 import paymentMethodMutations from './PaymentMethodMutations';
 import payoutMethodMutations from './PayoutMethodMutations';
+import personalTokenMutations from './PersonalTokenMutations';
 import rootMutations from './RootMutations';
 import tierMutations from './TierMutations';
 import transactionMutations from './TransactionMutations';
@@ -58,6 +59,7 @@ const mutation = {
   ...webhookMutations,
   ...activitySubscriptionsMutations,
   ...tierMutations,
+  ...personalTokenMutations,
 };
 
 export default mutation;

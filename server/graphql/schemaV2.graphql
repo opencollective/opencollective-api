@@ -565,6 +565,21 @@ interface Account {
   ): OAuthApplicationCollection
 
   """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -2863,6 +2878,21 @@ type Host implements Account & AccountWithContributions {
   ): OAuthApplicationCollection
 
   """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -3745,6 +3775,63 @@ type OAuthApplicationCollection implements Collection {
 }
 
 """
+A collection of "PersonalToken"
+"""
+type PersonalTokenCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [PersonalToken]
+}
+
+"""
+A personal token
+"""
+type PersonalToken {
+  """
+  Unique identifier for this personal token
+  """
+  id: String!
+
+  """
+  A friendly name for users to easily find their personal tokens
+  """
+  name: String
+
+  """
+  The personal token
+  """
+  token: String
+
+  """
+  The date on which the personal token expires
+  """
+  expiresAt: DateString
+
+  """
+  The scopes of the personal token
+  """
+  scope: [OAuthScope]
+
+  """
+  The account that owns this personal token
+  """
+  account: Individual!
+
+  """
+  The date on which the personal token was created
+  """
+  createdAt: DateString
+
+  """
+  The date on which the personal token was last updated
+  """
+  updatedAt: DateString
+}
+
+scalar DateString
+
+"""
 Stats for the Account
 """
 type AccountStats {
@@ -3850,17 +3937,17 @@ type AccountStats {
     kind: [TransactionKind]
 
     """
-    Calculate amount after this date
+    Calculate total amount received before this date
     """
     dateFrom: DateTime
 
     """
-    Calculate amount before this date
+    Calculate total amount received after this date
     """
     dateTo: DateTime
 
     """
-    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    Computes contributions from the last x months. Cannot be used with startDate/endDate
     """
     periodInMonths: Int
 
@@ -3875,56 +3962,16 @@ type AccountStats {
     currency: Currency
 
     """
-    Set this to true to use cached data
+    Include money spent in children (Projects and Events)
     """
     useCache: Boolean! = false
       @deprecated(reason: "2022-12-14: this is not used anymore as results should be fast by default")
-  ): Amount!
-
-  """
-  Total amount received time series
-  """
-  totalAmountReceivedTimeSeries(
-    """
-    The start date of the time series
-    """
-    dateFrom: DateTime
 
     """
-    The end date of the time series
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
-    """
-    timeUnit: TimeUnit
-
-    """
-    Return the net amount (with payment processor fees removed)
-    """
-    net: Boolean = false
-
-    """
-    Filter by kind
-    """
-    kind: [TransactionKind]
-
-    """
-    Calculate amount for the last x months. Cannot be used with startDate/endDate
-    """
-    periodInMonths: Int
-
-    """
-    Include transactions from children (Projects and Events)
+    Include money received in children (Projects and Events)
     """
     includeChildren: Boolean = false
-
-    """
-    An optional currency. If not provided, will use the collective currency.
-    """
-    currency: Currency
-  ): TimeSeriesAmount!
+  ): Amount!
 
   """
   Total of paid expenses to the account, filter per expense type
@@ -3956,72 +4003,7 @@ type AccountStats {
   """
   Total net amount received
   """
-  totalNetAmountReceived(
-    """
-    Filter by kind
-    """
-    kind: [TransactionKind]
-
-    """
-    Calculate amount after this date
-    """
-    dateFrom: DateTime
-
-    """
-    Calculate amount before this date
-    """
-    dateTo: DateTime
-
-    """
-    Calculate amount for the last x months. Cannot be used with startDate/endDate
-    """
-    periodInMonths: Int
-
-    """
-    Include transactions from children (Projects and Events)
-    """
-    includeChildren: Boolean = false
-  ): Amount! @deprecated(reason: "2022-12-13: Use totalAmountReceived + net=true instead")
-
-  """
-  Total net amount received time series
-  """
-  totalNetAmountReceivedTimeSeries(
-    """
-    The start date of the time series
-    """
-    dateFrom: DateTime
-
-    """
-    The end date of the time series
-    """
-    dateTo: DateTime
-
-    """
-    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
-    """
-    timeUnit: TimeUnit
-
-    """
-    Filter by kind
-    """
-    kind: [TransactionKind]
-
-    """
-    Calculate amount for the last x months. Cannot be used with startDate/endDate
-    """
-    periodInMonths: Int
-
-    """
-    Include transactions from children (Projects and Events)
-    """
-    includeChildren: Boolean = false
-
-    """
-    An optional currency. If not provided, will use the collective currency.
-    """
-    currency: Currency
-  ): TimeSeriesAmount! @deprecated(reason: "2022-12-13: Use totalAmountReceivedTimeSeries + net=true instead")
+  totalNetAmountReceived: Amount!
   activeRecurringContributions: JSON
     @deprecated(reason: "2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.")
   activeRecurringContributionsV2(
@@ -5588,6 +5570,21 @@ type Bot implements Account {
   ): OAuthApplicationCollection
 
   """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -6102,6 +6099,21 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
+
+  """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -6949,6 +6961,21 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): OAuthApplicationCollection
 
   """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -7567,6 +7594,21 @@ type Individual implements Account {
     offset: Int! = 0
   ): OAuthApplicationCollection
 
+  """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
+
   "\n          Address. This field is public for hosts, otherwise:\n            - Users can see their own address\n            - Hosts can see the address of users submitting expenses to their collectives\n        "
   location: Location
   categories: [String]!
@@ -8172,6 +8214,21 @@ type Organization implements Account & AccountWithContributions {
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
+
+  """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
 
   "\n          Address. This field is public for hosts, otherwise:\n            - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.\n            - Hosts can see the address of organizations submitting expenses to their collectives.\n        "
   location: Location
@@ -8803,6 +8860,21 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
+
+  """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -9752,6 +9824,21 @@ type Query {
     """
     tier: TierReferenceInput
   ): PaypalPlan!
+
+  """
+  Get a personal token by reference
+  """
+  personalToken(
+    """
+    The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+    """
+    id: String
+
+    """
+    The legacy public id identifying the personal-token (ie: 4242)
+    """
+    legacyId: Int
+  ): PersonalToken
   loggedInAccount: Individual
   me: Individual
 }
@@ -11585,6 +11672,21 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): OAuthApplicationCollection
 
   """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
+
+  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -12194,6 +12296,21 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
+
+  """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -13673,6 +13790,9 @@ type Mutation {
   Delete a tier.
   """
   deleteTier(tier: TierReferenceInput!, stopRecurringContributions: Boolean! = false): Tier!
+  createPersonalToken(personalToken: PersonalTokenCreateInput!): PersonalToken
+  updatePersonalToken(personalToken: PersonalTokenUpdateInput!): PersonalToken
+  deletePersonalToken(personalToken: PersonalTokenReferenceInput!): PersonalToken
 }
 
 input CollectiveCreateInput {
@@ -14072,8 +14192,6 @@ input ExpenseItemCreateInput {
   """
   incurredAt: DateString
 }
-
-scalar DateString
 
 input ExpenseAttachedFileInput {
   """
@@ -15041,4 +15159,48 @@ input TierCreateInput {
   maxQuantity: Int
   minimumAmount: AmountInput
   useStandalonePage: Boolean
+}
+
+"""
+Input type for PersonalToken
+"""
+input PersonalTokenCreateInput {
+  name: String
+  scope: [OAuthScope]
+  expiresAt: String
+
+  """
+  The account to use as the owner of the application. Defaults to currently logged in user.
+  """
+  account: AccountReferenceInput
+}
+
+"""
+Input type for PersonalToken
+"""
+input PersonalTokenUpdateInput {
+  """
+  The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The legacy public id identifying the personal-token (ie: 4242)
+  """
+  legacyId: Int
+  name: String
+  scope: [OAuthScope]
+  expiresAt: String
+}
+
+input PersonalTokenReferenceInput {
+  """
+  The public id identifying the personal-token (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The legacy public id identifying the personal-token (ie: 4242)
+  """
+  legacyId: Int
 }
