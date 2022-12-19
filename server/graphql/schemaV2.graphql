@@ -565,21 +565,6 @@ interface Account {
   ): OAuthApplicationCollection
 
   """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
-
-  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -2878,21 +2863,6 @@ type Host implements Account & AccountWithContributions {
   ): OAuthApplicationCollection
 
   """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
-
-  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -3773,63 +3743,6 @@ type OAuthApplicationCollection implements Collection {
   totalCount: Int
   nodes: [Application]
 }
-
-"""
-A collection of "PersonalToken"
-"""
-type PersonalTokenCollection implements Collection {
-  offset: Int
-  limit: Int
-  totalCount: Int
-  nodes: [PersonalToken]
-}
-
-"""
-A personal token
-"""
-type PersonalToken {
-  """
-  Unique identifier for this personal token
-  """
-  id: String!
-
-  """
-  A friendly name for users to easily find their personal tokens
-  """
-  name: String
-
-  """
-  The personal token
-  """
-  token: String
-
-  """
-  The date on which the personal token expires
-  """
-  expiresAt: DateString
-
-  """
-  The scopes of the personal token
-  """
-  scope: [OAuthScope]
-
-  """
-  The account that owns this personal token
-  """
-  account: Individual!
-
-  """
-  The date on which the personal token was created
-  """
-  createdAt: DateString
-
-  """
-  The date on which the personal token was last updated
-  """
-  updatedAt: DateString
-}
-
-scalar DateString
 
 """
 Stats for the Account
@@ -5678,21 +5591,6 @@ type Bot implements Account {
   ): OAuthApplicationCollection
 
   """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
-
-  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -6207,21 +6105,6 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
-
-  """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -7069,21 +6952,6 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): OAuthApplicationCollection
 
   """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
-
-  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -7702,21 +7570,6 @@ type Individual implements Account {
     offset: Int! = 0
   ): OAuthApplicationCollection
 
-  """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
-
   "\n          Address. This field is public for hosts, otherwise:\n            - Users can see their own address\n            - Hosts can see the address of users submitting expenses to their collectives\n        "
   location: Location
   categories: [String]!
@@ -7829,6 +7682,21 @@ type Individual implements Account {
     """
     offset: Int! = 0
   ): OAuthAuthorizationCollection
+
+  """
+  The list of personal tokens created by this account. Admin only. Scope: "applications".
+  """
+  personalTokens(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): PersonalTokenCollection
 }
 
 """
@@ -7840,6 +7708,63 @@ type OAuthAuthorizationCollection implements Collection {
   totalCount: Int
   nodes: [OAuthAuthorization]
 }
+
+"""
+A collection of "PersonalToken"
+"""
+type PersonalTokenCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [PersonalToken]
+}
+
+"""
+A personal token
+"""
+type PersonalToken {
+  """
+  Unique identifier for this personal token
+  """
+  id: String!
+
+  """
+  A friendly name for users to easily find their personal tokens
+  """
+  name: String
+
+  """
+  The personal token
+  """
+  token: String
+
+  """
+  The date on which the personal token expires
+  """
+  expiresAt: DateString
+
+  """
+  The scopes of the personal token
+  """
+  scope: [OAuthScope]
+
+  """
+  The account that owns this personal token
+  """
+  account: Individual!
+
+  """
+  The date on which the personal token was created
+  """
+  createdAt: DateString
+
+  """
+  The date on which the personal token was last updated
+  """
+  updatedAt: DateString
+}
+
+scalar DateString
 
 """
 This represents a Member relationship (ie: Organization backing a Collective)
@@ -8322,21 +8247,6 @@ type Organization implements Account & AccountWithContributions {
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
-
-  """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
 
   "\n          Address. This field is public for hosts, otherwise:\n            - Users can see the addresses of the collectives they're admin of; if they are not an admin they can only see the country that the org belong to.\n            - Hosts can see the address of organizations submitting expenses to their collectives.\n        "
   location: Location
@@ -8968,21 +8878,6 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
-
-  """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.
@@ -11780,21 +11675,6 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): OAuthApplicationCollection
 
   """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
-
-  """
   The address associated to this account. This field is always public for collectives and events.
   """
   location: Location
@@ -12404,21 +12284,6 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     offset: Int! = 0
   ): OAuthApplicationCollection
-
-  """
-  The list of personal tokens created by this account. Admin only. Scope: "applications".
-  """
-  personalTokens(
-    """
-    The number of results to fetch (default 10, max 1000)
-    """
-    limit: Int! = 10
-
-    """
-    The offset to use to fetch
-    """
-    offset: Int! = 0
-  ): PersonalTokenCollection
 
   """
   The address associated to this account. This field is always public for collectives and events.

@@ -5,6 +5,7 @@ import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
+import { PersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { Account, AccountFields } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
@@ -166,6 +167,29 @@ export const Individual = new GraphQLObjectType({
           });
 
           return { nodes, totalCount: result.count, limit, offset };
+        },
+      },
+      personalTokens: {
+        type: PersonalTokenCollection,
+        description: 'The list of personal tokens created by this account. Admin only. Scope: "applications".',
+        args: {
+          ...CollectionArgs,
+        },
+        async resolve(collective, args, req) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
+            return null;
+          }
+          const { limit, offset } = args;
+          const order = [['createdAt', 'DESC']];
+
+          const result = await models.PersonalToken.findAndCountAll({
+            where: { CollectiveId: collective.id },
+            order,
+            limit,
+            offset,
+          });
+
+          return { nodes: result.rows, totalCount: result.count, limit, offset };
         },
       },
     };

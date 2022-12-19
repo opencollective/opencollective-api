@@ -18,7 +18,6 @@ import { ConversationCollection } from '../collection/ConversationCollection';
 import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
 import { OAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
 import { OrderCollection } from '../collection/OrderCollection';
-import { PersonalTokenCollection } from '../collection/PersonalTokenCollection';
 import { TransactionCollection } from '../collection/TransactionCollection';
 import { UpdateCollection } from '../collection/UpdateCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
@@ -374,29 +373,6 @@ const accountFieldsDefinition = () => ({
       const order = [['createdAt', 'DESC']];
       const where = { CollectiveId: collective.id, type: 'oAuth' };
       const result = await models.Application.findAndCountAll({ where, order, limit, offset });
-      return { nodes: result.rows, totalCount: result.count, limit, offset };
-    },
-  },
-  personalTokens: {
-    type: PersonalTokenCollection,
-    description: 'The list of personal tokens created by this account. Admin only. Scope: "applications".',
-    args: {
-      ...CollectionArgs,
-    },
-    async resolve(collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'applications')) {
-        return null;
-      }
-      const { limit, offset } = args;
-      const order = [['createdAt', 'DESC']];
-
-      const result = await models.PersonalToken.findAndCountAll({
-        where: { CollectiveId: collective.id },
-        order,
-        limit,
-        offset,
-      });
-
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     },
   },
