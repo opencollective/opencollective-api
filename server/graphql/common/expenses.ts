@@ -686,7 +686,8 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     1000000,
   );
 
-  const twoFactorSession = req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`);
+  const twoFactorSession =
+    req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
   const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;

@@ -20,6 +20,10 @@ declare global {
         description?: string;
         CollectiveId: number;
       };
+      personalToken?: {
+        id: number;
+        CollectiveId: number;
+      };
       userToken?: UserToken;
       loaders: Record<string, DataLoader>;
       rawBody?: string;
