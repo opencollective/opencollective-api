@@ -179,6 +179,7 @@ interface CollectiveInterface {
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -980,6 +981,39 @@ type ExpenseAttachedFile {
   id: Int!
   url: String
 }
+
+"""
+A social link
+"""
+type SocialLink {
+  type: SocialLinkType!
+  url: String!
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+"""
+The type of social link
+"""
+enum SocialLinkType {
+  TWITTER
+  TUMBLR
+  MASTODON
+  MATTERMOST
+  FACEBOOK
+  INSTAGRAM
+  DISCORD
+  YOUTUBE
+  GITHUB
+  GITLAB
+  GIT_REPOSITORY
+  OTHER
+}
+
+"""
+A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
+"""
+scalar DateTime
 
 """
 This represents an Update
@@ -1943,11 +1977,6 @@ enum CurrencyExchangeRateSourceType {
 }
 
 """
-A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
-"""
-scalar DateTime
-
-"""
 The results from searching for collectives with pagination info
 """
 type CollectiveSearchResults {
@@ -2320,6 +2349,7 @@ type Collective implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -2572,6 +2602,7 @@ type Event implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -2824,6 +2855,7 @@ type Fund implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -3076,6 +3108,7 @@ type Organization implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -3329,6 +3362,7 @@ type Project implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -3823,6 +3857,7 @@ type User implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -4077,6 +4112,7 @@ type Vendor implements CollectiveInterface {
   """
   repositoryUrl: String
   website: String
+  socialLinks: [SocialLink!]!
   updates(limit: Int, offset: Int, onlyPublishedUpdates: Boolean): [UpdateType]
     @deprecated(reason: "2022-09-09: Updates moved to GQLV2")
   events(
@@ -4727,6 +4763,7 @@ input CollectiveInputType {
   twitterHandle: String
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
   repositoryUrl: String
+  socialLinks: [SocialLinkInput!]
   description: String
   longDescription: String
   expensePolicy: String
@@ -4756,6 +4793,16 @@ input CollectiveInputType {
   isActive: Boolean
   contributionPolicy: String
 }
+
+input SocialLinkInput {
+  type: SocialLinkType!
+  url: NonEmptyString
+}
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
 
 """
 Input type for Location
