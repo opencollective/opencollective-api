@@ -822,6 +822,30 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
 };
 
+export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
+  let CollectiveId;
+  let CreatedByUserId;
+  if (data.user) {
+    const user = data.user as typeof models.User;
+    CollectiveId = user.CollectiveId;
+    CreatedByUserId = user.id;
+  } else {
+    const user = data.CreatedByUserId ? await models.User.findByPk(data.CreatedByUserId) : await fakeUser();
+    CreatedByUserId = user.id;
+    CollectiveId = data.CollectiveId || user.CollectiveId;
+  }
+
+  const personalToken = await models.PersonalAccessToken.create({
+    name: randStr('Name '),
+    token: randStr('Token-'),
+    scope: ['expenses', 'orders'],
+    CollectiveId,
+    UserId: CreatedByUserId,
+  });
+
+  return personalToken.reload({ include: [{ association: 'user' }, { association: 'collective' }] });
+};
+
 export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
   const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const userToken = await models.UserToken.create({
