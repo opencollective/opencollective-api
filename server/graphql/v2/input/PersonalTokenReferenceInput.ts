@@ -28,6 +28,8 @@ export const fetchPersonalTokenWithReference = async (input, sequelizeOps = unde
   if (input.id) {
     const id = idDecode(input.id, IDENTIFIER_TYPES.PERSONAL_TOKEN);
     personalToken = await models.PersonalToken.findByPk(id, sequelizeOps);
+  } else if (input.legacyId) {
+    personalToken = await models.PersonalToken.findByPk(input.legacyId, sequelizeOps);
   } else {
     throw new Error('Please provide an id');
   }

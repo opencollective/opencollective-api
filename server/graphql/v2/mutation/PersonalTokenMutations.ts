@@ -39,7 +39,7 @@ const createPersonalToken = {
       where: { CollectiveId: collective.id },
     });
     if (numberOfPersonalTokensForThisAccount >= config.limits.maxNumberOfAppsPerUser) {
-      throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
+      throw new RateLimitExceeded('You have reached the maximum number of personal token for this user');
     }
 
     const createParams = {
@@ -70,11 +70,10 @@ const updatePersonalToken = {
     if (!personalToken) {
       throw new NotFound(`Personal token not found`);
     } else if (!req.remoteUser.isAdminOfCollective(personalToken.collective)) {
-      throw new Forbidden('Authenticated user is not the personal token owner.');
+      throw new Forbidden('Authenticated user is not the token owner.');
     }
 
     const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt']);
-    console.log(updateParams);
     return await personalToken.update(updateParams);
   },
 };

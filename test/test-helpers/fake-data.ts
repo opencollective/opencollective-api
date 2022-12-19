@@ -826,16 +826,16 @@ export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
-    const user = data.user as typeof models.User;
+    const user = data.user as User;
     CollectiveId = user.CollectiveId;
     CreatedByUserId = user.id;
   } else {
-    const user = data.CreatedByUserId ? await models.User.findByPk(data.CreatedByUserId) : await fakeUser();
+    const user = data.CreatedByUserId ? await models.User.findByPk(<number>data.CreatedByUserId) : await fakeUser();
     CreatedByUserId = user.id;
     CollectiveId = data.CollectiveId || user.CollectiveId;
   }
 
-  const personalToken = await models.PersonalAccessToken.create({
+  const personalToken = await models.PersonalToken.create({
     name: randStr('Name '),
     token: randStr('Token-'),
     scope: ['expenses', 'orders'],

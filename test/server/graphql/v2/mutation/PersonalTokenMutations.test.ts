@@ -3,6 +3,7 @@ import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
+import moment from 'moment';
 import speakeasy from 'speakeasy';
 
 import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
@@ -46,8 +47,8 @@ const DELETE_PERSONAL_TOKEN_MUTATION = gqlV2/* GraphQL */ `
 
 const VALID_TOKEN_PARAMS = {
   name: 'Test Personal Token',
-  scope: ['expenses', 'collectives'],
-  expiresAt: new Date('2021-01-01'),
+  scope: ['expenses', 'host'],
+  expiresAt: '2021-01-01',
 };
 
 describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
@@ -60,23 +61,19 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
-
     it('has a limitation on the number of tokens that can be created', async () => {
       const user = await fakeUser();
-
       // Create 15 applications (the limit)
       await Promise.all(
         times(config.limits.maxNumberOfAppsPerUser, () =>
           fakePersonalToken({ UserId: user.id, CollectiveId: user.CollectiveId }),
         ),
       );
-
       // Another one won't be allowed!
       const result = await graphqlQueryV2(CREATE_PERSONAL_TOKEN_MUTATION, { personalToken: VALID_TOKEN_PARAMS }, user);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You have reached the maximum number of personal token for this user');
     });
-
     it('creates a personal token', async () => {
       const user = await fakeUser();
       const result = await graphqlQueryV2(CREATE_PERSONAL_TOKEN_MUTATION, { personalToken: VALID_TOKEN_PARAMS }, user);
@@ -84,10 +81,9 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(result.errors).to.not.exist;
       expect(personalToken.name).to.equal(VALID_TOKEN_PARAMS.name);
       expect(personalToken.scope).to.deep.equal(VALID_TOKEN_PARAMS.scope);
-      expect(personalToken.expiresAt).to.equal(VALID_TOKEN_PARAMS.expiresAt.toISOString());
-      expect(personalToken.token).to.have.lengthOf(20);
+      expect(moment(personalToken.expiresAt).format('YYYY-MM-DD')).to.equal(VALID_TOKEN_PARAMS.expiresAt);
+      expect(personalToken.token).to.have.lengthOf(40);
     });
-
     it('creates a personal token with 2FA enabled', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
@@ -97,7 +93,6 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
         secret: secret.base32,
       });
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
-
       const result = await graphqlQueryV2(
         CREATE_PERSONAL_TOKEN_MUTATION,
         { personalToken: VALID_TOKEN_PARAMS },
@@ -111,14 +106,12 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       const personalToken = result.data.createPersonalToken;
       expect(personalToken.name).to.equal(VALID_TOKEN_PARAMS.name);
       expect(personalToken.scope).to.deep.equal(VALID_TOKEN_PARAMS.scope);
-      expect(personalToken.expiresAt).to.equal(VALID_TOKEN_PARAMS.expiresAt.toISOString());
-      expect(personalToken.token).to.have.lengthOf(20);
+      expect(moment(personalToken.expiresAt).format('YYYY-MM-DD')).to.equal(VALID_TOKEN_PARAMS.expiresAt);
+      expect(personalToken.token).to.have.lengthOf(40);
     });
-
     it('fails with invalid 2FA when 2FA enabled', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-
       const user = await fakeUser({ twoFactorAuthToken: encryptedToken });
       const result = await graphqlQueryV2(
         CREATE_PERSONAL_TOKEN_MUTATION,
@@ -132,7 +125,6 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       expect(result.errors[0].message).to.eq('Two-factor authentication code is invalid');
       expect(result.errors[0].extensions.code).to.eq('INVALID_2FA_CODE');
     });
-
     it('required 2FA when 2FA enabled', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
@@ -147,65 +139,58 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
     it('must be logged in', async () => {
       const personalToken = await fakePersonalToken();
       const result = await graphqlQueryV2(UPDATE_PERSONAL_TOKEN_MUTATION, {
-        personalToken: { id: personalToken.id },
+        personalToken: { legacyId: personalToken.id },
       });
-
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
     });
-
     it('must be an admin', async () => {
       const user = await fakeUser();
       const personalToken = await fakePersonalToken();
       const result = await graphqlQueryV2(
         UPDATE_PERSONAL_TOKEN_MUTATION,
-        { personalToken: { id: personalToken.id } },
+        { personalToken: { legacyId: personalToken.id } },
         user,
       );
-
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('Authenticated user is not the token owner.');
     });
-
     it('token must exist', async () => {
       const user = await fakeUser();
-      const result = await graphqlQueryV2(UPDATE_PERSONAL_TOKEN_MUTATION, { personalToken: { id: -1 } }, user);
-
+      const result = await graphqlQueryV2(UPDATE_PERSONAL_TOKEN_MUTATION, { personalToken: { legacyId: -1 } }, user);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('Token Not Found');
+      expect(result.errors[0].message).to.equal('Personal token Not Found');
     });
-
-    it('updates an OAUTH personal token', async () => {
+    it('updates a personal token', async () => {
       const user = await fakeUser();
       const personalToken = await fakePersonalToken({
         user,
       });
-
       const result = await graphqlQueryV2(
         UPDATE_PERSONAL_TOKEN_MUTATION,
         {
           personalToken: {
-            id: personalToken.id,
+            legacyId: personalToken.id,
             ...VALID_TOKEN_PARAMS,
           },
         },
         user,
       );
-
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const updatedPersonalToken = result.data.updatePersonalToken;
       expect(updatedPersonalToken.name).to.equal(VALID_TOKEN_PARAMS.name);
       expect(updatedPersonalToken.scope).to.deep.equal(VALID_TOKEN_PARAMS.scope);
-      expect(updatedPersonalToken.expiresAt).to.equal(VALID_TOKEN_PARAMS.expiresAt.toISOString());
-      expect(updatedPersonalToken.token).to.have.lengthOf(20);
+      expect(moment(updatedPersonalToken.expiresAt).format('YYYY-MM-DD')).to.equal(VALID_TOKEN_PARAMS.expiresAt);
     });
   });
 
   describe('deletePersonalTokenMutation', () => {
     it('must be logged in', async () => {
       const personalToken = await fakePersonalToken();
-      const result = await graphqlQueryV2(DELETE_PERSONAL_TOKEN_MUTATION, { personalToken: { id: personalToken.id } });
+      const result = await graphqlQueryV2(DELETE_PERSONAL_TOKEN_MUTATION, {
+        personalToken: { legacyId: personalToken.id },
+      });
 
       expect(result.errors).to.exist;
       expect(result.errors[0].extensions.code).to.equal('Unauthorized');
@@ -216,20 +201,20 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       const personalToken = await fakePersonalToken();
       const result = await graphqlQueryV2(
         DELETE_PERSONAL_TOKEN_MUTATION,
-        { personalToken: { id: personalToken.id } },
+        { personalToken: { legacyId: personalToken.id } },
         user,
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('Authenticated user is not the token owner.');
+      expect(result.errors[0].message).to.equal('Authenticated user is not the personal token owner.');
     });
 
     it('token must exist', async () => {
       const user = await fakeUser();
-      const result = await graphqlQueryV2(DELETE_PERSONAL_TOKEN_MUTATION, { personalToken: { id: -1 } }, user);
+      const result = await graphqlQueryV2(DELETE_PERSONAL_TOKEN_MUTATION, { personalToken: { legacyId: -1 } }, user);
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal('Token Not Found');
+      expect(result.errors[0].message).to.equal('Personal token Not Found');
     });
 
     it('deletes a personal token', async () => {
@@ -239,12 +224,11 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       });
       const result = await graphqlQueryV2(
         DELETE_PERSONAL_TOKEN_MUTATION,
-        { personalToken: { id: personalToken.id } },
+        { personalToken: { legacyId: personalToken.id } },
         user,
       );
 
       expect(result.errors).to.not.exist;
-      expect(result.data.deletePersonalToken).to.deep.equal({ id: personalToken.id });
     });
   });
 });
