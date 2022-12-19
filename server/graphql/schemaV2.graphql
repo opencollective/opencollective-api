@@ -3937,17 +3937,17 @@ type AccountStats {
     kind: [TransactionKind]
 
     """
-    Calculate total amount received before this date
+    Calculate amount after this date
     """
     dateFrom: DateTime
 
     """
-    Calculate total amount received after this date
+    Calculate amount before this date
     """
     dateTo: DateTime
 
     """
-    Computes contributions from the last x months. Cannot be used with startDate/endDate
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
     """
     periodInMonths: Int
 
@@ -3962,16 +3962,59 @@ type AccountStats {
     currency: Currency
 
     """
-    Include money spent in children (Projects and Events)
+    Set this to true to use cached data
     """
     useCache: Boolean! = false
       @deprecated(reason: "2022-12-14: this is not used anymore as results should be fast by default")
+<<<<<<< HEAD
+=======
+  ): Amount!
+
+  """
+  Total amount received time series
+  """
+  totalAmountReceivedTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+>>>>>>> 2deebb724 (resolve conflict)
 
     """
-    Include money received in children (Projects and Events)
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    Return the net amount (with payment processor fees removed)
+    """
+    net: Boolean = false
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
     """
     includeChildren: Boolean = false
-  ): Amount!
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+  ): TimeSeriesAmount!
 
   """
   Total of paid expenses to the account, filter per expense type
@@ -4003,7 +4046,72 @@ type AccountStats {
   """
   Total net amount received
   """
-  totalNetAmountReceived: Amount!
+  totalNetAmountReceived(
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount after this date
+    """
+    dateFrom: DateTime
+
+    """
+    Calculate amount before this date
+    """
+    dateTo: DateTime
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+  ): Amount! @deprecated(reason: "2022-12-13: Use totalAmountReceived + net=true instead")
+
+  """
+  Total net amount received time series
+  """
+  totalNetAmountReceivedTimeSeries(
+    """
+    The start date of the time series
+    """
+    dateFrom: DateTime
+
+    """
+    The end date of the time series
+    """
+    dateTo: DateTime
+
+    """
+    The time unit of the time series (such as MONTH, YEAR, WEEK etc). If no value is provided this is calculated using the dateFrom and dateTo values.
+    """
+    timeUnit: TimeUnit
+
+    """
+    Filter by kind
+    """
+    kind: [TransactionKind]
+
+    """
+    Calculate amount for the last x months. Cannot be used with startDate/endDate
+    """
+    periodInMonths: Int
+
+    """
+    Include transactions from children (Projects and Events)
+    """
+    includeChildren: Boolean = false
+
+    """
+    An optional currency. If not provided, will use the collective currency.
+    """
+    currency: Currency
+  ): TimeSeriesAmount! @deprecated(reason: "2022-12-13: Use totalAmountReceivedTimeSeries + net=true instead")
   activeRecurringContributions: JSON
     @deprecated(reason: "2022-10-21: Use activeRecurringContributionsV2 while we migrate to better semantics.")
   activeRecurringContributionsV2(
