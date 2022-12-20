@@ -77,7 +77,7 @@ module.exports = {
 
     await queryInterface.sequelize.query(`
       INSERT INTO "SocialLinks"("CollectiveId", type, url, "order")
-      SELECT c.id, 'GIT_REPOSITORY', trim(c."repositoryUrl"), 2
+      SELECT c.id, 'GIT', trim(c."repositoryUrl"), 2
       FROM "Collectives" c
       WHERE c."deletedAt" is NULL and c."repositoryUrl" not like 'https://github.com%'
       and c."repositoryUrl" not like 'https://gitlab.com%'
