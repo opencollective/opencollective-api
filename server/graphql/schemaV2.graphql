@@ -232,7 +232,7 @@ interface Account {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
   members(
     limit: Int! = 100
     offset: Int! = 0
@@ -2251,6 +2251,7 @@ type ExpensePermissions {
 type Permission {
   allowed: Boolean!
   reason: String
+  reasonDetails: JSON
 }
 
 """
@@ -2479,7 +2480,7 @@ type Host implements Account & AccountWithContributions {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -3699,7 +3700,7 @@ type AccountStats {
     """
     Include transactions using Gift Cards (not working together with includeChildren)
     """
-    includeGiftCards: Boolean = true
+    includeGiftCards: Boolean = false
   ): Amount!
 
   """
@@ -3745,6 +3746,7 @@ type AccountStats {
     Set this to true to use cached data
     """
     useCache: Boolean! = false
+      @deprecated(reason: "2022-12-14: this is not used anymore as results should be fast by default")
   ): Amount!
 
   """
@@ -5096,7 +5098,7 @@ type Bot implements Account {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -5597,7 +5599,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -6427,7 +6429,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -7031,7 +7033,7 @@ type Individual implements Account {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -7622,7 +7624,7 @@ type Organization implements Account & AccountWithContributions {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -8238,7 +8240,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -9487,12 +9489,17 @@ type Query {
     offset: Int! = 0
 
     """
-    Only from accounts that have one of these tags
+    Only return updates from accounts that have one of these tags
     """
-    tag: [String]
+    accountTag: [String]
 
     """
-    Host for the account for which to get updates
+    Only return updates from accounts that match these types (COLLECTIVE, FUND, EVENT, PROJECT, ORGANIZATION or INDIVIDUAL)
+    """
+    accountType: [AccountType]
+
+    """
+    Host for the accounts for which to get updates
     """
     host: [AccountReferenceInput]
   ): UpdatesCollection!
@@ -10988,7 +10995,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -11584,7 +11591,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Returns true if the remote user is an admin of this account
   """
   isAdmin: Boolean!
-  parentAccount: Account
+  parentAccount: Account @deprecated(reason: "2022-12-16: use parent on AccountWithParent instead")
 
   """
   Get all members (admins, members, backers, followers)
@@ -14478,12 +14485,12 @@ input PaymentMethodInput {
 
 input CreditCardCreateInput {
   token: String!
-  brand: String!
-  country: String!
-  expMonth: Int!
-  expYear: Int!
-  fullName: String
-  funding: String
+  brand: String @deprecated(reason: "2022-11-22: the `token` parameter is sufficient")
+  country: String @deprecated(reason: "2022-11-22: the `token` parameter is sufficient")
+  expMonth: Int @deprecated(reason: "2022-11-22: the `token` parameter is sufficient")
+  expYear: Int @deprecated(reason: "2022-11-22: the `token` parameter is sufficient")
+  fullName: String @deprecated(reason: "2022-11-22: the field was not used since 2017")
+  funding: String @deprecated(reason: "2022-11-22: the `token` parameter is sufficient")
   zip: String
 }
 
