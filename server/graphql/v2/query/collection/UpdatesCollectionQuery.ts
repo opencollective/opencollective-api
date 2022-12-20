@@ -2,6 +2,7 @@ import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models, { Op } from '../../../../models';
 import { UpdatesCollection } from '../../collection/UpdatesCollection';
+import { AccountType, AccountTypeToModelMapping } from '../../enum';
 import { AccountReferenceInput, fetchAccountsIdsWithReference } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -11,7 +12,12 @@ const UpdatesCollectionQuery = {
     ...CollectionArgs,
     tag: {
       type: new GraphQLList(GraphQLString),
-      description: 'Only from accounts that have one of these tags',
+      description: 'Only return updates from accounts that have one of these tags',
+    },
+    type: {
+      type: new GraphQLList(AccountType),
+      description:
+        'Only return updates from accounts that match these types (COLLECTIVE, FUND, EVENT, PROJECT, ORGANIZATION or INDIVIDUAL)',
     },
     host: {
       type: new GraphQLList(AccountReferenceInput),
@@ -28,7 +34,7 @@ const UpdatesCollectionQuery = {
     };
     let include;
 
-    if (args.host || args.tag) {
+    if (args.host || args.tag || args.type?.length) {
       include = {
         model: models.Collective,
         as: 'collective',
@@ -41,6 +47,9 @@ const UpdatesCollectionQuery = {
       }
       if (args.tag) {
         include.where = { ...include.where, tags: { [Op.overlap]: args.tag } };
+      }
+      if (args.type?.length) {
+        include.where = { ...include.where, type: args.type.map(value => AccountTypeToModelMapping[value]) };
       }
     }
 
