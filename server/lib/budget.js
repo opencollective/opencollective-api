@@ -171,7 +171,7 @@ export async function getTotalAmountSpentAmount(
     includeGiftCards,
   };
 
-  if (loaders && version === DEFAULT_BUDGET_VERSION && !net) {
+  if (loaders && version === DEFAULT_BUDGET_VERSION) {
     const amountSpentLoader = loaders.Collective.amountSpent.buildLoader(transactionArgs);
     result = await amountSpentLoader.load(collective.id);
   } else {
