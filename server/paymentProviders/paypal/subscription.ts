@@ -15,7 +15,7 @@ import User from '../../models/User';
 import { PaymentProviderService } from '../types';
 
 import { paypalRequest } from './api';
-import {getCaptureIdFromPaypalTransaction, refundPaypalCapture} from './payment';
+import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './payment';
 
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 
