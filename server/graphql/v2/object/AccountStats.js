@@ -249,9 +249,9 @@ export const AccountStats = new GraphQLObjectType({
       },
       yearlyBudget: {
         type: new GraphQLNonNull(Amount),
-        async resolve(collective) {
+        async resolve(collective, args, req) {
           return {
-            value: await collective.getYearlyIncome(),
+            value: await req.loaders.Collective.yearlyIncome.load(collective.id),
             currency: collective.currency,
           };
         },

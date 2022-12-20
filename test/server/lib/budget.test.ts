@@ -20,7 +20,7 @@ describe('server/lib/budget', () => {
   describe('getYearlyIncome', () => {
     it('returns 0 for collective without transactions', async () => {
       const collective = await fakeCollective();
-      expect(await getYearlyIncome(collective)).to.equal(0);
+      expect(await getYearlyIncome(collective.id)).to.equal(0);
     });
 
     it('calculates the budget', async () => {
@@ -79,7 +79,7 @@ describe('server/lib/budget', () => {
       await fakeTransaction(cancelledOrderTransactionValues, { createDoubleEntry: true });
 
       // Total should be the sum of all the above
-      expect(await getYearlyIncome(collective)).to.equal(235e2);
+      expect(await getYearlyIncome(collective.id)).to.equal(235e2);
     });
   });
 

@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import config from 'config';
-import { difference } from 'lodash';
+import { difference, groupBy } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
 import { TransactionTypes } from '../constants/transactions';
@@ -691,59 +691,110 @@ export async function sumCollectivesTransactions(
   return totals;
 }
 
-export async function getYearlyIncome(collective) {
+export async function getYearlyIncome(collectiveIds) {
+  const ids = Array.isArray(collectiveIds) ? collectiveIds : [collectiveIds];
+
+  // Three cases:
   // 1) All active monthly subscriptions. Multiply by 12.
   // 2) All active yearly subscriptions.
   // 3a) All one-time subscriptions in the past year.
   // 3b) All inactive monthly subscriptions that have contributed in the past year.
 
-  // TODO: support netAmountInHostCurrency
-  const result = await sequelize.query(
+  const yearlyIncomeQuery = await sequelize.query(
     `
-      SELECT
-        (
-          SELECT COALESCE(SUM(o."totalAmount"), 0) * 12
+      WITH active_subscriptions as (
+        SELECT
+            o."CollectiveId",
+            o.currency,
+            (COALESCE(SUM(o."totalAmount") FILTER(WHERE s.interval = 'month'), 0) * 12 +
+            COALESCE(SUM(o."totalAmount") FILTER(WHERE s.interval = 'year'), 0)) as amount
           FROM "Orders" o
           INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-          WHERE o."CollectiveId" = :CollectiveId
           AND o."deletedAt" IS NULL
           AND s."deletedAt" IS NULL
           AND s."isActive" IS TRUE
-          AND s.interval = 'month'
-        )
-        +
-        (
-          SELECT COALESCE(SUM(o."totalAmount"), 0)
-          FROM "Orders" o
-          INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-          WHERE o."CollectiveId" = :CollectiveId
-          AND o."deletedAt" IS NULL
-          AND s."deletedAt" IS NULL
-          AND s."isActive" IS TRUE
-          AND s.interval = 'year'
-        )
-        +
-        (
-          SELECT COALESCE(SUM(t."netAmountInCollectiveCurrency"), 0)
+          GROUP BY o."CollectiveId", o.currency
+      ),
+      last_twelve_months_contributions as (
+          SELECT
+            t."CollectiveId",
+            t."hostCurrency" as currency,
+            SUM(t."amountInHostCurrency") +
+              SUM(coalesce(t."platformFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."hostFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
+              SUM(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "amount"
           FROM "Transactions" t
-          LEFT JOIN "Orders" d ON t."OrderId" = d.id
-          LEFT JOIN "Subscriptions" s ON d."SubscriptionId" = s.id
-          WHERE t."CollectiveId" = :CollectiveId
-          AND t."RefundTransactionId" IS NULL
+          LEFT JOIN "Orders" o ON t."OrderId" = o.id
+          LEFT JOIN "Subscriptions" s ON s.id = o."SubscriptionId"
+          WHERE t."RefundTransactionId" IS NULL
           AND t.type = 'CREDIT'
           AND t."deletedAt" IS NULL
           AND t."createdAt" > (current_date - INTERVAL '12 months')
-          AND (s.id IS NULL OR s."isActive" IS FALSE)
-        )
-        AS "yearlyIncome"
-      `.replace(/\s\s+/g, ' '), // this is to remove the new lines and save log space.
+          AND (s.id IS NULL or s."isActive" IS FALSE)
+          GROUP BY t."CollectiveId", t."hostCurrency"
+      ),
+      combined as (
+        SELECT * FROM active_subscriptions
+        UNION ALL
+        SELECT * FROM last_twelve_months_contributions
+      )
+      SELECT
+        "CollectiveId", currency, sum(amount) as amount
+      FROM combined
+      WHERE "CollectiveId" in (:CollectiveIds)
+      GROUP BY "CollectiveId", currency;
+      `,
     {
-      replacements: { CollectiveId: collective.id },
+      replacements: { CollectiveIds: ids },
       type: sequelize.QueryTypes.SELECT,
     },
   );
 
-  return parseInt(result[0].yearlyIncome, 10);
+  if (!yearlyIncomeQuery) {
+    return;
+  }
+
+  const currencyQuery = await sequelize.query(
+    `
+    SELECT c.id as "CollectiveId", c.currency, h.currency as "hostCurrency"
+    FROM "Collectives" c
+    LEFT JOIN "Collectives" h ON h.id = c."HostCollectiveId"
+    WHERE c.id IN (:CollectiveIds);
+  `,
+    {
+      replacements: { CollectiveIds: ids },
+      type: sequelize.QueryTypes.SELECT,
+    },
+  );
+
+  if (!currencyQuery) {
+    return;
+  }
+
+  const currenciesByCollectiveId = groupBy(currencyQuery, 'CollectiveId');
+  const resultsByCollectiveId = groupBy(yearlyIncomeQuery, 'CollectiveId');
+
+  const yearlyIncomes = [];
+
+  for (const collectiveId of ids) {
+    const collectiveResults = resultsByCollectiveId[collectiveId] ?? [];
+    const collectiveCurrencies = currenciesByCollectiveId[collectiveId]?.[0];
+    const targetCurrency = collectiveCurrencies?.hostCurrency ?? collectiveCurrencies?.currency;
+
+    let yearlyIncome = 0;
+    for (const result of collectiveResults) {
+      const fxRate = await getFxRate(result.currency, targetCurrency);
+      yearlyIncome += Math.round(result.amount * fxRate);
+    }
+    yearlyIncomes.push(yearlyIncome);
+  }
+
+  if (!Array.isArray(collectiveIds) && yearlyIncomes.length === 1) {
+    return yearlyIncomes[0];
+  }
+
+  return yearlyIncomes;
 }
 
 // Calculate the total "blocked funds" for each collective
