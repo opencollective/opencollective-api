@@ -881,7 +881,8 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
       lock: true,
     });
 
-    const removedLinks = differenceBy(existingLinks, socialLinks, sl => sl.url + sl.type);
+    const isSameLink = (link1, link2) => link1.url === link2.url && link1.type === link2.type;
+    const removedLinks = differenceWith(existingLinks, isSameLink);
 
     if (removedLinks.length !== 0) {
       await models.SocialLink.destroy({
