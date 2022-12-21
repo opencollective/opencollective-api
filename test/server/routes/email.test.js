@@ -6,22 +6,14 @@ import { createSandbox } from 'sinon';
 import request from 'supertest';
 
 import app from '../../../server/index';
-import emailLib from '../../../server/lib/email';
 import { md5 } from '../../../server/lib/utils';
 import models from '../../../server/models';
-import webhookBodyPayload from '../../mocks/mailgun.webhook.payload';
-import initNock from '../../nocks/email.routes.test.nock.js';
 import { randEmail } from '../../stores';
-import { fakeCollective, fakeUser } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const generateToken = (email, slug, template) => {
   const uid = `${email}.${slug}.${template}.${config.keys.opencollective.jwtSecret}`;
   return md5(uid);
-};
-
-const fakeIntervalUser = () => {
-  return fakeUser({ email: randEmail('test@opencollective.com') });
 };
 
 const { Collective } = models;
@@ -69,8 +61,6 @@ describe('server/routes/email', () => {
 
   before(() => utils.resetTestDB());
 
-  before(initNock);
-
   beforeEach(() => {
     sandbox = createSandbox();
   });
@@ -101,59 +91,6 @@ describe('server/routes/email', () => {
         }),
       );
     });
-  });
-
-  it('forwards emails sent to info@:slug.opencollective.com if enabled', async () => {
-    const spy = sandbox.spy(emailLib, 'sendMessage');
-    const collective = await fakeCollective({ settings: { features: { forwardEmails: true } } });
-    const users = await Promise.all([fakeIntervalUser(), fakeIntervalUser(), fakeIntervalUser()]);
-    await Promise.all(users.map(user => collective.addUserWithRole(user, 'ADMIN')));
-
-    return request(expressApp)
-      .post('/webhooks/mailgun')
-      .send(
-        Object.assign({}, webhookBodyPayload, {
-          recipient: `info@${collective.slug}.opencollective.com`,
-        }),
-      )
-      .then(res => {
-        expect(res.statusCode).to.equal(200);
-        expect(spy.lastCall.args[0]).to.equal(`info@${collective.slug}.opencollective.com`);
-        expect(spy.lastCall.args[1]).to.equal(webhookBodyPayload.subject);
-        expect(users.map(u => u.email).indexOf(spy.lastCall.args[3].bcc) !== -1).to.be.true;
-      });
-  });
-
-  it('do not forwards emails sent to info@:slug.opencollective.com', async () => {
-    const spy = sandbox.spy(emailLib, 'sendMessage');
-    const collective = await fakeCollective();
-    const user = await fakeIntervalUser();
-    await collective.addUserWithRole(user, 'ADMIN');
-    const endpoint = request(expressApp).post('/webhooks/mailgun');
-    const res = await endpoint.send(
-      Object.assign({}, webhookBodyPayload, {
-        recipient: `info@${collective.slug}.opencollective.com`,
-      }),
-    );
-
-    expect(res.body.error).to.exist;
-    expect(spy.lastCall).to.not.exist;
-  });
-
-  it('rejects emails sent to unknown mailing list', () => {
-    const unknownMailingListWebhook = Object.assign({}, webhookBodyPayload, {
-      recipient: 'unknown@testcollective.opencollective.com',
-    });
-
-    return request(expressApp)
-      .post('/webhooks/mailgun')
-      .send(unknownMailingListWebhook)
-      .then(res => {
-        expect(res.statusCode).to.equal(200);
-        expect(res.body.error.message).to.equal(
-          'Invalid mailing list address unknown@testcollective.opencollective.com',
-        );
-      });
   });
 
   describe('unsubscribe', () => {

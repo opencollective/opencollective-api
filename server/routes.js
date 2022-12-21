@@ -244,7 +244,6 @@ export default async app => {
   app.post('/webhooks/privacy', privacyWebhook); // when it gets a new subscription invoice
   app.post('/webhooks/paypal/:hostId?', paypalWebhook);
   app.post('/webhooks/thegivingblock', thegivingblockWebhook);
-  app.post('/webhooks/mailgun', email.webhook); // when receiving an email
   app.get('/connected-accounts/:service/callback', noCache, authentication.authenticateServiceCallback); // oauth callback
   app.delete(
     '/connected-accounts/:service/disconnect/:collectiveId',
