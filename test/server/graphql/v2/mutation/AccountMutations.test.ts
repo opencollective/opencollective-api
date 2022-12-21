@@ -558,7 +558,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       <td></td>
       <td>
 
-<p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 17px; padding: 1em;">
+<p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 17px; padding: 1em;">
   Hi Admin Name,
   <br><br>
   <a href="http://localhost:3000/tester" style="text-decoration: none; color: #297EFF;">Tester</a> just sent a message to <a href="http://localhost:3000/test-collective-with-contact" style="text-decoration: none; color: #297EFF;">Test Collective</a> on Open
@@ -570,17 +570,17 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     <tr>
       <td style="border: 1px solid #e8edee; border-radius: 6px; padding: 1em;">
         <br>
-          <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 18px; font-weight: bold;">Subject</p>
+          <p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 18px; font-weight: bold;">Subject</p>
           <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">Testing</blockquote>
           <br>
-        <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 18px; font-weight: bold;">Message</p>
+        <p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 18px; font-weight: bold;">Message</p>
         <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">Hello collective, I am reaching out to you for testing purposes.</blockquote>
       </td>
     </tr>
   </tbody>
 </table>
 
-<p style="color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;">If this message is spam, please forward it to <a href="mailto:support@opencollective.com" style="text-decoration: none; color: #297EFF;">support@opencollective.com</a>.</p>
+<p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;">If this message is spam, please forward it to <a href="mailto:support@opencollective.com" style="text-decoration: none; color: #297EFF;">support@opencollective.com</a>.</p>
 
 </td>
 </tr>
