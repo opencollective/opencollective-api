@@ -14,6 +14,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
+import OAuthScopes from '../../server/constants/oauth-scopes';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import { TransactionKind } from '../../server/constants/transaction-kind';
@@ -838,7 +839,7 @@ export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
   const personalToken = await models.PersonalToken.create({
     name: randStr('Name '),
     token: randStr('Token-'),
-    scope: ['expenses', 'orders'],
+    scope: [OAuthScopes.account, OAuthScopes.transactions],
     CollectiveId,
     UserId: CreatedByUserId,
   });
