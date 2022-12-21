@@ -3,6 +3,7 @@ import { pick } from 'lodash';
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
+import Comment from '../../models/Comment';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment } from './expenses';
@@ -35,7 +36,7 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
  * @param {object} comment - comment to edit
  * @param {object} remoteUser - logged user
  */
-async function editComment(commentData, req) {
+async function editComment(commentData, req): Promise<Comment> {
   mustBeLoggedInTo(req.remoteUser, 'edit this comment');
 
   const comment = await models.Comment.findByPk(commentData.id);
@@ -60,7 +61,7 @@ async function editComment(commentData, req) {
  * @param {number} id - comment identifier
  * @param {object} remoteUser - logged user
  */
-async function deleteComment(id, req) {
+async function deleteComment(id: number, req): Promise<void> {
   mustBeLoggedInTo(req.remoteUser, 'delete this comment');
 
   const comment = await models.Comment.findByPk(id);
@@ -78,7 +79,7 @@ async function deleteComment(id, req) {
   return comment.destroy();
 }
 
-async function createComment(commentData, req) {
+async function createComment(commentData, req): Promise<Comment> {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
 

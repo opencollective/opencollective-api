@@ -19,6 +19,7 @@ import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
 import models from '../../server/models';
+import Comment from '../../server/models/Comment';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
@@ -352,7 +353,10 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
 /**
  * Creates a fake comment. All params are optionals.
  */
-export const fakeComment = async (commentData: Record<string, unknown> = {}, sequelizeParams: CreateOptions = {}) => {
+export const fakeComment = async (
+  commentData: Record<string, unknown> = {},
+  sequelizeParams: CreateOptions = {},
+): Promise<Comment> => {
   let FromCollectiveId = get(commentData, 'FromCollectiveId') || get(commentData, 'fromCollective.id');
   let CollectiveId = get(commentData, 'CollectiveId') || get(commentData, 'collective.id');
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
@@ -375,11 +379,11 @@ export const fakeComment = async (commentData: Record<string, unknown> = {}, seq
     {
       html: '<div><strong>Hello</strong> Test comment!</div>',
       ...commentData,
-      FromCollectiveId,
-      CollectiveId,
-      CreatedByUserId,
-      ExpenseId,
-      ConversationId,
+      FromCollectiveId: <number>FromCollectiveId,
+      CollectiveId: <number>CollectiveId,
+      CreatedByUserId: <number>CreatedByUserId,
+      ExpenseId: <number>ExpenseId,
+      ConversationId: <number>ConversationId,
     },
     sequelizeParams,
   );
@@ -401,7 +405,7 @@ export const fakeEmojiReaction = async (
   const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
   if (opts.isComment) {
     const ConversationId = (await fakeConversation()).id;
-    const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
+    const CommentId = <number>reactionData.CommentId || (await fakeComment({ ConversationId })).id;
     return models.EmojiReaction.create({
       UserId,
       FromCollectiveId,
@@ -424,7 +428,7 @@ export const fakeConversation = async (
   conversationData: Record<string, unknown> = {},
   sequelizeParams: CreateOptions = {},
 ) => {
-  const RootCommentId = conversationData.RootCommentId || (await fakeComment({}, sequelizeParams)).id;
+  const RootCommentId = <number>conversationData.RootCommentId || (await fakeComment({}, sequelizeParams)).id;
   const rootComment = await models.Comment.findByPk(RootCommentId);
   return models.Conversation.create(
     {
