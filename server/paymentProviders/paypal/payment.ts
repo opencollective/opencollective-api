@@ -220,7 +220,7 @@ export async function processOrder(order: typeof models.Order): Promise<typeof m
   }
 }
 
-const getCaptureIdFromPaypalTransaction = transaction => {
+export const getCaptureIdFromPaypalTransaction = transaction => {
   const { data } = transaction;
   if (!data) {
     return null;
