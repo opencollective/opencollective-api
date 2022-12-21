@@ -7,7 +7,9 @@ import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
   fakeHost,
+  fakeOrder,
   fakeOrganization,
+  fakePaymentMethod,
   fakeProject,
   fakeTransaction,
   fakeUpdate,
@@ -43,6 +45,10 @@ const accountQuery = gqlV2/* GraphQL */ `
           createdAt
           publishedAt
         }
+      }
+      paymentMethodsWithPendingConfirmation {
+        id
+        legacyId
       }
       stats {
         balance {
@@ -397,6 +403,46 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
       const resultProject = await graphqlQueryV2(accountQuery, { slug: project.slug });
       expect(resultProject.data.account.supportedExpenseTypes).to.deep.eq(['INVOICE', 'RECEIPT']);
+    });
+  });
+
+  describe('paymentMethodsWithPendingConfirmation', () => {
+    let user, paymentMethod;
+
+    before(async () => {
+      user = await fakeUser();
+
+      // Add regular payment methods
+      await Promise.all(times(3, () => fakePaymentMethod({ CollectiveId: user.CollectiveId })));
+
+      // Add a payment method with pending confirmations
+      paymentMethod = await fakePaymentMethod({
+        type: 'creditcard',
+        service: 'stripe',
+        CollectiveId: user.CollectiveId,
+        data: { needsConfirmation: true },
+      });
+
+      await Promise.all(
+        times(2, () =>
+          fakeOrder({
+            FromCollectiveId: user.CollectiveId,
+            PaymentMethodId: paymentMethod.id,
+            status: 'REQUIRE_CLIENT_CONFIRMATION',
+          }),
+        ),
+      );
+    });
+
+    it('returns null if unauthenticated', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug });
+      expect(result.data.account.paymentMethodsWithPendingConfirmation).to.be.null;
+    });
+
+    it('returns the list of payment methods with pending confirmation if authenticated', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
+      expect(result.data.account.paymentMethodsWithPendingConfirmation).to.have.length(1);
+      expect(result.data.account.paymentMethodsWithPendingConfirmation[0].legacyId).to.equal(paymentMethod.id);
     });
   });
 

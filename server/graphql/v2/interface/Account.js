@@ -349,6 +349,11 @@ const accountFieldsDefinition = () => ({
       },
     },
   },
+  paymentMethodsWithPendingConfirmation: {
+    type: new GraphQLList(PaymentMethod),
+    description:
+      'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
+  },
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
     description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
@@ -866,11 +871,6 @@ export const AccountFields = {
         description:
           'Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
       },
-      includeUnsaved: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        description: 'Whether to include payment methods that have not been saved',
-        defaultValue: false,
-      },
     },
     description:
       'The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".',
@@ -891,7 +891,7 @@ export const AccountFields = {
           return false;
         } else if (pm.data?.hidden) {
           return false;
-        } else if (pm.service === 'stripe' && !pm.saved && !args.includeUnsaved) {
+        } else if (pm.service === 'stripe' && !pm.saved) {
           return false;
         } else if (!args.includeExpired && pm.expiryDate && pm.expiryDate <= now) {
           return false;
@@ -901,6 +901,28 @@ export const AccountFields = {
         } else {
           return true;
         }
+      });
+    },
+  },
+  paymentMethodsWithPendingConfirmation: {
+    type: new GraphQLList(PaymentMethod),
+    description:
+      'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
+    async resolve(collective, _, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      }
+
+      return models.PaymentMethod.findAll({
+        where: { CollectiveId: collective.id, data: { needsConfirmation: true } },
+        group: ['PaymentMethod.id'],
+        include: [
+          {
+            model: models.Order,
+            attributes: [],
+            where: { status: { [Op.in]: ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'] } },
+          },
+        ],
       });
     },
   },

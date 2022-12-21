@@ -530,6 +530,11 @@ interface Account {
   ): [PaymentMethod]
 
   """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
+
+  """
   The list of connected accounts (Stripe, Twitter, etc ...)
   """
   connectedAccounts: [ConnectedAccount]
@@ -2808,6 +2813,11 @@ type Host implements Account & AccountWithContributions {
   ): [PaymentMethod]
 
   """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
+
+  """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
@@ -3539,6 +3549,7 @@ type PaymentMethod {
   limitedToHosts: [Host]
   expiryDate: DateTime
   createdAt: DateTime
+  needsConfirmation: Boolean
 }
 
 enum PaymentMethodService {
@@ -5425,6 +5436,11 @@ type Bot implements Account {
   ): [PaymentMethod]
 
   """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
+
+  """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
@@ -5924,6 +5940,11 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     """
     includeExpired: Boolean
   ): [PaymentMethod]
+
+  """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -6756,6 +6777,11 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   ): [PaymentMethod]
 
   """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
+
+  """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
@@ -7360,6 +7386,11 @@ type Individual implements Account {
   ): [PaymentMethod]
 
   """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
+
+  """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
@@ -7949,6 +7980,11 @@ type Organization implements Account & AccountWithContributions {
     """
     includeExpired: Boolean
   ): [PaymentMethod]
+
+  """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -8565,6 +8601,11 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     """
     includeExpired: Boolean
   ): [PaymentMethod]
+
+  """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
@@ -11322,6 +11363,11 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   ): [PaymentMethod]
 
   """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
+
+  """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
   """
   connectedAccounts: [ConnectedAccount]
@@ -11916,6 +11962,11 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     """
     includeExpired: Boolean
   ): [PaymentMethod]
+
+  """
+  The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)
+  """
+  paymentMethodsWithPendingConfirmation: [PaymentMethod]
 
   """
   The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".
