@@ -49,7 +49,7 @@ const createPersonalToken = {
       token: models.PersonalToken.generateToken(),
     };
 
-    return await models.PersonalToken.create(createParams);
+    return models.PersonalToken.create(createParams);
   },
 };
 
@@ -74,7 +74,7 @@ const updatePersonalToken = {
     }
 
     const updateParams = pick(args.personalToken, ['name', 'scope', 'expiresAt']);
-    return await personalToken.update(updateParams);
+    return personalToken.update(updateParams);
   },
 };
 

@@ -1,6 +1,6 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
-import { DateString } from '../../v1/types';
 import { OAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -24,7 +24,7 @@ export const PersonalToken = new GraphQLObjectType({
       description: 'The personal token',
     },
     expiresAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'The date on which the personal token expires',
     },
     scope: {
@@ -39,11 +39,11 @@ export const PersonalToken = new GraphQLObjectType({
       },
     },
     createdAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'The date on which the personal token was created',
     },
     updatedAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'The date on which the personal token was last updated',
     },
   }),

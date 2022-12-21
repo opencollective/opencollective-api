@@ -1,10 +1,11 @@
 import { randomBytes } from 'crypto';
 
-import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import User from './User';
 import models from '.';
 
 class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationAttributes<PersonalToken>> {
@@ -16,8 +17,8 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   public declare deletedAt: CreationOptional<Date>;
   public declare data: Record<string, unknown>;
   public declare CollectiveId: number;
-  public declare UserId: number;
-  public declare scope: string[];
+  public declare UserId: ForeignKey<User['id']>;
+  public declare scope: oAuthScopes[];
   public declare name: string;
 
   public declare application?: NonAttribute<typeof models.Application>;
