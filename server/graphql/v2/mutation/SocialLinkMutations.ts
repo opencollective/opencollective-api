@@ -27,7 +27,7 @@ const socialLinkMutations: GraphQLFieldConfigMap<void, express.Request> = {
 
       const account = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
 
-      if (!req.remoteUser.isAdmin(account.id)) {
+      if (!req.remoteUser.isAdminOfCollective(account)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
