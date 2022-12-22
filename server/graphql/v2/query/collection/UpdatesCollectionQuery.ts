@@ -2,6 +2,7 @@ import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import models, { Op } from '../../../../models';
 import { UpdatesCollection } from '../../collection/UpdatesCollection';
+import { AccountType, AccountTypeToModelMapping } from '../../enum';
 import { AccountReferenceInput, fetchAccountsIdsWithReference } from '../../input/AccountReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
@@ -9,13 +10,18 @@ const UpdatesCollectionQuery = {
   type: new GraphQLNonNull(UpdatesCollection),
   args: {
     ...CollectionArgs,
-    tag: {
+    accountTag: {
       type: new GraphQLList(GraphQLString),
-      description: 'Only from accounts that have one of these tags',
+      description: 'Only return updates from accounts that have one of these tags',
+    },
+    accountType: {
+      type: new GraphQLList(AccountType),
+      description:
+        'Only return updates from accounts that match these types (COLLECTIVE, FUND, EVENT, PROJECT, ORGANIZATION or INDIVIDUAL)',
     },
     host: {
       type: new GraphQLList(AccountReferenceInput),
-      description: 'Host for the account for which to get updates',
+      description: 'Host for the accounts for which to get updates',
     },
   },
   async resolve(_: void, args): Promise<CollectionReturnType> {
@@ -28,7 +34,7 @@ const UpdatesCollectionQuery = {
     };
     let include;
 
-    if (args.host || args.tag) {
+    if (args.host || args.accountTag || args.accountType?.length) {
       include = {
         model: models.Collective,
         as: 'collective',
@@ -39,8 +45,11 @@ const UpdatesCollectionQuery = {
         const hostCollectiveIds = await fetchAccountsIdsWithReference(args.host);
         include.where = { ...include.where, HostCollectiveId: hostCollectiveIds };
       }
-      if (args.tag) {
-        include.where = { ...include.where, tags: { [Op.overlap]: args.tag } };
+      if (args.accountTag) {
+        include.where = { ...include.where, tags: { [Op.overlap]: args.accountTag } };
+      }
+      if (args.accountType?.length) {
+        include.where = { ...include.where, type: args.accountType.map(value => AccountTypeToModelMapping[value]) };
       }
     }
 
