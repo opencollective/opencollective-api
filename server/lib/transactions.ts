@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import { round, set, sumBy, truncate } from 'lodash';
 
 import ExpenseType from '../constants/expense_type';
@@ -209,6 +211,84 @@ export async function createTransactionsFromPaidExpense(
     transaction.netAmountInCollectiveCurrency += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
     transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
   }
+
+  return models.Transaction.createDoubleEntry(transaction);
+}
+
+export async function createTransactionsForManuallyPaidExpense(
+  host,
+  expense,
+  paymentProcessorFeeInHostCurrency,
+  totalAmountPaidInHostCurrency,
+  /** Will be stored in transaction.data */
+  transactionData: Record<string, unknown> = {},
+) {
+  assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
+  assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
+
+  const isCoveredByPayee = expense.feesPayer === 'PAYEE';
+  const amount = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
+  const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency);
+  const amounts = {
+    amount,
+    amountInHostCurrency: amount,
+    paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
+    netAmountInCollectiveCurrency,
+    hostCurrencyFxRate: 1,
+  };
+
+  if (host.currency !== expense.collective.currency) {
+    assert(
+      expense.currency === expense.collective.currency,
+      'Expense currency must be the same as collective currency',
+    );
+    amounts.hostCurrencyFxRate = isCoveredByPayee
+      ? // If the payee is covering the fees, the expense amount should be proportional to the total amount paid in host currency
+        expense.amount / totalAmountPaidInHostCurrency
+      : // If the host is covering the fees, the expense amount be proportional to total amount paid minus the fees
+        expense.amount / amount;
+    amounts.amount = amounts.amount * amounts.hostCurrencyFxRate;
+    amounts.netAmountInCollectiveCurrency = amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate;
+  }
+
+  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  const expenseDataForTransaction: Record<string, unknown> = {};
+  if (expense.data?.taxes?.length) {
+    expenseDataForTransaction['tax'] = {
+      ...expense.data.taxes[0],
+      id: expense.data.taxes[0].type,
+      rate: round(expense.data.taxes[0].rate, 4), // We want to support percentages with up to 2 decimals (e.g. 12.13%)
+      percentage: round(expense.data.taxes[0].rate * 100), // @deprecated for legacy compatibility
+    };
+  }
+
+  if (isCoveredByPayee) {
+    set(transactionData, 'feesPayer', 'PAYEE');
+  }
+
+  // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
+  const transaction = {
+    ...amounts,
+    hostCurrency: host.currency,
+    ExpenseId: expense.id,
+    type: DEBIT,
+    kind: EXPENSE,
+    hostFeeInHostCurrency: 0,
+    platformFeeInHostCurrency: 0,
+    currency: expense.collective.currency, // We always record the transaction in the collective currency
+    description: expense.description,
+    CreatedByUserId: expense.UserId, // TODO: Should be the person who triggered the payment
+    CollectiveId: expense.CollectiveId,
+    FromCollectiveId: expense.FromCollectiveId,
+    HostCollectiveId: host.id,
+    PayoutMethodId: expense.PayoutMethodId,
+    taxAmount: computeExpenseTaxes(expense),
+    data: {
+      isManual: true,
+      ...transactionData,
+      ...expenseDataForTransaction,
+    },
+  };
 
   return models.Transaction.createDoubleEntry(transaction);
 }
