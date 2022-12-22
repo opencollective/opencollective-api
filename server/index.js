@@ -1,4 +1,5 @@
 import './env';
+import './open-telemetry';
 
 import os from 'os';
 
