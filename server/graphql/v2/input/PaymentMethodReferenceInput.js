@@ -19,10 +19,10 @@ export const PaymentMethodReferenceInput = new GraphQLInputObjectType({
  *
  * @param {object} input - id of the payment method
  */
-export const fetchPaymentMethodWithReference = async input => {
+export const fetchPaymentMethodWithReference = async (input, { sequelizeOpts } = {}) => {
   // Load payment by ID using GQL loaders if we're not using a transaction & loaders are available
   const loadPaymentById = id => {
-    return models.PaymentMethod.findByPk(id);
+    return models.PaymentMethod.findByPk(id, sequelizeOpts);
   };
 
   let paymentMethod;

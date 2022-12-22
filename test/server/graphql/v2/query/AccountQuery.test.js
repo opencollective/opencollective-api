@@ -420,17 +420,16 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         type: 'creditcard',
         service: 'stripe',
         CollectiveId: user.CollectiveId,
-        data: { needsConfirmation: true },
       });
 
-      await Promise.all(
-        times(2, () =>
-          fakeOrder({
-            FromCollectiveId: user.CollectiveId,
-            PaymentMethodId: paymentMethod.id,
-            status: 'REQUIRE_CLIENT_CONFIRMATION',
-          }),
-        ),
+      await fakeOrder(
+        {
+          FromCollectiveId: user.CollectiveId,
+          PaymentMethodId: paymentMethod.id,
+          status: 'REQUIRE_CLIENT_CONFIRMATION',
+          data: { needsConfirmation: true },
+        },
+        { withSubscription: true },
       );
     });
 

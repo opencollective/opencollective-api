@@ -5,7 +5,7 @@ import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
-import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
+import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
 import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
@@ -42,7 +42,7 @@ const query = {
   individual: IndividualQuery,
   memberInvitations: MemberInvitationsQuery,
   order: OrderQuery,
-  orders: OrdersCollectionQuery,
+  orders: getOrdersCollectionQuery(),
   organization: OrganizationQuery,
   project: ProjectQuery,
   tagStats: TagStatsCollectionQuery,

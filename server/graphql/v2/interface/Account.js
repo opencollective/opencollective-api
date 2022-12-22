@@ -914,13 +914,20 @@ export const AccountFields = {
       }
 
       return models.PaymentMethod.findAll({
-        where: { CollectiveId: collective.id, data: { needsConfirmation: true } },
+        where: { CollectiveId: collective.id },
         group: ['PaymentMethod.id'],
         include: [
           {
             model: models.Order,
+            required: true,
             attributes: [],
-            where: { status: { [Op.in]: ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'] } },
+            include: [{ model: models.Subscription, required: true, attributes: [], where: { isActive: true } }],
+            where: {
+              data: { needsConfirmation: true },
+              status: {
+                [Op.in]: ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'],
+              },
+            },
           },
         ],
       });
