@@ -382,12 +382,15 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     return false;
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-    expense.collective.host =
-      expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
 
+    if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
+      expense.collective.host =
+        expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+    }
+
+    const currency = expense.collective.host?.currency || expense.collective.currency;
     const hostPolicy = getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
     const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
-    const currency = expense.collective.host?.currency || 'USD';
 
     let policy = collectivePolicy;
     if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
