@@ -568,6 +568,21 @@ export async function createOrder(order, req) {
         if (get(order, 'paymentMethod.service') === 'stripe') {
           // For Stripe `save` will be manually set to `true`, in `processOrder` if the order succeed
           order.paymentMethod.saved = null;
+
+          // Check if the payment method is already saved
+          const paymentMethod = await models.PaymentMethod.findOne({
+            where: {
+              CollectiveId: fromCollective.id,
+              service: 'stripe',
+              saved: true,
+              data: {
+                fingerprint: order.paymentMethod.data.fingerprint,
+              },
+            },
+          });
+          if (paymentMethod && !order.paymentMethod?.uuid && order.paymentMethod?.save) {
+            await paymentMethod.destroy();
+          }
         } else {
           order.paymentMethod.saved = Boolean(orderCreated.data.savePaymentMethod);
         }

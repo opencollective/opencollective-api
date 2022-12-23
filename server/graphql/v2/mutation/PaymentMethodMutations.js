@@ -65,6 +65,7 @@ const addCreditCard = {
     await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
     const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
+
     const newPaymentMethodData = {
       service: 'stripe',
       type: 'creditcard',
@@ -81,6 +82,22 @@ const addCreditCard = {
         expYear: token.card.exp_year,
       },
     };
+
+    // Check if the credit card is already saved
+    const card = await models.PaymentMethod.findOne({
+      where: {
+        CollectiveId: collective.id,
+        service: 'stripe',
+        type: 'creditcard',
+        saved: true,
+        data: {
+          fingerprint: token.card.fingerprint,
+        },
+      },
+    });
+    if (card) {
+      await card.destroy();
+    }
 
     let pm = await models.PaymentMethod.create(newPaymentMethodData);
 
