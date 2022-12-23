@@ -34,6 +34,7 @@ export const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
+      status: OrderStatuses.PROCESSING,
       data: { paymentIntent: { id: paymentIntent.id } },
     },
     include: [
@@ -44,7 +45,7 @@ export const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.warn(`Stripe Webhook: Could not find Processing Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
 
