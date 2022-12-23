@@ -1,22 +1,31 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
+import { getFxRate } from '../../../lib/currency';
 import models from '../../../models';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
 import { ContributionFrequency, OrderStatus } from '../enum';
 import { idEncode } from '../identifiers';
 import { Account } from '../interface/Account';
 import { Transaction } from '../interface/Transaction';
-import { Amount } from '../object/Amount';
-import { PaymentMethod } from '../object/PaymentMethod';
-import { Tier } from '../object/Tier';
 
+import { Amount } from './Amount';
 import { MemberOf } from './Member';
 import OrderPermissions from './OrderPermissions';
 import { OrderTax } from './OrderTax';
+import { PaymentMethod } from './PaymentMethod';
+import { Tier } from './Tier';
 
 export const Order = new GraphQLObjectType({
   name: 'Order',
@@ -230,6 +239,20 @@ export const Order = new GraphQLObjectType({
           const hostCollectiveId = collective?.HostCollectiveId;
           if (remoteUser && remoteUser.hasRole([roles.ACCOUNTANT, roles.ADMIN], hostCollectiveId)) {
             return order.data?.memo;
+          } else {
+            return null;
+          }
+        },
+      },
+      hostCurrencyFxRate: {
+        type: GraphQLFloat,
+        description: 'The FX rate used to convert the amount to the host currency',
+        async resolve(order, _, { loaders }) {
+          const collective = order.collective || (await loaders.Collective.byId.load(order.CollectiveId));
+          const hostCollectiveId = collective?.HostCollectiveId;
+          if (hostCollectiveId) {
+            const host = await loaders.Collective.byId.load(hostCollectiveId);
+            return await getFxRate(order.currency, host.currency);
           } else {
             return null;
           }
