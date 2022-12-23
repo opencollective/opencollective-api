@@ -21,6 +21,7 @@ import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/exp
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
+import paymentProviders from '../../server/paymentProviders';
 import * as webhook from '../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../mocks/stripe';
 import {
@@ -616,7 +617,7 @@ describe('test/stories/ledger', () => {
       await payExpense({ remoteUser: hostAdmin } as any, {
         id: expense.id,
         forceManual: true,
-        paymentProcessorFeeInCollectiveCurrency: 0,
+        paymentProcessorFeeInHostCurrency: 0,
         totalAmountPaidInHostCurrency: 1000,
       });
 
@@ -631,8 +632,8 @@ describe('test/stories/ledger', () => {
         where: { ExpenseId: expense.id, kind: TransactionKind.EXPENSE, type: 'DEBIT' },
       });
 
-      const paymentMethod = libPayments.findPaymentMethodProvider(expense.PaymentMethod);
-      await paymentMethod.refundTransaction(expenseTransaction, 0, null, null);
+      const paymentProvider = paymentProviders.opencollective.types.default;
+      await paymentProvider.refundTransaction(expenseTransaction, null);
       await snapshotLedger(SNAPSHOT_COLUMNS);
 
       expect(await collective.getBalance()).to.eq(9500);

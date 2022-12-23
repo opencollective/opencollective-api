@@ -23,7 +23,7 @@ import {
   uniq,
 } from 'lodash';
 
-import { activities, expenseStatus, roles } from '../../constants';
+import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
@@ -48,6 +48,7 @@ import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { sequelize } from '../../models';
+import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
@@ -75,7 +76,7 @@ import { checkRemoteUserCanRoot } from './scope-check';
 
 const debug = debugLib('expenses');
 
-const isOwner = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   } else if (req.remoteUser.id === expense.UserId) {
@@ -90,17 +91,17 @@ const isOwner = async (req: express.Request, expense: typeof models.Expense): Pr
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
-const isDraftPayee = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.data?.payee?.id) {
-    return req.remoteUser.isAdmin(expense.data.payee.id);
+  } else if (expense.data?.payee?.['id']) {
+    return req.remoteUser.isAdmin(expense.data.payee['id']);
   } else {
     return false;
   }
 };
 
-const isCollectiveAccountant = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isCollectiveAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, expense.CollectiveId)) {
@@ -119,7 +120,7 @@ const isCollectiveAccountant = async (req: express.Request, expense: typeof mode
   }
 };
 
-const isCollectiveAdmin = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -131,7 +132,7 @@ const isCollectiveAdmin = async (req: express.Request, expense: typeof models.Ex
   return req.remoteUser.isAdminOfCollective(expense.collective);
 };
 
-const isHostAdmin = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -147,7 +148,7 @@ const isHostAdmin = async (req: express.Request, expense: typeof models.Expense)
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
-const isAdminOfHostWhoPaidExpense = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isAdminOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -156,7 +157,7 @@ const isAdminOfHostWhoPaidExpense = async (req: express.Request, expense: typeof
 
 export type ExpensePermissionEvaluator = (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   options?: { throw?: boolean },
 ) => Promise<boolean>;
 
@@ -166,7 +167,7 @@ export type ExpensePermissionEvaluator = (
  */
 const remoteUserMeetsOneCondition = async (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   conditions: ExpensePermissionEvaluator[],
   options: { throw?: boolean } = { throw: false },
 ): Promise<boolean> => {
@@ -279,18 +280,17 @@ export const canUpdateExpenseStatus: ExpensePermissionEvaluator = async (req, ex
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
-export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  const nonEditableStatuses = [
-    expenseStatus.PAID,
-    expenseStatus.PROCESSING,
-    expenseStatus.SCHEDULED_FOR_PAYMENT,
-    expenseStatus.CANCELED,
-  ];
+export const canEditExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
 
   // Host and Collective Admin can attach receipts to paid charge expenses
-  if (expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status)) {
+  if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
-  } else if (expense.status === expenseStatus.DRAFT) {
+  } else if (expense.status === 'DRAFT') {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
@@ -307,13 +307,17 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
   }
 };
 
-export const canEditExpenseTags: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
+export const canEditExpenseTags: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot edit expense tags', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
-  } else if (expense.status === expenseStatus.PAID) {
+  } else if (expense.status === 'PAID') {
     // Only collective/host admins can edit tags after the expense is paid
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin], options);
   } else {
@@ -325,10 +329,12 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (req, expens
  * Only the author or an admin of the collective or collective.host can delete an expense,
  * and only when its status is REJECTED.
  */
-export const canDeleteExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (
-    ![expenseStatus.REJECTED, expenseStatus.DRAFT, expenseStatus.SPAM, expenseStatus.CANCELED].includes(expense.status)
-  ) {
+export const canDeleteExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['REJECTED', 'DRAFT', 'SPAM', 'CANCELED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not delete expense in current status',
@@ -349,8 +355,12 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (req, expense,
 /**
  * Returns true if expense can be paid by user
  */
-export const canPayExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+export const canPayExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -368,8 +378,12 @@ export const canPayExpense: ExpensePermissionEvaluator = async (req, expense, op
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.PENDING, expenseStatus.REJECTED, expenseStatus.INCOMPLETE].includes(expense.status)) {
+export const canApprove: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not approve expense in current status',
@@ -421,7 +435,7 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
       }
       return false;
     }
-    if (expense.status === expenseStatus.INCOMPLETE) {
+    if (expense.status === 'INCOMPLETE') {
       return isHostAdmin(req, expense);
     }
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
@@ -431,8 +445,12 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED, expenseStatus.INCOMPLETE].includes(expense.status)) {
+export const canReject: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not reject expense in current status',
@@ -453,8 +471,12 @@ export const canReject: ExpensePermissionEvaluator = async (req, expense, option
 /**
  * Returns true if expense can be rejected by user
  */
-export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.REJECTED].includes(expense.status)) {
+export const canMarkAsSpam: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['REJECTED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as spam in current status',
@@ -475,8 +497,12 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, op
 /**
  * Returns true if expense can be unapproved by user
  */
-export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+export const canUnapprove: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -494,8 +520,12 @@ export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, opt
   }
 };
 
-export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.PENDING, expenseStatus.ERROR].includes(expense.status)) {
+export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['APPROVED', 'PENDING', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as incomplete in current status',
@@ -519,8 +549,12 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expen
 /**
  * Returns true if expense can be marked as unpaid by user
  */
-export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (expense.status !== expenseStatus.PAID) {
+export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (expense.status !== 'PAID') {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as unpaid in current status',
@@ -552,7 +586,11 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, 
 /**
  * Returns true if user can comment and see others comments for this expense
  */
-export const canComment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
+export const canComment: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
@@ -573,8 +611,12 @@ export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (
   ]);
 };
 
-export const canUnschedulePayment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (expense.status !== expenseStatus.SCHEDULED_FOR_PAYMENT) {
+export const canUnschedulePayment: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -585,78 +627,66 @@ export const canUnschedulePayment: ExpensePermissionEvaluator = async (req, expe
 
 // ---- Expense actions ----
 
-export const approveExpense = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.APPROVED) {
+export const approveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'APPROVED') {
     return expense;
   } else if (!(await canApprove(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.APPROVED, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
   return updatedExpense;
 };
 
-export const unapproveExpense = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.PENDING) {
+export const unapproveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'PENDING') {
     return expense;
   } else if (!(await canUnapprove(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.PENDING, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
   return updatedExpense;
 };
 
 export const markExpenseAsIncomplete = async (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   message?: string,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.INCOMPLETE) {
+): Promise<Expense> => {
+  if (expense.status === 'INCOMPLETE') {
     return expense;
   } else if (!(await canMarkAsIncomplete(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.INCOMPLETE, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'INCOMPLETE', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser, { message });
   return updatedExpense;
 };
 
-export const rejectExpense = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.REJECTED) {
+export const rejectExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'REJECTED') {
     return expense;
   } else if (!(await canReject(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
   return updatedExpense;
 };
 
-export const markExpenseAsSpam = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.SPAM) {
+export const markExpenseAsSpam = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'SPAM') {
     return expense;
   } else if (!(await canMarkAsSpam(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.SPAM, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'SPAM', lastEditedById: req.remoteUser.id });
 
   // Limit the user so they can't submit expenses in the future
   const submittedByUser = await updatedExpense.getSubmitterUser();
@@ -719,10 +749,10 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
 
 export const scheduleExpenseForPayment = async (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   options: { feesPayer?: 'COLLECTIVE' | 'PAYEE' } = {},
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
+): Promise<Expense> => {
+  if (expense.status === 'SCHEDULED_FOR_PAYMENT') {
     throw new BadRequest('Expense is already scheduled for payment');
   } else if (!(await canPayExpense(req, expense))) {
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
@@ -759,17 +789,14 @@ export const scheduleExpenseForPayment = async (
   }
 
   const updatedExpense = await expense.update({
-    status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+    status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };
 
-export const unscheduleExpensePayment = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
+export const unscheduleExpensePayment = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (!(await canUnschedulePayment(req, expense))) {
     throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
   }
@@ -781,7 +808,7 @@ export const unscheduleExpensePayment = async (
   }
 
   const updatedExpense = await expense.update({
-    status: expenseStatus.APPROVED,
+    status: 'APPROVED',
     lastEditedById: req.remoteUser.id,
   });
 
@@ -791,7 +818,7 @@ export const unscheduleExpensePayment = async (
 };
 
 /** Compute the total amount of expense from expense items */
-const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: TaxDefinition[]) => {
+const computeTotalAmountForExpense = (items: (ExpenseItem | Record<string, unknown>)[], taxes: TaxDefinition[]) => {
   return Math.round(
     sumBy(items, item => {
       const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
@@ -801,7 +828,7 @@ const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: T
 };
 
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseType, items, taxes) => {
+const checkExpenseItems = (expenseType, items: (ExpenseItem | Record<string, unknown>)[], taxes) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
@@ -857,20 +884,6 @@ const checkExpenseType = (
     // TODO: enforce this to resolve https://github.com/opencollective/opencollective/issues/5395
   }
 };
-
-const EXPENSE_EDITABLE_FIELDS = [
-  'amount',
-  'currency',
-  'description',
-  'longDescription',
-  'type',
-  'tags',
-  'privateMessage',
-  'invoiceInfo',
-  'payeeLocation',
-];
-
-const EXPENSE_PAID_CHARGE_EDITABLE_FIELDS = ['description', 'tags', 'privateMessage', 'invoiceInfo'];
 
 const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.payoutMethod) {
@@ -942,9 +955,29 @@ type ExpenseData = {
   incurredAt?: Date;
   type?: EXPENSE_TYPE;
   description?: string;
+  privateMessage?: string;
+  invoiceInfo?: string;
+  longDescription?: string;
+  amount?: number;
   currency?: string;
   tax?: TaxDefinition[];
 };
+
+const EXPENSE_EDITABLE_FIELDS = [
+  'amount',
+  'currency',
+  'description',
+  'longDescription',
+  'type',
+  'tags',
+  'privateMessage',
+  'invoiceInfo',
+  'payeeLocation',
+] as const;
+
+type ExpenseEditableFieldsUnion = (typeof EXPENSE_EDITABLE_FIELDS)[number];
+
+const EXPENSE_PAID_CHARGE_EDITABLE_FIELDS = ['description', 'tags', 'privateMessage', 'invoiceInfo'];
 
 const checkTaxes = (account, host, expenseType: string, taxes): void => {
   if (!taxes?.length) {
@@ -966,7 +999,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
   }
 };
 
-export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<typeof models.Expense> {
+export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<Expense> {
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -1079,7 +1112,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     // Create expense
     const createdExpense = await models.Expense.create(
       {
-        ...pick(expenseData, EXPENSE_EDITABLE_FIELDS),
+        ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency,
         tags: expenseData.tags,
         status: statuses.PENDING,
@@ -1117,7 +1150,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
-  expense: typeof models.Expense,
+  expense: Expense,
   newExpenseData: ExpenseData,
   hasItemsChanges: boolean,
   hasPayoutChanges: boolean,
@@ -1125,7 +1158,7 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const isPaidOrProcessingCharge =
-    expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status);
+    expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
   if (isPaidOrProcessingCharge && !hasAmountChanges) {
     return false;
@@ -1179,11 +1212,7 @@ export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, 
   );
 };
 
-export async function editExpense(
-  req: express.Request,
-  expenseData: ExpenseData,
-  options = {},
-): Promise<typeof models.Expense> {
+export async function editExpense(req: express.Request, expenseData: ExpenseData, options = {}): Promise<Expense> {
   const remoteUser = options?.['overrideRemoteUser'] || req.remoteUser;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
@@ -1231,7 +1260,7 @@ export async function editExpense(
   }
 
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, expenseData);
-  const taxes = expenseData.tax || expense.data?.taxes || [];
+  const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
@@ -1251,7 +1280,7 @@ export async function editExpense(
 
   const isPaidCreditCardCharge =
     expense.type === EXPENSE_TYPE.CHARGE &&
-    [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status) &&
+    ['PAID', 'PROCESSING'].includes(expense.status) &&
     Boolean(expense.VirtualCardId);
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
@@ -1282,9 +1311,8 @@ export async function editExpense(
     });
   }
 
-  const cleanExpenseData = pick(
-    expenseData,
-    isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS,
+  const cleanExpenseData = <Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
+    pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
   );
 
   // Let submitter customize the currency
@@ -1375,9 +1403,9 @@ export async function editExpense(
 
     let status = expense.status;
     if (shouldUpdateStatus) {
-      status = expenseStatus.PENDING;
-    } else if (status === expenseStatus.INCOMPLETE) {
-      status = expenseStatus.APPROVED;
+      status = 'PENDING';
+    } else if (status === 'INCOMPLETE') {
+      status = 'APPROVED';
     }
 
     const updatedExpenseProps = {
@@ -1424,7 +1452,7 @@ export async function editExpense(
   return updatedExpense;
 }
 
-export async function deleteExpense(req: express.Request, expenseId: number): Promise<typeof models.Expense> {
+export async function deleteExpense(req: express.Request, expenseId: number): Promise<Expense> {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to delete an expense');
@@ -1446,12 +1474,12 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
     );
   }
 
-  const res = await expense.destroy();
-  return res;
+  await expense.destroy();
+  return expense.reload({ paranoid: false });
 }
 
 /** Helper that finishes the process of paying an expense */
-async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<typeof models.Expense> {
+async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<Expense> {
   debug('update expense status to PAID', expense.id);
   await expense.setPaid(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout });
@@ -1866,12 +1894,20 @@ export const checkHasBalanceToPayExpense = async (
   return { feesInCollectiveCurrency, feesInExpenseCurrency, feesInHostCurrency, totalAmountToPay };
 };
 
+type PayExpenseArgs = {
+  id: number;
+  forceManual: boolean;
+  feesPayer?: 'COLLECTIVE' | 'PAYEE'; // Defaults to COLLECTIVE
+  paymentProcessorFeeInHostCurrency?: number; // Defaults to 0
+  totalAmountPaidInHostCurrency: number;
+};
+
 /**
  * Pay an expense based on the payout method defined in the Expense object
  * @PRE: fees { id, paymentProcessorFeeInCollectiveCurrency, hostFeeInCollectiveCurrency, platformFeeInCollectiveCurrency }
  * Note: some payout methods like PayPal will automatically define `paymentProcessorFeeInCollectiveCurrency`
  */
-export async function payExpense(req: express.Request, args: Record<string, unknown>): Promise<typeof models.Expense> {
+export async function payExpense(req: express.Request, args: PayExpenseArgs): Promise<Expense> {
   const { remoteUser } = req;
   const expenseId = args.id;
   const forceManual = Boolean(args.forceManual);
@@ -1979,7 +2015,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           );
         }
 
-        const paypalEmail = payoutMethod.data.email;
+        const paypalEmail = payoutMethod.data['email'];
         let paypalPaymentMethod = null;
         try {
           paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' });
@@ -2057,7 +2093,7 @@ export async function markExpenseAsUnpaid(
   req: express.Request,
   expenseId: number,
   shouldRefundPaymentProcessorFee: boolean,
-): Promise<typeof models.Expense> {
+): Promise<Expense> {
   const { remoteUser } = req;
 
   const updatedExpense = await lockExpense(expenseId, async () => {
@@ -2211,7 +2247,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
  */
 export const moveExpenses = async (
   req: express.Request,
-  expenses: (typeof models.Expense)[],
+  expenses: Expense[],
   destinationAccount: typeof models.Collective,
 ) => {
   // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere

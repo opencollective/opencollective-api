@@ -86,6 +86,8 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   public declare CollectiveId: number;
   public declare CreatedByUserId: ForeignKey<User['id']>;
 
+  public declare Collective?: typeof models.Collective;
+
   private static editableFields = ['data', 'name', 'isSaved'];
 
   /** A whitelist filter on `data` field. The returned object is safe to send to allowed users. */

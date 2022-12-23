@@ -43,7 +43,7 @@ program.command('check-expense <expenseId>').action(async expenseId => {
   const profileId = connectedAccount.data.id;
   console.info(`${expense.host.slug} connected to Wise with profileId ${profileId}`);
 
-  const transfer = await transferwiseLib.getTransfer(connectedAccount, expense.data.transfer.id);
+  const transfer = await transferwiseLib.getTransfer(connectedAccount, expense.data.transfer['id']);
   const recipient = await transferwiseLib.getRecipient(connectedAccount, transfer.targetAccount);
   console.dir({ transfer, recipient }, { depth: null });
   sequelize.close();

@@ -12,6 +12,7 @@ import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
+import ExpenseModel from '../../../models/Expense';
 import {
   approveExpense,
   canDeleteExpense,
@@ -63,7 +64,7 @@ const expenseMutations = {
         description: 'Recurring Expense information',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const payoutMethod = args.expense.payoutMethod;
@@ -116,7 +117,7 @@ const expenseMutations = {
         description: 'Expense draft key if invited to submit expense. Scope: "expenses".',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
@@ -220,7 +221,7 @@ const expenseMutations = {
         description: 'Reference of the expense to delete',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
@@ -250,7 +251,8 @@ const expenseMutations = {
         await recurringExpense.destroy();
       }
 
-      return expense.destroy();
+      await expense.destroy();
+      return expense;
     },
   },
   processExpense: {
@@ -300,7 +302,7 @@ const expenseMutations = {
         }),
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
@@ -365,7 +367,7 @@ const expenseMutations = {
         description: 'Account where the expense will be created',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const remoteUser = req.remoteUser;
@@ -451,7 +453,7 @@ const expenseMutations = {
         description: 'Reference of the expense to process',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
@@ -495,7 +497,7 @@ const expenseMutations = {
         description: 'Expense draft key if invited to submit expense',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 

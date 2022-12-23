@@ -3,6 +3,7 @@ import { uniq } from 'lodash';
 import { Includeable } from 'sequelize';
 
 import models from '../../../models';
+import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
@@ -36,7 +37,7 @@ const getDatabaseIdFromExpenseReference = (input: Record<string, unknown>): numb
 const fetchExpenseWithReference = async (
   input: Record<string, unknown>,
   { loaders = null, throwIfMissing = false } = {},
-): Promise<typeof models.Expense> => {
+): Promise<Expense> => {
   const dbId = getDatabaseIdFromExpenseReference(input);
   let expense = null;
   if (dbId) {
@@ -60,7 +61,7 @@ const fetchExpenseWithReference = async (
 const fetchExpensesWithReferences = async (
   inputs: Record<string, unknown>[],
   opts: { throwIfMissing?: boolean; include?: Includeable } = {},
-): Promise<(typeof models.Expense)[]> => {
+): Promise<Expense[]> => {
   if (inputs.length === 0) {
     return [];
   }

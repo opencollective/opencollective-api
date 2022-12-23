@@ -32,7 +32,7 @@ const main = async () => {
   const expense = await models.Expense.findByPk(expenseId, { include: [{ association: 'items' }] });
   if (!expense) {
     throw new Error(`Expense ${expenseId} not found`);
-  } else if (expense.data?.taxes?.length && !options['force']) {
+  } else if (expense.data?.taxes?.['length'] && !options['force']) {
     throw new Error(`Expense ${expenseId} already has taxes`);
   }
 

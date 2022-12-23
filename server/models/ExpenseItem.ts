@@ -7,8 +7,8 @@ import { isValidUploadedImage } from '../lib/images';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize from '../lib/sequelize';
 
+import Expense from './Expense';
 import User from './User';
-import models from '.';
 
 // Expense items diff as [newEntries, removedEntries, updatedEntries]
 type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string, unknown>[]];
@@ -18,7 +18,7 @@ type ExpenseItemsDiff = [Record<string, unknown>[], ExpenseItem[], Record<string
  */
 export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreationAttributes<ExpenseItem>> {
   public declare readonly id: CreationOptional<number>;
-  public declare ExpenseId: number;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare amount: number;
   public declare url: string;
@@ -48,7 +48,7 @@ export class ExpenseItem extends Model<InferAttributes<ExpenseItem>, InferCreati
   static async createFromData(
     itemData: Record<string, unknown>,
     user: User,
-    expense: typeof models.Expense,
+    expense: Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseItem> {
     const cleanData = ExpenseItem.cleanData(itemData);

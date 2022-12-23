@@ -4,6 +4,7 @@ import moment from 'moment';
 import status from '../../constants/expense_status';
 import expenseType from '../../constants/expense_type';
 import models, { Op, sequelize } from '../../models';
+import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 
 export enum Scope {
@@ -41,7 +42,7 @@ const getExpensesStats = where =>
     group: ['status'],
     order: [['lastCreatedAt', 'desc']],
     raw: true,
-  });
+  }) as unknown as Promise<Expense & { count: number; lastCreatedAt: Date }>;
 
 const addBooleanCheck = (checks, condition: boolean, ifTrue: SecurityCheck, ifFalse?: SecurityCheck) =>
   condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null;
@@ -65,14 +66,14 @@ const checkExpenseStats = async (
 
   // Checks if there was any SPAM or rejects on the platform
   const spam = find(platformStats, { status: status.SPAM });
-  addBooleanCheck(checks, spam, {
+  addBooleanCheck(checks, Boolean(spam), {
     scope,
     level: Level.HIGH,
     message: `${startCase(capitalize(scope))} has expenses that were previously  marked as SPAM`,
     details,
   });
   const rejected = find(platformStats, { status: status.REJECTED });
-  addBooleanCheck(checks, rejected, {
+  addBooleanCheck(checks, Boolean(rejected), {
     scope,
     level: Level.LOW,
     message: `${startCase(capitalize(scope))} has expenses that were previously rejected`,
@@ -112,7 +113,7 @@ const checkExpenseStats = async (
   });
 };
 
-export const checkExpense = async (expense: typeof models.Expense): Promise<SecurityCheck[]> => {
+export const checkExpense = async (expense: Expense): Promise<SecurityCheck[]> => {
   const checks: SecurityCheck[] = [];
 
   await expense.reload({

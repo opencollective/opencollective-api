@@ -4,6 +4,7 @@ import Temporal from 'sequelize-temporal';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Expense from './Expense';
 import User from './User';
 import models from '.';
 
@@ -20,7 +21,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   public declare CollectiveId: number;
   public declare FromCollectiveId: number;
   public declare CreatedByUserId: ForeignKey<User['id']>;
-  public declare ExpenseId: number;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare UpdateId: number;
   public declare ConversationId: number;
   public declare html: string;

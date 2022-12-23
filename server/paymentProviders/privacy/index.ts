@@ -6,6 +6,7 @@ import logger from '../../lib/logger';
 import * as privacy from '../../lib/privacy';
 import { reportMessageToSentry } from '../../lib/sentry';
 import models from '../../models';
+import Expense from '../../models/Expense';
 import VirtualCardModel from '../../models/VirtualCard';
 import { PrivacyVirtualCardLimitIntervalToOCInterval, Transaction } from '../../types/privacy';
 import { CardProviderService } from '../types';
@@ -13,10 +14,7 @@ import { getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 const providerName = 'privacy';
 
-const processTransaction = async (
-  privacyTransaction: Transaction,
-  privacyEvent: any,
-): Promise<typeof models.Expense | undefined> => {
+const processTransaction = async (privacyTransaction: Transaction, privacyEvent: any): Promise<Expense | undefined> => {
   const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
 
   if (!virtualCard) {

@@ -258,7 +258,7 @@ export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = 
     url: <string>attachmentData.url || `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
-    ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,
+    ExpenseId: (attachmentData.ExpenseId as number) || (await fakeExpense({ items: [] })).id,
     CreatedByUserId: <number>attachmentData.CreatedByUserId || (await fakeUser()).id,
   });
 };
@@ -304,7 +304,7 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
     throw new Error('legacyPayoutMethod and PayoutMethodId are exclusive in fakeExpense');
   } else if (expenseData.legacyPayoutMethod) {
     const pm = await fakePayoutMethod({
-      type: models.Expense.getPayoutMethodTypeFromLegacy(expenseData.legacyPayoutMethod),
+      type: models.Expense.getPayoutMethodTypeFromLegacy(<string>expenseData.legacyPayoutMethod),
     });
     PayoutMethodId = pm.id;
   } else if (!PayoutMethodId) {
@@ -321,10 +321,10 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
     description: randStr('Test expense '),
     incurredAt: new Date(),
     ...expenseData,
-    FromCollectiveId: expenseData.FromCollectiveId || user.CollectiveId,
-    CollectiveId: expenseData.CollectiveId || (await fakeCollective()).id,
+    FromCollectiveId: (expenseData.FromCollectiveId as number) || user.CollectiveId,
+    CollectiveId: (expenseData.CollectiveId as number) || (await fakeCollective()).id,
     UserId: user.id,
-    lastEditedById: expenseData.lastEditedById || user.id,
+    lastEditedById: (expenseData.lastEditedById as number) || user.id,
     PayoutMethodId,
     legacyPayoutMethod,
   });

@@ -5,13 +5,14 @@ import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
 import Comment from '../../models/Comment';
 import Conversation from '../../models/Conversation';
+import Expense from '../../models/Expense';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = typeof models.Update | typeof models.Expense | Conversation;
+type CommentableEntity = typeof models.Update | Expense | Conversation;
 
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
 import config from 'config';
 import express from 'express';
-import { cloneDeep, compact, difference, find, has, omit, pick, set, split, toNumber } from 'lodash';
+import { cloneDeep, compact, difference, find, get, has, omit, pick, set, split, toNumber } from 'lodash';
 import moment from 'moment';
 import { v4 as uuid } from 'uuid';
 
@@ -16,10 +16,12 @@ import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import models, { sequelize } from '../../models';
 import { ConnectedAccount } from '../../models/ConnectedAccount';
+import Expense from '../../models/Expense';
 import PayoutMethod from '../../models/PayoutMethod';
 import {
   BalanceV4,
   BatchGroup,
+  ExpenseDataQuoteV2,
   QuoteV2,
   QuoteV2PaymentOption,
   RecipientAccount,
@@ -55,7 +57,7 @@ async function populateProfileId(connectedAccount: ConnectedAccount, profileId?:
 async function getTemporaryQuote(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
-  expense: typeof models.Expense,
+  expense: Expense,
 ): Promise<QuoteV2> {
   return await transferwise.getTemporaryQuote(connectedAccount, {
     sourceCurrency: expense.currency,
@@ -78,19 +80,19 @@ async function createRecipient(
 async function quoteExpense(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
-  expense: typeof models.Expense,
+  expense: Expense,
   targetAccount?: number,
-): Promise<QuoteV2> {
+): Promise<ExpenseDataQuoteV2> {
   await populateProfileId(connectedAccount);
 
   const isExistingQuoteValid =
     expense.data?.quote &&
-    expense.data.quote.paymentOption &&
+    expense.data.quote['paymentOption'] &&
     !expense.data.transfer && // We can not reuse quotes if a Transfer was already created
-    moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote.expirationTime);
+    moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
-    return expense.data.quote;
+    return <ExpenseDataQuoteV2>expense.data.quote;
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
@@ -122,20 +124,19 @@ async function quoteExpense(
   }
 
   const quote = await transferwise.createQuote(connectedAccount, quoteParams);
-
-  quote['paymentOption'] = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
-  await expense.update({ data: { ...expense.data, quote: omit(quote, ['paymentOptions']) } });
-
-  return quote;
+  const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+  const expenseDataQuote = { ...omit(quote, ['paymentOptions']), paymentOption };
+  await expense.update({ data: { ...expense.data, quote: expenseDataQuote } });
+  return expenseDataQuote;
 }
 
 async function createTransfer(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
-  expense: typeof models.Expense,
+  expense: Expense,
   options?: { token?: string; batchGroupId?: string },
 ): Promise<{
-  quote: QuoteV2;
+  quote: ExpenseDataQuoteV2;
   recipient: RecipientAccount;
   transfer: Transfer;
   paymentOption: QuoteV2PaymentOption;
@@ -145,8 +146,8 @@ async function createTransfer(
   }
 
   const recipient =
-    expense.data?.recipient?.payoutMethodId === payoutMethod.id
-      ? expense.data.recipient
+    get(expense.data, 'recipient.payoutMethodId') === payoutMethod.id
+      ? (expense.data.recipient as RecipientAccount)
       : await createRecipient(connectedAccount, payoutMethod);
 
   const quote = await quoteExpense(connectedAccount, payoutMethod, expense, recipient.id);
@@ -196,10 +197,10 @@ async function createTransfer(
 async function payExpense(
   connectedAccount: ConnectedAccount,
   payoutMethod: PayoutMethod,
-  expense: typeof models.Expense,
+  expense: Expense,
   batchGroupId?: string,
 ): Promise<{
-  quote: QuoteV2;
+  quote: ExpenseDataQuoteV2;
   recipient: RecipientAccount;
   fund: { status: string; errorCode: string };
   transfer: Transfer;
@@ -245,7 +246,7 @@ const getOrCreateActiveBatch = async (
 
   const connectedAccount = options?.connectedAccount || (await host.getAccountForPaymentProvider(providerName));
   if (expense) {
-    const batchGroup = await transferwise.getBatchGroup(connectedAccount, expense.data.batchGroup.id);
+    const batchGroup = await transferwise.getBatchGroup(connectedAccount, expense.data.batchGroup['id']);
     if (batchGroup.status === 'NEW') {
       return batchGroup;
     }
@@ -257,7 +258,7 @@ const getOrCreateActiveBatch = async (
   });
 };
 
-async function scheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
+async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
   const collective = await expense.getCollective();
   const host = await collective.getHostCollective();
   if (!host) {
@@ -282,7 +283,7 @@ async function scheduleExpenseForPayment(expense: typeof models.Expense): Promis
   return expense;
 }
 
-async function unscheduleExpenseForPayment(expense: typeof models.Expense): Promise<typeof models.Expense> {
+async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
   if (!expense.data.batchGroup) {
     throw new Error(`Expense does not belong to any batch group`);
   }
@@ -295,7 +296,7 @@ async function unscheduleExpenseForPayment(expense: typeof models.Expense): Prom
 
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
 
-  const batchGroup = await transferwise.getBatchGroup(connectedAccount, expense.data.batchGroup.id);
+  const batchGroup = await transferwise.getBatchGroup(connectedAccount, expense.data.batchGroup['id']);
   const expensesInBatch = await models.Expense.findAll({
     where: { data: { batchGroup: { id: batchGroup.id } } },
   });

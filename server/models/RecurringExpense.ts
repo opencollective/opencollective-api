@@ -9,6 +9,7 @@ import expenseStatus from '../constants/expense_status';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize from '../lib/sequelize';
 
+import Expense from './Expense';
 import models, { Op } from '.';
 
 export enum RecurringExpenseIntervals {
@@ -36,7 +37,7 @@ type RecurringExpenseCreateAttributes =
   | Pick<RecurringExpenseAttributes, 'endsAt' | 'lastDraftedAt'>;
 
 export class RecurringExpense extends Model<RecurringExpenseAttributes, RecurringExpenseCreateAttributes> {
-  public declare id: string;
+  public declare id: number;
   public declare interval: string;
   public declare CollectiveId: number;
   public declare FromCollectiveId: number;
@@ -61,6 +62,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       include: [
         { model: models.Collective, as: 'collective' },
         { model: models.ExpenseItem, as: 'items' },
+        { model: models.User, as: 'User' },
       ],
     });
     if (!expense) {
@@ -104,11 +106,11 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
 
     const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
     await draftedExpense
-      .createActivity(
-        activities.COLLECTIVE_EXPENSE_RECURRING_DRAFTED,
-        { id: expense.UserId },
-        { ...draftedExpense.data, inviteUrl, description: draftedExpense.description },
-      )
+      .createActivity(activities.COLLECTIVE_EXPENSE_RECURRING_DRAFTED, expense.User, {
+        ...draftedExpense.data,
+        inviteUrl,
+        description: draftedExpense.description,
+      })
       .catch(e => {
         console.error('An error happened when creating the COLLECTIVE_EXPENSE_RECURRING_DRAFTED activity', e);
         reportErrorToSentry(e);
@@ -117,11 +119,7 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
     return draftedExpense;
   }
 
-  static async createFromExpense(
-    expense: typeof models.Expense,
-    interval: RecurringExpenseIntervals,
-    endsAt?: string | Date,
-  ) {
+  static async createFromExpense(expense: Expense, interval: RecurringExpenseIntervals, endsAt?: string | Date) {
     if (typeof endsAt === 'string') {
       endsAt = moment(endsAt).toDate();
     }

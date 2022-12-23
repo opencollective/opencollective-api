@@ -9,9 +9,10 @@ import VirtualCardProviders from '../../server/constants/virtual_card_providers'
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import models, { Op, sequelize } from '../../server/models';
+import Expense from '../../server/models/Expense';
 import VirtualCard from '../../server/models/VirtualCard';
 
-const processVirtualCard = async (expenses: Array<typeof models.Expense>) => {
+const processVirtualCard = async (expenses: Array<Expense>) => {
   const virtualCard = expenses[0].virtualCard as VirtualCard;
   const host = expenses[0].host;
   const collective = expenses[0].collective;
