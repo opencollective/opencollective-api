@@ -535,24 +535,20 @@ export async function sumCollectivesTransactions(
         as: 'fromCollective',
         attributes: [],
       });
-      where = {
-        ...where,
-        [Op.and]: [
-          sequelize.literal(
-            '(("collective"."id" = "fromCollective"."id") OR (COALESCE("collective"."ParentCollectiveId", "collective"."id") != COALESCE("fromCollective"."ParentCollectiveId", "fromCollective"."id")))',
-          ),
-        ],
-      };
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push(
+        sequelize.literal(
+          '(("collective"."id" = "fromCollective"."id") OR (COALESCE("collective"."ParentCollectiveId", "collective"."id") != COALESCE("fromCollective"."ParentCollectiveId", "fromCollective"."id")))',
+        ),
+      );
     } else {
       where.CollectiveId = ids;
     }
   }
   if (transactionType) {
     if (transactionType === 'DEBIT_WITHOUT_HOST_FEE') {
-      where = {
-        ...where,
-        [Op.and]: [{ type: DEBIT, kind: { [Op.not]: 'HOST_FEE' } }],
-      };
+      where[Op.and] = where[Op.and] || [];
+      where[Op.and].push({ type: DEBIT, kind: { [Op.not]: 'HOST_FEE' } });
     } else if (transactionType === 'CREDIT_WITH_HOST_FEE') {
       where = {
         ...where,
