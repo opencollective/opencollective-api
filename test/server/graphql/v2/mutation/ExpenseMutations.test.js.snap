@@ -4,16 +4,16 @@ exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-cu
 "
 | type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host | isRefund |
 | ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | ---- | -------- |
-| CREDIT | 1200   | 1100                          | -100       | USD      | USD          | 1                  | Payee | Babel | NULL | false    |
-| DEBIT  | -1100  | -1200                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC  | false    |"
+| CREDIT | 1700   | 1580                          | -120       | USD      | USD          | 1                  | Payee | Babel | NULL | false    |
+| DEBIT  | -1580  | -1700                         | -120       | USD      | USD          | 1                  | Babel | Payee | OSC  | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Records a manual payment with an active account 1`] = `
 "
 | type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host      | isRefund |
 | ------ | ------ | ----------------------------- | ---------- | -------- | ------------ | ------------------ | ----- | ----- | --------- | -------- |
-| CREDIT | 1200   | 1100                          | -110       | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
-| DEBIT  | -1100  | -1200                         | -100       | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |"
+| CREDIT | 1700   | 1580                          | -132       | USD      | NZD          | 1.1                | Payee | Babel | PayeeHost | false    |
+| DEBIT  | -1580  | -1700                         | -120       | USD      | USD          | 1                  | Babel | Payee | OSC       | false    |"
 `;
 
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY pays 100% of the balance by putting the fees on the payee 1`] = `
