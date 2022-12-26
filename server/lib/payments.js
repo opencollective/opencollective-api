@@ -551,7 +551,8 @@ export const executeOrder = async (user, order, options = {}) => {
   if (!order) {
     return Promise.reject(new Error('No order provided'));
   }
-  if (order.processedAt) {
+  // Added funds have a processedAt date by default because they are processed immediately
+  if (order.processedAt && !options.isAddedFund) {
     return Promise.reject(new Error(`This order (#${order.id}) has already been processed at ${order.processedAt}`));
   }
   debug('executeOrder', user.email, order.description, order.totalAmount, options);
@@ -572,7 +573,11 @@ export const executeOrder = async (user, order, options = {}) => {
 
   const transaction = await processOrder(order, options);
   if (transaction) {
-    await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
+    await order.update({
+      status: status.PAID,
+      processedAt: order.processedAt || new Date(),
+      data: omit(order.data, ['paymentIntent']),
+    });
 
     // Credit card charges are synchronous. If the transaction is
     // created here it means that the payment went through so it's

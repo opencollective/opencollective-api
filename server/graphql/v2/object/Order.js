@@ -235,6 +235,14 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
+
+      processedAt: {
+        type: GraphQLDateTime,
+        description: 'Date the funds were received.',
+        async resolve(order) {
+          return order?.processedAt;
+        },
+      },
     };
   },
 });

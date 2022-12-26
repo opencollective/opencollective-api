@@ -1,4 +1,5 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
 import { AmountInput } from './AmountInput';
 
@@ -28,6 +29,10 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
     hostFeePercent: {
       type: GraphQLFloat,
       description: 'Host fee percent to be applied to the order',
+    },
+    processedAt: {
+      type: GraphQLDateTime,
+      description: 'Date the funds were received',
     },
   }),
 });
