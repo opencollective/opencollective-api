@@ -127,7 +127,7 @@ Encore merci! 🙏
 – Le collectif En Marche
 
 [http://localhost:3000/static/images/email/logo-email-footer@2x.png]
-[http://localhost:3000]
+http://localhost:3000
 
 We can do great things together
 
@@ -277,7 +277,7 @@ https://opencollective/USER_LOGIN_LINK [https://opencollective/USER_LOGIN_LINK]
 
 
 [http://localhost:3000/static/images/email/logo-email-footer@2x.png]
-[http://localhost:3000]
+http://localhost:3000
 
 We can do great things together
 
