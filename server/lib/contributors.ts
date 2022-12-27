@@ -149,7 +149,6 @@ const loadContributors = async (collectiveId: number): Promise<ContributorsCache
     c.isAdmin = c.roles.includes(MemberRoles.ADMIN);
     c.isCore = c.isAdmin || c.roles.includes(MemberRoles.MEMBER);
     c.isBacker = c.roles.includes(MemberRoles.BACKER);
-    c.isFundraiser = c.roles.includes(MemberRoles.FUNDRAISER);
   });
 
   return storeContributorsInCache(collectiveId, allContributors);
@@ -176,8 +175,6 @@ const getContributorsFilteringFuncForRoles = (roles: Array<MemberRoles>): Contri
       return c => c.isAdmin;
     } else if (role === MemberRoles.MEMBER) {
       return c => c.isCore && !c.isAdmin;
-    } else if (role === MemberRoles.FUNDRAISER) {
-      return c => c.isFundraiser;
     } else {
       return c => c.roles.includes(role);
     }

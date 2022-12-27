@@ -9,8 +9,6 @@ enum MemberRoles {
   CONTRIBUTOR = 'CONTRIBUTOR',
   /** Supporter giving money */
   BACKER = 'BACKER',
-  /** Someone helping to raise money (using referral) deprecated on 2019-08-22 */
-  FUNDRAISER = 'FUNDRAISER',
   /** Someone who registered for a free tier (typically a free event ticket) */
   ATTENDEE = 'ATTENDEE',
   /** Someone interested to follow the activities of the collective/event */
@@ -27,7 +25,6 @@ export const MemberRoleLabels = {
   [MemberRoles.MEMBER]: 'Core Contributor',
   [MemberRoles.CONTRIBUTOR]: 'Contributor',
   [MemberRoles.BACKER]: 'Financial Contributor',
-  [MemberRoles.FUNDRAISER]: 'Fundraiser',
   [MemberRoles.ATTENDEE]: 'Attendee',
   [MemberRoles.FOLLOWER]: 'Follower',
   [MemberRoles.CONNECTED_COLLECTIVE]: 'Connected-collective',

@@ -682,7 +682,7 @@ enum MemberRole {
   HOST
   ATTENDEE
   MEMBER
-  FUNDRAISER
+  FUNDRAISER @deprecated(reason: "2022-09-12: This role does not exist anymore")
   FOLLOWER
   ACCOUNTANT
   CONNECTED_ACCOUNT
@@ -3280,7 +3280,6 @@ enum ContributorRole {
   MEMBER
   CONTRIBUTOR
   BACKER
-  FUNDRAISER
   ATTENDEE
   FOLLOWER
   CONNECTED_COLLECTIVE
