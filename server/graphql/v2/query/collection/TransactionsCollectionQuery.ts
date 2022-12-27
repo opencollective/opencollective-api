@@ -230,7 +230,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
 
   // Handle search query
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
-    idFields: ['id'],
+    idFields: ['id', 'ExpenseId', 'OrderId'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
     amountFields: ['amount'],
