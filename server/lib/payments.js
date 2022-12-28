@@ -551,8 +551,11 @@ export const executeOrder = async (user, order, options = {}) => {
   if (!order) {
     return Promise.reject(new Error('No order provided'));
   }
-  // Added funds have a processedAt date by default because they are processed immediately
-  if (order.processedAt && !options.isAddedFund) {
+  /* Added funds have a processedAt date by default because they are processed
+     immediately. If the payment method is manual the host admin will have to
+     process it manually and potentially can set a date using the confirm
+     contribution modal. */
+  if (order.processedAt && !options.isAddedFund && order.paymentMethod.type !== 'manual') {
     return Promise.reject(new Error(`This order (#${order.id}) has already been processed at ${order.processedAt}`));
   }
   debug('executeOrder', user.email, order.description, order.totalAmount, options);
