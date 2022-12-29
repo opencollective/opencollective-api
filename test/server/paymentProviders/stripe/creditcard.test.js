@@ -90,9 +90,12 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         },
       );
 
-      assert.calledWithMatch(stripe.paymentIntents.confirm, 'pm_test', {
-        stripeAccount: 'acc_test',
-      });
+      assert.calledWithMatch(
+        stripe.paymentIntents.confirm,
+        'pm_test',
+        { payment_method: 'pm_test' },
+        { stripeAccount: 'acc_test' },
+      );
     });
 
     it('has tax information stored in transaction', async () => {

@@ -82,15 +82,16 @@ const createChargeAndTransactions = async (
     });
   }
 
-  paymentIntent = await stripe.paymentIntents.confirm(paymentIntent.id, {
-    stripeAccount: hostStripeAccount.username,
-  });
+  paymentIntent = await stripe.paymentIntents.confirm(
+    paymentIntent.id,
+    { payment_method: stripePaymentMethod.id },
+    { stripeAccount: hostStripeAccount.username },
+  );
 
   /* eslint-enable camelcase */
 
   if (paymentIntent.next_action) {
-    order.data.paymentIntent = { id: paymentIntent.id, status: paymentIntent.status };
-    await order.update({ data: order.data });
+    await order.update({ data: { ...order.data, paymentIntent } }); // Store the payment intent to make sure it will be re-used after the 3D secure confirmation
     const paymentIntentError = new Error('Payment Intent require action');
     paymentIntentError['stripeAccount'] = hostStripeAccount.username;
     paymentIntentError['stripeResponse'] = { paymentIntent };
