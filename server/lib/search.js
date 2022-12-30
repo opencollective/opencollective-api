@@ -263,7 +263,6 @@ export const searchCollectivesInDB = async (
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      COALESCE(transaction_stats."totalAmountReceivedInHostCurrency", 0) AS "__stats_totalAmountReceivedInHostCurrency__",
       (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
