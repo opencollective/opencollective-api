@@ -5,6 +5,7 @@ import config from 'config';
 import debugLib from 'debug';
 import * as hcaptcha from 'hcaptcha';
 import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
+import { Op } from 'sequelize';
 
 import activities from '../../../constants/activities';
 import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
@@ -568,7 +569,18 @@ export async function createOrder(order, req) {
         if (get(order, 'paymentMethod.service') === 'stripe') {
           // For Stripe `save` will be manually set to `true`, in `processOrder` if the order succeed
           order.paymentMethod.saved = null;
+        } else {
+          order.paymentMethod.saved = Boolean(orderCreated.data.savePaymentMethod);
+        }
 
+        if (isGuest) {
+          set(order.paymentMethod, 'data.isGuest', true);
+        }
+
+        await orderCreated.setPaymentMethod(order.paymentMethod);
+
+        // Update all existing orders with the new payment method
+        if (get(order, 'paymentMethod.service') === 'stripe') {
           // Check if the payment method is already saved
           const paymentMethod = await models.PaymentMethod.findOne({
             where: {
@@ -581,17 +593,18 @@ export async function createOrder(order, req) {
             },
           });
           if (paymentMethod && !order.paymentMethod?.uuid && order.paymentMethod?.save) {
+            await models.Order.update(
+              { PaymentMethodId: orderCreated.paymentMethod.id },
+              {
+                where: {
+                  PaymentMethodId: paymentMethod.id,
+                  status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
+                },
+              },
+            );
             await paymentMethod.destroy();
           }
-        } else {
-          order.paymentMethod.saved = Boolean(orderCreated.data.savePaymentMethod);
         }
-
-        if (isGuest) {
-          set(order.paymentMethod, 'data.isGuest', true);
-        }
-
-        await orderCreated.setPaymentMethod(order.paymentMethod);
       }
       // also adds the user as a BACKER of collective
       await libPayments.executeOrder(remoteUser, orderCreated);

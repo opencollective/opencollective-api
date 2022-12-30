@@ -1,5 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { omit, pick } from 'lodash';
+import { Op } from 'sequelize';
 
 import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
@@ -84,7 +85,7 @@ const addCreditCard = {
     };
 
     // Check if the credit card is already saved
-    const card = await models.PaymentMethod.findOne({
+    const oldPaymentMethod = await models.PaymentMethod.findOne({
       where: {
         CollectiveId: collective.id,
         service: 'stripe',
@@ -95,11 +96,22 @@ const addCreditCard = {
         },
       },
     });
-    if (card) {
-      await card.destroy();
+    if (oldPaymentMethod) {
+      await oldPaymentMethod.destroy();
     }
 
     let pm = await models.PaymentMethod.create(newPaymentMethodData);
+
+    // Update all existing orders with the new payment method
+    await models.Order.update(
+      { PaymentMethodId: pm.id },
+      {
+        where: {
+          PaymentMethodId: oldPaymentMethod.id,
+          status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
+        },
+      },
+    );
 
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });
