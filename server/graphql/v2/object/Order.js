@@ -235,12 +235,25 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
-
       processedAt: {
         type: GraphQLDateTime,
         description: 'Date the funds were received.',
         async resolve(order) {
           return order?.processedAt;
+        },
+      },
+      needsConfirmation: {
+        type: GraphQLBoolean,
+        description: 'Whether the order needs confirmation (3DSecure/SCA)',
+        async resolve(order, _, req) {
+          order.fromCollective =
+            order.fromCollective || (await req.loaders.Collective.byId.load(order.FromCollectiveId));
+          if (!req.remoteUser?.isAdminOfCollective(order.fromCollective)) {
+            return null;
+          }
+          return Boolean(
+            ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'].includes(order.status) && order.data?.needsConfirmation,
+          );
         },
       },
     };

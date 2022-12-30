@@ -6,13 +6,14 @@ import { Includeable } from 'sequelize';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { NotFound } from '../../../errors';
+import { NotFound, Unauthorized } from '../../../errors';
 import { OrderCollection } from '../../collection/OrderCollection';
 import { AccountOrdersFilter } from '../../enum/AccountOrdersFilter';
 import { ContributionFrequency } from '../../enum/ContributionFrequency';
 import { OrderStatus } from '../../enum/OrderStatus';
 import { AccountReferenceInput, fetchAccountWithReference } from '../../input/AccountReferenceInput';
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../../input/PaymentMethodReferenceInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 type OrderAssociation = 'fromCollective' | 'collective';
@@ -46,6 +47,11 @@ export const OrdersCollectionArgs = {
   includeHostedAccounts: {
     type: GraphQLBoolean,
     description: 'If account is a host, also include hosted accounts orders',
+  },
+  paymentMethod: {
+    type: PaymentMethodReferenceInput,
+    description:
+      'Only return orders that were paid with this payment method. Must be an admin of the account owning the payment method.',
   },
   includeIncognito: {
     type: GraphQLBoolean,
@@ -96,6 +102,10 @@ export const OrdersCollectionArgs = {
   onlySubscriptions: {
     type: GraphQLBoolean,
     description: `Only returns orders that have a subscription (monthly/yearly). Don't use together with frequency.`,
+  },
+  onlyActiveSubscriptions: {
+    type: GraphQLBoolean,
+    description: `Same as onlySubscriptions, but returns only orders with active subscriptions`,
   },
 };
 
@@ -155,6 +165,17 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where[Op.and].push(accountConditions.length === 1 ? accountConditions : { [Op.or]: accountConditions });
   }
 
+  // Load payment method
+  if (args.paymentMethod) {
+    const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod, {
+      sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
+    });
+    if (!req.remoteUser?.isAdminOfCollective(paymentMethod.Collective)) {
+      throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
+    }
+    where['PaymentMethodId'] = paymentMethod.id;
+  }
+
   // Add search filter
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
     idFields: ['id'],
@@ -197,6 +218,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     }
   } else if (args.onlySubscriptions) {
     include.push({ model: models.Subscription, required: true });
+  } else if (args.onlyActiveSubscriptions) {
+    include.push({ model: models.Subscription, required: true, where: { isActive: true } });
   }
 
   if (args.tierSlug) {
@@ -222,7 +245,8 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   };
 };
 
-const OrdersCollectionQuery = {
+// Using a generator to avoid circular dependencies (OrderCollection -> Order -> PaymentMethod -> OrderCollection -> ...)
+const getOrdersCollectionQuery = () => ({
   type: new GraphQLNonNull(OrderCollection),
   args: {
     account: {
@@ -234,6 +258,6 @@ const OrdersCollectionQuery = {
   async resolve(_: void, args, req: express.Request): Promise<CollectionReturnType> {
     return OrdersCollectionResolver(args, req);
   },
-};
+});
 
-export default OrdersCollectionQuery;
+export default getOrdersCollectionQuery;

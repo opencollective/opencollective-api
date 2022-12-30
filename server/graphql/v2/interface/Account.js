@@ -349,6 +349,11 @@ const accountFieldsDefinition = () => ({
       },
     },
   },
+  paymentMethodsWithPendingConfirmation: {
+    type: new GraphQLList(PaymentMethod),
+    description:
+      'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
+  },
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
     description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
@@ -896,6 +901,35 @@ export const AccountFields = {
         } else {
           return true;
         }
+      });
+    },
+  },
+  paymentMethodsWithPendingConfirmation: {
+    type: new GraphQLList(PaymentMethod),
+    description:
+      'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
+    async resolve(collective, _, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      }
+
+      return models.PaymentMethod.findAll({
+        where: { CollectiveId: collective.id },
+        group: ['PaymentMethod.id'],
+        include: [
+          {
+            model: models.Order,
+            required: true,
+            attributes: [],
+            include: [{ model: models.Subscription, required: true, attributes: [], where: { isActive: true } }],
+            where: {
+              data: { needsConfirmation: true },
+              status: {
+                [Op.in]: ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'],
+              },
+            },
+          },
+        ],
       });
     },
   },

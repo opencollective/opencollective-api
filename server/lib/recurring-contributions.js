@@ -161,6 +161,8 @@ export async function processOrderWithSubscription(order, options) {
         if (order.Subscription.chargeRetryCount >= MAX_RETRIES) {
           await cancelSubscriptionAndNotifyUser(order);
         } else {
+          order.data = order.data || {};
+          order.data.needsConfirmation = true;
           await createPaymentCreditCardConfirmationActivity(order);
         }
       } else {
