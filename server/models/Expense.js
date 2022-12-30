@@ -175,7 +175,6 @@ const Expense = sequelize.define(
     },
 
     invoiceInfo: DataTypes.TEXT,
-    vat: DataTypes.INTEGER,
 
     lastEditedById: {
       type: DataTypes.INTEGER,
@@ -271,7 +270,6 @@ const Expense = sequelize.define(
           category: this.tags?.[1],
           tags: this.tags,
           legacyPayoutMethod: this.legacyPayoutMethod,
-          vat: this.vat,
           privateMessage: this.privateMessage,
           lastEditedById: this.lastEditedById,
           status: this.status,
