@@ -675,7 +675,9 @@ export async function confirmOrder(order, remoteUser, guestToken) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
 
-  if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
+  if (order.status === status.PAID || order.status === status.ACTIVE) {
+    throw new Error('This contribution has already been confirmed.');
+  } else if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
     // As August 2020, we're transitionning from PENDING to REQUIRE_CLIENT_CONFIRMATION
     // PENDING can be safely removed after a few days (it will be dedicated for "Manual" payments)
     throw new Error('Order can only be confirmed if its status is ERROR, PENDING or REQUIRE_CLIENT_CONFIRMATION.');
