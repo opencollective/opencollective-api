@@ -224,7 +224,7 @@ export async function createTransactionsForManuallyPaidExpense(
   transactionData: Record<string, unknown> = {},
 ) {
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
-  assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
+  assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
 
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
   const amount = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);

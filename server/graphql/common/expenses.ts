@@ -1965,6 +1965,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           totalAmountPaidInHostCurrency,
         );
         await expense.update({
+          // Remove all fields related to a previous automatic payment
           data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
         });
       } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
