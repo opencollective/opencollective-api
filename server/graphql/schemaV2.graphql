@@ -3879,8 +3879,6 @@ type AccountStats {
     """
     useCache: Boolean! = false
       @deprecated(reason: "2022-12-14: this is not used anymore as results should be fast by default")
-<<<<<<< HEAD
-=======
   ): Amount!
 
   """
@@ -3891,7 +3889,6 @@ type AccountStats {
     The start date of the time series
     """
     dateFrom: DateTime
->>>>>>> 2deebb724 (resolve conflict)
 
     """
     The end date of the time series
@@ -7741,7 +7738,7 @@ type PersonalToken {
   """
   The date on which the personal token expires
   """
-  expiresAt: DateString
+  expiresAt: DateTime
 
   """
   The scopes of the personal token
@@ -7756,15 +7753,13 @@ type PersonalToken {
   """
   The date on which the personal token was created
   """
-  createdAt: DateString
+  createdAt: DateTime
 
   """
   The date on which the personal token was last updated
   """
-  updatedAt: DateString
+  updatedAt: DateTime
 }
-
-scalar DateString
 
 """
 This represents a Member relationship (ie: Organization backing a Collective)
@@ -14165,6 +14160,8 @@ input ExpenseItemCreateInput {
   """
   incurredAt: DateString
 }
+
+scalar DateString
 
 input ExpenseAttachedFileInput {
   """
