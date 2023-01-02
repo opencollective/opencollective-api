@@ -38,6 +38,7 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE = 'collective.expense.incomplete',
   COLLECTIVE_EXPENSE_PROCESSING = 'collective.expense.processing',
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT = 'collective.expense.scheduledForPayment',
+  COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT = 'collective.expense.unscheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR = 'collective.expense.error',
   COLLECTIVE_EXPENSE_INVITE_DRAFTED = 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',

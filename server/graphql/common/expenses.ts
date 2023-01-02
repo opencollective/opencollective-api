@@ -781,6 +781,9 @@ export const unscheduleExpensePayment = async (
     status: expenseStatus.APPROVED,
     lastEditedById: req.remoteUser.id,
   });
+
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
+
   return updatedExpense;
 };
 
