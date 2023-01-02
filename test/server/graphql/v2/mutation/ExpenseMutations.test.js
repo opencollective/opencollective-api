@@ -1593,7 +1593,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       describe('Multi-currency expense', () => {
         it('Pays the expense manually', async () => {
-          const paymentProcessorFeeInHostCurrency = 120;
+          const paymentProcessorFeeInHostCurrency = 100;
           const totalAmountPaidInHostCurrency = 1700;
           const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
           const payee = await fakeCollective({ name: 'Payee', HostCollectiveId: null });
@@ -1668,7 +1668,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         });
 
         it('Records a manual payment with an active account', async () => {
-          const paymentProcessorFeeInHostCurrency = 120;
+          const paymentProcessorFeeInHostCurrency = 100;
           const totalAmountPaidInHostCurrency = 1700;
           const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
           const payeeHost = await fakeHost({ currency: 'NZD', name: 'PayeeHost' });
@@ -1725,11 +1725,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
             -expenseAmountInCollectiveCurrency - paymentProcessorFeeInHostCurrency,
           );
 
+          const hostCurrencyFxRate = 1.1;
           const creditTransaction = expenseTransactions.find(({ type }) => type === 'CREDIT');
-          const paymentProcessorFeeInPayeeCurrency = 132;
+          const paymentProcessorFeeInPayeeCurrency = Math.round(hostCurrencyFxRate * paymentProcessorFeeInHostCurrency);
           expect(creditTransaction.currency).to.equal(collective.currency);
           expect(creditTransaction.hostCurrency).to.equal(payee.host.currency);
-          expect(creditTransaction.hostCurrencyFxRate).to.equal(1.1);
+          expect(creditTransaction.hostCurrencyFxRate).to.equal(hostCurrencyFxRate);
           expect(creditTransaction.amount).to.equal(
             expenseAmountInCollectiveCurrency + paymentProcessorFeeInHostCurrency,
           );
