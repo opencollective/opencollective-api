@@ -242,11 +242,7 @@ export async function createTransactionsForManuallyPaidExpense(
       expense.currency === expense.collective.currency,
       'Expense currency must be the same as collective currency',
     );
-    amounts.hostCurrencyFxRate = isCoveredByPayee
-      ? // If the payee is covering the fees, the expense amount should be proportional to the total amount paid in host currency
-        expense.amount / totalAmountPaidInHostCurrency
-      : // If the host is covering the fees, the expense amount be proportional to total amount paid minus the fees
-        expense.amount / amount;
+    amounts.hostCurrencyFxRate = expense.amount / amount;
     amounts.amount = amounts.amount * amounts.hostCurrencyFxRate;
     amounts.netAmountInCollectiveCurrency = amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate;
   }
