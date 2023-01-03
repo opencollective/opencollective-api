@@ -275,9 +275,13 @@ const expenseMutations = {
           name: 'ProcessExpensePaymentParams',
           description: 'Parameters for paying an expense',
           fields: () => ({
-            paymentProcessorFee: {
+            paymentProcessorFeeInHostCurrency: {
               type: GraphQLInt,
-              description: 'The fee charged by payment processor in collective currency',
+              description: 'The fee charged by payment processor in host currency',
+            },
+            totalAmountPaidInHostCurrency: {
+              type: GraphQLInt,
+              description: 'The total amount paid in host currency',
             },
             shouldRefundPaymentProcessorFee: {
               type: GraphQLBoolean,
@@ -338,9 +342,10 @@ const expenseMutations = {
         case 'PAY':
           return payExpense(req, {
             id: expense.id,
-            paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
+            paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
+            totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
           });
         default:
           return expense;

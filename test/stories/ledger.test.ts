@@ -119,7 +119,11 @@ const executeAllSettlement = async remoteUser => {
   const settlementExpense = await models.Expense.findOne();
   expect(settlementExpense, 'Settlement expense has not been created').to.exist;
   await settlementExpense.update({ status: 'APPROVED' });
-  await payExpense(<express.Request>{ remoteUser }, { id: settlementExpense.id, forceManual: true });
+  await payExpense(<express.Request>{ remoteUser }, {
+    id: settlementExpense.id,
+    forceManual: true,
+    totalAmountPaidInHostCurrency: settlementExpense.amount,
+  });
 };
 
 describe('test/stories/ledger', () => {
@@ -315,7 +319,8 @@ describe('test/stories/ledger', () => {
       await payExpense({ remoteUser: hostAdmin } as any, {
         id: expense.id,
         forceManual: true,
-        paymentProcessorFeeInCollectiveCurrency: 500,
+        totalAmountPaidInHostCurrency: 100000 + 500,
+        paymentProcessorFeeInHostCurrency: 500,
       });
       expect(await collective.getBalance()).to.eq(150000 - 100000 - 500);
       expect(await collective.getTotalAmountSpent()).to.eq(100000);
@@ -612,6 +617,7 @@ describe('test/stories/ledger', () => {
         id: expense.id,
         forceManual: true,
         paymentProcessorFeeInCollectiveCurrency: 0,
+        totalAmountPaidInHostCurrency: 1000,
       });
 
       expect(await collective.getBalance()).to.eq(8500);
