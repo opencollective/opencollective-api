@@ -14,6 +14,7 @@ import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
+import OAuthScopes from '../../server/constants/oauth-scopes';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import { TransactionKind } from '../../server/constants/transaction-kind';
@@ -820,6 +821,30 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   });
 
   return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
+};
+
+export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
+  let CollectiveId;
+  let CreatedByUserId;
+  if (data.user) {
+    const user = data.user as User;
+    CollectiveId = user.CollectiveId;
+    CreatedByUserId = user.id;
+  } else {
+    const user = data.CreatedByUserId ? await models.User.findByPk(<number>data.CreatedByUserId) : await fakeUser();
+    CreatedByUserId = user.id;
+    CollectiveId = data.CollectiveId || user.CollectiveId;
+  }
+
+  const personalToken = await models.PersonalToken.create({
+    name: randStr('Name '),
+    token: randStr('Token-'),
+    scope: [OAuthScopes.account, OAuthScopes.transactions],
+    CollectiveId,
+    UserId: CreatedByUserId,
+  });
+
+  return personalToken.reload({ include: [{ association: 'user' }, { association: 'collective' }] });
 };
 
 export const fakeUserToken = async (data: Record<string, unknown> = {}) => {

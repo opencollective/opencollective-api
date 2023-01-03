@@ -24,6 +24,7 @@ import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
 import PaypalProduct from './PaypalProduct';
+import PersonalToken from './PersonalToken';
 import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
 import Subscription from './Subscription';
@@ -75,6 +76,7 @@ const models = {
   User: User,
   UserToken: UserToken,
   VirtualCard: VirtualCard,
+  PersonalToken: PersonalToken,
 } as const;
 
 /**
@@ -152,6 +154,10 @@ models.User.belongsTo(models.Collective, {
 // User tokens
 models.UserToken.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
 models.UserToken.belongsTo(models.Application, { foreignKey: 'ApplicationId', as: 'client' });
+
+// Personal tokens
+models.PersonalToken.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
+models.PersonalToken.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 
 // Members
 models.Member.belongsTo(models.User, {
