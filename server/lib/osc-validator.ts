@@ -48,8 +48,8 @@ export function OSCValidator(repositoryInfo?: RepositoryInfo): ValidatedReposito
     },
     starsCount: {
       value: starsCount,
-      // any star count is valid
-      isValid: true,
+      // 100 stars or more
+      isValid: starsCount >= 100,
     },
     isFork: {
       value: isFork,
