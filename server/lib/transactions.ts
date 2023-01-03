@@ -226,23 +226,30 @@ export async function createTransactionsForManuallyPaidExpense(
   assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
   assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
 
+  // Values are already adjusted to negative DEBIT values
   const isCoveredByPayee = expense.feesPayer === 'PAYEE';
-  const amount = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
+  const grossAmount = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
   const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency);
   const amounts = {
-    amount,
-    amountInHostCurrency: amount,
+    amount: grossAmount,
+    amountInHostCurrency: grossAmount,
     paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
     netAmountInCollectiveCurrency,
     hostCurrencyFxRate: 1,
   };
 
+  if (isCoveredByPayee) {
+    set(transactionData, 'feesPayer', 'PAYEE');
+    // Not necessary to adjust amounts since the host admin already passes the net amount as the base argument
+  }
+
+  // Adjust values if currency from host is different from the currency of the collective.
   if (host.currency !== expense.collective.currency) {
     assert(
       expense.currency === expense.collective.currency,
       'Expense currency must be the same as collective currency',
     );
-    amounts.hostCurrencyFxRate = expense.amount / amount;
+    amounts.hostCurrencyFxRate = expense.amount / grossAmount;
     amounts.amount = amounts.amount * amounts.hostCurrencyFxRate;
     amounts.netAmountInCollectiveCurrency = amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate;
   }
@@ -256,10 +263,6 @@ export async function createTransactionsForManuallyPaidExpense(
       rate: round(expense.data.taxes[0].rate, 4), // We want to support percentages with up to 2 decimals (e.g. 12.13%)
       percentage: round(expense.data.taxes[0].rate * 100), // @deprecated for legacy compatibility
     };
-  }
-
-  if (isCoveredByPayee) {
-    set(transactionData, 'feesPayer', 'PAYEE');
   }
 
   // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
