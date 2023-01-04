@@ -80,6 +80,10 @@ const load = async app => {
           }
         }
 
+        if (req.personalToken) {
+          log = log.setIn(['opencollective', 'personalToken', 'id'], req.personalToken.id);
+        }
+
         if (req.remoteUser) {
           log = log.setIn(['opencollective', 'user', 'id'], req.remoteUser.id);
           log = log.setIn(['opencollective', 'collective', 'id'], req.remoteUser.CollectiveId);
