@@ -283,21 +283,20 @@ function getOAuthCallbackUrl(req) {
 }
 
 /**
- * Check Client App
- *
- * Check Client Id if it exists
+ * Check Personal Token
  */
-export async function checkClientApp(req, res, next) {
+export async function checkPersonalToken(req, res, next) {
   const apiKey = req.get('Api-Key') || req.query.apiKey || req.apiKey;
-  const clientId = req.get('Client-Id') || req.query.clientId;
-  if (apiKey) {
-    const app = await models.Application.findOne({
-      where: { type: 'apiKey', apiKey },
+  const token = req.get('Personal-Token') || req.query.personalToken;
+
+  if (apiKey || token) {
+    const personalToken = await models.PersonalToken.findOne({
+      where: { token: apiKey || token },
     });
-    if (app) {
-      debug('Valid Client App (apiKey)');
-      req.clientApp = app;
-      const collectiveId = app.CollectiveId;
+    if (personalToken) {
+      debug('Valid Personal Token (Api Key)');
+      req.personalToken = personalToken;
+      const collectiveId = personalToken.CollectiveId;
       if (collectiveId) {
         req.loggedInAccount = await models.Collective.findByPk(collectiveId);
         req.remoteUser = await models.User.findOne({
@@ -309,34 +308,19 @@ export async function checkClientApp(req, res, next) {
       }
       next();
     } else {
-      debug(`Invalid Client App (apiKey: ${apiKey}).`);
-      next(new Unauthorized(`Invalid Api Key: ${apiKey}.`));
-    }
-  } else if (clientId) {
-    const app = await models.Application.findOne({
-      type: 'oAuth',
-      where: { clientId },
-    });
-    if (app) {
-      debug('Valid Client App');
-      req.clientApp = app;
-      next();
-    } else {
-      debug(`Invalid Client App (clientId: ${clientId}).`);
-      next(new Unauthorized(`Invalid Client Id: ${clientId}.`));
+      debug(`Invalid Personal Token (Api Key): ${apiKey || token}`);
+      next(new Unauthorized(`Invalid Personal Token (Api Key): ${apiKey || token}`));
     }
   } else {
     next();
-    debug('No Client App');
+    debug('No Personal Token (Api Key)');
   }
 }
 
 /**
  * Authorize api_key
- *
- * All calls should provide a valid api_key
  */
-export function authorizeClientApp(req, res, next) {
+export function authorizeClient(req, res, next) {
   // TODO: we should remove those exceptions
   // those routes should only be accessed via the website (which automatically adds the api_key)
   const exceptions = [
@@ -365,18 +349,21 @@ export function authorizeClientApp(req, res, next) {
     }
   }
 
-  const apiKey = req.get('Api-Key') || req.query.apiKey || req.query.api_key || req.body.api_key;
-  if (req.clientApp) {
-    debug('Valid Client App');
+  if (req.personalToken) {
+    debug('Valid Personal Token');
     next();
-  } else if (apiKey === config.keys.opencollective.apiKey) {
+    return;
+  }
+
+  const apiKey = req.get('Api-Key') || req.query.apiKey || req.query.api_key || req.body.api_key;
+  if (apiKey === config.keys.opencollective.apiKey) {
     debug(`Valid API key: ${apiKey}`);
     next();
   } else if (apiKey) {
     debug(`Invalid API key: ${apiKey}`);
     next(new Unauthorized(`Invalid API key: ${apiKey}`));
   } else {
-    debug('Missing API key or Client Id');
+    debug('Missing API key');
     next();
   }
 }
