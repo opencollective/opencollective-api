@@ -121,7 +121,7 @@ export const checkScope = (req: express.Request, scope: OAuthScope): boolean => 
     return req.userToken.hasScope(scope);
   } else if (req.personalToken) {
     // Personal Tokens had no scope until this date, all scopes were assumed
-    if (moment('2023-01-23') > moment(req.personalToken.createdAt)) {
+    if (moment('2023-01-03') > moment(req.personalToken.updatedAt)) {
       return true;
     }
     return req.personalToken.hasScope(scope);
@@ -133,6 +133,11 @@ export const checkScope = (req: express.Request, scope: OAuthScope): boolean => 
 
 export const enforceScope = (req: express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
-    throw new Forbidden(`The User or Personal Token is not allowed for operations in scope "${scope}".`);
+    if (req.userToken) {
+      throw new Forbidden(`The User Token is not allowed for operations in scope "${scope}".`);
+    }
+    if (req.personalToken) {
+      throw new Forbidden(`The Personal Token is not allowed for operations in scope "${scope}".`);
+    }
   }
 };
