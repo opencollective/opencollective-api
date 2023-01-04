@@ -3,6 +3,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
+import { get } from 'lodash';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -21,9 +22,10 @@ import {
   sendEmailNotifications,
   sendOrderFailedEmail,
 } from '../../lib/payments';
-import stripe, { StripeCustomToken } from '../../lib/stripe';
+import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 
+import { getVirtualCardForTransaction } from './../utils';
 import { createChargeTransactions } from './common';
 import * as virtualcard from './virtual-cards';
 
@@ -564,57 +566,42 @@ async function paymentMethodAttached(event: Stripe.Event) {
   });
 }
 
-async function validateWebhook(request: Request<unknown, Stripe.Event>): Promise<Stripe.Event> {
-  const event = <Stripe.Event>request.body;
-  let stripeAccount = event.account;
-  if (!stripeAccount) {
-    stripeAccount = config.stripe.accountId;
-  }
-
-  const stripeConnectedAccount = await models.ConnectedAccount.findOne({
-    where: {
-      username: stripeAccount,
-      service: Service.STRIPE,
-    },
-  });
-
-  if (!stripeConnectedAccount) {
-    throw new Error(`Stripe connected account not found: ${stripeAccount}`);
-  }
-
-  let webhookSigningSecret =
-    stripeConnectedAccount.data?.webhookSigningSecret || stripeConnectedAccount.data.stripeEndpointSecret;
-
-  if (process.env.NODE_ENV === 'development' && !webhookSigningSecret && process.env.STRIPE_WEBHOOK_SIGNING_SECRET) {
-    webhookSigningSecret = process.env.STRIPE_WEBHOOK_SIGNING_SECRET;
-  }
-
-  if (!webhookSigningSecret) {
-    throw new Error('Stripe Webhook Signin Secret not set for Host');
-  }
-
-  const stripe = StripeCustomToken(stripeConnectedAccount.token);
-
-  try {
-    return stripe.webhooks.constructEvent(request.rawBody, request.headers['stripe-signature'], webhookSigningSecret);
-  } catch (e) {
-    throw new Error('Source of event not recognized');
-  }
-}
-
-export const webhook = async (request: Request<unknown, Stripe.Event>) => {
-  debug(`Stripe webhook event received : ${request.rawBody}`);
-
+/*
+ * Stripe issuing events are currently using account webhooks, meaning
+ * that each host with virtual card enabled has an account webhook setup to this endpoint.
+ * To validate the webhook we first get the virtual card and associated host.
+ * This will be deprecated and unified when these events are migrated to the connect webhook.
+ */
+async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   let event = <Stripe.Event>request.body;
 
-  // Stripe sends test events to production as well
-  // don't do anything if the event is not livemode
-  // NOTE: not using config.env because of ugly tests
-  if (process.env.OC_ENV === 'production' && !event.livemode) {
-    return Promise.resolve();
+  let virtualCardId;
+  if (event.type.startsWith('issuing_authorization')) {
+    virtualCardId = (<Stripe.Issuing.Authorization>event.data.object).card.id;
+  } else if (event.type.startsWith('issuing_transaction')) {
+    const transaction = <Stripe.Issuing.Transaction>event.data.object;
+    virtualCardId = get(transaction, 'transaction.card.id', transaction?.card);
+  } else if (event.type.startsWith('issuing_card')) {
+    virtualCardId = (<Stripe.Issuing.Card>event.data.object).id;
   }
 
-  event = await validateWebhook(request);
+  if (!virtualCardId) {
+    throw new Error('virtual card id not set in webhook event');
+  }
+
+  const virtualCard = await getVirtualCardForTransaction(virtualCardId);
+  const stripeClient = await virtualcard.getStripeClient(virtualCard.host);
+  const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
+
+  try {
+    event = stripeClient.webhooks.constructEvent(
+      request.rawBody,
+      request.headers['stripe-signature'],
+      webhookSigningSecret,
+    );
+  } catch {
+    throw new Error('Source of event not recognized');
+  }
 
   switch (event.type) {
     case 'issuing_authorization.request':
@@ -630,6 +617,36 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       return virtualcard.processTransaction(event);
     case 'issuing_card.updated':
       return virtualcard.processCardUpdate(event);
+  }
+}
+
+export const webhook = async (request: Request<unknown, Stripe.Event>) => {
+  debug(`Stripe webhook event received : ${request.rawBody}`);
+
+  let event = <Stripe.Event>request.body;
+
+  // Stripe sends test events to production as well
+  // don't do anything if the event is not livemode
+  // NOTE: not using config.env because of ugly tests
+  if (process.env.OC_ENV === 'production' && !event.livemode) {
+    return Promise.resolve();
+  }
+
+  if (event.type.startsWith('issuing')) {
+    return handleIssuingWebhooks(request);
+  }
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      request.rawBody,
+      request.headers['stripe-signature'],
+      config.stripe.webhookSigningSecret,
+    );
+  } catch (e) {
+    throw new Error('Source of event not recognized');
+  }
+
+  switch (event.type) {
     case 'charge.dispute.created':
       return chargeDisputeCreated(event);
     // Charge dispute has been closed on Stripe (with status of: won/lost/closed)

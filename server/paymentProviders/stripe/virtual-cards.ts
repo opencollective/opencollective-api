@@ -364,7 +364,7 @@ export const processCardUpdate = async (event: Stripe.Event) => {
   return virtualCard;
 };
 
-const getStripeClient = async host => {
+export const getStripeClient = async host => {
   if (host.slug === 'opencollective') {
     return stripe;
   }
@@ -372,4 +372,16 @@ const getStripeClient = async host => {
   const connectedAccount = await host.getAccountForPaymentProvider('stripe');
 
   return StripeCustomToken(connectedAccount.token);
+};
+
+export const getWebhookSigninSecret = async host => {
+  const connectedAccount = await host.getAccountForPaymentProvider('stripe');
+  if (!connectedAccount) {
+    throw new Error('Stripe not connected for Host');
+  }
+
+  if (!connectedAccount.data?.webhookSigningSecret && !connectedAccount.data?.stripeEndpointSecret) {
+    throw new Error('Stripe Webhook Signin Secret not set for Host');
+  }
+  return connectedAccount.data?.webhookSigningSecret || connectedAccount.data.stripeEndpointSecret;
 };
