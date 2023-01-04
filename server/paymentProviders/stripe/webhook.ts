@@ -13,6 +13,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
+import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { toNegative } from '../../lib/math';
 import {
@@ -21,7 +22,7 @@ import {
   sendEmailNotifications,
   sendOrderFailedEmail,
 } from '../../lib/payments';
-import stripe, { StripeCustomToken } from '../../lib/stripe';
+import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 
 import { createChargeTransactions } from './common';
@@ -29,7 +30,7 @@ import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
-export const paymentIntentSucceeded = async (event: Stripe.Event) => {
+export const paymentIntentSucceeded = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
@@ -72,7 +73,7 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   sendEmailNotifications(order, transaction);
 };
 
-export const paymentIntentProcessing = async (event: Stripe.Event) => {
+export const paymentIntentProcessing = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
   const stripeAccount = event.account ?? config.stripe.accountId;
@@ -137,7 +138,7 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
   });
 };
 
-export const paymentIntentFailed = async (event: Stripe.Event) => {
+export const paymentIntentFailed = async (event: Stripe.Response<Stripe.Event>) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
@@ -504,7 +505,7 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
   }
 }
 
-async function paymentMethodAttached(event: Stripe.Event) {
+async function paymentMethodAttached(event: Stripe.Response<Stripe.Event>) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
   if (!['us_bank_account', 'sepa_debit'].includes(stripePaymentMethod.type)) {
@@ -564,92 +565,78 @@ async function paymentMethodAttached(event: Stripe.Event) {
   });
 }
 
-async function validateWebhook(request: Request<unknown, Stripe.Event>): Promise<Stripe.Event> {
-  const event = <Stripe.Event>request.body;
-  let stripeAccount = event.account;
-  if (!stripeAccount) {
-    stripeAccount = config.stripe.accountId;
-  }
-
-  const stripeConnectedAccount = await models.ConnectedAccount.findOne({
-    where: {
-      username: stripeAccount,
-      service: Service.STRIPE,
-    },
-  });
-
-  if (!stripeConnectedAccount) {
-    throw new Error(`Stripe connected account not found: ${stripeAccount}`);
-  }
-
-  let webhookSigningSecret =
-    stripeConnectedAccount.data?.webhookSigningSecret || stripeConnectedAccount.data.stripeEndpointSecret;
-
-  if (process.env.NODE_ENV === 'development' && !webhookSigningSecret && process.env.STRIPE_WEBHOOK_SIGNING_SECRET) {
-    webhookSigningSecret = process.env.STRIPE_WEBHOOK_SIGNING_SECRET;
-  }
-
-  if (!webhookSigningSecret) {
-    throw new Error('Stripe Webhook Signin Secret not set for Host');
-  }
-
-  const stripe = StripeCustomToken(stripeConnectedAccount.token);
-
-  try {
-    return stripe.webhooks.constructEvent(request.rawBody, request.headers['stripe-signature'], webhookSigningSecret);
-  } catch (e) {
-    throw new Error('Source of event not recognized');
-  }
-}
-
 export const webhook = async (request: Request<unknown, Stripe.Event>) => {
-  debug(`Stripe webhook event received : ${request.rawBody}`);
+  const requestBody = request.body;
 
-  let event = <Stripe.Event>request.body;
+  debug(`Stripe webhook event received : ${request.rawBody}`);
 
   // Stripe sends test events to production as well
   // don't do anything if the event is not livemode
   // NOTE: not using config.env because of ugly tests
-  if (process.env.OC_ENV === 'production' && !event.livemode) {
+  if (process.env.OC_ENV === 'production' && !requestBody.livemode) {
     return Promise.resolve();
   }
 
-  event = await validateWebhook(request);
+  const stripeEvent = {
+    signature: request.headers['stripe-signature'],
+    rawBody: request.rawBody,
+  };
 
-  switch (event.type) {
-    case 'issuing_authorization.request':
-      return virtualcard.processAuthorization(event);
-    case 'issuing_authorization.created':
-      if (!(<Stripe.Issuing.Authorization>event.data.object).approved) {
-        return virtualcard.processDeclinedAuthorization(event);
-      }
-      return;
-    case 'issuing_authorization.updated':
-      return virtualcard.processUpdatedTransaction(event);
-    case 'issuing_transaction.created':
-      return virtualcard.processTransaction(event);
-    case 'issuing_card.updated':
-      return virtualcard.processCardUpdate(event);
-    case 'charge.dispute.created':
-      return chargeDisputeCreated(event);
-    // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
-    case 'charge.dispute.closed':
-      return chargeDisputeClosed(event);
-    case 'review.opened':
-      return reviewOpened(event);
-    case 'review.closed':
-      return reviewClosed(event);
-    case 'payment_intent.succeeded':
-      return paymentIntentSucceeded(event);
-    case 'payment_intent.processing':
-      return paymentIntentProcessing(event);
-    case 'payment_intent.payment_failed':
-      return paymentIntentFailed(event);
-    case 'payment_method.attached':
-      return paymentMethodAttached(event);
-    default:
-      // console.log(JSON.stringify(event, null, 4));
-      logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
-      return;
+  if (requestBody.type === 'issuing_authorization.request') {
+    return virtualcard.processAuthorization(requestBody.data.object, stripeEvent);
   }
+
+  if (requestBody.type === 'issuing_authorization.created' && !requestBody.data.object.approved) {
+    return virtualcard.processDeclinedAuthorization(requestBody.data.object, stripeEvent);
+  }
+
+  if (requestBody.type === 'issuing_authorization.updated') {
+    return virtualcard.processUpdatedTransaction(requestBody.data.object, stripeEvent);
+  }
+
+  if (requestBody.type === 'issuing_transaction.created') {
+    return virtualcard.processTransaction(requestBody.data.object, stripeEvent);
+  }
+
+  if (requestBody.type === 'issuing_card.updated') {
+    return virtualcard.processCardUpdate(requestBody.data.object, stripeEvent);
+  }
+
+  /**
+   * We check the event on stripe directly to be sure we don't get a fake event from
+   * someone else
+   */
+  // TODO: Change to https://stripe.com/docs/webhooks/signatures#verify-official-libraries
+  //       to verify the signature without having to make another call to Stripe?
+  return stripe.events
+    .retrieve(requestBody.id, { stripeAccount: requestBody.user_id })
+    .then((event: Stripe.Response<Stripe.Event>) => {
+      if (!event || (event && !event.type)) {
+        throw new errors.BadRequest('Event not found');
+      }
+
+      switch (event.type) {
+        case 'charge.dispute.created':
+          return chargeDisputeCreated(event);
+        // Charge dispute has been closed on Stripe (with status of: won/lost/closed)
+        case 'charge.dispute.closed':
+          return chargeDisputeClosed(event);
+        case 'review.opened':
+          return reviewOpened(event);
+        case 'review.closed':
+          return reviewClosed(event);
+        case 'payment_intent.succeeded':
+          return paymentIntentSucceeded(event);
+        case 'payment_intent.processing':
+          return paymentIntentProcessing(event);
+        case 'payment_intent.payment_failed':
+          return paymentIntentFailed(event);
+        case 'payment_method.attached':
+          return paymentMethodAttached(event);
+        default:
+          // console.log(JSON.stringify(event, null, 4));
+          logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
+          return;
+      }
+    });
 };

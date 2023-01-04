@@ -1,11 +1,4 @@
-import type {
-  BelongsToGetAssociationMixin,
-  CreationOptional,
-  ForeignKey,
-  InferAttributes,
-  InferCreationAttributes,
-  NonAttribute,
-} from 'sequelize';
+import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 
 import VirtualCardProviders from '../constants/virtual_card_providers';
 import { crypto } from '../lib/encryption';
@@ -13,7 +6,6 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
-import Collective from './Collective';
 import User from './User';
 
 class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, InferCreationAttributes<VirtualCard>> {
@@ -35,8 +27,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
 
   // Associations
   public declare collective?: NonAttribute<any>;
-  public declare host?: NonAttribute<typeof Collective>;
-  public declare getHost: BelongsToGetAssociationMixin<typeof Collective>;
+  public declare host?: NonAttribute<any>;
   public declare user?: NonAttribute<any>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
