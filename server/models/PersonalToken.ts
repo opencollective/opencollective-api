@@ -27,6 +27,10 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   public static generateToken(): string {
     return randomBytes(20).toString('hex');
   }
+
+  hasScope(scope): boolean {
+    return Boolean(this.scope && this.scope.includes(scope));
+  }
 }
 
 PersonalToken.init(

@@ -1,4 +1,5 @@
 import express from 'express';
+import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
 import OAuthScopes from '../../constants/oauth-scopes';
@@ -116,11 +117,22 @@ export const checkRemoteUserCanRoot = (req: express.Request): void => {
 type OAuthScope = keyof typeof OAuthScopes;
 
 export const checkScope = (req: express.Request, scope: OAuthScope): boolean => {
-  return !req.userToken || req.userToken.hasScope(scope);
+  if (req.userToken) {
+    return req.userToken.hasScope(scope);
+  } else if (req.personalToken) {
+    // Personal Tokens had no scope until this date, all scopes were assumed
+    if (moment('2023-01-23') > moment(req.personalToken.createdAt)) {
+      return true;
+    }
+    return req.personalToken.hasScope(scope);
+  }
+
+  // No userToken or personalToken, no checkScope
+  return true;
 };
 
 export const enforceScope = (req: express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
-    throw new Forbidden(`The User Token is not allowed for operations in scope "${scope}".`);
+    throw new Forbidden(`The User or Personal Token is not allowed for operations in scope "${scope}".`);
   }
 };
