@@ -18,7 +18,6 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
   afterEach(sandbox.restore);
   beforeEach(testUtils.resetTestDB);
   beforeEach(async () => {
-    sandbox.stub(stripe.webhooks, 'constructEvent').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox
       .stub(budget, 'getBalanceAmount')
       .callsFake(() => Promise.resolve({ CollectiveId: 7, currency: 'USD', value: 200 }));
@@ -74,8 +73,12 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
       /* eslint-enable camelcase */
       created: new Date().getTime() / 1000,
     };
-    const stripeEvent = {};
-    const expense = await processAuthorization(stripeAuthorization, stripeEvent);
+    const stripeEvent = {
+      data: {
+        object: stripeAuthorization,
+      },
+    };
+    const expense = await processAuthorization(stripeEvent);
     await testUtils.waitForCondition(() => sendMessage.callCount === 1);
     const [emailTo, subject, body] = sendMessage.getCall(0).args;
     expect(emailTo).to.equal(collectiveAdmin.email);
