@@ -6,36 +6,15 @@ const removeDependentObjectsTransactionBalances = async queryInterface => {
       DROP INDEX IF EXISTS "transaction_balances__collective_id"
     `);
 
-  await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "transactions__collective_id_sorted"
-    `);
-
-  await queryInterface.sequelize.query(`
-      DROP INDEX IF EXISTS "transactions__is_disputed"
-    `);
-
   await queryInterface.sequelize.query(`DROP VIEW IF EXISTS "CurrentCollectiveBalance"`);
 
   await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "CollectiveBalanceCheckpoint"`);
-  await queryInterface.sequelize.query(`DROP MATERIALIZED VIEW IF EXISTS "LatestBalances"`); // Older name in dev, just in case
 };
 
 async function recreateDependentObjectsTransactionBalances(queryInterface) {
   await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transaction_balances__collective_id"
       ON "TransactionBalances"("CollectiveId")
-    `);
-
-  await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__collective_id_sorted"
-      ON "Transactions"("CollectiveId", id ASC)
-      WHERE "deletedAt" is null
-    `);
-
-  await queryInterface.sequelize.query(`
-      CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__is_disputed"
-      ON "Transactions"("CollectiveId")
-      WHERE "deletedAt" is null and "isDisputed" = true and "RefundTransactionId" is null
     `);
 
   await queryInterface.sequelize.query(`
@@ -126,7 +105,7 @@ module.exports = {
             + COALESCE("hostFeeInHostCurrency", 0)
             + COALESCE("paymentProcessorFeeInHostCurrency", 0)
             + COALESCE("taxAmount" * "hostCurrencyFxRate", 0)
-          ) OVER (PARTITION BY "CollectiveId", "hostCurrency" ORDER BY "createdAt") as "balance"
+          ) OVER (PARTITION BY "CollectiveId", "hostCurrency" ORDER BY "createdAt" ASC, "id" ASC) as "balance"
           FROM "Transactions", "ActiveCollectives"
           WHERE "deletedAt" IS NULL
           AND "CollectiveId" = "ActiveCollectives"."ActiveCollectiveId"
