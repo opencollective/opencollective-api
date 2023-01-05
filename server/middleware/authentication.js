@@ -13,7 +13,7 @@ import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import { reportMessageToSentry } from '../lib/sentry';
 import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
-import models from '../models';
+import models, { Op } from '../models';
 import paymentProviders from '../paymentProviders';
 
 const { User, UserToken } = models;
@@ -291,12 +291,16 @@ export async function checkPersonalToken(req, res, next) {
   const token = req.get('Personal-Token') || req.query.personalToken;
 
   if (apiKey || token) {
+    const now = moment();
     const personalToken = await models.PersonalToken.findOne({
-      where: { token: apiKey || token },
+      where: {
+        token: apiKey || token,
+        [Op.or]: [{ expiresAt: { [Op.is]: null } }, { expiresAt: { [Op.lte]: now } }],
+      },
     });
     if (personalToken) {
       debug('Valid Personal Token (Api Key)');
-      const minutesSinceLastUpdate = moment.duration(moment().diff(moment(personalToken.lastUsedAt))).asMinutes();
+      const minutesSinceLastUpdate = moment.duration(now.diff(moment(personalToken.lastUsedAt))).asMinutes();
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
       if (!personalToken.lastUsedAt || minutesSinceLastUpdate > 1) {
         await personalToken.update({ lastUsedAt: new Date() });
