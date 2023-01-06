@@ -1714,19 +1714,30 @@ export const getExpenseFees = async (
     if (!connectedAccount) {
       throw new Error('Host is not connected to Transferwise');
     }
-    const quote = useExistingWiseData
-      ? expense.data.quote
-      : await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
-    const paymentOption = useExistingWiseData
-      ? expense.data.paymentOption
-      : quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
-    if (!paymentOption) {
-      throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+
+    const existingQuote = expense.data?.quote;
+    const existingPaymentOption = existingQuote?.paymentOption;
+    if (
+      useExistingWiseData &&
+      existingQuote &&
+      existingQuote.sourceCurrency === host.currency &&
+      existingQuote.targetCurrency === payoutMethod.unfilteredData.currency &&
+      existingPaymentOption
+    ) {
+      resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+        existingPaymentOption.fee.total / collectiveToHostFxRate,
+      );
+    } else {
+      const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
+      const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+      if (!paymentOption) {
+        throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+      }
+      // Quote is always in host currency
+      resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+        paymentOption.fee.total / collectiveToHostFxRate,
+      );
     }
-    // Notice this is the FX rate between Host and Collective, that's why we use `collectiveToHostFxRate`.
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
-      paymentOption.fee.total / collectiveToHostFxRate,
-    );
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     resultFees['paymentProcessorFeeInCollectiveCurrency'] = await paymentProviders.paypal.types['adaptive'].fees({
       amount: expense.amount,
