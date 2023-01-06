@@ -9,6 +9,7 @@ import models from '.';
 export enum TokenType {
   OAUTH = 'OAUTH',
 }
+
 class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttributes<UserToken>> {
   public declare id: CreationOptional<number>;
   public declare type: 'OAUTH';

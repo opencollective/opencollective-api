@@ -446,6 +446,11 @@ export function editCollective(_, args, req) {
         }
       })
       .then(async () => {
+        if (args.collective.socialLinks) {
+          return collective.updateSocialLinks(args.collective.socialLinks);
+        }
+      })
+      .then(async () => {
         // Ask cloudflare to refresh the cache for this collective's page
         purgeCacheForCollective(collective.slug);
         const data = getCollectiveDataDiff(originalCollective, collective);

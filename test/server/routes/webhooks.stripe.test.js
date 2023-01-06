@@ -3,14 +3,25 @@ import _ from 'lodash';
 import { createSandbox } from 'sinon';
 import request from 'supertest';
 
+import { Service } from '../../../server/constants/connected_account';
 import app from '../../../server/index';
 import stripe from '../../../server/lib/stripe';
 import originalStripeMock from '../../mocks/stripe';
+import { fakeConnectedAccount } from '../../test-helpers/fake-data';
+import { resetTestDB } from '../../utils';
 
 describe('server/routes/webhooks.stripe', () => {
   let sandbox, expressApp;
 
   before(async () => {
+    await resetTestDB();
+    await fakeConnectedAccount({
+      service: Service.STRIPE,
+      username: 'acc_mock',
+      data: {
+        webhookSigningSecret: 'whsec_mock',
+      },
+    });
     expressApp = await app();
   });
 
@@ -45,43 +56,26 @@ describe('server/routes/webhooks.stripe', () => {
       sandbox.restore();
     });
 
-    it('returns an error if the event does not exist', done => {
-      const stripeMock = _.cloneDeep(originalStripeMock);
-
-      // eslint-disable-next-line camelcase
-      stripeMock.event_payment_succeeded = {
-        error: {
-          type: 'invalid_request_error',
-          message: 'No such event',
-          param: 'id',
-          requestId: 'req_7Y8TeQytYKcs1k',
-        },
+    it('should return HTTP 200 if event is not supported', async () => {
+      const event = {
+        type: 'application_fee.created',
+        account: 'acc_mock',
       };
 
-      sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_payment_succeeded));
+      sandbox.stub(stripe.webhooks, 'constructEvent').returns(event);
 
-      request(expressApp)
-        .post('/webhooks/stripe')
-        .send({
-          id: 123,
-        })
-        .expect(400, {
-          error: {
-            code: 400,
-            type: 'bad_request',
-            message: 'Event not found',
-          },
-        })
-        .end(done);
+      await request(expressApp).post('/webhooks/stripe').send(event).expect(200);
     });
 
-    it('should return HTTP 200 if event is not supported', done => {
-      const stripeMock = _.cloneDeep(originalStripeMock);
-      stripeMock.event_source_chargeable.type = 'application_fee.created';
+    it('should return HTTP 500 if event is not signed', async () => {
+      const event = {
+        type: 'payment_intent.updated',
+        account: 'acc_mock',
+      };
 
-      sandbox.stub(stripe.events, 'retrieve').callsFake(() => Promise.resolve(stripeMock.event_source_chargeable));
+      sandbox.stub(stripe.webhooks, 'constructEvent').throws(new Error('bad signature'));
 
-      request(expressApp).post('/webhooks/stripe').send(stripeMock.webhook_payment_succeeded).expect(200).end(done);
+      await request(expressApp).post('/webhooks/stripe').send(event).expect(500);
     });
   });
 });

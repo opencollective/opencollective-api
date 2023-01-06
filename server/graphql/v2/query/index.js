@@ -22,6 +22,7 @@ import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
+import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import TierQuery from './TierQuery';
 import UpdateQuery from './UpdateQuery';
@@ -51,6 +52,7 @@ const query = {
   update: UpdateQuery,
   updates: UpdatesCollectionQuery,
   paypalPlan: PaypalPlanQuery,
+  personalToken: PersonalTokenQuery,
   loggedInAccount: {
     type: Individual,
     resolve(_, args, req) {

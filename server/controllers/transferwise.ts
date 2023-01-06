@@ -14,7 +14,7 @@ const processPaidExpense = (host, remoteUser, batchGroup: BatchGroup) => async e
   await expense.reload();
   if (expense.data?.transfer) {
     const payoutMethod = await expense.getPayoutMethod();
-    const { feesInHostCurrency } = await getExpenseFees(expense, host, { payoutMethod, forceManual: false });
+    const { feesInHostCurrency } = await getExpenseFees(expense, host, { payoutMethod });
     return setTransferWiseExpenseAsProcessing({
       expense,
       host,

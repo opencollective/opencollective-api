@@ -7,6 +7,7 @@ export const purgeCacheForCollectiveOperationNames = [
   'CollectivePage',
   'ContributePage',
   'BudgetSection',
+  'BudgetSectionWithHost',
   'UpdatesSection',
   'TransactionsSection',
   'TransactionsPage',

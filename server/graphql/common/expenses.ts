@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
@@ -41,7 +43,7 @@ import * as libPayments from '../../lib/payments';
 import { getPolicy } from '../../lib/policies';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
-import { createTransactionsFromPaidExpense } from '../../lib/transactions';
+import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
@@ -684,7 +686,8 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     1000000,
   );
 
-  const twoFactorSession = req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`);
+  const twoFactorSession =
+    req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
   const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
@@ -781,6 +784,9 @@ export const unscheduleExpensePayment = async (
     status: expenseStatus.APPROVED,
     lastEditedById: req.remoteUser.id,
   });
+
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
+
   return updatedExpense;
 };
 
@@ -1645,7 +1651,7 @@ type FeesArgs = {
 export const getExpenseFees = async (
   expense,
   host,
-  { fees = {}, payoutMethod, forceManual, useExistingWiseData = false },
+  { fees = {}, payoutMethod, useExistingWiseData = false },
 ): Promise<{
   feesInHostCurrency: {
     paymentProcessorFeeInHostCurrency: number;
@@ -1673,7 +1679,7 @@ export const getExpenseFees = async (
   const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
-  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT && !forceManual) {
+  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     const [connectedAccount] = await host.getConnectedAccounts({
       where: { service: 'transferwise', deletedAt: null },
     });
@@ -1693,7 +1699,7 @@ export const getExpenseFees = async (
     resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
       paymentOption.fee.total / collectiveToHostFxRate,
     );
-  } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !forceManual) {
+  } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     resultFees['paymentProcessorFeeInCollectiveCurrency'] = await paymentProviders.paypal.types['adaptive'].fees({
       amount: expense.amount,
       currency: expense.collective.currency,
@@ -1744,11 +1750,50 @@ export const checkHasBalanceToPayExpense = async (
   host,
   expense,
   payoutMethod,
-  { forceManual = false, manualFees = {}, useExistingWiseData = false } = {},
+  {
+    forceManual = false,
+    manualFees = {},
+    useExistingWiseData = false,
+    totalAmountPaidInHostCurrency = undefined,
+    paymentProcessorFeeInHostCurrency = undefined,
+  } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
   const balanceInCollectiveCurrency = await expense.collective.getBalanceWithBlockedFunds();
   const isSameCurrency = expense.currency === expense.collective.currency;
+
+  if (expense.feesPayer === 'PAYEE') {
+    assert(
+      models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
+      'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
+    );
+    assert(
+      expense.currency === expense.collective.currency,
+      'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
+    );
+  }
+
+  if (forceManual) {
+    assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
+    const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
+    const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
+    if (balanceInHostCurrency < totalAmountPaidInHostCurrency) {
+      throw new Error(
+        `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
+          balanceInHostCurrency,
+          host.currency,
+        )}, Expense amount: ${formatCurrency(balanceInHostCurrency, host.currency)}`,
+      );
+    }
+    return {
+      feesInCollectiveCurrency: {},
+      feesInHostCurrency: {
+        paymentProcessorFeeInHostCurrency,
+      },
+      feesInExpenseCurrency: {},
+    };
+  }
+
   const exchangeStats =
     !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
@@ -1801,7 +1846,6 @@ export const checkHasBalanceToPayExpense = async (
   const { feesInHostCurrency, feesInCollectiveCurrency, feesInExpenseCurrency } = await getExpenseFees(expense, host, {
     fees: manualFees,
     payoutMethod,
-    forceManual,
     useExistingWiseData,
   });
 
@@ -1811,15 +1855,6 @@ export const checkHasBalanceToPayExpense = async (
     totalAmountToPay = expense.amount + feesInExpenseCurrency.paymentProcessorFee;
   } else if (expense.feesPayer === 'PAYEE') {
     totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
-    if (!models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType)) {
-      throw new Error(
-        'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
-      );
-    } else if (expense.currency !== expense.collective.currency) {
-      throw new Error(
-        'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
-      );
-    }
   } else {
     throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
   }
@@ -1888,10 +1923,14 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       await expense.update({ feesPayer: args.feesPayer });
     }
 
+    const totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
+    const paymentProcessorFeeInHostCurrency = args.paymentProcessorFeeInHostCurrency || 0;
     const payoutMethod = await expense.getPayoutMethod();
     const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
       forceManual,
+      totalAmountPaidInHostCurrency,
+      paymentProcessorFeeInHostCurrency,
       manualFees: <FeesArgs>(
         pick(args, [
           'paymentProcessorFeeInCollectiveCurrency',
@@ -1922,8 +1961,18 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
     }
 
     try {
-      // Pay expense based on chosen payout method
-      if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+      if (forceManual) {
+        await createTransactionsForManuallyPaidExpense(
+          host,
+          expense,
+          paymentProcessorFeeInHostCurrency,
+          totalAmountPaidInHostCurrency,
+        );
+        await expense.update({
+          // Remove all fields related to a previous automatic payment
+          data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
+        });
+      } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
         if (expense.collective.currency !== host.currency) {
           throw new Error(
             'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
@@ -1942,8 +1991,6 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
           await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
-        } else if (forceManual) {
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPalAdaptive(
             remoteUser,
@@ -1957,30 +2004,23 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-        if (forceManual) {
-          await expense.update({
-            data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
-          });
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
-        } else {
-          const [connectedAccount] = await host.getConnectedAccounts({
-            where: { service: 'transferwise', deletedAt: null },
-          });
-          if (!connectedAccount) {
-            throw new Error('Host is not connected to Transferwise');
-          }
-
-          const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
-
-          // Early return, Webhook will mark expense as Paid when the transaction completes.
-          return setTransferWiseExpenseAsProcessing({
-            host,
-            expense,
-            data,
-            feesInHostCurrency,
-            remoteUser,
-          });
+        const [connectedAccount] = await host.getConnectedAccounts({
+          where: { service: 'transferwise', deletedAt: null },
+        });
+        if (!connectedAccount) {
+          throw new Error('Host is not connected to Transferwise');
         }
+
+        const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
+
+        // Early return, Webhook will mark expense as Paid when the transaction completes.
+        return setTransferWiseExpenseAsProcessing({
+          host,
+          expense,
+          data,
+          feesInHostCurrency,
+          remoteUser,
+        });
       } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
         const payee = expense.fromCollective;
         const payeeHost = await payee.getHostCollective();

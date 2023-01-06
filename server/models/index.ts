@@ -24,8 +24,10 @@ import PaymentMethod from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
 import PaypalPlan from './PaypalPlan';
 import PaypalProduct from './PaypalProduct';
+import PersonalToken from './PersonalToken';
 import RecurringExpense from './RecurringExpense';
 import RequiredLegalDocument from './RequiredLegalDocument';
+import SocialLink from './SocialLink';
 import Subscription from './Subscription';
 import SuspendedAsset from './SuspendedAsset';
 import Tier from './Tier';
@@ -75,6 +77,8 @@ const models = {
   User: User,
   UserToken: UserToken,
   VirtualCard: VirtualCard,
+  PersonalToken: PersonalToken,
+  SocialLink,
 } as const;
 
 /**
@@ -152,6 +156,10 @@ models.User.belongsTo(models.Collective, {
 // User tokens
 models.UserToken.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
 models.UserToken.belongsTo(models.Application, { foreignKey: 'ApplicationId', as: 'client' });
+
+// Personal tokens
+models.PersonalToken.belongsTo(models.User, { foreignKey: 'UserId', as: 'user' });
+models.PersonalToken.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 
 // Members
 models.Member.belongsTo(models.User, {
@@ -378,6 +386,13 @@ models.VirtualCard.belongsTo(models.User, {
 models.VirtualCard.hasMany(models.Expense, { foreignKey: 'VirtualCardId', as: 'expenses' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'HostCollectiveId', as: 'virtualCards' });
 models.Collective.hasMany(models.VirtualCard, { foreignKey: 'CollectiveId', as: 'virtualCardCollectives' });
+
+// SocialLink
+models.SocialLink.belongsTo(models.Collective, {
+  foreignKey: 'CollectiveId',
+  as: 'collective',
+});
+models.Collective.hasMany(models.SocialLink, { foreignKey: 'CollectiveId', as: 'socialLinks' });
 
 export { sequelize, Op };
 
