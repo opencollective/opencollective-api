@@ -1108,6 +1108,12 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
         expect(creditTransaction.amount).to.equal(expensePlusFees);
 
+        // Check activity
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
+        expect(activities.length).to.equal(1);
+        expect(activities[0].data.host.id).to.equal(host.id);
+        expect(activities[0].TransactionId).to.equal(debitTransaction.id);
+
         // Check sent emails
         await waitForCondition(() => emailSendMessageSpy.callCount === 2);
         expect(emailSendMessageSpy.callCount).to.equal(2);
