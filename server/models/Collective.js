@@ -1261,6 +1261,16 @@ Collective.prototype.deactivateAsHost = async function () {
     );
   }
 
+  const pendingHostApplications = await models.Collective.count({
+    where: { HostCollectiveId: this.id, type: types.COLLECTIVE, isActive: false },
+  });
+
+  if (pendingHostApplications >= 1) {
+    throw new Error(
+      `You can't deactivate hosting while still having ${pendingHostApplications} pending applications. Please contact support: support@opencollective.com.`,
+    );
+  }
+
   // TODO unsubscribe from OpenCollective tier plan.
 
   await this.deactivateBudget();
