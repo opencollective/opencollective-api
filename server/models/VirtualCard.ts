@@ -1,3 +1,4 @@
+import moment from 'moment';
 import type {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -9,7 +10,7 @@ import type {
 
 import VirtualCardProviders from '../constants/virtual_card_providers';
 import { crypto } from '../lib/encryption';
-import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import privacyVirtualCards from '../paymentProviders/privacy';
 import * as stripeVirtualCards from '../paymentProviders/stripe/virtual-cards';
 
@@ -41,7 +42,7 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
 
   async getExpensesMissingDetails(): Promise<Array<any>> {
     return sequelize.models.Expense.findPendingCardCharges({
-      where: { VirtualCardId: this.id },
+      where: { VirtualCardId: this.id, createdAt: { [Op.lte]: moment.utc().subtract(30, 'days') } },
     });
   }
 
