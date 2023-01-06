@@ -295,14 +295,16 @@ export async function checkPersonalToken(req, res, next) {
     const personalToken = await models.PersonalToken.findOne({
       where: {
         token: apiKey || token,
-        [Op.or]: [{ expiresAt: { [Op.is]: null } }, { expiresAt: { [Op.lte]: now } }],
       },
     });
     if (personalToken) {
+      if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
+        debug(`Expired Personal Token (Api Key): ${apiKey || token}`);
+        next(new Unauthorized(`Expired Personal Token (Api Key): ${apiKey || token}`));
+      }
       debug('Valid Personal Token (Api Key)');
-      const minutesSinceLastUpdate = moment.duration(now.diff(moment(personalToken.lastUsedAt))).asMinutes();
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
-      if (!personalToken.lastUsedAt || minutesSinceLastUpdate > 1) {
+      if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
         await personalToken.update({ lastUsedAt: new Date() });
       }
       req.personalToken = personalToken;
