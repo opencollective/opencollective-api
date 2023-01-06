@@ -17,7 +17,7 @@ LOCALDBUSER="opencollective"
 LOCALDBNAME="opencollective_${ENV}_snapshot"
 DBDUMPS_DIR="dbdumps/"
 
-FILENAME="`date +"%Y-%m-%d"`-prod.pgsql"
+FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
 
 if [[ ! -d ${DBDUMPS_DIR} ]]; then
   mkdir -p "${DBDUMPS_DIR}"
@@ -34,7 +34,7 @@ fi
 echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"
 
 echo Restore...
-./scripts/db_restore.sh -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME}
+./scripts/db_restore.sh -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME} --use-postgis
 
 # cool trick: all stdout ignored in this block
 {
