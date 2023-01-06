@@ -2014,7 +2014,6 @@ Collective.prototype.sendNewMemberEmail = async function (user, role, member, se
       recipient: {
         collective: memberUser.collective.activity,
       },
-      loginLink: `${config.host.website}/signin?next=/${memberUser.collective.slug}/admin`,
     },
     { bcc: remoteUser.email },
   );
