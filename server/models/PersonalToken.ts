@@ -15,6 +15,7 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
+  public declare lastUsedAt: CreationOptional<Date>;
   public declare data: Record<string, unknown>;
   public declare CollectiveId: number;
   public declare UserId: ForeignKey<User['id']>;
@@ -26,6 +27,10 @@ class PersonalToken extends Model<InferAttributes<PersonalToken>, InferCreationA
 
   public static generateToken(): string {
     return randomBytes(20).toString('hex');
+  }
+
+  hasScope(scope): boolean {
+    return Boolean(this.scope && this.scope.includes(scope));
   }
 }
 
@@ -80,6 +85,9 @@ PersonalToken.init(
       defaultValue: DataTypes.NOW,
     },
     deletedAt: {
+      type: DataTypes.DATE,
+    },
+    lastUsedAt: {
       type: DataTypes.DATE,
     },
   },

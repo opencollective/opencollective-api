@@ -4,6 +4,7 @@ import config from 'config';
 import debugLib from 'debug';
 import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
+import moment from 'moment';
 import passport from 'passport';
 
 import * as connectedAccounts from '../controllers/connectedAccounts';
@@ -290,11 +291,18 @@ export async function checkPersonalToken(req, res, next) {
   const token = req.get('Personal-Token') || req.query.personalToken;
 
   if (apiKey || token) {
-    const personalToken = await models.PersonalToken.findOne({
-      where: { token: apiKey || token },
-    });
+    const now = moment();
+    const personalToken = await models.PersonalToken.findOne({ where: { token: apiKey || token } });
     if (personalToken) {
+      if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
+        debug(`Expired Personal Token (Api Key): ${apiKey || token}`);
+        next(new Unauthorized(`Expired Personal Token (Api Key): ${apiKey || token}`));
+      }
       debug('Valid Personal Token (Api Key)');
+      // Update lastUsedAt if lastUsedAt older than 1 minute ago
+      if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
+        await personalToken.update({ lastUsedAt: new Date() });
+      }
       req.personalToken = personalToken;
       const collectiveId = personalToken.CollectiveId;
       if (collectiveId) {
