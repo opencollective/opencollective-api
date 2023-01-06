@@ -1022,8 +1022,12 @@ export const getHostFeePercent = async (order, host = null) => {
 
   if (order.paymentMethod.service === 'stripe') {
     // Configurable by the Host globally, at the Collective or Parent level
+    // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
+    // to be removed once we don't have Hosts with `creditCardHostFeePercent`
     possibleValues.push(collective.data?.creditCardHostFeePercent);
     possibleValues.push(parent?.data?.creditCardHostFeePercent);
+    possibleValues.push(collective.data?.stripeHostFeePercent);
+    possibleValues.push(parent?.data?.stripeHostFeePercent);
     // Custom fee is a priority over host custom one
     if (collective.data?.useCustomHostFee) {
       possibleValues.push(collective.hostFeePercent);
@@ -1032,6 +1036,7 @@ export const getHostFeePercent = async (order, host = null) => {
       possibleValues.push(parent?.hostFeePercent);
     }
     possibleValues.push(host.data?.creditCardHostFeePercent);
+    possibleValues.push(host.data?.stripeHostFeePercent);
   }
 
   if (order.paymentMethod.service === 'paypal') {
@@ -1072,8 +1077,11 @@ export const getHostFeeSharePercent = async (order, host = null) => {
     }
 
     // Assign different fees based on the payment provider
-    if (order.paymentMethod?.service === 'stripe' && order.paymentMethod?.type === 'creditcard') {
+    if (order.paymentMethod?.service === 'stripe') {
+      // the setting used to be named `creditCardHostFeeSharePercent` but it's meant to be used for Stripe generally
+      // to be removed once we don't have Hosts with `creditCardHostFeeSharePercent`
       possibleValues.push(plan?.creditCardHostFeeSharePercent);
+      possibleValues.push(plan?.stripeHostFeeSharePercent);
     } else if (order.paymentMethod?.service === 'paypal') {
       possibleValues.push(plan?.paypalHostFeeSharePercent);
     }
