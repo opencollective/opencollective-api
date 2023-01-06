@@ -19,6 +19,13 @@ export type Quote = {
   ofSourceAmount: boolean;
 };
 
+export type ExchangeRate = {
+  source: string;
+  target: string;
+  rate: number;
+  time: string;
+};
+
 export type QuoteV2PaymentOption = {
   disabled: boolean;
   disabledReason?: { message: string };
