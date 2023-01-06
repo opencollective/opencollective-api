@@ -13,7 +13,7 @@ import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import { reportMessageToSentry } from '../lib/sentry';
 import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
-import models, { Op } from '../models';
+import models from '../models';
 import paymentProviders from '../paymentProviders';
 
 const { User, UserToken } = models;
@@ -292,11 +292,7 @@ export async function checkPersonalToken(req, res, next) {
 
   if (apiKey || token) {
     const now = moment();
-    const personalToken = await models.PersonalToken.findOne({
-      where: {
-        token: apiKey || token,
-      },
-    });
+    const personalToken = await models.PersonalToken.findOne({ where: { token: apiKey || token } });
     if (personalToken) {
       if (personalToken.expiresAt && now.diff(moment(personalToken.expiresAt), 'seconds') > 0) {
         debug(`Expired Personal Token (Api Key): ${apiKey || token}`);
