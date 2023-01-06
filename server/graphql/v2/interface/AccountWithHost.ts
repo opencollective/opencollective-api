@@ -61,9 +61,13 @@ export const AccountWithHostFields = {
           possibleValues.push(parent?.hostFeePercent);
         }
         possibleValues.push(host.data?.bankTransfersHostFeePercent);
-      } else if (args.paymentMethodType === 'creditcard') {
+      } else if (args.paymentMethodService === 'stripe') {
+        // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
+        // to be removed once we don't have Hosts with `creditCardHostFeePercent`
         possibleValues.push(account.data?.creditCardHostFeePercent);
         possibleValues.push(parent?.data?.creditCardHostFeePercent);
+        possibleValues.push(account.data?.stripeHostFeePercent);
+        possibleValues.push(parent?.data?.stripeHostFeePercent);
         if (account.data?.useCustomHostFee) {
           possibleValues.push(account.hostFeePercent);
         }
@@ -71,6 +75,7 @@ export const AccountWithHostFields = {
           possibleValues.push(parent?.hostFeePercent);
         }
         possibleValues.push(host.data?.creditCardHostFeePercent);
+        possibleValues.push(host.data?.stripeHostFeePercent);
       } else if (args.paymentMethodService === 'paypal') {
         possibleValues.push(account.data?.paypalHostFeePercent);
         possibleValues.push(parent?.data?.paypalHostFeePercent);
