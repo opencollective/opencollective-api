@@ -583,6 +583,9 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     virtualCardId = get(transaction, 'transaction.card.id', transaction?.card);
   } else if (event.type.startsWith('issuing_card')) {
     virtualCardId = (<Stripe.Issuing.Card>event.data.object).id;
+  } else {
+    logger.warn(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+    return;
   }
 
   if (!virtualCardId) {
@@ -617,6 +620,9 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
       return virtualcard.processTransaction(event);
     case 'issuing_card.updated':
       return virtualcard.processCardUpdate(event);
+    default:
+      logger.warn(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+      return;
   }
 }
 
