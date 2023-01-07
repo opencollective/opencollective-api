@@ -14,6 +14,7 @@ import { Kind } from 'graphql/language';
 import { GraphQLJSON } from 'graphql-type-json';
 
 import { CaptchaInput } from '../v2/input/CaptchaInput';
+import { SocialLinkInput } from '../v2/input/SocialLinkInput';
 
 import { DateString } from './types';
 
@@ -158,6 +159,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     twitterHandle: { type: GraphQLString },
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
     repositoryUrl: { type: GraphQLString },
+    socialLinks: { type: new GraphQLList(new GraphQLNonNull(SocialLinkInput)) },
     description: { type: GraphQLString },
     longDescription: { type: GraphQLString },
     expensePolicy: { type: GraphQLString },

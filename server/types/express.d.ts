@@ -1,5 +1,6 @@
 import DataLoader from 'dataloader';
 
+import PersonalToken from '../models/PersonalToken';
 import User from '../models/User';
 import UserToken from '../models/UserToken';
 
@@ -21,6 +22,7 @@ declare global {
         CollectiveId: number;
       };
       userToken?: UserToken;
+      personalToken?: PersonalToken;
       loaders: Record<string, DataLoader>;
       rawBody?: string;
     }

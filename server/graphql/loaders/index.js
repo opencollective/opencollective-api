@@ -20,7 +20,7 @@ import commentsLoader from './comments';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
-import { buildLoaderForAssociation, sortResults, sortResultsSimple } from './helpers';
+import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
@@ -659,6 +659,21 @@ export const loaders = req => {
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
   context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
   context.loaders.Member.countAdminMembersOfCollective = generateCountAdminMembersOfCollective();
+
+  /** SocialLink */
+  context.loaders.SocialLink.byCollectiveId = new DataLoader(async keys => {
+    const socialLinks = await models.SocialLink.findAll({
+      where: {
+        CollectiveId: { [Op.in]: keys },
+      },
+      order: [
+        ['CollectiveId', 'ASC'],
+        ['order', 'ASC'],
+      ],
+    });
+
+    return sortResultsArray(keys, socialLinks, sl => sl.CollectiveId);
+  });
 
   /** *** Transaction *****/
   context.loaders.Transaction = {

@@ -44,6 +44,7 @@ import { MemberInvitation } from '../object/MemberInvitation';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
+import { SocialLink } from '../object/SocialLink';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
@@ -125,6 +126,12 @@ const accountFieldsDefinition = () => ({
   },
   repositoryUrl: {
     type: GraphQLString,
+  },
+  socialLinks: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+    async resolve(collective, _, req) {
+      return req.loaders.SocialLink.byCollectiveId.load(collective.id);
+    },
   },
   currency: {
     type: GraphQLString,

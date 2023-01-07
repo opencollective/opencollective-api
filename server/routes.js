@@ -49,9 +49,9 @@ export default async app => {
     next();
   });
 
-  app.use('*', authentication.checkClientApp);
+  app.use('*', authentication.checkPersonalToken);
 
-  app.use('*', authentication.authorizeClientApp);
+  app.use('*', authentication.authorizeClient);
 
   // Setup rate limiter
   if (get(config, 'redis.serverUrl')) {
@@ -65,8 +65,8 @@ export default async app => {
       client,
     )({
       lookup: function (req, res, opts, next) {
-        if (req.clientApp) {
-          opts.lookup = 'clientApp.id';
+        if (req.personalToken) {
+          opts.lookup = 'personalToken.id';
           // 100 requests / minute for registered API Key
           opts.total = 100;
           opts.expire = 1000 * 60;
@@ -90,10 +90,10 @@ export default async app => {
       },
       onRateLimited: function (req, res) {
         let message;
-        if (req.clientApp) {
+        if (req.personalToken) {
           message = 'Rate limit exceeded. Contact-us to get higher limits.';
         } else {
-          message = 'Rate limit exceeded. Create an API Key to get higher limits.';
+          message = 'Rate limit exceeded. Create a Personal Token to get higher limits.';
         }
         res.status(429).send({ error: { message } });
       },

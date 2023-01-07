@@ -1,14 +1,16 @@
-import config from 'config';
 import { omit, pick } from 'lodash';
+import type Stripe from 'stripe';
 
 import { activities } from '../../constants';
 import ExpenseStatus from '../../constants/expense_status';
 import ExpenseType from '../../constants/expense_type';
+import VirtualCardProviders from '../../constants/virtual_card_providers';
 import { VirtualCardLimitIntervals } from '../../constants/virtual-cards';
 import logger from '../../lib/logger';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount, StripeCustomToken } from '../../lib/stripe';
 import models from '../../models';
+import VirtualCard from '../../models/VirtualCard';
 import { getOrCreateVendor, getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 export const assignCardToCollective = async (cardNumber, expiryDate, cvv, name, collectiveId, host, userId) => {
@@ -75,7 +77,9 @@ export const createVirtualCard = async (
       spending_limits: [
         {
           amount: limitAmount,
-          interval: limitInterval.toLowerCase(),
+          interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
+            limitInterval.toLowerCase()
+          ),
         },
       ],
     },
@@ -104,14 +108,16 @@ export const updateVirtualCardLimit = async (
       spending_limits: [
         {
           amount: limitAmount,
-          interval: limitInterval.toLowerCase(),
+          interval: <Stripe.Issuing.CardUpdateParams.SpendingControls.SpendingLimit.Interval>(
+            limitInterval.toLowerCase()
+          ),
         },
       ],
     },
   });
 };
 
-const setCardStatus = async (virtualCard, status = 'canceled' | 'active' | 'inactive') => {
+const setCardStatus = async (virtualCard: VirtualCard, status: Stripe.Issuing.CardUpdateParams.Status) => {
   const host = await virtualCard.getHost();
   const stripe = await getStripeClient(host);
 
@@ -130,17 +136,16 @@ export const pauseCard = async virtualCard => setCardStatus(virtualCard, 'inacti
 
 export const resumeCard = async virtualCard => setCardStatus(virtualCard, 'active');
 
-export const processAuthorization = async (stripeAuthorization, stripeEvent) => {
+export const processAuthorization = async (event: Stripe.Event) => {
+  const stripeAuthorization = <Stripe.Issuing.Authorization>event.data.object;
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
-    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
-    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeEvent } });
+    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { event } });
     return;
   }
 
   const host = virtualCard.host;
-
-  await checkStripeEvent(host, stripeEvent);
 
   const existingExpense = await models.Expense.findOne({
     where: {
@@ -232,18 +237,16 @@ export const processAuthorization = async (stripeAuthorization, stripeEvent) => 
   return expense;
 };
 
-export const processDeclinedAuthorization = async (stripeAuthorization, stripeEvent) => {
+export const processDeclinedAuthorization = async (event: Stripe.Event) => {
+  const stripeAuthorization = <Stripe.Issuing.Authorization>event.data.object;
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
-    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
-    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeAuthorization, stripeEvent } });
+    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, event);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeAuthorization, event } });
     return;
   }
 
   const host = virtualCard.host;
-
-  await checkStripeEvent(host, stripeEvent);
-
   const reason = stripeAuthorization.metadata.oc_decline_code
     ? stripeAuthorization.metadata.oc_decline_code
     : stripeAuthorization.request_history[0].reason;
@@ -257,16 +260,18 @@ export const processDeclinedAuthorization = async (stripeAuthorization, stripeEv
   });
 };
 
-export const processTransaction = async (stripeTransaction, stripeEvent) => {
+export const processTransaction = async (event: Stripe.Event) => {
+  const stripeTransaction = <Stripe.Issuing.Transaction>event.data.object;
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
   if (!virtualCard) {
-    logger.error(`Stripe: could not find virtual card ${stripeTransaction.card.id}`, stripeEvent);
-    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeTransaction, stripeEvent } });
+    logger.error(
+      `Stripe: could not find virtual card ${
+        typeof stripeTransaction.card === 'string' ? stripeTransaction.card : stripeTransaction.card.id
+      }`,
+      event,
+    );
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeTransaction, event } });
     return;
-  }
-
-  if (stripeEvent) {
-    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
   const currency = stripeTransaction.currency.toUpperCase();
@@ -286,16 +291,13 @@ export const processTransaction = async (stripeTransaction, stripeEvent) => {
   });
 };
 
-export const processUpdatedTransaction = async (stripeAuthorization, stripeEvent) => {
+export const processUpdatedTransaction = async (event: Stripe.Event) => {
+  const stripeAuthorization = <Stripe.Issuing.Authorization>event.data.object;
   const virtualCard = await getVirtualCardForTransaction(stripeAuthorization.card.id);
   if (!virtualCard) {
-    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, stripeEvent);
-    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeAuthorization, stripeEvent } });
+    logger.error(`Stripe: could not find virtual card ${stripeAuthorization.card.id}`, event);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeAuthorization, event } });
     return;
-  }
-
-  if (stripeEvent) {
-    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
   if (stripeAuthorization.status === 'reversed') {
@@ -309,10 +311,10 @@ export const processUpdatedTransaction = async (stripeAuthorization, stripeEvent
     if (!expense) {
       logger.error(
         `Stripe: could not find expense attached to reversed authorization ${stripeAuthorization.id}`,
-        stripeEvent,
+        event,
       );
       reportMessageToSentry('Stripe: could not find expense attached to reversed authorization', {
-        extra: { stripeAuthorization, stripeEvent },
+        extra: { stripeAuthorization, event },
       });
       return;
     } else if (expense.status !== ExpenseStatus.CANCELED) {
@@ -335,7 +337,7 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
     CollectiveId: collectiveId,
     HostCollectiveId: hostId,
     UserId: userId,
-    provider: 'STRIPE',
+    provider: VirtualCardProviders.STRIPE,
     spendingLimitAmount: stripeCard['spending_controls']['spending_limits'][0]['amount'],
     spendingLimitInterval: stripeCard['spending_controls']['spending_limits'][0]['interval'].toUpperCase(),
     currency: stripeCard.currency.toUpperCase(),
@@ -344,16 +346,13 @@ const createCard = (stripeCard, name, collectiveId, hostId, userId) => {
   return models.VirtualCard.create(cardData);
 };
 
-export const processCardUpdate = async (stripeCard, stripeEvent) => {
+export const processCardUpdate = async (event: Stripe.Event) => {
+  const stripeCard = <Stripe.Issuing.Card>event.data.object;
   const virtualCard = await models.VirtualCard.findByPk(stripeCard.id, { include: ['host'] });
   if (!virtualCard) {
-    logger.error(`Stripe: could not find virtual card ${stripeCard.id}`, stripeEvent);
-    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeCard, stripeEvent } });
+    logger.error(`Stripe: could not find virtual card ${stripeCard.id}`, event);
+    reportMessageToSentry('Stripe: could not find virtual card', { extra: { stripeCard, event } });
     return;
-  }
-
-  if (stripeEvent) {
-    await checkStripeEvent(virtualCard.host, stripeEvent);
   }
 
   await virtualCard.update({
@@ -365,18 +364,7 @@ export const processCardUpdate = async (stripeCard, stripeEvent) => {
   return virtualCard;
 };
 
-const checkStripeEvent = async (host, stripeEvent) => {
-  const stripe = await getStripeClient(host);
-
-  const webhookSigningSecret = await getWebhookSigninSecret(host);
-  try {
-    stripe.webhooks.constructEvent(stripeEvent.rawBody, stripeEvent.signature, webhookSigningSecret);
-  } catch {
-    throw new Error('Source of event not recognized');
-  }
-};
-
-const getStripeClient = async host => {
+export const getStripeClient = async host => {
   if (host.slug === 'opencollective') {
     return stripe;
   }
@@ -386,26 +374,12 @@ const getStripeClient = async host => {
   return StripeCustomToken(connectedAccount.token);
 };
 
-const getWebhookSigninSecret = async host => {
-  // Simply return webhookSigningSecret if set in dev environment
-  if (config.env === 'development' && config.stripe.webhookSigningSecret) {
-    return config.stripe.webhookSigningSecret;
-  }
-
-  // If slug opencollective, return webhookSigningSecret if set (staging, production)
-  if (host.slug === 'opencollective') {
-    if (config.stripe.webhookSigningSecret) {
-      return config.stripe.webhookSigningSecret;
-    }
-    throw new Error('Stripe Platform webhook signing secret not set for Platform');
-  }
-
+export const getWebhookSigninSecret = async host => {
   const connectedAccount = await host.getAccountForPaymentProvider('stripe');
   if (!connectedAccount) {
     throw new Error('Stripe not connected for Host');
   }
 
-  // stripeEndpointSecret is the older form, we should now use webhookSigningSecret which is more consistent
   if (!connectedAccount.data?.webhookSigningSecret && !connectedAccount.data?.stripeEndpointSecret) {
     throw new Error('Stripe Webhook Signin Secret not set for Host');
   }
