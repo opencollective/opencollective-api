@@ -158,21 +158,37 @@ const findOrdersWithErroneousStatus = async (_, commander) => {
   }
 };
 
+const loadSubscription = async paypalSubscriptionId => {
+  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId } });
+  if (!subscription) {
+    [subscription] = await sequelize.query(
+      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
+      {
+        replacements: { paypalSubscriptionId },
+        type: sequelize.QueryTypes.SELECT,
+        mapToModel: true,
+        model: models.Subscription,
+      },
+    );
+
+    if (subscription) {
+      logger.warn(`Found subscription ${paypalSubscriptionId} in SubscriptionHistories (#${subscription.id})`);
+    } else {
+      logger.error(`Could not find subscription ${paypalSubscriptionId}`);
+      return null;
+    }
+  }
+
+  return subscription;
+};
+
 const showSubscriptionDetails = async paypalSubscriptionId => {
   let currentPage = 1;
   let totalPages = 1;
 
   // Try to find the subscription somewhere
-  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId } });
+  const subscription = await loadSubscription(paypalSubscriptionId);
   if (!subscription) {
-    [subscription] = await sequelize.query(
-      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
-      { replacements: { paypalSubscriptionId }, type: sequelize.QueryTypes.SELECT },
-    );
-  }
-
-  if (!subscription) {
-    logger.error(`Could not find subscription ${paypalSubscriptionId}`);
     return;
   }
 
@@ -208,21 +224,8 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
   let totalPages = 1;
 
   // Try to find the subscription somewhere
-  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId }, paranoid: false });
+  const subscription = await loadSubscription(paypalSubscriptionId);
   if (!subscription) {
-    [subscription] = await sequelize.query(
-      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
-      {
-        replacements: { paypalSubscriptionId },
-        type: sequelize.QueryTypes.SELECT,
-        mapToModel: true,
-        model: models.Subscription,
-      },
-    );
-  }
-
-  if (!subscription) {
-    logger.error(`Could not find subscription ${paypalSubscriptionId}`);
     return;
   }
 
