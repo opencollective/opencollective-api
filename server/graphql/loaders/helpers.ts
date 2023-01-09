@@ -127,7 +127,7 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
   } = {},
 ) {
   return new DataLoader<typeof model, AssociatedModel>(
-    async (entities: typeof model[]): Promise<AssociatedModel[]> => {
+    async (entities: (typeof model)[]): Promise<AssociatedModel[]> => {
       const associationInfo = model['associations'][association];
       const associationsByForeignKey: Record<ForeignKeyType, AssociatedModel> = {};
       type ForeignKeyType = typeof associationInfo.foreignKey;
