@@ -1,13 +1,13 @@
 #!/bin/bash
 
 usage() {
-  echo "Usage: db_restore.sh -d DBNAME -U DBUSER -f DBDUMP_FILE";
+  echo "Usage: db_restore.sh -d DBNAME -U DBUSER --use-postgis -f DBDUMP_FILE";
   echo "e.g.";
   echo "> db_restore.sh -d opencollective_dvl -U opencollective -f test/dbdumps/opencollective_dvl.pgsql"
   exit 0;
 }
 
-while [[ $# -gt 1 ]]
+while [[ $# -gt 0 ]]
 do
 key="$1"
 
@@ -19,6 +19,9 @@ case $key in
     -U|--username)
     LOCALDBUSER="$2"
     shift # past argument
+    ;;
+    --use-postgis)
+    USE_POSTGIS=1
     ;;
     -f|--file)
     DBDUMP_FILE="$2"
@@ -54,7 +57,12 @@ dropdb -U postgres -h localhost --if-exists $LOCALDBNAME;
 createdb -U postgres -h localhost $LOCALDBNAME 2> /dev/null
 
 # When restoring old backups, you may need to enable Postgis
-# psql "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
+if [ "$USE_POSTGIS" = "1" ]; then
+  echo "Enabling Postgis"
+  psql "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
+  psql "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
+fi
 
 # cool trick: all stdout ignored in this block
 {
