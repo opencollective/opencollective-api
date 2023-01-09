@@ -158,6 +158,36 @@ const findOrdersWithErroneousStatus = async (_, commander) => {
   }
 };
 
+const loadSubscription = async paypalSubscriptionId => {
+  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId } });
+  if (!subscription) {
+    [subscription] = await sequelize.query(
+      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
+      {
+        replacements: { paypalSubscriptionId },
+        type: sequelize.QueryTypes.SELECT,
+        mapToModel: true,
+        model: models.Subscription,
+      },
+    );
+
+    if (subscription) {
+      logger.warn(`Found subscription ${paypalSubscriptionId} in SubscriptionHistories (#${subscription.id})`);
+    } else {
+      logger.error(`Could not find subscription ${paypalSubscriptionId}`);
+      return null;
+    }
+  }
+
+  return subscription;
+};
+
+const getHostFromSubscription = async subscription => {
+  const order = await models.Order.findOne({ where: { SubscriptionId: subscription.id } });
+  const collective = await order?.getCollective();
+  return models.Collective.findByPk(collective.HostCollectiveId);
+};
+
 const showSubscriptionDetails = async paypalSubscriptionId => {
   let currentPage = 1;
   let totalPages = 1;
@@ -177,9 +207,7 @@ const showSubscriptionDetails = async paypalSubscriptionId => {
   }
 
   // Load host from subscription
-  const order = await models.Order.findOne({ where: { SubscriptionId: subscription.id } });
-  const collective = await order?.getCollective();
-  const host = await collective?.getHostCollective();
+  const host = await getHostFromSubscription(subscription);
   if (!host) {
     logger.error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
     return;
@@ -239,7 +267,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
     return;
   }
 
-  const host = await order.collective?.getHostCollective({ paranoid: false });
+  const host = await getHostFromSubscription(subscription);
   if (!host || host.deletedAt) {
     logger.error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
     return;
@@ -289,8 +317,10 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       );
 
       for (const paypalTransaction of notRecordedPaypalTransactions) {
+        const amount = get(paypalTransaction, 'amount_with_breakdown.gross_amount');
+        const amountStr = amount ? `${amount['currency_code']} ${amount['value']}` : '~';
         console.log(
-          `PayPal transaction ${paypalTransaction.id} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB`,
+          `PayPal transaction ${paypalTransaction.id} ${amountStr} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB`,
         );
         if (options['fix']) {
           await recordPaypalTransaction(order, paypalTransaction, {
@@ -332,6 +362,22 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       console.log(`Subscription ${paypalSubscriptionId} reconciled`);
     }
   } while (currentPage++ < totalPages);
+};
+
+const cancelSubscription = async (paypalSubscriptionId: string, reason: string, _, commander) => {
+  const options = commander.optsWithGlobals();
+  const subscription = await loadSubscription(paypalSubscriptionId);
+  if (!subscription) {
+    return;
+  } else if (!subscription.isActive) {
+    console.log(`Subscription ${paypalSubscriptionId} is already inactive`);
+  } else if (options['run']) {
+    console.log(`Canceling subscription ${paypalSubscriptionId} because: ${reason}`);
+    const host = await getHostFromSubscription(subscription);
+    await subscription.deactivate(reason, host);
+  } else {
+    console.log(`Would have cancelled subscription ${paypalSubscriptionId} because: ${reason}. Use --run to do it.`);
+  }
 };
 
 const findOrphanSubscriptions = async (_, commander) => {
@@ -573,6 +619,7 @@ const main = async () => {
   program.command('orphan-subscriptions').option('--fix').action(findOrphanSubscriptions);
   program.command('subscription-details <subscriptionId>').action(showSubscriptionDetails);
   program.command('subscription <subscriptionId>').option('--fix').action(reconcileSubscription);
+  program.command('cancel <subscriptionId> <reason>').option('--run').action(cancelSubscription);
 
   // Parse arguments
   await program.parseAsync();

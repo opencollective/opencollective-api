@@ -115,18 +115,25 @@ export const recordPaypalCapture = async (
  */
 export async function findTransactionByPaypalId(
   paypalTransactionId: string,
-  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined } = {},
+  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined, searchSaleIdOnly = false } = {},
 ) {
+  const dataQuery = {};
+  const include = [];
+  if (searchSaleIdOnly) {
+    dataQuery['paypalSale'] = { id: paypalTransactionId };
+    include.push({ model: models.PaymentMethod, where: { service: 'paypal' } });
+  } else {
+    dataQuery[Op.or] = [
+      { capture: { id: paypalTransactionId } },
+      { paypalSale: { id: paypalTransactionId } },
+      { paypalTransaction: { id: paypalTransactionId } },
+    ];
+  }
+
   return models.Transaction.findOne({
     where: {
       ...pickBy({ type, HostCollectiveId, OrderId }, value => !isUndefined(value)),
-      data: {
-        [Op.or]: [
-          { capture: { id: paypalTransactionId } },
-          { paypalSale: { id: paypalTransactionId } },
-          { paypalTransaction: { id: paypalTransactionId } },
-        ],
-      },
+      data: dataQuery,
     },
   });
 }
