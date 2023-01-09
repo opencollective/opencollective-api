@@ -11,7 +11,7 @@ import {
 } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
-import { cloneDeep, isNull, omitBy, set } from 'lodash';
+import { cloneDeep, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
@@ -444,7 +444,7 @@ const accountMutations = {
 
       // Merge submitted policies with existing ones
       const previousPolicies = account.data?.policies;
-      const newPolicies = omitBy({ ...previousPolicies, ...args.policies }, isNull);
+      const newPolicies = { ...previousPolicies, ...args.policies };
 
       // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
       if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
