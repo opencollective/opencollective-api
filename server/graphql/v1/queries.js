@@ -251,6 +251,7 @@ const queries = {
 
   Application: {
     type: ApplicationType,
+    deprecationReason: '2023-01-03: Please use PersonalToken from GQLV2',
     args: {
       id: { type: GraphQLInt },
     },

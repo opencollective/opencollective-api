@@ -19,6 +19,7 @@ const ApplicationTypeType = new GraphQLEnumType({
 export const ApplicationType = new GraphQLObjectType({
   name: 'Application',
   description: 'Application model',
+  deprecationReason: '2023-01-03: Depreciated in favor of Personal token. See in GraphQL v2.',
   fields: () => {
     return {
       id: {

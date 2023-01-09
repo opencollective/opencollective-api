@@ -323,6 +323,7 @@ const mutations = {
   },
   createApplication: {
     type: ApplicationType,
+    deprecationReason: '2023-01-03: Please use createPersonalToken from GQLV2',
     args: {
       application: {
         type: new GraphQLNonNull(ApplicationInputType),
@@ -334,6 +335,7 @@ const mutations = {
   },
   deleteApplication: {
     type: ApplicationType,
+    deprecationReason: '2023-01-03: Please use deletePersonalToken from GQLV2',
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLInt),
