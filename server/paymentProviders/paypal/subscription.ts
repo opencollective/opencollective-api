@@ -1,5 +1,4 @@
 import config from 'config';
-import { pick } from 'lodash';
 import moment from 'moment';
 
 import INTERVALS from '../../constants/intervals';
@@ -203,11 +202,6 @@ export const setupPaypalSubscriptionForOrder = async (
   const hostCollective = await order.collective.getHostCollective();
   const existingSubscription = order.SubscriptionId && (await order.getSubscription());
   const paypalSubscriptionId = paymentMethod.token;
-  const initialSubscriptionParams = pick(existingSubscription?.dataValues, [
-    'isManagedExternally',
-    'stripeSubscriptionId',
-    'paypalSubscriptionId',
-  ]);
 
   // TODO handle case where a payment arrives on a cancelled subscription
   // TODO refactor payment method to PayPal<>Subscription
@@ -217,36 +211,22 @@ export const setupPaypalSubscriptionForOrder = async (
     await verifySubscription(order, newPaypalSubscription);
     await paymentMethod.update({ name: newPaypalSubscription.subscriber['email_address'] });
 
-    if (existingSubscription) {
-      // Cancel existing PayPal subscription
-      if (existingSubscription.paypalSubscriptionId) {
-        await cancelPaypalSubscription(order, CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON);
-      }
-
-      // Update the subscription with the new params
-      await existingSubscription.update({
-        isManagedExternally: true,
-        stripeSubscriptionId: null,
-        paypalSubscriptionId,
-      });
-    } else {
-      await createSubscription(order, paypalSubscriptionId);
+    // Cancel existing subscription
+    if (existingSubscription?.paypalSubscriptionId) {
+      await existingSubscription.deactivate(CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON, hostCollective);
     }
+
+    // Create new subscription in DB
+    await createSubscription(order, paypalSubscriptionId);
   } catch (e) {
     logger.error(`[PayPal] Error while creating subscription: ${e}`);
     reportErrorToSentry(e);
-
-    // Restore the initial subscription
-    if (existingSubscription) {
-      await existingSubscription.update(initialSubscriptionParams);
-    }
-
     const error = new Error('Failed to configure PayPal subscription');
     error['rootException'] = e;
     throw error;
   }
 
-  // Activate the subscription and update the order
+  // Activate the subscription on PayPal and update the order
   try {
     await paypalRequest(`billing/subscriptions/${paypalSubscriptionId}/activate`, null, hostCollective, 'POST');
     if (order.PaymentMethodId !== paymentMethod.id) {
