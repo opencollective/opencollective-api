@@ -573,7 +573,7 @@ async function paymentMethodAttached(event: Stripe.Event) {
  * This will be deprecated and unified when these events are migrated to the connect webhook.
  */
 async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
-  let event = <Stripe.Event>request.body;
+  const event = <Stripe.Event>request.body;
 
   let virtualCardId;
   if (event.type.startsWith('issuing_authorization')) {
@@ -597,11 +597,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
 
   try {
-    event = stripeClient.webhooks.constructEvent(
-      request.rawBody,
-      request.headers['stripe-signature'],
-      webhookSigningSecret,
-    );
+    stripeClient.webhooks.constructEvent(request.rawBody, request.headers['stripe-signature'], webhookSigningSecret);
   } catch {
     throw new Error('Source of event not recognized');
   }
