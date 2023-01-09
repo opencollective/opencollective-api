@@ -260,8 +260,7 @@ export const processDeclinedAuthorization = async (event: Stripe.Event) => {
   });
 };
 
-export const processTransaction = async (event: Stripe.Event) => {
-  const stripeTransaction = <Stripe.Issuing.Transaction>event.data.object;
+export const processTransaction = async (stripeTransaction: Stripe.Issuing.Transaction) => {
   const virtualCard = await getVirtualCardForTransaction(stripeTransaction.card);
   if (!virtualCard) {
     logger.error(
