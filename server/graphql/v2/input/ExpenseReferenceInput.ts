@@ -60,7 +60,7 @@ const fetchExpenseWithReference = async (
 const fetchExpensesWithReferences = async (
   inputs: Record<string, unknown>[],
   opts: { throwIfMissing?: boolean; include?: Includeable } = {},
-): Promise<typeof models.Expense[]> => {
+): Promise<(typeof models.Expense)[]> => {
   if (inputs.length === 0) {
     return [];
   }

@@ -6,7 +6,7 @@ import models, { sequelize } from '../../models';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
   return new DataLoader(
-    async (collectives: typeof models.Collective[]) => {
+    async (collectives: (typeof models.Collective)[]) => {
       const [userCollectives, otherCollectives] = partition(collectives, collective => collective.type === 'USER');
       const queries = [];
 

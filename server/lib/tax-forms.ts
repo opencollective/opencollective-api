@@ -17,7 +17,7 @@ import { isEmailInternal } from './utils';
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
  * @param {number} year
  */
-export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<typeof models.Collective[]> {
+export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<(typeof models.Collective)[]> {
   const collectiveIds = await queries.getTaxFormsRequiredForAccounts(null, year);
   if (!collectiveIds.size) {
     return [];

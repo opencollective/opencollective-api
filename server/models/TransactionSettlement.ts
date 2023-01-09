@@ -37,7 +37,7 @@ class TransactionSettlement extends Model<
 
   // ---- Static methods ----
 
-  static async getAccountsWithOwedSettlements(): Promise<typeof Collective[]> {
+  static async getAccountsWithOwedSettlements(): Promise<(typeof Collective)[]> {
     return sequelize.query(
       `
         SELECT c.*
@@ -63,7 +63,7 @@ class TransactionSettlement extends Model<
   static async getHostDebts(
     hostId: number,
     settlementStatus: TransactionSettlementStatus = undefined,
-  ): Promise<typeof Transaction[]> {
+  ): Promise<(typeof Transaction)[]> {
     return sequelize.query(
       `
         SELECT t.*, ts.status as "settlementStatus"
@@ -100,7 +100,7 @@ class TransactionSettlement extends Model<
    * Update
    */
   static async updateTransactionsSettlementStatus(
-    transactions: typeof Transaction[],
+    transactions: (typeof Transaction)[],
     status: TransactionSettlementStatus,
     expenseId: number = undefined,
   ): Promise<void> {
@@ -119,7 +119,7 @@ class TransactionSettlement extends Model<
     });
   }
 
-  static async markTransactionsAsInvoiced(transactions: typeof Transaction[], expenseId: number): Promise<void> {
+  static async markTransactionsAsInvoiced(transactions: (typeof Transaction)[], expenseId: number): Promise<void> {
     return TransactionSettlement.updateTransactionsSettlementStatus(
       transactions,
       TransactionSettlementStatus.INVOICED,
@@ -159,7 +159,7 @@ class TransactionSettlement extends Model<
     });
   }
 
-  static async attachStatusesToTransactions(transactions: typeof Transaction[]): Promise<void> {
+  static async attachStatusesToTransactions(transactions: (typeof Transaction)[]): Promise<void> {
     const debts = transactions.filter(t => t.isDebt);
     const where = { [Op.or]: debts.map(t => ({ TransactionGroup: t.TransactionGroup, kind: t.kind })) };
     const settlements = await TransactionSettlement.findAll({ where });

@@ -5,7 +5,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import models, { Op } from '../../models';
 
 export const generateHostFeeAmountForTransactionLoader = (): DataLoader<number, number[]> =>
-  new DataLoader(async (transactions: typeof models.Transaction[]) => {
+  new DataLoader(async (transactions: (typeof models.Transaction)[]) => {
     const transactionsWithoutHostFee = transactions.filter(transaction => {
       // Legacy transactions have their host fee set on `hostFeeInHostCurrency`. No need to fetch for them
       // Also only contributions and added funds can have host fees
@@ -45,9 +45,9 @@ export const generateHostFeeAmountForTransactionLoader = (): DataLoader<number, 
 
 export const generateRelatedTransactionsLoader = (): DataLoader<
   typeof models.Transaction,
-  typeof models.Transaction[]
+  (typeof models.Transaction)[]
 > =>
-  new DataLoader(async (transactions: typeof models.Transaction[]) => {
+  new DataLoader(async (transactions: (typeof models.Transaction)[]) => {
     const transactionGroups = transactions.map(transaction => transaction.TransactionGroup);
     const relatedTransactions = await models.Transaction.findAll({ where: { TransactionGroup: transactionGroups } });
     const groupedTransactions = groupBy(relatedTransactions, 'TransactionGroup');

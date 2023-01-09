@@ -2211,7 +2211,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
  */
 export const moveExpenses = async (
   req: express.Request,
-  expenses: typeof models.Expense[],
+  expenses: (typeof models.Expense)[],
   destinationAccount: typeof models.Collective,
 ) => {
   // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere

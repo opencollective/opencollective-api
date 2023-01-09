@@ -17,7 +17,7 @@ import { PayoutItemDetails } from '../../types/paypal';
 
 const providerName = 'paypal';
 
-export const payExpensesBatch = async (expenses: typeof models.Expense[]): Promise<typeof models.Expense[]> => {
+export const payExpensesBatch = async (expenses: (typeof models.Expense)[]): Promise<(typeof models.Expense)[]> => {
   const [firstExpense] = expenses;
   const isSameHost = expenses.every(
     e =>
@@ -162,7 +162,7 @@ export const checkBatchItemStatus = async (
   return expense;
 };
 
-export const checkBatchStatus = async (batch: typeof models.Expense[]): Promise<typeof models.Expense[]> => {
+export const checkBatchStatus = async (batch: (typeof models.Expense)[]): Promise<(typeof models.Expense)[]> => {
   const [firstExpense] = batch;
   const host = await firstExpense.collective.getHostCollective();
   if (!host) {

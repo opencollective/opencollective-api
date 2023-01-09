@@ -111,7 +111,7 @@ export const templateNames = [
   'virtualcard.purchase',
 ] as const;
 
-export type EmailTemplates = typeof templateNames[number];
+export type EmailTemplates = (typeof templateNames)[number];
 
 const templatesPath = `${__dirname}/../../templates`;
 
