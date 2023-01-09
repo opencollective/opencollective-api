@@ -613,7 +613,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     case 'issuing_authorization.updated':
       return virtualcard.processUpdatedTransaction(event);
     case 'issuing_transaction.created':
-      return virtualcard.processTransaction(event);
+      return virtualcard.processTransaction(<Stripe.Issuing.Transaction>event.data.object);
     case 'issuing_card.updated':
       return virtualcard.processCardUpdate(event);
     default:
