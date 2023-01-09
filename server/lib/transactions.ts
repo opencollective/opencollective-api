@@ -250,8 +250,8 @@ export async function createTransactionsForManuallyPaidExpense(
       'Expense currency must be the same as collective currency',
     );
     amounts.hostCurrencyFxRate = expense.amount / grossAmount;
-    amounts.amount = amounts.amount * amounts.hostCurrencyFxRate;
-    amounts.netAmountInCollectiveCurrency = amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate;
+    amounts.amount = round(amounts.amount * amounts.hostCurrencyFxRate);
+    amounts.netAmountInCollectiveCurrency = round(amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate);
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
