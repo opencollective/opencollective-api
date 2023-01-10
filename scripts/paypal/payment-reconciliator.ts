@@ -310,24 +310,24 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       console.log(
         `Order #${order.id} has ${dbTransactions.length} transactions in DB but ${paypalTransactions.length} in PayPal`,
       );
+    }
 
-      const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.id === id);
-      const notRecordedPaypalTransactions = paypalTransactions.filter(
-        paypalTransaction => !hasPayPalSaleId(paypalTransaction.id),
+    const hasPayPalSaleId = id => dbTransactions.find(dbTransaction => dbTransaction.data?.paypalSale?.id === id);
+    const notRecordedPaypalTransactions = paypalTransactions.filter(
+      paypalTransaction => !hasPayPalSaleId(paypalTransaction.id),
+    );
+
+    for (const paypalTransaction of notRecordedPaypalTransactions) {
+      const amount = get(paypalTransaction, 'amount_with_breakdown.gross_amount');
+      const amountStr = amount ? `${amount['currency_code']} ${amount['value']}` : '~';
+      console.log(
+        `PayPal transaction ${paypalTransaction.id} ${amountStr} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB`,
       );
-
-      for (const paypalTransaction of notRecordedPaypalTransactions) {
-        const amount = get(paypalTransaction, 'amount_with_breakdown.gross_amount');
-        const amountStr = amount ? `${amount['currency_code']} ${amount['value']}` : '~';
-        console.log(
-          `PayPal transaction ${paypalTransaction.id} ${amountStr} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB`,
-        );
-        if (options['fix']) {
-          await recordPaypalTransaction(order, paypalTransaction, {
-            data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
-            createdAt: new Date(paypalTransaction['time'] as string),
-          });
-        }
+      if (options['fix']) {
+        await recordPaypalTransaction(order, paypalTransaction, {
+          data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
+          createdAt: new Date(paypalTransaction['time'] as string),
+        });
       }
     }
 
