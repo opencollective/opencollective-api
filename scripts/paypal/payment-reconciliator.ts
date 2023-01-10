@@ -185,6 +185,11 @@ const loadSubscription = async paypalSubscriptionId => {
 const getHostFromSubscription = async subscription => {
   const order = await models.Order.findOne({ where: { SubscriptionId: subscription.id } });
   const collective = await order?.getCollective();
+  if (!collective.HostCollectiveId) {
+    logger.error(`Looks like the collective for subscription (#${subscription.id}) was unhosted`);
+    return;
+  }
+
   return models.Collective.findByPk(collective.HostCollectiveId);
 };
 
@@ -305,7 +310,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       where: { type: 'CREDIT', kind: 'CONTRIBUTION' },
       order: [['createdAt', 'ASC']],
     });
-    const paypalTransactions = responseTransactions['transactions'] as Record<string, unknown>[];
+    const paypalTransactions = (responseTransactions['transactions'] as Record<string, unknown>[]) || [];
     if (dbTransactions.length !== paypalTransactions.length) {
       console.log(
         `Order #${order.id} has ${dbTransactions.length} transactions in DB but ${paypalTransactions.length} in PayPal`,

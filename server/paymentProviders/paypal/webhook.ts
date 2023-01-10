@@ -270,7 +270,7 @@ async function handleSubscriptionCancelled(req: Request): Promise<void> {
     return;
   }
 
-  const result = await loadSubscriptionForWebhookEvent(req, subscription.id);
+  const result = await loadSubscriptionForWebhookEvent(req, subscription.id, { throwIfMissing: false });
   if (!result) {
     // It's fine to ignore this event: if we can't find the subscription, it's probably because it was
     // already updated with a new plan or payment method. We still log it for debugging purposes.
