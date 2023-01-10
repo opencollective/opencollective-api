@@ -330,6 +330,11 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.EXPENSE_COMMENT_CREATED: {
       const { collective } = await populateCommentActivity(activity);
+      const HostCollectiveId = await collective.getHostCollectiveId();
+      const hostCollective = await models.Collective.findByPk(HostCollectiveId);
+      if (hostCollective) {
+        activity.data.hostCollective = hostCollective.info;
+      }
       activity.data.expense = await models.Expense.findByPk(activity.ExpenseId);
       activity.data.expense = activity.data.expense.info;
       activity.data.UserId = activity.data.expense.UserId;
@@ -342,7 +347,6 @@ export const notifyByEmail = async (activity: Activity) => {
       });
 
       // Notify the admins of the host (if any)
-      const HostCollectiveId = await collective.getHostCollectiveId();
       if (HostCollectiveId) {
         await notify.collective(activity, {
           from: config.email.noReply,
