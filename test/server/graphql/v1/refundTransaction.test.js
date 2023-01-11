@@ -30,6 +30,7 @@ const snapshotTransactionsForRefund = async transactions => {
     'amount',
     'paymentProcessorFeeInHostCurrency',
     'platformFeeInHostCurrency',
+    'taxAmount',
     'netAmountInCollectiveCurrency',
   ];
 
@@ -69,6 +70,7 @@ async function setupTestObjects(currency = 'USD') {
     CreatedByUserId: user.id,
     FromCollectiveId: user.CollectiveId,
     CollectiveId: collective.id,
+    taxAmount: 75,
     PaymentMethodId: paymentMethod.id,
   });
   /* eslint-disable camelcase */
@@ -109,6 +111,7 @@ async function setupTestObjects(currency = 'USD') {
     type: constants.TransactionTypes.CREDIT,
     OrderId: order.id,
     amount: order.totalAmount,
+    taxAmount: order.taxAmount,
     currency: order.currency,
     hostCurrency: balanceTransaction.currency,
     amountInHostCurrency: convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount),
@@ -261,7 +264,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       const { user, collective, host, transaction } = await setupTestObjects();
 
       // Balance pre-refund
-      expect(await collective.getBalance()).to.eq(4075);
+      expect(await collective.getBalance()).to.eq(4000);
 
       // When the above transaction is refunded
       const result = await utils.graphqlQuery(refundTransactionMutation, { id: transaction.id }, host);
@@ -302,8 +305,9 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr1.type).to.equal('DEBIT');
       expect(tr1.FromCollectiveId).to.equal(collective.id);
       expect(tr1.CollectiveId).to.equal(user.CollectiveId);
-      expect(tr1.amount).to.equal(-4575);
-      expect(tr1.amountInHostCurrency).to.equal(-4575);
+      expect(tr1.amount).to.equal(-4500);
+      expect(tr1.taxAmount).to.equal(-75);
+      expect(tr1.amountInHostCurrency).to.equal(-4500);
       expect(tr1.platformFeeInHostCurrency).to.equal(-250);
       expect(tr1.hostFeeInHostCurrency).to.equal(0);
       expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
@@ -315,11 +319,12 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr2.FromCollectiveId).to.equal(user.CollectiveId);
       expect(tr2.CollectiveId).to.equal(collective.id);
       expect(tr2.amount).to.equal(5000);
+      expect(tr2.taxAmount).to.equal(-75);
       expect(tr2.amountInHostCurrency).to.equal(5000);
       expect(tr2.platformFeeInHostCurrency).to.equal(-250);
       expect(tr2.hostFeeInHostCurrency).to.equal(0);
       expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
-      expect(tr2.netAmountInCollectiveCurrency).to.equal(4575);
+      expect(tr2.netAmountInCollectiveCurrency).to.equal(4500);
       expect(tr2.RefundTransactionId).to.equal(tr3.id);
 
       // 3. Refund Collective Ledger
@@ -330,8 +335,9 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr3.hostFeeInHostCurrency).to.equal(0);
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr3.amount).to.equal(-5000);
+      expect(tr3.taxAmount).to.equal(75);
       expect(tr3.amountInHostCurrency).to.equal(-5000);
-      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4750);
+      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4675);
       expect(tr3.RefundTransactionId).to.equal(tr2.id);
       expect(processorFeeRefund).to.exist;
       expect(processorFeeRefund.amount).to.eq(175);
@@ -347,8 +353,9 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr4.hostFeeInHostCurrency).to.equal(0);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
-      expect(tr4.amount).to.equal(4750);
-      expect(tr4.amountInHostCurrency).to.equal(4750);
+      expect(tr4.amount).to.equal(4675);
+      expect(tr4.taxAmount).to.equal(75);
+      expect(tr4.amountInHostCurrency).to.equal(4675);
       expect(tr4.RefundTransactionId).to.equal(tr1.id);
     });
   }); /* describe("Stripe Transaction - for hosts created before September 17th 2017") */
@@ -404,8 +411,8 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr1.type).to.equal('DEBIT');
       expect(tr1.FromCollectiveId).to.equal(collective.id);
       expect(tr1.CollectiveId).to.equal(user.CollectiveId);
-      expect(tr1.amount).to.equal(-4575);
-      expect(tr1.amountInHostCurrency).to.equal(-4575);
+      expect(tr1.amount).to.equal(-4500);
+      expect(tr1.amountInHostCurrency).to.equal(-4500);
       expect(tr1.platformFeeInHostCurrency).to.equal(-250);
       expect(tr1.hostFeeInHostCurrency).to.equal(0);
       expect(tr1.paymentProcessorFeeInHostCurrency).to.equal(-175);
@@ -421,7 +428,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr2.platformFeeInHostCurrency).to.equal(-250);
       expect(tr2.hostFeeInHostCurrency).to.equal(0);
       expect(tr2.paymentProcessorFeeInHostCurrency).to.equal(-175);
-      expect(tr2.netAmountInCollectiveCurrency).to.equal(4575);
+      expect(tr2.netAmountInCollectiveCurrency).to.equal(4500);
       expect(tr2.RefundTransactionId).to.equal(tr3.id);
 
       // 3. Refund Collective Ledger
@@ -433,7 +440,7 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr3.paymentProcessorFeeInHostCurrency).to.equal(0);
       expect(tr3.amount).to.equal(-5000);
       expect(tr3.amountInHostCurrency).to.equal(-5000);
-      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4750);
+      expect(tr3.netAmountInCollectiveCurrency).to.equal(-4675);
       expect(tr3.RefundTransactionId).to.equal(tr2.id);
 
       // 4. Refund User Ledger
@@ -443,8 +450,8 @@ describe('server/graphql/v1/refundTransaction', () => {
       expect(tr4.platformFeeInHostCurrency).to.equal(250);
       expect(tr4.hostFeeInHostCurrency).to.equal(0);
       expect(tr4.paymentProcessorFeeInHostCurrency).to.equal(0);
-      expect(tr4.amount).to.equal(4750);
-      expect(tr4.amountInHostCurrency).to.equal(4750);
+      expect(tr4.amount).to.equal(4675);
+      expect(tr4.amountInHostCurrency).to.equal(4675);
       expect(tr4.netAmountInCollectiveCurrency).to.equal(5000);
       expect(tr4.RefundTransactionId).to.equal(tr1.id);
     }

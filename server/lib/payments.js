@@ -26,7 +26,6 @@ import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budg
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
-import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { getEditRecurringContributionsUrl } from './url-utils';
 import { formatCurrency, toIsoDateStr } from './utils';
@@ -170,6 +169,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'hostFeeInHostCurrency',
     'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
+    'taxAmount',
     'data.hasPlatformTip',
     'data.isFeesOnTop', // deprecated form, replaced by hasPlatformTip
     'data.tax',
@@ -189,11 +189,12 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
   refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
   refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
+  refund.taxAmount = -refund.taxAmount;
 
   /* Amount fields. Must be calculated after tweaking all the fees */
   refund.amount = -t.amount;
   refund.amountInHostCurrency = -t.amountInHostCurrency;
-  refund.netAmountInCollectiveCurrency = -netAmount(t);
+  refund.netAmountInCollectiveCurrency = -models.Transaction.calculateNetAmountInCollectiveCurrency(t);
   refund.isRefund = true;
 
   // We're handling host fees in separate transactions
@@ -225,7 +226,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   }
 
   // Re-compute the net amount
-  refund.netAmountInCollectiveCurrency = netAmount(refund);
+  refund.netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency(refund);
 
   return refund;
 };

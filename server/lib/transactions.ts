@@ -8,7 +8,7 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
-import models, { Op, sequelize } from '../models';
+import models, { Op } from '../models';
 import Tier from '../models/Tier';
 
 import { getFxRate } from './currency';
@@ -303,6 +303,7 @@ const computeExpenseTaxes = (expense): number | null => {
 };
 
 /**
+ * @deprecated Use Transaction.calculateNetAmountInHostCurrency
  * Calculate net amount of a transaction in the currency of the collective
  * Notes:
  * - fees are negative numbers
@@ -315,6 +316,7 @@ export function netAmount(tr) {
 }
 
 /**
+ * @deprecated user Transaction.verify
  * Verify net amount of a transaction
  */
 export function verify(tr) {
@@ -344,24 +346,6 @@ export function verify(tr) {
  * & netAmountInCollectiveCurrency */
 export function difference(tr) {
   return netAmount(tr) - tr.netAmountInCollectiveCurrency;
-}
-
-/** Returnt he sum of transaction rows that match search.
- *
- * @param {Object} where is an object that contains all the fields
- *  that you want to use to narrow down the search against the
- *  transactions table. For example, if you want to sum up the
- *  donations of a user to a specific collective, use the following:
- * @example
- *  > const babel = await models.Collectives.findOne({ slug: 'babel' });
- *  > libransactions.sum({ FromCollectiveId: userCollective.id, CollectiveId: babel.id })
- * @return the sum of the column `amount`.
- */
-export async function sum(where) {
-  const totalAttr = sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0);
-  const attributes = [[totalAttr, 'total']];
-  const result = await models.Transaction.findOne({ attributes, where });
-  return result.dataValues.total;
 }
 
 const kindStrings = {

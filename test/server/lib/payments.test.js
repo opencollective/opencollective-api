@@ -355,6 +355,7 @@ describe('server/lib/payments', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 250,
         platformFeeInHostCurrency: 250,
+        taxAmount: 100,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
         data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
@@ -388,6 +389,7 @@ describe('server/lib/payments', () => {
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
       expect(creditRefundTransaction.kind).to.equal('CONTRIBUTION');
+      expect(creditRefundTransaction.taxAmount).to.equal(100); // Taxes are always fully refunded, so it's a positive value
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
@@ -395,6 +397,7 @@ describe('server/lib/payments', () => {
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
       expect(debitRefundTransaction.kind).to.equal('CONTRIBUTION');
+      expect(debitRefundTransaction.taxAmount).to.equal(100);
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {

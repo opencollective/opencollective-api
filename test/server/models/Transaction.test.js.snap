@@ -2,12 +2,12 @@
 
 exports[`server/models/Transaction createFromContributionPayload creates a double entry transaction for a Stripe payment in EUR with VAT 1`] = `
 "
-| kind         | type   | netAmountInCollectiveCurrency | currency | Host | platformFee | paymentFee | taxAmount | amount | description                              |
-| ------------ | ------ | ----------------------------- | -------- | ---- | ----------- | ---------- | --------- | ------ | ---------------------------------------- |
-| HOST_FEE     | DEBIT  | -500                          | EUR      | #2   | 0           | 0          |           | -500   | Host Fee                                 |
-| HOST_FEE     | CREDIT | 500                           | EUR      | #2   | 0           | 0          |           | 500    | Host Fee                                 |
-| CONTRIBUTION | DEBIT  | -12100                        | EUR      | NULL | -500        | -300       | -2100     | -9200  | €121 for Vegan Burgers including €21 VAT |
-| CONTRIBUTION | CREDIT | 9200                          | EUR      | #2   | -500        | -300       | -2100     | 12100  | €121 for Vegan Burgers including €21 VAT |"
+| kind         | type   | netAmountInCollectiveCurrency | currency | Host | platformFee | paymentFee | tax   | amount | description                              |
+| ------------ | ------ | ----------------------------- | -------- | ---- | ----------- | ---------- | ----- | ------ | ---------------------------------------- |
+| HOST_FEE     | DEBIT  | -500                          | EUR      | #2   | 0           | 0          |       | -500   | Host Fee                                 |
+| HOST_FEE     | CREDIT | 500                           | EUR      | #2   | 0           | 0          |       | 500    | Host Fee                                 |
+| CONTRIBUTION | DEBIT  | -12100                        | EUR      | NULL | -500        | -300       | -2100 | -9200  | €121 for Vegan Burgers including €21 VAT |
+| CONTRIBUTION | CREDIT | 9200                          | EUR      | #2   | -500        | -300       | -2100 | 12100  | €121 for Vegan Burgers including €21 VAT |"
 `;
 
 exports[`server/models/Transaction fees on top should create an additional pair of transactions between contributor and Open Collective Inc 1`] = `
