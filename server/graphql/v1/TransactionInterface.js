@@ -259,9 +259,9 @@ const TransactionFields = () => {
           return;
         }
 
-        const [collective, fromCollective] = await Promise.all([
-          req.loaders.Collective.byId.load(transaction.CollectiveId),
-          req.loaders.Collective.byId.load(transaction.FromCollectiveId),
+        const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+          transaction.CollectiveId,
+          transaction.FromCollectiveId,
         ]);
 
         if (fromCollective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
