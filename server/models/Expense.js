@@ -318,6 +318,7 @@ Expense.prototype.createActivity = async function (type, user, data) {
     FromCollectiveId: this.FromCollectiveId,
     HostCollectiveId: host?.id,
     ExpenseId: this.id,
+    TransactionId: transaction?.id,
     data: {
       ...pick(data, [
         'isManualPayout',
