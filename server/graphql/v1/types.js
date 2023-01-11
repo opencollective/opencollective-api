@@ -1601,7 +1601,6 @@ export const OrderType = new GraphQLObjectType({
       createdByUser: {
         type: UserType,
         async resolve(order, args, req) {
-
           const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
             order.CollectiveId,
             order.FromCollectiveId,
