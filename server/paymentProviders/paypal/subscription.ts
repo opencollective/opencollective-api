@@ -27,6 +27,8 @@ export const cancelPaypalSubscription = async (
   const collective = order.collective || (await order.getCollective());
   const hostCollective = host || (await collective.getHostCollective());
   const subscription = order.Subscription || (await order.getSubscription());
+
+  // TODO: Do not fail if already cancelled
   await paypalRequest(`billing/subscriptions/${subscription.paypalSubscriptionId}/cancel`, { reason }, hostCollective);
 };
 
