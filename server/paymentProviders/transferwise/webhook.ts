@@ -11,7 +11,7 @@ import * as libPayments from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { TransferStateChangeEvent } from '../../types/transferwise';
+import { QuoteV2, QuoteV2PaymentOption, Transfer, TransferStateChangeEvent } from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
@@ -65,8 +65,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     }
 
     const hostAmount =
-      expense.data?.transfer?.sourceValue ||
-      expense.data?.quote?.sourceAmount - (expense.data?.paymentOption?.fee?.total || 0);
+      (expense.data?.transfer as Transfer)?.sourceValue ||
+      (expense.data?.quot as QuoteV2)?.sourceAmount -
+        ((expense.data?.paymentOption as QuoteV2PaymentOption)?.fee?.total || 0);
     assert(hostAmount, 'Expense is missing transfer and quote information');
     const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
