@@ -102,7 +102,7 @@ async function quoteExpense(
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
   expense.host = expense.host || (await expense.collective.getHostCollective());
-  const hasMultiCurrency = expense.currency !== expense.host.currency;
+  const hasMultiCurrency = expense.currency !== expense.collective.currency;
   const targetCurrency = payoutMethod.unfilteredData.currency as string;
   const quoteParams = {
     profileId: connectedAccount.data.id,
