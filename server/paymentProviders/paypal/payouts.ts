@@ -14,7 +14,6 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import models from '../../models';
 import Expense from '../../models/Expense';
-import User from '../../models/User';
 import { PayoutItemDetails } from '../../types/paypal';
 
 const providerName = 'paypal';
@@ -149,7 +148,7 @@ export const checkBatchItemStatus = async (
         await expense.setError(expense.lastEditedById);
         await expense.createActivity(
           activities.COLLECTIVE_EXPENSE_ERROR,
-          { id: expense.lastEditedById } as User, // TODO: Pass a real user. This is a hack to avoid a TS error without risking breaking anything.
+          { id: expense.lastEditedById },
           { error: item.errors, isSystem: true },
         );
       }

@@ -42,7 +42,7 @@ const getExpensesStats = where =>
     group: ['status'],
     order: [['lastCreatedAt', 'desc']],
     raw: true,
-  }) as unknown as Promise<Expense & { count: number; lastCreatedAt: Date }>;
+  }) as Promise<(Expense & { count: number; lastCreatedAt: Date })[]>;
 
 const addBooleanCheck = (checks, condition: boolean, ifTrue: SecurityCheck, ifFalse?: SecurityCheck) =>
   condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null;

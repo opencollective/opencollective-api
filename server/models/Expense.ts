@@ -98,7 +98,11 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
    * @param {string} type: type of the activity, see `constants/activities.js`
    * @param {object} user: the user who triggered the activity. Leave blank for system activities.
    */
-  createActivity = async function (type: ActivityTypes, user: User = null, data: Record<string, unknown> = {}) {
+  createActivity = async function (
+    type: ActivityTypes,
+    user: User | { id: number } | null = null,
+    data: Record<string, unknown> | null = {},
+  ) {
     const submittedByUser = await this.getSubmitterUser();
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
     const fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
