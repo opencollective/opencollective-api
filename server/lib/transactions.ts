@@ -302,52 +302,6 @@ const computeExpenseTaxes = (expense): number | null => {
   }
 };
 
-/**
- * @deprecated Use Transaction.calculateNetAmountInHostCurrency
- * Calculate net amount of a transaction in the currency of the collective
- * Notes:
- * - fees are negative numbers
- * - netAmountInCollectiveCurrency * hostCurrencyFxRate = amountInHostCurrency
- *   Therefore, amountInHostCurrency / hostCurrencyFxRate= netAmountInCollectiveCurrency
- */
-export function netAmount(tr) {
-  const fees = tr.hostFeeInHostCurrency + tr.platformFeeInHostCurrency + tr.paymentProcessorFeeInHostCurrency || 0;
-  return Math.round((tr.amountInHostCurrency + fees) / tr.hostCurrencyFxRate);
-}
-
-/**
- * @deprecated user Transaction.verify
- * Verify net amount of a transaction
- */
-export function verify(tr) {
-  if (tr.type === 'CREDIT' && tr.amount <= 0) {
-    return 'amount <= 0';
-  }
-  if (tr.type === 'DEBIT' && tr.amount >= 0) {
-    return 'amount >= 0';
-  }
-  if (tr.type === 'CREDIT' && tr.netAmountInCollectiveCurrency <= 0) {
-    return 'netAmount <= 0';
-  }
-  if (tr.type === 'DEBIT' && tr.netAmountInCollectiveCurrency >= 0) {
-    return 'netAmount >= 0';
-  }
-  const diff = Math.abs(netAmount(tr) - tr.netAmountInCollectiveCurrency);
-  // if the difference is within one cent, it's most likely a rounding error (because of the number of decimals in the hostCurrencyFxRate)
-  if (diff > 0 && diff < 10) {
-    return 'netAmount diff';
-  }
-  return true;
-}
-
-/** Calculate how off a transaction is
- *
- * Which is pretty much the difference between transaction net amount
- * & netAmountInCollectiveCurrency */
-export function difference(tr) {
-  return netAmount(tr) - tr.netAmountInCollectiveCurrency;
-}
-
 const kindStrings = {
   ADDED_FUNDS: `Added Funds`,
   BALANCE_TRANSFER: `Balance Transfer`,
