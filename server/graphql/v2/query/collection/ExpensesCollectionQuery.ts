@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isEmpty, uniq } from 'lodash';
+import { OrderItem } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { types as CollectiveType } from '../../../../constants/collectives';
@@ -296,7 +297,7 @@ const ExpensesCollectionQuery = {
       }
     }
 
-    const order = [[args.orderBy.field, args.orderBy.direction]];
+    const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];
     const { offset, limit } = args;
     const result = await models.Expense.findAndCountAll({ include, where, order, offset, limit });
     return {

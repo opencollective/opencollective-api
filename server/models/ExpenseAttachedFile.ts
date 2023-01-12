@@ -5,15 +5,15 @@ import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import sequelize from '../lib/sequelize';
 
+import Expense from './Expense';
 import User from './User';
-import models from '.';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
 export class ExpenseAttachedFile extends Model {
   public declare readonly id: number;
-  public declare ExpenseId: number;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare url: string;
   public declare name: string;
@@ -28,7 +28,7 @@ export class ExpenseAttachedFile extends Model {
   static async createFromData(
     { url, name }: { url: string; name?: string },
     user: User,
-    expense: typeof models.Expense,
+    expense: Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {
     return ExpenseAttachedFile.create(

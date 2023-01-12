@@ -9,6 +9,7 @@ import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Op, sequelize } from '../models';
+import Expense from '../models/Expense';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -394,7 +395,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
     },
   });
-  await map(expenses, (expense: typeof models.Expense) => expense.destroy(), { concurrency: 3 });
+  await map(expenses, (expense: Expense) => expense.destroy(), { concurrency: 3 });
 
   const tiers = await models.Tier.findAll({
     where: { CollectiveId: collective.id },

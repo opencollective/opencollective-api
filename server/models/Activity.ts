@@ -1,8 +1,10 @@
-import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import dispatch from '../lib/notifications';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+import Expense from './Expense';
 
 export class Activity extends Model<InferAttributes<Activity>, InferCreationAttributes<Activity>> {
   public declare readonly id: CreationOptional<number>;
@@ -14,7 +16,7 @@ export class Activity extends Model<InferAttributes<Activity>, InferCreationAttr
   public declare UserId: CreationOptional<number>;
   public declare UserTokenId: CreationOptional<number>;
   public declare TransactionId: CreationOptional<number>;
-  public declare ExpenseId: CreationOptional<number>;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare OrderId: CreationOptional<number>;
   public declare createdAt: CreationOptional<Date>;
 }

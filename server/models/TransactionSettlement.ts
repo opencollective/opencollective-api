@@ -2,6 +2,7 @@ import { groupBy } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
+  ForeignKey,
   InferAttributes,
   InferCreationAttributes,
   QueryTypes,
@@ -12,8 +13,8 @@ import { TransactionKind } from '../constants/transaction-kind';
 import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
+import Expense from './Expense';
 import Transaction from './Transaction';
-import models from '.';
 
 export enum TransactionSettlementStatus {
   OWED = 'OWED',
@@ -28,12 +29,12 @@ class TransactionSettlement extends Model<
   public declare TransactionGroup: string;
   public declare kind: TransactionKind;
   public declare status: TransactionSettlementStatus;
-  public declare ExpenseId: number;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare getExpense: BelongsToGetAssociationMixin<typeof models.Expense>;
+  public declare getExpense: BelongsToGetAssociationMixin<Expense>;
 
   // ---- Static methods ----
 
@@ -85,7 +86,7 @@ class TransactionSettlement extends Model<
     );
   }
 
-  static async markExpenseAsSettled(expense: typeof models.Expense): Promise<void> {
+  static async markExpenseAsSettled(expense: Expense): Promise<void> {
     if (expense.type !== expenseType.SETTLEMENT && !expense.data?.['isPlatformTipSettlement']) {
       throw new Error('This function can only be used with platform tips settlements');
     }

@@ -68,6 +68,9 @@ export type QuoteV2 = {
   }>;
 };
 
+/** When saving the quote in expense data */
+export type ExpenseDataQuoteV2 = Omit<QuoteV2, 'paymentOptions'> & { paymentOption: QuoteV2PaymentOption };
+
 export type RecipientAccount = {
   id?: number;
   currency: string;

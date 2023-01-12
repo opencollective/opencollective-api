@@ -85,7 +85,7 @@ const Expense = new GraphQLObjectType({
           currencySource: {
             type: ExpenseCurrencySource,
             description: 'Source of the currency to express the amount. Defaults to the expense currency',
-            defaultValue: ExpenseCurrencySource.EXPENSE,
+            defaultValue: 'EXPENSE',
           },
         },
         async resolve(expense, args, req) {
