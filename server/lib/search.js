@@ -399,6 +399,12 @@ export const getTagFrequencies = async args => {
     `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
+      AND "deactivatedAt" IS NULL 
+      AND ((data ->> 'isGuest'::text)::boolean) IS NOT TRUE 
+      AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE 
+      AND name::text <> 'incognito'::text 
+      AND name::text <> 'anonymous'::text 
+      AND "isIncognito" = false
       ${searchConditions.sqlConditions}
       GROUP BY UNNEST(tags)
       ORDER BY count DESC
