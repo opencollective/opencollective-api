@@ -1601,8 +1601,11 @@ export const OrderType = new GraphQLObjectType({
       createdByUser: {
         type: UserType,
         async resolve(order, args, req) {
-          const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
-          const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+          const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+            order.CollectiveId,
+            order.FromCollectiveId,
+          ]);
+
           if (
             fromCollective.isIncognito &&
             !req.remoteUser?.isAdminOfCollectiveOrHost(collective) &&

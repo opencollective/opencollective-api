@@ -236,85 +236,64 @@ const TransactionFields = () => {
     },
     host: {
       type: UserCollectiveType,
-      async resolve(transaction) {
-        if (transaction && transaction.getHostCollective) {
-          return transaction.getHostCollective();
+      async resolve(transaction, args, req) {
+        if (transaction.HostCollectiveId) {
+          return req.loaders.Collective.byId.load(transaction.HostCollectiveId);
         }
-        const FromCollectiveId = transaction.fromCollective.id;
-        const CollectiveId = transaction.collective.id;
-        let HostCollectiveId = transaction.HostCollectiveId;
-        // if the transaction is from the perspective of the fromCollective
-        if (!HostCollectiveId) {
-          const fromCollective = await models.Collective.findByPk(FromCollectiveId);
-          HostCollectiveId = await fromCollective.getHostCollectiveId();
-          // if fromCollective has no host, we try the collective
-          if (!HostCollectiveId) {
-            const collective = await models.Collective.findByPk(CollectiveId);
-            HostCollectiveId = await collective.getHostCollectiveId();
-          }
+
+        const fromCollective = await req.loaders.Collective.byId.load(transaction.FromCollectiveId);
+        if (fromCollective.HostCollectiveId) {
+          return req.loaders.Collective.byId.load(fromCollective.HostCollectiveId);
         }
-        return models.Collective.findByPk(HostCollectiveId);
+
+        const collective = await req.loaders.Collective.byId.load(transaction.CollectiveId);
+        if (collective.HostCollectiveId) {
+          return req.loaders.Collective.byId.load(fromCollective.HostCollectiveId);
+        }
       },
     },
     createdByUser: {
       type: UserType,
       async resolve(transaction, args, req) {
-        // We don't return the user if the transaction has been created by someone who wanted to remain incognito
-        // This is very suboptimal. We should probably record the CreatedByCollectiveId (or better CreatedByProfileId) instead of the User.
-        if (transaction && transaction.getCreatedByUser) {
-          const collective = await transaction.getCollective();
-          const fromCollective = await transaction.getFromCollective();
-          if (fromCollective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
-            return {};
-          }
-          if (collective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective)) {
-            return {};
-          }
-          return transaction.getCreatedByUser();
+        if (!transaction.CreatedByUserId) {
+          return;
         }
-        return null;
+
+        const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+          transaction.CollectiveId,
+          transaction.FromCollectiveId,
+        ]);
+
+        if (fromCollective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(collective)) {
+          return {};
+        }
+
+        if (collective.isIncognito && !req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective)) {
+          return {};
+        }
+
+        return req.loaders.User.byId.load(transaction.CreatedByUserId);
       },
     },
     fromCollective: {
       type: CollectiveInterfaceType,
-      resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getFromCollective
-        // otherwise we check whether transaction has 'fromCollective.id', if not we return null
-        if (transaction && transaction.getFromCollective) {
-          return transaction.getFromCollective();
-        }
-        if (get(transaction, 'fromCollective.id')) {
-          return models.Collective.findByPk(get(transaction, 'fromCollective.id'));
-        }
-        return null;
+      async resolve(transaction, args, req) {
+        return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
       },
     },
     usingGiftCardFromCollective: {
       type: CollectiveInterfaceType,
-      resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getGiftCardEmitterCollective
-        // otherwise we find the collective by id if transactions has UsingGiftCardFromCollectiveId, if not we return null
-        if (transaction && transaction.getGiftCardEmitterCollective) {
-          return transaction.getGiftCardEmitterCollective();
-        }
+      resolve(transaction, args, req) {
         if (transaction && transaction.UsingGiftCardFromCollectiveId) {
-          return models.Collective.findByPk(transaction.UsingGiftCardFromCollectiveId);
+          return req.loaders.Collective.byId.load(transaction.UsingGiftCardFromCollectiveId);
         }
         return null;
       },
     },
     collective: {
       type: CollectiveInterfaceType,
-      resolve(transaction) {
-        // If it's a sequelize model transaction, it means it has the method getCollective
-        // otherwise we check whether transaction has 'collective.id', if not we return null
-        if (transaction && transaction.getCollective) {
-          return transaction.getCollective();
-        }
-        if (get(transaction, 'collective.id')) {
-          return models.Collective.findByPk(get(transaction, 'collective.id'));
-        }
-        return null;
+      async resolve(transaction, args, req) {
+        return req.loaders.Collective.byId.load(transaction.CollectiveId);
       },
     },
     createdAt: {
