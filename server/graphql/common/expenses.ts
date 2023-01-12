@@ -1909,10 +1909,10 @@ export const checkHasBalanceToPayExpense = async (
 
 type PayExpenseArgs = {
   id: number;
-  forceManual: boolean;
+  forceManual?: boolean;
   feesPayer?: 'COLLECTIVE' | 'PAYEE'; // Defaults to COLLECTIVE
   paymentProcessorFeeInHostCurrency?: number; // Defaults to 0
-  totalAmountPaidInHostCurrency: number;
+  totalAmountPaidInHostCurrency?: number;
 };
 
 /**
