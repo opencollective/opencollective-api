@@ -43,7 +43,7 @@ const createChargeAndTransactions = async (
   /* eslint-disable camelcase */
 
   let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
-  if (!paymentIntent) {
+  if (!paymentIntent || paymentIntent.status === 'succeeded') {
     const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
