@@ -1611,8 +1611,10 @@ export const getWiseFxRateInfoFromExpenseData = (
 
   const wiseInfo: WiseTransfer | WiseQuote | WiseQuoteV2 = expense.data?.transfer || expense.data?.quote;
   if (wiseInfo?.rate) {
+    // In this context, the source currency is always the Host currency and the target currency is the Payee currency
     const wiseSourceCurrency = wiseInfo['sourceCurrency'] || wiseInfo['source'];
     const wiseTargetCurrency = wiseInfo['targetCurrency'] || wiseInfo['target'];
+    // This makes the fxRate be the rate for Host -> Payee
     const fxRate = matchFxRateWithCurrency(
       expectedSourceCurrency,
       expectedTargetCurrency,

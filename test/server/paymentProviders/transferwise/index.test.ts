@@ -163,7 +163,7 @@ describe('server/paymentProviders/transferwise/index', () => {
   describe('quoteExpense', () => {
     let quote;
     before(async () => {
-      getExchangeRates.resolves([{ source: 'USD', target: 'EUR', rate: 0.9044 }]);
+      getExchangeRates.resolves([{ source: host.currency, target: 'EUR', rate: 0.9044 }]);
       quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
     });
 

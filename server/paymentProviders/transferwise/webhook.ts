@@ -1,10 +1,11 @@
+import assert from 'assert';
+
 import { Request } from 'express';
 import { get, pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import expenseStatus from '../../constants/expense_status';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { getWiseFxRateInfoFromExpenseData } from '../../graphql/common/expenses';
 import logger from '../../lib/logger';
 import * as libPayments from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
@@ -63,18 +64,18 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       );
     }
 
-    // Get FX rate
-    const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, expense.host?.currency);
-    if (!wiseFxRateInfo) {
-      logger.warn(`Could not retrieve the FX rate from Wise for expense #${expense.id}. Falling back to 'auto' mode.`);
-    }
+    const hostAmount =
+      expense.data?.transfer?.sourceValue ||
+      expense.data?.quote?.sourceAmount - (expense.data?.paymentOption?.fee?.total || 0);
+    assert(hostAmount, 'Expense is missing transfer and quote information');
+    const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
     const user = await models.User.findByPk(expense.lastEditedById);
     await createTransactionsFromPaidExpense(
       expense.host,
       expense,
       feesInHostCurrency,
-      wiseFxRateInfo?.value || 'auto',
+      expenseToHostRate,
       pick(expense.data, ['fund', 'transfer']),
     );
     await expense.setPaid(expense.lastEditedById);
