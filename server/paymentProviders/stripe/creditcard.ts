@@ -1,5 +1,5 @@
 import config from 'config';
-import { toUpper } from 'lodash';
+import { omit, toUpper } from 'lodash';
 import type Stripe from 'stripe';
 
 import logger from '../../lib/logger';
@@ -43,7 +43,7 @@ const createChargeAndTransactions = async (
   /* eslint-disable camelcase */
 
   let paymentIntent: Stripe.PaymentIntent | undefined = order.data.paymentIntent;
-  if (!paymentIntent) {
+  if (!paymentIntent || paymentIntent.status === 'succeeded') {
     const createPayload: Stripe.PaymentIntentCreateParams = {
       amount: convertToStripeAmount(order.currency, order.totalAmount),
       currency: order.currency,
@@ -104,6 +104,13 @@ const createChargeAndTransactions = async (
     reportMessageToSentry('Unknown error with Stripe Payment Intent', { extra: { paymentIntent } });
     throw new Error(UNKNOWN_ERROR_MSG);
   }
+
+  await order.update({
+    data: {
+      ...omit(order.data, 'paymentIntent'),
+      previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+    },
+  });
 
   // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
   // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.

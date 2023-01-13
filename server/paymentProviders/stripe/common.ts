@@ -220,6 +220,24 @@ export async function resolvePaymentMethodForOrder(
     };
   }
 
+  // in the previous implementation, each user card was cloned to a different host stripe customer.
+  // the corresponding customer was stored here, and we used its default source to charge.
+  // we will still use this customer (present in some payment methods created before 2022), as these cards
+  // might have expired and are not clonable.
+  if (paymentMethod.data?.customerIdForHost && paymentMethod.data?.customerIdForHost?.[hostStripeAccount]) {
+    const customerId = paymentMethod.data?.customerIdForHost?.[hostStripeAccount];
+    const customer = stripe.customers.retrieve(customerId, {
+      stripeAccount: hostStripeAccount,
+    });
+
+    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id'));
+
+    return {
+      id: paymentMethodId,
+      customer: customerId,
+    };
+  }
+
   const hostCustomer = await getOrCreateStripeCustomer(hostStripeAccount, order.fromCollective, user);
   return await getOrCloneCardPaymentMethod(paymentMethod, order.fromCollective, hostStripeAccount, hostCustomer);
 }
