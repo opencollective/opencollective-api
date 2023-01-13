@@ -291,7 +291,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     [args.orderBy.field, args.orderBy.direction],
     // Add additional sort for consistent sorting
     // (transactions in the same TransactionGroup usually have the exact same datetime)
-    ['kind'],
+    ['id', args.orderBy.direction],
   ];
   const { offset, limit } = args;
   const result = await models.Transaction.findAndCountAll({
