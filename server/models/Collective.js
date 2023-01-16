@@ -88,6 +88,7 @@ import { capitalize, cleanTags, formatCurrency, getDomain, md5 } from '../lib/ut
 import CustomDataTypes from './DataTypes';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
+import { SocialLinkType } from './SocialLink';
 
 const debug = debugLib('models:Collective');
 
@@ -900,7 +901,7 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
       });
     }
 
-    return await models.SocialLink.bulkCreate(
+    const updatedSocialLinks = await models.SocialLink.bulkCreate(
       socialLinks.map((socialLink, order) => ({
         url: socialLink.url,
         type: socialLink.type,
@@ -912,6 +913,45 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
         transaction,
       },
     );
+
+    // updates deprecated collective fields with social links until references to these fields are migrated.
+    const collectiveFields = {};
+
+    const twitterSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.TWITTER);
+    if (twitterSocialLink && twitterSocialLink.url) {
+      const match = twitterSocialLink.url.match(/https:\/\/twitter.com\/([^/]*)[/]?$/);
+      if (match && match.length === 2) {
+        collectiveFields.twitterHandle = match[1];
+      }
+    }
+
+    const githubSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.GITHUB);
+    if (githubSocialLink && githubSocialLink.url) {
+      collectiveFields.githubHandle = getGithubHandleFromUrl(githubSocialLink.url);
+    }
+
+    const websiteSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.WEBSITE);
+    if (websiteSocialLink && websiteSocialLink.url) {
+      collectiveFields.website = websiteSocialLink.url;
+    }
+
+    const repositorySocialLink = updatedSocialLinks.find(sl => {
+      return sl.type === SocialLinkType.GIT || sl.type === SocialLinkType.GITHUB || sl.type === SocialLinkType.GITLAB;
+    });
+    if (repositorySocialLink && repositorySocialLink.url) {
+      collectiveFields.repositoryUrl = repositorySocialLink.url;
+    }
+
+    await this.update(
+      {
+        ...collectiveFields,
+      },
+      {
+        transaction,
+      },
+    );
+
+    return updatedSocialLinks;
   });
 };
 

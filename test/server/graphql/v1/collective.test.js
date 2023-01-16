@@ -878,6 +878,64 @@ describe('server/graphql/v1/collective', () => {
       expect(result.data.editCollective.legalName).to.eq('New Legal Name');
     });
 
+    it('edits social links', async () => {
+      const user = await fakeUser();
+      const editCollectiveMutation = gql`
+        mutation EditCollective($collective: CollectiveInputType!) {
+          editCollective(collective: $collective) {
+            id
+            socialLinks {
+              type
+              url
+            }
+            website
+            repositoryUrl
+            githubHandle
+            twitterHandle
+          }
+        }
+      `;
+
+      const collective = {
+        id: user.collective.id,
+        socialLinks: [
+          {
+            type: 'WEBSITE',
+            url: 'https://opencollective.com',
+          },
+          {
+            type: 'TWITTER',
+            url: 'https://twitter.com/opencollect',
+          },
+          {
+            type: 'GITHUB',
+            url: 'https://github.com/opencollective/opencollective-api',
+          },
+        ],
+      };
+      const result = await utils.graphqlQuery(editCollectiveMutation, { collective }, user);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editCollective.socialLinks).to.eql([
+        {
+          type: 'WEBSITE',
+          url: 'https://opencollective.com/',
+        },
+        {
+          type: 'TWITTER',
+          url: 'https://twitter.com/opencollect',
+        },
+        {
+          type: 'GITHUB',
+          url: 'https://github.com/opencollective/opencollective-api',
+        },
+      ]);
+
+      expect(result.data.editCollective.website).to.eq('https://opencollective.com/');
+      expect(result.data.editCollective.twitterHandle).to.eq('opencollect');
+      expect(result.data.editCollective.githubHandle).to.eq('opencollective/opencollective-api');
+      expect(result.data.editCollective.repositoryUrl).to.eq('https://github.com/opencollective/opencollective-api');
+    });
+
     it('edits members', async () => {
       const newUser1 = await fakeUser();
       const newUser2 = await fakeUser();
