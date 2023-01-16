@@ -127,7 +127,16 @@ export async function getRepo(name, accessToken) {
   // https://octokit.github.io/rest.js/v18#repos-get
   // https://developer.github.com/v3/repos/#get
   const [owner, repo] = name.split('/');
-  return octokit.repos.get({ owner, repo }).then(getData);
+  return octokit.repos
+    .get({ owner, repo })
+    .then(getData)
+    .catch(err => {
+      if (err.status === 404) {
+        throw new Error(`GitHub repository "${name}" not found`);
+      } else {
+        throw err;
+      }
+    });
 }
 
 export async function getOrg(name, accessToken) {
