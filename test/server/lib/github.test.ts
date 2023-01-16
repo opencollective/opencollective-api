@@ -9,6 +9,8 @@ const VALID_GITHUB_PROFILES = {
   'https://github.com/my-org/my-repo': 'my-org/my-repo',
   'https://github.com/my-org/my.repo': 'my-org/my.repo',
   'https://github.com/my-org/.my-repo': 'my-org/.my-repo',
+  'https://github.com/my-org/my_repo': 'my-org/my_repo',
+  'https://github.com/my_org/my-repo': 'my_org/my-repo',
 };
 
 const INVALID_GITHUB_URLS = ['https://example.com', 'https://github.com'];
