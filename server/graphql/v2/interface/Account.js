@@ -116,9 +116,11 @@ const accountFieldsDefinition = () => ({
   },
   website: {
     type: GraphQLString,
+    deprecationReason: '2023-01-16: Please use socialLinks',
   },
   twitterHandle: {
     type: GraphQLString,
+    deprecationReason: '2023-01-16: Please use socialLinks',
   },
   githubHandle: {
     type: GraphQLString,
@@ -126,6 +128,7 @@ const accountFieldsDefinition = () => ({
   },
   repositoryUrl: {
     type: GraphQLString,
+    deprecationReason: '2023-01-16: Please use socialLinks',
   },
   socialLinks: {
     type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),

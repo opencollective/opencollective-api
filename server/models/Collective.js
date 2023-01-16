@@ -467,6 +467,9 @@ const Collective = sequelize.define(
       type: DataTypes.DATE,
     },
 
+    /**
+     * @deprecated Use collective social links instead
+     */
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
       set(twitterHandle) {
@@ -491,8 +494,7 @@ const Collective = sequelize.define(
     },
 
     /**
-     * @deprecated Keeping this one as a virtual field for easier migration. It should be removed
-     * when we'll move to a dedicated [SocialLinks table](https://github.com/opencollective/opencollective/issues/5097)
+     * @deprecated Use collective social links instead
      */
     githubHandle: {
       type: DataTypes.VIRTUAL,
@@ -510,6 +512,9 @@ const Collective = sequelize.define(
       },
     },
 
+    /**
+     * @deprecated Use collective social links instead
+     */
     repositoryUrl: {
       type: DataTypes.STRING,
       validate: {
@@ -527,6 +532,9 @@ const Collective = sequelize.define(
       },
     },
 
+    /**
+     * @deprecated Use collective social links instead
+     */
     website: {
       type: DataTypes.STRING,
       get() {
