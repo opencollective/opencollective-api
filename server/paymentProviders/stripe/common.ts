@@ -226,7 +226,7 @@ export async function resolvePaymentMethodForOrder(
   // might have expired and are not clonable.
   if (paymentMethod.data?.customerIdForHost && paymentMethod.data?.customerIdForHost?.[hostStripeAccount]) {
     const customerId = paymentMethod.data?.customerIdForHost?.[hostStripeAccount];
-    const customer = stripe.customers.retrieve(customerId, {
+    const customer = await stripe.customers.retrieve(customerId, {
       stripeAccount: hostStripeAccount,
     });
 
