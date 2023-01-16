@@ -256,7 +256,7 @@ export async function getValidatorInfo(githubHandle, accessToken) {
   };
 }
 
-const githubUsernameRegex = new RegExp('[a-z\\d](?:[a-z\\d]|-(?=[a-z\\d])){0,38}', 'i');
+const githubUsernameRegex = new RegExp('[a-z\\d](?:[a-z\\d]|-|_(?=[a-z\\d])){0,38}', 'i');
 const githubRepositoryRegex = new RegExp('\\.?[a-z\\d](?:[a-z\\.\\d]|-|_(?=[a-z\\.\\d])){1,100}', 'i');
 export const githubHandleRegex = new RegExp(
   `^${githubUsernameRegex.source}(/(${githubRepositoryRegex.source})?)?$`,
