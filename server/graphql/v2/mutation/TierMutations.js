@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
+import { isNil, uniq } from 'lodash';
 
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
@@ -41,15 +42,20 @@ const tierMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
 
+      // Prepare args
+      const amount = getValueInCentsFromAmountInput(args.tier.amount);
       if (args.tier.amountType === 'FIXED') {
         args.tier.presets = null;
         args.tier.minimumAmount = null;
+      } else if (args.tier.presets && !isNil(amount)) {
+        // Make sure default amount is included in presets
+        args.tier.presets = uniq([amount, ...args.tier.presets]);
       }
 
       const updatedTier = await tier.update({
         ...args.tier,
         id: tierId,
-        amount: getValueInCentsFromAmountInput(args.tier.amount),
+        amount: amount,
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
