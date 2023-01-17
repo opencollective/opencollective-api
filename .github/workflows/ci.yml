@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -62,12 +62,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -98,12 +98,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -135,12 +135,12 @@ jobs:
 
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@v2-beta
+  #       uses: actions/checkout@v3
 
   #     - name: Setup node
   #       uses: actions/setup-node@v2
   #       with:
-  #         node-version: '18.x'
+  #         node-version-file: 'package.json'
 
   #     - name: Restore node_modules
   #       uses: actions/cache@v2
@@ -171,12 +171,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -231,12 +231,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -288,12 +288,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -327,11 +327,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v3
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '18.x'
+          node-version-file: 'package.json'
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
@@ -373,7 +373,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v3
 
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@v3.4.0
