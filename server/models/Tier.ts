@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, isNil, min } from 'lodash';
+import { defaults, isNil, min, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -371,6 +371,17 @@ Tier.init(
 
     presets: {
       type: DataTypes.ARRAY(DataTypes.INTEGER),
+      allowNull: true,
+      set(presets: number[] | null) {
+        if (!Array.isArray(presets)) {
+          this.setDataValue('presets', null);
+        } else {
+          this.setDataValue(
+            'presets',
+            uniq(presets).sort((a, b) => a - b),
+          );
+        }
+      },
     },
 
     amountType: {
@@ -449,7 +460,7 @@ Tier.init(
     paranoid: true,
     validate: {
       validateFixedAmount() {
-        if (this.amountType === 'FIXED' && isNil(this.amount)) {
+        if (this.type !== 'TICKET' && this.amountType === 'FIXED' && isNil(this.amount)) {
           throw new Error(`In ${this.name}'s tier, "Amount" is required`);
         }
       },
