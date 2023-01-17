@@ -1,5 +1,5 @@
 """
-An OAuth application or a personal token
+An OAuth application.
 """
 type Application {
   id: String!
@@ -1115,7 +1115,7 @@ type Expense {
     """
     Source of the currency to express the amount. Defaults to the expense currency
     """
-    currencySource: ExpenseCurrencySource
+    currencySource: ExpenseCurrencySource = EXPENSE
   ): Amount
 
   """
@@ -9678,6 +9678,11 @@ type Query {
     Return tags from collectives which includes this search term
     """
     searchTerm: String
+
+    """
+    Return tags which includes this search term
+    """
+    tagSearchTerm: String
     limit: Int! = 10
     offset: Int! = 0
   ): TagStatsCollection!

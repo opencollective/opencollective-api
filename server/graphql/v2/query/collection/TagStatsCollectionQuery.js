@@ -9,14 +9,19 @@ const TagStatsCollectionQuery = {
   args: {
     searchTerm: {
       type: GraphQLString,
-      description: 'Return tags from collectives which includes this search term',
+      description:
+        'Return tags from collectives which includes this search term. Using this argument will ignore tagSearchTerm. Skipping this argument will use a more efficient query.',
+    },
+    tagSearchTerm: {
+      type: GraphQLString,
+      description: 'Return tags which includes this search term. Using this argument will ignore searchTerm.',
     },
     limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 10 },
     offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
   },
   async resolve(_, args) {
     const tagFrequencies = await getTagFrequencies({
-      ...pick(args, ['searchTerm', 'limit', 'offset']),
+      ...pick(args, ['searchTerm', 'tagSearchTerm', 'limit', 'offset']),
     });
 
     return { nodes: tagFrequencies, limit: args.limit, offset: args.offset };

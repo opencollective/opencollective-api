@@ -394,6 +394,25 @@ export const buildSearchConditions = (
  * Returns tags along with their frequency of use.
  */
 export const getTagFrequencies = async args => {
+  // If no searchTerm is provided, we can use the pre-computed stats in the materialized view
+  if (!args.searchTerm) {
+    const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
+    return sequelize.query(
+      `SELECT tag AS id, tag, count
+        FROM "CollectiveTagStats"
+        ${args.tagSearchTerm ? `WHERE "tag" ILIKE :sanitizedTerm` : ``}
+        LIMIT :limit
+        OFFSET :offset`,
+      {
+        type: sequelize.QueryTypes.SELECT,
+        replacements: {
+          sanitizedTerm: `%${sanitizedTerm}%`,
+          limit: args.limit,
+          offset: args.offset,
+        },
+      },
+    );
+  }
   const searchConditions = getSearchTermSQLConditions(args.searchTerm);
   return sequelize.query(
     `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
