@@ -1,5 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
+import { purgeCacheForCollective } from '../../../lib/cache';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
@@ -44,7 +46,7 @@ const tierMutations = {
         args.tier.minimumAmount = null;
       }
 
-      return await tier.update({
+      const updatedTier = await tier.update({
         ...args.tier,
         id: tierId,
         amount: getValueInCentsFromAmountInput(args.tier.amount),
@@ -52,6 +54,12 @@ const tierMutations = {
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
       });
+
+      // Purge cache
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
+
+      return updatedTier;
     },
   },
   createTier: {
@@ -82,7 +90,7 @@ const tierMutations = {
         args.tier.minimumAmount = null;
       }
 
-      return models.Tier.create({
+      const tier = await models.Tier.create({
         ...args.tier,
         CollectiveId: account.id,
         currency: account.currency,
@@ -91,6 +99,11 @@ const tierMutations = {
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.interval),
       });
+
+      // Purge cache
+      purgeCacheForCollective(account.slug);
+
+      return tier;
     },
   },
   deleteTier: {
@@ -122,6 +135,11 @@ const tierMutations = {
       }
 
       await tier.destroy();
+
+      // Purge cache
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
+
       return tier;
     },
   },
