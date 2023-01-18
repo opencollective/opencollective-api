@@ -95,6 +95,7 @@ enum ActivityTypes {
   // User edits
   USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
+  USER_PASSWORD_SET = 'user.passwordSet',
   // Gift cards
   USER_CARD_CLAIMED = 'user.card.claimed',
   USER_CARD_INVITED = 'user.card.invited',
