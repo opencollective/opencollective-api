@@ -66,7 +66,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
 
     const hostAmount =
       (expense.data?.transfer as Transfer)?.sourceValue ||
-      (expense.data?.quot as QuoteV2)?.sourceAmount -
+      (expense.data?.quote as QuoteV2)?.sourceAmount -
         ((expense.data?.paymentOption as QuoteV2PaymentOption)?.fee?.total || 0);
     assert(hostAmount, 'Expense is missing transfer and quote information');
     const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';

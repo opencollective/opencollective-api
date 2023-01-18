@@ -14,6 +14,7 @@ import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { centsAmountToFloat } from '../../lib/math';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import models, { sequelize } from '../../models';
@@ -67,7 +68,7 @@ async function getTemporaryQuote(
   return await transferwise.getTemporaryQuote(connectedAccount, {
     sourceCurrency: expense.host.currency,
     targetCurrency: <string>payoutMethod.unfilteredData.currency,
-    sourceAmount: (expense.amount * rate) / 100,
+    sourceAmount: centsAmountToFloat(expense.amount * rate),
   });
 }
 
@@ -123,9 +124,10 @@ async function quoteExpense(
     quoteParams['targetCurrency'] = expense.currency;
     quoteParams['targetAmount'] = expense.amount / 100;
   } else if (expense.feesPayer === 'PAYEE') {
+    // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
     assert(
       expense.host.currency === expense.currency,
-      'For expenses coverede by the payee, the host currency must be the same as the expense currency',
+      'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
     );
     quoteParams['sourceAmount'] = expense.amount / 100;
   } else {
@@ -139,7 +141,7 @@ async function quoteExpense(
       assert(exchangeRate, `No exchange rate found for ${expense.host.currency} -> ${targetCurrency}`);
       rate = exchangeRate.rate;
     }
-    quoteParams['targetAmount'] = (expense.amount / 100) * rate;
+    quoteParams['targetAmount'] = centsAmountToFloat(expense.amount * rate);
   }
 
   const quote = await transferwise.createQuote(connectedAccount, quoteParams);
