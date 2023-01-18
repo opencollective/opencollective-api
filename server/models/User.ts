@@ -41,6 +41,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare deletedAt: CreationOptional<Date>;
   public declare confirmedAt: CreationOptional<Date>;
   public declare lastLoginAt: CreationOptional<Date>;
+  public declare passwordHash: CreationOptional<string>;
 
   // TODO: We should ideally rely on this.changed(...)
   public _emailChanged?: NonAttribute<boolean>;
@@ -607,8 +608,14 @@ User.init(
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
+
     changelogViewDate: {
       type: DataTypes.DATE,
+      allowNull: true,
+    },
+
+    passwordHash: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },
