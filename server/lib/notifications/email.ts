@@ -331,8 +331,8 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.EXPENSE_COMMENT_CREATED: {
       const { collective } = await populateCommentActivity(activity);
       const HostCollectiveId = await collective.getHostCollectiveId();
-      const hostCollective = await models.Collective.findByPk(HostCollectiveId);
-      if (hostCollective) {
+      if (HostCollectiveId) {
+        const hostCollective = await models.Collective.findByPk(HostCollectiveId);
         activity.data.hostCollective = hostCollective.info;
       }
       activity.data.expense = await models.Expense.findByPk(activity.ExpenseId);
