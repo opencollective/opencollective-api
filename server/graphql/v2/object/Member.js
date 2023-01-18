@@ -1,4 +1,4 @@
-import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { checkScope } from '../../common/scope-check';
@@ -83,6 +83,14 @@ const getMemberFields = () => ({
     description: 'Custom user description',
     resolve(member) {
       return member.description;
+    },
+  },
+  inherited: {
+    type: GraphQLBoolean,
+    description: 'If membership is inherited from parent collective',
+    resolve(member) {
+      // Fetching from dataValues because this is a virtual property that is generated at query time
+      return member.dataValues?.inherited;
     },
   },
 });
