@@ -31,7 +31,73 @@ import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
+async function createOrUpdateOrderStripePaymentMethod(
+  order: typeof models.Order,
+  stripeAccount: string,
+  paymentIntent: Stripe.PaymentIntent,
+): typeof models.PaymentMethod {
+  const stripePaymentMethodId =
+    typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
+
+  const orderPaymentMethod = await models.PaymentMethod.findByPk(order.PaymentMethodId);
+  // order paymentMethod already saved.
+  if (orderPaymentMethod?.data?.stripePaymentMethodId === stripePaymentMethodId) {
+    return orderPaymentMethod;
+  }
+
+  const matchingPaymentMethod = await models.PaymentMethod.findOne({
+    where: {
+      CollectiveId: order.FromCollectiveId,
+      data: {
+        stripePaymentMethodId,
+        stripeAccount,
+      },
+    },
+  });
+
+  // order payment method already exists, update order with it.
+  if (matchingPaymentMethod) {
+    await order.update({
+      PaymentMethodId: matchingPaymentMethod.id,
+    });
+    return matchingPaymentMethod;
+  }
+
+  const stripePaymentMethod = await stripe.paymentMethods.retrieve(
+    typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id,
+    {
+      stripeAccount,
+    },
+  );
+
+  // new payment method
+  const pm = await models.PaymentMethod.create({
+    type: stripePaymentMethod.type === 'card' ? PAYMENT_METHOD_TYPE.CREDITCARD : stripePaymentMethod.type,
+    service: PAYMENT_METHOD_SERVICE.STRIPE,
+    name: formatPaymentMethodName(stripePaymentMethod),
+    token: stripePaymentMethod.id,
+    customerId: stripePaymentMethod.customer,
+    CreatedByUserId: order.CreatedByUserId,
+    CollectiveId: order.FromCollectiveId,
+    saved: paymentIntent.setup_future_usage === 'off_session',
+    confirmedAt: new Date(),
+    data: {
+      stripePaymentMethodId: stripePaymentMethod.id,
+      stripeAccount,
+      ...mapStripePaymentMethodExtraData(stripePaymentMethod),
+    },
+  });
+
+  await order.update({
+    PaymentMethodId: pm.id,
+  });
+
+  return pm;
+}
+
 export const paymentIntentSucceeded = async (event: Stripe.Event) => {
+  const stripeAccount = event.account ?? config.stripe.accountId;
+
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
@@ -60,6 +126,8 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   if (order.interval && !order.SubscriptionId) {
     await createSubscription(order);
   }
+
+  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
   await order.update({
     status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
@@ -500,10 +568,29 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
     case PAYMENT_METHOD_TYPE.SEPA_DEBIT: {
       return `${paymentMethod.sepa_debit.bank_code} ****${paymentMethod.sepa_debit.last4}`;
     }
+    case 'card': {
+      return paymentMethod.card.last4;
+    }
     default: {
       return '';
     }
   }
+}
+
+function mapStripePaymentMethodExtraData(pm: Stripe.PaymentMethod): object {
+  if (pm.type === 'card') {
+    return {
+      brand: pm.card.brand,
+      country: pm.card.country,
+      expYear: pm.card.exp_year,
+      expMonth: pm.card.exp_month,
+      funding: pm.card.funding,
+      fingerprint: pm.card.fingerprint,
+      wallet: pm.card.wallet,
+    };
+  }
+
+  return pm[pm.type];
 }
 
 async function paymentMethodAttached(event: Stripe.Event) {
@@ -558,7 +645,7 @@ async function paymentMethodAttached(event: Stripe.Event) {
         data: {
           stripePaymentMethodId: stripePaymentMethod.id,
           stripeAccount,
-          ...stripePaymentMethod[stripePaymentMethod.type],
+          ...mapStripePaymentMethodExtraData(stripePaymentMethod),
         },
       },
       { transaction },
