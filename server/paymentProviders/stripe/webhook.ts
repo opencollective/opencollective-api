@@ -63,12 +63,9 @@ async function createOrUpdateOrderStripePaymentMethod(
     return matchingPaymentMethod;
   }
 
-  const stripePaymentMethod = await stripe.paymentMethods.retrieve(
-   stripePaymentMethodId,
-    {
-      stripeAccount,
-    },
-  );
+  const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+    stripeAccount,
+  });
 
   // new payment method
   const pm = await models.PaymentMethod.create({
