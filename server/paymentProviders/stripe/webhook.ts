@@ -64,7 +64,7 @@ async function createOrUpdateOrderStripePaymentMethod(
   }
 
   const stripePaymentMethod = await stripe.paymentMethods.retrieve(
-    typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id,
+   stripePaymentMethodId,
     {
       stripeAccount,
     },
