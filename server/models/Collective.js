@@ -943,9 +943,9 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
       collectiveFields.website = websiteSocialLink.url;
     }
 
-    const repositorySocialLink = updatedSocialLinks.find(sl => {
-      return sl.type === SocialLinkType.GIT || sl.type === SocialLinkType.GITHUB || sl.type === SocialLinkType.GITLAB;
-    });
+    const repositorySocialLink = updatedSocialLinks.find(sl =>
+      [SocialLinkType.GIT, SocialLinkType.GITHUB, SocialLinkType.GITLAB].includes(sl.type),
+    );
     if (repositorySocialLink && repositorySocialLink.url) {
       collectiveFields.repositoryUrl = repositorySocialLink.url;
     }
