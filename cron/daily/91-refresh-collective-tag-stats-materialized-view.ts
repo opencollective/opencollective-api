@@ -7,7 +7,7 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
 
 /**
- * Refresh the collective stats materialized view.
+ * Refresh the collective tag stats materialized view.
  *
  * `CONCURRENTLY` is used to avoid deadlocks, as Postgres otherwise lock queries
  * using this table until the refresh is complete.
