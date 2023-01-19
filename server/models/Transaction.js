@@ -162,6 +162,8 @@ const Transaction = sequelize.define(
     platformFeeInHostCurrency: DataTypes.INTEGER,
     hostFeeInHostCurrency: DataTypes.INTEGER,
     paymentProcessorFeeInHostCurrency: DataTypes.INTEGER,
+
+    // amount in transaction currency
     taxAmount: { type: DataTypes.INTEGER },
 
     /**
