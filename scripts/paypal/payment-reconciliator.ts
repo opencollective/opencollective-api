@@ -242,60 +242,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
   let totalPages = 1;
 
   // Try to find the subscription somewhere
-  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId }, paranoid: false });
-  if (!subscription) {
-    [subscription] = await sequelize.query(
-      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
-      {
-        replacements: { paypalSubscriptionId },
-        type: sequelize.QueryTypes.SELECT,
-        mapToModel: true,
-        model: models.Subscription,
-      },
-    );
-  }
-
-  if (!subscription) {
-    logger.error(`Could not find subscription ${paypalSubscriptionId}`);
-    return;
-  }
-
-  // Load host from subscription
-  const requiredAssociations = ['paymentMethod', 'createdByUser', 'collective', 'fromCollective'];
-  const order = await models.Order.findOne({
-    paranoid: false,
-    where: { SubscriptionId: subscription.id },
-    include: requiredAssociations.map(association => ({ association, required: false, paranoid: false })),
-  });
-
-  if (!order) {
-    logger.error(`Could not find order for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
-    return;
-  }
-
-  const host = await getHostFromSubscription(subscription);
-  if (!host || host.deletedAt) {
-    logger.error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
-    return;
-  } else if (!requiredAssociations.every(association => order[association] && !order[association].deletedAt)) {
-    logger.error(
-      `Could not find all required entities for PayPal subscription ${paypalSubscriptionId} (#${
-        subscription.id
-      }): ${requiredAssociations.map(association => `${association}: ${Boolean(order[association])}`)}`,
-    );
-    return;
-  } else if (
-    subscription.deletedAt ||
-    order.deletedAt ||
-    !requiredAssociations.every(association => !order[association].deletedAt)
-  ) {
-    logger.error(
-      `Subscription ${subscription.id} has deleted entities, please restore them first: ${requiredAssociations.map(
-        association => `${association}: ${Boolean(order[association])}`,
-      )}`,
-    );
-    return;
-  }
+  const { subscription, order, host } = await loadDataForSubscription(paypalSubscriptionId);
 
   do {
     const responseSubscription = await fetchPaypalSubscription(host, paypalSubscriptionId);
@@ -327,7 +274,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       const amount = get(paypalTransaction, 'amount_with_breakdown.gross_amount');
       const amountStr = amount ? `${amount['currency_code']} ${amount['value']}` : '~';
       console.log(
-        `PayPal transaction ${paypalTransaction.id} ${amountStr} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB`,
+        `PayPal transaction ${paypalTransaction.id} ${amountStr} to https://opencollective.com/${order.collective.slug} needs to be recorded in DB (${paypalTransaction['time']})`,
       );
       if (options['fix']) {
         await recordPaypalTransaction(order, paypalTransaction, {
@@ -531,40 +478,102 @@ const findMissingPaypalTransactions = async (_, commander) => {
 
       // Make sure all transactions exist in the ledger
       for (const paypalTransaction of <Record<string, unknown>[]>response['transaction_details']) {
+        console.log(
+          `Checking transaction ${paypalTransaction['transaction_info']['transaction_id']}...`,
+          paypalTransaction,
+        );
         const transactionInfo = paypalTransaction['transaction_info'];
         const paypalTransactionId = <string>transactionInfo['transaction_id'];
-        const ledgerTransaction = await models.Transaction.findOne({
-          where: {
-            HostCollectiveId: host.id, // Pre-filter to make the query faster
-            data: {
-              [Op.or]: [{ capture: { id: paypalTransactionId } }, { paypalSale: { id: paypalTransactionId } }],
-            },
-          },
-        });
-
+        const ledgerTransaction = await findTransactionByPaypalId(paypalTransactionId, { HostCollectiveId: host.id });
         if (!ledgerTransaction) {
+          const captureDetails = await paypalRequestV2(`payments/captures/${paypalTransactionId}`, host, 'GET');
+          if (captureDetails.status !== 'COMPLETED') {
+            continue; // Make sure the capture is not pending
+          }
+
+          // Make sure it's happening on a subscription
           console.warn(`Missing PayPal transaction ${paypalTransactionId} in ledger`);
+          if (transactionInfo['paypal_reference_id_type'] !== 'SUB') {
+            console.error(
+              `Found a missing transaction that is not a subscription: ${paypalTransactionId}`,
+              paypalTransaction,
+            );
+            throw new Error('This case is not supported'); // Shouldn't happen, just in case
+          }
+
+          // Look for the subscription in DB
+          const paypalSubscriptionId = <string>transactionInfo['paypal_reference_id'];
+          const { order, host } = await loadDataForSubscription(paypalSubscriptionId);
           if (options['fix']) {
-            // Trigger the actual charge
-
-            const captureDetails = await paypalRequestV2(`payments/captures/${paypalTransactionId}`, host, 'GET');
-            if (captureDetails.status !== 'COMPLETED') {
-              continue; // Make sure the capture is not pending
-            }
-
-            // Record the charge in our ledger
-            // TODO
-            // const order = await models.Order.findOne({});
-            // return recordPaypalCapture(order, captureDetails, {
-            //   createdAt: new Date(transactionInfo['transaction_initiation_date']),
-            //   data: { createdFromPaymentReconciliatorAt: new Date() },
-            // });
+            await recordPaypalTransaction(order, paypalTransaction, {
+              data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
+              createdAt: new Date(paypalTransaction['time'] as string),
+            });
+          } else {
+            console.log(
+              `Would have recorded transaction ${paypalTransactionId} in ledger for order ${order.id} (${order.slug})`,
+            );
           }
         }
       }
-      return;
+
+      console.log(`Page ${currentPage}/${totalPages} done`);
     } while (currentPage++ < totalPages);
   }
+};
+
+const loadDataForSubscription = async paypalSubscriptionId => {
+  let subscription = await models.Subscription.findOne({ where: { paypalSubscriptionId }, paranoid: false });
+  if (!subscription) {
+    [subscription] = await sequelize.query(
+      `SELECT * FROM "SubscriptionHistories" WHERE "paypalSubscriptionId" = :paypalSubscriptionId LIMIT 1`,
+      {
+        replacements: { paypalSubscriptionId },
+        type: sequelize.QueryTypes.SELECT,
+        mapToModel: true,
+        model: models.Subscription,
+      },
+    );
+  }
+
+  if (!subscription) {
+    throw new Error(`Could not find subscription ${paypalSubscriptionId}`);
+  }
+
+  // Load host from subscription
+  const requiredAssociations = ['paymentMethod', 'createdByUser', 'collective', 'fromCollective'];
+  const order = await models.Order.findOne({
+    paranoid: false,
+    where: { SubscriptionId: subscription.id },
+    include: requiredAssociations.map(association => ({ association, required: false, paranoid: false })),
+  });
+
+  if (!order) {
+    throw new Error(`Could not find order for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
+  }
+
+  const host = await getHostFromSubscription(subscription);
+  if (!host || host.deletedAt) {
+    throw new Error(`Could not find host for PayPal subscription ${paypalSubscriptionId} (#${subscription.id})`);
+  } else if (!requiredAssociations.every(association => order[association] && !order[association].deletedAt)) {
+    throw new Error(
+      `Could not find all required entities for PayPal subscription ${paypalSubscriptionId} (#${
+        subscription.id
+      }): ${requiredAssociations.map(association => `${association}: ${Boolean(order[association])}`)}`,
+    );
+  } else if (
+    subscription.deletedAt ||
+    order.deletedAt ||
+    !requiredAssociations.every(association => !order[association].deletedAt)
+  ) {
+    throw new Error(
+      `Subscription ${subscription.id} has deleted entities, please restore them first: ${requiredAssociations.map(
+        association => `${association}: ${Boolean(order[association])}`,
+      )}`,
+    );
+  }
+
+  return { subscription, order, host };
 };
 
 /**
