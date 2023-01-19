@@ -86,8 +86,8 @@ class CustomOAuth2Server extends OAuth2Server {
   token = function (request, response, options): Promise<OAuth2Server.Token> {
     options = assign(
       {
-        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 1 hour.
-        refreshTokenLifetime: 60 * 60 * 24 * 365, // 2 weeks.
+        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 90 days
+        refreshTokenLifetime: 60 * 60 * 24 * 365, // 1 year
         allowExtendedTokenAttributes: false,
         requireClientAuthentication: {}, // defaults to true for all grant types
       },
