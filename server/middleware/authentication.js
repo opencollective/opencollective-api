@@ -113,6 +113,19 @@ export const _authenticateUserByJwt = async (req, res, next) => {
       next();
       return;
     }
+    const now = moment();
+    // Check token expiration
+    /*
+    if (userToken.accessTokenExpiresAt && now.diff(moment(userToken.accessTokenExpiresAt), 'seconds') > 0) {
+      logger.warn(`UserToken expired for ${userId}`);
+      next();
+      return;
+    }
+    */
+    // Update lastUsedAt if lastUsedAt older than 1 minute ago
+    if (!userToken.lastUsedAt || now.diff(moment(userToken.lastUsedAt), 'minutes') > 1) {
+      await userToken.update({ lastUsedAt: new Date() });
+    }
     req.userToken = userToken;
   }
 
