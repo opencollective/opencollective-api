@@ -58,6 +58,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     completeBatchGroup,
     getBatchGroup,
     fundBatchGroup,
+    getExchangeRates,
     createBatchGroupTransfer;
   let connectedAccount, collective, host, payoutMethod, expense;
 
@@ -113,6 +114,7 @@ describe('server/paymentProviders/transferwise/index', () => {
     completeBatchGroup = sandbox.stub(transferwiseLib, 'completeBatchGroup').resolves();
     getBatchGroup = sandbox.stub(transferwiseLib, 'getBatchGroup');
     cancelBatchGroup = sandbox.stub(transferwiseLib, 'cancelBatchGroup');
+    getExchangeRates = sandbox.stub(transferwiseLib, 'getExchangeRates');
 
     cacheSpy = sandbox.spy(cache);
   });
@@ -161,6 +163,7 @@ describe('server/paymentProviders/transferwise/index', () => {
   describe('quoteExpense', () => {
     let quote;
     before(async () => {
+      getExchangeRates.resolves([{ source: host.currency, target: 'EUR', rate: 0.9044 }]);
       quote = await transferwise.quoteExpense(connectedAccount, payoutMethod, expense);
     });
 

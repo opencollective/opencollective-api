@@ -1,3 +1,5 @@
+import { isNaN, isNil, round } from 'lodash';
+
 /** Convert `v` to negative if possitive, don't touch it otherwise. */
 export function toNegative(v) {
   return v > 0 ? -v : v;
@@ -10,3 +12,11 @@ export function toNegative(v) {
 export function floatAmountToCents(floatAmount) {
   return Math.round(floatAmount * 100);
 }
+
+export const centsAmountToFloat = amount => {
+  if (isNaN(amount) || isNil(amount)) {
+    return null;
+  } else {
+    return round(amount / 100, 2);
+  }
+};
