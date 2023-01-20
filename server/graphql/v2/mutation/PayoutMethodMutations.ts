@@ -4,6 +4,7 @@ import { pick } from 'lodash';
 
 import logger from '../../../lib/logger';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import PayoutMethodModel from '../../../models/PayoutMethod';
 import { checkRemoteUserCanUseExpenses } from '../../common/scope-check';
@@ -34,6 +35,9 @@ const payoutMethodMutations = {
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
+
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
 
       if (args.payoutMethod.data.isManualBankTransfer) {
         try {

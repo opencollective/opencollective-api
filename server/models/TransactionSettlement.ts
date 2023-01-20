@@ -2,6 +2,7 @@ import { groupBy } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
+  ForeignKey,
   InferAttributes,
   InferCreationAttributes,
   QueryTypes,
@@ -12,8 +13,8 @@ import { TransactionKind } from '../constants/transaction-kind';
 import sequelize, { DataTypes, Model, Op, Transaction as SQLTransaction } from '../lib/sequelize';
 
 import Collective from './Collective';
+import Expense from './Expense';
 import Transaction from './Transaction';
-import models from '.';
 
 export enum TransactionSettlementStatus {
   OWED = 'OWED',
@@ -28,16 +29,16 @@ class TransactionSettlement extends Model<
   public declare TransactionGroup: string;
   public declare kind: TransactionKind;
   public declare status: TransactionSettlementStatus;
-  public declare ExpenseId: number;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare getExpense: BelongsToGetAssociationMixin<typeof models.Expense>;
+  public declare getExpense: BelongsToGetAssociationMixin<Expense>;
 
   // ---- Static methods ----
 
-  static async getAccountsWithOwedSettlements(): Promise<typeof Collective[]> {
+  static async getAccountsWithOwedSettlements(): Promise<(typeof Collective)[]> {
     return sequelize.query(
       `
         SELECT c.*
@@ -63,7 +64,7 @@ class TransactionSettlement extends Model<
   static async getHostDebts(
     hostId: number,
     settlementStatus: TransactionSettlementStatus = undefined,
-  ): Promise<typeof Transaction[]> {
+  ): Promise<(typeof Transaction)[]> {
     return sequelize.query(
       `
         SELECT t.*, ts.status as "settlementStatus"
@@ -85,7 +86,7 @@ class TransactionSettlement extends Model<
     );
   }
 
-  static async markExpenseAsSettled(expense: typeof models.Expense): Promise<void> {
+  static async markExpenseAsSettled(expense: Expense): Promise<void> {
     if (expense.type !== expenseType.SETTLEMENT && !expense.data?.['isPlatformTipSettlement']) {
       throw new Error('This function can only be used with platform tips settlements');
     }
@@ -100,7 +101,7 @@ class TransactionSettlement extends Model<
    * Update
    */
   static async updateTransactionsSettlementStatus(
-    transactions: typeof Transaction[],
+    transactions: (typeof Transaction)[],
     status: TransactionSettlementStatus,
     expenseId: number = undefined,
   ): Promise<void> {
@@ -119,7 +120,7 @@ class TransactionSettlement extends Model<
     });
   }
 
-  static async markTransactionsAsInvoiced(transactions: typeof Transaction[], expenseId: number): Promise<void> {
+  static async markTransactionsAsInvoiced(transactions: (typeof Transaction)[], expenseId: number): Promise<void> {
     return TransactionSettlement.updateTransactionsSettlementStatus(
       transactions,
       TransactionSettlementStatus.INVOICED,
@@ -159,7 +160,7 @@ class TransactionSettlement extends Model<
     });
   }
 
-  static async attachStatusesToTransactions(transactions: typeof Transaction[]): Promise<void> {
+  static async attachStatusesToTransactions(transactions: (typeof Transaction)[]): Promise<void> {
     const debts = transactions.filter(t => t.isDebt);
     const where = { [Op.or]: debts.map(t => ({ TransactionGroup: t.TransactionGroup, kind: t.kind })) };
     const settlements = await TransactionSettlement.findAll({ where });

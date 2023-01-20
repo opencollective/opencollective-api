@@ -3,6 +3,7 @@ import { Request } from 'express';
 import { get, toNumber } from 'lodash';
 import moment from 'moment';
 
+import FEATURE from '../../constants/feature';
 import OrderStatus from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
@@ -12,12 +13,14 @@ import { floatAmountToCents } from '../../lib/math';
 import { createRefundTransaction } from '../../lib/payments';
 import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
+import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
 import { findTransactionByPaypalId, recordPaypalCapture, recordPaypalSale } from './payment';
 import { checkBatchItemStatus } from './payouts';
+import { CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON } from './subscription';
 
 const debug = Debug('paypal:webhook');
 
@@ -54,13 +57,17 @@ async function handlePayoutTransactionUpdate(req: Request): Promise<void> {
  * From a Webhook event + a subscription ID, returns the associated order along with the
  * host and PayPal account. Calls `validateWebhookEvent`, throwing if the webhook event is invalid
  */
-const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: string) => {
+const loadSubscriptionForWebhookEvent = async (
+  req: Request,
+  subscriptionId: string,
+  { throwIfMissing = true } = {},
+) => {
   // TODO: This can be optimized by using the `host` from path
 
   const order = await models.Order.findOne({
     include: [
-      { association: 'fromCollective' },
-      { association: 'createdByUser' },
+      { association: 'fromCollective', required: false },
+      { association: 'createdByUser', required: false },
       { association: 'collective', required: true },
       {
         association: 'Subscription',
@@ -76,7 +83,11 @@ const loadSubscriptionForWebhookEvent = async (req: Request, subscriptionId: str
   });
 
   if (!order) {
-    throw new Error(`No order found for subscription ${subscriptionId}`);
+    if (throwIfMissing) {
+      throw new Error(`No order found for subscription ${subscriptionId}`);
+    } else {
+      return null;
+    }
   }
 
   const host = await order.collective.getHostCollective();
@@ -254,7 +265,24 @@ async function handleCaptureRefunded(req: Request): Promise<void> {
  */
 async function handleSubscriptionCancelled(req: Request): Promise<void> {
   const subscription = req.body.resource;
-  const { order } = await loadSubscriptionForWebhookEvent(req, subscription.id);
+  if (subscription['status_change_note'] === CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON) {
+    // Ignore, this is a subscription that was updated by the user through the edit subscription page
+    return;
+  }
+
+  const result = await loadSubscriptionForWebhookEvent(req, subscription.id, { throwIfMissing: false });
+  if (!result) {
+    // It's fine to ignore this event: if we can't find the subscription, it's probably because it was
+    // already updated with a new plan or payment method. We still log it for debugging purposes.
+    reportMessageToSentry(`No order found while cancelling PayPal subscription`, {
+      feature: FEATURE.PAYPAL_DONATIONS,
+      severity: 'warning',
+      extra: { body: req.body },
+    });
+    return;
+  }
+
+  const { order } = result;
   if (order.status !== OrderStatus.CANCELLED) {
     await order.update({
       status: OrderStatus.CANCELLED,

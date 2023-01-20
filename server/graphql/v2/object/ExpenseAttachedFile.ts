@@ -15,6 +15,10 @@ const ExpenseAttachedFile = new GraphQLObjectType({
     url: {
       type: URL,
     },
+    name: {
+      type: GraphQLString,
+      description: 'The original filename',
+    },
   }),
 });
 

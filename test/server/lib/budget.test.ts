@@ -1,8 +1,17 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import { createSandbox } from 'sinon';
 
-import { getYearlyIncome, sumCollectivesTransactions } from '../../../server/lib/budget';
-import { fakeCollective, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
+import ExpenseStatuses from '../../../server/constants/expense_status';
+import {
+  getBalances,
+  getCurrentCollectiveBalances,
+  getYearlyIncome,
+  sumCollectivesTransactions,
+} from '../../../server/lib/budget';
+import * as libcurrency from '../../../server/lib/currency';
+import { sequelize } from '../../../server/models';
+import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/budget', () => {
@@ -83,7 +92,7 @@ describe('server/lib/budget', () => {
       await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 }, { createDoubleEntry: true });
 
       const txs = await sumCollectivesTransactions([collective.id], {
-        column: 'netAmountInCollectiveCurrency',
+        column: 'netAmountInHostCurrency',
         startDate: moment().subtract(1, 'day'),
         endDate: moment(),
         kind: null,
@@ -113,9 +122,7 @@ describe('server/lib/budget', () => {
           );
 
           const txs = await sumCollectivesTransactions([collective.id], {
-            column: 'netAmountInCollectiveCurrency',
-            startDate: moment().subtract(1, 'day'),
-            endDate: moment(),
+            column: 'netAmountInHostCurrency',
             kind: null,
             withBlockedFunds: true,
             excludeRefunds: false,
@@ -124,6 +131,179 @@ describe('server/lib/budget', () => {
           expect(sum.value).to.eq(50e2);
         });
       });
+    });
+  });
+
+  describe('getCurrentCollectiveBalances', () => {
+    let collective, otherCollective, sandbox;
+
+    beforeEach(async () => {
+      await resetTestDB();
+      collective = await fakeCollective();
+      otherCollective = await fakeCollective();
+    });
+
+    before(async () => {
+      sandbox = createSandbox();
+
+      sandbox
+        .stub(libcurrency, 'getFxRate')
+        .withArgs('BRL', 'USD')
+        .resolves(1 / 1.1)
+        .withArgs('USD', 'BRL')
+        .resolves(1.1)
+        .withArgs('USD', 'USD')
+        .resolves(1)
+        .withArgs('BRL', 'BRL')
+        .resolves(1);
+    });
+
+    after(() => {
+      sandbox.restore();
+    });
+
+    async function createBalanceData(refreshView) {
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 20e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 30e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: otherCollective.id,
+          HostCollectiveId: otherCollective.host.id,
+          amount: 50e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: otherCollective.id,
+          HostCollectiveId: otherCollective.host.id,
+          amount: 60e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+
+      if (refreshView) {
+        await sequelize.query('REFRESH MATERIALIZED VIEW "TransactionBalances"');
+        await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+      }
+
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 40e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          HostCollectiveId: collective.host.id,
+          amount: 50e2,
+          currency: 'USD',
+          isDisputed: true,
+        },
+        { createDoubleEntry: true },
+      );
+
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: otherCollective.id,
+          HostCollectiveId: otherCollective.host.id,
+          amount: 10e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        {
+          type: 'CREDIT',
+          CollectiveId: otherCollective.id,
+          HostCollectiveId: otherCollective.host.id,
+          amount: 10e2,
+          currency: 'USD',
+        },
+        { createDoubleEntry: true },
+      );
+
+      await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.host.id,
+        amount: 10e2,
+        currency: 'USD',
+        status: ExpenseStatuses.PROCESSING,
+      });
+
+      await fakeExpense({
+        CollectiveId: collective.id,
+        HostCollectiveId: collective.host.id,
+        amount: 10e2,
+        currency: 'BRL',
+        status: ExpenseStatuses.PROCESSING,
+      });
+    }
+
+    it('sums correctly with materialized view and new transactions', async () => {
+      await createBalanceData(true);
+
+      const balances = await getCurrentCollectiveBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: true,
+      });
+      expect(balances[collective.id].value).to.eq(7091);
+      expect(balances[otherCollective.id].value).to.eq(130e2);
+    });
+
+    it('sums correctly without materialized view', async () => {
+      await createBalanceData(false);
+
+      const fastBalances = await getCurrentCollectiveBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: true,
+      });
+      expect(fastBalances).to.be.empty;
+
+      const balances = await getBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: true,
+      });
+
+      expect(balances[collective.id].value).to.eq(7091);
+      expect(balances[otherCollective.id].value).to.eq(130e2);
+    });
+
+    it('sums correctly when not excluding blocked balances', async () => {
+      await createBalanceData(true);
+
+      const balances = await getCurrentCollectiveBalances([collective.id, otherCollective.id], {
+        withBlockedFunds: false,
+      });
+      expect(balances[collective.id].value).to.eq(140e2);
+      expect(balances[otherCollective.id].value).to.eq(130e2);
     });
   });
 });

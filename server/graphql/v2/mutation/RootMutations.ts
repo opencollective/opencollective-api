@@ -13,6 +13,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
@@ -69,6 +70,10 @@ export default {
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
 
       if (args.isArchived && !account.deactivatedAt) {
@@ -99,6 +104,9 @@ export default {
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
       const asyncActions = [];
@@ -138,6 +146,9 @@ export default {
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanRoot(req);
 
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
       const fromAccount = await fetchAccountWithReference(args.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.toAccount, { throwIfMissing: true });
 
@@ -174,6 +185,9 @@ export default {
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanRoot(req);
 
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
       const baseAccounts = await fetchAccountsWithReferences(args.account);
       const allAccounts = !args.includeAssociatedAccounts ? baseAccounts : await getAccountsNetwork(baseAccounts);
       const accounts = uniqBy(allAccounts, 'id');
@@ -184,7 +198,7 @@ export default {
       }
 
       const banSummary = await getBanSummary(accounts);
-      const isAllowed = !banSummary.undeletableTransactionsCount;
+      const isAllowed = !(banSummary.undeletableTransactionsCount || banSummary.newOrdersCount);
       if (args.dryRun) {
         return { isAllowed, accounts, message: stringifyBanSummary(banSummary) };
       }
@@ -212,6 +226,10 @@ export default {
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
       const destinationAccount = await fetchAccountWithReference(args.destinationAccount, { throwIfMissing: true });
       const expenses = await fetchExpensesWithReferences(args.expenses, {
         include: { association: 'collective', required: true },

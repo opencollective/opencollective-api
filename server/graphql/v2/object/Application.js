@@ -10,7 +10,7 @@ import URL from '../scalar/URL';
 
 export const Application = new GraphQLObjectType({
   name: 'Application',
-  description: 'An OAuth application or a personal token',
+  description: 'An OAuth application.',
   fields: () => ({
     id: {
       type: new GraphQLNonNull(GraphQLString),

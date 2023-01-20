@@ -218,7 +218,11 @@ const queries = {
         default: true,
         description: 'If false, only the transactions not linked to an expense (orders/refunds) will be returned',
       },
-      fetchDataFromLedger: { type: GraphQLBoolean }, // flag to go with either api or ledger transactions
+      fetchDataFromLedger: {
+        deprecationReason:
+          '2023-01-11: Removed support for this in 2019 (https://github.com/opencollective/opencollective-api/pull/2384)',
+        type: GraphQLBoolean,
+      }, // flag to go with either api or ledger transactions
       includeHostedCollectivesTransactions: {
         type: GraphQLBoolean,
       } /** flag to determine
@@ -251,6 +255,7 @@ const queries = {
 
   Application: {
     type: ApplicationType,
+    deprecationReason: '2023-01-03: Please use PersonalToken from GQLV2',
     args: {
       id: { type: GraphQLInt },
     },

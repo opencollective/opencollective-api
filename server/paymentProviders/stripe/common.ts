@@ -1,13 +1,26 @@
-import { get, result } from 'lodash';
+import config from 'config';
+import { get, result, toUpper } from 'lodash';
 
-import { createRefundTransaction } from '../../lib/payments';
-import stripe, { extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
+import { Service } from '../../constants/connected_account';
+import * as constants from '../../constants/transactions';
+import {
+  createRefundTransaction,
+  getHostFee,
+  getHostFeeSharePercent,
+  getPlatformTip,
+  isPlatformTipEligible,
+} from '../../lib/payments';
+import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models from '../../models';
+import PaymentMethod from '../../models/PaymentMethod';
+import User from '../../models/User';
+
+export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
   transaction: typeof models.Transaction,
-  user: typeof models.User,
+  user: User,
   options?: { checkRefundStatus: boolean },
 ): Promise<typeof models.Transaction> => {
   /* What's going to be refunded */
@@ -60,7 +73,7 @@ export const refundTransaction = async (
  */
 export const refundTransactionOnlyInDatabase = async (
   transaction: typeof models.Transaction,
-  user: typeof models.User,
+  user: User,
 ): Promise<typeof models.Transaction> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
@@ -77,7 +90,7 @@ export const refundTransactionOnlyInDatabase = async (
     throw new Error('No refund or dispute found in Stripe.');
   }
   const refundBalance = await stripe.balanceTransactions.retrieve(
-    (refund.balance_transaction || dispute.balance_transactions[0].id) as string,
+    (refund?.balance_transaction || dispute?.balance_transactions[0].id) as string,
     {
       stripeAccount: hostStripeAccount.username,
     },
@@ -92,3 +105,267 @@ export const refundTransactionOnlyInDatabase = async (
     user,
   );
 };
+
+export const createChargeTransactions = async (charge, { order }) => {
+  const host = await order.collective.getHostCollective();
+  const hostStripeAccount = await order.collective.getHostStripeAccount();
+  const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
+    ? false
+    : host?.settings?.isPlatformRevenueDirectlyCollected ?? true;
+
+  const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
+  const isSharedRevenue = !!hostFeeSharePercent;
+  const balanceTransaction = await stripe.balanceTransactions.retrieve(charge.balance_transaction, {
+    stripeAccount: hostStripeAccount.username,
+  });
+
+  // Create a Transaction
+  const amount = order.totalAmount;
+  const currency = order.currency;
+  const hostCurrency = balanceTransaction.currency.toUpperCase();
+  const amountInHostCurrency = convertFromStripeAmount(balanceTransaction.currency, balanceTransaction.amount);
+  const hostCurrencyFxRate = amountInHostCurrency / order.totalAmount;
+
+  const hostFee = await getHostFee(order, host);
+  const hostFeeInHostCurrency = Math.round(hostFee * hostCurrencyFxRate);
+
+  const fees = extractFees(balanceTransaction, balanceTransaction.currency);
+
+  const platformTipEligible = await isPlatformTipEligible(order, host);
+  const platformTip = getPlatformTip(order);
+
+  let platformTipInHostCurrency, platformFeeInHostCurrency;
+  if (platformTip) {
+    platformTipInHostCurrency = isSharedRevenue
+      ? Math.round(platformTip * hostCurrencyFxRate) || 0
+      : fees.applicationFee;
+  } else if (config.env === 'test' || config.env === 'ci') {
+    // Retro Compatibility with some tests expecting Platform Fees, not for production anymore
+    // TODO: we need to stop supporting this
+    platformFeeInHostCurrency = fees.applicationFee;
+  }
+
+  const paymentProcessorFeeInHostCurrency = fees.stripeFee;
+
+  const data = {
+    charge,
+    balanceTransaction,
+    hasPlatformTip: platformTip ? true : false,
+    isSharedRevenue,
+    platformTipEligible,
+    platformTip,
+    platformTipInHostCurrency,
+    hostFeeSharePercent,
+    settled: true,
+    tax: order.data?.tax,
+  };
+
+  const transactionPayload = {
+    CreatedByUserId: order.CreatedByUserId,
+    FromCollectiveId: order.FromCollectiveId,
+    CollectiveId: order.CollectiveId,
+    PaymentMethodId: order.PaymentMethodId,
+    type: constants.TransactionTypes.CREDIT,
+    OrderId: order.id,
+    amount,
+    currency,
+    hostCurrency,
+    amountInHostCurrency,
+    hostCurrencyFxRate,
+    paymentProcessorFeeInHostCurrency,
+    platformFeeInHostCurrency,
+    taxAmount: order.taxAmount,
+    description: order.description,
+    hostFeeInHostCurrency,
+    data,
+  };
+
+  return models.Transaction.createFromContributionPayload(transactionPayload, {
+    isPlatformRevenueDirectlyCollected,
+  });
+};
+
+/**
+ * Returns the stripe card payment method to be used for this order.
+ */
+export async function resolvePaymentMethodForOrder(
+  hostStripeAccount: string,
+  order: typeof models.Order,
+): Promise<{ id: string; customer: string }> {
+  const isPlatformHost = hostStripeAccount === config.stripe.accountId;
+
+  const user = await order.getUser();
+
+  let paymentMethod = order.paymentMethod;
+  // a new card token to attach on the platform account
+  if (!paymentMethod.customerId) {
+    paymentMethod = await attachCardToPlatformCustomer(paymentMethod, order.fromCollective, user);
+  }
+
+  const isPlatformPaymentMethod =
+    !paymentMethod?.data?.stripeAccount || paymentMethod?.data?.stripeAccount === config.stripe.accountId;
+
+  if (isPlatformHost && !isPlatformPaymentMethod) {
+    throw new Error('Cannot clone payment method from connected account to platform account');
+  }
+
+  if (!isPlatformPaymentMethod && order.paymentMethod?.data?.stripeAccount !== hostStripeAccount) {
+    throw new Error('Cannot clone payment method that are not attached to the platform account');
+  }
+
+  if ((isPlatformHost && isPlatformPaymentMethod) || paymentMethod?.data?.stripeAccount === hostStripeAccount) {
+    return {
+      id: paymentMethod.data?.stripePaymentMethodId,
+      customer: paymentMethod.customerId,
+    };
+  }
+
+  // in the previous implementation, each user card was cloned to a different host stripe customer.
+  // the corresponding customer was stored here, and we used its default source to charge.
+  // we will still use this customer (present in some payment methods created before 2022), as these cards
+  // might have expired and are not clonable.
+  if (paymentMethod.data?.customerIdForHost && paymentMethod.data?.customerIdForHost?.[hostStripeAccount]) {
+    const customerId = paymentMethod.data?.customerIdForHost?.[hostStripeAccount];
+    const customer = await stripe.customers.retrieve(customerId, {
+      stripeAccount: hostStripeAccount,
+    });
+
+    const paymentMethodId = get(customer, 'default_source', get(customer, 'sources.data[0].id'));
+
+    return {
+      id: paymentMethodId,
+      customer: customerId,
+    };
+  }
+
+  const hostCustomer = await getOrCreateStripeCustomer(hostStripeAccount, order.fromCollective, user);
+  return await getOrCloneCardPaymentMethod(paymentMethod, order.fromCollective, hostStripeAccount, hostCustomer);
+}
+
+export async function getOrCreateStripeCustomer(
+  stripeAccount: string,
+  collective: typeof models.Collective,
+  user: User,
+): Promise<string> {
+  let stripeCustomerConnectedAccount = await collective.getCustomerStripeAccount(stripeAccount);
+  // customer was not yet created for this host, so create it
+  if (!stripeCustomerConnectedAccount) {
+    const customer = await stripe.customers.create(
+      {
+        email: user?.email,
+        description: `${config.host.website}/${collective.slug}`,
+      },
+      {
+        stripeAccount,
+      },
+    );
+
+    stripeCustomerConnectedAccount = await models.ConnectedAccount.create({
+      clientId: stripeAccount,
+      username: customer.id,
+      CollectiveId: collective.id,
+      service: Service.STRIPE_CUSTOMER,
+    });
+  }
+
+  return stripeCustomerConnectedAccount.username;
+}
+
+export async function attachCardToPlatformCustomer(
+  paymentMethod: typeof models.PaymentMethod,
+  collective: typeof models.Collective,
+  user: User,
+): Promise<PaymentMethod> {
+  const platformCustomer = await getOrCreateStripeCustomer(config.stripe.accountId, collective, user);
+
+  let stripePaymentMethod = await stripe.paymentMethods.create({
+    type: 'card',
+    card: {
+      token: paymentMethod.token,
+    },
+  });
+
+  stripePaymentMethod = await stripe.paymentMethods.attach(stripePaymentMethod.id, {
+    customer: platformCustomer,
+  });
+
+  return await paymentMethod.update({
+    customerId: platformCustomer,
+    data: {
+      ...paymentMethod.data,
+      stripePaymentMethodId: stripePaymentMethod.id,
+      fingerprint: stripePaymentMethod.card.fingerprint,
+    },
+  });
+}
+
+export async function getOrCloneCardPaymentMethod(
+  platformPaymentMethod: typeof models.PaymentMethod,
+  collective: typeof models.Collective,
+  hostStripeAccount: string,
+  hostCustomer: string,
+): Promise<{ id: string; customer: string }> {
+  let platformCardTokenCardId = platformPaymentMethod.data?.stripePaymentMethodId;
+  let platformCardFingerprint = platformPaymentMethod.data?.fingerprint;
+
+  // store platform card payment method id and fingerprint for reuse.
+  if (!platformCardTokenCardId || !platformCardFingerprint) {
+    const platformCardToken = await stripe.tokens.retrieve(platformPaymentMethod.token);
+    platformCardFingerprint = platformCardToken.card.fingerprint;
+    platformCardTokenCardId = platformCardToken.card.id;
+
+    await platformPaymentMethod.update({
+      data: {
+        ...platformPaymentMethod?.data,
+        fingerprint: platformCardFingerprint,
+        stripePaymentMethodId: platformCardTokenCardId,
+      },
+    });
+  }
+
+  if (platformPaymentMethod.data?.stripePaymentMethodByHostCustomer?.[hostCustomer]) {
+    return {
+      id: platformPaymentMethod.data?.stripePaymentMethodByHostCustomer[hostCustomer],
+      customer: hostCustomer,
+    };
+  }
+
+  // clone payment method to host stripe account
+  let clonedPaymentMethod = await stripe.paymentMethods.create(
+    {
+      // this is the customer on the platform account which holds the original card
+      customer: platformPaymentMethod.customerId,
+      // eslint-disable-next-line camelcase
+      payment_method: platformCardTokenCardId,
+    },
+    {
+      stripeAccount: hostStripeAccount,
+    },
+  );
+
+  // we attach the newly cloned payment method to the customer in the fiscal host account
+  clonedPaymentMethod = await stripe.paymentMethods.attach(
+    clonedPaymentMethod.id,
+    {
+      customer: hostCustomer,
+    },
+    {
+      stripeAccount: hostStripeAccount,
+    },
+  );
+
+  await platformPaymentMethod.update({
+    data: {
+      ...platformPaymentMethod.data,
+      stripePaymentMethodByHostCustomer: {
+        ...platformPaymentMethod.data?.stripePaymentMethodByHostCustomer,
+        [hostCustomer]: clonedPaymentMethod.id,
+      },
+    },
+  });
+
+  return {
+    id: platformPaymentMethod.data?.stripePaymentMethodByHostCustomer[hostCustomer],
+    customer: hostCustomer,
+  };
+}

@@ -4,7 +4,8 @@ import config from 'config';
 import express from 'express';
 import { difference, find } from 'lodash';
 
-import models, { Op } from '../models';
+import { Op } from '../models';
+import ConnectedAccount from '../models/ConnectedAccount';
 import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
@@ -37,15 +38,10 @@ const parseError = e => {
   }
 };
 
-type ConnectedAccount = {
-  token: string;
-  clientId: string;
-  settings?: {
-    webhookId: string;
-  };
-};
-
-const getPayPalClient = ({ token, clientId }: ConnectedAccount): ReturnType<typeof paypal.core.PayPalHttpClient> => {
+const getPayPalClient = ({
+  token,
+  clientId,
+}: Partial<ConnectedAccount>): ReturnType<typeof paypal.core.PayPalHttpClient> => {
   const environment =
     config.env === 'production'
       ? new paypal.core.LiveEnvironment(clientId, token)
@@ -87,12 +83,12 @@ export const getBatchInfo = async (
   return executeRequest(connectedAccount, request);
 };
 
-export const validateConnectedAccount = async ({ token, clientId }: ConnectedAccount): Promise<void> => {
+export const validateConnectedAccount = async ({ token, clientId }: Partial<ConnectedAccount>): Promise<void> => {
   const client = getPayPalClient({ token, clientId });
   await client.fetchAccessToken();
 };
 
-export const getHostPaypalAccount = async (host): Promise<typeof models.ConnectedAccount> => {
+export const getHostPaypalAccount = async (host): Promise<ConnectedAccount> => {
   const [account] = await host.getConnectedAccounts({
     where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
     order: [['createdAt', 'DESC']],
@@ -106,7 +102,7 @@ export const getHostPaypalAccount = async (host): Promise<typeof models.Connecte
 };
 
 export const validateWebhookEvent = async (
-  { token, clientId, settings }: ConnectedAccount,
+  { token, clientId, settings }: Partial<ConnectedAccount>,
   req: express.Request,
 ): Promise<void> => {
   const client = getPayPalClient({ token, clientId });

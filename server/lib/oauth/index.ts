@@ -51,7 +51,7 @@ class CustomAuthorizeHandler extends AuthorizeHandler {
     super(...args);
   }
 
-  updateResponse = function (response, redirectUri, state): Promise<void> {
+  updateResponse = function (response, redirectUri, state) {
     redirectUri.query = redirectUri.query || {};
 
     if (state) {
@@ -64,7 +64,7 @@ class CustomAuthorizeHandler extends AuthorizeHandler {
 }
 
 class CustomOAuth2Server extends OAuth2Server {
-  authorize = async function (
+  authorize = function (
     request: OAuth2Server.Request,
     response: OAuth2Server.Response,
     options?: OAuth2Server.AuthorizeOptions,
@@ -83,11 +83,11 @@ class CustomOAuth2Server extends OAuth2Server {
   };
 
   // Library accepts a 4th parameter "callback", but it's not used there so we're omitting it
-  token = async function (request, response, options): Promise<OAuth2Server.Token> {
+  token = function (request, response, options): Promise<OAuth2Server.Token> {
     options = assign(
       {
-        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 1 hour.
-        refreshTokenLifetime: 60 * 60 * 24 * 365, // 2 weeks.
+        accessTokenLifetime: auth.TOKEN_EXPIRATION_SESSION, // 90 days
+        refreshTokenLifetime: 60 * 60 * 24 * 365, // 1 year
         allowExtendedTokenAttributes: false,
         requireClientAuthentication: {}, // defaults to true for all grant types
       },

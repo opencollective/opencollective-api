@@ -1,13 +1,13 @@
 #!/bin/bash
 
 usage() {
-  echo "Usage: db_restore.sh -d DBNAME -U DBUSER -f DBDUMP_FILE";
+  echo "Usage: db_restore.sh -d DBNAME -U DBUSER --use-postgis -f DBDUMP_FILE";
   echo "e.g.";
   echo "> db_restore.sh -d opencollective_dvl -U opencollective -f test/dbdumps/opencollective_dvl.pgsql"
   exit 0;
 }
 
-while [[ $# -gt 1 ]]
+while [[ $# -gt 0 ]]
 do
 key="$1"
 
@@ -19,6 +19,9 @@ case $key in
     -U|--username)
     LOCALDBUSER="$2"
     shift # past argument
+    ;;
+    --use-postgis)
+    USE_POSTGIS=1
     ;;
     -f|--file)
     DBDUMP_FILE="$2"
@@ -50,52 +53,34 @@ if [ -z "$LOCALDBNAME" ]; then usage; fi;
 # where pg_stat_activity.datname = '$LOCALDBNAME'
 # EOF
 
-dropdb --if-exists $LOCALDBNAME;
-createdb $LOCALDBNAME 2> /dev/null
+dropdb -U postgres -h localhost --if-exists $LOCALDBNAME;
+createdb -U postgres -h localhost $LOCALDBNAME 2> /dev/null
 
-# The first time we run it, we will trigger FK constraints errors
-set +e
-pg_restore --no-acl --no-owner -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null
-set -e
-
-# So we run it twice :-)
-pg_restore --no-acl --no-owner -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}"
-
-echo "DB restored to postgres://localhost/${LOCALDBNAME}"
+# When restoring old backups, you may need to enable Postgis
+if [ "$USE_POSTGIS" = "1" ]; then
+  echo "Enabling Postgis"
+  psql "${LOCALDBNAME}" -c "CREATE EXTENSION postgis;"
+  psql "${LOCALDBNAME}" -c "ALTER TABLE public.spatial_ref_sys OWNER TO ${LOCALDBUSER};"
+  psql "${LOCALDBNAME}" -c "GRANT SELECT, INSERT ON TABLE public.spatial_ref_sys TO public;"
+fi
 
 # cool trick: all stdout ignored in this block
 {
   set +e
   # We make sure the user $LOCALDBUSER has access; could fail
-  psql "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
+  psql -U postgres -h localhost "${LOCALDBNAME}" -c "CREATE ROLE ${LOCALDBUSER} WITH login;" 2>/dev/null
   set -e
-
-  # Change ownership of all tables
-  tables=`psql -qAt -c "select tablename from pg_tables where schemaname = 'public';" "${LOCALDBNAME}"`
-
-  for tbl in $tables ; do
-    psql "${LOCALDBNAME}" -c "alter table \"${tbl}\" owner to ${LOCALDBUSER};"
-  done
-
-  # Change ownership of the database
-  psql "${LOCALDBNAME}" -c "alter database ${LOCALDBNAME} owner to ${LOCALDBUSER};"
-
-  # Change ownership of custom types (necessary if we want to modify it in migrations)
-  # Would be great to find a way to do that for all custom types
-  psql "${LOCALDBNAME}" -c "alter type \"enum_Expenses_type\" owner to ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "alter type \"enum_ExpenseHistories_type\" owner to ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "alter type \"enum_MemberInvitations_role\" owner to ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "alter type \"enum_PayoutMethods_type\" owner to ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "alter type \"enum_MigrationLogs_type\" owner to ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "alter type \"enum_Transactions_kind\" owner to ${LOCALDBUSER};"
-  # TODO: uncomment those lines when we update the dump
-  # psql "${LOCALDBNAME}" -c "alter type \"enum_OAuthAuthorizationCodes_scope\" owner to ${LOCALDBUSER};"
-  # psql "${LOCALDBNAME}" -c "alter type \"enum_UserTokens_scope\" owner to ${LOCALDBUSER};"
-
-  psql "${LOCALDBNAME}" -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${LOCALDBUSER};"
-  psql "${LOCALDBNAME}" -c "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${LOCALDBUSER};"
-
 } | tee >/dev/null
+
+# The first time we run it, we will trigger FK constraints errors
+set +e
+pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}" 2>/dev/null
+set -e
+
+# So we run it twice :-)
+pg_restore -U postgres -h localhost --no-acl --no-owner --role=${LOCALDBUSER} -n public -O -c -d "${LOCALDBNAME}" "${DBDUMP_FILE}"
+
+echo "DB restored to postgres://localhost/${LOCALDBNAME}"
 
 # Note: I have to run after this script:
 # $> psql opencollective_test -c "REASSIGN OWNED BY xdamman TO opencollective;"

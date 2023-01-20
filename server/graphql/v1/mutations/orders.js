@@ -23,15 +23,15 @@ import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
+import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
 import models from '../../../models';
-import { canRefund } from '../../common/transactions';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
   FeatureNotSupportedForCollective,
-  Forbidden,
   NotFound,
   Unauthorized,
   ValidationFailed,
@@ -160,7 +160,11 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
 
     // Load tax info from DB, ignore if amount is 0
     if (order.totalAmount !== 0 && tier && LibTaxes.isTierTypeSubjectToVAT(tier.type)) {
-      const vatType = get(collective, 'settings.VAT.type') ?? get(collective.parentCollective, 'settings.VAT.type');
+      const vatType =
+        get(collective, 'settings.VAT.type') ||
+        get(collective.parentCollective, 'settings.VAT.type') ||
+        VAT_OPTIONS.HOST;
+
       const baseCountry = collective.countryISO || get(parentCollective, 'countryISO');
       if (vatType === VAT_OPTIONS.OWN) {
         taxFromCountry = LibTaxes.getVatOriginCountry(tier.type, baseCountry, baseCountry);
@@ -217,7 +221,13 @@ const hasPaymentMethod = order => {
     return Boolean(paymentMethod.data?.orderId);
   } else {
     return Boolean(
-      paymentMethod.uuid || paymentMethod.token || paymentMethod.type === 'manual' || paymentMethod.type === 'crypto',
+      paymentMethod.uuid ||
+        paymentMethod.token ||
+        paymentMethod.type === 'manual' ||
+        paymentMethod.type === 'crypto' ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT ||
+        paymentMethod.type === PAYMENT_METHOD_TYPE.SEPA_DEBIT,
     );
   }
 };
@@ -235,7 +245,14 @@ export async function createOrder(order, req) {
   }
 
   await checkOrdersLimit(order, reqIp, reqMask);
-  await orderFraudProtection(req, order);
+  await orderFraudProtection(req, order).catch(error => {
+    reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
+    throw new ValidationFailed(
+      "There's something wrong with the payment, please contact support@opencollective.com.",
+      undefined,
+      { includeId: true },
+    );
+  });
 
   let orderCreated, isGuest, guestToken;
   try {
@@ -368,21 +385,17 @@ export async function createOrder(order, req) {
         throw new FeatureNotSupportedForCollective();
       }
 
-      const possibleRoles = [];
-      if (fromCollective.type === types.ORGANIZATION) {
-        possibleRoles.push(roles.MEMBER);
-      }
-
-      if (!remoteUser?.isAdminOfCollective(fromCollective) && !remoteUser?.hasRole(possibleRoles, fromCollective.id)) {
-        // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
-        const HostId = await collective.getHostCollectiveId();
-        if (!remoteUser?.isAdmin(HostId)) {
-          throw new Error(
-            `You don't have sufficient permissions to create an order on behalf of the ${
-              fromCollective.name
-            } ${fromCollective.type.toLowerCase()}`,
-          );
-        }
+      // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
+      if (remoteUser?.isAdminOfCollective(fromCollective)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+      } else if (remoteUser?.isAdminOfCollective(host)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      } else {
+        throw new Error(
+          `You don't have sufficient permissions to create an order on behalf of the ${
+            fromCollective.name
+          } ${fromCollective.type.toLowerCase()}`,
+        );
       }
     }
 
@@ -516,6 +529,7 @@ export async function createOrder(order, req) {
         isGuest,
         isBalanceTransfer: order.isBalanceTransfer,
         fromAccountInfo: order.fromAccountInfo,
+        paymentIntent: order.paymentMethod?.paymentIntentId ? { id: order.paymentMethod.paymentIntentId } : undefined,
       },
       status: orderStatus,
     };
@@ -556,6 +570,10 @@ export async function createOrder(order, req) {
       }
       // also adds the user as a BACKER of collective
       await libPayments.executeOrder(remoteUser, orderCreated);
+      if (order.paymentMethod.type === 'paymentintent') {
+        await orderCreated.reload();
+        return { order: orderCreated };
+      }
     } else if (!paymentRequired && order.interval && collective.type === types.COLLECTIVE) {
       // create inactive subscription to hold the interval info for the pledge
       const subscription = await models.Subscription.create({
@@ -567,7 +585,7 @@ export async function createOrder(order, req) {
     } else if (collective.type === types.EVENT) {
       // Free ticket, mark as processed and add user as an ATTENDEE
       await orderCreated.update({ status: 'PAID', processedAt: new Date() });
-      await collective.addUserWithRole(remoteUser, roles.ATTENDEE, {}, { order: orderCreated });
+      await collective.addUserWithRole(remoteUser, roles.ATTENDEE, { TierId: tier?.id }, { order: orderCreated });
       await models.Activity.create({
         type: activities.TICKET_CONFIRMED,
         CollectiveId: collective.id,
@@ -664,7 +682,9 @@ export async function confirmOrder(order, remoteUser, guestToken) {
     throw new Unauthorized("You don't have permission to confirm this order");
   }
 
-  if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
+  if (order.status === status.PAID || order.status === status.ACTIVE) {
+    throw new Error('This contribution has already been confirmed.');
+  } else if (![status.ERROR, status.PENDING, status.REQUIRE_CLIENT_CONFIRMATION].includes(order.status)) {
     // As August 2020, we're transitionning from PENDING to REQUIRE_CLIENT_CONFIRMATION
     // PENDING can be safely removed after a few days (it will be dedicated for "Manual" payments)
     throw new Error('Order can only be confirmed if its status is ERROR, PENDING or REQUIRE_CLIENT_CONFIRMATION.');
@@ -680,7 +700,7 @@ export async function confirmOrder(order, remoteUser, guestToken) {
       await libPayments.processOrder(order);
 
       order.status = status.ACTIVE;
-      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent']);
+      order.data = omit(order.data, ['error', 'latestError', 'paymentIntent', 'needsConfirmation']);
       order.Subscription = Object.assign(order.Subscription, getNextChargeAndPeriodStartDates('success', order));
       order.Subscription.chargeRetryCount = getChargeRetryCount('success', order);
       if (order.Subscription.chargeNumber !== null) {
@@ -705,37 +725,6 @@ export async function confirmOrder(order, remoteUser, guestToken) {
 
     return order;
   }
-}
-
-export async function refundTransaction(_, args, req) {
-  // 0. Retrieve transaction from database
-  const transaction = await models.Transaction.findByPk(args.id, {
-    include: [models.Order, models.PaymentMethod],
-  });
-
-  if (!transaction) {
-    throw new NotFound('Transaction not found');
-  }
-
-  // 1a. Verify user permission using canRefund. User must be either
-  //   a. Admin of the collective that received the donation
-  //   b. Admin of the Host Collective that received the donation
-  //   c. Admin of opencollective.com/opencollective
-  // 1b. Check transaction age - only Host admins can refund transactions older than 30 days
-  // 1c. The transaction type must be CREDIT to prevent users from refunding their own DEBITs
-
-  const canUserRefund = await canRefund(transaction, undefined, req);
-  if (!canUserRefund) {
-    throw new Forbidden('Cannot refund this transaction');
-  }
-
-  // 2. Refund via payment method
-  // 3. Create new transactions with the refund value in our database
-  const result = await libPayments.refundTransaction(transaction, req.remoteUser, args.message);
-
-  // Return the transaction passed to the `refundTransaction` method
-  // after it was updated.
-  return result;
 }
 
 export async function markPendingOrderAsExpired(remoteUser, id) {

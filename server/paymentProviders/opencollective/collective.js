@@ -15,9 +15,9 @@ paymentMethodProvider.features = {
 };
 
 // Returns the balance in the currency of the paymentMethod (ie. currency of the Collective)
-paymentMethodProvider.getBalance = paymentMethod => {
+paymentMethodProvider.getBalance = (paymentMethod, parameters = {}) => {
   return paymentMethod.getCollective().then(collective => {
-    return collective.getBalanceWithBlockedFunds();
+    return collective.getBalance({ ...parameters, withBlockedFunds: true });
   });
 };
 
@@ -44,7 +44,7 @@ paymentMethodProvider.processOrder = async order => {
     );
   }
 
-  const balance = await paymentMethodProvider.getBalance(order.paymentMethod);
+  const balance = await paymentMethodProvider.getBalance(order.paymentMethod, { currency: order.currency });
   if (balance < order.totalAmount) {
     throw new Error(
       `Not enough funds available (${formatCurrency(

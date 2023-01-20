@@ -1,5 +1,6 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import * as ExpenseLib from '../../common/expenses';
 
@@ -8,6 +9,7 @@ export const Permission = new GraphQLObjectType({
   fields: () => ({
     allowed: { type: new GraphQLNonNull(GraphQLBoolean) },
     reason: { type: GraphQLString },
+    reasonDetails: { type: GraphQLJSON },
   }),
 });
 
@@ -18,5 +20,9 @@ export const parsePermissionFromEvaluator =
   (expense, _, req: express.Request): Promise<PermissionFields> => {
     return fn(req, expense, { throw: true })
       .then(allowed => ({ allowed }))
-      .catch(error => ({ allowed: false, reason: error?.extensions?.code }));
+      .catch(error => ({
+        allowed: false,
+        reason: error?.extensions?.code,
+        reasonDetails: error?.extensions?.reasonDetails,
+      }));
   };

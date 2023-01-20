@@ -4,11 +4,7 @@ Subject: {{{remoteUser.collective.name}}} added you as {{role}} to {{{collective
 
 {{> toplogo}}
 
-{{#if recipient.collective.name}}
-<p>{{recipient.collective.name}},</p>
-{{else}}
-<p>Hi,</p>
-{{/if}}
+<p>{{> greeting}}</p>
 
 <p>{{remoteUser.collective.name}} (cced) added you as {{role}} for <a href="https://opencollective.com/{{collective.slug}}">{{collective.name}}</a> on Open Collective.</p>
 
@@ -31,10 +27,6 @@ Subject: {{{remoteUser.collective.name}}} added you as {{role}} to {{{collective
   <tr><th>Website:</th><td>{{recipient.collective.website}}</td></tr>
   <tr><th>Twitter:</th><td>{{recipient.collective.twitterHandle}}</td></tr>
 </table>
-
-<a href="{{{loginLink}}}" class="btn blue">
-  <div>Log in</div>
-</a>
 
 <p>If you have questions, feel free to reply to this email.</p>
 

@@ -10,7 +10,6 @@ import { reportErrorToSentry } from '../../server/lib/sentry';
 import * as transferwiseLib from '../../server/lib/transferwise';
 import models from '../../server/models';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
-import transferwise from '../../server/paymentProviders/transferwise';
 import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
 import { TransferStateChangeEvent } from '../../server/types/transferwise';
 
@@ -26,8 +25,7 @@ async function processExpense(expense) {
   if (!connectedAccount) {
     throw new Error(`Host #${host.id} is not connected to Transferwise.`);
   }
-  const token = await transferwise.getToken(connectedAccount);
-  const transfer = await transferwiseLib.getTransfer(token, expense.data.transfer.id);
+  const transfer = await transferwiseLib.getTransfer(connectedAccount, expense.data.transfer.id);
   if (
     (expense.status === status.PROCESSING && transfer.status === 'outgoing_payment_sent') ||
     transfer.status === 'funds_refunded'

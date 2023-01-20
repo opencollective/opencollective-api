@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import { round, set, sumBy, truncate } from 'lodash';
 
 import ExpenseType from '../constants/expense_type';
@@ -6,7 +8,8 @@ import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
 import { exportToCSV } from '../lib/utils';
-import models, { Op, sequelize } from '../models';
+import models, { Op } from '../models';
+import Tier from '../models/Tier';
 
 import { getFxRate } from './currency';
 
@@ -150,10 +153,10 @@ export async function createTransactionsFromPaidExpense(
   fees = { ...DEFAULT_FEES, ...fees };
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
 
-  // Get the right FX rate for the expense
+  // Use the supplied FX rate or fetch a new one for the time of payment
   const expenseToHostFxRate =
     expenseToHostFxRateConfig === 'auto'
-      ? await getFxRate(expense.currency, host.currency, expense.incurredAt || expense.createdAt)
+      ? await getFxRate(expense.currency, host.currency, new Date())
       : expenseToHostFxRateConfig;
 
   const expenseDataForTransaction: Record<string, unknown> = { expenseToHostFxRate };
@@ -212,6 +215,83 @@ export async function createTransactionsFromPaidExpense(
   return models.Transaction.createDoubleEntry(transaction);
 }
 
+export async function createTransactionsForManuallyPaidExpense(
+  host,
+  expense,
+  paymentProcessorFeeInHostCurrency,
+  totalAmountPaidInHostCurrency,
+  /** Will be stored in transaction.data */
+  transactionData: Record<string, unknown> = {},
+) {
+  assert(paymentProcessorFeeInHostCurrency >= 0, 'Payment processor fee must be positive');
+  assert(totalAmountPaidInHostCurrency > 0, 'Total amount paid must be positive');
+
+  // Values are already adjusted to negative DEBIT values
+  const isCoveredByPayee = expense.feesPayer === 'PAYEE';
+  const grossAmount = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
+  const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency);
+  const amounts = {
+    amount: grossAmount,
+    amountInHostCurrency: grossAmount,
+    paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
+    netAmountInCollectiveCurrency,
+    hostCurrencyFxRate: 1,
+  };
+
+  if (isCoveredByPayee) {
+    set(transactionData, 'feesPayer', 'PAYEE');
+    // Not necessary to adjust amounts since the host admin already passes the net amount as the base argument
+  }
+
+  // Adjust values if currency from host is different from the currency of the collective.
+  if (host.currency !== expense.collective.currency) {
+    assert(
+      expense.currency === expense.collective.currency,
+      'Expense currency must be the same as collective currency',
+    );
+    amounts.hostCurrencyFxRate = expense.amount / grossAmount;
+    amounts.amount = round(amounts.amount * amounts.hostCurrencyFxRate);
+    amounts.netAmountInCollectiveCurrency = round(amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate);
+  }
+
+  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  const expenseDataForTransaction: Record<string, unknown> = {};
+  if (expense.data?.taxes?.length) {
+    expenseDataForTransaction['tax'] = {
+      ...expense.data.taxes[0],
+      id: expense.data.taxes[0].type,
+      rate: round(expense.data.taxes[0].rate, 4), // We want to support percentages with up to 2 decimals (e.g. 12.13%)
+      percentage: round(expense.data.taxes[0].rate * 100), // @deprecated for legacy compatibility
+    };
+  }
+
+  // To group all the info we retrieved from the payment. All amounts are expected to be in expense currency
+  const transaction = {
+    ...amounts,
+    hostCurrency: host.currency,
+    ExpenseId: expense.id,
+    type: DEBIT,
+    kind: EXPENSE,
+    hostFeeInHostCurrency: 0,
+    platformFeeInHostCurrency: 0,
+    currency: expense.collective.currency, // We always record the transaction in the collective currency
+    description: expense.description,
+    CreatedByUserId: expense.UserId, // TODO: Should be the person who triggered the payment
+    CollectiveId: expense.CollectiveId,
+    FromCollectiveId: expense.FromCollectiveId,
+    HostCollectiveId: host.id,
+    PayoutMethodId: expense.PayoutMethodId,
+    taxAmount: computeExpenseTaxes(expense),
+    data: {
+      isManual: true,
+      ...transactionData,
+      ...expenseDataForTransaction,
+    },
+  };
+
+  return models.Transaction.createDoubleEntry(transaction);
+}
+
 const computeExpenseTaxes = (expense): number | null => {
   if (!expense.data?.taxes?.length) {
     return null;
@@ -221,68 +301,6 @@ const computeExpenseTaxes = (expense): number | null => {
     return -Math.round(expense.amount - amountWithoutTaxes) || 0;
   }
 };
-
-/**
- * Calculate net amount of a transaction in the currency of the collective
- * Notes:
- * - fees are negative numbers
- * - netAmountInCollectiveCurrency * hostCurrencyFxRate = amountInHostCurrency
- *   Therefore, amountInHostCurrency / hostCurrencyFxRate= netAmountInCollectiveCurrency
- */
-export function netAmount(tr) {
-  const fees = tr.hostFeeInHostCurrency + tr.platformFeeInHostCurrency + tr.paymentProcessorFeeInHostCurrency || 0;
-  return Math.round((tr.amountInHostCurrency + fees) / tr.hostCurrencyFxRate);
-}
-
-/**
- * Verify net amount of a transaction
- */
-export function verify(tr) {
-  if (tr.type === 'CREDIT' && tr.amount <= 0) {
-    return 'amount <= 0';
-  }
-  if (tr.type === 'DEBIT' && tr.amount >= 0) {
-    return 'amount >= 0';
-  }
-  if (tr.type === 'CREDIT' && tr.netAmountInCollectiveCurrency <= 0) {
-    return 'netAmount <= 0';
-  }
-  if (tr.type === 'DEBIT' && tr.netAmountInCollectiveCurrency >= 0) {
-    return 'netAmount >= 0';
-  }
-  const diff = Math.abs(netAmount(tr) - tr.netAmountInCollectiveCurrency);
-  // if the difference is within one cent, it's most likely a rounding error (because of the number of decimals in the hostCurrencyFxRate)
-  if (diff > 0 && diff < 10) {
-    return 'netAmount diff';
-  }
-  return true;
-}
-
-/** Calculate how off a transaction is
- *
- * Which is pretty much the difference between transaction net amount
- * & netAmountInCollectiveCurrency */
-export function difference(tr) {
-  return netAmount(tr) - tr.netAmountInCollectiveCurrency;
-}
-
-/** Returnt he sum of transaction rows that match search.
- *
- * @param {Object} where is an object that contains all the fields
- *  that you want to use to narrow down the search against the
- *  transactions table. For example, if you want to sum up the
- *  donations of a user to a specific collective, use the following:
- * @example
- *  > const babel = await models.Collectives.findOne({ slug: 'babel' });
- *  > libransactions.sum({ FromCollectiveId: userCollective.id, CollectiveId: babel.id })
- * @return the sum of the column `amount`.
- */
-export async function sum(where) {
-  const totalAttr = sequelize.fn('COALESCE', sequelize.fn('SUM', sequelize.col('netAmountInCollectiveCurrency')), 0);
-  const attributes = [[totalAttr, 'total']];
-  const result = await models.Transaction.findOne({ attributes, where });
-  return result.dataValues.total;
-}
 
 const kindStrings = {
   ADDED_FUNDS: `Added Funds`,
@@ -316,7 +334,8 @@ export async function generateDescription(transaction, { req = null, full = fals
     }
   }
 
-  let order, expense, subscription, tier;
+  let order, expense, subscription;
+  let tier: Tier;
 
   if (transaction.OrderId) {
     order = await (req ? req.loaders.Order.byId.load(transaction.OrderId) : models.Order.findByPk(transaction.OrderId));

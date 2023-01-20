@@ -187,6 +187,7 @@ export const searchCollectivesInDB = async (
     hasCustomContributionsEnabled,
     countries,
     tags,
+    tagSearchOperator,
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -199,6 +200,7 @@ export const searchCollectivesInDB = async (
 
   if (hostCollectiveIds && hostCollectiveIds.length > 0) {
     dynamicConditions += 'AND c."HostCollectiveId" IN (:hostCollectiveIds) ';
+    dynamicConditions += 'AND c."approvedAt" IS NOT NULL ';
   }
 
   if (parentCollectiveIds && parentCollectiveIds.length > 0) {
@@ -243,7 +245,11 @@ export const searchCollectivesInDB = async (
 
   if (tags?.length) {
     searchedTags = tags.map(tag => tag.toLowerCase());
-    dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
+    if (tagSearchOperator === 'OR') {
+      dynamicConditions += `AND c."tags" && Array[:searchedTags]::varchar[] `;
+    } else {
+      dynamicConditions += `AND c."tags" @> Array[:searchedTags]::varchar[] `;
+    }
   }
 
   const searchTermConditions = getSearchTermSQLConditions(term, 'c');
@@ -257,7 +263,6 @@ export const searchCollectivesInDB = async (
     SELECT
       c.*,
       COUNT(*) OVER() AS __total__,
-      COALESCE(transaction_stats."totalAmountReceivedInHostCurrency", 0) AS "__stats_totalAmountReceivedInHostCurrency__",
       (${getSortSubQuery(searchTermConditions, orderBy)}) as __sort__
     FROM "Collectives" c
     ${countryCodes ? 'LEFT JOIN "Collectives" parentCollective ON c."ParentCollectiveId" = parentCollective.id' : ''}
@@ -394,6 +399,12 @@ export const getTagFrequencies = async args => {
     `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
       FROM "Collectives"
       WHERE "deletedAt" IS NULL
+      AND "deactivatedAt" IS NULL 
+      AND ((data ->> 'isGuest'::text)::boolean) IS NOT TRUE 
+      AND ((data ->> 'hideFromSearch'::text)::boolean) IS NOT TRUE 
+      AND name::text <> 'incognito'::text 
+      AND name::text <> 'anonymous'::text 
+      AND "isIncognito" = false
       ${searchConditions.sqlConditions}
       GROUP BY UNNEST(tags)
       ORDER BY count DESC

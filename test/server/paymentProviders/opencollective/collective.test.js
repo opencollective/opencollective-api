@@ -149,9 +149,9 @@ describe('server/paymentProviders/opencollective/collective', () => {
 
     beforeEach('create transactions for 3 donations from organization to collective1', async () => {
       transactions = [
-        { amount: 500, netAmountInCollectiveCurrency: 500 },
-        { amount: 200, netAmountInCollectiveCurrency: 200 },
-        { amount: 1000, netAmountInCollectiveCurrency: 1000 },
+        { amount: 500, netAmountInCollectiveCurrency: 500, amountInHostCurrency: 500 },
+        { amount: 200, netAmountInCollectiveCurrency: 200, amountInHostCurrency: 200 },
+        { amount: 1000, netAmountInCollectiveCurrency: 1000, amountInHostCurrency: 1000 },
       ];
       const transactionsDefaultValue = {
         CreatedByUserId: user1.id,
@@ -159,6 +159,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         CollectiveId: collective1.id,
         PaymentMethodId: stripePaymentMethod.id,
         currency: collective1.currency,
+        hostCurrency: collective1.currency,
         HostCollectiveId: collective1.HostCollectiveId,
         type: 'DEBIT',
       };
@@ -167,9 +168,9 @@ describe('server/paymentProviders/opencollective/collective', () => {
 
     beforeEach('create transactions for 3 donations from organization to collective5', async () => {
       transactions = [
-        { amount: 500, netAmountInCollectiveCurrency: 500 },
-        { amount: 200, netAmountInCollectiveCurrency: 200 },
-        { amount: 1000, netAmountInCollectiveCurrency: 1000 },
+        { amount: 500, netAmountInCollectiveCurrency: 500, amountInHostCurrency: 500 },
+        { amount: 200, netAmountInCollectiveCurrency: 200, amountInHostCurrency: 200 },
+        { amount: 1000, netAmountInCollectiveCurrency: 1000, amountInHostCurrency: 1000 },
       ];
       const transactionsDefaultValue = {
         CreatedByUserId: user1.id,
@@ -177,6 +178,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         CollectiveId: collective5.id,
         PaymentMethodId: stripePaymentMethod.id,
         currency: collective5.currency,
+        hostCurrency: collective5.currency,
         HostCollectiveId: collective5.HostCollectiveId,
         type: 'DEBIT',
       };

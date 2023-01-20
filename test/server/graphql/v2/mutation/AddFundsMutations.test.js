@@ -114,9 +114,7 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         collectiveAdmin,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(
-        /You don't have enough permissions to use this payment method \(you need to be an admin of the collective that owns this payment method\)/,
-      );
+      expect(result.errors[0].message).to.match(/Only an site admin or collective host admin can add fund/);
     });
 
     it('can add funds as host admin', async () => {

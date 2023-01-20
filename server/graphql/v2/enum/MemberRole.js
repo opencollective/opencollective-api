@@ -10,7 +10,7 @@ export const MemberRole = new GraphQLEnumType({
     HOST: {},
     ATTENDEE: {},
     MEMBER: {},
-    FUNDRAISER: {},
+    FUNDRAISER: { deprecationReason: '2022-09-12: This role does not exist anymore' },
     FOLLOWER: {},
     ACCOUNTANT: {},
     CONNECTED_ACCOUNT: { value: 'CONNECTED_COLLECTIVE' },

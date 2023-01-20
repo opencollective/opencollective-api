@@ -187,7 +187,7 @@ AND t."createdAt" < :endDate`,
         CollectiveId: host.id,
         currency: host.currency,
         description: `Platform settlement for ${momentDate.utc().format('MMMM')}`,
-        incurredAt: today,
+        incurredAt: today.toDate(),
         // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
         data: { isPlatformTipSettlement: true, transactionIds },
         type: expenseTypes.SETTLEMENT,

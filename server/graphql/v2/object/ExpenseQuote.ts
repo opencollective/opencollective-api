@@ -7,7 +7,7 @@ const ExpenseQuote = new GraphQLObjectType({
   name: 'ExpenseQuote',
   description: 'Fields for an expense quote',
   fields: () => ({
-    totalAmount: {
+    sourceAmount: {
       type: new GraphQLNonNull(Amount),
       description: 'Amount of this item',
     },

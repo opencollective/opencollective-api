@@ -5,9 +5,10 @@ import AccountsCollectionQuery from './collection/AccountsCollectionQuery';
 import ActivitiesCollectionQuery from './collection/ActivitiesCollectionQuery';
 import ExpensesCollectionQuery from './collection/ExpensesCollectionQuery';
 import HostsCollectionQuery from './collection/HostsCollectionQuery';
-import OrdersCollectionQuery from './collection/OrdersCollectionQuery';
+import getOrdersCollectionQuery from './collection/OrdersCollectionQuery';
 import TagStatsCollectionQuery from './collection/TagStatsCollectionQuery';
 import TransactionsCollectionQuery from './collection/TransactionsCollectionQuery';
+import UpdatesCollectionQuery from './collection/UpdatesCollectionQuery';
 import AccountQuery from './AccountQuery';
 import ApplicationQuery from './ApplicationQuery';
 import CollectiveQuery from './CollectiveQuery';
@@ -21,6 +22,7 @@ import MemberInvitationsQuery from './MemberInvitationsQuery';
 import OrderQuery from './OrderQuery';
 import OrganizationQuery from './OrganizationQuery';
 import PaypalPlanQuery from './PaypalPlanQuery';
+import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import TierQuery from './TierQuery';
 import UpdateQuery from './UpdateQuery';
@@ -41,14 +43,16 @@ const query = {
   individual: IndividualQuery,
   memberInvitations: MemberInvitationsQuery,
   order: OrderQuery,
-  orders: OrdersCollectionQuery,
+  orders: getOrdersCollectionQuery(),
   organization: OrganizationQuery,
   project: ProjectQuery,
   tagStats: TagStatsCollectionQuery,
   tier: TierQuery,
   transactions: TransactionsCollectionQuery,
   update: UpdateQuery,
+  updates: UpdatesCollectionQuery,
   paypalPlan: PaypalPlanQuery,
+  personalToken: PersonalTokenQuery,
   loggedInAccount: {
     type: Individual,
     resolve(_, args, req) {

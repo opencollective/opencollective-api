@@ -4,6 +4,7 @@ import { times } from 'lodash';
 
 import { activities as ACTIVITY } from '../../../../../server/constants';
 import roles from '../../../../../server/constants/roles';
+import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import {
   fakeActivity,
@@ -15,7 +16,7 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, resetTestDB } from '../../../../utils';
+import { generateValid2FAHeader, graphqlQueryV2, resetTestDB } from '../../../../utils';
 
 const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
   mutation MoveExpensesMutation($destinationAccount: AccountReferenceInput!, $expenses: [ExpenseReferenceInput!]!) {
@@ -31,21 +32,47 @@ const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
 describe('server/graphql/v2/mutation/RootMutations', () => {
   let rootUser;
 
-  before(resetTestDB);
   before(async () => {
-    rootUser = await fakeUser();
+    await resetTestDB();
+
+    // Create user & add as root
+    rootUser = await fakeUser({ data: { isRoot: true } }, null, { enable2FA: true });
     await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: roles.ADMIN });
   });
 
   describe('moveExpensesMutation', () => {
-    it('validates if request user is root', async () => {
-      const result = await graphqlQueryV2(MOVE_EXPENSES_MUTATION, { expenses: [], destinationAccount: {} });
+    const callMoveExpenseMutation = async (variables, user, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+
+      return graphqlQueryV2(MOVE_EXPENSES_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('validates if request user is logged in', async () => {
+      const result = await callMoveExpenseMutation({ expenses: [], destinationAccount: {} }, null);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be logged in.');
     });
 
+    it('validates if request user is logged in as root', async () => {
+      const randomUser = await fakeUser();
+      const result = await callMoveExpenseMutation({ expenses: [], destinationAccount: {} }, randomUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+    });
+
+    it('must have 2FA enabled', async () => {
+      const rootUserWithout2FA = await fakeUser();
+      await fakeMember({ CollectiveId: rootUserWithout2FA.id, MemberCollectiveId: 1, role: roles.ADMIN });
+      const result = await callMoveExpenseMutation({ expenses: [], destinationAccount: {} }, rootUserWithout2FA);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('You need to be logged in as root.');
+    });
+
     it('validates if destinationAccount argument is present', async () => {
-      const result = await graphqlQueryV2(MOVE_EXPENSES_MUTATION, { expenses: [] }, rootUser);
+      const result = await callMoveExpenseMutation({ expenses: [] }, rootUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
         'Variable "$destinationAccount" of required type "AccountReferenceInput!" was not provided.',
@@ -53,8 +80,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     });
 
     it('validates if destinationAccount references an existing account', async () => {
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: -1 }, expenses: [{ legacyId: -1 }] },
         rootUser,
       );
@@ -64,8 +90,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
     it('throws an error if one of the expense is missing', async () => {
       const collective = await fakeCollective();
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { expenses: [{ legacyId: -1 }], destinationAccount: { legacyId: collective.id } },
         rootUser,
       );
@@ -77,8 +102,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     it('validates if destinationAccount references a non USER account', async () => {
       const testUser = await fakeUser();
       const expense = await fakeExpense();
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: testUser.CollectiveId }, expenses: [{ legacyId: expense.id }] },
         rootUser,
       );
@@ -89,8 +113,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
     it('moves no expenses when no expenses are given', async () => {
       const testCollective = await fakeCollective();
 
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: testCollective.id }, expenses: [] },
         rootUser,
       );
@@ -111,8 +134,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const testExpense = await fakeExpense();
       const previousCollective = testExpense.collective;
 
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: testCollective.id }, expenses: [{ legacyId: testExpense.id }] },
         rootUser,
       );
@@ -160,8 +182,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const collective = await fakeCollective();
       const expense = await fakeExpense();
       await fakeTransaction({ ExpenseId: expense.id });
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
         rootUser,
       );
@@ -182,8 +203,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         fakeActivity({ ExpenseId: expense.id, type: ACTIVITY.COLLECTIVE_EXPENSE_CREATED }),
       ]);
 
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
         rootUser,
       );
@@ -202,8 +222,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       const collective = await fakeCollective();
       const expenses = await Promise.all(times(3, () => fakeExpense()));
       const expenseReferences = expenses.map(expense => ({ legacyId: expense.id }));
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: collective.id }, expenses: expenseReferences },
         rootUser,
       );
@@ -224,8 +243,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
         CollectiveId: previousCollective.id,
         RecurringExpenseId: recurringExpense.id,
       });
-      const result = await graphqlQueryV2(
-        MOVE_EXPENSES_MUTATION,
+      const result = await callMoveExpenseMutation(
         { destinationAccount: { legacyId: collective.id }, expenses: [{ legacyId: expense.id }] },
         rootUser,
       );

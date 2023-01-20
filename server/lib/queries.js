@@ -13,7 +13,7 @@ import { memoize } from './cache';
 import { convertToCurrency } from './currency';
 import sequelize, { Op } from './sequelize';
 import { amountsRequireTaxForm } from './tax-forms';
-import { computeDatesAsISOStrings, ifStr } from './utils';
+import { ifStr } from './utils';
 
 const twoHoursInSeconds = 2 * 60 * 60;
 const models = sequelize.models;
@@ -1125,46 +1125,6 @@ const getTaxFormsRequiredForAccounts = async (accountIds = [], year) => {
   return getTaxFormsOverTheLimit(results, 'collectiveId');
 };
 
-/**
- * Returns the contribution or expense amounts over time.
- * @deprecated now using a query in `server/lib/host-metrics.js`
- */
-const getTransactionsTimeSeries = async (
-  kind,
-  type,
-  hostCollectiveId,
-  timeUnit,
-  collectiveIds,
-  startDate = null,
-  endDate = null,
-) => {
-  return sequelize.query(
-    `SELECT DATE_TRUNC(:timeUnit, "createdAt") AS "date", sum("amountInHostCurrency") as "amount", "hostCurrency" as "currency"
-       FROM "Transactions"
-       WHERE kind = :kind
-         AND "HostCollectiveId" = :hostCollectiveId
-         AND type = :type
-         AND "deletedAt" IS NULL
-         ${ifStr(collectiveIds, `AND "CollectiveId" IN (:collectiveIds)`)}
-         ${ifStr(startDate, `AND "createdAt" >= :startDate`)}
-         ${ifStr(endDate, `AND "createdAt" <= :endDate`)}
-       GROUP BY DATE_TRUNC(:timeUnit, "createdAt"), "hostCurrency"
-       ORDER BY DATE_TRUNC(:timeUnit, "createdAt")
-      `,
-    {
-      type: sequelize.QueryTypes.SELECT,
-      replacements: {
-        kind,
-        type,
-        hostCollectiveId,
-        timeUnit,
-        collectiveIds,
-        ...computeDatesAsISOStrings(startDate, endDate),
-      },
-    },
-  );
-};
-
 const serializeCollectivesResult = JSON.stringify;
 
 const unserializeCollectivesResult = string => {
@@ -1208,7 +1168,6 @@ const queries = {
   getTotalNumberOfDonors,
   getUniqueCollectiveTags,
   getGiftCardBatchesForCollective,
-  getTransactionsTimeSeries,
 };
 
 export default queries;

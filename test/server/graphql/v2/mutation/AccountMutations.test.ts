@@ -10,7 +10,7 @@ import { idEncode } from '../../../../../server/graphql/v2/identifiers';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeEvent, fakeHost, fakeProject, fakeUser } from '../../../../test-helpers/fake-data';
-import { graphqlQueryV2, waitForCondition } from '../../../../utils';
+import { graphqlQueryV2, resetTestDB, waitForCondition } from '../../../../utils';
 
 const editSettingsMutation = gqlV2/* GraphQL */ `
   mutation EditSettings($account: AccountReferenceInput!, $key: AccountSettingsKey!, $value: JSON!) {
@@ -59,7 +59,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, randomUser, hostAdminUser, backerUser, collective;
 
   before(async () => {
-    adminUser = await fakeUser();
+    await resetTestDB();
+    adminUser = await fakeUser(null, { name: 'Admin Name' });
     randomUser = await fakeUser();
     backerUser = await fakeUser();
     hostAdminUser = await fakeUser();
@@ -343,7 +344,9 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           id
           settings
           policies {
-            EXPENSE_AUTHOR_CANNOT_APPROVE
+            EXPENSE_AUTHOR_CANNOT_APPROVE {
+              enabled
+            }
           }
         }
       }
@@ -352,13 +355,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     it('should enable policy', async () => {
       const mutationParams = {
         account: { legacyId: collective.id },
-        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
       };
       const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, adminUser);
       expect(result.errors).to.not.exist;
 
       await collective.reload();
-      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
+      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
 
       // Check activity
       const activity = await models.Activity.findOne({
@@ -370,7 +373,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
         previousData: {},
-        newData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } },
+        newData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
       });
     });
 
@@ -384,7 +387,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
       await collective.reload();
       expect(collective.data.policies).to.deep.eq({
-        [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true,
+        [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
         [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
       });
 
@@ -397,10 +400,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity).to.exist;
       expect(activity.CollectiveId).to.equal(collective.id);
       expect(activity.data).to.deep.equal({
-        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true } },
+        previousData: { policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } } },
         newData: {
           policies: {
-            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true,
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
           },
         },
@@ -430,7 +433,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         newData: { policies: {} },
         previousData: {
           policies: {
-            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true,
+            [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true },
             [POLICIES.COLLECTIVE_MINIMUM_ADMINS]: { numberOfAdmins: 42 },
           },
         },
@@ -440,7 +443,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     it('should fail if user is not authorized', async () => {
       const mutationParams = {
         account: { legacyId: collective.id },
-        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true },
+        policies: { [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } },
       };
       const result = await graphqlQueryV2(setPoliciesMutation, mutationParams, hostAdminUser);
       expect(result.errors).to.have.lengthOf(1);
@@ -467,6 +470,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       sandbox = createSandbox();
       collectiveWithContact = await fakeCollective({
         name: 'Test Collective',
+        slug: 'test-collective-with-contact',
         admin: adminUser,
         settings: { features: { contactForm: true } },
       });
@@ -508,7 +512,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('cannot inject code in the email (XSS)', async () => {
       const code = '<script>console.log("XSS")</script>';
-      const xssUser = await fakeUser({ name: 'XSS User' }, { name: 'XSS Collective', slug: 'xss-collective' });
+      const xssUser = await fakeUser(null, { name: 'Tester', slug: 'tester' });
       const result = await graphqlQueryV2(
         sendMessageMutation,
         {
@@ -554,10 +558,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       <td></td>
       <td>
 
-<p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 17px; padding: 1em;">
-  Hi Test Collective,
+<p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 17px; padding: 1em;">
+  Hi Admin Name,
   <br><br>
-  <a href="http://localhost:3000/xss-collective" style="text-decoration: none; color: #297EFF;">XSS Collective</a> just sent you a message on Open
+  <a href="http://localhost:3000/tester" style="text-decoration: none; color: #297EFF;">Tester</a> just sent a message to <a href="http://localhost:3000/test-collective-with-contact" style="text-decoration: none; color: #297EFF;">Test Collective</a> on Open
   Collective. Simply reply to this email to reply to the sender.
 </p>
 
@@ -566,17 +570,17 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     <tr>
       <td style="border: 1px solid #e8edee; border-radius: 6px; padding: 1em;">
         <br>
-          <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 18px; font-weight: bold;">Subject</p>
+          <p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 18px; font-weight: bold;">Subject</p>
           <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">Testing</blockquote>
           <br>
-        <p style="color: #494B4D; font-family: 'Helvetica Neue'; line-height: 18px; font-size: 18px; font-weight: bold;">Message</p>
+        <p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; line-height: 18px; font-size: 18px; font-weight: bold;">Message</p>
         <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 1em 0;border-left: 3px solid #e4e4e4;white-space: pre-line;">Hello collective, I am reaching out to you for testing purposes.</blockquote>
       </td>
     </tr>
   </tbody>
 </table>
 
-<p style="color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;">If this message is spam, please forward it to <a href="mailto:support@opencollective.com" style="text-decoration: none; color: #297EFF;">support@opencollective.com</a>.</p>
+<p style="color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;">If this message is spam, please forward it to <a href="mailto:support@opencollective.com" style="text-decoration: none; color: #297EFF;">support@opencollective.com</a>.</p>
 
 </td>
 </tr>
@@ -626,7 +630,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 </html>`;
 
       expect(sendEmailSpy.callCount).to.equal(1);
-      expect(sendEmailSpy.args[0][1]).to.equal(`New message from XSS Collective on Open Collective: Testing`);
+      expect(sendEmailSpy.args[0][1]).to.equal(`New message from Tester on Open Collective: Testing`);
       expect(sendEmailSpy.args[0][2]).to.equal(expectedMessage);
     });
 

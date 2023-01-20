@@ -18,7 +18,7 @@ import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
-import queries from '../../../lib/queries';
+import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
@@ -29,6 +29,7 @@ import { AccountCollection } from '../collection/AccountCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
+import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { TimeUnit } from '../enum/TimeUnit';
 import {
   AccountReferenceInput,
@@ -46,7 +47,7 @@ import { Amount } from './Amount';
 import { ContributionStats } from './ContributionStats';
 import { ExpenseStats } from './ExpenseStats';
 import { HostMetrics } from './HostMetrics';
-import { HostMetricsTimeSeries, resultsToAmountNode } from './HostMetricsTimeSeries';
+import { HostMetricsTimeSeries } from './HostMetricsTimeSeries';
 import { HostPlan } from './HostPlan';
 import { PaymentMethod } from './PaymentMethod';
 import PayoutMethod from './PayoutMethod';
@@ -187,6 +188,9 @@ export const Host = new GraphQLObjectType({
 
           if (find(connectedAccounts, ['service', 'stripe'])) {
             supportedPaymentMethods.push('CREDIT_CARD');
+            if (hasFeature(collective, FEATURE.STRIPE_PAYMENT_INTENT)) {
+              supportedPaymentMethods.push(PaymentMethodLegacyTypeEnum.PAYMENT_INTENT);
+            }
           }
 
           if (find(connectedAccounts, ['service', 'paypal']) && !collective.settings?.disablePaypalDonations) {
@@ -621,33 +625,9 @@ export const Host = new GraphQLObjectType({
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
-          const expenseAmountOverTime = async () => {
-            const dateFrom = args.dateFrom ? moment(args.dateFrom) : null;
-            const dateTo = args.dateTo ? moment(args.dateTo) : null;
-            const timeUnit = args.timeUnit || getTimeUnit(numberOfDays);
-
-            const amountDataPoints = await queries.getTransactionsTimeSeries(
-              TransactionKind.EXPENSE,
-              TransactionTypes.DEBIT,
-              host.id,
-              timeUnit,
-              collectiveIds,
-              dateFrom,
-              dateTo,
-            );
-
-            return {
-              dateFrom: args.dateFrom || host.createdAt,
-              dateTo: args.dateTo || new Date(),
-              timeUnit,
-              nodes: resultsToAmountNode(amountDataPoints),
-            };
-          };
-
           const distinct = { distinct: true, col: 'ExpenseId' };
 
           return {
-            expenseAmountOverTime,
             expensesCount: () =>
               models.Transaction.count({
                 where,

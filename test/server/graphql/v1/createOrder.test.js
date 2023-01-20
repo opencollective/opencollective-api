@@ -8,6 +8,7 @@ import { v4 as uuid } from 'uuid';
 
 import { maxInteger } from '../../../../server/constants/math';
 import emailLib from '../../../../server/lib/email';
+import stripe from '../../../../server/lib/stripe';
 import twitter from '../../../../server/lib/twitter';
 import models from '../../../../server/models';
 import * as store from '../../../stores';
@@ -467,6 +468,7 @@ describe('server/graphql/v1/createOrder', () => {
     const remoteUser = await models.User.createUserWithCollective({
       email: store.randEmail('rejectedcard@protonmail.ch'),
     });
+    stripe.paymentIntents.confirm.rejects(new Error('Your card was declined.'));
     const res = await utils.graphqlQuery(createOrderMutation, { order: newOrder }, remoteUser);
     expect(res.errors[0].message).to.equal('Your card was declined.');
     const pm = await models.PaymentMethod.findOne({ where: { name: uniqueName } });
@@ -626,6 +628,7 @@ describe('server/graphql/v1/createOrder', () => {
     const collective = orderCreated.collective;
     const transactions = await models.Transaction.findAll({
       where: { OrderId: orderCreated.id },
+      order: [['id', 'ASC']],
     });
     expect(fromCollective.website).to.equal('https://newco.com'); // api should prepend https://
     expect(transactions.length).to.equal(4);
@@ -686,6 +689,7 @@ describe('server/graphql/v1/createOrder', () => {
     const collective = orderCreated.collective;
     const transactions = await models.Transaction.findAll({
       where: { OrderId: orderCreated.id },
+      order: [['id', 'ASC']],
     });
     expect(orderCreated.createdByUser.id).to.equal(duc.id);
     expect(transactions.length).to.equal(4);
@@ -729,7 +733,7 @@ describe('server/graphql/v1/createOrder', () => {
     await models.Member.create({
       CollectiveId: newco.id,
       MemberCollectiveId: duc.CollectiveId,
-      role: 'MEMBER',
+      role: 'ADMIN',
       CreatedByUserId: duc.id,
     });
 
@@ -811,9 +815,12 @@ describe('server/graphql/v1/createOrder', () => {
         CreatedByUserId: hostAdmin.id,
         HostCollectiveId: fromCollective.HostCollectiveId,
         CollectiveId: fromCollective.id,
+        amount: 746149,
+        amountInHostCurrency: 746149,
         netAmountInCollectiveCurrency: 746149,
         type: 'CREDIT',
         currency: 'USD',
+        hostCurrency: 'USD',
       });
     });
 
@@ -859,9 +866,12 @@ describe('server/graphql/v1/createOrder', () => {
       CreatedByUserId: xdamman.id,
       HostCollectiveId: fromCollective.HostCollectiveId,
       CollectiveId: fromCollective.id,
+      amount: 746149,
+      amountInHostCurrency: 746149,
       netAmountInCollectiveCurrency: 746149,
       type: 'CREDIT',
       currency: 'USD',
+      hostCurrency: 'USD',
     });
 
     order.fromCollective = { id: fromCollective.id };
@@ -892,6 +902,7 @@ describe('server/graphql/v1/createOrder', () => {
     const orderCreated = res.data.createOrder;
     const transactions = await models.Transaction.findAll({
       where: { OrderId: orderCreated.id },
+      order: [['id', 'ASC']],
     });
     expect(orderCreated.createdByUser.id).to.equal(xdamman.id);
     expect(transactions.length).to.equal(2);

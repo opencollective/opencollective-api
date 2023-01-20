@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import moment from 'moment';
 
 import { fakeExpense, fakeVirtualCard } from '../../test-helpers/fake-data';
 
@@ -10,7 +11,7 @@ describe('server/models/VirtualCard', () => {
       virtualCard = await fakeVirtualCard();
     });
 
-    it('finds expenses missing details', async () => {
+    it('finds expenses missing details older than 30 days', async () => {
       let missing = await virtualCard.getExpensesMissingDetails();
       expect(missing).to.have.length(0);
 
@@ -18,6 +19,7 @@ describe('server/models/VirtualCard', () => {
         VirtualCardId: virtualCard.id,
         type: 'CHARGE',
         status: 'PAID',
+        createdAt: moment.utc().subtract(31, 'days'),
         items: [{ amount: 10000 }],
       });
       const chargeItem = expense.items[0];

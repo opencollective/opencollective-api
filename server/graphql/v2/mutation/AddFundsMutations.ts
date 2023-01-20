@@ -1,7 +1,9 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 import { isNil } from 'lodash';
 
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
@@ -20,6 +22,7 @@ export const addFundsMutation = {
     amount: { type: new GraphQLNonNull(AmountInput) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     memo: { type: GraphQLString },
+    processedAt: { type: GraphQLDateTime },
     hostFeePercent: { type: GraphQLFloat },
     invoiceTemplate: { type: GraphQLString },
   },
@@ -58,13 +61,23 @@ export const addFundsMutation = {
       }
     }
 
+    const host = await account.getHostCollective();
+    if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
+      throw new Error('Only an site admin or collective host admin can add fund');
+    }
+
+    // Enforce 2FA
+    await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+
     return addFunds(
       {
         totalAmount: getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency }),
         collective: account,
         fromCollective: fromAccount,
+        host,
         description: args.description,
         memo: args.memo,
+        processedAt: args.processedAt,
         hostFeePercent: args.hostFeePercent,
         tier,
         invoiceTemplate: args.invoiceTemplate,

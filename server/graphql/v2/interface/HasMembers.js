@@ -3,7 +3,7 @@ import { intersection } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
-import models, { Op } from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
 import { MemberCollection } from '../collection/MemberCollection';
@@ -78,6 +78,11 @@ export const HasMembersFields = {
         limit: args.limit,
         offset: args.offset,
         order: [[args.orderBy.field, args.orderBy.direction]],
+        attributes: {
+          include: [
+            [sequelize.literal(`"Member"."CollectiveId" = ${collective.ParentCollectiveId || 0}`), 'inherited'],
+          ],
+        },
         include: [
           {
             model: models.Collective,

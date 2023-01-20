@@ -17,7 +17,7 @@ LOCALDBUSER="opencollective"
 LOCALDBNAME="opencollective_${ENV}_snapshot"
 DBDUMPS_DIR="dbdumps/"
 
-FILENAME="`date +"%Y-%m-%d"`-prod.pgsql"
+FILENAME="`date +"%Y-%m-%d"`-${ENV}.pgsql"
 
 if [[ ! -d ${DBDUMPS_DIR} ]]; then
   mkdir -p "${DBDUMPS_DIR}"
@@ -33,27 +33,8 @@ fi
 
 echo "DB dump saved in ${DBDUMPS_DIR}${FILENAME}"
 
-if psql "${LOCALDBNAME}" -c '\q' 2>/dev/null; then
-  echo "Dropping ${LOCALDBNAME}"
-  dropdb "${LOCALDBNAME}"
-fi
-
-echo "Creating ${LOCALDBNAME}"
-createdb "${LOCALDBNAME}"
-
 echo Restore...
-
-# The first time we run it, we will trigger FK constraints errors
-set +e
-pg_restore --no-acl -n public -O -c -d "${LOCALDBNAME}" "${DBDUMPS_DIR}${FILENAME}" 2>/dev/null
-set -e
-
-echo Restore...
-
-# So we run it twice :-)
-pg_restore --no-acl -n public -O -c -d "${LOCALDBNAME}" "${DBDUMPS_DIR}${FILENAME}"
-
-echo "DB restored to postgres://localhost/${LOCALDBNAME}"
+./scripts/db_restore.sh -d $LOCALDBNAME -U $LOCALDBUSER -f ${DBDUMPS_DIR}${FILENAME} --use-postgis
 
 # cool trick: all stdout ignored in this block
 {

@@ -9,18 +9,24 @@
 import { get, padStart, sample } from 'lodash';
 import moment from 'moment';
 import type { CreateOptions } from 'sequelize';
+import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
 import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType } from '../../server/constants/collectives';
+import OAuthScopes from '../../server/constants/oauth-scopes';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import { TransactionKind } from '../../server/constants/transaction-kind';
+import { crypto } from '../../server/lib/encryption';
 import models from '../../server/models';
+import Comment from '../../server/models/Comment';
+import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
+import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
@@ -57,9 +63,16 @@ export const fakeUUID = firstHeightChars => {
 export const fakeUser = async (
   userData: Record<string, unknown> = {},
   collectiveData: Record<string, unknown> = {},
-) => {
+  { enable2FA = false } = {},
+): Promise<User> => {
+  const generate2FAAuthToken = () => {
+    const twoFactorAuthSecret = speakeasy.generateSecret({ length: 64 });
+    return crypto.encrypt(twoFactorAuthSecret.base32).toString();
+  };
+
   const user = await models.User.create({
     email: randEmail(),
+    twoFactorAuthToken: enable2FA ? generate2FAAuthToken() : null,
     ...userData,
   });
 
@@ -245,8 +258,8 @@ export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = 
     url: <string>attachmentData.url || `${randUrl()}.pdf`,
     description: randStr(),
     ...attachmentData,
-    ExpenseId: attachmentData.ExpenseId || (await fakeExpense({ items: [] })).id,
-    CreatedByUserId: attachmentData.CreatedByUserId || (await fakeUser()).id,
+    ExpenseId: (attachmentData.ExpenseId as number) || (await fakeExpense({ items: [] })).id,
+    CreatedByUserId: <number>attachmentData.CreatedByUserId || (await fakeUser()).id,
   });
 };
 
@@ -278,7 +291,7 @@ export const fakePayoutMethod = async (data: Record<string, unknown> = {}) => {
     ...data,
     type: type as PayoutMethodTypes,
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
-    CreatedByUserId: data.CreatedByUserId || (await fakeUser()).id,
+    CreatedByUserId: <number>data.CreatedByUserId || (await fakeUser()).id,
   });
 };
 
@@ -291,7 +304,7 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
     throw new Error('legacyPayoutMethod and PayoutMethodId are exclusive in fakeExpense');
   } else if (expenseData.legacyPayoutMethod) {
     const pm = await fakePayoutMethod({
-      type: models.Expense.getPayoutMethodTypeFromLegacy(expenseData.legacyPayoutMethod),
+      type: models.Expense.getPayoutMethodTypeFromLegacy(<string>expenseData.legacyPayoutMethod),
     });
     PayoutMethodId = pm.id;
   } else if (!PayoutMethodId) {
@@ -300,7 +313,7 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
 
   const payoutMethod = await models.PayoutMethod.findByPk(PayoutMethodId);
   const legacyPayoutMethod = models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod);
-  const user = await (expenseData.UserId ? models.User.findByPk(expenseData.UserId) : fakeUser());
+  const user = await (expenseData.UserId ? models.User.findByPk(<number>expenseData.UserId) : fakeUser());
   const expense = await models.Expense.create({
     amount: randAmount(),
     currency: 'USD',
@@ -308,10 +321,10 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
     description: randStr('Test expense '),
     incurredAt: new Date(),
     ...expenseData,
-    FromCollectiveId: expenseData.FromCollectiveId || user.CollectiveId,
-    CollectiveId: expenseData.CollectiveId || (await fakeCollective()).id,
+    FromCollectiveId: (expenseData.FromCollectiveId as number) || user.CollectiveId,
+    CollectiveId: (expenseData.CollectiveId as number) || (await fakeCollective()).id,
     UserId: user.id,
-    lastEditedById: expenseData.lastEditedById || user.id,
+    lastEditedById: (expenseData.lastEditedById as number) || user.id,
     PayoutMethodId,
     legacyPayoutMethod,
   });
@@ -332,6 +345,7 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
   }
 
   expense.User = await models.User.findByPk(expense.UserId);
+  expense.fromCollective = await models.Collective.findByPk(expense.FromCollectiveId);
   expense.collective = await models.Collective.findByPk(expense.CollectiveId, {
     include: [{ association: 'host' }],
   });
@@ -341,7 +355,10 @@ export const fakeExpense = async (expenseData: Record<string, unknown> = {}) => 
 /**
  * Creates a fake comment. All params are optionals.
  */
-export const fakeComment = async (commentData: Record<string, unknown> = {}, sequelizeParams: CreateOptions = {}) => {
+export const fakeComment = async (
+  commentData: Record<string, unknown> = {},
+  sequelizeParams: CreateOptions = {},
+): Promise<Comment> => {
   let FromCollectiveId = get(commentData, 'FromCollectiveId') || get(commentData, 'fromCollective.id');
   let CollectiveId = get(commentData, 'CollectiveId') || get(commentData, 'collective.id');
   let CreatedByUserId = get(commentData, 'CreatedByUserId') || get(commentData, 'createdByUser.id');
@@ -360,18 +377,22 @@ export const fakeComment = async (commentData: Record<string, unknown> = {}, seq
     ExpenseId = (await fakeExpense()).id;
   }
 
-  return models.Comment.create(
+  const comment = await models.Comment.create(
     {
       html: '<div><strong>Hello</strong> Test comment!</div>',
       ...commentData,
-      FromCollectiveId,
-      CollectiveId,
-      CreatedByUserId,
-      ExpenseId,
-      ConversationId,
+      FromCollectiveId: <number>FromCollectiveId,
+      CollectiveId: <number>CollectiveId,
+      CreatedByUserId: <number>CreatedByUserId,
+      ExpenseId: <number>ExpenseId,
+      ConversationId: <number>ConversationId,
     },
     sequelizeParams,
   );
+
+  comment.fromCollective = await models.Collective.findByPk(FromCollectiveId);
+  comment.collective = await models.Collective.findByPk(CollectiveId);
+  return comment;
 };
 
 /**
@@ -381,12 +402,12 @@ export const fakeEmojiReaction = async (
   reactionData: Record<string, unknown> = {},
   opts: Record<string, unknown> = {},
 ) => {
-  const UserId = reactionData.UserId || (await fakeUser()).id;
+  const UserId = <number>reactionData.UserId || (await fakeUser()).id;
   const user = await models.User.findByPk(UserId);
   const FromCollectiveId = reactionData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
   if (opts.isComment) {
     const ConversationId = (await fakeConversation()).id;
-    const CommentId = reactionData.CommentId || (await fakeComment({ ConversationId })).id;
+    const CommentId = <number>reactionData.CommentId || (await fakeComment({ ConversationId })).id;
     return models.EmojiReaction.create({
       UserId,
       FromCollectiveId,
@@ -408,8 +429,8 @@ export const fakeEmojiReaction = async (
 export const fakeConversation = async (
   conversationData: Record<string, unknown> = {},
   sequelizeParams: CreateOptions = {},
-) => {
-  const RootCommentId = conversationData.RootCommentId || (await fakeComment({}, sequelizeParams)).id;
+): Promise<Conversation> => {
+  const RootCommentId = <number>conversationData.RootCommentId || (await fakeComment({}, sequelizeParams)).id;
   const rootComment = await models.Comment.findByPk(RootCommentId);
   return models.Conversation.create(
     {
@@ -417,8 +438,8 @@ export const fakeConversation = async (
       summary: rootComment.html,
       FromCollectiveId: conversationData.FromCollectiveId || (await fakeCollective()).id,
       CollectiveId: conversationData.CollectiveId || (await fakeCollective()).id,
-      CreatedByUserId: conversationData.CreatedByUserId || (await fakeUser()).id,
-      RootCommentId: conversationData.RootCommentId || (await fakeComment()).id,
+      CreatedByUserId: <number>conversationData.CreatedByUserId || (await fakeUser()).id,
+      RootCommentId: <number>conversationData.RootCommentId || (await fakeComment()).id,
       ...conversationData,
     },
     sequelizeParams,
@@ -430,8 +451,8 @@ export const fakeConversation = async (
  */
 export const fakeTier = async (tierData: Record<string, unknown> = {}) => {
   const name = randStr('tier');
-  const interval = sample(['month', 'year']);
-  const currency = tierData.currency || sample(['USD', 'EUR']);
+  const interval = <'month' | 'year'>sample(['month', 'year']);
+  const currency = <string>tierData.currency || sample(['USD', 'EUR']);
   const amount = <number>tierData.amount || randAmount(1, 100) * 100;
   const description = `$${amount / 100}/${interval}`;
 
@@ -456,12 +477,16 @@ export const fakeOrder = async (
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
-  const user = await models.User.findByPk(CreatedByUserId);
+  const user = await models.User.findByPk(<number>CreatedByUserId);
   const FromCollectiveId = orderData.FromCollectiveId || (await models.Collective.findByPk(user.CollectiveId)).id;
   const collective = orderData.CollectiveId
     ? await models.Collective.findByPk(orderData.CollectiveId)
     : await fakeCollective();
-  const tier = orderData.TierId ? await models.Tier.findByPk(orderData.TierId) : withTier ? await fakeTier() : null;
+  const tier = orderData.TierId
+    ? await models.Tier.findByPk(<number>orderData.TierId)
+    : withTier
+    ? await fakeTier()
+    : null;
 
   const order = await models.Order.create({
     quantity: 1,
@@ -547,7 +572,7 @@ export const fakeNotification = async (data: Record<string, unknown> = {}) => {
     type: sample(Object.values(activities)),
     active: true,
     CollectiveId: data.CollectiveId || (await fakeCollective()).id,
-    UserId: data.UserId || (await fakeUser()).id,
+    UserId: <number>data.UserId || (await fakeUser()).id,
     webhookUrl: randUrl('example.com/webhooks'),
     ...data,
   });
@@ -565,7 +590,7 @@ export const fakeActivity = async (
       CollectiveId: data.CollectiveId || (await optionally(() => fakeCollective().then(c => c.id))),
       FromCollectiveId: data.FromCollectiveId || (await optionally(() => fakeCollective().then(c => c.id))),
       HostCollectiveId: data.HostCollectiveId || (await optionally(() => fakeHost().then(c => c.id))),
-      UserId: data.UserId || (await fakeUser()).id,
+      UserId: <number>data.UserId || (await fakeUser()).id,
       type: sample(Object.values(activities)),
       ...data,
     },
@@ -773,11 +798,11 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
-    const user = data.user as typeof models.User;
+    const user = data.user as User;
     CollectiveId = user.CollectiveId;
     CreatedByUserId = user.id;
   } else {
-    const user = data.CreatedByUserId ? await models.User.findByPk(data.CreatedByUserId) : await fakeUser();
+    const user = data.CreatedByUserId ? await models.User.findByPk(<number>data.CreatedByUserId) : await fakeUser();
     CreatedByUserId = user.id;
     CollectiveId = data.CollectiveId || user.CollectiveId;
   }
@@ -798,8 +823,32 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   return application.reload({ include: [{ association: 'createdByUser' }, { association: 'collective' }] });
 };
 
+export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
+  let CollectiveId;
+  let CreatedByUserId;
+  if (data.user) {
+    const user = data.user as User;
+    CollectiveId = user.CollectiveId;
+    CreatedByUserId = user.id;
+  } else {
+    const user = data.CreatedByUserId ? await models.User.findByPk(<number>data.CreatedByUserId) : await fakeUser();
+    CreatedByUserId = user.id;
+    CollectiveId = data.CollectiveId || user.CollectiveId;
+  }
+
+  const personalToken = await models.PersonalToken.create({
+    name: randStr('Name '),
+    token: randStr('Token-'),
+    scope: [OAuthScopes.account, OAuthScopes.transactions],
+    CollectiveId,
+    UserId: CreatedByUserId,
+  });
+
+  return personalToken.reload({ include: [{ association: 'user' }, { association: 'collective' }] });
+};
+
 export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
-  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
     accessToken: randStr('Token-'),
@@ -816,7 +865,7 @@ export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
 };
 
 export const fakeOAuthAuthorizationCode = async (data: Record<string, unknown> = {}) => {
-  const user = data.user || (data.UserId ? await models.User.findByPk(data.UserId) : await fakeUser());
+  const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const application =
     data.application ||
     (data.ApplicationId ? await models.Application.findByPk(data.ApplicationId) : await fakeApplication({ user }));

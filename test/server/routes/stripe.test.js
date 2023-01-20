@@ -4,21 +4,26 @@ import { expect } from 'chai';
 import config from 'config';
 import jwt from 'jsonwebtoken';
 import nock from 'nock';
+import { createSandbox } from 'sinon';
 import request from 'supertest';
 
 import roles from '../../../server/constants/roles';
 import app from '../../../server/index';
+import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import * as utils from '../../utils';
 
 const application = utils.data('application');
 
 describe('server/routes/stripe', () => {
-  let host, user, collective, expressApp;
+  let host, user, collective, expressApp, sandbox;
 
   before(async () => {
     expressApp = await app();
+    sandbox = createSandbox();
   });
+
+  after(() => sandbox.restore());
 
   beforeEach(() => utils.resetTestDB());
 
@@ -135,10 +140,13 @@ describe('server/routes/stripe', () => {
       nock('https://api.stripe.com:443')
         .get('/v1/accounts/acct_123')
         .reply(200, () => stripeResponseAccountInfo);
+
+      sandbox.stub(stripe.oauth, 'token').callsFake(() => Promise.resolve(stripeResponse));
     });
 
     afterEach(() => {
       nock.cleanAll();
+      sandbox.restore();
     });
 
     it('should fail if the state is empty', done => {

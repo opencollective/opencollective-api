@@ -7,7 +7,9 @@ import { randEmail } from '../../../../stores';
 import {
   fakeCollective,
   fakeHost,
+  fakeOrder,
   fakeOrganization,
+  fakePaymentMethod,
   fakeProject,
   fakeTransaction,
   fakeUpdate,
@@ -43,6 +45,10 @@ const accountQuery = gqlV2/* GraphQL */ `
           createdAt
           publishedAt
         }
+      }
+      paymentMethodsWithPendingConfirmation {
+        id
+        legacyId
       }
       stats {
         balance {
@@ -400,6 +406,45 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     });
   });
 
+  describe('paymentMethodsWithPendingConfirmation', () => {
+    let user, paymentMethod;
+
+    before(async () => {
+      user = await fakeUser();
+
+      // Add regular payment methods
+      await Promise.all(times(3, () => fakePaymentMethod({ CollectiveId: user.CollectiveId })));
+
+      // Add a payment method with pending confirmations
+      paymentMethod = await fakePaymentMethod({
+        type: 'creditcard',
+        service: 'stripe',
+        CollectiveId: user.CollectiveId,
+      });
+
+      await fakeOrder(
+        {
+          FromCollectiveId: user.CollectiveId,
+          PaymentMethodId: paymentMethod.id,
+          status: 'REQUIRE_CLIENT_CONFIRMATION',
+          data: { needsConfirmation: true },
+        },
+        { withSubscription: true },
+      );
+    });
+
+    it('returns null if unauthenticated', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug });
+      expect(result.data.account.paymentMethodsWithPendingConfirmation).to.be.null;
+    });
+
+    it('returns the list of payment methods with pending confirmation if authenticated', async () => {
+      const result = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
+      expect(result.data.account.paymentMethodsWithPendingConfirmation).to.have.length(1);
+      expect(result.data.account.paymentMethodsWithPendingConfirmation[0].legacyId).to.equal(paymentMethod.id);
+    });
+  });
+
   describe('updates', () => {
     let collective, admin;
 
@@ -442,7 +487,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
         expect(result1.data.account.stats.balance.valueInCents).to.eq(0);
         expect(result1.data.account.stats.balance.currency).to.eq('USD');
 
-        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, netAmountInCollectiveCurrency: 1000 });
+        await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000 });
         const result2 = await graphqlQueryV2(accountQuery, { slug: collective.slug });
         expect(result2.data.account.stats.balance.value).to.eq(10);
         expect(result2.data.account.stats.balance.valueInCents).to.eq(1000);
@@ -456,7 +501,7 @@ describe('server/graphql/v2/query/AccountQuery', () => {
             fakeTransaction({
               type: 'CREDIT',
               CollectiveId: collective.id,
-              netAmountInCollectiveCurrency: GRAPHQL_MAX_INT,
+              amount: GRAPHQL_MAX_INT,
             }),
           ),
         );

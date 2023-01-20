@@ -67,7 +67,16 @@ describe('server/lib/payments', () => {
     sandbox = createSandbox();
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_BM7mGwp1Ea8RtL' }));
+    sandbox.stub(stripe.tokens, 'retrieve').callsFake(async id => {
+      id;
+    });
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
+    sandbox
+      .stub(stripe.paymentMethods, 'create')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+    sandbox
+      .stub(stripe.paymentMethods, 'attach')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
     sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
       Promise.resolve({
         id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
@@ -295,7 +304,7 @@ describe('server/lib/payments', () => {
             }));
 
           it('successfully creates an order in the database', () =>
-            models.Order.findAndCountAll({}).then(res => {
+            models.Order.findAndCountAll({ order: [['id', 'ASC']] }).then(res => {
               expect(res.count).to.equal(2);
               expect(res.rows[1]).to.have.property('CreatedByUserId', user2.id);
               expect(res.rows[1]).to.have.property('CollectiveId', collective2.id);
@@ -346,6 +355,7 @@ describe('server/lib/payments', () => {
         hostCurrencyFxRate: 1,
         hostFeeInHostCurrency: 250,
         platformFeeInHostCurrency: 250,
+        taxAmount: 100,
         paymentProcessorFeeInHostCurrency: 175,
         description: 'Monthly subscription to Webpack',
         data: { charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' } },
@@ -379,6 +389,7 @@ describe('server/lib/payments', () => {
       expect(creditRefundTransaction.FromCollectiveId).to.equal(collective.id);
       expect(creditRefundTransaction.CollectiveId).to.equal(order.FromCollectiveId);
       expect(creditRefundTransaction.kind).to.equal('CONTRIBUTION');
+      expect(creditRefundTransaction.taxAmount).to.equal(100); // Taxes are always fully refunded, so it's a positive value
 
       // And then the values for the transaction from the donor to the
       // collective also look correct
@@ -386,6 +397,7 @@ describe('server/lib/payments', () => {
       expect(debitRefundTransaction.FromCollectiveId).to.equal(order.FromCollectiveId);
       expect(debitRefundTransaction.CollectiveId).to.equal(collective.id);
       expect(debitRefundTransaction.kind).to.equal('CONTRIBUTION');
+      expect(debitRefundTransaction.taxAmount).to.equal(100);
     });
 
     it('should refund platform fees on top when refunding original transaction', async () => {
@@ -463,7 +475,7 @@ describe('server/lib/payments', () => {
     });
   }); /* createRefundTransaction */
 
-  describe('sendOrderProcessingEmail', () => {
+  describe('sendOrderPendingEmail', () => {
     let order;
 
     beforeEach(async () => {
@@ -504,7 +516,7 @@ describe('server/lib/payments', () => {
     });
 
     it('should include account information', async () => {
-      await payments.sendOrderProcessingEmail(order);
+      await payments.sendOrderPendingEmail(order);
       await utils.waitForCondition(() => emailSendSpy.callCount > 0);
 
       expect(emailSendSpy.lastCall.args[2]).to.have.property('account');

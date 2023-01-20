@@ -3,7 +3,7 @@ Subject: {{{collective.name}}}: New comment on expense {{{escapeForSubject expen
 {{> header}}
 
 <p style="padding: 1em;">
-  Hi,
+  {{> greeting}}
   <br /><br />
   {{> linkCollective collective=fromCollective}} just posted
   a new comment on an Expense, <a href="{{config.host.website}}{{path}}">{{expense.description}}</a>:

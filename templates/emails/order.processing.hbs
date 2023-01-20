@@ -1,15 +1,5 @@
-Subject: {{#if instructions}}ACTION REQUIRED:{{/if}} your {{{currency order.totalAmount
-currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
-
-<style>
-  code {
-    display: inline-block;
-    border: 1px solid #ccc;
-    background: #ddd;
-    padding: 1px 3px;
-    margin: 0px 1px;
-  }
-</style>
+Subject: Your {{{currency order.totalAmount
+currency=order.currency}}} {{order.type}} to {{collective.name}} is being processed
 
 {{> header}}
 
@@ -21,19 +11,9 @@ currency=order.currency}}} {{order.type}} to {{collective.name}} is pending
 <p>Hi!</p>
 {{/if}}
 
-<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on
-  {{moment order.createdAt}}.</p>
+<p>Thank you for your contribution to {{collective.name}} in the amount of {{currency order.totalAmount currency=order.currency}}, made on {{moment order.createdAt}}.</p>
 
-<p>Your contribution is currently pending. Once you transmit the funds per the instructions below,
-   and they have been confirmed as received by <a href="https://opencollective.com/{{host.slug}}">{{host.name}}</a>,
-   the amount will be credited to {{collective.name}}.</p>
-
-{{#if instructions}}
-<section>
-  <h2>Instructions</h2>
-  <pre>{{{instructions}}}</pre>
-</section>
-{{/if}}
+<p>Your contribution is currently being processed and once it is confirmed, the amount will be credited to {{collective.name}}.</p>
 
 {{#if order.isGuest}}
 <p>

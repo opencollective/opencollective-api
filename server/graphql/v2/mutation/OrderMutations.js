@@ -1,3 +1,4 @@
+import config from 'config';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import {
   difference,
@@ -17,14 +18,18 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
+import { Service } from '../../../constants/connected_account';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import logger from '../../../lib/logger';
+import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import {
   updateOrderSubscription,
   updatePaymentMethodForSubscription,
   updateSubscriptionDetails,
 } from '../../../lib/subscriptions';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
@@ -39,11 +44,13 @@ import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput 
 import { OrderCreateInput } from '../input/OrderCreateInput';
 import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
+import PaymentIntentInput from '../input/PaymentIntentInput';
 import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMethodInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
 import { canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
+import PaymentIntent from '../object/PaymentIntent';
 import { StripeError } from '../object/StripeError';
 
 const OrderWithPayment = new GraphQLObjectType({
@@ -102,6 +109,9 @@ const orderMutations = {
       const collective = await loadAccount(order.toAccount);
       const expectedCurrency = (tier && tier.currency) || collective.currency;
       const paymentMethod = await getLegacyPaymentMethodFromPaymentMethodInput(order.paymentMethod);
+      if (order.paymentMethod?.paymentIntentId) {
+        paymentMethod.paymentIntentId = order.paymentMethod?.paymentIntentId;
+      }
 
       // Ensure amounts are provided with the right currency
       ['platformTipAmount', 'amount', 'tax.amount'].forEach(field => {
@@ -135,8 +145,13 @@ const orderMutations = {
         platformTipAmount,
       };
 
+      // Check 2FA for non-guest contributions
+      if (req.remoteUser) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+      }
+
       const result = await createOrderLegacy(legacyOrderObj, req);
-      return { order: result.order, stripeError: result.stripeError, guestToken: result.order.data?.guestToken };
+      return { ...pick(result, ['order', 'stripeError']), guestToken: result.order.data?.guestToken };
     },
   },
   cancelOrder: {
@@ -180,6 +195,9 @@ const orderMutations = {
       } else if (order.status === status.PAID) {
         throw new Error('Cannot cancel a paid order');
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
 
       await order.update({ status: status.CANCELLED });
       await order.Subscription.deactivate();
@@ -263,6 +281,9 @@ const orderMutations = {
           'Amount and payment method cannot be updated at the same time, please update one after the other',
         );
       }
+
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
 
       let previousOrderValues, previousSubscriptionValues;
       if (haveDetailsChanged) {
@@ -352,10 +373,14 @@ const orderMutations = {
 
       const order = await fetchOrderWithReference(args.order);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+      const host = await toAccount.getHostCollective();
 
-      if (!req.remoteUser?.isAdmin(toAccount.HostCollectiveId)) {
+      if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can process orders');
       }
+
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
 
       if (args.action === 'MARK_AS_PAID') {
         if (!(await canMarkAsPaid(req, order))) {
@@ -364,7 +389,7 @@ const orderMutations = {
 
         const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
         if (hasAmounts) {
-          const { amount, paymentProcessorFee, platformTip, hostFeePercent } = args.order;
+          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt } = args.order;
 
           // Ensure amounts are provided with the right currency
           ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
@@ -393,6 +418,10 @@ const orderMutations = {
           }
           if (!isNil(hostFeePercent)) {
             order.set('data.hostFeePercent', hostFeePercent);
+          }
+
+          if (!isNil(processedAt)) {
+            order.set('processedAt', processedAt);
           }
           await order.save();
         }
@@ -433,6 +462,9 @@ const orderMutations = {
     },
     async resolve(_, args, req) {
       checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
 
       if (!args.orders.length) {
         return [];
@@ -616,6 +648,105 @@ const orderMutations = {
       uniqueCollectivesToPurge.forEach(purgeAllCachesForAccount);
 
       return result;
+    },
+  },
+  createPaymentIntent: {
+    type: new GraphQLNonNull(PaymentIntent),
+    description: 'Creates a Stripe payment intent',
+    args: {
+      paymentIntent: {
+        type: new GraphQLNonNull(PaymentIntentInput),
+      },
+    },
+    async resolve(_, args, req) {
+      const paymentIntentInput = args.paymentIntent;
+
+      const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
+      const hostStripeAccount = await toAccount.getHostStripeAccount();
+      const host = await toAccount.getHostCollective();
+
+      const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+
+      let stripeCustomerId;
+      let fromAccount;
+      if (req.remoteUser) {
+        fromAccount =
+          paymentIntentInput.fromAccount &&
+          (await fetchAccountWithReference(paymentIntentInput.fromAccount, { throwIfMissing: true }));
+
+        if (!req.remoteUser.isAdminOfCollective(fromAccount)) {
+          throw new Unauthorized();
+        }
+
+        let stripeCustomerAccount = await fromAccount.getCustomerStripeAccount(hostStripeAccount.username);
+
+        if (!stripeCustomerAccount) {
+          const customer = await stripe.customers.create(
+            {
+              email: req.remoteUser.email,
+              description: `${config.host.website}/${fromAccount.slug}`,
+            },
+            !isPlatformHost
+              ? {
+                  stripeAccount: hostStripeAccount.username,
+                }
+              : undefined,
+          );
+
+          stripeCustomerAccount = await models.ConnectedAccount.create({
+            clientId: hostStripeAccount.username,
+            username: customer.id,
+            CollectiveId: fromAccount.id,
+            service: Service.STRIPE_CUSTOMER,
+          });
+        }
+
+        stripeCustomerId = stripeCustomerAccount.username;
+      }
+
+      const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
+
+      const currency = paymentIntentInput.currency;
+
+      const paymentMethodTypes =
+        host.settings.stripe?.payment_method_types ||
+        (paymentIntentInput.amount.currency === 'USD'
+          ? ['us_bank_account']
+          : paymentIntentInput.amount.currency === 'EUR'
+          ? ['sepa_debit']
+          : undefined);
+
+      try {
+        const paymentIntent = await stripe.paymentIntents.create(
+          {
+            customer: stripeCustomerId,
+            description: `Contribution to ${toAccount.name}`,
+            amount: convertToStripeAmount(currency, totalOrderAmount),
+            currency: paymentIntentInput.amount.currency.toLowerCase(),
+            // eslint-disable-next-line camelcase
+            payment_method_types: paymentMethodTypes,
+            metadata: {
+              from: fromAccount ? `${config.host.website}/${fromAccount.slug}` : undefined,
+              to: `${config.host.website}/${toAccount.slug}`,
+            },
+          },
+          !isPlatformHost
+            ? {
+                stripeAccount: hostStripeAccount.username,
+              }
+            : undefined,
+        );
+
+        return {
+          id: paymentIntent.id,
+          paymentIntentClientSecret: paymentIntent.client_secret,
+          stripeAccount: hostStripeAccount.username,
+          stripeAccountPublishableSecret: hostStripeAccount.data.publishableKey,
+        };
+      } catch (e) {
+        logger.error(e);
+        throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
+      }
     },
   },
 };

@@ -1,9 +1,11 @@
+/* eslint-disable camelcase */
+
 import { expect } from 'chai';
 import { Request } from 'express';
-/* eslint-disable camelcase */
 import { createSandbox } from 'sinon';
 
 import * as PaypalLib from '../../../../server/lib/paypal';
+import * as Sentry from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
 import paypalWebhook from '../../../../server/paymentProviders/paypal/webhook';
 import {
@@ -119,10 +121,21 @@ describe('server/paymentProviders/paypal/webhook', () => {
         body: { event_type: 'BILLING.SUBSCRIPTION.CANCELLED', ...body },
       });
 
-    it('fails if order does not exists', async () => {
-      await expect(callSubscriptionCancelled({ resource: { id: 'FakeBillingAgreement' } })).to.be.rejectedWith(
-        'No order found for subscription FakeBillingAgreement',
-      );
+    it('succeed if order does not exists, but logs an error to sentry', async () => {
+      const stub = sandbox.stub(Sentry, 'reportMessageToSentry');
+      await expect(callSubscriptionCancelled({ resource: { id: 'FakeBillingAgreement' } })).to.be.fulfilled;
+      expect(stub).to.have.been.called;
+      expect(stub.args[0][0]).to.match(/No order found while cancelling PayPal subscription/);
+      expect(stub.args[0][1]).to.deep.eq({
+        feature: 'PAYPAL_DONATIONS',
+        severity: 'warning',
+        extra: {
+          body: {
+            event_type: 'BILLING.SUBSCRIPTION.CANCELLED',
+            resource: { id: 'FakeBillingAgreement' },
+          },
+        },
+      });
     });
 
     it('fails if collective has no host', async () => {

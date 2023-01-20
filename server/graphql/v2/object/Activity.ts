@@ -9,6 +9,7 @@ import * as ExpenseLib from '../../common/expenses';
 import { ActivityType } from '../enum';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
+import { Transaction } from '../interface/Transaction';
 
 import { Expense } from './Expense';
 import { Host } from './Host';
@@ -86,6 +87,15 @@ export const Activity = new GraphQLObjectType({
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
         if (activity.OrderId) {
           return req.loaders.Order.byId.load(activity.OrderId);
+        }
+      },
+    },
+    transaction: {
+      type: Transaction,
+      description: 'The transaction related to this activity, if any',
+      resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
+        if (activity.TransactionId) {
+          return req.loaders.Transaction.byId.load(activity.TransactionId);
         }
       },
     },

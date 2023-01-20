@@ -84,12 +84,15 @@ describe('server/graphql/v1/notifications', () => {
     it('return error when webhook limit exceeded', async () => {
       const { maxWebhooksPerUserPerCollective } = config.limits;
       await Promise.all(
-        Array.from(Array(maxWebhooksPerUserPerCollective)).map(() => {
+        Array.from(Array(maxWebhooksPerUserPerCollective)).map((_, i) => {
           return utils.graphqlQuery(
             createWebhookMutation,
             {
               collectiveSlug: collective1.slug,
-              notification: notification(),
+              notification: {
+                type: `type ${i}`,
+                webhookUrl: randUrl(),
+              },
             },
             user1,
           );
@@ -100,7 +103,10 @@ describe('server/graphql/v1/notifications', () => {
         createWebhookMutation,
         {
           collectiveSlug: collective1.slug,
-          notification: notification(),
+          notification: {
+            type: activities.COLLECTIVE_CONVERSATION_CREATED,
+            webhookUrl: randUrl(),
+          },
         },
         user1,
       );
@@ -111,7 +117,7 @@ describe('server/graphql/v1/notifications', () => {
 
     it('creates webhook notification', async () => {
       const notification = {
-        type: activities.COLLECTIVE_EXPENSE_CREATED,
+        type: activities.COLLECTIVE_CORE_MEMBER_ADDED,
         webhookUrl: randUrl(),
       };
 

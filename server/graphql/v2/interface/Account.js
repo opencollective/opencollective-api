@@ -44,6 +44,7 @@ import { MemberInvitation } from '../object/MemberInvitation';
 import { PaymentMethod } from '../object/PaymentMethod';
 import PayoutMethod from '../object/PayoutMethod';
 import { Policies } from '../object/Policies';
+import { SocialLink } from '../object/SocialLink';
 import { TagStats } from '../object/TagStats';
 import { TransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
@@ -126,6 +127,12 @@ const accountFieldsDefinition = () => ({
   repositoryUrl: {
     type: GraphQLString,
   },
+  socialLinks: {
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+    async resolve(collective, _, req) {
+      return req.loaders.SocialLink.byCollectiveId.load(collective.id);
+    },
+  },
   currency: {
     type: GraphQLString,
   },
@@ -184,6 +191,7 @@ const accountFieldsDefinition = () => ({
   },
   parentAccount: {
     type: Account,
+    deprecationReason: '2022-12-16: use parent on AccountWithParent instead',
     async resolve(collective, _, req) {
       if (!collective.ParentCollectiveId) {
         return null;
@@ -347,6 +355,11 @@ const accountFieldsDefinition = () => ({
           'Whether to include expired payment methods. Payment methods expired since more than 6 months will never be returned.',
       },
     },
+  },
+  paymentMethodsWithPendingConfirmation: {
+    type: new GraphQLList(PaymentMethod),
+    description:
+      'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
   },
   connectedAccounts: {
     type: new GraphQLList(ConnectedAccount),
@@ -869,7 +882,7 @@ export const AccountFields = {
     description:
       'The list of payment methods that this collective can use to pay for Orders. Admin only. Scope: "orders".',
     async resolve(collective, args, req) {
-      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'paymentMethods')) {
+      if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'orders')) {
         return null;
       }
 
@@ -895,6 +908,35 @@ export const AccountFields = {
         } else {
           return true;
         }
+      });
+    },
+  },
+  paymentMethodsWithPendingConfirmation: {
+    type: new GraphQLList(PaymentMethod),
+    description:
+      'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
+    async resolve(collective, _, req) {
+      if (!req.remoteUser?.isAdminOfCollective(collective)) {
+        return null;
+      }
+
+      return models.PaymentMethod.findAll({
+        where: { CollectiveId: collective.id },
+        group: ['PaymentMethod.id'],
+        include: [
+          {
+            model: models.Order,
+            required: true,
+            attributes: [],
+            include: [{ model: models.Subscription, required: true, attributes: [], where: { isActive: true } }],
+            where: {
+              data: { needsConfirmation: true },
+              status: {
+                [Op.in]: ['REQUIRE_CLIENT_CONFIRMATION', 'ERROR', 'PENDING'],
+              },
+            },
+          },
+        ],
       });
     },
   },

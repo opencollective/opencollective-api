@@ -1,16 +1,17 @@
+import assert from 'assert';
+
 import { Request } from 'express';
-import { pick, toString } from 'lodash';
+import { get, pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import expenseStatus from '../../constants/expense_status';
 import { TransactionKind } from '../../constants/transaction-kind';
-import { getWiseFxRateInfoFromExpenseData } from '../../graphql/common/expenses';
 import logger from '../../lib/logger';
 import * as libPayments from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { TransferStateChangeEvent } from '../../types/transferwise';
+import { QuoteV2, QuoteV2PaymentOption, Transfer, TransferStateChangeEvent } from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
@@ -47,32 +48,35 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
     logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
-    const feesInHostCurrency: {
+    const feesInHostCurrency = expense.data.feesInHostCurrency as {
       paymentProcessorFeeInHostCurrency: number;
       hostFeeInHostCurrency: number;
       platformFeeInHostCurrency: number;
-    } = expense.data.feesInHostCurrency;
+    };
 
     if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
       // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
       // See https://github.com/opencollective/opencollective/issues/5113
       feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
-    } else if (expense.data?.paymentOption?.fee?.total) {
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(expense.data.paymentOption.fee.total * 100);
+    } else if (get(expense.data, 'paymentOption.fee.total')) {
+      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
+        expense.data.paymentOption['fee']['total'] * 100,
+      );
     }
 
-    // Get FX rate
-    const wiseFxRateInfo = getWiseFxRateInfoFromExpenseData(expense, expense.currency, expense.host?.currency);
-    if (!wiseFxRateInfo) {
-      logger.warn(`Could not retrieve the FX rate from Wise for expense #${expense.id}. Falling back to 'auto' mode.`);
-    }
+    const hostAmount =
+      (expense.data?.transfer as Transfer)?.sourceValue ||
+      (expense.data?.quote as QuoteV2)?.sourceAmount -
+        ((expense.data?.paymentOption as QuoteV2PaymentOption)?.fee?.total || 0);
+    assert(hostAmount, 'Expense is missing transfer and quote information');
+    const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
     const user = await models.User.findByPk(expense.lastEditedById);
     await createTransactionsFromPaidExpense(
       expense.host,
       expense,
       feesInHostCurrency,
-      wiseFxRateInfo?.value || 'auto',
+      expenseToHostRate,
       pick(expense.data, ['fund', 'transfer']),
     );
     await expense.setPaid(expense.lastEditedById);

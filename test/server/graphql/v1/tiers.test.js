@@ -8,7 +8,7 @@ import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
-import { fakeHost, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeTier, fakeUser } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/tiers', () => {
@@ -34,7 +34,7 @@ describe('server/graphql/v1/tiers', () => {
   // Create host
   beforeEach(async () => {
     host = await models.User.createUserWithCollective(utils.data('host1'));
-    await host.collective.update({ countryISO: 'BE' });
+    await host.collective.update({ countryISO: 'BE', settings: { VAT: { type: 'OWN', number: 'FRXX999999999' } } });
   });
 
   // Create payment method
@@ -50,6 +50,7 @@ describe('server/graphql/v1/tiers', () => {
   beforeEach(async () => {
     collective1 = await models.Collective.create({
       ...utils.data('collective1'),
+      countryISO: 'BE',
       settings: { VAT: { type: VAT_OPTIONS.HOST } },
     });
   });
@@ -89,9 +90,17 @@ describe('server/graphql/v1/tiers', () => {
 
   before(() => {
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_B5s4wkqxtUtNyM' }));
+    sandbox.stub(stripe.tokens, 'retrieve').callsFake(() => Promise.resolve({ id: 'tok_B5s4wkqxtUtNyM', card: {} }));
 
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
+
+    sandbox
+      .stub(stripe.paymentMethods, 'create')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+    sandbox
+      .stub(stripe.paymentMethods, 'attach')
+      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
 
     /* eslint-disable camelcase */
 
@@ -393,6 +402,7 @@ describe('server/graphql/v1/tiers', () => {
           id: 'VAT',
           taxerCountry: 'BE',
           taxedCountry: 'BE',
+          taxIDNumberFrom: 'FRXX999999999',
           percentage: 21,
         });
         createdOrder.transactions
@@ -502,6 +512,44 @@ describe('server/graphql/v1/tiers', () => {
         expect(queryResult.errors[0].message).to.equal(
           'This tier uses a fixed amount. Order total must be $50.00 + $10.50 tax. You set: $50.00',
         );
+      });
+
+      it('defaults to VAT enabled if configured on the host', async () => {
+        const collective = await fakeCollective({ HostCollectiveId: host.id });
+        const tier = await fakeTier({
+          type: 'PRODUCT',
+          amount: 5000,
+          interval: null,
+          currency: 'USD',
+          CollectiveId: collective.id,
+        });
+        const belgiumVAT = 21;
+        const taxAmount = Math.round(tier.amount * (belgiumVAT / 100));
+        const order = {
+          description: 'test order with tax',
+          collective: { id: collective.id },
+          tier: { id: tier.id },
+          paymentMethod: { uuid: paymentMethod1.uuid },
+          totalAmount: tier.amount + taxAmount,
+          taxAmount,
+          countryISO: 'BE', // Required when order has tax
+        };
+
+        const res = await utils.graphqlQuery(createOrderMutation, { order }, user1);
+
+        // There should be no errors
+        res.errors && console.error(res.errors);
+        expect(res.errors).to.not.exist;
+
+        const createdOrder = res.data.createOrder;
+        expect(createdOrder.taxAmount).to.equal(taxAmount);
+        expect(createdOrder.data.tax).to.deep.equal({
+          id: 'VAT',
+          taxerCountry: 'BE',
+          taxedCountry: 'BE',
+          taxIDNumberFrom: 'FRXX999999999',
+          percentage: 21,
+        });
       });
 
       describe('feesOnTop', () => {

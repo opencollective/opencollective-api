@@ -1,20 +1,23 @@
+import { ReactionEmoji } from 'aws-sdk/clients/codecommit';
 import DataLoader from 'dataloader';
 import express from 'express';
 import { set } from 'lodash';
 
 import models, { Op, sequelize } from '../../models';
 
+type ReactionsCount = Record<ReactionEmoji, number>;
+
 export default {
-  reactionsByUpdateId: (): DataLoader<number, typeof models.EmojiReaction> => {
+  reactionsByUpdateId: (): DataLoader<number, ReactionsCount> => {
     return new DataLoader(async updateIds => {
-      const reactionsList = await models.EmojiReaction.count({
+      type ReactionsListQueryResult = [{ UpdateId: number; emoji: ReactionEmoji; count: number }];
+      const reactionsList = (await models.EmojiReaction.count({
         where: { UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId', 'emoji'],
-        order: [['emoji', 'ASC']],
-        raw: true,
-      });
+      })) as unknown as ReactionsListQueryResult;
 
-      const reactionsMap = {};
+      type UpdateReactionsCount = Record<number, Record<ReactionEmoji, number>>;
+      const reactionsMap: UpdateReactionsCount = {};
       reactionsList.forEach(({ UpdateId, emoji, count }) => {
         set(reactionsMap, [UpdateId, emoji], count);
       });
@@ -22,18 +25,20 @@ export default {
       return updateIds.map(id => reactionsMap[id] || {});
     });
   },
-  remoteUserReactionsByUpdateId: (req: express.Request): DataLoader<number, typeof models.EmojiReaction> => {
+  remoteUserReactionsByUpdateId: (req: express.Request): DataLoader<number, ReactionEmoji> => {
     return new DataLoader(async updateIds => {
       if (!req.remoteUser) {
         return updateIds.map(() => []);
       }
 
-      const reactionsList = await models.EmojiReaction.findAll({
+      type ReactionsListQueryResult = [{ UpdateId: number; emojis: ReactionEmoji[] }];
+      const reactionsList = (await models.EmojiReaction.findAll({
         attributes: ['UpdateId', [sequelize.fn('ARRAY_AGG', sequelize.col('emoji')), 'emojis']],
         where: { FromCollectiveId: req.remoteUser.CollectiveId, UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId'],
         raw: true,
-      });
+        mapToModel: false,
+      })) as unknown as ReactionsListQueryResult;
 
       const reactionsMap = {};
       reactionsList.forEach(reaction => {

@@ -62,7 +62,7 @@ describe('cron/hourly/check-pending-transferwise-transactions', () => {
       type: 'INVOICE',
       description: 'January Invoice',
       data: {
-        transfer: { id: 1234 },
+        transfer: { id: 1234, sourceValue: 100 },
       },
     });
   });

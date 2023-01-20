@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import debugLib from 'debug';
 import { compact, defaults, isNil, keys, pick, pickBy, reject } from 'lodash';
 import prependHttp from 'prepend-http';
@@ -11,6 +10,7 @@ import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { getRootDomain } from '../lib/url-utils';
 
+import User from './User';
 import models from '.';
 
 const debug = debugLib('models:Notification');
@@ -32,18 +32,18 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare CollectiveId: CreationOptional<number>;
   public declare UserId: CreationOptional<number>;
   public declare webhookUrl: CreationOptional<string>;
-  public declare User?: typeof models.User;
+  public declare User?: User;
   public declare Collective?: typeof models.Collective;
 
   getUser() {
     return models.User.findByPk(this.UserId);
   }
 
-  static createMany(
+  static async createMany(
     notifications: InferCreationAttributes<Notification>[],
     defaultValues?: InferCreationAttributes<Notification>,
-  ): Notification[] {
-    return Promise.map(notifications, u => Notification.create(defaults({}, u, defaultValues))).catch(console.error);
+  ): Promise<Notification[]> {
+    return Promise.all(notifications.map(u => Notification.create(defaults({}, u, defaultValues))));
   }
 
   static async unsubscribe(
@@ -297,7 +297,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   /**
    * Check if notification with `notificationType` and `user` is active.
    */
-  static isActive(notificationType: string, user: typeof models.User, collective?: typeof models.Collective) {
+  static isActive(notificationType: string, user: User, collective?: typeof models.Collective) {
     debug('isActive', notificationType, user.id);
     const where = {
       type: notificationType,

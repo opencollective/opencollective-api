@@ -58,6 +58,7 @@ describe('server/lib/tax-forms', () => {
     collectives,
     organizationWithTaxForm,
     accountAlreadyNotified,
+    accountWithOnlyADraft,
     accountWithTaxFormFromLastYear,
     accountWithTaxFormFrom4YearsAgo,
     accountWithTaxFormSubmittedByHost,
@@ -68,7 +69,16 @@ describe('server/lib/tax-forms', () => {
     year: moment().year(),
   };
 
-  function ExpenseOverThreshold({ incurredAt, UserId, CollectiveId, amount, type, FromCollectiveId, PayoutMethodId }) {
+  function ExpenseOverThreshold({
+    incurredAt,
+    UserId,
+    CollectiveId,
+    amount,
+    type,
+    FromCollectiveId,
+    PayoutMethodId,
+    status,
+  }) {
     return {
       description: 'pizza',
       amount: amount || US_TAX_FORM_THRESHOLD + 100e2,
@@ -81,6 +91,7 @@ describe('server/lib/tax-forms', () => {
       CollectiveId,
       type: type || INVOICE,
       PayoutMethodId,
+      status,
     };
   }
 
@@ -117,6 +128,7 @@ describe('server/lib/tax-forms', () => {
     accountAlreadyNotified = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithTaxFormFromLastYear = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithTaxFormSubmittedByHost = await fakeCollective();
+    accountWithOnlyADraft = (await fakeUser()).collective;
     accountWithTaxFormFrom4YearsAgo = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithPaypalBelowThreshold = await fakeCollective({ type: 'ORGANIZATION' });
     accountWithPaypalOverThreshold = await fakeCollective({ type: 'ORGANIZATION' });
@@ -216,6 +228,17 @@ describe('server/lib/tax-forms', () => {
         incurredAt: moment(),
         PayoutMethodId: otherPayoutMethod.id,
         type: RECEIPT,
+      }),
+    );
+    // An expense from this year over the threshold BUT it's a draft should not be counted
+    await Expense.create(
+      ExpenseOverThreshold({
+        UserId: accountWithOnlyADraft.CreatedByUserId,
+        FromCollectiveId: accountWithOnlyADraft.id,
+        CollectiveId: collectives[0].id,
+        incurredAt: moment(),
+        PayoutMethodId: otherPayoutMethod.id,
+        status: 'DRAFT',
       }),
     );
     // An expense from this year over the threshold BUT its fiscal host already submitted a tax form
@@ -358,6 +381,7 @@ describe('server/lib/tax-forms', () => {
       expect(accounts.some(account => account.id === users[4].CollectiveId)).to.be.false;
       expect(accounts.some(account => account.id === accountWithPaypalOverThreshold.id)).to.be.true;
       expect(accounts.some(account => account.id === accountWithPaypalBelowThreshold.id)).to.be.false;
+      expect(accounts.some(account => account.id === accountWithOnlyADraft.id)).to.be.false;
     });
   });
 

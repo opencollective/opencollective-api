@@ -9,6 +9,7 @@ import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
 import models, { Op, sequelize } from '../models';
+import Expense from '../models/Expense';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -205,6 +206,7 @@ export const collectiveSlugReservedList = [
   'events',
   'expense',
   'expenses',
+  'submitted-expenses',
   'faq',
   'fund',
   'gift-card',
@@ -329,15 +331,9 @@ export async function isCollectiveDeletable(collective) {
         AND "deletedAt" IS NULL
       )
       -- Expenses
-      OR EXISTS (
-        SELECT 1 FROM "Expenses"
-        WHERE (
-          "CollectiveId" = :CollectiveId
-          OR "FromCollectiveId" = :CollectiveId
-          ${user ? `OR "UserId" = :UserId` : ''}
-        )
-        AND "deletedAt" IS NULL
-      )
+      OR EXISTS (SELECT 1 FROM "Expenses" WHERE "CollectiveId" = :CollectiveId AND "deletedAt" IS NULL)
+      OR EXISTS (SELECT 1 FROM "Expenses" WHERE "FromCollectiveId" = :CollectiveId AND "deletedAt" IS NULL)
+      ${user ? `OR EXISTS (SELECT 1 FROM "Expenses" WHERE "UserId" = :UserId AND "deletedAt" IS NULL) ` : ''}
       -- Orders
       OR EXISTS (
         SELECT 1 FROM "Orders"
@@ -383,7 +379,7 @@ export async function deleteCollective(collective) {
       [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
     },
   });
-  await map(members, member => member.destroy(), { concurrency: 3 });
+  await map(members, (member: typeof models.Member) => member.destroy(), { concurrency: 3 });
 
   const orders = await models.Order.findAll({
     where: {
@@ -391,7 +387,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'ACTIVE', 'CANCELLED'] },
     },
   });
-  await map(orders, order => order.destroy(), { concurrency: 3 });
+  await map(orders, (order: typeof models.Order) => order.destroy(), { concurrency: 3 });
 
   const expenses = await models.Expense.findAll({
     where: {
@@ -399,7 +395,7 @@ export async function deleteCollective(collective) {
       status: { [Op.not]: ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT'] },
     },
   });
-  await map(expenses, expense => expense.destroy(), { concurrency: 3 });
+  await map(expenses, (expense: Expense) => expense.destroy(), { concurrency: 3 });
 
   const tiers = await models.Tier.findAll({
     where: { CollectiveId: collective.id },
@@ -409,7 +405,9 @@ export async function deleteCollective(collective) {
   const paymentMethods = await models.PaymentMethod.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(paymentMethods, paymentMethod => paymentMethod.destroy(), { concurrency: 3 });
+  await map(paymentMethods, (paymentMethod: typeof models.PaymentMethod) => paymentMethod.destroy(), {
+    concurrency: 3,
+  });
 
   const connectedAccounts = await models.ConnectedAccount.findAll({
     where: { CollectiveId: collective.id },
@@ -419,7 +417,9 @@ export async function deleteCollective(collective) {
   const memberInvitations = await models.MemberInvitation.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(memberInvitations, memberInvitation => memberInvitation.destroy(), { concurrency: 3 });
+  await map(memberInvitations, (memberInvitation: typeof models.MemberInvitation) => memberInvitation.destroy(), {
+    concurrency: 3,
+  });
 
   await collective.destroy();
 

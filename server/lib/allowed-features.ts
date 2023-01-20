@@ -27,7 +27,7 @@ const FeatureAllowedForTypes = {
   [FEATURE.CONVERSATIONS]: [types.COLLECTIVE, types.ORGANIZATION],
   [FEATURE.UPDATES]: [types.COLLECTIVE, types.ORGANIZATION, types.FUND, types.PROJECT, types.EVENT],
   [FEATURE.TEAM]: [types.ORGANIZATION, types.COLLECTIVE, types.EVENT, types.FUND, types.PROJECT],
-  [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT, types.ORGANIZATION],
+  [FEATURE.CONTACT_FORM]: [types.COLLECTIVE, types.EVENT, types.ORGANIZATION, types.FUND],
   [FEATURE.TRANSFERWISE]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_PAYOUTS]: [types.ORGANIZATION],
   [FEATURE.PAYPAL_DONATIONS]: [types.ORGANIZATION],
@@ -48,6 +48,7 @@ export const OPT_IN_FEATURE_FLAGS = {
   [FEATURE.PAYPAL_DONATIONS]: 'settings.features.paypalDonations',
   [FEATURE.RECEIVE_HOST_APPLICATIONS]: 'settings.apply',
   [FEATURE.EMAIL_NOTIFICATIONS_PANEL]: 'settings.features.emailNotificationsPanel',
+  [FEATURE.STRIPE_PAYMENT_INTENT]: 'settings.features.stripePaymentIntent',
 };
 
 const FEATURES_ONLY_FOR_HOST_ORGS = new Set([

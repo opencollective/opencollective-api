@@ -3,6 +3,7 @@ import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
 import { types as CollectiveTypes } from '../constants/collectives';
 import models, { Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
+import User from '../models/User';
 
 import { DEFAULT_GUEST_NAME } from './guest-accounts';
 
@@ -176,7 +177,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
 // Defines the collective field names used in the DB. Useful to prevent typos in the config below
 type UserField = 'UserId' | 'CreatedByUserId';
 
-type UserFieldsConfig = Record<string, { model: typeof models.User; field: UserField }>;
+type UserFieldsConfig = Record<string, { model: User; field: UserField }>;
 
 const userFieldsConfig = {
   activities: { model: models.Activity, field: 'UserId' },

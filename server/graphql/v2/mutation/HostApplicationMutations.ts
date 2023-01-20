@@ -12,9 +12,11 @@ import { purgeAllCachesForAccount, purgeCacheForCollective } from '../../../lib/
 import emailLib from '../../../lib/email';
 import * as github from '../../../lib/github';
 import { OSCValidator, ValidatedRepositoryInfo } from '../../../lib/osc-validator';
-import { getPolicy } from '../../../lib/policies';
+import { getPolicy, hasPolicy } from '../../../lib/policies';
 import { stripHTML } from '../../../lib/sanitize-html';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
+import ConversationModel from '../../../models/Conversation';
 import { HostApplicationStatus } from '../../../models/HostApplication';
 import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost, checkScope } from '../../common/scope-check';
@@ -79,6 +81,8 @@ const HostApplicationMutations = {
         throw new Forbidden('You need to be an Admin of the account');
       }
 
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
         throw new NotFound('Host not found');
@@ -127,7 +131,7 @@ const HostApplicationMutations = {
             }
           }
           const { allValidationsPassed } = validatedRepositoryInfo || {};
-          shouldAutomaticallyApprove = allValidationsPassed || bypassGithubValidation;
+          shouldAutomaticallyApprove = Boolean(allValidationsPassed || bypassGithubValidation);
         } catch (error) {
           throw new ValidationFailed(error.message);
         }
@@ -190,6 +194,9 @@ const HostApplicationMutations = {
         throw new ValidationFailed('This collective application has already been approved');
       }
 
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+
       switch (args.action) {
         case 'APPROVE':
           return { account: await approveApplication(host, account, req) };
@@ -228,12 +235,16 @@ const HostApplicationMutations = {
         throw new ValidationFailed(`Cannot unhost projects/events with a parent. Please unhost the parent instead.`);
       }
 
-      const host = await req.loaders.Collective.host.load(account.id);
+      const host = await req.loaders.Collective.host.load(account);
       if (!host) {
         return account;
       }
       if (!req.remoteUser.isAdminOfCollective(host) && !(req.remoteUser.isRoot() && checkScope(req, 'root'))) {
         throw new Unauthorized();
+      }
+
+      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+        await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
       }
 
       await account.changeHost(null);
@@ -368,7 +379,7 @@ const sendPrivateMessage = async (host, collective, message: string): Promise<vo
   );
 };
 
-const sendPublicMessage = async (host, collective, user, message: string): Promise<typeof models.Conversation> => {
+const sendPublicMessage = async (host, collective, user, message: string): Promise<ConversationModel> => {
   const title = `About your application to ${host.name}`;
   const tags = ['host'];
   return models.Conversation.createWithComment(user, collective, title, message, tags);

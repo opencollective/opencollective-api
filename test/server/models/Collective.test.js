@@ -44,6 +44,7 @@ describe('server/models/Collective', () => {
     name: 'tipbox',
     currency: 'USD',
     tags: ['#brusselstogether'],
+    CreatedByUserId: 1,
     tiers: [
       {
         name: 'backer',
@@ -98,6 +99,7 @@ describe('server/models/Collective', () => {
       createdAt: new Date('2016-06-15'),
       amount: 25000,
       amountInHostCurrency: 25000,
+      paymentProcessorFeeInHostCurrency: -2500,
       netAmountInCollectiveCurrency: 22500,
       currency: 'USD',
       type: 'CREDIT',
@@ -108,6 +110,7 @@ describe('server/models/Collective', () => {
       createdAt: new Date('2016-07-16'),
       amount: 50000,
       amountInHostCurrency: 50000,
+      paymentProcessorFeeInHostCurrency: -5000,
       netAmountInCollectiveCurrency: 45000,
       currency: 'USD',
       type: 'CREDIT',
@@ -116,8 +119,9 @@ describe('server/models/Collective', () => {
     },
     {
       createdAt: new Date('2016-08-18'),
-      amount: 500,
+      amount: 45000,
       amountInHostCurrency: 50000,
+      paymentProcessorFeeInHostCurrency: -5000,
       netAmountInCollectiveCurrency: 45000,
       currency: 'USD',
       type: 'CREDIT',
@@ -146,6 +150,7 @@ describe('server/models/Collective', () => {
     hostUser = await User.createUserWithCollective(utils.data('host1'));
     collective = await Collective.create(collectiveData);
     opensourceCollective = await Collective.create({
+      name: 'Webpack',
       slug: 'webpack',
       tags: ['open source'],
       isActive: true,
@@ -211,7 +216,7 @@ describe('server/models/Collective', () => {
   });
 
   it('creates a unique slug', async () => {
-    const collective1 = await Collective.create({ slug: 'piamancini' });
+    const collective1 = await Collective.create({ name: 'Pia', slug: 'piamancini' });
     expect(collective1.slug).to.equal('piamancini');
 
     const collective2 = await Collective.create({ name: 'XavierDamman' });
@@ -219,7 +224,7 @@ describe('server/models/Collective', () => {
 
     await Collective.create({ name: 'piamancini2' });
 
-    const collective3 = await Collective.create({ twitterHandle: '@piamancini' });
+    const collective3 = await Collective.create({ name: 'PiaMancini', twitterHandle: '@piamancini' });
     expect(collective3.slug).to.equal('piamancini1');
     expect(collective3.twitterHandle).to.equal('piamancini');
 
@@ -239,7 +244,7 @@ describe('server/models/Collective', () => {
   });
 
   it('creates a unique slug for incognito profile', async () => {
-    const collective = await Collective.create({ isIncognito: true });
+    const collective = await Collective.create({ name: 'incognito', isIncognito: true });
     expect(collective.slug).to.contain('incognito-');
     expect(collective.slug.length).to.equal(18);
   });
@@ -341,7 +346,7 @@ describe('server/models/Collective', () => {
         await collective.changeHost();
         throw new Error("Didn't throw expected error!");
       } catch (e) {
-        expect(e.message).to.contain('Unable to change host: you still have a balance of $965');
+        expect(e.message).to.contain('Unable to change host: you still have a balance of $1,125.00');
       }
     });
 
@@ -480,20 +485,52 @@ describe('server/models/Collective', () => {
     expect(collective.image).to.equal('https://www.gravatar.com/avatar/a97d0fcd96579015da610aa284f8d8df?default=404');
   });
 
-  it('computes the balance ', () =>
-    collective.getBalance().then(balance => {
+  it('computes the balance (v1)', () =>
+    collective.getBalance({ version: 'v1' }).then(balance => {
       let sum = 0;
       transactions.map(t => (sum += t.netAmountInCollectiveCurrency));
       expect(balance).to.equal(sum);
     }));
 
-  it('computes the balance until a certain month', done => {
+  it('computes the balance (v2 - default)', () =>
+    collective.getBalance().then(balance => {
+      let sum = 0;
+      transactions.map(
+        t =>
+          (sum +=
+            (t.amountInHostCurrency || 0) +
+            (t.hostFeeInHostCurrency || 0) +
+            (t.platformFeeInHostCurrency || 0) +
+            (t.paymentProcessorFeeInHostCurrency || 0)),
+      );
+      expect(balance).to.equal(sum);
+    }));
+
+  it('computes the balance until a certain month (v1)', done => {
+    const until = new Date('2016-07-01');
+    collective.getBalance({ version: 'v1', endDate: until }).then(balance => {
+      let sum = 0;
+      transactions.map(t => {
+        if (t.createdAt < until) {
+          sum += t.netAmountInCollectiveCurrency;
+        }
+      });
+      expect(balance).to.equal(sum);
+      done();
+    });
+  });
+
+  it('computes the balance until a certain month (v2 - default)', done => {
     const until = new Date('2016-07-01');
     collective.getBalance({ endDate: until }).then(balance => {
       let sum = 0;
       transactions.map(t => {
         if (t.createdAt < until) {
-          sum += t.netAmountInCollectiveCurrency;
+          sum +=
+            (t.amountInHostCurrency || 0) +
+            (t.hostFeeInHostCurrency || 0) +
+            (t.platformFeeInHostCurrency || 0) +
+            (t.paymentProcessorFeeInHostCurrency || 0);
         }
       });
       expect(balance).to.equal(sum);
@@ -506,10 +543,12 @@ describe('server/models/Collective', () => {
     await fakeTransaction({
       createdAt: new Date(),
       CollectiveId: collective.id,
-      amount: 500,
+      amount: 50000,
       amountInHostCurrency: 50000,
+      paymentProcessorFeeInHostCurrency: -5000,
       netAmountInCollectiveCurrency: 45000,
       currency: 'USD',
+      hostCurrency: 'USD',
       type: 'CREDIT',
       CreatedByUserId: 2,
       FromCollectiveId: 2,
@@ -528,8 +567,11 @@ describe('server/models/Collective', () => {
       data: { payout_batch_id: 1 },
     });
 
+    const balanceV1 = await collective.getBalanceWithBlockedFunds({ version: 'v1' });
+    expect(balanceV1).to.equal(50000 - 5000 - 20000 - 10000);
+
     const balance = await collective.getBalanceWithBlockedFunds();
-    expect(balance).to.equal(45000 - 30000);
+    expect(balance).to.equal(50000 - 5000 - 20000 - 10000);
   });
 
   it('computes the number of backers', () =>
@@ -641,7 +683,7 @@ describe('server/models/Collective', () => {
     });
 
     it('gets the latest transactions of a user collective', () => {
-      return Collective.findOne({ where: { type: 'USER' } }).then(userCollective => {
+      return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {
         return userCollective
           .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'))
           .then(transactions => {
@@ -651,7 +693,8 @@ describe('server/models/Collective', () => {
     });
 
     it('gets the latest transactions of a user collective to open source', () => {
-      return Collective.findOne({ where: { type: 'USER' } }).then(userCollective => {
+      // we have like 4 users here
+      return Collective.findOne({ where: { id: user1.CollectiveId } }).then(userCollective => {
         return userCollective
           .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'), ['open source'])
           .then(transactions => {
@@ -805,15 +848,20 @@ describe('server/models/Collective', () => {
         await models.Member.destroy({ where: { CollectiveId: collective.id } });
 
         // Some fake data to fool the tests
-        await fakeMember();
-        await fakeMember();
-        await fakeMember({ CollectiveId: collective.id });
+        await fakeMember({ CreatedByUserId: user1.id });
+        await fakeMember({ CreatedByUserId: user1.id });
+        await fakeMember({ CollectiveId: collective.id, CreatedByUserId: user1.id });
 
         // Add some members
         const backer = await fakeUser();
         const admin = await fakeUser();
         const org = await fakeOrganization();
-        await fakeMember({ CollectiveId: collective.id, MemberCollectiveId: org.id, role: 'BACKER' });
+        await fakeMember({
+          CollectiveId: collective.id,
+          MemberCollectiveId: org.id,
+          CreatedByUserId: backer.id,
+          role: 'BACKER',
+        });
         await collective.addUserWithRole(backer, 'BACKER');
         await collective.addUserWithRole(admin, 'ADMIN');
 
@@ -907,9 +955,9 @@ describe('server/models/Collective', () => {
       const nextGoal = await collective.getNextGoal();
       expect(nextGoal.type).to.equal('balance');
       expect(nextGoal.amount).to.equal(200000);
-      expect(nextGoal.progress).to.equal(0.48);
-      expect(nextGoal.percentage).to.equal('48%');
-      expect(nextGoal.missing.amount).to.equal(103500);
+      expect(nextGoal.progress).to.equal(0.56);
+      expect(nextGoal.percentage).to.equal('56%');
+      expect(nextGoal.missing.amount).to.equal(87500);
     });
 
     it('returns the next goal based on yearlBudget', async () => {
@@ -938,6 +986,7 @@ describe('server/models/Collective', () => {
   describe('third party accounts handles', () => {
     it('stores Github handle and strip first @ character', async () => {
       const collective = await Collective.create({
+        name: 'test',
         slug: 'my-collective',
         githubHandle: '@test',
       });
@@ -1119,7 +1168,7 @@ describe('server/models/Collective', () => {
       const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
       const opencollective = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
       // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
-      await sequelize.query(`ALTER SEQUENCE "Collectives_id_seq" RESTART WITH 1453`);
+      await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
       await fakePayoutMethod({
         id: 2955,
         CollectiveId: opencollective.id,
@@ -1223,10 +1272,7 @@ describe('server/models/Collective', () => {
     });
 
     it('returns acurate metrics for requested month', async () => {
-      // We expect the value returned by getFxRate (fixer API), which is 1.1 in test environment
-      const usdToGbpFxRate = 1.1;
-
-      const expectedTotalMoneyManaged = 3000 - 600 + 5000 - 1000 + 100 + 100 + 81 + 1000 * usdToGbpFxRate;
+      const expectedTotalMoneyManaged = 3000 - 600 + 5000 - 1000 + 100 + 100 + 81 + 800;
 
       expect(metrics).to.deep.equal({
         hostFees: 1600,
@@ -1250,9 +1296,9 @@ describe('server/models/Collective', () => {
     });
 
     it('should set policies', async () => {
-      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
+      await collective.setPolicies({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
 
-      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: true });
+      expect(collective.data.policies).to.deep.equal({ [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: { enabled: true } });
     });
 
     it('should fail setting policies if policy does not exists', async () => {

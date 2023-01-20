@@ -9,12 +9,14 @@ import { graphql } from 'graphql';
 import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
 import { loaders } from '../server/graphql/loaders';
 import schemaV1 from '../server/graphql/v1/schema';
 import schemaV2 from '../server/graphql/v2/schema';
 import cache from '../server/lib/cache';
+import { crypto } from '../server/lib/encryption';
 import logger from '../server/lib/logger';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
@@ -43,78 +45,18 @@ export const data = path => {
 export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
-  await sequelize.sync({ force: true }).catch(e => {
-    console.error("test/utils.js> Sequelize Error: Couldn't recreate the schema", e);
-    process.exit(1);
-  });
-  // That could be an alternative but this doesn't work
-  // await sequelize.truncate({ force: true, cascade: true });
-};
+  const resetFn = async () => {
+    await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+  };
 
-/**
- * Our migrations use `sequelize.sync` rather than re-running the transactions, but we don't want to
- * add the searchTsVector column on the model.
- */
-export const runSearchTsVectorMigration = async () => {
   try {
-    await sequelize.queryInterface.createFunction(
-      'array_to_string_immutable',
-      [
-        { type: 'text[]', name: 'textArray' },
-        { type: 'text', name: 'text' },
-      ],
-      'text',
-      'plpgsql',
-      'RETURN array_to_string(textArray, text);',
-      ['IMMUTABLE', 'STRICT', 'PARALLEL', 'SAFE'],
-    );
-  } catch {
-    // Ignore
+    await resetFn();
+  } catch (e) {
+    console.error(e);
+    process.exit(1);
   }
-
-  await sequelize.query(`
-    ALTER TABLE "Collectives"
-    ADD COLUMN IF NOT EXISTS "searchTsVector" tsvector
-    GENERATED ALWAYS AS (
-      SETWEIGHT(to_tsvector('simple', "slug"), 'A')
-      || SETWEIGHT(to_tsvector('simple', "name"), 'B')
-      || SETWEIGHT(to_tsvector('english', "name"), 'B')
-      || SETWEIGHT(to_tsvector('english', COALESCE("description", '')), 'C')
-      || SETWEIGHT(to_tsvector('english', COALESCE("longDescription", '')), 'C')
-      || SETWEIGHT(to_tsvector('simple', array_to_string_immutable(COALESCE(tags, ARRAY[]::varchar[]), ' ')), 'C')
-    ) STORED
-  `);
-
-  await sequelize.query(`
-    CREATE INDEX CONCURRENTLY IF NOT EXISTS collective_search_index
-    ON "Collectives"
-    USING GIN("searchTsVector")
-    WHERE "deletedAt" IS NULL
-    AND "deactivatedAt" IS NULL
-    AND ("data" ->> 'isGuest')::boolean IS NOT TRUE
-    AND ("data" ->> 'hideFromSearch')::boolean IS NOT TRUE
-    AND name != 'incognito'
-    AND name != 'anonymous'
-    AND "isIncognito" = FALSE
-  `);
-
-  await sequelize.query(`
-    CREATE MATERIALIZED VIEW "CollectiveTransactionStats" AS
-      SELECT
-        c.id,
-        COUNT(DISTINCT t.id) AS "count",
-        SUM(t."amountInHostCurrency") FILTER (WHERE t.type = 'CREDIT') AS "totalAmountReceivedInHostCurrency",
-        SUM(ABS(t."amountInHostCurrency")) FILTER (WHERE t.type = 'DEBIT') AS "totalAmountSpentInHostCurrency"
-      FROM "Collectives" c
-      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id AND t."deletedAt" IS NULL AND t."RefundTransactionId" IS NULL
-      WHERE c."deletedAt" IS NULL
-      AND c."deactivatedAt" IS NULL
-      AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE
-      AND c.name != 'incognito'
-      AND c.name != 'anonymous'
-      AND c."isIncognito" = FALSE
-      GROUP BY c.id
-  `);
 };
 
 export async function loadDB(dbname) {
@@ -314,6 +256,7 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
     paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
     paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
+    paymentMethod: { id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
@@ -321,17 +264,12 @@ export function stubStripeCreate(sandbox, overloadDefaults) {
   const factory = name => async () => values[name];
   sandbox.stub(stripe.tokens, 'create').callsFake(factory('token'));
 
-  sandbox.stub(stripe.customers, 'create').callsFake(async ({ source }) => {
-    if (source.startsWith('tok_chargeDeclined')) {
-      throw new Error('Your card was declined.');
-    }
-
-    return values.customer;
-  });
-
+  sandbox.stub(stripe.customers, 'create').callsFake(factory('customer'));
   sandbox.stub(stripe.customers, 'retrieve').callsFake(factory('customer'));
   sandbox.stub(stripe.paymentIntents, 'create').callsFake(factory('paymentIntent'));
   sandbox.stub(stripe.paymentIntents, 'confirm').callsFake(factory('paymentIntentConfirmed'));
+  sandbox.stub(stripe.paymentMethods, 'create').callsFake(factory('paymentMethod'));
+  sandbox.stub(stripe.paymentMethods, 'attach').callsFake(factory('paymentMethod'));
 }
 
 export function stubStripeBalance(sandbox, amount, currency, applicationFee = 0, stripeFee = 0) {
@@ -398,6 +336,7 @@ export const prettifyTransactionsData = (transactions, columns) => {
     TransactionGroup: 'Group',
     paymentProcessorFeeInHostCurrency: 'paymentFee',
     platformFeeInHostCurrency: 'platformFee',
+    taxAmount: 'tax',
   };
 
   // Prettify values
@@ -553,3 +492,18 @@ export const snapshotLedger = async columns => {
 };
 
 export const getApolloErrorCode = call => call.catch(e => e?.extensions?.code);
+
+export const generateValid2FAHeader = user => {
+  if (!user.twoFactorAuthToken) {
+    return null;
+  }
+
+  const decryptedToken = crypto.decrypt(user.twoFactorAuthToken).toString();
+  const twoFactorAuthenticatorCode = speakeasy.totp({
+    algorithm: 'SHA1',
+    encoding: 'base32',
+    secret: decryptedToken,
+  });
+
+  return `totp ${twoFactorAuthenticatorCode}`;
+};

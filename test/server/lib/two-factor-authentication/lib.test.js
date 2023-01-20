@@ -90,13 +90,13 @@ describe('lib/two-factor-authentication', () => {
         twoFactorAuthToken: '12345',
       });
 
-      await expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.eventually.be.true;
+      expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.be.true;
     });
 
     it('return false if user has 2fa disabled', async () => {
       const user = await fakeUser();
 
-      await expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.eventually.be.false;
+      expect(twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)).to.be.false;
     });
   });
 
@@ -245,6 +245,21 @@ describe('lib/two-factor-authentication', () => {
       } catch (e) {
         expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
       }
+    });
+
+    it('does not check for any code if onlyAskOnLogin is true', async () => {
+      const req = { remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }) };
+      await expect(twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }))
+        .to.eventually.be.false;
+    });
+
+    it('still throws if onlyAskOnLogin is true and user has not 2FA enabled', async () => {
+      const req = { remoteUser: await fakeUser() };
+      await expect(
+        twoFactorAuthLib.validateRequest(req, { onlyAskOnLogin: true, requireTwoFactorAuthEnabled: true }),
+      ).to.eventually.be.rejected.and.deep.include({
+        extensions: { code: '2FA_REQUIRED' },
+      });
     });
   });
 });

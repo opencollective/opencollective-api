@@ -10,7 +10,9 @@ import { MigrationLogType } from '../models/MigrationLog';
  * From a given account, returns its entire network of accounts: administrated profiles,
  * other profiles administrated by the same admins, etc...
  */
-export const getAccountsNetwork = async (accounts: typeof models.Collective[]): Promise<typeof models.Collective[]> => {
+export const getAccountsNetwork = async (
+  accounts: (typeof models.Collective)[],
+): Promise<(typeof models.Collective)[]> => {
   if (!accounts?.length) {
     return [];
   }
@@ -59,6 +61,7 @@ type BanSummary = {
   transactionsCount: number;
   expensesCount: number;
   ordersCount: number;
+  newOrdersCount: number;
   usersCount: number;
 };
 
@@ -134,7 +137,7 @@ const getUndeletableTransactionsCount = async collectiveIds => {
   return result.count;
 };
 
-export const getBanSummary = async (accounts: typeof models.Collective[]): Promise<BanSummary> => {
+export const getBanSummary = async (accounts: (typeof models.Collective)[]): Promise<BanSummary> => {
   const collectiveIds = accounts.map(a => a.id);
   return {
     undeletableTransactionsCount: await getUndeletableTransactionsCount(collectiveIds),
@@ -146,12 +149,17 @@ export const getBanSummary = async (accounts: typeof models.Collective[]): Promi
     ordersCount: await models.Order.count({
       where: { [Op.or]: [{ CollectiveId: collectiveIds }, { FromCollectiveId: collectiveIds }] },
     }),
+    newOrdersCount: await models.Order.count({
+      where: { [Op.or]: [{ CollectiveId: collectiveIds }, { FromCollectiveId: collectiveIds }], status: 'NEW' },
+    }),
   };
 };
 
 export const stringifyBanSummary = (banSummary: BanSummary) => {
   if (banSummary.undeletableTransactionsCount) {
     return `Can't proceed: there are ${banSummary.undeletableTransactionsCount} undeletable transactions in this batch`;
+  } else if (banSummary.newOrdersCount) {
+    return `Can't proceed: there are ${banSummary.newOrdersCount} orders with a pending payment not yet synchronized`;
   }
 
   const countFields = Object.keys(banSummary).filter(key => key.endsWith('Count'));
@@ -170,7 +178,7 @@ type BanResult = Record<string, number>;
 /**
  * A wrapper around the ban-collectives.sql query. Use carefully!
  */
-export const banAccounts = (accounts: typeof models.Collective[], userId: number): Promise<BanResult> => {
+export const banAccounts = (accounts: (typeof models.Collective)[], userId: number): Promise<BanResult> => {
   const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
 
   return sequelize.transaction(async transaction => {

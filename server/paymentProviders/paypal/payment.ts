@@ -13,6 +13,7 @@ import {
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
 import models, { Op } from '../../models';
+import User from '../../models/User';
 
 import { paypalRequestV2 } from './api';
 
@@ -114,18 +115,25 @@ export const recordPaypalCapture = async (
  */
 export async function findTransactionByPaypalId(
   paypalTransactionId: string,
-  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined } = {},
+  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined, searchSaleIdOnly = false } = {},
 ) {
+  const dataQuery = {};
+  const include = [];
+  if (searchSaleIdOnly) {
+    dataQuery['paypalSale'] = { id: paypalTransactionId };
+    include.push({ model: models.PaymentMethod, where: { service: 'paypal' } });
+  } else {
+    dataQuery[Op.or] = [
+      { capture: { id: paypalTransactionId } },
+      { paypalSale: { id: paypalTransactionId } },
+      { paypalTransaction: { id: paypalTransactionId } },
+    ];
+  }
+
   return models.Transaction.findOne({
     where: {
       ...pickBy({ type, HostCollectiveId, OrderId }, value => !isUndefined(value)),
-      data: {
-        [Op.or]: [
-          { capture: { id: paypalTransactionId } },
-          { paypalSale: { id: paypalTransactionId } },
-          { paypalTransaction: { id: paypalTransactionId } },
-        ],
-      },
+      data: dataQuery,
     },
   });
 }
@@ -179,7 +187,7 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.T
 export const refundPaypalCapture = async (
   transaction: typeof models.Transaction,
   captureId: string,
-  user: typeof models.User,
+  user: User,
   reason: string,
 ): Promise<typeof models.Transaction> => {
   const host = await transaction.getHostCollective();
@@ -219,7 +227,7 @@ export async function processOrder(order: typeof models.Order): Promise<typeof m
   }
 }
 
-const getCaptureIdFromPaypalTransaction = transaction => {
+export const getCaptureIdFromPaypalTransaction = transaction => {
   const { data } = transaction;
   if (!data) {
     return null;
@@ -232,7 +240,7 @@ const getCaptureIdFromPaypalTransaction = transaction => {
 
 const refundPaypalPaymentTransaction = async (
   transaction: typeof models.Transaction,
-  user: typeof models.User,
+  user: User,
   reason: string,
 ): Promise<typeof models.Transaction> => {
   const captureId = getCaptureIdFromPaypalTransaction(transaction);

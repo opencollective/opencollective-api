@@ -3,13 +3,16 @@ import { pick } from 'lodash';
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
+import Comment from '../../models/Comment';
+import Conversation from '../../models/Conversation';
+import Expense from '../../models/Expense';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = typeof models.Update | typeof models.Expense | typeof models.Conversation;
+type CommentableEntity = typeof models.Update | Expense | Conversation;
 
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };
@@ -35,7 +38,7 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
  * @param {object} comment - comment to edit
  * @param {object} remoteUser - logged user
  */
-async function editComment(commentData, req) {
+async function editComment(commentData, req): Promise<Comment> {
   mustBeLoggedInTo(req.remoteUser, 'edit this comment');
 
   const comment = await models.Comment.findByPk(commentData.id);
@@ -60,7 +63,7 @@ async function editComment(commentData, req) {
  * @param {number} id - comment identifier
  * @param {object} remoteUser - logged user
  */
-async function deleteComment(id, req) {
+async function deleteComment(id: number, req): Promise<void> {
   mustBeLoggedInTo(req.remoteUser, 'delete this comment');
 
   const comment = await models.Comment.findByPk(id);
@@ -78,7 +81,7 @@ async function deleteComment(id, req) {
   return comment.destroy();
 }
 
-async function createComment(commentData, req) {
+async function createComment(commentData, req): Promise<Comment> {
   const { remoteUser } = req;
   mustBeLoggedInTo(remoteUser, 'create a comment');
 

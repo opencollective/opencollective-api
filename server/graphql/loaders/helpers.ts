@@ -1,4 +1,6 @@
+import DataLoader from 'dataloader';
 import { get } from 'lodash';
+import { Model } from 'sequelize';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = (item): number | string => item.id;
@@ -107,3 +109,82 @@ export const sortResults = (
   });
   return keys.map(id => resultsById[id] || defaultValue);
 };
+
+/**
+ * A helper to create a dataloader for a sequelize association. This helper brings a few advantages compared to the default ones:
+ * - It looks inside the model to retrieve the association is already loaded (e.g. collective.host)
+ * - It sets the association on the model instances, optimizing future calls
+ * - If any other model called for this loader already has
+ */
+export function buildLoaderForAssociation<AssociatedModel extends Model>(
+  model: Model,
+  association: string,
+  options: {
+    /** Will not load the association if this filter returns false */
+    filter?: (item) => boolean;
+    /** A custom function to load target entities by their referenced column. Useful to further optimize with loaders */
+    loader?: (ids: readonly (string | number)[]) => Promise<AssociatedModel[]>;
+  } = {},
+) {
+  return new DataLoader<typeof model, AssociatedModel>(
+    async (entities: (typeof model)[]): Promise<AssociatedModel[]> => {
+      const associationInfo = model['associations'][association];
+      const associationsByForeignKey: Record<ForeignKeyType, AssociatedModel> = {};
+      type ForeignKeyType = typeof associationInfo.foreignKey;
+
+      // Cache all associations that are already loaded and list all foreign keys that need to be loaded
+      for (const entity of entities) {
+        const alreadyLoaded: AssociatedModel | null = entity[associationInfo.as];
+        const associationId: ForeignKeyType = entity[associationInfo.foreignKey];
+        if (associationsByForeignKey[associationId]) {
+          continue; // We already have this association
+        } else if (alreadyLoaded) {
+          associationsByForeignKey[associationId] = alreadyLoaded;
+        } else if (associationId && (!options.filter || options.filter(entity))) {
+          associationsByForeignKey[associationId] = null;
+        }
+      }
+
+      // Load missing associations
+      const associationNotLoadedYet = (id: ForeignKeyType): boolean => !associationsByForeignKey[id];
+      const associationsIdsToLoad = Object.keys(associationsByForeignKey).filter(associationNotLoadedYet);
+      if (associationsIdsToLoad.length > 0) {
+        let loadedAssociations: AssociatedModel[];
+        if (options.loader) {
+          // If a loader is provided, use it to load the associations using the IDs we've collective
+          loadedAssociations = await options.loader(associationsIdsToLoad);
+        } else {
+          // Otherwise fallback on making a query using the model + foreign key
+          loadedAssociations = await associationInfo.target.findAll({
+            where: { [associationInfo.targetKey]: associationsIdsToLoad },
+          });
+        }
+
+        // Add loaded associations to our `associationsByForeignKey` map
+        for (const association of loadedAssociations) {
+          if (association) {
+            const foreignKey = association.getDataValue(associationInfo.targetKey);
+            associationsByForeignKey[foreignKey] = association;
+          }
+        }
+      }
+
+      // Link entities to their associations
+      return entities.map(entity => {
+        const alreadyLoaded = entity[associationInfo.as];
+        const associationId = entity[associationInfo.foreignKey];
+        if (alreadyLoaded) {
+          return alreadyLoaded;
+        } else if (associationId && (!options.filter || options.filter(entity))) {
+          entity[associationInfo.as] = associationsByForeignKey[associationId]; // Attach association to model instance
+          return entity[associationInfo.as];
+        } else {
+          return null;
+        }
+      });
+    },
+    {
+      cacheKeyFn: (entity: typeof model) => entity[model['primaryKeyAttribute']],
+    },
+  );
+}

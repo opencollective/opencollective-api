@@ -32,28 +32,28 @@ exports[`server/lib/email Sending emails sends the thankyou.fr email template 1`
       <td>
 
 
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Xavier,</p>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Xavier,</p>
 
 
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer à nous soutenir!</p>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Votre dernière contribution de 50,00 € vient d'être reçue. Merci pour continuer à nous soutenir!</p>
 
 
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent recolté sur la page de notre collectif
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Vous pouvez suivre nos prochaines activités et comment on va utiliser l'argent recolté sur la page de notre collectif
   ouvert:
   <a href=\\"https://opencollective.com/enmarchebe\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe</a>.
 </p>
 
 
-<h2 style=\\"color: #303233; font-family: 'Helvetica Neue'; font-weight: normal; font-size: 20px; line-height: 24px; text-align: center;\\">Aidez-nous à récolter plus d'argent!</h2>
-<p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Partagez cette URL: <a href=\\"https://opencollective.com/enmarchebe/donate\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe/donate</a>.
+<h2 style=\\"color: #303233; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-weight: normal; font-size: 20px; line-height: 24px; text-align: center;\\">Aidez-nous à récolter plus d'argent!</h2>
+<p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Partagez cette URL: <a href=\\"https://opencollective.com/enmarchebe/donate\\" style=\\"text-decoration: none; color: #297EFF;\\">https://opencollective.com/enmarchebe/donate</a>.
 
 
 
 
 
-  </p><p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">Encore merci! 🙏</p>
+  </p><p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">Encore merci! 🙏</p>
 
-  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">
+  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">
     – Le collectif En Marche
   </p>
 
@@ -127,7 +127,7 @@ Encore merci! 🙏
 – Le collectif En Marche
 
 [http://localhost:3000/static/images/email/logo-email-footer@2x.png]
-[http://localhost:3000]
+http://localhost:3000
 
 We can do great things together
 
@@ -174,17 +174,17 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
       <td></td>
       <td>
 
-<h1 style=\\"color: #3399FF; font-family: 'Helvetica Neue'; font-size: 36px; font-weight: 300; line-height: 44px; text-align: center;\\">🗝</h1>
+<h1 style=\\"color: #3399FF; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 36px; font-weight: 300; line-height: 44px; text-align: center;\\">🗝</h1>
 
 <center>
-  <h3 style=\\"color: #303233; font-family: 'Helvetica Neue'; font-size: 20px; font-weight: bold; line-height: 25px;\\">You are one click away from logging into Open Collective.</h3>
-  <a href=\\"https://opencollective/USER_LOGIN_LINK\\" class=\\"btn blue\\" style=\\"text-decoration: none; padding: 10px; border: 2px solid #3399FF; border-radius: 16px; display: inline-block; font-weight: 600; font-size: 14px; line-height: 17px; padding-bottom: 14px; padding-left: 24px; padding-right: 24px; padding-top: 14px; border-radius: 100px; min-height: 18px; background-color: #3399FF; background: linear-gradient(180deg,#1869F5 0%,#1258e2 100%); background-color: #1869F5; border-color: #1869F5; color: #FFFFFF;\\"><div style=\\"font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; line-height: 17px; font-size: 12px; text-align: center; color: white;\\">One-click login</div></a>
+  <h3 style=\\"color: #303233; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 20px; font-weight: bold; line-height: 25px;\\">You are one click away from logging into Open Collective.</h3>
+  <a href=\\"https://opencollective/USER_LOGIN_LINK\\" class=\\"btn blue\\" style=\\"text-decoration: none; padding: 10px; border: 1px solid #3399FF; border-radius: 16px; display: inline-block; font-weight: 600; font-size: 14px; line-height: 17px; padding-bottom: 14px; padding-left: 24px; padding-right: 24px; padding-top: 14px; border-radius: 100px; min-height: 18px; background-color: #3399FF; background: linear-gradient(180deg,#1869F5 0%,#1258e2 100%); background-color: #1869F5; border-color: #1869F5; color: #FFFFFF;\\"><div style=\\"font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; line-height: 17px; font-size: 12px; text-align: center; color: white;\\">One-click login</div></a>
   <br>
   <br>
   <br>
   <hr>
   <br>
-  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue'; font-size: 14px; line-height: 18px;\\">
+  <p style=\\"color: #494B4D; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 14px; line-height: 18px;\\">
     Link not working? Try this:<br>
     <a href=\\"https://opencollective/USER_LOGIN_LINK\\" style=\\"text-decoration: none; color: #297EFF; word-break: break-all; font-size: 12px;\\">https://opencollective/USER_LOGIN_LINK</a>
   </p>
@@ -277,7 +277,7 @@ https://opencollective/USER_LOGIN_LINK [https://opencollective/USER_LOGIN_LINK]
 
 
 [http://localhost:3000/static/images/email/logo-email-footer@2x.png]
-[http://localhost:3000]
+http://localhost:3000
 
 We can do great things together
 

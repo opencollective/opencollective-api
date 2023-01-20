@@ -34,7 +34,7 @@ const fetchTransactionWithReference = async (
   }
 
   if (!transaction && throwIfMissing) {
-    throw new NotFound();
+    throw new NotFound(`Transaction not found`);
   }
 
   return transaction;

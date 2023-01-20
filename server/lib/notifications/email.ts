@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { compact, get } from 'lodash';
+import { cloneDeep, compact, get } from 'lodash';
 
 import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
@@ -11,6 +11,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
 import Activity from '../../models/Activity';
+import User from '../../models/User';
 import emailLib from '../email';
 import { getTransactionPdf } from '../pdf';
 import twitter from '../twitter';
@@ -31,7 +32,7 @@ type NotifySubscribersOptions = {
   sendEvenIfNotProduction?: boolean;
   template?: string;
   to?: string;
-  unsubscribed?: Array<typeof models.User>;
+  unsubscribed?: Array<User>;
 };
 
 export const notify = {
@@ -39,11 +40,14 @@ export const notify = {
   async user(
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions & {
-      user?: typeof models.User;
+      user?: User;
       userId?: number;
     },
   ) {
-    const user = options?.user || (await models.User.findByPk(options?.userId || activity.UserId));
+    const userId = options?.user?.id || options?.userId || activity.UserId;
+    const user = options?.user || (await models.User.findByPk(userId, { include: [{ association: 'collective' }] }));
+
+    // TODO We're not using the `unsubscribed` option here, we should
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       UserId: user.id,
@@ -51,16 +55,27 @@ export const notify = {
     });
 
     const isTransactional = TransactionalActivities.includes(activity.type);
+    const emailData = cloneDeep(activity.data || {});
     if (unsubscribed.length === 0) {
       debug('notifying.user', user.id, user && user.email, activity.type);
-      return emailLib.send(options?.template || activity.type, options?.to || user.email, activity.data, {
+
+      // Add recipient name to data
+      if (!emailData.recipientName) {
+        user.collective = user.collective || (await user.getCollective());
+        if (user.collective) {
+          emailData.recipientCollective = user.collective.info;
+          emailData.recipientName = user.collective.name || user.collective.legalName;
+        }
+      }
+
+      return emailLib.send(options?.template || activity.type, options?.to || user.email, emailData, {
         ...options,
         isTransactional,
       });
     }
   },
 
-  async users(users: Array<typeof models.User>, activity: Partial<Activity>, options?: NotifySubscribersOptions) {
+  async users(users: Array<User>, activity: Partial<Activity>, options?: NotifySubscribersOptions) {
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
@@ -158,8 +173,10 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity);
       break;
 
-    case ActivityTypes.ORDER_PROCESSING_CRYPTO:
+    case ActivityTypes.ORDER_PENDING_CRYPTO:
+    case ActivityTypes.ORDER_PENDING:
     case ActivityTypes.ORDER_PROCESSING:
+    case ActivityTypes.ORDER_PAYMENT_FAILED:
       await notify.user(activity, {
         from: emailLib.generateFromEmailHeader(activity.data.collective.name),
       });
@@ -288,7 +305,7 @@ export const notifyByEmail = async (activity: Activity) => {
         return;
       }
 
-      const usersToNotify: Array<{ id: number; email: string }> = await conversation.getUsersFollowing();
+      const usersToNotify: Array<User> = await conversation.getUsersFollowing();
       notify.users(usersToNotify, activity, {
         from: config.email.noReply,
         exclude: [activity.UserId], // Don't notify the person who commented

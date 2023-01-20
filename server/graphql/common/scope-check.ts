@@ -1,9 +1,10 @@
 import express from 'express';
+import moment from 'moment';
 
 import FEATURE from '../../constants/feature';
 import OAuthScopes from '../../constants/oauth-scopes';
 import { canUseFeature } from '../../lib/user-permissions';
-import models from '../../models';
+import Comment from '../../models/Comment';
 import { FeatureNotAllowedForUser, Forbidden, Unauthorized } from '../errors';
 
 export const checkRemoteUserCanUseVirtualCards = (req: express.Request): void => {
@@ -92,7 +93,7 @@ export const checkRemoteUserCanUseWebhooks = (req: express.Request): void => {
   enforceScope(req, 'webhooks');
 };
 
-export const checkRemoteUserCanUseComment = (comment: typeof models.Comment, req: express.Request): void => {
+export const checkRemoteUserCanUseComment = (comment: Comment, req: express.Request): void => {
   if (comment.ConversationId) {
     checkRemoteUserCanUseConversations(req);
   } else if (comment.UpdateId) {
@@ -116,11 +117,27 @@ export const checkRemoteUserCanRoot = (req: express.Request): void => {
 type OAuthScope = keyof typeof OAuthScopes;
 
 export const checkScope = (req: express.Request, scope: OAuthScope): boolean => {
-  return !req.userToken || req.userToken.hasScope(scope);
+  if (req.userToken) {
+    return req.userToken.hasScope(scope);
+  } else if (req.personalToken) {
+    // Personal Tokens had no scope until this date, all scopes were assumed
+    if (moment('2023-01-03') > moment(req.personalToken.updatedAt)) {
+      return true;
+    }
+    return req.personalToken.hasScope(scope);
+  }
+
+  // No userToken or personalToken, no checkScope
+  return true;
 };
 
 export const enforceScope = (req: express.Request, scope: OAuthScope): void => {
   if (!checkScope(req, scope)) {
-    throw new Forbidden(`The User Token is not allowed for operations in scope "${scope}".`);
+    if (req.userToken) {
+      throw new Forbidden(`The User Token is not allowed for operations in scope "${scope}".`);
+    }
+    if (req.personalToken) {
+      throw new Forbidden(`The Personal Token is not allowed for operations in scope "${scope}".`);
+    }
   }
 };

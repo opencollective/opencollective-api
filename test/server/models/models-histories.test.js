@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 
 import sequelize, { QueryTypes } from '../../../server/lib/sequelize';
-import { resetTestDB } from '../../utils';
 
-const getTableInfo = tableName => {
+const getTableColumns = tableName => {
   return sequelize.query(
     `
     SELECT * FROM information_schema.columns
@@ -15,123 +14,111 @@ const getTableInfo = tableName => {
   );
 };
 
+const getTableConstraints = tableName => {
+  return sequelize.query(
+    `
+    SELECT con.*
+       FROM pg_catalog.pg_constraint con
+            INNER JOIN pg_catalog.pg_class rel
+                       ON rel.oid = con.conrelid
+            INNER JOIN pg_catalog.pg_namespace nsp
+                       ON nsp.oid = connamespace
+       WHERE nsp.nspname = 'public'
+             AND rel.relname = ?;
+    `,
+    { replacements: [tableName], type: QueryTypes.SELECT, raw: true },
+  );
+};
+
+const getEnumValuesForType = enumType => {
+  return sequelize.query(
+    `
+    SELECT UNNEST(ENUM_RANGE(null::"${enumType}")) AS values;
+    `,
+    { type: QueryTypes.SELECT, raw: true },
+  );
+};
+
+const getTableUniqueIndexes = tableName => {
+  return sequelize.query(
+    `
+    SELECT cls.relname as index
+    FROM pg_index idx
+    JOIN pg_class cls ON cls.oid=idx.indexrelid
+    JOIN pg_class tab ON tab.oid=idx.indrelid
+    where NOT idx.indisprimary AND idx.indisunique AND tab.relname = ?;
+    `,
+    { replacements: [tableName], type: QueryTypes.SELECT, raw: true },
+  );
+};
+
 /** Turns `Collectives` into `CollectiveHistories` */
 const getHistoryTableName = tableName => {
   return `${tableName.slice(0, -1)}Histories`;
 };
 
-const tablesWithHistory = ['Collectives', 'Comments', 'Expenses', 'Subscriptions', 'Updates'];
+const tablesWithHistory = [
+  'Collectives',
+  'Comments',
+  'Expenses',
+  'Orders',
+  'Subscriptions',
+  'Tiers',
+  'Updates',
+  'Users',
+];
 
 describe('server/models/models-histories', () => {
-  before(async () => {
-    await resetTestDB();
-  });
-
   describe('Ensure "Histories" tables match their corresponding model', () => {
-    tablesWithHistory.map(tableName =>
+    tablesWithHistory.forEach(async tableName => {
+      let historyTableName;
+      let tableColumns;
+      let historyTableColumns;
+      let historyTableConstraints;
+
+      before(async () => {
+        historyTableName = getHistoryTableName(tableName);
+        tableColumns = await getTableColumns(tableName);
+        historyTableColumns = await getTableColumns(historyTableName);
+        historyTableConstraints = await getTableConstraints(historyTableName);
+      });
+
       describe(`for ${tableName}`, () => {
-        const historyTableName = getHistoryTableName(tableName);
-        let tableInfo = null;
-        let historyTableInfo = null;
+        it('has matching nullable columns', () => {
+          tableColumns.forEach(column => {
+            const historyEquivalent = historyTableColumns.find(c => c.column_name === column.column_name);
 
-        before(async () => {
-          tableInfo = await getTableInfo(tableName);
-          historyTableInfo = await getTableInfo(historyTableName);
-        });
-
-        // Check missing columns from history
-        it('No column is missing from history', () => {
-          tableInfo.forEach(column => {
-            const historyEquivalent = historyTableInfo.find(c => c.column_name === column.column_name);
-            const errorMsg = `The column ${column.column_name} is missing from the ${historyTableName} table`;
-            expect(historyEquivalent, errorMsg).to.exist;
+            expect(historyEquivalent).to.exist;
+            expect(historyEquivalent.is_nullable).to.eql('YES');
           });
         });
 
-        // Check unnecessary columns from history
-        it('Histories doesnt have additional columns', () => {
-          const ignoredColumns = new Set(['archivedAt', 'hid']);
-          historyTableInfo.forEach(column => {
-            // Histories tables have an additional achivedAt column
-            if (ignoredColumns.has(column.column_name)) {
-              return false;
-            }
-
-            const equivalent = tableInfo.find(c => c.column_name === column.column_name);
-            const errorMsg = `The column ${column.column_name} has been removed from ${tableName}, but not from ${historyTableName}`;
-            expect(equivalent, errorMsg).to.exist;
-          });
+        it('has no foreign key constraints', () => {
+          const foreignKeyConstraints = historyTableConstraints.filter(c => c.contype === 'f').map(c => c.conname);
+          expect(foreignKeyConstraints).to.eql([]);
         });
 
-        // Check differences in columns settings
-        it('Columns have the same settings', () => {
-          tableInfo.forEach(column => {
-            const historyEquivalent = historyTableInfo.find(c => c.column_name === column.column_name);
-            if (historyEquivalent) {
-              const diffedFields = new Set([
-                'column_default',
-                'is_nullable',
-                'data_type',
-                'character_maximum_length',
-                'character_octet_length',
-                'numeric_precision',
-                'numeric_precision_radix',
-                'numeric_scale',
-                'datetime_precision',
-                'interval_type',
-                'interval_precision',
-                'character_set_catalog',
-                'character_set_schema',
-                'character_set_name',
-                'maximum_cardinality',
-                'is_self_referencing',
-                'is_identity',
-                'identity_generation',
-                'identity_start',
-                'identity_increment',
-                'identity_maximum',
-                'identity_minimum',
-                'identity_cycle',
-                'is_generated',
-                'generation_expression',
-                'is_updatable',
-              ]);
-              const differences = Object.keys(column).filter(k => {
-                if (!diffedFields.has(k)) {
-                  return false;
-                } else if (k === 'column_default' && column[k]) {
-                  if (column[k].startsWith('nextval')) {
-                    // Ignore auto-incremented fields
-                    return false;
-                  } else if (column[k].includes('::"enum_')) {
-                    // sequelize-temporal creates a new type for Enums, ie. enum_Expenses_type -> enum_ExpenseHistories_type
-                    const cleanValue = historyEquivalent[k].replace('Histories_', 's_');
-                    if (cleanValue === column[k]) {
-                      return false;
-                    }
-                  }
-                } else if (column.column_name === 'id' && k === 'is_nullable') {
-                  // ID are nullables in history tables
-                  return false;
-                }
-
-                return column[k] !== historyEquivalent[k];
-              });
-              const formattedDirrerences = differences.map(d => {
-                return `"${d}": ${column[d]} (${tableName}) ≠ ${historyEquivalent[d]} (${historyTableName})`;
-              });
-              const message = `Mismatch for ${column.column_name} settings:\n  - ${formattedDirrerences.join(
-                '\n  - ',
-              )}`;
-              expect(differences.length, message).to.equal(0);
-            }
-          });
+        it('has no unique indexes', async () => {
+          const historyTableUniqueIndexes = await getTableUniqueIndexes(historyTableName);
+          expect(historyTableUniqueIndexes).to.eql([]);
         });
-      }),
-    );
-  });
 
-  describe('Ensure enums & other datatypes have the same entries', () => {
-    // Todo
+        it('user defined enums match', async () => {
+          await Promise.all(
+            tableColumns
+              .filter(c => c.data_type === 'USER-DEFINED' && c.udt_name.startsWith('enum_'))
+              .map(async column => {
+                const historyEquivalent = historyTableColumns.find(c => c.column_name === column.column_name);
+
+                expect(historyEquivalent).to.exist;
+
+                const enumValues = await getEnumValuesForType(column.udt_name);
+                const historyEnumValues = await getEnumValuesForType(historyEquivalent.udt_name);
+                expect(historyEnumValues).to.eql(enumValues);
+              }),
+          );
+        });
+      });
+    });
   });
 });

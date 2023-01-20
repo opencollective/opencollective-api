@@ -26,10 +26,9 @@ import { createPrepaidPaymentMethod, isPrepaidBudgetOrder } from './prepaid-budg
 import { getNextChargeAndPeriodStartDates } from './recurring-contributions';
 import { stripHTML } from './sanitize-html';
 import { reportMessageToSentry } from './sentry';
-import { netAmount } from './transactions';
 import { formatAccountDetails } from './transferwise';
 import { getEditRecurringContributionsUrl } from './url-utils';
-import { formatCurrency, parseToBoolean, toIsoDateStr } from './utils';
+import { formatCurrency, toIsoDateStr } from './utils';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
@@ -116,6 +115,9 @@ export async function refundTransaction(transaction, user, message) {
   // If no payment method was used, it means that we're using a manual payment method
   const paymentMethodProvider = transaction.PaymentMethod
     ? findPaymentMethodProvider(transaction.PaymentMethod)
+    : // TODO: Drop this in favor of findPaymentMethodProvider when persisting PaymentIntents as Payment Methods
+    ['us_bank_account', 'sepa_debit'].includes(transaction.data?.charge?.payment_method_details?.type)
+    ? paymentProviders.stripe.types.paymentintent
     : paymentProviders.opencollective.types.manual;
 
   if (!paymentMethodProvider.refundTransaction) {
@@ -167,6 +169,7 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
     'hostFeeInHostCurrency',
     'platformFeeInHostCurrency',
     'paymentProcessorFeeInHostCurrency',
+    'taxAmount',
     'data.hasPlatformTip',
     'data.isFeesOnTop', // deprecated form, replaced by hasPlatformTip
     'data.tax',
@@ -186,30 +189,21 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   refund.hostFeeInHostCurrency = -refund.hostFeeInHostCurrency;
   refund.platformFeeInHostCurrency = -refund.platformFeeInHostCurrency;
   refund.paymentProcessorFeeInHostCurrency = -refund.paymentProcessorFeeInHostCurrency;
-
-  /* If the payment processor doesn't refund the fee, the equivalent
-   * of the fee will be transferred from the host to the user so the
-   * user can get the full refund. */
-  if (refundedPaymentProcessorFee === 0 && !parseToBoolean(config.ledger.separateHostFees)) {
-    refund.hostFeeInHostCurrency += refund.paymentProcessorFeeInHostCurrency;
-    refund.paymentProcessorFeeInHostCurrency = 0;
-  }
+  refund.taxAmount = -refund.taxAmount;
 
   /* Amount fields. Must be calculated after tweaking all the fees */
   refund.amount = -t.amount;
   refund.amountInHostCurrency = -t.amountInHostCurrency;
-  refund.netAmountInCollectiveCurrency = -netAmount(t);
+  refund.netAmountInCollectiveCurrency = -models.Transaction.calculateNetAmountInCollectiveCurrency(t);
   refund.isRefund = true;
 
-  if (parseToBoolean(config.ledger.separateHostFees)) {
-    // We're handling host fees in separate transactions
-    refund.hostFeeInHostCurrency = 0;
+  // We're handling host fees in separate transactions
+  refund.hostFeeInHostCurrency = 0;
 
-    // Adjust refunded payment processor fee based on the fees payer
+  // Adjust refunded payment processor fee based on the fees payer
+  if (refund.kind === TransactionKind.EXPENSE) {
     const feesPayer = t.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-      refund.paymentProcessorFeeInHostCurrency = 0;
-    } else if (feesPayer === ExpenseFeesPayer.PAYEE) {
+    if (feesPayer === ExpenseFeesPayer.PAYEE) {
       if (refundedPaymentProcessorFee) {
         // If the fee gets refunded, we add it as a positive value on the refund transactions
         refund.paymentProcessorFeeInHostCurrency = Math.abs(refundedPaymentProcessorFee);
@@ -220,11 +214,19 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
         refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
         refund.paymentProcessorFeeInHostCurrency = 0;
       }
+    } else if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      refund.amountInHostCurrency += Math.abs(t.paymentProcessorFeeInHostCurrency);
+      refund.amount = Math.round(refund.amountInHostCurrency / refund.hostCurrencyFxRate);
+      refund.paymentProcessorFeeInHostCurrency = 0;
+    } else {
+      throw new Error(`Refund not supported for feesPayer = '${feesPayer}'`);
     }
-
-    // Re-compute the net amount
-    refund.netAmountInCollectiveCurrency = netAmount(refund);
+  } else {
+    refund.paymentProcessorFeeInHostCurrency = 0;
   }
+
+  // Re-compute the net amount
+  refund.netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency(refund);
 
   return refund;
 };
@@ -353,25 +355,23 @@ export async function createRefundTransaction(
   }
 
   // Refund Payment Processor Fee
-  if (parseToBoolean(config.ledger.separateHostFees)) {
-    if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
-      logger.error(
-        `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
-      );
-      reportMessageToSentry('Partial processor fees refunds are not supported', {
-        extra: { refundedPaymentProcessorFee, transaction: transaction.info },
-      });
-    } else if (transaction.paymentProcessorFeeInHostCurrency) {
-      // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
-      const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
-        ? await transaction.getRelatedTransaction({ type: DEBIT })
-        : transaction;
+  if (refundedPaymentProcessorFee && refundedPaymentProcessorFee !== transaction.paymentProcessorFeeInHostCurrency) {
+    logger.error(
+      `Partial processor fees refunds are not supported, got ${refundedPaymentProcessorFee} for #${transaction.id}`,
+    );
+    reportMessageToSentry('Partial processor fees refunds are not supported', {
+      extra: { refundedPaymentProcessorFee, transaction: transaction.info },
+    });
+  } else if (transaction.paymentProcessorFeeInHostCurrency) {
+    // When refunding an Expense, we need to use the DEBIT transaction which is attached to the Collective and its Host.
+    const transactionToRefundPaymentProcessorFee = transaction.ExpenseId
+      ? await transaction.getRelatedTransaction({ type: DEBIT })
+      : transaction;
 
-      const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
-      if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
-        // Host take at their charge the payment processor fee that is lost when refunding a transaction
-        await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
-      }
+    const feesPayer = transaction.data?.feesPayer || ExpenseFeesPayer.COLLECTIVE;
+    if (feesPayer === ExpenseFeesPayer.COLLECTIVE) {
+      // Host take at their charge the payment processor fee that is lost when refunding a transaction
+      await refundPaymentProcessorFeeToCollective(transactionToRefundPaymentProcessorFee, transactionGroup);
     }
   }
 
@@ -501,8 +501,10 @@ export const sendEmailNotifications = (order, transaction) => {
   } else if (order.status === status.PENDING && order.paymentMethod?.type === 'crypto') {
     sendCryptoOrderProcessingEmail(order);
   } else if (order.status === status.PENDING) {
-    sendOrderProcessingEmail(order); // This is the one for the Contributor
+    sendOrderPendingEmail(order); // This is the one for the Contributor
     sendManualPendingOrderEmail(order); // This is the one for the Host Admins
+  } else if (order.status === status.PROCESSING) {
+    sendOrderProcessingEmail(order);
   }
 };
 
@@ -550,7 +552,11 @@ export const executeOrder = async (user, order, options = {}) => {
   if (!order) {
     return Promise.reject(new Error('No order provided'));
   }
-  if (order.processedAt) {
+  /* Added funds have a processedAt date by default because they are processed
+     immediately. If the payment method is manual the host admin will have to
+     process it manually and potentially can set a date using the confirm
+     contribution modal. */
+  if (order.processedAt && !options.isAddedFund && order.paymentMethod.type !== 'manual') {
     return Promise.reject(new Error(`This order (#${order.id}) has already been processed at ${order.processedAt}`));
   }
   debug('executeOrder', user.email, order.description, order.totalAmount, options);
@@ -571,7 +577,11 @@ export const executeOrder = async (user, order, options = {}) => {
 
   const transaction = await processOrder(order, options);
   if (transaction) {
-    await order.update({ status: status.PAID, processedAt: new Date(), data: omit(order.data, ['paymentIntent']) });
+    await order.update({
+      status: status.PAID,
+      processedAt: order.processedAt || new Date(),
+      data: omit(order.data, ['paymentIntent']),
+    });
 
     // Credit card charges are synchronous. If the transaction is
     // created here it means that the payment went through so it's
@@ -721,7 +731,7 @@ const sendCryptoOrderProcessingEmail = async order => {
     };
 
     await models.Activity.create({
-      type: activities.ORDER_PROCESSING_CRYPTO,
+      type: activities.ORDER_PENDING_CRYPTO,
       CollectiveId: collective.id,
       FromCollectiveId: fromCollective.id,
       OrderId: order.id,
@@ -733,7 +743,7 @@ const sendCryptoOrderProcessingEmail = async order => {
 };
 
 // Assumes one-time payments,
-export const sendOrderProcessingEmail = async order => {
+export const sendOrderPendingEmail = async order => {
   const { collective, fromCollective } = order;
   const user = order.createdByUser;
   const host = await collective.getHostCollective();
@@ -771,7 +781,56 @@ export const sendOrderProcessingEmail = async order => {
     });
   }
   await models.Activity.create({
+    type: activities.ORDER_PENDING,
+    UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
+    data,
+  });
+};
+
+export const sendOrderProcessingEmail = async order => {
+  const { collective, fromCollective } = order;
+  const user = order.createdByUser;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    user: user.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+  };
+
+  await models.Activity.create({
     type: activities.ORDER_PROCESSING,
+    UserId: user.id,
+    CollectiveId: collective.id,
+    FromCollectiveId: fromCollective.id,
+    OrderId: order.id,
+    HostCollectiveId: host.id,
+    data,
+  });
+};
+
+export const sendOrderFailedEmail = async (order, reason) => {
+  const user = order.createdByUser;
+  const { collective, fromCollective } = order;
+  const host = await collective.getHostCollective();
+
+  const data = {
+    order: order.info,
+    user: user.info,
+    collective: collective.info,
+    host: host.info,
+    fromCollective: fromCollective.activity,
+    reason,
+  };
+
+  await models.Activity.create({
+    type: activities.ORDER_PAYMENT_FAILED,
     UserId: user.id,
     CollectiveId: collective.id,
     FromCollectiveId: fromCollective.id,
@@ -964,8 +1023,12 @@ export const getHostFeePercent = async (order, host = null) => {
 
   if (order.paymentMethod.service === 'stripe') {
     // Configurable by the Host globally, at the Collective or Parent level
+    // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
+    // to be removed once we don't have Hosts with `creditCardHostFeePercent`
     possibleValues.push(collective.data?.creditCardHostFeePercent);
     possibleValues.push(parent?.data?.creditCardHostFeePercent);
+    possibleValues.push(collective.data?.stripeHostFeePercent);
+    possibleValues.push(parent?.data?.stripeHostFeePercent);
     // Custom fee is a priority over host custom one
     if (collective.data?.useCustomHostFee) {
       possibleValues.push(collective.hostFeePercent);
@@ -974,6 +1037,7 @@ export const getHostFeePercent = async (order, host = null) => {
       possibleValues.push(parent?.hostFeePercent);
     }
     possibleValues.push(host.data?.creditCardHostFeePercent);
+    possibleValues.push(host.data?.stripeHostFeePercent);
   }
 
   if (order.paymentMethod.service === 'paypal') {
@@ -1014,8 +1078,11 @@ export const getHostFeeSharePercent = async (order, host = null) => {
     }
 
     // Assign different fees based on the payment provider
-    if (order.paymentMethod?.service === 'stripe' && order.paymentMethod?.type === 'creditcard') {
+    if (order.paymentMethod?.service === 'stripe') {
+      // the setting used to be named `creditCardHostFeeSharePercent` but it's meant to be used for Stripe generally
+      // to be removed once we don't have Hosts with `creditCardHostFeeSharePercent`
       possibleValues.push(plan?.creditCardHostFeeSharePercent);
+      possibleValues.push(plan?.stripeHostFeeSharePercent);
     } else if (order.paymentMethod?.service === 'paypal') {
       possibleValues.push(plan?.paypalHostFeeSharePercent);
     }

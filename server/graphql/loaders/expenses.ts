@@ -1,5 +1,4 @@
 import DataLoader from 'dataloader';
-import express from 'express';
 import { groupBy } from 'lodash';
 
 import ACTIVITY from '../../constants/activities';
@@ -30,18 +29,11 @@ export const generateExpenseItemsLoader = (): DataLoader<number, ExpenseItem[]> 
 /**
  * Load all activities for an expense
  */
-export const generateExpenseActivitiesLoader = (req: express.Request): DataLoader<number, Activity[]> => {
+export const generateExpenseActivitiesLoader = (): DataLoader<number, Activity[]> => {
   return new DataLoader(async (expenseIDs: number[]) => {
-    // Optimization: load expenses to get their collective IDs, as filtering on `data` (JSON)
-    // can be expensive.
-    const expenses = await req.loaders.Expense.byId.loadMany(expenseIDs);
-    const collectiveIds = expenses.map(expense => expense.CollectiveId);
     const activities = await models.Activity.findAll({
       order: [['createdAt', 'ASC']],
       where: {
-        CollectiveId: {
-          [Op.in]: collectiveIds,
-        },
         ExpenseId: {
           [Op.in]: expenseIDs,
         },
@@ -67,7 +59,7 @@ export const generateExpenseActivitiesLoader = (req: express.Request): DataLoade
       },
     });
 
-    return sortResultsArray(expenseIDs, activities, activity => activity.data.expense.id);
+    return sortResultsArray(expenseIDs, activities, activity => activity.ExpenseId);
   });
 };
 

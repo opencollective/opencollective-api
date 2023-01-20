@@ -13,10 +13,26 @@ export const Policies = new GraphQLObjectType({
   name: 'Policies',
   fields: () => ({
     [POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE]: {
-      type: GraphQLBoolean,
-      resolve(account, req) {
+      type: new GraphQLObjectType({
+        name: POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE,
+        fields: () => ({
+          amountInCents: { type: GraphQLInt },
+          enabled: { type: GraphQLBoolean },
+          appliesToHostedCollectives: { type: GraphQLBoolean },
+          appliesToSingleAdminCollectives: { type: GraphQLBoolean },
+        }),
+      }),
+      resolve(account, _, req) {
         if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
           return getPolicy(account, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+        }
+      },
+    },
+    [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
+      type: GraphQLBoolean,
+      resolve(account, _, req) {
+        if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
+          return getPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
         }
       },
     },

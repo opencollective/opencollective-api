@@ -10,7 +10,9 @@ import expenseStatus from '../../../constants/expense_status';
 import logger from '../../../lib/logger';
 import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
+import ExpenseModel from '../../../models/Expense';
 import {
   approveExpense,
   canDeleteExpense,
@@ -62,13 +64,16 @@ const expenseMutations = {
         description: 'Recurring Expense information',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const payoutMethod = args.expense.payoutMethod;
       if (payoutMethod.id) {
         payoutMethod.id = idDecode(payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD);
       }
+
+      const fromCollective = await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true });
+      await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -89,7 +94,7 @@ const expenseMutations = {
         ]),
         payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
-        fromCollective: await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true }),
+        fromCollective,
       });
 
       if (args.recurring) {
@@ -112,7 +117,7 @@ const expenseMutations = {
         description: 'Expense draft key if invited to submit expense. Scope: "expenses".',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
@@ -148,6 +153,7 @@ const expenseMutations = {
         attachedFiles: expense.attachedFiles?.map(attachedFile => ({
           id: attachedFile.id && idDecode(attachedFile.id, IDENTIFIER_TYPES.EXPENSE_ITEM),
           url: attachedFile.url,
+          name: attachedFile.name,
         })),
         fromCollective: payeeExists && (await fetchAccountWithReference(expense.payee, { throwIfMissing: true })),
       };
@@ -215,13 +221,13 @@ const expenseMutations = {
         description: 'Reference of the expense to delete',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective because canDeleteExpense checks expense.collective.HostCollectiveId
-        include: [{ model: models.Collective, as: 'collective' }],
+        include: [{ model: models.Collective, as: 'collective', include: [{ association: 'host' }] }],
       });
 
       if (!expense) {
@@ -232,13 +238,21 @@ const expenseMutations = {
         );
       }
 
+      // Check if 2FA is enforced on any of the account remote user is admin of
+      for (const account of [expense.collective, expense.collective.host].filter(Boolean)) {
+        if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
+          break;
+        }
+      }
+
       // Cancel recurring expense
       const recurringExpense = await expense.getRecurringExpense();
       if (recurringExpense) {
         await recurringExpense.destroy();
       }
 
-      return expense.destroy();
+      await expense.destroy();
+      return expense;
     },
   },
   processExpense: {
@@ -263,9 +277,13 @@ const expenseMutations = {
           name: 'ProcessExpensePaymentParams',
           description: 'Parameters for paying an expense',
           fields: () => ({
-            paymentProcessorFee: {
+            paymentProcessorFeeInHostCurrency: {
               type: GraphQLInt,
-              description: 'The fee charged by payment processor in collective currency',
+              description: 'The fee charged by payment processor in host currency',
+            },
+            totalAmountPaidInHostCurrency: {
+              type: GraphQLInt,
+              description: 'The total amount paid in host currency',
             },
             shouldRefundPaymentProcessorFee: {
               type: GraphQLBoolean,
@@ -284,10 +302,22 @@ const expenseMutations = {
         }),
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Expense> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+      const collective = await expense.getCollective();
+      const host = await collective.getHostCollective();
+
+      // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
+      if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
+        for (const account of [collective, host].filter(Boolean)) {
+          if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
+            break;
+          }
+        }
+      }
+
       switch (args.action) {
         case 'APPROVE':
           return approveExpense(req, expense);
@@ -314,9 +344,10 @@ const expenseMutations = {
         case 'PAY':
           return payExpense(req, {
             id: expense.id,
-            paymentProcessorFeeInCollectiveCurrency: args.paymentParams?.paymentProcessorFee,
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
+            paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
+            totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
           });
         default:
           return expense;
@@ -336,7 +367,7 @@ const expenseMutations = {
         description: 'Account where the expense will be created',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
       const remoteUser = req.remoteUser;
@@ -422,7 +453,7 @@ const expenseMutations = {
         description: 'Reference of the expense to process',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 
@@ -466,7 +497,7 @@ const expenseMutations = {
         description: 'Expense draft key if invited to submit expense',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       // NOTE(oauth-scope): Ok for non-authenticated users, we only check scope
       enforceScope(req, 'expenses');
 

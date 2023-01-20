@@ -7,7 +7,9 @@ import { crypto } from '../../../lib/encryption';
 import * as paypal from '../../../lib/paypal';
 import * as privacy from '../../../lib/privacy';
 import * as transferwise from '../../../lib/transferwise';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import type { ConnectedAccount as ConnectedAccountModel } from '../../../models/ConnectedAccount';
 import { checkRemoteUserCanUseConnectedAccounts } from '../../common/scope-check';
 import { Unauthorized, ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -32,13 +34,15 @@ const connectedAccountMutations = {
         description: 'Account where the external account will be connected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(_: void, args, req: express.Request): Promise<ConnectedAccountModel> {
       checkRemoteUserCanUseConnectedAccounts(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
+
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
 
       if ([Service.TRANSFERWISE, Service.PAYPAL, Service.PRIVACY].includes(args.connectedAccount.service)) {
         if (!args.connectedAccount.token) {
@@ -114,6 +118,8 @@ const connectedAccountMutations = {
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
+
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { alwaysAskForToken: true });
 
       await connectedAccount.destroy({ force: true });
 

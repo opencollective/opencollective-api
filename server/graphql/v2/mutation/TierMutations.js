@@ -1,5 +1,8 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
 
+import { purgeCacheForCollective } from '../../../lib/cache';
+import { purgeCacheForPage } from '../../../lib/cloudflare';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound, Unauthorized } from '../../errors';
@@ -35,24 +38,32 @@ const tierMutations = {
         throw new Unauthorized();
       }
 
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+
       if (args.tier.amountType === 'FIXED') {
         args.tier.presets = null;
         args.tier.minimumAmount = null;
       }
 
-      const tierUpdateData = {
+      const updatedTier = await tier.update({
         ...args.tier,
         id: tierId,
         amount: getValueInCentsFromAmountInput(args.tier.amount),
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
-      };
+      });
+
       if (args.tier.singleTicket !== undefined) {
-        tierUpdateData.data = { ...tier.data, singleTicket: args.tier.singleTicket };
+        updatedTier.data = { ...tier.data, singleTicket: args.tier.singleTicket };
       }
 
-      return await tier.update(tierUpdateData);
+      // Purge cache
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
+
+      return updatedTier;
     },
   },
   createTier: {
@@ -75,24 +86,32 @@ const tierMutations = {
         throw new Unauthorized();
       }
 
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
+
       if (args.tier.amountType === 'FIXED') {
         args.tier.presets = null;
         args.tier.minimumAmount = null;
       }
-      const tierData = {
+
+      const tier = await models.Tier.create({
         ...args.tier,
         CollectiveId: account.id,
         currency: account.currency,
         amount: getValueInCentsFromAmountInput(args.tier.amount),
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
-        interval: getIntervalFromTierFrequency(args.tier.interval),
-      };
+        interval: getIntervalFromTierFrequency(args.tier.frequency),
+      });
+
       if (args.tier.singleTicket !== undefined) {
-        tierData.data = { singleTicket: args.tier.singleTicket };
+        tier.data = { singleTicket: args.tier.singleTicket };
       }
 
-      return models.Tier.create(tierData);
+      // Purge cache
+      purgeCacheForCollective(account.slug);
+
+      return tier;
     },
   },
   deleteTier: {
@@ -116,11 +135,19 @@ const tierMutations = {
         throw new Unauthorized();
       }
 
+      // Check 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+
       if (args.stopRecurringContributions) {
         await models.Order.cancelActiveOrdersByTierId(tier.id);
       }
 
       await tier.destroy();
+
+      // Purge cache
+      purgeCacheForCollective(collective.slug);
+      purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
+
       return tier;
     },
   },

@@ -2,10 +2,12 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isEmpty, uniq } from 'lodash';
+import { OrderItem } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
+import { types as CollectiveType } from '../../../../constants/collectives';
 import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
-import { getBalancesWithBlockedFunds } from '../../../../lib/budget';
+import { getBalances } from '../../../../lib/budget';
 import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
@@ -64,7 +66,8 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
     // Check the balances for these collectives. The following will emit an SQL like:
     // AND ((CollectiveId = 1 AND amount < 5000) OR (CollectiveId = 2 AND amount < 3000))
     const collectiveIds = uniq(expensesWithoutPendingTaxForm.map(e => e.CollectiveId));
-    const balances = await getBalancesWithBlockedFunds(collectiveIds); // TODO: move to new balance calculation v2 when possible
+    // TODO: this can conflict for collectives stuck on balance v1 as this is now using balance v2 by default
+    const balances = await getBalances(collectiveIds, { withBlockedFunds: true });
     const fxRates = await loadFxRatesMap(
       uniq(
         expensesWithoutPendingTaxForm.map(expense => {
@@ -102,6 +105,10 @@ const ExpensesCollectionQuery = {
     host: {
       type: AccountReferenceInput,
       description: 'Return expenses only for this host',
+    },
+    createdByAccount: {
+      type: AccountReferenceInput,
+      description: 'Return expenses only created by this INDIVIDUAL account',
     },
     status: {
       type: ExpenseStatusFilter,
@@ -166,12 +173,11 @@ const ExpensesCollectionQuery = {
 
     // Load accounts
     const fetchAccountParams = { loaders: req.loaders, throwIfMissing: true };
-    const [fromAccount, account, host] = await Promise.all(
-      [args.fromAccount, args.account, args.host].map(
+    const [fromAccount, account, host, createdByAccount] = await Promise.all(
+      [args.fromAccount, args.account, args.host, args.createdByAccount].map(
         reference => reference && fetchAccountWithReference(reference, fetchAccountParams),
       ),
     );
-
     if (fromAccount) {
       const fromAccounts = [fromAccount.id];
       if (args.includeChildrenExpenses) {
@@ -196,13 +202,27 @@ const ExpensesCollectionQuery = {
         where: { HostCollectiveId: host.id, approvedAt: { [Op.not]: null } },
       });
     }
+    if (createdByAccount) {
+      if (createdByAccount.type !== CollectiveType.USER) {
+        throw new Error('createdByAccount only accepts individual accounts');
+      } else if (createdByAccount.isIncognito) {
+        return { nodes: [], offset: 0, limit: 0, totalCount: 0 }; // Incognito cannot create expenses yet
+      }
+
+      const user = await req.loaders.User.byCollectiveId.load(createdByAccount.id);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      where['UserId'] = user.id;
+    }
 
     // Add search filter
     // Not searching in items yet because one-to-many relationships with limits are broken in Sequelize. Could be fixed by https://github.com/sequelize/sequelize/issues/4376
     const searchTermConditions = buildSearchConditions(args.searchTerm, {
       idFields: ['id'],
-      slugFields: ['$fromCollective.slug$', '$User.collective.slug$'],
-      textFields: ['$fromCollective.name$', '$User.collective.name$', 'description'],
+      slugFields: ['$fromCollective.slug$', '$collective.slug$', '$User.collective.slug$'],
+      textFields: ['$fromCollective.name$', '$collective.name$', '$User.collective.name$', 'description'],
       amountFields: ['amount'],
       stringArrayFields: ['tags'],
       stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
@@ -212,6 +232,7 @@ const ExpensesCollectionQuery = {
       where[Op.or] = searchTermConditions;
       include.push(
         { association: 'fromCollective', attributes: [] },
+        { association: 'collective', attributes: [] },
         { association: 'User', attributes: [], include: [{ association: 'collective', attributes: [] }] },
       );
     }
@@ -262,19 +283,21 @@ const ExpensesCollectionQuery = {
       }
     } else {
       if (req.remoteUser) {
-        where[Op.and].push({
-          [Op.or]: [
-            { status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } },
-            { status: expenseStatus.DRAFT, UserId: req.remoteUser.id },
-            // TODO: we should ideally display SPAM expenses in some circumstances
-          ],
-        });
+        const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
+
+        if (req.remoteUser.isAdminOfCollective(account)) {
+          userClause.push({ status: expenseStatus.DRAFT });
+        } else {
+          userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
+        }
+
+        where[Op.and].push({ [Op.or]: userClause });
       } else {
         where['status'] = { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] };
       }
     }
 
-    const order = [[args.orderBy.field, args.orderBy.direction]];
+    const order = [[args.orderBy.field, args.orderBy.direction]] as OrderItem[];
     const { offset, limit } = args;
     const result = await models.Expense.findAndCountAll({ include, where, order, offset, limit });
     return {

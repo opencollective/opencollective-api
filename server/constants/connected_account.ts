@@ -1,6 +1,7 @@
 export enum Service {
   PAYPAL = 'paypal',
   STRIPE = 'stripe',
+  STRIPE_CUSTOMER = 'stripe_customer',
   GITHUB = 'github',
   TWITTER = 'twitter',
   TRANSFERWISE = 'transferwise',

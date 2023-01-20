@@ -5,6 +5,7 @@
 enum ActivityTypes {
   ACTIVITY_ALL = 'all',
   CONNECTED_ACCOUNT_CREATED = 'connected_account.created', // Not used yet
+  CONNECTED_ACCOUNT_ERROR = 'connected_account.error', // Not used yet
   // Collective creation & applications
   COLLECTIVE_CREATED_GITHUB = 'collective.created.github', // Not used since 2020-03-17
   COLLECTIVE_APPLY = 'collective.apply',
@@ -19,7 +20,6 @@ enum ActivityTypes {
   COLLECTIVE_FROZEN = 'collective.frozen',
   COLLECTIVE_UNFROZEN = 'collective.unfrozen',
   // Comments & conversations
-  COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
   COLLECTIVE_CONVERSATION_CREATED = 'collective.conversation.created',
   UPDATE_COMMENT_CREATED = 'update.comment.created',
   EXPENSE_COMMENT_CREATED = 'expense.comment.created',
@@ -38,6 +38,7 @@ enum ActivityTypes {
   COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE = 'collective.expense.incomplete',
   COLLECTIVE_EXPENSE_PROCESSING = 'collective.expense.processing',
   COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT = 'collective.expense.scheduledForPayment',
+  COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT = 'collective.expense.unscheduledForPayment',
   COLLECTIVE_EXPENSE_ERROR = 'collective.expense.error',
   COLLECTIVE_EXPENSE_INVITE_DRAFTED = 'collective.expense.invite.drafted',
   COLLECTIVE_EXPENSE_RECURRING_DRAFTED = 'collective.expense.recurring.drafted',
@@ -70,14 +71,15 @@ enum ActivityTypes {
   // Contributions
   CONTRIBUTION_REJECTED = 'contribution.rejected',
   SUBSCRIPTION_ACTIVATED = 'subscription.activated',
-  SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
   SUBSCRIPTION_CANCELED = 'subscription.canceled',
   TICKET_CONFIRMED = 'ticket.confirmed',
   ORDER_CANCELED_ARCHIVED_COLLECTIVE = 'order.canceled.archived.collective',
-  ORDER_PROCESSING = 'order.processing',
-  ORDER_PROCESSING_CRYPTO = 'order.processing.crypto',
+  ORDER_PENDING = 'order.pending',
+  ORDER_PENDING_CRYPTO = 'order.pending.crypto',
   ORDER_PENDING_CONTRIBUTION_NEW = 'order.new.pendingFinancialContribution',
   ORDER_PENDING_CONTRIBUTION_REMINDER = 'order.reminder.pendingFinancialContribution',
+  ORDER_PROCESSING = 'order.processing',
+  ORDER_PAYMENT_FAILED = 'order.payment.failed',
   ORDER_THANKYOU = 'order.thankyou',
   ORDERS_SUSPICIOUS = 'orders.suspicious',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
@@ -112,14 +114,16 @@ enum ActivityTypes {
   COLLECTIVE_USER_ADDED = 'collective.user.added',
   COLLECTIVE_VIRTUAL_CARD_ASSIGNED = 'collective.virtualcard.assigned', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
   COLLECTIVE_VIRTUAL_CARD_CREATED = 'collective.virtualcard.created', // replaced with COLLECTIVE_VIRTUAL_CARD_ADDED
+  SUBSCRIPTION_CONFIRMED = 'subscription.confirmed',
+  COLLECTIVE_COMMENT_CREATED = 'collective.comment.created',
 }
 
 /** This array defines the type of activities that are transactional and can not be unsubscribed by the user. */
 export const TransactionalActivities = [
   ActivityTypes.USER_NEW_TOKEN,
   ActivityTypes.USER_CHANGE_EMAIL,
-  ActivityTypes.ORDER_PROCESSING,
-  ActivityTypes.ORDER_PROCESSING_CRYPTO,
+  ActivityTypes.ORDER_PENDING,
+  ActivityTypes.ORDER_PENDING_CRYPTO,
   ActivityTypes.ORDER_THANKYOU,
   ActivityTypes.PAYMENT_CREDITCARD_EXPIRING,
   ActivityTypes.PAYMENT_CREDITCARD_CONFIRMATION,
@@ -191,7 +195,8 @@ export const ActivitiesPerClass: Record<ActivityClasses, ActivityTypes[]> = {
     ActivityTypes.CONTRIBUTION_REJECTED,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW,
     ActivityTypes.ORDER_PENDING_CONTRIBUTION_REMINDER,
-    ActivityTypes.ORDER_PROCESSING_CRYPTO,
+    ActivityTypes.ORDER_PENDING_CRYPTO,
+    ActivityTypes.ORDER_PENDING,
     ActivityTypes.ORDER_PROCESSING,
     ActivityTypes.ORDER_THANKYOU,
     ActivityTypes.ORDERS_SUSPICIOUS,

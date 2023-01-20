@@ -5,11 +5,11 @@ import { activities } from '../../../constants';
 import orderStatus from '../../../constants/order_status';
 import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
-import { canReject } from '../../common/transactions';
+import { canReject, refundTransaction } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { refundTransaction as legacyRefundTransaction } from '../../v1/mutations/orders';
 import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
 import { fetchTransactionWithReference, TransactionReferenceInput } from '../input/TransactionReferenceInput';
 import { Transaction } from '../interface/Transaction';
@@ -66,6 +66,9 @@ const transactionMutations = {
 
       const host = await models.Collective.findByPk(transaction.HostCollectiveId);
 
+      // Enforce 2FA
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+
       const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(transactionData, host);
 
       return platformTipTransaction;
@@ -82,9 +85,8 @@ const transactionMutations = {
     },
     async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
       checkRemoteUserCanUseTransactions(req);
-
-      const transaction = await fetchTransactionWithReference(args.transaction);
-      return legacyRefundTransaction(undefined, { id: transaction.id }, req);
+      const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
+      return refundTransaction(transaction, req);
     },
   },
   rejectTransaction: {
@@ -124,7 +126,7 @@ const transactionMutations = {
       let refundedTransaction;
       if (!transaction.RefundTransactionId) {
         const refundParams = { id: transaction.id, message: rejectionReason };
-        refundedTransaction = await legacyRefundTransaction(undefined, refundParams, req);
+        refundedTransaction = await refundTransaction(transaction, req, refundParams);
       } else {
         refundedTransaction = await fetchTransactionWithReference({ legacyId: transaction.RefundTransactionId });
       }
@@ -140,6 +142,13 @@ const transactionMutations = {
 
       if (!orderToUpdate) {
         throw new NotFound('Order not found');
+      }
+
+      if (req.remoteUser.isAdminOfCollective(toAccount)) {
+        await twoFactorAuthLib.enforceForAccountAdmins(req, toAccount, { onlyAskOnLogin: true });
+      } else if (req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
+        const host = await models.Collective.findByPk(transaction.HostCollectiveId);
+        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
       }
 
       if (orderToUpdate.SubscriptionId) {

@@ -6,11 +6,12 @@ import { v4 as uuid } from 'uuid';
 import { types as COLLECTIVE_TYPE } from '../constants/collectives';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { sequelize } from '../models';
+import User from '../models/User';
 
 export const DEFAULT_GUEST_NAME = 'Guest';
 
 type GuestProfileDetails = {
-  user: typeof models.User;
+  user: User;
   collective: typeof models.Collective;
 };
 
@@ -73,7 +74,7 @@ export const getOrCreateGuestProfile = async (
   return sequelize.transaction(async transaction => {
     // Create (or fetch) the user associated with the email
     let user, collective;
-    user = await models.User.findOne({ where: { email } }, { transaction });
+    user = await models.User.findOne({ where: { email }, transaction });
     if (!user) {
       user = await models.User.create(
         {
@@ -124,10 +125,10 @@ export const getOrCreateGuestProfile = async (
  * Mark a guest account as "confirmed"
  */
 export const confirmGuestAccount = async (
-  user: typeof models.User,
+  user: User,
 ): Promise<{
   collective: typeof models.Collective;
-  user: typeof models.User;
+  user: User;
 }> => {
   // 1. Mark user as confirmed
   await user.update({ emailConfirmationToken: null, confirmedAt: new Date() });
@@ -152,7 +153,7 @@ export const confirmGuestAccountByEmail = async (
   emailConfirmationToken: string,
 ): Promise<{
   collective: typeof models.Collective;
-  user: typeof models.User;
+  user: User;
 }> => {
   const user = await models.User.findOne({ where: { email } });
   if (!user) {

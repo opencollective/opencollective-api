@@ -230,7 +230,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
 
   // Handle search query
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
-    idFields: ['id'],
+    idFields: ['id', 'ExpenseId', 'OrderId'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
     textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
     amountFields: ['amount'],
@@ -291,7 +291,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     [args.orderBy.field, args.orderBy.direction],
     // Add additional sort for consistent sorting
     // (transactions in the same TransactionGroup usually have the exact same datetime)
-    ['kind'],
+    ['id', args.orderBy.direction],
   ];
   const { offset, limit } = args;
   const result = await models.Transaction.findAndCountAll({

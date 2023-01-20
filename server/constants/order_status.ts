@@ -13,6 +13,7 @@ enum OrderStatuses {
   REQUIRE_CLIENT_CONFIRMATION = 'REQUIRE_CLIENT_CONFIRMATION', // For Strong Customer Authentication ("3D Secure")
   PAID = 'PAID', // For One Time Contributions
   ERROR = 'ERROR', // For One Time and Recurring Contribution
+  PROCESSING = 'PROCESSING', // For Stripe Payment Intent based Orders
   // This is only for "Recurring Contributions"
   ACTIVE = 'ACTIVE', // Active Recurring contribution with up to date payments
   CANCELLED = 'CANCELLED', // When it's Cancelled by contributors or automatically after X failures

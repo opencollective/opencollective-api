@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import * as LibTaxes from '@opencollective/taxes';
 import debugLib from 'debug';
 import express from 'express';
@@ -21,7 +23,7 @@ import {
   uniq,
 } from 'lodash';
 
-import { activities, expenseStatus, roles } from '../../constants';
+import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
@@ -38,17 +40,20 @@ import errors from '../../lib/errors';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
-import { hasPolicy } from '../../lib/policies';
+import { getPolicy } from '../../lib/policies';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
-import { createTransactionsFromPaidExpense } from '../../lib/transactions';
+import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExpense } from '../../lib/transactions';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, parseToBoolean } from '../../lib/utils';
 import models, { sequelize } from '../../models';
+import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
 import {
   Quote as WiseQuote,
@@ -71,7 +76,7 @@ import { checkRemoteUserCanRoot } from './scope-check';
 
 const debug = debugLib('expenses');
 
-const isOwner = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isOwner = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   } else if (req.remoteUser.id === expense.UserId) {
@@ -86,17 +91,17 @@ const isOwner = async (req: express.Request, expense: typeof models.Expense): Pr
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
-const isDraftPayee = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
-  } else if (expense.data?.payee?.id) {
-    return req.remoteUser.isAdmin(expense.data.payee.id);
+  } else if (expense.data?.payee?.['id']) {
+    return req.remoteUser.isAdmin(expense.data.payee['id']);
   } else {
     return false;
   }
 };
 
-const isCollectiveAccountant = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isCollectiveAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, expense.CollectiveId)) {
@@ -115,7 +120,7 @@ const isCollectiveAccountant = async (req: express.Request, expense: typeof mode
   }
 };
 
-const isCollectiveAdmin = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -127,7 +132,7 @@ const isCollectiveAdmin = async (req: express.Request, expense: typeof models.Ex
   return req.remoteUser.isAdminOfCollective(expense.collective);
 };
 
-const isHostAdmin = async (req: express.Request, expense: typeof models.Expense): Promise<boolean> => {
+const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -143,9 +148,16 @@ const isHostAdmin = async (req: express.Request, expense: typeof models.Expense)
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
+const isAdminOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+  return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
+};
+
 export type ExpensePermissionEvaluator = (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   options?: { throw?: boolean },
 ) => Promise<boolean>;
 
@@ -155,7 +167,7 @@ export type ExpensePermissionEvaluator = (
  */
 const remoteUserMeetsOneCondition = async (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   conditions: ExpensePermissionEvaluator[],
   options: { throw?: boolean } = { throw: false },
 ): Promise<boolean> => {
@@ -183,12 +195,24 @@ const remoteUserMeetsOneCondition = async (
 
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 /** Checks if the user can see expense's payout method */
@@ -200,14 +224,20 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
   return remoteUserMeetsOneCondition(
     req,
     expense,
-    [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin],
+    [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin, isAdminOfHostWhoPaidExpense],
     options,
   );
 };
 
 /** Checks if the user can see expense's payout method */
 export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
@@ -250,18 +280,17 @@ export const canUpdateExpenseStatus: ExpensePermissionEvaluator = async (req, ex
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
  */
-export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  const nonEditableStatuses = [
-    expenseStatus.PAID,
-    expenseStatus.PROCESSING,
-    expenseStatus.SCHEDULED_FOR_PAYMENT,
-    expenseStatus.CANCELED,
-  ];
+export const canEditExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
 
   // Host and Collective Admin can attach receipts to paid charge expenses
-  if (expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status)) {
+  if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
-  } else if (expense.status === expenseStatus.DRAFT) {
+  } else if (expense.status === 'DRAFT') {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
     if (options?.throw) {
@@ -278,13 +307,17 @@ export const canEditExpense: ExpensePermissionEvaluator = async (req, expense, o
   }
 };
 
-export const canEditExpenseTags: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
+export const canEditExpenseTags: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot edit expense tags', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
     }
     return false;
-  } else if (expense.status === expenseStatus.PAID) {
+  } else if (expense.status === 'PAID') {
     // Only collective/host admins can edit tags after the expense is paid
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin], options);
   } else {
@@ -296,10 +329,12 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (req, expens
  * Only the author or an admin of the collective or collective.host can delete an expense,
  * and only when its status is REJECTED.
  */
-export const canDeleteExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (
-    ![expenseStatus.REJECTED, expenseStatus.DRAFT, expenseStatus.SPAM, expenseStatus.CANCELED].includes(expense.status)
-  ) {
+export const canDeleteExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['REJECTED', 'DRAFT', 'SPAM', 'CANCELED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not delete expense in current status',
@@ -320,8 +355,12 @@ export const canDeleteExpense: ExpensePermissionEvaluator = async (req, expense,
 /**
  * Returns true if expense can be paid by user
  */
-export const canPayExpense: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+export const canPayExpense: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -339,8 +378,12 @@ export const canPayExpense: ExpensePermissionEvaluator = async (req, expense, op
 /**
  * Returns true if expense can be approved by user
  */
-export const canApprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.PENDING, expenseStatus.REJECTED, expenseStatus.INCOMPLETE].includes(expense.status)) {
+export const canApprove: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['PENDING', 'REJECTED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not approve expense in current status',
@@ -355,16 +398,44 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
     return false;
   } else {
     expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
-    if (hasPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE) && req.remoteUser.id === expense.UserId) {
+
+    if (expense.collective.HostCollectiveId && expense.collective.approvedAt) {
+      expense.collective.host =
+        expense.collective.host || (await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId));
+    }
+
+    const currency = expense.collective.host?.currency || expense.collective.currency;
+    const hostPolicy = getPolicy(expense.collective.host, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+    const collectivePolicy = getPolicy(expense.collective, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+
+    let policy = collectivePolicy;
+    if (hostPolicy.enabled && hostPolicy.appliesToHostedCollectives) {
+      policy = hostPolicy;
+
+      if (!hostPolicy.appliesToSingleAdminCollectives) {
+        const collectiveAdminCount = await req.loaders.Member.countAdminMembersOfCollective.load(expense.collective.id);
+        if (collectiveAdminCount === 1) {
+          policy = collectivePolicy;
+        }
+      }
+    }
+
+    if (policy.enabled && expense.amount >= policy.amountInCents && req.remoteUser.id === expense.UserId) {
       if (options?.throw) {
         throw new Forbidden(
           'User cannot approve their own expenses',
           EXPENSE_PERMISSION_ERROR_CODES.AUTHOR_CANNOT_APPROVE,
+          {
+            reasonDetails: {
+              amount: policy.amountInCents / 100,
+              currency,
+            },
+          },
         );
       }
       return false;
     }
-    if (expense.status === expenseStatus.INCOMPLETE) {
+    if (expense.status === 'INCOMPLETE') {
       return isHostAdmin(req, expense);
     }
     return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin], options);
@@ -374,8 +445,12 @@ export const canApprove: ExpensePermissionEvaluator = async (req, expense, optio
 /**
  * Returns true if expense can be rejected by user
  */
-export const canReject: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.PENDING, expenseStatus.UNVERIFIED, expenseStatus.INCOMPLETE].includes(expense.status)) {
+export const canReject: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['PENDING', 'UNVERIFIED', 'INCOMPLETE'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not reject expense in current status',
@@ -396,8 +471,12 @@ export const canReject: ExpensePermissionEvaluator = async (req, expense, option
 /**
  * Returns true if expense can be rejected by user
  */
-export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.REJECTED].includes(expense.status)) {
+export const canMarkAsSpam: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['REJECTED'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as spam in current status',
@@ -418,8 +497,12 @@ export const canMarkAsSpam: ExpensePermissionEvaluator = async (req, expense, op
 /**
  * Returns true if expense can be unapproved by user
  */
-export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.ERROR].includes(expense.status)) {
+export const canUnapprove: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not unapprove expense in current status',
@@ -437,8 +520,12 @@ export const canUnapprove: ExpensePermissionEvaluator = async (req, expense, opt
   }
 };
 
-export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (![expenseStatus.APPROVED, expenseStatus.PENDING, expenseStatus.ERROR].includes(expense.status)) {
+export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!['APPROVED', 'PENDING', 'ERROR'].includes(expense.status)) {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as incomplete in current status',
@@ -462,8 +549,12 @@ export const canMarkAsIncomplete: ExpensePermissionEvaluator = async (req, expen
 /**
  * Returns true if expense can be marked as unpaid by user
  */
-export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (expense.status !== expenseStatus.PAID) {
+export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (expense.status !== 'PAID') {
     if (options?.throw) {
       throw new Forbidden(
         'Can not mark expense as unpaid in current status',
@@ -495,7 +586,11 @@ export const canMarkAsUnpaid: ExpensePermissionEvaluator = async (req, expense, 
 /**
  * Returns true if user can comment and see others comments for this expense
  */
-export const canComment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
+export const canComment: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
   if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
     if (options?.throw) {
       throw new Forbidden('User cannot pay expenses', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_USER_FEATURE);
@@ -507,11 +602,21 @@ export const canComment: ExpensePermissionEvaluator = async (req, expense, optio
 };
 
 export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin, isCollectiveAccountant, isOwner]);
+  return remoteUserMeetsOneCondition(req, expense, [
+    isHostAdmin,
+    isCollectiveAdmin,
+    isCollectiveAccountant,
+    isOwner,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
-export const canUnschedulePayment: ExpensePermissionEvaluator = async (req, expense, options = { throw: false }) => {
-  if (expense.status !== expenseStatus.SCHEDULED_FOR_PAYMENT) {
+export const canUnschedulePayment: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -522,78 +627,66 @@ export const canUnschedulePayment: ExpensePermissionEvaluator = async (req, expe
 
 // ---- Expense actions ----
 
-export const approveExpense = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.APPROVED) {
+export const approveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'APPROVED') {
     return expense;
   } else if (!(await canApprove(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.APPROVED, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'APPROVED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_APPROVED, req.remoteUser);
   return updatedExpense;
 };
 
-export const unapproveExpense = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.PENDING) {
+export const unapproveExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'PENDING') {
     return expense;
   } else if (!(await canUnapprove(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.PENDING, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNAPPROVED, req.remoteUser);
   return updatedExpense;
 };
 
 export const markExpenseAsIncomplete = async (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   message?: string,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.INCOMPLETE) {
+): Promise<Expense> => {
+  if (expense.status === 'INCOMPLETE') {
     return expense;
   } else if (!(await canMarkAsIncomplete(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.INCOMPLETE, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'INCOMPLETE', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser, { message });
   return updatedExpense;
 };
 
-export const rejectExpense = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.REJECTED) {
+export const rejectExpense = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'REJECTED') {
     return expense;
   } else if (!(await canReject(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.REJECTED, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'REJECTED', lastEditedById: req.remoteUser.id });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_REJECTED, req.remoteUser);
   return updatedExpense;
 };
 
-export const markExpenseAsSpam = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.SPAM) {
+export const markExpenseAsSpam = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'SPAM') {
     return expense;
   } else if (!(await canMarkAsSpam(req, expense))) {
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: expenseStatus.SPAM, lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({ status: 'SPAM', lastEditedById: req.remoteUser.id });
 
   // Limit the user so they can't submit expenses in the future
   const submittedByUser = await updatedExpense.getSubmitterUser();
@@ -623,7 +716,8 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     1000000,
   );
 
-  const twoFactorSession = req.jwtPayload?.sessionId || (req.clientApp?.id && `app_${req.clientApp.id}`);
+  const twoFactorSession =
+    req.jwtPayload?.sessionId || (req.personalToken?.id && `personalToken_${req.personalToken.id}`);
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
   const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
@@ -634,7 +728,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     isNil(currentPaidExpenseAmountCache) ||
     currentPaidExpenseAmount + expense.amount > hostPayoutTwoFactorAuthenticationRollingLimit;
 
-  if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
+  if (!twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
     throw new Error('Host has two-factor authentication enabled for large payouts.');
   }
 
@@ -655,10 +749,10 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
 
 export const scheduleExpenseForPayment = async (
   req: express.Request,
-  expense: typeof models.Expense,
+  expense: Expense,
   options: { feesPayer?: 'COLLECTIVE' | 'PAYEE' } = {},
-): Promise<typeof models.Expense> => {
-  if (expense.status === expenseStatus.SCHEDULED_FOR_PAYMENT) {
+): Promise<Expense> => {
+  if (expense.status === 'SCHEDULED_FOR_PAYMENT') {
     throw new BadRequest('Expense is already scheduled for payment');
   } else if (!(await canPayExpense(req, expense))) {
     throw new Forbidden("You're authenticated but you can't schedule this expense for payment");
@@ -695,17 +789,14 @@ export const scheduleExpenseForPayment = async (
   }
 
   const updatedExpense = await expense.update({
-    status: expenseStatus.SCHEDULED_FOR_PAYMENT,
+    status: 'SCHEDULED_FOR_PAYMENT',
     lastEditedById: req.remoteUser.id,
   });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT, req.remoteUser);
   return updatedExpense;
 };
 
-export const unscheduleExpensePayment = async (
-  req: express.Request,
-  expense: typeof models.Expense,
-): Promise<typeof models.Expense> => {
+export const unscheduleExpensePayment = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (!(await canUnschedulePayment(req, expense))) {
     throw new BadRequest("Expense is not scheduled for payment or you don't have authorization to unschedule it");
   }
@@ -717,14 +808,17 @@ export const unscheduleExpensePayment = async (
   }
 
   const updatedExpense = await expense.update({
-    status: expenseStatus.APPROVED,
+    status: 'APPROVED',
     lastEditedById: req.remoteUser.id,
   });
+
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_UNSCHEDULED_FOR_PAYMENT, req.remoteUser);
+
   return updatedExpense;
 };
 
 /** Compute the total amount of expense from expense items */
-const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: TaxDefinition[]) => {
+const computeTotalAmountForExpense = (items: (ExpenseItem | Record<string, unknown>)[], taxes: TaxDefinition[]) => {
   return Math.round(
     sumBy(items, item => {
       const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
@@ -734,7 +828,7 @@ const computeTotalAmountForExpense = (items: Record<string, unknown>[], taxes: T
 };
 
 /** Check expense's items values, throw if something's wrong */
-const checkExpenseItems = (expenseType, items, taxes) => {
+const checkExpenseItems = (expenseType, items: (ExpenseItem | Record<string, unknown>)[], taxes) => {
   // Check the number of items
   if (!items || items.length === 0) {
     throw new ValidationFailed('Your expense needs to have at least one item');
@@ -791,20 +885,6 @@ const checkExpenseType = (
   }
 };
 
-const EXPENSE_EDITABLE_FIELDS = [
-  'amount',
-  'currency',
-  'description',
-  'longDescription',
-  'type',
-  'tags',
-  'privateMessage',
-  'invoiceInfo',
-  'payeeLocation',
-];
-
-const EXPENSE_PAID_CHARGE_EDITABLE_FIELDS = ['description', 'tags', 'privateMessage', 'invoiceInfo'];
-
 const getPayoutMethodFromExpenseData = async (expenseData, remoteUser, fromCollective, dbTransaction) => {
   if (expenseData.payoutMethod) {
     if (expenseData.payoutMethod.id) {
@@ -845,7 +925,7 @@ const createAttachedFiles = async (expense, attachedFilesData, remoteUser, trans
   if (size(attachedFilesData) > 0) {
     return Promise.all(
       attachedFilesData.map(attachedFile => {
-        return models.ExpenseAttachedFile.createFromData(attachedFile.url, remoteUser, expense, transaction);
+        return models.ExpenseAttachedFile.createFromData(attachedFile, remoteUser, expense, transaction);
       }),
     );
   } else {
@@ -875,9 +955,29 @@ type ExpenseData = {
   incurredAt?: Date;
   type?: EXPENSE_TYPE;
   description?: string;
+  privateMessage?: string;
+  invoiceInfo?: string;
+  longDescription?: string;
+  amount?: number;
   currency?: string;
   tax?: TaxDefinition[];
 };
+
+const EXPENSE_EDITABLE_FIELDS = [
+  'amount',
+  'currency',
+  'description',
+  'longDescription',
+  'type',
+  'tags',
+  'privateMessage',
+  'invoiceInfo',
+  'payeeLocation',
+] as const;
+
+type ExpenseEditableFieldsUnion = (typeof EXPENSE_EDITABLE_FIELDS)[number];
+
+const EXPENSE_PAID_CHARGE_EDITABLE_FIELDS = ['description', 'tags', 'privateMessage', 'invoiceInfo'];
 
 const checkTaxes = (account, host, expenseType: string, taxes): void => {
   if (!taxes?.length) {
@@ -890,7 +990,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
     return taxes.forEach(({ type, rate }) => {
       if (rate < 0 || rate > 1) {
         throw new ValidationFailed(`Tax rate for ${type} must be between 0% and 100%`);
-      } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account)) {
+      } else if (type === LibTaxes.TaxType.VAT && !LibTaxes.accountHasVAT(account, host)) {
         throw new ValidationFailed(`This account does not have VAT enabled`);
       } else if (type === LibTaxes.TaxType.GST && !LibTaxes.accountHasGST(host)) {
         throw new ValidationFailed(`This host does not have GST enabled`);
@@ -899,10 +999,7 @@ const checkTaxes = (account, host, expenseType: string, taxes): void => {
   }
 };
 
-export async function createExpense(
-  remoteUser: typeof models.User | null,
-  expenseData: ExpenseData,
-): Promise<typeof models.Expense> {
+export async function createExpense(remoteUser: User | null, expenseData: ExpenseData): Promise<Expense> {
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create an expense');
   } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -1015,7 +1112,7 @@ export async function createExpense(
     // Create expense
     const createdExpense = await models.Expense.create(
       {
-        ...pick(expenseData, EXPENSE_EDITABLE_FIELDS),
+        ...(<Pick<ExpenseData, ExpenseEditableFieldsUnion>>pick(expenseData, EXPENSE_EDITABLE_FIELDS)),
         currency,
         tags: expenseData.tags,
         status: statuses.PENDING,
@@ -1053,7 +1150,7 @@ export async function createExpense(
 
 /** Returns true if the expense should by put back to PENDING after this update */
 export const changesRequireStatusUpdate = (
-  expense: typeof models.Expense,
+  expense: Expense,
   newExpenseData: ExpenseData,
   hasItemsChanges: boolean,
   hasPayoutChanges: boolean,
@@ -1061,7 +1158,7 @@ export const changesRequireStatusUpdate = (
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
   const isPaidOrProcessingCharge =
-    expense.type === EXPENSE_TYPE.CHARGE && [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status);
+    expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status);
 
   if (isPaidOrProcessingCharge && !hasAmountChanges) {
     return false;
@@ -1115,11 +1212,7 @@ export const isAccountHolderNameAndLegalNameMatch = (accountHolderName: string, 
   );
 };
 
-export async function editExpense(
-  req: express.Request,
-  expenseData: ExpenseData,
-  options = {},
-): Promise<typeof models.Expense> {
+export async function editExpense(req: express.Request, expenseData: ExpenseData, options = {}): Promise<Expense> {
   const remoteUser = options?.['overrideRemoteUser'] || req.remoteUser;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to edit an expense');
@@ -1152,13 +1245,22 @@ export async function editExpense(
   const { collective } = expense;
   const { host } = collective;
 
+  // Check if 2FA is enforced on any of the account remote user is admin of, stop the loop if 2FA gets validated for any of them
+  if (req.remoteUser) {
+    for (const account of [expense.fromCollective, collective, host].filter(Boolean)) {
+      if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
+        break;
+      }
+    }
+  }
+
   // When changing the type, we must make sure that the new type is allowed
   if (expenseData.type && expenseData.type !== expense.type) {
     checkExpenseType(expenseData.type, collective, collective.parent, collective.host);
   }
 
   const [hasItemChanges, itemsDiff] = await getItemsChanges(expense.items, expenseData);
-  const taxes = expenseData.tax || expense.data?.taxes || [];
+  const taxes = expenseData.tax || (expense.data?.taxes as TaxDefinition[]) || [];
   const expenseType = expenseData.type || expense.type;
   checkTaxes(expense.collective, expense.collective.host, expenseType, taxes);
 
@@ -1178,7 +1280,7 @@ export async function editExpense(
 
   const isPaidCreditCardCharge =
     expense.type === EXPENSE_TYPE.CHARGE &&
-    [expenseStatus.PAID, expenseStatus.PROCESSING].includes(expense.status) &&
+    ['PAID', 'PROCESSING'].includes(expense.status) &&
     Boolean(expense.VirtualCardId);
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
@@ -1209,9 +1311,8 @@ export async function editExpense(
     });
   }
 
-  const cleanExpenseData = pick(
-    expenseData,
-    isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS,
+  const cleanExpenseData = <Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
+    pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
   );
 
   // Let submitter customize the currency
@@ -1292,16 +1393,19 @@ export async function editExpense(
       await Promise.all(removedAttachedFiles.map((file: ExpenseAttachedFile) => file.destroy()));
       await Promise.all(
         updatedAttachedFiles.map((file: Record<string, unknown>) =>
-          models.ExpenseAttachedFile.update({ url: file.url }, { where: { id: file.id, ExpenseId: expense.id } }),
+          models.ExpenseAttachedFile.update(
+            { url: file.url, name: file.name },
+            { where: { id: file.id, ExpenseId: expense.id } },
+          ),
         ),
       );
     }
 
     let status = expense.status;
     if (shouldUpdateStatus) {
-      status = expenseStatus.PENDING;
-    } else if (status === expenseStatus.INCOMPLETE) {
-      status = expenseStatus.APPROVED;
+      status = 'PENDING';
+    } else if (status === 'INCOMPLETE') {
+      status = 'APPROVED';
     }
 
     const updatedExpenseProps = {
@@ -1348,7 +1452,7 @@ export async function editExpense(
   return updatedExpense;
 }
 
-export async function deleteExpense(req: express.Request, expenseId: number): Promise<typeof models.Expense> {
+export async function deleteExpense(req: express.Request, expenseId: number): Promise<Expense> {
   const { remoteUser } = req;
   if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to delete an expense');
@@ -1370,12 +1474,12 @@ export async function deleteExpense(req: express.Request, expenseId: number): Pr
     );
   }
 
-  const res = await expense.destroy();
-  return res;
+  await expense.destroy();
+  return expense.reload({ paranoid: false });
 }
 
 /** Helper that finishes the process of paying an expense */
-async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<typeof models.Expense> {
+async function markExpenseAsPaid(expense, remoteUser, isManualPayout = false): Promise<Expense> {
   debug('update expense status to PAID', expense.id);
   await expense.setPaid(remoteUser.id);
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, remoteUser, { isManualPayout });
@@ -1387,8 +1491,12 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
 
   if (expense.currency !== expense.collective.currency) {
     throw new Error(
-      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts.',
+      'Multi-currency expenses are not supported by the legacy PayPal adaptive implementation. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
     );
+  }
+
+  if (parseToBoolean(process.env.DISABLE_PAYPAL_ADAPTIVE) && !remoteUser.isRoot()) {
+    throw new Error('PayPal adaptive is currently under maintenance. Please try again later.');
   }
 
   try {
@@ -1399,6 +1507,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
       paymentMethod.token,
     );
 
+    debug(JSON.stringify(paymentResponse));
     const { createPaymentResponse, executePaymentResponse } = paymentResponse;
 
     switch (executePaymentResponse.paymentExecStatus) {
@@ -1432,13 +1541,28 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     }
 
     // Warning senderFees can be null
-    const senderFees = createPaymentResponse.defaultFundingPlan.senderFees;
-    const paymentProcessorFeeInCollectiveCurrency = senderFees ? senderFees.amount * 100 : 0; // paypal sends this in float
+    let senderFees = createPaymentResponse.defaultFundingPlan.senderFees?.amount;
+    if (senderFees) {
+      senderFees = floatAmountToCents(parseFloat(senderFees));
+    } else {
+      // PayPal stopped providing senderFees in the response, we need to compute it ourselves
+      // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
+      const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
+      const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
+      const amountReceivedByPayee = expense.amount;
+      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
+
+      // No example yet, but we want to know if this ever happens
+      if (fundingAmount.code !== expense.currency) {
+        reportMessageToSentry(`PayPal adaptive got a funding amount with a different currency than the expense`, {
+          severity: 'error',
+        });
+      }
+    }
+
     const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
-    fees['paymentProcessorFeeInHostCurrency'] = Math.round(
-      hostCurrencyFxRate * paymentProcessorFeeInCollectiveCurrency,
-    );
+    fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
     // Adaptive does not work with multi-currency expenses, so we can safely assume that expense.currency = collective.currency
     await createTransactionsFromPaidExpense(host, expense, fees, hostCurrencyFxRate, paymentResponse, paymentMethod);
@@ -1454,6 +1578,7 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
         'Not enough funds in your existing Paypal preapproval. Please refill your PayPal payment balance.',
       );
     } else {
+      reportErrorToSentry(err);
       throw new BadRequest(err.message);
     }
   }
@@ -1486,8 +1611,10 @@ export const getWiseFxRateInfoFromExpenseData = (
 
   const wiseInfo: WiseTransfer | WiseQuote | WiseQuoteV2 = expense.data?.transfer || expense.data?.quote;
   if (wiseInfo?.rate) {
+    // In this context, the source currency is always the Host currency and the target currency is the Payee currency
     const wiseSourceCurrency = wiseInfo['sourceCurrency'] || wiseInfo['source'];
     const wiseTargetCurrency = wiseInfo['targetCurrency'] || wiseInfo['target'];
+    // This makes the fxRate be the rate for Host -> Payee
     const fxRate = matchFxRateWithCurrency(
       expectedSourceCurrency,
       expectedTargetCurrency,
@@ -1554,7 +1681,7 @@ type FeesArgs = {
 export const getExpenseFees = async (
   expense,
   host,
-  { fees = {}, payoutMethod, forceManual, useExistingWiseData = false },
+  { fees = {}, payoutMethod, useExistingWiseData = false },
 ): Promise<{
   feesInHostCurrency: {
     paymentProcessorFeeInHostCurrency: number;
@@ -1582,27 +1709,38 @@ export const getExpenseFees = async (
   const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
 
-  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT && !forceManual) {
+  if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
     const [connectedAccount] = await host.getConnectedAccounts({
       where: { service: 'transferwise', deletedAt: null },
     });
     if (!connectedAccount) {
       throw new Error('Host is not connected to Transferwise');
     }
-    const quote = useExistingWiseData
-      ? expense.data.quote
-      : await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
-    const paymentOption = useExistingWiseData
-      ? expense.data.paymentOption
-      : quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
-    if (!paymentOption) {
-      throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+
+    const existingQuote = expense.data?.quote;
+    const existingPaymentOption = existingQuote?.paymentOption;
+    if (
+      useExistingWiseData &&
+      existingQuote &&
+      existingQuote.sourceCurrency === host.currency &&
+      existingQuote.targetCurrency === payoutMethod.unfilteredData.currency &&
+      existingPaymentOption
+    ) {
+      resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+        existingPaymentOption.fee.total / collectiveToHostFxRate,
+      );
+    } else {
+      const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
+      const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+      if (!paymentOption) {
+        throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+      }
+      // Quote is always in host currency
+      resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+        paymentOption.fee.total / collectiveToHostFxRate,
+      );
     }
-    // Notice this is the FX rate between Host and Collective, that's why we use `collectiveToHostFxRate`.
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
-      paymentOption.fee.total / collectiveToHostFxRate,
-    );
-  } else if (payoutMethodType === PayoutMethodTypes.PAYPAL && !forceManual) {
+  } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     resultFees['paymentProcessorFeeInCollectiveCurrency'] = await paymentProviders.paypal.types['adaptive'].fees({
       amount: expense.amount,
       currency: expense.collective.currency,
@@ -1653,11 +1791,50 @@ export const checkHasBalanceToPayExpense = async (
   host,
   expense,
   payoutMethod,
-  { forceManual = false, manualFees = {}, useExistingWiseData = false } = {},
+  {
+    forceManual = false,
+    manualFees = {},
+    useExistingWiseData = false,
+    totalAmountPaidInHostCurrency = undefined,
+    paymentProcessorFeeInHostCurrency = undefined,
+  } = {},
 ) => {
   const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
   const balanceInCollectiveCurrency = await expense.collective.getBalanceWithBlockedFunds();
   const isSameCurrency = expense.currency === expense.collective.currency;
+
+  if (expense.feesPayer === 'PAYEE') {
+    assert(
+      models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType),
+      'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
+    );
+    assert(
+      expense.currency === expense.collective.currency,
+      'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
+    );
+  }
+
+  if (forceManual) {
+    assert(totalAmountPaidInHostCurrency >= 0, 'Total amount paid must be positive');
+    const collectiveToHostFxRate = await getFxRate(expense.collective.currency, host.currency);
+    const balanceInHostCurrency = Math.round(balanceInCollectiveCurrency * collectiveToHostFxRate);
+    if (balanceInHostCurrency < totalAmountPaidInHostCurrency) {
+      throw new Error(
+        `Collective does not have enough funds to pay this expense. Current balance: ${formatCurrency(
+          balanceInHostCurrency,
+          host.currency,
+        )}, Expense amount: ${formatCurrency(balanceInHostCurrency, host.currency)}`,
+      );
+    }
+    return {
+      feesInCollectiveCurrency: {},
+      feesInHostCurrency: {
+        paymentProcessorFeeInHostCurrency,
+      },
+      feesInExpenseCurrency: {},
+    };
+  }
+
   const exchangeStats =
     !isSameCurrency && (await models.CurrencyExchangeRate.getPairStats(expense.collective.currency, expense.currency));
 
@@ -1710,7 +1887,6 @@ export const checkHasBalanceToPayExpense = async (
   const { feesInHostCurrency, feesInCollectiveCurrency, feesInExpenseCurrency } = await getExpenseFees(expense, host, {
     fees: manualFees,
     payoutMethod,
-    forceManual,
     useExistingWiseData,
   });
 
@@ -1720,15 +1896,6 @@ export const checkHasBalanceToPayExpense = async (
     totalAmountToPay = expense.amount + feesInExpenseCurrency.paymentProcessorFee;
   } else if (expense.feesPayer === 'PAYEE') {
     totalAmountToPay = expense.amount; // Ignore the fee as it will be deduced from the payee
-    if (!models.PayoutMethod.typeSupportsFeesPayer(payoutMethodType)) {
-      throw new Error(
-        'Putting the payment processor fees on the payee is only supported for bank accounts and manual payouts at the moment',
-      );
-    } else if (expense.currency !== expense.collective.currency) {
-      throw new Error(
-        'Cannot put the payment processor fees on the payee when the expense currency is not the same as the collective currency',
-      );
-    }
   } else {
     throw new Error(`Expense fee payer "${expense.feesPayer}" not supported yet`);
   }
@@ -1740,12 +1907,20 @@ export const checkHasBalanceToPayExpense = async (
   return { feesInCollectiveCurrency, feesInExpenseCurrency, feesInHostCurrency, totalAmountToPay };
 };
 
+type PayExpenseArgs = {
+  id: number;
+  forceManual?: boolean;
+  feesPayer?: 'COLLECTIVE' | 'PAYEE'; // Defaults to COLLECTIVE
+  paymentProcessorFeeInHostCurrency?: number; // Defaults to 0
+  totalAmountPaidInHostCurrency?: number;
+};
+
 /**
  * Pay an expense based on the payout method defined in the Expense object
  * @PRE: fees { id, paymentProcessorFeeInCollectiveCurrency, hostFeeInCollectiveCurrency, platformFeeInCollectiveCurrency }
  * Note: some payout methods like PayPal will automatically define `paymentProcessorFeeInCollectiveCurrency`
  */
-export async function payExpense(req: express.Request, args: Record<string, unknown>): Promise<typeof models.Expense> {
+export async function payExpense(req: express.Request, args: PayExpenseArgs): Promise<Expense> {
   const { remoteUser } = req;
   const expenseId = args.id;
   const forceManual = Boolean(args.forceManual);
@@ -1797,10 +1972,14 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       await expense.update({ feesPayer: args.feesPayer });
     }
 
+    const totalAmountPaidInHostCurrency = args.totalAmountPaidInHostCurrency;
+    const paymentProcessorFeeInHostCurrency = args.paymentProcessorFeeInHostCurrency || 0;
     const payoutMethod = await expense.getPayoutMethod();
     const payoutMethodType = payoutMethod ? payoutMethod.type : expense.getPayoutMethodTypeFromLegacy();
     const { feesInHostCurrency } = await checkHasBalanceToPayExpense(host, expense, payoutMethod, {
       forceManual,
+      totalAmountPaidInHostCurrency,
+      paymentProcessorFeeInHostCurrency,
       manualFees: <FeesArgs>(
         pick(args, [
           'paymentProcessorFeeInCollectiveCurrency',
@@ -1816,21 +1995,40 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
       PayoutMethodTypes.BANK_ACCOUNT,
     ].includes(payoutMethodType);
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
-    const useTwoFactorAuthentication =
+    const use2FARollingLimit =
       isTwoFactorAuthenticationRequiredForPayoutMethod && !forceManual && hostHasPayoutTwoFactorAuthenticationEnabled;
 
     const totalPaidExpensesAmountKey = `${req.remoteUser.id}_2fa_payment_limit`;
     let totalPaidExpensesAmount;
 
-    if (useTwoFactorAuthentication) {
+    if (use2FARollingLimit) {
       totalPaidExpensesAmount = await cache.get(totalPaidExpensesAmountKey);
       await validateExpensePayout2FALimit(req, host, expense, totalPaidExpensesAmountKey);
+    } else {
+      // Not using rolling limit, but still enforcing 2FA for all admins
+      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
     }
 
     try {
-      // Pay expense based on chosen payout method
-      if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
-        const paypalEmail = payoutMethod.data.email;
+      if (forceManual) {
+        await createTransactionsForManuallyPaidExpense(
+          host,
+          expense,
+          paymentProcessorFeeInHostCurrency,
+          totalAmountPaidInHostCurrency,
+        );
+        await expense.update({
+          // Remove all fields related to a previous automatic payment
+          data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
+        });
+      } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
+        if (expense.collective.currency !== host.currency) {
+          throw new Error(
+            'PayPal adaptive payouts are not supported when the collective currency is different from the host currency. Please migrate to PayPal payouts: https://docs.opencollective.com/help/fiscal-hosts/payouts/payouts-with-paypal',
+          );
+        }
+
+        const paypalEmail = payoutMethod.data['email'];
         let paypalPaymentMethod = null;
         try {
           paypalPaymentMethod = await host.getPaymentMethod({ service: 'paypal', type: 'adaptive' });
@@ -1841,9 +2039,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         // then we simply mark the expense as paid
         if (paypalPaymentMethod && paypalEmail === paypalPaymentMethod.name) {
           feesInHostCurrency['paymentProcessorFeeInHostCurrency'] = 0;
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
-        } else if (forceManual) {
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
+          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto', { isManual: true });
         } else if (paypalPaymentMethod) {
           return payExpenseWithPayPalAdaptive(
             remoteUser,
@@ -1857,30 +2053,23 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
           throw new Error('No Paypal account linked, please reconnect Paypal or pay manually');
         }
       } else if (payoutMethodType === PayoutMethodTypes.BANK_ACCOUNT) {
-        if (forceManual) {
-          await expense.update({
-            data: omit(expense.data, ['transfer', 'quote', 'fund', 'recipient', 'paymentOption']),
-          });
-          await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
-        } else {
-          const [connectedAccount] = await host.getConnectedAccounts({
-            where: { service: 'transferwise', deletedAt: null },
-          });
-          if (!connectedAccount) {
-            throw new Error('Host is not connected to Transferwise');
-          }
-
-          const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
-
-          // Early return, Webhook will mark expense as Paid when the transaction completes.
-          return setTransferWiseExpenseAsProcessing({
-            host,
-            expense,
-            data,
-            feesInHostCurrency,
-            remoteUser,
-          });
+        const [connectedAccount] = await host.getConnectedAccounts({
+          where: { service: 'transferwise', deletedAt: null },
+        });
+        if (!connectedAccount) {
+          throw new Error('Host is not connected to Transferwise');
         }
+
+        const data = await paymentProviders.transferwise.payExpense(connectedAccount, payoutMethod, expense);
+
+        // Early return, Webhook will mark expense as Paid when the transaction completes.
+        return setTransferWiseExpenseAsProcessing({
+          host,
+          expense,
+          data,
+          feesInHostCurrency,
+          remoteUser,
+        });
       } else if (payoutMethodType === PayoutMethodTypes.ACCOUNT_BALANCE) {
         const payee = expense.fromCollective;
         const payeeHost = await payee.getHostCollective();
@@ -1898,7 +2087,7 @@ export async function payExpense(req: express.Request, args: Record<string, unkn
         await createTransactionsFromPaidExpense(host, expense, feesInHostCurrency, 'auto');
       }
     } catch (error) {
-      if (useTwoFactorAuthentication) {
+      if (use2FARollingLimit) {
         if (!isNil(totalPaidExpensesAmount) && totalPaidExpensesAmount !== 0) {
           cache.set(totalPaidExpensesAmountKey, totalPaidExpensesAmount - expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
         }
@@ -1917,7 +2106,7 @@ export async function markExpenseAsUnpaid(
   req: express.Request,
   expenseId: number,
   shouldRefundPaymentProcessorFee: boolean,
-): Promise<typeof models.Expense> {
+): Promise<Expense> {
   const { remoteUser } = req;
 
   const updatedExpense = await lockExpense(expenseId, async () => {
@@ -2071,7 +2260,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
  */
 export const moveExpenses = async (
   req: express.Request,
-  expenses: typeof models.Expense[],
+  expenses: Expense[],
   destinationAccount: typeof models.Collective,
 ) => {
   // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere

@@ -1,20 +1,22 @@
 import config from 'config';
-import { DataTypes, Model, Transaction } from 'sequelize';
+import { DataTypes, ForeignKey, Model, Transaction } from 'sequelize';
 
 import { diffDBEntries } from '../lib/data';
 import { isValidUploadedImage } from '../lib/images';
 import sequelize from '../lib/sequelize';
 
-import models from '.';
+import Expense from './Expense';
+import User from './User';
 
 /**
  * Sequelize model to represent an ExpenseAttachedFile, linked to the `ExpenseAttachedFiles` table.
  */
 export class ExpenseAttachedFile extends Model {
   public declare readonly id: number;
-  public declare ExpenseId: number;
-  public declare CreatedByUserId: number;
+  public declare ExpenseId: ForeignKey<Expense['id']>;
+  public declare CreatedByUserId: ForeignKey<User['id']>;
   public declare url: string;
+  public declare name: string;
   public declare createdAt: Date;
 
   /**
@@ -24,13 +26,13 @@ export class ExpenseAttachedFile extends Model {
    * @param expense: The linked expense
    */
   static async createFromData(
-    url: string,
-    user: typeof models.User,
-    expense: typeof models.Expense,
+    { url, name }: { url: string; name?: string },
+    user: User,
+    expense: Expense,
     dbTransaction: Transaction | null,
   ): Promise<ExpenseAttachedFile> {
     return ExpenseAttachedFile.create(
-      { ExpenseId: expense.id, CreatedByUserId: user.id, url },
+      { ExpenseId: expense.id, CreatedByUserId: user.id, url, name },
       { transaction: dbTransaction },
     );
   }
@@ -80,6 +82,10 @@ ExpenseAttachedFile.init(
           }
         },
       },
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     createdAt: {
       type: DataTypes.DATE,

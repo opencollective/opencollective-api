@@ -252,6 +252,20 @@ export const UserType = new GraphQLObjectType({
           return hasSeenLatestChangelogEntry(user);
         },
       },
+      hasTwoFactorAuth: {
+        type: GraphQLBoolean,
+        resolve(user, _, req) {
+          if (req.remoteUser.id === user.id) {
+            return Boolean(user.twoFactorAuthToken);
+          }
+        },
+      },
+      isRoot: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        resolve(user) {
+          return user.isRoot();
+        },
+      },
     };
   },
 });
@@ -521,8 +535,9 @@ export const ContributorType = new GraphQLObjectType({
       description: 'True if the contributor is a financial contributor',
     },
     isFundraiser: {
-      type: new GraphQLNonNull(GraphQLBoolean),
+      type: GraphQLBoolean,
       description: 'True if the contributor is a fundraiser',
+      deprecationReason: '2022-09-12: This role does not exist anymore',
     },
     tiersIds: {
       type: new GraphQLNonNull(new GraphQLList(GraphQLInt)),
@@ -1586,8 +1601,11 @@ export const OrderType = new GraphQLObjectType({
       createdByUser: {
         type: UserType,
         async resolve(order, args, req) {
-          const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
-          const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+          const [collective, fromCollective] = await req.loaders.Collective.byId.loadMany([
+            order.CollectiveId,
+            order.FromCollectiveId,
+          ]);
+
           if (
             fromCollective.isIncognito &&
             !req.remoteUser?.isAdminOfCollectiveOrHost(collective) &&

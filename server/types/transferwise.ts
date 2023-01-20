@@ -19,6 +19,13 @@ export type Quote = {
   ofSourceAmount: boolean;
 };
 
+export type ExchangeRate = {
+  source: string;
+  target: string;
+  rate: number;
+  time: string;
+};
+
 export type QuoteV2PaymentOption = {
   disabled: boolean;
   disabledReason?: { message: string };
@@ -67,6 +74,9 @@ export type QuoteV2 = {
     type: 'WARNING' | 'INFO' | 'BLOCKED';
   }>;
 };
+
+/** When saving the quote in expense data */
+export type ExpenseDataQuoteV2 = Omit<QuoteV2, 'paymentOptions'> & { paymentOption: QuoteV2PaymentOption };
 
 export type RecipientAccount = {
   id?: number;

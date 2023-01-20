@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -62,12 +62,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -98,12 +98,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -135,12 +135,12 @@ jobs:
 
   #   steps:
   #     - name: Checkout
-  #       uses: actions/checkout@v2-beta
+  #       uses: actions/checkout@v3
 
   #     - name: Setup node
   #       uses: actions/setup-node@v2
   #       with:
-  #         node-version: '16.x'
+  #         node-version-file: 'package.json'
 
   #     - name: Restore node_modules
   #       uses: actions/cache@v2
@@ -171,12 +171,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -220,7 +220,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.8
+        image: postgres:13.9
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -231,12 +231,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -259,7 +259,8 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:setup
+      - run: npm run db:restore
+      - run: npm run db:migrate
 
       - run: npx nyc mocha --ignore "test/server/graphql/**"
 
@@ -276,7 +277,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.8
+        image: postgres:13.9
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -287,12 +288,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2-beta
+        uses: actions/checkout@v3
 
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -315,7 +316,8 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run db:setup
+      - run: npm run db:restore
+      - run: npm run db:migrate
 
       - run: npm run test:graphql
 
@@ -325,11 +327,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v3
       - name: Setup node
         uses: actions/setup-node@v3
         with:
-          node-version: '16.x'
+          node-version-file: 'package.json'
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
@@ -361,7 +363,7 @@ jobs:
           - 6379:6379
         options: --entrypoint redis-server
       postgres:
-        image: postgres:13.8
+        image: postgres:13.9
         env:
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
@@ -371,7 +373,7 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v3
 
       - name: GraphQL Inspector (V1)
         uses: kamilkisiela/graphql-inspector@v3.4.0

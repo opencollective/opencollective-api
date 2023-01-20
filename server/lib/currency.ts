@@ -1,4 +1,3 @@
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { difference, get, has, keys, merge, uniq, zipObject } from 'lodash';
@@ -237,7 +236,7 @@ export function convertToCurrency(
   date: string | Date = 'latest',
 ): Promise<number> {
   if (amount === 0) {
-    return 0;
+    return Promise.resolve(0);
   }
   if (fromCurrency === toCurrency) {
     return Promise.resolve(amount);
@@ -263,7 +262,7 @@ type AmountWithCurrencyAndDate = {
  * @param {*} array [ { currency, amount[, date] }]
  */
 export function reduceArrayToCurrency(array: AmountWithCurrencyAndDate[], currency: string): Promise<number> {
-  return Promise.map(array, entry => convertToCurrency(entry.amount, entry.currency, currency, entry.date)).then(
+  return Promise.all(array.map(entry => convertToCurrency(entry.amount, entry.currency, currency, entry.date))).then(
     arrayInBaseCurrency => {
       return arrayInBaseCurrency.reduce((accumulator, amount) => accumulator + amount, 0);
     },

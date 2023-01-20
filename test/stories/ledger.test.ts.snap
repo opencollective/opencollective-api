@@ -98,8 +98,8 @@ exports[`test/stories/ledger Level 1: Same currency (USD) 6. Expense with Paymen
 "
 | kind                    | type   | amount  | paymentFee | To     | From   | Host | Settlement | isRefund | isDisputed |
 | ----------------------- | ------ | ------- | ---------- | ------ | ------ | ---- | ---------- | -------- | ---------- |
-| EXPENSE                 | CREDIT | 100500  | 0          | ESLint | Ben    | OSC  |            | true     | false      |
-| EXPENSE                 | DEBIT  | -100500 | 0          | Ben    | ESLint | NULL |            | true     | false      |
+| EXPENSE                 | CREDIT | 100000  | 0          | ESLint | Ben    | OSC  |            | true     | false      |
+| EXPENSE                 | DEBIT  | -100000 | 0          | Ben    | ESLint | NULL |            | true     | false      |
 | PAYMENT_PROCESSOR_COVER | CREDIT | 500     | 0          | ESLint | OSC    | OSC  |            | true     | false      |
 | PAYMENT_PROCESSOR_COVER | DEBIT  | -500    | 0          | OSC    | ESLint | OSC  |            | true     | false      |
 | EXPENSE                 | CREDIT | 100500  | -500       | Ben    | ESLint | NULL |            | false    | false      |

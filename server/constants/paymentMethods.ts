@@ -20,6 +20,9 @@ export enum PAYMENT_METHOD_TYPE {
   GIFTCARD = 'giftcard',
   MANUAL = 'manual',
   CRYPTO = 'crypto',
+  PAYMENT_INTENT = 'paymentintent',
+  US_BANK_ACCOUNT = 'us_bank_account',
+  SEPA_DEBIT = 'sepa_debit',
 }
 
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);

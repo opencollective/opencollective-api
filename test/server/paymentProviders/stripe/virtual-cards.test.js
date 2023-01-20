@@ -18,9 +18,8 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
   afterEach(sandbox.restore);
   beforeEach(testUtils.resetTestDB);
   beforeEach(async () => {
-    sandbox.stub(stripe.webhooks, 'constructEvent').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox
-      .stub(budget, 'getBalanceWithBlockedFundsAmount')
+      .stub(budget, 'getBalanceAmount')
       .callsFake(() => Promise.resolve({ CollectiveId: 7, currency: 'USD', value: 200 }));
     sandbox.stub(stripe.issuing.authorizations, 'approve').callsFake(() =>
       Promise.resolve({
@@ -74,13 +73,17 @@ describe('server/paymentProviders/stripe/virtual-cards', () => {
       /* eslint-enable camelcase */
       created: new Date().getTime() / 1000,
     };
-    const stripeEvent = {};
-    const expense = await processAuthorization(stripeAuthorization, stripeEvent);
+    const stripeEvent = {
+      data: {
+        object: stripeAuthorization,
+      },
+    };
+    const expense = await processAuthorization(stripeEvent);
     await testUtils.waitForCondition(() => sendMessage.callCount === 1);
     const [emailTo, subject, body] = sendMessage.getCall(0).args;
     expect(emailTo).to.equal(collectiveAdmin.email);
     expect(subject).to.equal('Virtual Card Purchase');
     expect(body).to.contain('A card attached to Open Collective was charged $1.00.');
-    expect(body).to.contain(`<a href="${config.host.website}/${collective.slug}/expenses/${expense.id}"`);
+    expect(body).to.contain(`<a href="${config.host.website}/${collective.slug}/expenses/${expense.id}?edit=1"`);
   });
 });

@@ -1,0 +1,33 @@
+Subject: Your {{{currency order.totalAmount
+currency=order.currency}}} {{order.type}} to {{collective.name}} failed
+
+{{> header}}
+
+{{> toplogo}}
+
+{{#if fromCollective.name}}
+<p>Hi {{fromCollective.name}},</p>
+{{else}}
+<p>Hi!</p>
+{{/if}}
+
+<p>We regret to inform you that your contribution to {{collective.name}} in the amount of {{currency order.totalAmount
+  currency=order.currency}}, made on {{moment order.createdAt}} failed.</p>
+
+{{#if reason}}
+<p>
+  Reason: {{reason}}.
+</p>
+{{/if}}
+
+<p>You're welcome to try and contribute again at <a
+    href="https://opencollective.com/{{collective.slug}}">https://opencollective.com/{{collective.slug}}</a>
+</p>
+
+<p>Thank you again for your support!</p>
+
+<p>
+  – {{collective.name}}
+</p>
+
+{{> footer}}
