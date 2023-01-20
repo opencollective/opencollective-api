@@ -24,6 +24,7 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
+  public declare lastUsedAt: CreationOptional<Date>;
 
   public declare user?: NonAttribute<User>;
   public declare client?: NonAttribute<typeof models.Application>;
