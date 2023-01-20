@@ -95,6 +95,9 @@ UserToken.init(
     deletedAt: {
       type: DataTypes.DATE,
     },
+    lastUsedAt: {
+      type: DataTypes.DATE,
+    },
   },
   {
     sequelize,
