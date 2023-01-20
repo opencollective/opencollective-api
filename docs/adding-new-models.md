@@ -28,15 +28,18 @@ module.exports = {
       },
       // Standard temporal fields
       createdAt: {
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.NOW,
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
       },
       updatedAt: {
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.NOW,
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
       },
       deletedAt: {
         type: Sequelize.DATE,
+        allowNull: true,
       },
     });
   },
@@ -81,10 +84,12 @@ MyTable.init(
     // Standard temporal fields
     createdAt: {
       type: DataTypes.DATE,
+      allowNull: false,
       defaultValue: DataTypes.NOW,
     },
     updatedAt: {
       type: DataTypes.DATE,
+      allowNull: false,
       defaultValue: DataTypes.NOW,
     },
     deletedAt: {

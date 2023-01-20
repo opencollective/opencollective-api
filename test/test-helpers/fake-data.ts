@@ -6,6 +6,7 @@
 // This lib is a superset of `utils.data` that generates values that are random and safe
 // to use in loops and repeated tests.
 
+import config from 'config';
 import { get, padStart, sample } from 'lodash';
 import moment from 'moment';
 import type { CreateOptions } from 'sequelize';
@@ -34,6 +35,7 @@ export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);
 export const multiple = (fn, n, args) => Promise.all([...Array(n).keys()].map(() => fn(args)));
+export const fakeOpenCollectiveS3URL = () => `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/${randStr()}`;
 
 const randStrOfLength = length =>
   Math.round(Math.pow(36, length + 1) - Math.random() * Math.pow(36, length))

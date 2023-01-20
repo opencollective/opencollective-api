@@ -34,6 +34,7 @@ import Tier from './Tier';
 import Transaction from './Transaction';
 import TransactionSettlement from './TransactionSettlement';
 import Update from './Update';
+import UploadedFile from './UploadedFile';
 import User from './User';
 import UserToken from './UserToken';
 import VirtualCard from './VirtualCard';
@@ -74,6 +75,7 @@ const models = {
   Transaction: Transaction,
   TransactionSettlement: TransactionSettlement,
   Update: Update,
+  UploadedFile: UploadedFile,
   User: User,
   UserToken: UserToken,
   VirtualCard: VirtualCard,
@@ -369,6 +371,9 @@ models.Update.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'co
 models.Update.belongsTo(models.Collective, { foreignKey: 'FromCollectiveId', as: 'fromCollective' });
 models.Update.belongsTo(models.Tier, { foreignKey: 'TierId', as: 'tier' });
 models.Update.belongsTo(models.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
+
+// Uploaded files
+models.UploadedFile.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'user' });
 
 // VirtualCard
 models.VirtualCard.belongsTo(models.Collective, {

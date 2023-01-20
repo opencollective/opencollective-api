@@ -201,6 +201,7 @@ const userFieldsConfig = {
   transactions: { model: models.Transaction, field: 'CreatedByUserId' },
   updates: { model: models.Update, field: 'CreatedByUserId' },
   userTokens: { model: models.UserToken, field: 'UserId' },
+  uploadedFiles: { model: models.UploadedFile, field: 'CreatedByUserId' },
   virtualCards: { model: models.VirtualCard, field: 'UserId' },
 };
 
