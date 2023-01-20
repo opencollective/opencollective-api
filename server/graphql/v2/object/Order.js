@@ -12,7 +12,6 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
-import { getFxRate } from '../../../lib/currency';
 import models from '../../../models';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
 import { ContributionFrequency, OrderStatus } from '../enum';
@@ -252,7 +251,10 @@ export const Order = new GraphQLObjectType({
           const hostCollectiveId = collective?.HostCollectiveId;
           if (hostCollectiveId) {
             const host = await loaders.Collective.byId.load(hostCollectiveId);
-            return await getFxRate(order.currency, host.currency);
+            return loaders.CurrencyExchangeRate.fxRate.load({
+              fromCurrency: order.currency,
+              toCurrency: host.currency,
+            });
           } else {
             return null;
           }

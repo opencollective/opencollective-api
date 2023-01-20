@@ -876,6 +876,11 @@ type Order {
   memo: String
 
   """
+  The FX rate used to convert the amount to the host currency
+  """
+  hostCurrencyFxRate: Float
+
+  """
   Date the funds were received.
   """
   processedAt: DateTime
