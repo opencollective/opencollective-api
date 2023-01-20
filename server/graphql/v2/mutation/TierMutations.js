@@ -46,24 +46,24 @@ const tierMutations = {
         args.tier.minimumAmount = null;
       }
 
-      const updatedTier = await tier.update({
+      const tierUpdateData = {
         ...args.tier,
         id: tierId,
         amount: getValueInCentsFromAmountInput(args.tier.amount),
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
-      });
+      };
 
       if (args.tier.singleTicket !== undefined) {
-        updatedTier.data = { ...tier.data, singleTicket: args.tier.singleTicket };
+        tierUpdateData.data = { ...tier.data, singleTicket: args.tier.singleTicket };
       }
 
       // Purge cache
       purgeCacheForCollective(collective.slug);
       purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
 
-      return updatedTier;
+      return await tier.update(tierUpdateData);
     },
   },
   createTier: {
@@ -94,7 +94,7 @@ const tierMutations = {
         args.tier.minimumAmount = null;
       }
 
-      const tier = await models.Tier.create({
+      const tierCreateData = {
         ...args.tier,
         CollectiveId: account.id,
         currency: account.currency,
@@ -102,16 +102,16 @@ const tierMutations = {
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
-      });
+      };
 
       if (args.tier.singleTicket !== undefined) {
-        tier.data = { singleTicket: args.tier.singleTicket };
+        tierCreateData.data = { singleTicket: args.tier.singleTicket };
       }
 
       // Purge cache
       purgeCacheForCollective(account.slug);
 
-      return tier;
+      return await models.Tier.create(tierCreateData);
     },
   },
   deleteTier: {

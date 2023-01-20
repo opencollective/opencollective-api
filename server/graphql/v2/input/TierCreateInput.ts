@@ -52,5 +52,8 @@ export const TierCreateInput = new GraphQLInputObjectType({
     useStandalonePage: {
       type: GraphQLBoolean,
     },
+    singleTicket: {
+      type: GraphQLBoolean,
+    },
   }),
 });

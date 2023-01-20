@@ -15184,6 +15184,7 @@ input TierUpdateInput {
   maxQuantity: Int
   minimumAmount: AmountInput
   useStandalonePage: Boolean
+  invoiceTemplate: String
   singleTicket: Boolean
 }
 
@@ -15200,6 +15201,7 @@ input TierCreateInput {
   maxQuantity: Int
   minimumAmount: AmountInput
   useStandalonePage: Boolean
+  singleTicket: Boolean
 }
 
 """
