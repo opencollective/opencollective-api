@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import debugLib from 'debug';
 import slugify from 'limax';
-import { defaults, min } from 'lodash';
+import { defaults, isNil, min, uniq } from 'lodash';
 import { CreationOptional, InferAttributes, InferCreationAttributes, NonAttribute } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
@@ -366,21 +366,22 @@ Tier.init(
       allowNull: true,
       validate: {
         min: 0,
-        validateFixedAmount(value) {
-          if (this.type !== 'TICKET' && this.amountType === 'FIXED' && (value === null || value === undefined)) {
-            throw new Error(`In ${this.name}'s tier, "Amount" is required`);
-          }
-        },
-        validateFlexibleAmount(value) {
-          if (this.amountType === 'FLEXIBLE' && this.presets && this.presets.indexOf(value) === -1) {
-            throw new Error(`In ${this.name}'s tier, "Default amount" must be one of suggested values amounts`);
-          }
-        },
       },
     },
 
     presets: {
       type: DataTypes.ARRAY(DataTypes.INTEGER),
+      allowNull: true,
+      set(presets: number[] | null) {
+        if (!Array.isArray(presets)) {
+          this.setDataValue('presets', null);
+        } else {
+          this.setDataValue(
+            'presets',
+            uniq(presets).sort((a, b) => a - b),
+          );
+        }
+      },
     },
 
     amountType: {
@@ -393,12 +394,6 @@ Tier.init(
       type: DataTypes.INTEGER,
       validate: {
         min: 0,
-        isValidMinAmount(value) {
-          const minPreset = this.presets ? Math.min(...this.presets) : null;
-          if (this.amountType === 'FLEXIBLE' && value && minPreset < value) {
-            throw new Error(`In ${this.name}'s tier, minimum amount cannot be less than minimum suggested amounts`);
-          }
-        },
       },
     },
 
@@ -410,13 +405,6 @@ Tier.init(
         isIn: {
           args: [['month', 'year', 'flexible']],
           msg: 'Must be month, year or flexible',
-        },
-        isValidTier(value) {
-          if (this.amountType === 'FIXED' && value === 'flexible') {
-            throw new Error(
-              `In ${this.name}'s tier, "flexible" interval can not be selected with "fixed" amount type.`,
-            );
-          }
         },
       },
     },
@@ -470,6 +458,29 @@ Tier.init(
   {
     sequelize,
     paranoid: true,
+    validate: {
+      validateFixedAmount() {
+        if (this.type !== 'TICKET' && this.amountType === 'FIXED' && isNil(this.amount)) {
+          throw new Error(`In ${this.name}'s tier, "Amount" is required`);
+        }
+      },
+      validateFlexibleAmount() {
+        if (this.amountType === 'FLEXIBLE' && this.presets && !this.presets.includes(this.amount)) {
+          throw new Error(`In ${this.name}'s tier, "Default amount" must be one of suggested values amounts`);
+        }
+      },
+      validateMinAmount() {
+        const minPreset = this.presets ? Math.min(...this.presets) : null;
+        if (this.amountType === 'FLEXIBLE' && this.minAmount && minPreset < this.minAmount) {
+          throw new Error(`In ${this.name}'s tier, minimum amount cannot be less than minimum suggested amounts`);
+        }
+      },
+      validateInterval() {
+        if (this.amountType === 'FIXED' && this.interval === 'flexible') {
+          throw new Error(`In ${this.name}'s tier, "flexible" interval can not be selected with "fixed" amount type.`);
+        }
+      },
+    },
   },
 );
 
