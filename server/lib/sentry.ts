@@ -19,6 +19,7 @@ import { User } from '../models';
 
 import logger from './logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
+import * as utils from './utils';
 
 const getIntegrations = (expressApp = null): Integration[] => {
   const integrations: Integration[] = [new Sentry.Integrations.Http({ tracing: true })];
@@ -30,6 +31,26 @@ const getIntegrations = (expressApp = null): Integration[] => {
 
 export const initSentry = (expressApp = null) => {
   Sentry.init({
+    beforeSend(event) {
+      try {
+        const reqBody = JSON.parse(event.request.data);
+        event.request.data = utils.redactSensitiveFields(reqBody);
+      } catch (e) {
+        // request data is not a json
+      }
+
+      return event;
+    },
+    beforeSendTransaction(event) {
+      try {
+        const reqBody = JSON.parse(event.request.data);
+        event.request.data = utils.redactSensitiveFields(reqBody);
+      } catch (e) {
+        // request data is not a json
+      }
+
+      return event;
+    },
     dsn: config.sentry.dsn,
     environment: config.env,
     attachStacktrace: true,
