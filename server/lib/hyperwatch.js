@@ -4,7 +4,7 @@ import expressBasicAuth from 'express-basic-auth';
 import expressWs from 'express-ws';
 import { get, pick } from 'lodash';
 
-import { md5, parseToBoolean } from './utils';
+import { md5, parseToBoolean, redactSensitiveFields } from './utils';
 
 const computeMask = req => {
   const maskHeaders = pick(req.headers, [
@@ -74,7 +74,8 @@ const load = async app => {
         log = log.deleteIn(['request', 'headers', 'cookie']);
 
         if (req.body && req.body.query && req.body.variables) {
-          log = log.set('graphql', req.body);
+          const bodyStr = redactSensitiveFields(req.body);
+          log = log.set('graphql', JSON.parse(bodyStr));
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
           }
