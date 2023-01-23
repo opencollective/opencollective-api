@@ -291,7 +291,7 @@ type UserDetails {
   hasTwoFactorAuth: Boolean
 
   """
-  Has the account a password set? For authenticated user: scope: "account".
+  Has the account a password set?
   """
   hasPassword: Boolean
   isRoot: Boolean!

@@ -37,6 +37,7 @@ export const IDENTIFIER_TYPES = {
   USER_TOKEN: 'user-token',
   NOTIFICATION: 'notification',
   PERSONAL_TOKEN: 'personal-token',
+  UPLOADED_FILE: 'uploaded-file',
 };
 
 const getDefaultInstance = type => {
