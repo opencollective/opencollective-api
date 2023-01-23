@@ -78,6 +78,7 @@
     "express-limiter": "1.6.1",
     "express-session": "1.17.3",
     "express-ws": "5.0.2",
+    "fast-redact": "3.1.2",
     "fs-extra": "11.1.1",
     "get-urls": "10.0.1",
     "gqlmin": "0.1.1",
