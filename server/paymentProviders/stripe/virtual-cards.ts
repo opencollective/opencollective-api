@@ -210,7 +210,6 @@ export const processAuthorization = async (event: Stripe.Event) => {
     });
 
     const user = virtualCard.user;
-    const responsibleAdmin = await models.Collective.findByPk(user.CollectiveId);
 
     await models.Activity.create({
       type: activities.VIRTUAL_CARD_PURCHASE,
@@ -219,7 +218,6 @@ export const processAuthorization = async (event: Stripe.Event) => {
       ExpenseId: expense.id,
       data: {
         VirtualCardId: virtualCard.id,
-        responsibleAdmin: responsibleAdmin.activity,
         collective: collective.activity,
         expense: expense.info,
         amount,

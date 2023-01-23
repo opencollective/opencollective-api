@@ -1,3 +1,4 @@
+import assert from 'assert';
 import crypto from 'crypto';
 
 import { isMemberOfTheEuropeanUnion } from '@opencollective/taxes';
@@ -11,7 +12,9 @@ import activities from '../../constants/activities';
 import status from '../../constants/expense_status';
 import { TransferwiseError } from '../../graphql/errors';
 import cache from '../../lib/cache';
+import { getFxRate } from '../../lib/currency';
 import logger from '../../lib/logger';
+import { centsAmountToFloat } from '../../lib/math';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
 import models, { sequelize } from '../../models';
@@ -59,10 +62,13 @@ async function getTemporaryQuote(
   payoutMethod: PayoutMethod,
   expense: Expense,
 ): Promise<QuoteV2> {
+  expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  expense.host = expense.host || (await expense.collective.getHostCollective());
+  const rate = await getFxRate(expense.currency, expense.host.currency);
   return await transferwise.getTemporaryQuote(connectedAccount, {
-    sourceCurrency: expense.currency,
+    sourceCurrency: expense.host.currency,
     targetCurrency: <string>payoutMethod.unfilteredData.currency,
-    sourceAmount: expense.amount / 100,
+    sourceAmount: centsAmountToFloat(expense.amount * rate),
   });
 }
 
@@ -96,31 +102,46 @@ async function quoteExpense(
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
+  expense.host = expense.host || (await expense.collective.getHostCollective());
   const hasMultiCurrency = expense.currency !== expense.collective.currency;
+  const targetCurrency = payoutMethod.unfilteredData.currency as string;
   const quoteParams = {
     profileId: connectedAccount.data.id,
-    sourceCurrency: expense.collective.currency,
-    targetCurrency: <string>payoutMethod.unfilteredData.currency,
+    sourceCurrency: expense.host.currency,
+    targetCurrency,
     targetAccount,
   };
 
-  // Adapt the fees payer
-  if (expense.feesPayer === 'PAYEE') {
-    // We assume that expense.currency is always collective.currency
-    quoteParams['sourceAmount'] = expense.amount / 100;
-    if (hasMultiCurrency) {
-      throw new Error('Putting the fees on the payee is not yet supported for multi-currency expenses');
-    }
-  } else {
-    // Guarantees the target amount if in the same currency of expense
-    const { rate } = await getTemporaryQuote(connectedAccount, payoutMethod, expense);
-    quoteParams['targetAmount'] = (expense.amount / 100) * rate;
-  }
-
-  // Adapt for multi-currency
   if (hasMultiCurrency) {
+    assert(
+      expense.collective.currency === expense.host.currency,
+      'For multi-currency expenses, the host currency must be the same as the collective currency',
+    );
+    assert(
+      expense.currency === payoutMethod.unfilteredData.currency,
+      'For multi-currency expenses, the payout currency must be the same as the expense currency',
+    );
     quoteParams['targetCurrency'] = expense.currency;
     quoteParams['targetAmount'] = expense.amount / 100;
+  } else if (expense.feesPayer === 'PAYEE') {
+    // Using "else if" because customizing the fee payer is not allowed for multi-currency expenses. See `getCanCustomizeFeesPayer`.
+    assert(
+      expense.host.currency === expense.currency,
+      'For expenses where fees are covered by the payee, the host currency must be the same as the expense currency',
+    );
+    quoteParams['sourceAmount'] = expense.amount / 100;
+  } else {
+    let rate = 1;
+    if (targetCurrency !== expense.host.currency) {
+      const [exchangeRate] = await transferwise.getExchangeRates(
+        connectedAccount,
+        expense.host.currency,
+        targetCurrency,
+      );
+      assert(exchangeRate, `No exchange rate found for ${expense.host.currency} -> ${targetCurrency}`);
+      rate = exchangeRate.rate;
+    }
+    quoteParams['targetAmount'] = centsAmountToFloat(expense.amount * rate);
   }
 
   const quote = await transferwise.createQuote(connectedAccount, quoteParams);

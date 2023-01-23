@@ -90,7 +90,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       type: 'INVOICE',
       description: 'January Invoice',
       data: {
-        transfer: { id: event.data.resource.id },
+        transfer: { id: event.data.resource.id, sourceValue: 100 },
         quote: { fee: 1, rate: 1 },
         feesInHostCurrency: {
           hostFeeInHostCurrency: 1,

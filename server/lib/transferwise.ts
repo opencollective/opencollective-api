@@ -20,6 +20,7 @@ import {
   BalanceV4,
   BatchGroup,
   CurrencyPair,
+  ExchangeRate,
   Profile,
   QuoteV2,
   RecipientAccount,
@@ -398,6 +399,19 @@ export const getAccountRequirements = async (
       params,
     },
     'There was an error while fetching account requirements for Wise',
+  );
+};
+
+export const getExchangeRates = async (
+  connectedAccount: ConnectedAccount,
+  source: string,
+  target: string,
+): Promise<Array<ExchangeRate>> => {
+  return requestDataAndThrowParsedError(
+    axios.get,
+    `/v1/rates?source=${source}&target=${target}`,
+    { connectedAccount },
+    'There was an error while fetching exchange rates from Wise',
   );
 };
 

@@ -2675,7 +2675,9 @@ Collective.prototype.editTiers = function (tiers) {
         oldTiers.map(t => t.id),
         tiers.map(t => t.id),
       );
-      return models.Tier.update({ deletedAt: new Date() }, { where: { id: { [Op.in]: diff } } });
+      if (diff.length > 0) {
+        return models.Tier.destroy({ where: { id: { [Op.in]: diff } } });
+      }
     })
     .then(() => {
       return Promise.map(tiers, tier => {

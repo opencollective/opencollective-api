@@ -1,0 +1,65 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`refundTransaction legacy tests Stripe Transaction - for hosts created after September 17th 2017 should be able to refund a stripe transaction with zero decimal currencies 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount  | paymentFee | platformFee | tax   | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------- | ---------- | ----------- | ----- | ----------------------------- |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -50000  | 0          | 0           |       | -50000                        |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 50000   | 0          | 0           |       | 50000                         |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -450000 | -17500     | -25000      | -7500 | -500000                       |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 500000  | -17500     | -25000      | -7500 | 450000                        |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -17500  | 0          | 0           |       | -17500                        |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 17500   | 0          | 0           |       | 17500                         |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -50000  | 0          | 0           | 0     | -50000                        |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 50000   | 0          | 0           | 0     | 50000                         |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -500000 | 0          | 25000       | 7500  | -467500                       |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 467500  | 0          | 25000       | 7500  | 500000                        |"
+`;
+
+exports[`refundTransaction legacy tests Stripe Transaction - for hosts created after September 17th 2017 should create negative transactions without the stripe fee being refunded 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount  | paymentFee | platformFee | tax   | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------- | ---------- | ----------- | ----- | ----------------------------- |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -50000  | 0          | 0           |       | -50000                        |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 50000   | 0          | 0           |       | 50000                         |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -450000 | -17500     | -25000      | -7500 | -500000                       |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 500000  | -17500     | -25000      | -7500 | 450000                        |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -17500  | 0          | 0           |       | -17500                        |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 17500   | 0          | 0           |       | 17500                         |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -50000  | 0          | 0           | 0     | -50000                        |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 50000   | 0          | 0           | 0     | 50000                         |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -500000 | 0          | 25000       | 7500  | -467500                       |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 467500  | 0          | 25000       | 7500  | 500000                        |"
+`;
+
+exports[`refundTransaction legacy tests Stripe Transaction - for hosts created before September 17th 2017 should create negative transactions with all the fees refunded 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount  | paymentFee | platformFee | tax   | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------- | ---------- | ----------- | ----- | ----------------------------- |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -50000  | 0          | 0           |       | -50000                        |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 50000   | 0          | 0           |       | 50000                         |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -450000 | -17500     | -25000      | -7500 | -500000                       |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 500000  | -17500     | -25000      | -7500 | 450000                        |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -17500  | 0          | 0           |       | -17500                        |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 17500   | 0          | 0           |       | 17500                         |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -50000  | 0          | 0           | 0     | -50000                        |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 50000   | 0          | 0           | 0     | 50000                         |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -500000 | 0          | 25000       | 7500  | -467500                       |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 467500  | 0          | 25000       | 7500  | 500000                        |"
+`;
+
+exports[`refundTransaction legacy tests should create negative transactions with all the fees refunded 1`] = `
+"
+| type   | kind                    | isRefund | To             | From           | amount  | paymentFee | platformFee | tax   | netAmountInCollectiveCurrency |
+| ------ | ----------------------- | -------- | -------------- | -------------- | ------- | ---------- | ----------- | ----- | ----------------------------- |
+| DEBIT  | HOST_FEE                | false    | Scouts d'Arlon | WWCode         | -50000  | 0          | 0           |       | -50000                        |
+| CREDIT | HOST_FEE                | false    | WWCode         | Scouts d'Arlon | 50000   | 0          | 0           |       | 50000                         |
+| DEBIT  | CONTRIBUTION            | false    | Phil Mod       | Scouts d'Arlon | -450000 | -17500     | -25000      | -7500 | -500000                       |
+| CREDIT | CONTRIBUTION            | false    | Scouts d'Arlon | Phil Mod       | 500000  | -17500     | -25000      | -7500 | 450000                        |
+| DEBIT  | PAYMENT_PROCESSOR_COVER | true     | WWCode         | Scouts d'Arlon | -17500  | 0          | 0           |       | -17500                        |
+| CREDIT | PAYMENT_PROCESSOR_COVER | true     | Scouts d'Arlon | WWCode         | 17500   | 0          | 0           |       | 17500                         |
+| DEBIT  | HOST_FEE                | true     | WWCode         | Scouts d'Arlon | -50000  | 0          | 0           | 0     | -50000                        |
+| CREDIT | HOST_FEE                | true     | Scouts d'Arlon | WWCode         | 50000   | 0          | 0           | 0     | 50000                         |
+| DEBIT  | CONTRIBUTION            | true     | Scouts d'Arlon | Phil Mod       | -500000 | 0          | 25000       | 7500  | -467500                       |
+| CREDIT | CONTRIBUTION            | true     | Phil Mod       | Scouts d'Arlon | 467500  | 0          | 25000       | 7500  | 500000                        |"
+`;

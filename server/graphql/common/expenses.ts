@@ -1611,8 +1611,10 @@ export const getWiseFxRateInfoFromExpenseData = (
 
   const wiseInfo: WiseTransfer | WiseQuote | WiseQuoteV2 = expense.data?.transfer || expense.data?.quote;
   if (wiseInfo?.rate) {
+    // In this context, the source currency is always the Host currency and the target currency is the Payee currency
     const wiseSourceCurrency = wiseInfo['sourceCurrency'] || wiseInfo['source'];
     const wiseTargetCurrency = wiseInfo['targetCurrency'] || wiseInfo['target'];
+    // This makes the fxRate be the rate for Host -> Payee
     const fxRate = matchFxRateWithCurrency(
       expectedSourceCurrency,
       expectedTargetCurrency,
@@ -1714,19 +1716,30 @@ export const getExpenseFees = async (
     if (!connectedAccount) {
       throw new Error('Host is not connected to Transferwise');
     }
-    const quote = useExistingWiseData
-      ? expense.data.quote
-      : await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
-    const paymentOption = useExistingWiseData
-      ? expense.data.paymentOption
-      : quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
-    if (!paymentOption) {
-      throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+
+    const existingQuote = expense.data?.quote;
+    const existingPaymentOption = existingQuote?.paymentOption;
+    if (
+      useExistingWiseData &&
+      existingQuote &&
+      existingQuote.sourceCurrency === host.currency &&
+      existingQuote.targetCurrency === payoutMethod.unfilteredData.currency &&
+      existingPaymentOption
+    ) {
+      resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+        existingPaymentOption.fee.total / collectiveToHostFxRate,
+      );
+    } else {
+      const quote = await paymentProviders.transferwise.getTemporaryQuote(connectedAccount, payoutMethod, expense);
+      const paymentOption = quote.paymentOptions.find(p => p.payIn === 'BALANCE' && p.payOut === quote.payOut);
+      if (!paymentOption) {
+        throw new BadRequest(`Could not find available payment option for this transaction.`, null, quote);
+      }
+      // Quote is always in host currency
+      resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
+        paymentOption.fee.total / collectiveToHostFxRate,
+      );
     }
-    // Notice this is the FX rate between Host and Collective, that's why we use `collectiveToHostFxRate`.
-    resultFees['paymentProcessorFeeInCollectiveCurrency'] = floatAmountToCents(
-      paymentOption.fee.total / collectiveToHostFxRate,
-    );
   } else if (payoutMethodType === PayoutMethodTypes.PAYPAL) {
     resultFees['paymentProcessorFeeInCollectiveCurrency'] = await paymentProviders.paypal.types['adaptive'].fees({
       amount: expense.amount,
@@ -1896,10 +1909,10 @@ export const checkHasBalanceToPayExpense = async (
 
 type PayExpenseArgs = {
   id: number;
-  forceManual: boolean;
+  forceManual?: boolean;
   feesPayer?: 'COLLECTIVE' | 'PAYEE'; // Defaults to COLLECTIVE
   paymentProcessorFeeInHostCurrency?: number; // Defaults to 0
-  totalAmountPaidInHostCurrency: number;
+  totalAmountPaidInHostCurrency?: number;
 };
 
 /**

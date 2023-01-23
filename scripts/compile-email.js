@@ -81,6 +81,17 @@ data['collective.expense.missing.receipt'] = {
     viewLatestExpenses: 'https://opencollective.com/wwcodeaustin/expenses',
   },
 };
+data['virtualcard.purchase'] = {
+  amount: 1250,
+  currency: 'USD',
+  collective: {
+    slug: 'wwcodeaustin',
+    name: 'Women Who Code Austin',
+  },
+  expense: {
+    id: 25229,
+  },
+};
 data['user.card.claimed'] = {
   currency: 'USD',
   initialBalance: 10000,

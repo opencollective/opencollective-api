@@ -45,17 +45,6 @@ const Comment = new GraphQLObjectType({
           }
         },
       },
-      // Deprecated
-      fromCollective: {
-        type: Account,
-        resolve: fromCollectiveResolver,
-        deprecationReason: '2020-02-25: Please use fromAccount',
-      },
-      collective: {
-        type: Account,
-        resolve: collectiveResolver,
-        deprecationReason: '2020-02-25: Please use account',
-      },
     };
   },
 });
