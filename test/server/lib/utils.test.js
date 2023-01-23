@@ -1,8 +1,22 @@
 import { assert } from 'chai';
 
-import { exportToPDF } from '../../../server/lib/utils';
+import { exportToPDF, redactSensitiveFields } from '../../../server/lib/utils';
 
 describe('server/lib/utils', () => {
+  it('redacts sensitive fields', () => {
+    assert.equal(
+      redactSensitiveFields({
+        password: 'password',
+        newPassword: 'newPassword',
+        variables: {
+          password: 'password',
+          newPassword: 'newPassword',
+        },
+      }),
+      '{"password":"[REDACTED]","newPassword":"[REDACTED]","variables":{"password":"[REDACTED]","newPassword":"[REDACTED]"}}',
+    );
+  });
+
   it('exports PDF', done => {
     const data = {
       host: {
