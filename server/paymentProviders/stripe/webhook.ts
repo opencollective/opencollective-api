@@ -113,6 +113,8 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
+  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
+
   // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
   // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
   const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
@@ -123,8 +125,6 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   if (order.interval && !order.SubscriptionId) {
     await createSubscription(order);
   }
-
-  await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
   await order.update({
     status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
