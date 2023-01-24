@@ -58,11 +58,11 @@ const individualMutations = {
       // Check current password if one already set
       if (req.remoteUser.passwordHash) {
         if (!args.currentPassword) {
-          throw new Unauthorized('Submit currentPassword to change password.');
+          throw new Unauthorized('Submit current password to change password.');
         }
         const validPassword = await bcrypt.compare(args.currentPassword, req.remoteUser.passwordHash);
         if (!validPassword) {
-          return new Unauthorized('Invalid currentPassword while attempting to change password.');
+          return new Unauthorized('Invalid current password while attempting to change password.');
         }
       }
 
