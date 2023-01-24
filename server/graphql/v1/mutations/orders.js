@@ -352,6 +352,15 @@ export async function createOrder(order, req) {
     }
 
     if (tier) {
+      if (tier.data?.singleTicket) {
+        const ticket = await models.Order.findOne({
+          where: { TierId: tier.id, FromCollectiveId: order.fromCollective?.id },
+        });
+        if (order.quantity > 1 || ticket) {
+          throw new Error('Cannot order more than 1 ticket per account');
+        }
+      }
+
       const enoughQuantityAvailable = await tier.checkAvailableQuantity(order.quantity);
       if (!enoughQuantityAvailable) {
         throw new Error(`No more tickets left for ${tier.name}`);

@@ -56,5 +56,11 @@ export const TierUpdateInput = new GraphQLInputObjectType({
     useStandalonePage: {
       type: GraphQLBoolean,
     },
+    invoiceTemplate: {
+      type: GraphQLString,
+    },
+    singleTicket: {
+      type: GraphQLBoolean,
+    },
   }),
 });
