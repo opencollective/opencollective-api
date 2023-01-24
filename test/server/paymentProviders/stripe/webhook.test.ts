@@ -591,4 +591,88 @@ describe('webhook', () => {
       });
     });
   });
+
+  describe('mandate.updated', () => {
+    it('saves mandate to payment method', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+      const paymentMethod = await fakePaymentMethod({
+        type: 'sepa_debit',
+        service: 'stripe',
+        saved: true,
+        data: {
+          stripePaymentMethodId,
+        },
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      await paymentMethod.reload();
+
+      expect(paymentMethod.data.stripeMandate).to.eql({
+        id: 'mandate_1234',
+        type: 'multi_use',
+        status: 'active',
+        payment_method: stripePaymentMethodId,
+      });
+    });
+
+    it('updates mandate to inactive', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+      const paymentMethod = await fakePaymentMethod({
+        type: 'sepa_debit',
+        service: 'stripe',
+        saved: true,
+        data: {
+          stripePaymentMethodId,
+          stripeMandate: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          },
+        },
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'inactive',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      await paymentMethod.reload();
+
+      expect(paymentMethod.data.stripeMandate.status).to.equal('inactive');
+      expect(paymentMethod.saved).to.be.false;
+    });
+  });
 });

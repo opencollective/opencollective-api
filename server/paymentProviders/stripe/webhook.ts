@@ -92,6 +92,35 @@ async function createOrUpdateOrderStripePaymentMethod(
   return pm;
 }
 
+export const mandateUpdated = async (event: Stripe.Event) => {
+  const stripeMandate = event.data.object as Stripe.Mandate;
+
+  const stripePaymentMethodId =
+    typeof stripeMandate.payment_method === 'string' ? stripeMandate.payment_method : stripeMandate.payment_method.id;
+
+  const paymentMethod = await models.PaymentMethod.findOne({
+    where: {
+      data: {
+        stripePaymentMethodId,
+      },
+    },
+  });
+
+  if (!paymentMethod) {
+    return;
+  }
+
+  await paymentMethod.update({
+    saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+    data: {
+      ...paymentMethod.data,
+      stripeMandate,
+    },
+  });
+
+  return;
+};
+
 export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
 
@@ -750,6 +779,8 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       return paymentIntentFailed(event);
     case 'payment_method.attached':
       return paymentMethodAttached(event);
+    case 'mandate.updated':
+      return mandateUpdated(event);
     default:
       // console.log(JSON.stringify(event, null, 4));
       logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
