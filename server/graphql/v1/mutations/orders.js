@@ -435,38 +435,38 @@ export async function createOrder(order, req) {
     }
 
     // ---- Checks on totalAmount ----
-    if (order.totalAmount < 0) {
-      throw new Error('Total amount cannot be a negative value');
+    if (order.totalAmount < 0 || isNil(order.totalAmount)) {
+      throw new Error(`Invalid total amount: ${order.totalAmount}`);
     }
-    // Don't allow custom values if using a tier with fixed amount
-    if (tier && tier.amount && !tier.presets) {
-      // Manually force the totalAmount if it has not been passed
-      if (isNil(order.totalAmount)) {
-        order.totalAmount = Math.round(order.quantity * tier.amount * (1 + taxPercent / 100));
-      }
 
+    // No advanced amount checks necessary for pledged collectives
+    if (!collective.isPledged) {
+      const platformFee = order.platformFee || 0;
       const tipAmount = order.platformTipAmount || 0;
-      const netAmountForCollective = order.totalAmount - order.taxAmount - (order.platformFee || 0) - tipAmount;
-      const expectedAmountForCollective = order.quantity * tier.amount;
+      const expectedGrossUnitAmount = tier?.amountType === 'FIXED' ? tier.amount || 0 : order.amount;
+      const netAmountForCollective = Math.round(order.totalAmount - order.taxAmount - platformFee - tipAmount);
+      const expectedAmountForCollective = Math.round(order.quantity * expectedGrossUnitAmount); // order.amount is always set when called from GraphQL v2
       const expectedTaxAmount = Math.round((expectedAmountForCollective * taxPercent) / 100);
+
+      // Make sure net amount and tax amount are correct
       if (netAmountForCollective !== expectedAmountForCollective || order.taxAmount !== expectedTaxAmount) {
         const prettyTotalAmount = formatCurrency(order.totalAmount, currency, 2);
         const prettyExpectedAmount = formatCurrency(expectedAmountForCollective, currency, 2);
         const taxInfoStr = expectedTaxAmount ? ` + ${formatCurrency(expectedTaxAmount, currency, 2)} tax` : '';
-        const platformFeeInfo = order.platformFee ? ` + ${formatCurrency(order.platformFee, currency, 2)} fees` : '';
+        const platformFeeInfo = platformFee ? ` + ${formatCurrency(platformFee, currency, 2)} fees` : '';
         throw new Error(
           `This tier uses a fixed amount. Order total must be ${prettyExpectedAmount}${taxInfoStr}${platformFeeInfo}. You set: ${prettyTotalAmount}`,
         );
       }
-    }
 
-    // If using a tier, amount can never be less than the minimum amount
-    if (tier && tier.minimumAmount) {
-      const minAmount = tier.minimumAmount * order.quantity;
-      const minTotalAmount = taxPercent ? Math.round(minAmount * (1 + taxPercent / 100)) : minAmount;
-      if ((order.totalAmount || 0) < minTotalAmount) {
-        const prettyMinTotal = formatCurrency(minTotalAmount, currency);
-        throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
+      // If using a tier, amount can never be less than the minimum amount
+      if (tier && tier.minimumAmount) {
+        const minAmount = tier.minimumAmount * order.quantity;
+        const minTotalAmount = taxPercent ? Math.round(minAmount * (1 + taxPercent / 100)) : minAmount;
+        if ((order.totalAmount || 0) < minTotalAmount) {
+          const prettyMinTotal = formatCurrency(minTotalAmount, currency);
+          throw new Error(`The amount you set is below minimum tier value, it should be at least ${prettyMinTotal}`);
+        }
       }
     }
 
