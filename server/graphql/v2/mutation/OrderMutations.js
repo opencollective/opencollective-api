@@ -393,8 +393,8 @@ const orderMutations = {
 
           // Ensure amounts are provided with the right currency
           ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
-            if (!isNil(order[field])) {
-              assertAmountInputCurrency(order[field], order.currency, { name: field });
+            if (!isNil(args.order[field])) {
+              assertAmountInputCurrency(args.order[field], order.currency, { name: field });
             }
           });
 
