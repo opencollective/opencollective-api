@@ -17,9 +17,10 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../input/Accou
 import { Member } from '../object/Member';
 
 const isLastAdmin = async (account, memberAccount) => {
+  const CollectiveId = account.ParentCollectiveId ? [account.ParentCollectiveId, account.id] : account.id;
   const admins = await models.Member.findAll({
     where: {
-      CollectiveId: account.id,
+      CollectiveId,
       role: MemberRoles.ADMIN,
     },
   });
