@@ -51,13 +51,9 @@ export const exists = async (req, res) => {
 
 /**
  * Login or create a new user
- *
- * TODO: we are passing createProfile from frontend to specify if we need to
- * create a new account. In the future once signin.js is fully deprecated (replaced by signinV2.js)
- * this function should be refactored to remove createProfile.
  */
 export const signin = async (req, res, next) => {
-  const { redirect, websiteUrl, createProfile = true } = req.body;
+  const { redirect, websiteUrl, sendLink } = req.body;
   try {
     const rateLimit = new RateLimit(
       `user_signin_attempt_ip_${req.ip}`,
@@ -70,18 +66,16 @@ export const signin = async (req, res, next) => {
         error: { message: 'Rate limit exceeded' },
       });
     }
-    let user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
-    if (!user && !createProfile) {
+    const user = await models.User.findOne({ where: { email: req.body.user.email.toLowerCase() } });
+    if (!user) {
       return res.status(400).send({
         errorCode: 'EMAIL_DOES_NOT_EXIST',
         message: 'Email does not exist',
       });
-    } else if (!user && createProfile) {
-      user = await models.User.createUserWithCollective(req.body.user);
     }
 
     // If password set and not passed, challenge user with password
-    if (user.passwordHash) {
+    if (user.passwordHash && !sendLink) {
       if (!req.body.user.password) {
         return res.status(403).send({
           errorCode: 'PASSWORD_REQUIRED',
@@ -91,6 +85,7 @@ export const signin = async (req, res, next) => {
       const validPassword = await bcrypt.compare(req.body.user.password, user.passwordHash);
       if (!validPassword) {
         // Would be great to be consistent in the way we send errors
+        // This is what works best with Frontend today
         return res.status(401).send({
           error: { message: 'Invalid password' },
         });
