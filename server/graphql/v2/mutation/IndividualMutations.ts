@@ -4,10 +4,11 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import activities from '../../../constants/activities';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
-import { Unauthorized } from '../../errors';
+import { RateLimitExceeded, Unauthorized } from '../../errors';
 import { Individual } from '../object/Individual';
 
 const individualMutations = {
@@ -54,6 +55,11 @@ const individualMutations = {
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanUseAccount(req);
+
+      const rateLimit = new RateLimit(`individual_set_password_${req.remoteUser.id}`, 10, ONE_HOUR_IN_SECONDS, true);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
 
       // Check current password if one already set
       if (req.remoteUser.passwordHash) {
