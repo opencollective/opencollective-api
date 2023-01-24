@@ -74,6 +74,42 @@ describe('server/lib/webhooks', () => {
       expect(sanitized.data.fromCollective.slug).to.eq('cslug');
       expect(sanitized.data.user).to.not.exist;
     });
+
+    it('Sanitizes TICKET_CONFIRMED', () => {
+      const sanitized = sanitizeActivity({
+        type: activities.TICKET_CONFIRMED,
+        id: 42,
+        UserId: 7676,
+        data: {
+          recipient: {
+            name: 'Oratione Loremipsum',
+            legalName: 'George Carver',
+          },
+          tier: {
+            id: 11052,
+            name: 'Test for data',
+          },
+          order: {
+            id: 8989,
+            totalAmount: 1000,
+            currency: 'USD',
+            tags: ['atag', 'btag'],
+            TierId: 11052,
+            customData: { secret: 'Do not tell' },
+          },
+        },
+      });
+
+      expect(sanitized.id).to.eq(42);
+      expect(sanitized.data.order.id).to.eq(8989);
+      expect(sanitized.data.order.UserId).to.not.exist;
+      expect(sanitized.data.order.totalAmount).to.eq(1000);
+      expect(sanitized.data.order.tags).to.be.an('array');
+      expect(sanitized.data.order.tags).to.include('atag');
+      expect(sanitized.data.order.customData).to.not.exist;
+      expect(sanitized.data.recipient.name).to.eq('Oratione Loremipsum');
+      expect(sanitized.data.recipient.legalName).to.not.exist;
+    });
   });
 
   describe('enrichActivity', () => {
