@@ -217,6 +217,10 @@ const accountFieldsDefinition = () => ({
         type: new GraphQLList(AccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
+      includeInheritedMembers: {
+        type: GraphQLBoolean,
+        defaultValue: true,
+      },
     },
   },
   memberInvitations: {
