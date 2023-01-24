@@ -90,6 +90,16 @@ export const signin = async (req, res, next) => {
           error: { message: 'Invalid password' },
         });
       }
+      if (!parseToBoolean(config.database.readOnly)) {
+        await models.Activity.create({
+          // TODO: does it make sense or do we need a different event
+          type: activities.USER_NEW_TOKEN,
+          UserId: user.id,
+          FromCollectiveId: user.CollectiveId,
+          CollectiveId: user.CollectiveId,
+          data: { notify: false },
+        });
+      }
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
       if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
         // Send 2FA token, can only be used to get a long term token
