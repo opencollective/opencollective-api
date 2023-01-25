@@ -124,9 +124,13 @@ export default async function uploadImage(req, res, next) {
     Bucket: config.aws.s3.bucket,
     Key: `${kebabCase(kind)}/${uuid()}/${fileName || uuid()}`,
     Body: file.buffer,
-    ACL: 'public-read',
+    ACL: 'public-read', // We're aware of the security implications of this and will be looking for a better solution in https://github.com/opencollective/opencollective/issues/6351
     ContentLength: file.size,
     ContentType: file.mimetype,
+    Metadata: {
+      CreatedByUserId: `${req.remoteUser.id}`,
+      FileKind: kind,
+    },
   };
 
   req.setTimeout(IMAGE_UPLOAD_TIMEOUT);
