@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { isNil } from 'lodash';
 
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
@@ -270,7 +271,22 @@ const mutations = {
       },
     },
     async resolve(_, args, req) {
-      const { order } = await createOrder(args.order, req);
+      // On this legacy mutation, the `totalAmount` could be omitted when ordering for a fixed tier
+      if (isNil(args.order.totalAmount)) {
+        const tier = args.order.tier?.id && (await models.Tier.findByPk(args.order.tier.id));
+        if (!tier) {
+          throw new NotFound('A tier must be provided when totalAmount is not set');
+        } else if (isNil(tier.amount) || tier.presets) {
+          throw new Error('Cannot calculate totalAmount for a flexible tier');
+        }
+        args.order.totalAmount = Math.round((args.order.quantity || 1) * tier.amount + (args.order.taxAmount || 0));
+      }
+
+      // Pass the gross amount for a single item
+      const amount =
+        (args.order.totalAmount - (args.order.taxAmount || 0) - (args.order.platformFee || 0)) /
+        (args.order.quantity || 1);
+      const { order } = await createOrder({ ...args.order, amount }, req);
       return order;
     },
   },
