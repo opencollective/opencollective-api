@@ -31,7 +31,7 @@ export const HasMembersFields = {
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
       },
-      includeInheritedMembers: {
+      includeInherited: {
         type: GraphQLBoolean,
         defaultValue: true,
       },
@@ -56,7 +56,7 @@ export const HasMembersFields = {
       }
 
       // Inherit Accountants and Admin from parent collective for Events and Projects
-      if (args.includeInheritedMembers && [CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
+      if (args.includeInherited && [CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
         const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
         where = {
           [Op.or]: [

@@ -17,6 +17,8 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../input/Accou
 import { Member } from '../object/Member';
 
 const isLastAdmin = async (account, memberAccount) => {
+  // When checking if the member is the last admin for Minimum Amount of Admins policy,
+  // make sure we consider inherited admins, otherwise we won't be able to remove the event/project admin.
   const CollectiveId = account.ParentCollectiveId ? [account.ParentCollectiveId, account.id] : account.id;
   const admins = await models.Member.findAll({
     where: {
