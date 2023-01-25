@@ -69,7 +69,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  generateSessionToken = async function ({ sessionId } = {}) {
+  generateSessionToken = async function ({ sessionId = null } = {}) {
     if (!parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({
         type: activities.USER_SIGNIN,
