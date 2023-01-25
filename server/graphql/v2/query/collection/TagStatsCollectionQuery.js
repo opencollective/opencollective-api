@@ -27,7 +27,8 @@ const TagStatsCollectionQuery = {
   async resolve(_, args) {
     let hostCollectiveId;
     if (args.host) {
-      ({ id: hostCollectiveId } = await fetchAccountWithReference(args.host));
+      const host = await fetchAccountWithReference(args.host, { throwIfMissing: true });
+      hostCollectiveId = host.id;
     }
     const tagFrequencies = await getTagFrequencies({
       ...pick(args, ['searchTerm', 'tagSearchTerm', 'limit', 'offset']),
