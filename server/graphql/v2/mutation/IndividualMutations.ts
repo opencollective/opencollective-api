@@ -61,6 +61,10 @@ const individualMutations = {
         throw new RateLimitExceeded();
       }
 
+      // Enforce 2FA
+      const account = req.remoteUser.getCollective();
+      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
+
       // Check current password if one already set
       if (req.remoteUser.passwordHash) {
         if (!args.currentPassword) {
@@ -71,10 +75,6 @@ const individualMutations = {
           return new Unauthorized('Invalid current password while attempting to change password.');
         }
       }
-
-      // Enforce 2FA
-      const account = req.remoteUser.getCollective();
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
 
       // If we're there, it's a success, we can reset the rate limit count
       await rateLimit.reset();
