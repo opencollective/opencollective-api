@@ -496,9 +496,7 @@ describe('server/graphql/v1/mutation', () => {
           };
           const result = await utils.graphqlQuery(createOrderMutation, { order }, user2);
           expect(result.errors.length).to.equal(1);
-          expect(result.errors[0].message).to.equal(
-            `No tier found with tier id: 1002 for collective slug ${event1.slug}`,
-          );
+          expect(result.errors[0].message).to.equal(`A tier must be provided when totalAmount is not set`);
         });
       });
 

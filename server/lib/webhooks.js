@@ -47,6 +47,7 @@ const getOrderInfo = order => {
       'totalAmount',
       'currency',
       'description',
+      'tags',
       'interval',
       'createdAt',
       'quantity',

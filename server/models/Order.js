@@ -220,6 +220,7 @@ const Order = sequelize.define(
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           isGuest: Boolean(this.data?.isGuest),
+          tags: this.tags,
         };
       },
 
@@ -239,6 +240,7 @@ const Order = sequelize.define(
           quantity: this.quantity,
           createdAt: this.createdAt,
           isGuest: Boolean(this.data?.isGuest),
+          tags: this.tags,
         };
       },
     },
