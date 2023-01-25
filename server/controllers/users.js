@@ -90,16 +90,7 @@ export const signin = async (req, res, next) => {
           error: { message: 'Invalid password' },
         });
       }
-      if (!parseToBoolean(config.database.readOnly)) {
-        await models.Activity.create({
-          // TODO: does it make sense or do we need a different event
-          type: activities.USER_NEW_TOKEN,
-          UserId: user.id,
-          FromCollectiveId: user.CollectiveId,
-          CollectiveId: user.CollectiveId,
-          data: { notify: false },
-        });
-      }
+
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
       if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
         // Send 2FA token, can only be used to get a long term token
@@ -107,7 +98,7 @@ export const signin = async (req, res, next) => {
         res.send({ token });
       } else {
         // All good, no 2FA, send token
-        const token = user.jwt({}, auth.TOKEN_EXPIRATION_SESSION);
+        const token = await user.generateSessionToken();
         res.send({ token });
       }
       return;
@@ -164,7 +155,7 @@ export const updateToken = async (req, res) => {
     );
     res.send({ token });
   } else {
-    const token = req.remoteUser.jwt({ sessionId: req.jwtPayload?.sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
     res.send({ token });
   }
 };
@@ -220,6 +211,6 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
   }
 
-  const token = user.jwt({ sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+  const token = await user.generateSessionToken({ sessionId });
   res.send({ token: token });
 };
