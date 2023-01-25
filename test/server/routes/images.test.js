@@ -41,7 +41,6 @@ describe('server/routes/images', () => {
       .set('Authorization', `Bearer ${user.jwt()}`);
 
     expect(res.status).to.eq(200);
-    console.log(res.body.url);
     expect(res.body.url).to.contain('.png');
     expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/camera.png/);
     const fetchedFile = await fetch(res.body.url).then(res => res.text());
@@ -82,7 +81,6 @@ describe('server/routes/images', () => {
         .set('Authorization', `Bearer ${user.jwt()}`);
 
       expect(res.status).to.eq(200);
-      console.log(res.body.url);
       expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/authorized_keys.png/);
     });
   });
