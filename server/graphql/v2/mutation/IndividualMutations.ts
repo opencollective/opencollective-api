@@ -76,6 +76,9 @@ const individualMutations = {
       const account = req.remoteUser.getCollective();
       await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
 
+      // If we're there, it's a success, we can reset the rate limit count
+      await rateLimit.reset();
+
       // TODO: extract saltRounds in some configuration or shared library
       const passwordHash = await bcrypt.hash(args.password, /* saltRounds */ 10);
       const user = await req.remoteUser.update({ passwordHash });
