@@ -12,10 +12,12 @@ module.exports = {
       const sanitizedTags = sanitizeTags(collective.tags);
       // Check if sanitized tags are different from the current tags
       if (JSON.stringify(sanitizedTags) !== JSON.stringify(collective.tags)) {
-        console.log(`Updating tags for collective ${collective.id} from [${collective.tags}] to [${sanitizedTags}]`);
-        await queryInterface.sequelize.query(`UPDATE "Collectives" SET tags = :tags WHERE id = :id`, {
-          replacements: { tags: `{${sanitizedTags.join(',')}}`, id: collective.id },
-        });
+        await queryInterface.sequelize.query(
+          `UPDATE "Collectives" SET tags = ${sanitizedTags ? `'{${sanitizedTags.join(',')}}'` : 'NULL'} WHERE id = :id`,
+          {
+            replacements: { id: collective.id },
+          },
+        );
       }
     }
   },

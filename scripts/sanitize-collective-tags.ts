@@ -16,7 +16,6 @@ export const sanitizeAllCollectiveTags = async () => {
     const sanitizedTags = sanitizeTags(collective.tags);
     // Check if sanitized tags are different from the current tags
     if (JSON.stringify(sanitizedTags) !== JSON.stringify(collective.tags)) {
-      console.log(`Updating tags for collective ${collective.id} from [${collective.tags}] to [${sanitizedTags}]`);
       await models.Collective.update(
         {
           tags: sanitizedTags,
