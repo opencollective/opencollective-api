@@ -16,17 +16,26 @@ export const sanitizeAllCollectiveTags = async () => {
     const sanitizedTags = sanitizeTags(collective.tags);
     // Check if sanitized tags are different from the current tags
     if (JSON.stringify(sanitizedTags) !== JSON.stringify(collective.tags)) {
-      await models.Collective.update(
-        {
-          tags: sanitizedTags,
-        },
-        {
-          hooks: false,
-          where: {
-            id: collective.id,
+      try {
+        await models.Collective.update(
+          {
+            tags: sanitizedTags,
           },
-        },
-      );
+          {
+            hooks: false,
+            where: {
+              id: collective.id,
+            },
+          },
+        );
+        console.log(
+          `Successfully updated tags for Collective with id: ${collective.id} - from [${collective.tags}] to ${
+            sanitizedTags ? `[${sanitizedTags}]` : 'NULL'
+          }`,
+        );
+      } catch (error) {
+        console.error(`Error while updating tags for Collective #${collective.id}: ${error.message}`);
+      }
     }
   }
 
