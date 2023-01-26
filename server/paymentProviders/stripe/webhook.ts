@@ -679,7 +679,7 @@ async function paymentMethodAttached(event: Stripe.Event) {
       await pm.update({
         customerId: stripeCustomerId,
         CollectiveId: stripeCustomerAccount.CollectiveId,
-      })
+      });
       return;
     }
 
