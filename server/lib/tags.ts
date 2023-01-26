@@ -46,12 +46,12 @@ export const sanitizeTags = (tags: string[] | string | null): string[] | null =>
 
   const sanitizedTags = tags
     .filter(Boolean) // Remove null values
-    .map(t => tagTransforms[t] || t) // Transform common formatting variations of popular tags
     .map(t => t.trim()) // Trim tags
     .map(t => t.toLowerCase()) // Lowercase
     .map(t => t.replace(/\s+/g, ' ')) // Replace multiple spaces with one
     .map(t => t.replace(/^#+/g, '')) // Remove # prefixes
     .map(t => t.trim()) // Trim again for empty tags with a # prefix
+    .map(t => tagTransforms[t] || t) // Transform common formatting variations of popular tags
     .filter(t => t.length > 0); // Remove empty tags
 
   // Remove duplicates
