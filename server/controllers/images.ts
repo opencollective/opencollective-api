@@ -5,7 +5,7 @@ import { encode } from 'blurhash';
 import config from 'config';
 import { kebabCase } from 'lodash';
 import sharp from 'sharp';
-import { v1 as uuid } from 'uuid';
+import { v4 as uuid } from 'uuid';
 
 import s3, { uploadToS3 } from '../lib/awsS3';
 import errors from '../lib/errors';
