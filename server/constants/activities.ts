@@ -88,8 +88,9 @@ enum ActivityTypes {
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
   // User signup/signin
   USER_CREATED = 'user.created',
-  USER_NEW_TOKEN = 'user.new.token', // Deprecated and replaced by USER_SIGNIN
+  USER_NEW_TOKEN = 'user.new.token', // Replaced by USER_SIGNIN but still used in the email notification
   USER_SIGNIN = 'user.signin',
+  USER_RESET_PASSWORD = 'user.resetPassword',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   TWO_FACTOR_CODE_ADDED = 'user.new.two.factor.code',
   TWO_FACTOR_CODE_DELETED = 'user.remove.two.factor.code',

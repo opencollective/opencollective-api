@@ -97,6 +97,7 @@ export const templateNames = [
   'user.changeEmail',
   'user.monthlyreport',
   'user.new.token',
+  'user.resetPassword',
   'user.yearlyreport',
   'backyourstack.dispatch.confirmed',
   'activated.collective.as.host',
