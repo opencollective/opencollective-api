@@ -63,7 +63,8 @@ const getFilename = (file, fileNameFromArgs) => {
   const expectedExtension = SUPPORTED_FILE_EXTENSIONS[file.mimetype];
   const rawFileName = fileNameFromArgs || file.originalname || uuid();
   const parsedFileName = path.parse(rawFileName);
-  return `${parsedFileName.name}${expectedExtension}`;
+  // S3 limits file names to 1024 characters. We're using 900 to be safe and give some room for the kind + uuid + extension.
+  return `${parsedFileName.name.slice(0, 900)}${expectedExtension}`;
 };
 
 export default async function uploadImage(req, res, next) {
