@@ -11,6 +11,9 @@ import { reportErrorToSentry } from './sentry';
 let s3;
 if (config.aws.s3.key) {
   s3 = new S3({
+    s3ForcePathStyle: config.aws.s3.forcePathStyle,
+    endpoint: config.aws.s3.endpoint,
+    sslEnabled: config.aws.s3.sslEnabled,
     accessKeyId: config.aws.s3.key,
     secretAccessKey: config.aws.s3.secret,
     apiVersion: config.aws.s3.apiVersion,
