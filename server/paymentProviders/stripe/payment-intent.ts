@@ -2,6 +2,7 @@ import config from 'config';
 import { pick, toUpper } from 'lodash';
 import type Stripe from 'stripe';
 
+import { Service } from '../../constants/connected_account';
 import OrderStatuses from '../../constants/order_status';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
@@ -32,14 +33,45 @@ async function processNewOrder(order: typeof models.Order) {
     description: order.description,
   };
 
-  if (applicationFee && isPlatformRevenueDirectlyCollected && hostStripeAccount.username !== config.stripe.accountId) {
+  const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+  const isSavePaymentMethod = order.data?.savePaymentMethod || order.interval;
+
+  if (applicationFee && isPlatformRevenueDirectlyCollected && !isPlatformHost) {
     // eslint-disable-next-line camelcase
     paymentIntentParams.application_fee_amount = convertToStripeAmount(order.currency, applicationFee);
   }
 
-  if (order.data?.savePaymentMethod) {
+  if (isSavePaymentMethod) {
     // eslint-disable-next-line camelcase
     paymentIntentParams.setup_future_usage = 'off_session';
+  }
+
+  let stripeCustomerAccount = await order.fromCollective.getCustomerStripeAccount(hostStripeAccount.username);
+  if (isSavePaymentMethod && !stripeCustomerAccount) {
+    const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
+
+    const customer = await stripe.customers.create(
+      {
+        email: order.createdByUser.email,
+        description: `${config.host.website}/${order.fromCollective.slug}`,
+      },
+      !isPlatformHost
+        ? {
+            stripeAccount: hostStripeAccount.username,
+          }
+        : undefined,
+    );
+
+    stripeCustomerAccount = await models.ConnectedAccount.create({
+      clientId: hostStripeAccount.username,
+      username: customer.id,
+      CollectiveId: order.fromCollective.id,
+      service: Service.STRIPE_CUSTOMER,
+    });
+
+    paymentIntentParams.customer = customer.id;
+  } else if (stripeCustomerAccount) {
+    paymentIntentParams.customer = stripeCustomerAccount.username;
   }
 
   try {
