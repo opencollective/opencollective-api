@@ -12,7 +12,8 @@ import * as libpayments from '../lib/payments';
 import { reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
-import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
+import { sanitizeTags } from '../lib/tags';
+import { formatArrayToString, formatCurrency } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 
@@ -134,7 +135,7 @@ const PaymentMethod = sequelize.define(
       type: DataTypes.ARRAY(DataTypes.STRING),
       description: 'if not null, this payment method can only be used for collectives that have one the tags',
       set(tags) {
-        this.setDataValue('limitedToTags', cleanTags(tags));
+        this.setDataValue('limitedToTags', sanitizeTags(tags));
       },
     },
 

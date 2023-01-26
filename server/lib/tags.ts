@@ -1,6 +1,16 @@
 import { uniq } from 'lodash';
 
 /**
+ * Tags that should be transformed to another tag (only for common tags that refer to the same thing but with a different formatting)
+ * The key is the tag to transform and the value is the tag to transform to
+ */
+//
+const tagTransforms = {
+  opensource: 'open source',
+  'open-source': 'open source',
+};
+
+/**
  * Throws if there are too many tags, of if some are too long/too short.
  */
 export const validateTags = (tags: string[] | null, { maxNbTags = 30, maxTagLength = 32 } = {}): void => {
@@ -24,11 +34,28 @@ export const validateTags = (tags: string[] | null, { maxNbTags = 30, maxTagLeng
 };
 
 /**
- * Trim and lowercase all tags, then remove empty tags and duplicates.
+ * Sanitizes tags and remove duplicates.
+ * Returns null if the list is or becomes empty.
  */
-export const sanitizeTags = (tags: string[] | null): string[] => {
-  const cleanTag = tag => (!tag ? null : tag.trim().toLowerCase().replace(/\s+/g, ' '));
-  const sanitizedTags = !tags ? [] : tags.map(cleanTag);
-  const filteredTags = sanitizedTags.filter(Boolean);
-  return uniq(filteredTags);
+export const sanitizeTags = (tags: string[] | string | null): string[] | null => {
+  if (!tags) {
+    return null;
+  } else if (typeof tags === 'string') {
+    tags = [tags];
+  }
+
+  const sanitizedTags = tags
+    .filter(Boolean) // Remove null values
+    .map(t => tagTransforms[t] || t) // Transform common formatting variations of popular tags
+    .map(t => t.trim()) // Trim tags
+    .map(t => t.toLowerCase()) // Lowercase
+    .map(t => t.replace(/\s+/g, ' ')) // Replace multiple spaces with one
+    .map(t => t.replace(/^#+/g, '')) // Remove # prefixes
+    .map(t => t.trim()) // Trim again for empty tags with a # prefix
+    .filter(t => t.length > 0); // Remove empty tags
+
+  // Remove duplicates
+  const uniqueTags = uniq(sanitizedTags);
+
+  return uniqueTags.length > 0 ? uniqueTags : null;
 };
