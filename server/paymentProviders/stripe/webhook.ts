@@ -93,6 +93,8 @@ async function createOrUpdateOrderStripePaymentMethod(
 }
 
 export const mandateUpdated = async (event: Stripe.Event) => {
+  const stripeAccount = event.account ?? config.stripe.accountId;
+
   const stripeMandate = event.data.object as Stripe.Mandate;
 
   const stripePaymentMethodId =
@@ -107,16 +109,34 @@ export const mandateUpdated = async (event: Stripe.Event) => {
   });
 
   if (!paymentMethod) {
-    return;
-  }
+    const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+      stripeAccount,
+    });
 
-  await paymentMethod.update({
-    saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
-    data: {
-      ...paymentMethod.data,
-      stripeMandate,
-    },
-  });
+    await models.PaymentMethod.create({
+      name: formatPaymentMethodName(stripePaymentMethod),
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: stripePaymentMethod.type,
+      confirmedAt: new Date(),
+      saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+      data: {
+        stripePaymentMethodId: stripePaymentMethod.id,
+        stripeAccount,
+        ...mapStripePaymentMethodExtraData(stripePaymentMethod),
+        stripeMandate,
+      },
+    });
+
+    return;
+  } else {
+    await paymentMethod.update({
+      saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+      data: {
+        ...paymentMethod.data,
+        stripeMandate,
+      },
+    });
+  }
 
   return;
 };
@@ -656,6 +676,10 @@ async function paymentMethodAttached(event: Stripe.Event) {
     });
 
     if (pm) {
+      await pm.update({
+        customerId: stripeCustomerId,
+        CollectiveId: stripeCustomerAccount.CollectiveId,
+      })
       return;
     }
 
