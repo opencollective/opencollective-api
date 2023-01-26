@@ -9,6 +9,7 @@ import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order_status';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
+import models from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
@@ -593,6 +594,9 @@ describe('webhook', () => {
   });
 
   describe('mandate.updated', () => {
+    const sandbox = createSandbox();
+    afterEach(sandbox.restore);
+
     it('saves mandate to payment method', async () => {
       const stripePaymentMethodId = randStr('pm_');
       const paymentMethod = await fakePaymentMethod({
@@ -673,6 +677,54 @@ describe('webhook', () => {
 
       expect(paymentMethod.data.stripeMandate.status).to.equal('inactive');
       expect(paymentMethod.saved).to.be.false;
+    });
+
+    it('create payment method with mandate if not exists', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        id: stripePaymentMethodId,
+        type: 'sepa_debit',
+        sepa_debit: {
+          bank_code: 'abcd',
+          last4: '1234',
+        },
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      const paymentMethod = await models.PaymentMethod.findOne({
+        where: {
+          data: {
+            stripePaymentMethodId,
+          },
+        },
+      });
+
+      expect(paymentMethod).to.exist;
+      expect(paymentMethod.data.stripeMandate).to.eql({
+        id: 'mandate_1234',
+        type: 'multi_use',
+        status: 'active',
+        payment_method: stripePaymentMethodId,
+      });
     });
   });
 });
