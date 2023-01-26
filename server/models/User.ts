@@ -85,13 +85,25 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
-    const token = this.jwt({ scope: 'login', lastLoginAt });
+    const token = this.jwt({ scope: 'login', lastLoginAt }, auth.TOKEN_EXPIRATION_LOGIN);
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues
     if (websiteUrl && config.env !== 'production') {
       return `${websiteUrl}/signin/${token}?next=${redirect}`;
     } else {
       return `${config.host.website}/signin/${token}?next=${redirect}`;
+    }
+  };
+
+  generateResetPasswordLink = function ({ websiteUrl } = {}) {
+    const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
+    const token = this.jwt({ scope: 'reset-password', lastLoginAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
+    // if a different websiteUrl is passed
+    // we don't accept that in production to avoid fishing related issues
+    if (websiteUrl && config.env !== 'production') {
+      return `${websiteUrl}/reset-password/${token}`;
+    } else {
+      return `${config.host.website}/reset-password/${token}`;
     }
   };
 

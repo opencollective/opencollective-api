@@ -51,13 +51,13 @@ export const exists = async (req, res) => {
 
 /**
  * Login or create a new user
- **
+ *
  * TODO: we are passing createProfile from frontend to specify if we need to
  * create a new account. In the future once signin.js is fully deprecated (replaced by signinV2.js)
  * this function should be refactored to remove createProfile.
  */
 export const signin = async (req, res, next) => {
-  const { redirect, websiteUrl, sendLink, createProfile = true } = req.body;
+  const { redirect, websiteUrl, sendLink, resetPassword, createProfile = true } = req.body;
   try {
     const rateLimit = new RateLimit(
       `user_signin_attempt_ip_${req.ip}`,
@@ -81,7 +81,7 @@ export const signin = async (req, res, next) => {
     }
 
     // If password set and not passed, challenge user with password
-    if (user.passwordHash && !sendLink) {
+    if (user.passwordHash && !sendLink && !resetPassword) {
       if (!req.body.user.password) {
         return res.status(403).send({
           errorCode: 'PASSWORD_REQUIRED',
@@ -110,34 +110,37 @@ export const signin = async (req, res, next) => {
       return;
     }
 
-    const loginLink = user.generateLoginLink(redirect || '/', websiteUrl);
-    const clientIP = req.ip;
-    if (config.env === 'development') {
-      logger.info(`Login Link: ${loginLink}`);
-    }
+    if (resetPassword) {
+      const resetPasswordLink = user.generateResetPasswordLink({ websiteUrl });
+      if (config.env === 'development') {
+        logger.info(`Reset Password Link: ${resetPasswordLink}`);
+      }
+      await emailLib.send(
+        activities.USER_RESET_PASSWORD,
+        user.email,
+        { resetPasswordLink, clientIP: req.ip },
+        { sendEvenIfNotProduction: true },
+      );
+    } else {
+      const loginLink = user.generateLoginLink(redirect || '/', websiteUrl);
+      if (config.env === 'development') {
+        logger.info(`Login Link: ${loginLink}`);
+      }
+      await emailLib.send(
+        activities.USER_NEW_TOKEN,
+        user.email,
+        { loginLink, clientIP: req.ip },
+        { sendEvenIfNotProduction: true },
+      );
 
-    await emailLib.send(
-      activities.USER_NEW_TOKEN,
-      user.email,
-      { loginLink, clientIP },
-      { sendEvenIfNotProduction: true },
-    );
-
-    if (!parseToBoolean(config.database.readOnly)) {
-      await models.Activity.create({
-        type: activities.USER_NEW_TOKEN,
-        UserId: user.id,
-        FromCollectiveId: user.CollectiveId,
-        CollectiveId: user.CollectiveId,
-        data: { notify: false },
-      });
+      // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
+      if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
+        response.redirect = loginLink;
+      }
     }
 
     const response = { success: true };
-    // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
-    if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
-      response.redirect = loginLink;
-    }
+
     res.send(response);
   } catch (e) {
     next(e);
