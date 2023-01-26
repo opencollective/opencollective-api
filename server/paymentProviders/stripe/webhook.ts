@@ -147,7 +147,6 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
   await sequelize.transaction(async transaction => {
     const order = await models.Order.findOne({
       where: {
-        status: [OrderStatuses.NEW, OrderStatuses.PROCESSING],
         data: { paymentIntent: { id: paymentIntent.id } },
       },
       transaction,
