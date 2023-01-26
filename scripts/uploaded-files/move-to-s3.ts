@@ -10,7 +10,7 @@ import '../../server/env';
 import { Command } from 'commander';
 import config from 'config';
 import { last } from 'lodash';
-import { v1 as uuid } from 'uuid';
+import { v4 as uuid } from 'uuid';
 
 import { uploadToS3 } from '../../server/lib/awsS3';
 import { fetchWithTimeout } from '../../server/lib/fetch';
