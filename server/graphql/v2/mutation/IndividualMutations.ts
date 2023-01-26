@@ -62,7 +62,7 @@ const individualMutations = {
       }
 
       // Enforce 2FA
-      const account = req.remoteUser.getCollective();
+      const account = await req.remoteUser.getCollective();
       await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
 
       // Check current password if one already set
@@ -88,6 +88,7 @@ const individualMutations = {
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
+        UserTokenId: req.userToken?.id,
       });
 
       return user.getCollective();
