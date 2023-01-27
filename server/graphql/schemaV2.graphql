@@ -3476,6 +3476,7 @@ enum PaymentMethodType {
   paymentintent @deprecated(reason: "Please use uppercase values")
   us_bank_account @deprecated(reason: "Please use uppercase values")
   sepa_debit @deprecated(reason: "Please use uppercase values")
+  bacs_debit @deprecated(reason: "Please use uppercase values")
   ALIPAY
   CREDITCARD
   PREPAID
@@ -3490,6 +3491,7 @@ enum PaymentMethodType {
   PAYMENT_INTENT
   US_BANK_ACCOUNT
   SEPA_DEBIT
+  BACS_DEBIT
 }
 
 input PaymentMethodReferenceInput {
@@ -3726,6 +3728,7 @@ enum PaymentMethodLegacyType {
   PAYMENT_INTENT
   US_BANK_ACCOUNT
   SEPA_DEBIT
+  BACS_DEBIT
 }
 
 """

@@ -568,6 +568,9 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
     case 'card': {
       return paymentMethod.card.last4;
     }
+    case PAYMENT_METHOD_TYPE.BACS_DEBIT: {
+      return `${paymentMethod.bacs_debit.sort_code} ****${paymentMethod.bacs_debit.last4}`;
+    }
     default: {
       return '';
     }
@@ -593,7 +596,7 @@ function mapStripePaymentMethodExtraData(pm: Stripe.PaymentMethod): object {
 async function paymentMethodAttached(event: Stripe.Event) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
-  if (!['us_bank_account', 'sepa_debit'].includes(stripePaymentMethod.type)) {
+  if (!['us_bank_account', 'sepa_debit', 'bacs_debit'].includes(stripePaymentMethod.type)) {
     return;
   }
 
