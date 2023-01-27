@@ -19,6 +19,7 @@ import {
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import { Service } from '../../../constants/connected_account';
+import OrderStatuses from '../../../constants/order_status';
 import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
@@ -41,7 +42,7 @@ import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { OrderCreateInput } from '../input/OrderCreateInput';
+import { OrderCreateInput, PendingOrderCreateInput } from '../input/OrderCreateInput';
 import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
 import PaymentIntentInput from '../input/PaymentIntentInput';
@@ -738,6 +739,51 @@ const orderMutations = {
         logger.error(e);
         throw new Error('Sorry, but we cannot support this payment method for this particular transaction.');
       }
+    },
+  },
+  createPendingOrder: {
+    type: new GraphQLNonNull(Order),
+    description: 'To submit a new order. Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(PendingOrderCreateInput),
+      },
+    },
+    async resolve(_, args, req) {
+      if (!checkScope(req, 'orders')) {
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
+      }
+
+      const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
+      const host = await toAccount.getHostCollective();
+
+      if (!req.remoteUser?.isAdminOfCollective(host)) {
+        throw new Unauthorized('Only host admins can process orders');
+      }
+      const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
+      const tier = await fetchTierWithReference(args.order.tier, { throwIfMissing: false });
+
+      const description =
+        args.order.description || models.Order.generateDescription(toAccount, undefined, undefined, tier);
+      const order = await models.Order.create({
+        CreatedByUserId: req.remoteUser.id,
+        FromCollectiveId: fromAccount.id,
+        CollectiveId: toAccount.id,
+        TierId: tier?.id || null,
+        quantity: 1,
+        totalAmount: args.order.amount.valueInCents,
+        currency: args.order.amount.currency,
+        description,
+        data: {
+          fromAccountInfo: args.order.fromAccountInfo,
+          expectedAt: args.order.expectedAt,
+          memo: args.order.memo,
+          pendingContribution: true,
+        },
+        status: OrderStatuses.PENDING,
+      });
+
+      return order;
     },
   },
 };
