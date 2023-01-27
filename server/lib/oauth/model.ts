@@ -20,6 +20,7 @@ import debugLib from 'debug';
 
 import activities from '../../constants/activities';
 import models from '../../models';
+import Application from '../../models/Application';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import User from '../../models/User';
 import UserToken, { TokenType } from '../../models/UserToken';
@@ -32,7 +33,7 @@ interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
 
 // Helpers to convert data from/to our model types to OAuth2Server types.
 
-export const dbApplicationToClient = (application: typeof models.Application): OAuth2Server.Client => ({
+export const dbApplicationToClient = (application: Application): OAuth2Server.Client => ({
   id: application.clientId,
   redirectUris: [application.callbackUrl],
   grants: ['authorization_code'],

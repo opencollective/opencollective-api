@@ -38,6 +38,7 @@ import models, {
   UploadedFile,
   VirtualCard,
 } from '../../server/models';
+import Application, { ApplicationType } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
@@ -910,7 +911,7 @@ export const fakePaypalPlan = async (data: Record<string, unknown> = {}) => {
   });
 };
 
-export const fakeApplication = async (data: Record<string, unknown> = {}) => {
+export const fakeApplication = async (data: Record<string, unknown> = {}): Promise<any> => {
   let CollectiveId;
   let CreatedByUserId;
   if (data.user) {
@@ -924,7 +925,7 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   }
 
   const application = await models.Application.create({
-    type: sample(['apiKey', 'oAuth']),
+    type: <ApplicationType>sample(['apiKey', 'oAuth']),
     apiKey: randStr('ApiKey-'),
     clientId: randStrOfLength(20),
     clientSecret: randStrOfLength(40),
@@ -973,7 +974,7 @@ export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
     refreshTokenExpiresAt: moment().add(300, 'days').toDate(),
     ...data,
     UserId: user.id,
-    ApplicationId: data.ApplicationId || (await fakeApplication({ user })).id,
+    ApplicationId: <number>data.ApplicationId || (await fakeApplication({ user })).id,
   });
 
   // UserToken has a default scope that loads associations (which `.create` does not support)
@@ -983,8 +984,10 @@ export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
 export const fakeOAuthAuthorizationCode = async (data: Record<string, unknown> = {}) => {
   const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const application =
-    data.application ||
-    (data.ApplicationId ? await models.Application.findByPk(data.ApplicationId) : await fakeApplication({ user }));
+    <Application>data.application ||
+    (data.ApplicationId
+      ? await models.Application.findByPk(<number>data.ApplicationId)
+      : await fakeApplication({ user }));
 
   const authorization = await models.OAuthAuthorizationCode.create({
     code: randStr('Code-'),
