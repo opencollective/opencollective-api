@@ -19,9 +19,10 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
+import { types as CollectiveType, types } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected_account';
 import OrderStatuses from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import logger from '../../../lib/logger';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
@@ -525,15 +526,45 @@ const orderMutations = {
         include: [
           { association: 'paymentMethod' },
           { association: 'fromCollective', attributes: ['id', 'slug'] },
-          { association: 'collective', attributes: ['id', 'slug'] },
+          { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });
 
       // -- Some sanity checks to prevent issues --
-      const paymentMethodIds = uniq(orders.map(order => order.PaymentMethodId).filter(Boolean));
+      const isAddedFund = order =>
+        order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+        order.paymentMethod.type === PAYMENT_METHOD_TYPE.HOST;
+      const paymentMethodIds = uniq(
+        orders
+          .filter(order => !isAddedFund(order))
+          .map(order => order.PaymentMethodId)
+          .filter(Boolean),
+      );
       const ordersIds = orders.map(order => order.id);
+      const addedFundOrders = orders.filter(order => isAddedFund(order));
+      const isCollective = fromAccount?.type === types.COLLECTIVE;
+      const addedFundPaymentMethod = fromAccount
+        ? await models.PaymentMethod.findOne({
+            where: {
+              CollectiveId: fromAccount.id,
+              service: 'opencollective',
+              type: 'collective',
+              deletedAt: null,
+            },
+          })
+        : null;
+
       for (const order of orders) {
-        const isUpdatingPaymentMethod = Boolean(fromAccount);
+        if (fromAccount) {
+          if (
+            fromAccount.HostCollectiveId !== order.collective.HostCollectiveId &&
+            fromAccount.type !== CollectiveType.USER
+          ) {
+            throw new ValidationFailed(`Added Funds cannot be moved to a different host`);
+          }
+        }
+
+        const isUpdatingPaymentMethod = Boolean(fromAccount) && !isAddedFund(order);
 
         if (isUpdatingPaymentMethod) {
           // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
@@ -593,7 +624,7 @@ const orderMutations = {
           );
 
           [, updatedDebits] = await models.Transaction.update(
-            { CollectiveId: fromAccount.id },
+            { FromCollectiveId: fromAccount.id },
             {
               transaction: dbTransaction,
               returning: ['id'],
@@ -602,6 +633,19 @@ const orderMutations = {
               },
             },
           );
+
+          // Update paymentMethodId in transactions for Added Funds
+          if (addedFundOrders.length > 0 && isCollective) {
+            await models.Transaction.update(
+              { PaymentMethodId: addedFundPaymentMethod.id },
+              {
+                transaction: dbTransaction,
+                where: {
+                  [Op.or]: addedFundOrders.map(order => ({ OrderId: order.id })),
+                },
+              },
+            );
+          }
         }
 
         // Update members
@@ -640,6 +684,17 @@ const orderMutations = {
           where: { id: ordersIds },
         });
 
+        if (addedFundOrders.length > 0 && isCollective && addedFundPaymentMethod) {
+          await models.Order.update(
+            { PaymentMethodId: addedFundPaymentMethod.id },
+            {
+              transaction: dbTransaction,
+              returning: true,
+              where: { [Op.or]: addedFundOrders.map(order => ({ id: order.id })) },
+            },
+          );
+        }
+
         // Log the update
         const descriptionDetails = [];
         if (fromAccount) {
@@ -648,6 +703,7 @@ const orderMutations = {
         if (tier) {
           descriptionDetails.push(tier === 'custom' ? 'custom tier' : `tier #${tier.id}`);
         }
+
         await models.MigrationLog.create(
           {
             type: MigrationLogType.MOVE_ORDERS,
