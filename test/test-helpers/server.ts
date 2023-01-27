@@ -10,7 +10,7 @@ import app from '../../server/index';
 export const startTestServer = async () => {
   const expressApp = await app();
   if (!expressApp.__server__.listening) {
-    await expressApp.__server__.listen(config.port);
+    expressApp.__server__.listen(config.port);
   }
 
   return expressApp;

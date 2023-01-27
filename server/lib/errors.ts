@@ -7,15 +7,20 @@ const errors = {
     Error.call(this, msg);
   },
 
-  ValidationFailed: function (type, fields, msg, data) {
+  ValidationFailed: function (
+    type = 'validation_failed',
+    fields = undefined,
+    msg = 'Missing required fields',
+    data = undefined,
+  ) {
     this.code = 400;
-    this.type = type || 'validation_failed';
-    this.message = msg || 'Missing required fields';
+    this.type = type;
+    this.message = msg;
     this.fields = fields;
     this.data = data;
   },
 
-  Unauthorized: function (msg) {
+  Unauthorized: function (msg = undefined) {
     this.code = 401;
     this.type = 'unauthorized';
     this.message = msg;
@@ -97,7 +102,7 @@ Object.keys(errors).forEach(error => {
   inherits(errors[error], Error);
 });
 
-Error.prototype.info = function () {
+Error.prototype['info'] = function () {
   const result = {
     type: this.type,
     message: this.message || '',
