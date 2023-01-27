@@ -260,6 +260,15 @@ export const UserType = new GraphQLObjectType({
           }
         },
       },
+      hasPassword: {
+        type: GraphQLBoolean,
+        description: 'Has the account a password set?',
+        async resolve(user, args, req) {
+          if (req.remoteUser.id === user.id) {
+            return Boolean(user.passwordHash);
+          }
+        },
+      },
       isRoot: {
         type: new GraphQLNonNull(GraphQLBoolean),
         resolve(user) {

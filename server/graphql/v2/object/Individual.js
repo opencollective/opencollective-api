@@ -192,6 +192,17 @@ export const Individual = new GraphQLObjectType({
           return { nodes: result.rows, totalCount: result.count, limit, offset };
         },
       },
+      hasPassword: {
+        type: GraphQLBoolean,
+        description: 'Has the account a password set? For authenticated user: scope: "account".',
+        async resolve(collective, args, req) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
+            return null;
+          }
+
+          return req.remoteUser.passwordHash ? true : false;
+        },
+      },
     };
   },
 });

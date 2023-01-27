@@ -12,6 +12,7 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
+import activities from '../constants/activities';
 import { Service } from '../constants/connected_account';
 import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
@@ -19,7 +20,7 @@ import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
-import { isValidEmail } from '../lib/utils';
+import { isValidEmail, parseToBoolean } from '../lib/utils';
 
 import models from '.';
 
@@ -41,6 +42,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare deletedAt: CreationOptional<Date>;
   public declare confirmedAt: CreationOptional<Date>;
   public declare lastLoginAt: CreationOptional<Date>;
+  public declare passwordHash: CreationOptional<string>;
 
   // TODO: We should ideally rely on this.changed(...)
   public _emailChanged?: NonAttribute<boolean>;
@@ -65,6 +67,20 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   jwt = function (payload = undefined, expiration = undefined) {
     expiration = expiration || auth.TOKEN_EXPIRATION_LOGIN;
     return auth.createJwt(this.id, payload, expiration);
+  };
+
+  generateSessionToken = async function ({ sessionId = null } = {}) {
+    if (!parseToBoolean(config.database.readOnly)) {
+      await models.Activity.create({
+        type: activities.USER_SIGNIN,
+        UserId: this.id,
+        FromCollectiveId: this.CollectiveId,
+        CollectiveId: this.CollectiveId,
+        data: { notify: false },
+      });
+    }
+
+    return this.jwt({ sessionId }, auth.TOKEN_EXPIRATION_SESSION);
   };
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
@@ -607,8 +623,14 @@ User.init(
       type: DataTypes.ARRAY(DataTypes.STRING),
       allowNull: true,
     },
+
     changelogViewDate: {
       type: DataTypes.DATE,
+      allowNull: true,
+    },
+
+    passwordHash: {
+      type: DataTypes.STRING,
       allowNull: true,
     },
   },
