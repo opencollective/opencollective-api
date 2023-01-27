@@ -24,13 +24,16 @@ const ExpenseQuery = {
   async resolve(_, args, req) {
     if (args.expense) {
       const expense = await fetchExpenseWithReference(args.expense, req);
-      if (
-        expense?.status === expenseStatus.DRAFT &&
-        expense.data?.draftKey !== args.draftKey &&
-        !req.remoteUser?.isAdmin(expense.FromCollectiveId) &&
-        !req.remoteUser?.isAdmin(expense.CollectiveId)
-      ) {
-        return null;
+
+      if (expense?.status === expenseStatus.DRAFT) {
+        const canViewDraftExpense =
+          expense.data?.draftKey === args.draftKey ||
+          req.remoteUser?.isAdmin(expense.FromCollectiveId) ||
+          req.remoteUser?.isAdminOfCollectiveOrHost(await expense.getCollective());
+
+        if (!canViewDraftExpense) {
+          return null;
+        }
       }
 
       return expense;
