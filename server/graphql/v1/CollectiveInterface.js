@@ -786,10 +786,10 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description: 'The list of expense types supported by this account',
       },
       role: { type: GraphQLString },
-      twitterHandle: { type: GraphQLString },
+      twitterHandle: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
       githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
-      repositoryUrl: { type: GraphQLString },
-      website: { type: GraphQLString },
+      repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
+      website: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
       socialLinks: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
       },
@@ -1650,6 +1650,7 @@ const CollectiveFields = () => {
     },
     twitterHandle: {
       type: GraphQLString,
+      deprecationReason: '2023-01-16: Please use socialLinks',
       resolve(collective) {
         return collective.twitterHandle;
       },
@@ -1661,9 +1662,11 @@ const CollectiveFields = () => {
     repositoryUrl: {
       type: GraphQLString,
       description: 'The URL of the repository',
+      deprecationReason: '2023-01-16: Please use socialLinks',
     },
     website: {
       type: GraphQLString,
+      deprecationReason: '2023-01-16: Please use socialLinks',
       resolve(collective) {
         return collective.website;
       },
