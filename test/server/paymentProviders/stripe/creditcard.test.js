@@ -9,12 +9,19 @@ import cache from '../../../../server/lib/cache';
 import stripe from '../../../../server/lib/stripe';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import creditcard from '../../../../server/paymentProviders/stripe/creditcard';
-import { fakeCollective, fakeConnectedAccount, fakeOrder, fakePaymentMethod } from '../../../test-helpers/fake-data';
+import {
+  fakeCollective,
+  fakeConnectedAccount,
+  fakeOrder,
+  fakePaymentMethod,
+  randStr,
+} from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/paymentProviders/stripe/creditcard', () => {
   describe('#processOrder()', async () => {
     beforeEach(() => utils.resetTestDB());
+    const stripePaymentMethodId = randStr('pm_');
 
     const sandbox = createSandbox();
     afterEach(sandbox.restore);
@@ -42,7 +49,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         customerId: 'cus_test',
         token: 'tok_testtoken123456789012345',
         data: {
-          stripePaymentMethodId: 'pm_test',
+          stripePaymentMethodId,
         },
       });
 
@@ -56,12 +63,12 @@ describe('server/paymentProviders/stripe/creditcard', () => {
       });
 
       sandbox.stub(common, 'resolvePaymentMethodForOrder').resolves({
-        id: 'pm_test',
+        id: stripePaymentMethodId,
         customer: 'cus_test',
       });
-      sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pm_test', status: 'requires_confirmation' });
+      sandbox.stub(stripe.paymentIntents, 'create').resolves({ id: 'pi_test', status: 'requires_confirmation' });
       sandbox.stub(stripe.paymentIntents, 'confirm').resolves({
-        id: 'pm_test',
+        id: stripePaymentMethodId,
         status: 'succeeded',
         charges: {
           data: [{ id: 'ch_id', balance_transaction: 'txn_id' }],
@@ -83,7 +90,7 @@ describe('server/paymentProviders/stripe/creditcard', () => {
         stripe.paymentIntents.create,
         {
           customer: 'cus_test',
-          payment_method: 'pm_test',
+          payment_method: stripePaymentMethodId,
         },
         {
           stripeAccount: 'acc_test',
@@ -92,8 +99,8 @@ describe('server/paymentProviders/stripe/creditcard', () => {
 
       assert.calledWithMatch(
         stripe.paymentIntents.confirm,
-        'pm_test',
-        { payment_method: 'pm_test' },
+        'pi_test',
+        { payment_method: stripePaymentMethodId },
         { stripeAccount: 'acc_test' },
       );
     });
