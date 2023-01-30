@@ -98,10 +98,10 @@ const HostApplicationMutations = {
         models.Member.count({ where }),
         models.MemberInvitation.count({ where }),
       ]);
-      const requiredAdmins = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins || 0;
+      const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
       const validAdminsCount = adminCount + adminInvitationCount + (args.inviteMembers?.length || 0);
-      if (requiredAdmins > validAdminsCount) {
-        throw new Forbidden(`This host policy requires at least ${requiredAdmins} admins for this account.`);
+      if ((minAdminsPolicy || 0) > validAdminsCount) {
+        throw new Forbidden(`This host policy requires at least ${minAdminsPolicy} admins for this account.`);
       }
 
       let validatedRepositoryInfo: ValidatedRepositoryInfo,
@@ -243,7 +243,7 @@ const HostApplicationMutations = {
         throw new Unauthorized();
       }
 
-      if (hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
+      if (await hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
         await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
       }
 
@@ -279,11 +279,10 @@ const approveApplication = async (host, collective, req) => {
     models.MemberInvitation.count({ where }),
   ]);
 
-  if (getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins > adminCount + adminInvitationCount) {
+  const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+  if (minAdminsPolicy?.numberOfAdmins > adminCount + adminInvitationCount) {
     throw new Forbidden(
-      `Your host policy requires at least ${
-        getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins
-      } admins for this account.`,
+      `Your host policy requires at least ${minAdminsPolicy.numberOfAdmins} admins for this account.`,
     );
   }
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
@@ -318,7 +317,7 @@ const approveApplication = async (host, collective, req) => {
   });
 
   // If collective does not have enough admins, block it from receiving Contributions
-  const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+  const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
   if (policy?.freeze && policy.numberOfAdmins > adminCount) {
     await collective.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS);
   }

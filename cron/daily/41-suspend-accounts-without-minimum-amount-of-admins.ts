@@ -29,7 +29,8 @@ const run = async () => {
 
   for (const collective of collectives) {
     const admins = collective.members.length;
-    const requiredAdmins = getPolicy(collective.host, POLICIES.COLLECTIVE_MINIMUM_ADMINS).numberOfAdmins;
+    const minAdminsPolicy = await getPolicy(collective.host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+    const requiredAdmins = minAdminsPolicy?.numberOfAdmins;
     if (admins < requiredAdmins) {
       logger.info(
         `Collective ${collective.slug} has ${admins} out of ${requiredAdmins} required admins, suspending donations.`,

@@ -2373,7 +2373,7 @@ Collective.prototype.addHost = async function (hostCollective, creatorUser, opti
         role: roles.ADMIN,
       },
     });
-    const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+    const policy = await getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
     if (policy?.freeze && policy.numberOfAdmins > adminCount) {
       promises.push(this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS));
     }
