@@ -47,7 +47,6 @@ async function processNewOrder(order: typeof models.Order) {
 
   let stripeCustomerAccount = await order.fromCollective.getCustomerStripeAccount(hostStripeAccount.username);
   if (isSavePaymentMethod && !stripeCustomerAccount) {
-    const isPlatformHost = hostStripeAccount.username === config.stripe.accountId;
 
     const customer = await stripe.customers.create(
       {
