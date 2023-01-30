@@ -100,45 +100,58 @@ export const mandateUpdated = async (event: Stripe.Event) => {
   const stripePaymentMethodId =
     typeof stripeMandate.payment_method === 'string' ? stripeMandate.payment_method : stripeMandate.payment_method.id;
 
-  const paymentMethod = await models.PaymentMethod.findOne({
-    where: {
-      data: {
-        stripePaymentMethodId,
+  await sequelize.transaction(async transaction => {
+    const paymentMethod = await models.PaymentMethod.findOne({
+      where: {
+        data: {
+          stripePaymentMethodId,
+        },
       },
-    },
-  });
-
-  if (!paymentMethod) {
-    const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
-      stripeAccount,
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
 
-    await models.PaymentMethod.create({
-      name: formatPaymentMethodName(stripePaymentMethod),
-      service: PAYMENT_METHOD_SERVICE.STRIPE,
-      type: stripePaymentMethod.type,
-      confirmedAt: new Date(),
-      saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
-      data: {
-        stripePaymentMethodId: stripePaymentMethod.id,
+    if (!paymentMethod) {
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
         stripeAccount,
-        ...mapStripePaymentMethodExtraData(stripePaymentMethod),
-        stripeMandate,
-      },
-    });
+      });
 
+      await models.PaymentMethod.create(
+        {
+          name: formatPaymentMethodName(stripePaymentMethod),
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: stripePaymentMethod.type,
+          confirmedAt: new Date(),
+          saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+          data: {
+            stripePaymentMethodId: stripePaymentMethod.id,
+            stripeAccount,
+            ...mapStripePaymentMethodExtraData(stripePaymentMethod),
+            stripeMandate,
+          },
+        },
+        {
+          transaction,
+        },
+      );
+
+      return;
+    } else {
+      await paymentMethod.update(
+        {
+          saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+          data: {
+            ...paymentMethod.data,
+            stripeMandate,
+          },
+        },
+        {
+          transaction,
+        },
+      );
+    }
     return;
-  } else {
-    await paymentMethod.update({
-      saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
-      data: {
-        ...paymentMethod.data,
-        stripeMandate,
-      },
-    });
-  }
-
-  return;
+  });
 };
 
 export const paymentIntentSucceeded = async (event: Stripe.Event) => {
@@ -639,7 +652,7 @@ function mapStripePaymentMethodExtraData(pm: Stripe.PaymentMethod): object {
   return pm[pm.type];
 }
 
-async function paymentMethodAttached(event: Stripe.Event) {
+export async function paymentMethodAttached(event: Stripe.Event) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
   if (!['us_bank_account', 'sepa_debit'].includes(stripePaymentMethod.type)) {
@@ -672,14 +685,20 @@ async function paymentMethodAttached(event: Stripe.Event) {
           stripeAccount,
         },
       },
+      lock: transaction.LOCK.UPDATE,
       transaction,
     });
 
     if (pm) {
-      await pm.update({
-        customerId: stripeCustomerId,
-        CollectiveId: stripeCustomerAccount.CollectiveId,
-      });
+      await pm.update(
+        {
+          customerId: stripeCustomerId,
+          CollectiveId: stripeCustomerAccount.CollectiveId,
+        },
+        {
+          transaction,
+        },
+      );
       return;
     }
 
