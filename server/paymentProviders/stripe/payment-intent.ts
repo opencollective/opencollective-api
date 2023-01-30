@@ -3,7 +3,6 @@ import { pick, toUpper } from 'lodash';
 import type Stripe from 'stripe';
 
 import { Service } from '../../constants/connected_account';
-import OrderStatuses from '../../constants/order_status';
 import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
@@ -78,7 +77,7 @@ async function processNewOrder(order: typeof models.Order) {
     const paymentIntent = await stripe.paymentIntents.update(order.data.paymentIntent.id, paymentIntentParams, {
       stripeAccount: hostStripeAccount.username,
     });
-    await order.update({ status: OrderStatuses.PROCESSING, data: { ...order.data, paymentIntent } });
+    await order.update({ data: { ...order.data, paymentIntent } });
   } catch (e) {
     const sanitizedError = pick(e, ['code', 'message', 'requestId', 'statusCode']);
     const errorMessage = `Error processing Stripe Payment Intent: ${e.message}`;
