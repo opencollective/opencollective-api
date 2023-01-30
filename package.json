@@ -69,7 +69,7 @@
     "dataloader": "2.1.0",
     "dataloader-sequelize": "2.3.3",
     "debug": "4.3.4",
-    "deepmerge": "4.2.2",
+    "deepmerge": "4.3.0",
     "dotenv": "16.0.3",
     "errorhandler": "1.5.1",
     "express": "4.18.2",
