@@ -10,7 +10,7 @@ import * as payments from '../../../../../server/lib/payments';
 import stripe, { convertFromStripeAmount, convertToStripeAmount, extractFees } from '../../../../../server/lib/stripe';
 import models from '../../../../../server/models';
 import stripeMocks from '../../../../mocks/stripe';
-import { fakeCollective, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeCollective, fakeOrder, fakeUser, randStr } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -63,12 +63,13 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     sandbox.stub(stripe.refunds, 'create').callsFake(() => Promise.resolve('foo'));
     sandbox.stub(stripe.charges, 'retrieve').callsFake(() => Promise.resolve('foo'));
 
+    const paymentMethodId = randStr('pm_');
     sandbox
       .stub(stripe.paymentMethods, 'create')
-      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+      .resolves({ id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } });
     sandbox
       .stub(stripe.paymentMethods, 'attach')
-      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+      .resolves({ id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } });
 
     sendEmailSpy = sandbox.spy(emailLib, 'send');
     refundTransactionSpy = sandbox.spy(TransactionMutationHelpers, 'refundTransaction');
