@@ -12,8 +12,17 @@ describe('server/lib/tags', () => {
       '##OpenCollective',
       ' test ',
       'double  space',
+      '    ', // Empty should be removed
+      'OpEn-SoUrCe', // Should be unified under "open source"
     ];
     const sanitizedTags = sanitizeTags(tags);
-    assert.deepEqual(sanitizedTags, ['opencollective', 'o#pencollective', 'opencollective#', 'test', 'double space']);
+    assert.deepEqual(sanitizedTags, [
+      'opencollective',
+      'o#pencollective',
+      'opencollective#',
+      'test',
+      'double space',
+      'open source',
+    ]);
   });
 });
