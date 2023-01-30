@@ -394,6 +394,28 @@ export const buildSearchConditions = (
  * Returns tags along with their frequency of use.
  */
 export const getTagFrequencies = async args => {
+  // If no searchTerm is provided, we can use the pre-computed stats in the materialized view
+  if (!args.searchTerm) {
+    const { sanitizedTerm } = getSearchTermSQLConditions(args.tagSearchTerm);
+    // Note: The CollectiveTagStats materialized view will return tag stats for all collectives, with or without host, when HostCollectiveId is NULL
+    return sequelize.query(
+      `SELECT tag AS id, tag, count
+        FROM "CollectiveTagStats"
+        WHERE "HostCollectiveId" ${args.hostCollectiveId ? '= :hostCollectiveId' : 'IS NULL'} 
+        ${args.tagSearchTerm ? `AND "tag" ILIKE :sanitizedTerm` : ``}
+        LIMIT :limit
+        OFFSET :offset`,
+      {
+        type: sequelize.QueryTypes.SELECT,
+        replacements: {
+          sanitizedTerm: `%${sanitizedTerm}%`,
+          hostCollectiveId: args.hostCollectiveId,
+          limit: args.limit,
+          offset: args.offset,
+        },
+      },
+    );
+  }
   const searchConditions = getSearchTermSQLConditions(args.searchTerm);
   return sequelize.query(
     `SELECT  UNNEST(tags) AS id, UNNEST(tags) AS tag, COUNT(id)
@@ -405,6 +427,7 @@ export const getTagFrequencies = async args => {
       AND name::text <> 'incognito'::text 
       AND name::text <> 'anonymous'::text 
       AND "isIncognito" = false
+      ${args.hostCollectiveId ? `AND "HostCollectiveId" = :hostCollectiveId` : ``}
       ${searchConditions.sqlConditions}
       GROUP BY UNNEST(tags)
       ORDER BY count DESC
@@ -415,6 +438,7 @@ export const getTagFrequencies = async args => {
       replacements: {
         sanitizedTerm: searchConditions.sanitizedTerm,
         sanitizedTermNoWhitespaces: searchConditions.sanitizedTermNoWhitespaces,
+        hostCollectiveId: args.hostCollectiveId,
         limit: args.limit,
         offset: args.offset,
       },

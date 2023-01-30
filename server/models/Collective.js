@@ -1963,11 +1963,25 @@ Collective.prototype.addUserWithRole = async function (user, role, defaultAttrib
 
     case roles.MEMBER:
     case roles.ACCOUNTANT:
-    case roles.ADMIN:
+    case roles.ADMIN: {
       if (![types.FUND, types.PROJECT, types.EVENT].includes(this.type)) {
         await this.sendNewMemberEmail(user, role, member, sequelizeParams);
       }
+
+      // Sanitization: Clean memberships of children collectives
+      const children = await this.getChildren();
+      if (children.length > 0) {
+        await models.Member.destroy({
+          where: {
+            MemberCollectiveId: user.CollectiveId,
+            CollectiveId: children.map(c => c.id),
+            role,
+          },
+        });
+      }
+
       break;
+    }
   }
 
   return member;

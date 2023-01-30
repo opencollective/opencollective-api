@@ -1,4 +1,4 @@
-import { GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
 import { intersection } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
@@ -31,6 +31,10 @@ export const HasMembersFields = {
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
       },
+      includeInherited: {
+        type: GraphQLBoolean,
+        defaultValue: true,
+      },
     },
     async resolve(collective, args, req) {
       // TODO: isn't it a better practice to return null?
@@ -52,7 +56,7 @@ export const HasMembersFields = {
       }
 
       // Inherit Accountants and Admin from parent collective for Events and Projects
-      if ([CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
+      if (args.includeInherited && [CollectiveTypes.EVENT, CollectiveTypes.PROJECT].includes(collective.type)) {
         const inheritedRoles = [MemberRoles.ACCOUNTANT, MemberRoles.ADMIN, MemberRoles.MEMBER];
         where = {
           [Op.or]: [
