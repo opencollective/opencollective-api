@@ -52,6 +52,9 @@ export const TierCreateInput = new GraphQLInputObjectType({
     useStandalonePage: {
       type: GraphQLBoolean,
     },
+    invoiceTemplate: {
+      type: GraphQLString,
+    },
     singleTicket: {
       type: GraphQLBoolean,
     },

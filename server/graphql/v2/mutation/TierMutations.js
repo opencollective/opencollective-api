@@ -61,8 +61,16 @@ const tierMutations = {
         interval: getIntervalFromTierFrequency(args.tier.frequency),
       };
 
+      if (!tierUpdateData.data && (args.tier.singleTicket !== undefined || args.tier.invoiceTemplate !== undefined)) {
+        tierUpdateData.data = {};
+      }
+
       if (args.tier.singleTicket !== undefined) {
-        tierUpdateData.data = { ...tier.data, singleTicket: args.tier.singleTicket };
+        tierUpdateData.data.singleTicket = args.tier.singleTicket;
+      }
+
+      if (args.tier.invoiceTemplate !== undefined) {
+        tierUpdateData.data.invoiceTemplate = args.tier.invoiceTemplate;
       }
 
       // Purge cache
@@ -110,8 +118,16 @@ const tierMutations = {
         interval: getIntervalFromTierFrequency(args.tier.frequency),
       };
 
+      if (args.tier.singleTicket !== undefined || args.tier.invoiceTemplate !== undefined) {
+        tierCreateData.data = {};
+      }
+
       if (args.tier.singleTicket !== undefined) {
-        tierCreateData.data = { singleTicket: args.tier.singleTicket };
+        tierCreateData.data.singleTicket = args.tier.singleTicket;
+      }
+
+      if (args.tier.invoiceTemplate !== undefined) {
+        tierCreateData.data.invoiceTemplate = args.tier.invoiceTemplate;
       }
 
       // Purge cache
