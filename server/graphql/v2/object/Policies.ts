@@ -22,17 +22,17 @@ export const Policies = new GraphQLObjectType({
           appliesToSingleAdminCollectives: { type: GraphQLBoolean },
         }),
       }),
-      resolve(account, _, req) {
+      async resolve(account, _, req) {
         if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
-          return getPolicy(account, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
+          return await getPolicy(account, POLICIES.EXPENSE_AUTHOR_CANNOT_APPROVE);
         }
       },
     },
     [POLICIES.REQUIRE_2FA_FOR_ADMINS]: {
       type: GraphQLBoolean,
-      resolve(account, _, req) {
+      async resolve(account, _, req) {
         if (req.remoteUser?.isAdminOfCollective(account) && checkScope(req, 'account')) {
-          return getPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
+          return await getPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
         }
       },
     },
@@ -45,8 +45,8 @@ export const Policies = new GraphQLObjectType({
           freeze: { type: GraphQLBoolean },
         }),
       }),
-      resolve(account) {
-        return getPolicy(account, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+      async resolve(account) {
+        return await getPolicy(account, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
       },
     },
     [POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL]: {
@@ -62,9 +62,9 @@ export const Policies = new GraphQLObjectType({
           [VirtualCardLimitIntervals.YEARLY]: { type: Amount },
         }),
       }),
-      resolve(account) {
+      async resolve(account) {
         if (get(account.settings, 'features.virtualCards')) {
-          const policy = getPolicy(account, POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL);
+          const policy = await getPolicy(account, POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL);
           return Object.keys(policy).reduce(
             (acc, policyKey: string) => ({
               ...acc,
