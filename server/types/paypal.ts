@@ -407,3 +407,18 @@ export type PaypalSale = {
   protection_eligibility: string;
   protection_eligibility_type: string;
 };
+
+/**
+ * When fetching transactions from /v1/billing/subscriptions/{id}/transactions
+ * See https://developer.paypal.com/docs/api/subscriptions/v1/#subscriptions_transactions
+ */
+export type SubscriptionTransactions = {
+  transactions: Array<PaypalTransaction>;
+  total_pages: number;
+  total_items: number;
+  links: Array<{
+    href: string;
+    rel: string;
+    method: string;
+  }>;
+};

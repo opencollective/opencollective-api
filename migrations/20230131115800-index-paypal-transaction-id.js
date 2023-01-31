@@ -29,8 +29,8 @@ module.exports = {
     await queryInterface.sequelize.query(`
       CREATE INDEX CONCURRENTLY IF NOT EXISTS "transactions__data_paypal_capture_id"
       ON "Transactions"
-      USING BTREE (("data"->>'paypalCaptureId') ASC)
-      WHERE "data"->>'paypalCaptureId' IS NOT NULL
+      USING BTREE (("data"#>>'{paypalCaptureId}') ASC)
+      WHERE "data"#>>'{paypalCaptureId}' IS NOT NULL
       AND "deletedAt" IS NULL
     `);
   },
