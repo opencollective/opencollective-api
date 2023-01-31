@@ -963,14 +963,17 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
   });
 };
 
-Collective.prototype.getParentCollective = function (options) {
+Collective.prototype.getParentCollective = async function (options) {
   if (!this.ParentCollectiveId) {
-    return Promise.resolve(null);
+    return null;
+  } else if (options) {
+    return models.Collective.findByPk(this.ParentCollectiveId, options);
+  } else if (this.parentCollective) {
+    return this.parentCollective;
+  } else {
+    this.parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);
+    return this.parentCollective;
   }
-  if (this.parentCollective) {
-    return Promise.resolve(this.parentCollective);
-  }
-  return models.Collective.findByPk(this.ParentCollectiveId, options);
 };
 
 Collective.prototype.getICS = function () {
