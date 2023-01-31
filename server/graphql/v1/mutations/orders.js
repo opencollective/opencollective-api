@@ -11,7 +11,7 @@ import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -226,8 +226,7 @@ const hasPaymentMethod = order => {
         paymentMethod.type === 'manual' ||
         paymentMethod.type === 'crypto' ||
         paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
-        paymentMethod.type === PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT ||
-        paymentMethod.type === PAYMENT_METHOD_TYPE.SEPA_DEBIT,
+        (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
     );
   }
 };
