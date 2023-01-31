@@ -181,7 +181,7 @@ export type PaypalTransactionSearchResult = {
   page: number;
   total_items: number;
   total_pages: number;
-  transaction_details: {
+  transaction_details: Array<{
     transaction_info: {
       paypal_account_id: string;
       transaction_id: string;
@@ -189,6 +189,8 @@ export type PaypalTransactionSearchResult = {
       transaction_initiation_date: string;
       transaction_updated_date: string;
       transaction_amount: PaypalTransactionAmount;
+      paypal_reference_id?: string;
+      paypal_reference_id_type?: 'ODR' | 'TXN' | 'SUB' | 'PAP';
       fee_amount: PaypalTransactionAmount;
       insurance_amount: PaypalTransactionAmount;
       shipping_amount: PaypalTransactionAmount;
@@ -240,7 +242,7 @@ export type PaypalTransactionSearchResult = {
     store_info: Record<string, never>;
     auction_info: Record<string, never>;
     incentive_info: Record<string, never>;
-  }[];
+  }>;
 };
 
 export type PaypalCapture = {

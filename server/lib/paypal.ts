@@ -3,14 +3,16 @@ import paypal from '@paypal/payouts-sdk';
 import config from 'config';
 import express from 'express';
 import { difference, find } from 'lodash';
+import moment from 'moment';
 
-import { Op } from '../models';
+import models, { Op, sequelize } from '../models';
 import ConnectedAccount from '../models/ConnectedAccount';
 import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
   PayoutRequestBody,
   PayoutRequestResult,
+  PaypalTransactionSearchResult,
   PaypalWebhook,
   PaypalWebhookEventType,
   PaypalWebhookPatch,
@@ -99,6 +101,22 @@ export const getHostPaypalAccount = async (host): Promise<ConnectedAccount> => {
   } else {
     return account;
   }
+};
+
+export const getHostsWithPayPalConnected = async (): Promise<(typeof models.Collective)[]> => {
+  return models.Collective.findAll({
+    where: { isHostAccount: true },
+    group: [sequelize.col('Collective.id')],
+    order: [[sequelize.col('Collective.slug'), 'ASC']],
+    include: [
+      {
+        association: 'ConnectedAccounts',
+        required: true,
+        attributes: [],
+        where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
+      },
+    ],
+  });
 };
 
 export const validateWebhookEvent = async (
@@ -313,5 +331,39 @@ export const removeUnusedPaypalWebhooks = async (host): Promise<number> => {
 
   return deletedCount;
 };
+
+type ListPaypalTransactionsResult = {
+  transactions: PaypalTransactionSearchResult['transaction_details'];
+  totalPages: number;
+  currentPage: number;
+};
+
+/**
+ * A helper to fetch all PayPal transactions for a given host that supports pagination.
+ */
+export async function listPayPalTransactions(
+  host,
+  fromDate: moment.Moment | Date,
+  toDate: moment.Moment | Date,
+  {
+    currentPage = 1,
+    fetchSize = 500,
+    transactionStatus = 'S', // The transaction successfully completed without a denial and after any pending statuses.
+    fields = 'all', // See transactions-get-query-parameters
+  } = {},
+): Promise<ListPaypalTransactionsResult> {
+  const urlParams = new URLSearchParams();
+  urlParams.append('fields', fields);
+  urlParams.append('page_size', `${fetchSize}`);
+  urlParams.append('page', `${currentPage}`);
+  urlParams.append('transaction_status', transactionStatus);
+  urlParams.append('start_date', fromDate.toISOString());
+  urlParams.append('end_date', toDate.toISOString());
+  const apiUrl = `reporting/transactions?${urlParams.toString()}`;
+  const response = (await paypalRequest(apiUrl, null, host, 'GET')) as PaypalTransactionSearchResult;
+  const totalPages = response.total_pages || 1;
+  const transactions = response.transaction_details;
+  return { transactions, totalPages, currentPage };
+}
 
 export { paypal };

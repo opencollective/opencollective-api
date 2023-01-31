@@ -10,11 +10,13 @@ import OrderStatus from '../../server/constants/order_status';
 import OrderStatuses from '../../server/constants/order_status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import logger from '../../server/lib/logger';
+import { getHostsWithPayPalConnected } from '../../server/lib/paypal';
 import { parseToBoolean } from '../../server/lib/utils';
 import models, { Op, sequelize } from '../../server/models';
 import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import {
   findTransactionByPaypalId,
+  recordPaypalCapture,
   recordPaypalTransaction,
   refundPaypalCapture,
 } from '../../server/paymentProviders/paypal/payment';
@@ -22,7 +24,7 @@ import {
   fetchPaypalSubscription,
   fetchPaypalTransactionsForSubscription,
 } from '../../server/paymentProviders/paypal/subscription';
-import { PaypalTransaction } from '../../server/types/paypal';
+import { PaypalCapture, PaypalTransaction, PaypalTransactionSearchResult } from '../../server/types/paypal';
 
 // TODO: Move these to command-line options
 const START_DATE = new Date(process.env.START_DATE || '2022-02-01');
@@ -33,19 +35,7 @@ const getHostsSlugsFromOptions = async (options: Record<string, unknown>): Promi
   if (options['hosts']?.['length']) {
     return <string[]>options['hosts'];
   } else {
-    const hosts = await models.Collective.findAll({
-      where: { isHostAccount: true },
-      group: [sequelize.col('Collective.id')],
-      include: [
-        {
-          association: 'ConnectedAccounts',
-          required: true,
-          attributes: [],
-          where: { service: 'paypal', clientId: { [Op.not]: null }, token: { [Op.not]: null } },
-        },
-      ],
-    });
-
+    const hosts = await getHostsWithPayPalConnected();
     return hosts.map(h => h.slug);
   }
 };
@@ -477,7 +467,9 @@ const findMissingPaypalTransactions = async (_, commander) => {
       totalPages = <number>response['totalPages'];
 
       // Make sure all transactions exist in the ledger
-      for (const paypalTransaction of <Record<string, unknown>[]>response['transaction_details']) {
+      for (const paypalTransaction of <PaypalTransactionSearchResult['transaction_details']>(
+        response['transaction_details']
+      )) {
         console.log(
           `Checking transaction ${paypalTransaction['transaction_info']['transaction_id']}...`,
           paypalTransaction,
@@ -486,7 +478,8 @@ const findMissingPaypalTransactions = async (_, commander) => {
         const paypalTransactionId = <string>transactionInfo['transaction_id'];
         const ledgerTransaction = await findTransactionByPaypalId(paypalTransactionId, { HostCollectiveId: host.id });
         if (!ledgerTransaction) {
-          const captureDetails = await paypalRequestV2(`payments/captures/${paypalTransactionId}`, host, 'GET');
+          const captureUrl = `payments/captures/${paypalTransactionId}`;
+          const captureDetails = (await paypalRequestV2(captureUrl, host, 'GET')) as PaypalCapture;
           if (captureDetails.status !== 'COMPLETED') {
             continue; // Make sure the capture is not pending
           }
@@ -503,11 +496,11 @@ const findMissingPaypalTransactions = async (_, commander) => {
 
           // Look for the subscription in DB
           const paypalSubscriptionId = <string>transactionInfo['paypal_reference_id'];
-          const { order, host } = await loadDataForSubscription(paypalSubscriptionId);
+          const { order } = await loadDataForSubscription(paypalSubscriptionId);
           if (options['fix']) {
-            await recordPaypalTransaction(order, paypalTransaction, {
+            return recordPaypalCapture(order, captureDetails, {
               data: { recordedFrom: 'scripts/paypal/payment-reconciliator.ts' },
-              createdAt: new Date(paypalTransaction['time'] as string),
+              createdAt: new Date(captureDetails.create_time),
             });
           } else {
             console.log(
