@@ -28,8 +28,7 @@ import {
 const getUnrecordedTransactions = async (host, order) => {
   const paypalSubscriptionId = order.Subscription.paypalSubscriptionId;
   const responseTransactions = await fetchPaypalTransactionsForSubscription(host, paypalSubscriptionId);
-  const totalPages = <number>responseTransactions['totalPages'];
-
+  const totalPages = responseTransactions.total_pages;
   if (totalPages > 1) {
     throw new Error('Pagination not supported yet');
   }

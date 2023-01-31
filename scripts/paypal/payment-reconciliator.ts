@@ -22,6 +22,7 @@ import {
   fetchPaypalSubscription,
   fetchPaypalTransactionsForSubscription,
 } from '../../server/paymentProviders/paypal/subscription';
+import { PaypalTransaction } from '../../server/types/paypal';
 
 // TODO: Move these to command-line options
 const START_DATE = new Date(process.env.START_DATE || '2022-02-01');
@@ -310,7 +311,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
       where: { type: 'CREDIT', kind: 'CONTRIBUTION' },
       order: [['createdAt', 'ASC']],
     });
-    const paypalTransactions = (responseTransactions['transactions'] as Record<string, unknown>[]) || [];
+    const paypalTransactions = (responseTransactions['transactions'] as PaypalTransaction[]) || [];
     if (dbTransactions.length !== paypalTransactions.length) {
       console.log(
         `Order #${order.id} has ${dbTransactions.length} transactions in DB but ${paypalTransactions.length} in PayPal`,
@@ -460,7 +461,7 @@ const findOrphanSubscriptions = async (_, commander) => {
       }
 
       // Make sure all transactions exist in the ledger
-      for (const paypalTransaction of <Record<string, unknown>[]>response['transactions']) {
+      for (const paypalTransaction of <PaypalTransaction[]>response['transactions']) {
         const paypalTransactionId = <string>paypalTransaction['id'];
         const ledgerTransaction = await findTransactionByPaypalId(paypalTransactionId, {
           HostCollectiveId: host.id,

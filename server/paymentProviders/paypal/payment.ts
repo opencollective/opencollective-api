@@ -12,8 +12,9 @@ import {
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
 import { formatCurrency } from '../../lib/utils';
-import models, { Op } from '../../models';
+import models from '../../models';
 import User from '../../models/User';
+import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
 
@@ -80,33 +81,48 @@ const recordTransaction = async (
   return models.Transaction.createFromContributionPayload(transactionData);
 };
 
-export function recordPaypalSale(order: typeof models.Order, paypalSale): Promise<typeof models.Transaction> {
+// Unfortunately, PayPal has 3 different transaction types: sale, capture and transaction. Though they all
+// represent the same thing (IDs point toward the same thing), the data structure is different. We thus need
+// these 3 functions to handle them all.
+
+export function recordPaypalSale(
+  order: typeof models.Order,
+  paypalSale: PaypalSale,
+): Promise<typeof models.Transaction> {
   const currency = paypalSale.amount.currency;
   const amount = paypalAmountToCents(paypalSale.amount.total);
   const fee = paypalAmountToCents(get(paypalSale, 'transaction_fee.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { data: { paypalSale } });
+  return recordTransaction(order, amount, currency, fee, {
+    data: { paypalSale, paypalCaptureId: paypalSale.id },
+  });
 }
 
 export function recordPaypalTransaction(
   order: typeof models.Order,
-  paypalTransaction,
+  paypalTransaction: PaypalTransaction,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<typeof models.Transaction> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
   const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { data: { ...data, paypalTransaction }, createdAt });
+  return recordTransaction(order, amount, currency, fee, {
+    data: { ...data, paypalTransaction, paypalCaptureId: paypalTransaction.id },
+    createdAt,
+  });
 }
 
 export const recordPaypalCapture = async (
   order: typeof models.Order,
-  capture,
+  capture: PaypalCapture,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<typeof models.Transaction> => {
   const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
-  return recordTransaction(order, amount, currency, fee, { data: { ...data, capture }, createdAt });
+  return recordTransaction(order, amount, currency, fee, {
+    data: { ...data, capture, paypalCaptureId: capture.id },
+    createdAt,
+  });
 };
 
 /**
@@ -115,25 +131,12 @@ export const recordPaypalCapture = async (
  */
 export async function findTransactionByPaypalId(
   paypalTransactionId: string,
-  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined, searchSaleIdOnly = false } = {},
+  { type = 'CREDIT', HostCollectiveId = undefined, OrderId = undefined } = {},
 ) {
-  const dataQuery = {};
-  const include = [];
-  if (searchSaleIdOnly) {
-    dataQuery['paypalSale'] = { id: paypalTransactionId };
-    include.push({ model: models.PaymentMethod, where: { service: 'paypal' } });
-  } else {
-    dataQuery[Op.or] = [
-      { capture: { id: paypalTransactionId } },
-      { paypalSale: { id: paypalTransactionId } },
-      { paypalTransaction: { id: paypalTransactionId } },
-    ];
-  }
-
   return models.Transaction.findOne({
     where: {
       ...pickBy({ type, HostCollectiveId, OrderId }, value => !isUndefined(value)),
-      data: dataQuery,
+      data: { paypalCaptureId: paypalTransactionId },
     },
   });
 }
@@ -161,7 +164,8 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.T
   const capture = await paypalRequestV2(`${paypalOrderUrl}/capture`, hostCollective, 'POST');
   const captureId = capture.purchase_units[0].payments.captures[0].id;
   await order.update({ data: { ...order.data, paypalCaptureId: captureId } });
-  const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, hostCollective, 'GET');
+  const captureUrl = `payments/captures/${captureId}`;
+  const captureDetails = (await paypalRequestV2(captureUrl, hostCollective, 'GET')) as PaypalCapture;
   if (captureDetails.status !== 'COMPLETED') {
     // Return nothing, the transactions will be created by the webhook when the charge switches to COMPLETED
     return;
