@@ -12,6 +12,7 @@ import { verifyTwoFactorAuthenticationRecoveryCode } from '../lib/two-factor-aut
 import { validateTOTPToken } from '../lib/two-factor-authentication/totp';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
+import TwoFactorAuthLib from '../lib/two-factor-authentication';
 
 const { Unauthorized, ValidationFailed, TooManyRequests } = errors;
 
@@ -101,13 +102,12 @@ export const signin = async (req, res, next) => {
       if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
         // Send 2FA token, can only be used to get a long term token
         const token = user.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
-        res.send({ token });
+        return res.send({ token });
       } else {
         // All good, no 2FA, send token
         const token = await user.generateSessionToken();
-        res.send({ token });
+        return res.send({ token });
       }
-      return;
     }
 
     if (resetPassword) {
@@ -135,13 +135,11 @@ export const signin = async (req, res, next) => {
 
       // For e2e testing, we enable testuser+(admin|member)@opencollective.com to automatically receive the login link
       if (config.env !== 'production' && user.email.match(/.*test.*@opencollective.com$/)) {
-        response.redirect = loginLink;
+        return res.send({ success: true, redirect: loginLink });
       }
     }
 
-    const response = { success: true };
-
-    res.send(response);
+    res.send({ success: true });
   } catch (e) {
     next(e);
   }
@@ -167,6 +165,31 @@ export const updateToken = async (req, res) => {
     const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
     res.send({ token });
   }
+};
+
+/**
+ * Reset User password
+ */
+export const resetPassword = async (req, res) => {
+  console.log('resetPassword', req.body);
+
+  const { password } = req.body;
+
+  const rateLimitIP = new RateLimit(`reset_password_ip_${req.ip}`, 10, ONE_HOUR_IN_SECONDS, true);
+  const rateLimitUser = new RateLimit(`reset_password_user_${req.remoteUser.id}`, 10, ONE_HOUR_IN_SECONDS, true);
+  if (!(await rateLimitIP.registerCall()) || !(await rateLimitUser.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
+  // Enforce 2FA
+  // const account = await req.remoteUser.getCollective();
+  // await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
+
+  await req.remoteUser.setPassword(password);
+
+  res.send({ success: true });
 };
 
 /**

@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
@@ -105,6 +106,22 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     } else {
       return `${config.host.website}/reset-password/${token}`;
     }
+  };
+
+  setPassword = async function (password, { userToken } = {}) {
+    console.log('setPassword', password);
+
+    const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
+
+    await this.update({ passwordHash });
+
+    await models.Activity.create({
+      type: activities.USER_PASSWORD_SET,
+      UserId: this.id,
+      FromCollectiveId: this.CollectiveId,
+      CollectiveId: this.CollectiveId,
+      UserTokenId: userToken?.id,
+    });
   };
 
   generateConnectedAccountVerifiedToken = function (connectedAccountId, username) {

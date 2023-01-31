@@ -105,6 +105,8 @@ export default async app => {
    * User reset password or new token flow (no jwt verification) or 2FA
    */
   app.post('/users/signin', required('user'), users.signin);
+  // reset password
+  app.post('/users/reset-password', authentication.mustBeLoggedIn, users.resetPassword);
   // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
   app.post('/users/update-token', authentication.mustBeLoggedIn, users.updateToken);
   // check the 2FA code against the token in the db to let 2FA-enabled users log in

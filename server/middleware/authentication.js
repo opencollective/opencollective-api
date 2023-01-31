@@ -129,10 +129,6 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     req.userToken = userToken;
   }
 
-  if (req.jwtPayload.scope === 'twofactorauth') {
-    return next(errors.Unauthorized('Cannot use this token on this route.'));
-  }
-
   /**
    * Functionality for one-time login links. We check that the lastLoginAt
    * in the JWT matches the lastLoginAt in the db. If so, we allow the user
@@ -142,26 +138,26 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     // We check the path because we don't want login tokens used on routes besides /users/update-token.
     // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
     // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
-    const path = req.path;
-    if (path !== '/users/update-token') {
+    if (req.path !== '/users/update-token') {
+      const errorMessage = 'Not allowed to use tokens with login scope on routes other than /users/update-token';
       if (config.env === 'production' || config.env === 'staging') {
-        logger.error('Not allowed to use tokens with login scope on routes other than /users/update-token.');
-        reportMessageToSentry(`Not allowed to use tokens with login scope on routes other than /users/update-token`);
+        logger.error(errorMessage);
+        reportMessageToSentry(errorMessage);
         next();
         return;
       } else {
-        logger.info(
-          'Not allowed to use tokens with login scope on routes other than /users/update-token. Ignoring in non-production environment.',
-        );
+        logger.info(`${errorMessage}. Ignoring in non-production environment.`);
       }
     }
+
     if (user.lastLoginAt) {
       if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
+        const errorMessage = 'This login link is expired or has already been used';
         if (config.env === 'production' || config.env === 'staging') {
-          logger.warn('This login link is expired or has already been used');
-          return next(errors.Unauthorized('This login link is expired or has already been used'));
+          logger.warn(errorMessage);
+          return next(errors.Unauthorized(errorMessage));
         } else {
-          logger.info('This login link is expired or has already been used. Ignoring in non-production environment.');
+          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
         }
       }
     }
@@ -178,6 +174,21 @@ export const _authenticateUserByJwt = async (req, res, next) => {
         data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
     }
+  } else if (req.jwtPayload.scope === 'reset-password') {
+    if (req.path !== '/users/reset-password') {
+      const errorMessage =
+        'Not allowed to use tokens with reset-password scope on routes other than /users/reset-password';
+      if (config.env === 'production' || config.env === 'staging') {
+        logger.error(errorMessage);
+        reportMessageToSentry(errorMessage);
+        next();
+        return;
+      } else {
+        logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+      }
+    }
+  } else if (req.jwtPayload.scope) {
+    return next(errors.Unauthorized(`Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`));
   }
 
   await user.populateRoles();
