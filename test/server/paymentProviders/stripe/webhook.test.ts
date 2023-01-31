@@ -5,10 +5,12 @@ import { set } from 'lodash';
 import { assert, createSandbox } from 'sinon';
 import Stripe from 'stripe';
 
+import { Service } from '../../../../server/constants/connected_account';
 import FEATURE from '../../../../server/constants/feature';
 import OrderStatuses from '../../../../server/constants/order_status';
 import * as libPayments from '../../../../server/lib/payments';
 import stripe from '../../../../server/lib/stripe';
+import models from '../../../../server/models';
 import * as common from '../../../../server/paymentProviders/stripe/common';
 import * as webhook from '../../../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../../../mocks/stripe';
@@ -588,6 +590,233 @@ describe('webhook', () => {
           },
           "You invested all your money on FTX and now you don't have anything left",
         );
+      });
+    });
+  });
+
+  describe('mandate.updated', () => {
+    const sandbox = createSandbox();
+    afterEach(sandbox.restore);
+
+    it('saves mandate to payment method', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+      const paymentMethod = await fakePaymentMethod({
+        type: 'sepa_debit',
+        service: 'stripe',
+        saved: true,
+        data: {
+          stripePaymentMethodId,
+        },
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      await paymentMethod.reload();
+
+      expect(paymentMethod.data.stripeMandate).to.eql({
+        id: 'mandate_1234',
+        type: 'multi_use',
+        status: 'active',
+        payment_method: stripePaymentMethodId,
+      });
+    });
+
+    it('updates mandate to inactive', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+      const paymentMethod = await fakePaymentMethod({
+        type: 'sepa_debit',
+        service: 'stripe',
+        saved: true,
+        data: {
+          stripePaymentMethodId,
+          stripeMandate: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          },
+        },
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'inactive',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      await paymentMethod.reload();
+
+      expect(paymentMethod.data.stripeMandate.status).to.equal('inactive');
+      expect(paymentMethod.saved).to.be.false;
+    });
+
+    it('create payment method with mandate if not exists', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        id: stripePaymentMethodId,
+        type: 'sepa_debit',
+        sepa_debit: {
+          bank_code: 'abcd',
+          last4: '1234',
+        },
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      const paymentMethod = await models.PaymentMethod.findOne({
+        where: {
+          data: {
+            stripePaymentMethodId,
+          },
+        },
+      });
+
+      expect(paymentMethod).to.exist;
+      expect(paymentMethod.data.stripeMandate).to.eql({
+        id: 'mandate_1234',
+        type: 'multi_use',
+        status: 'active',
+        payment_method: stripePaymentMethodId,
+      });
+    });
+
+    it('received before customer is attached to payment method', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+      const stripeAccount = randStr('acc_');
+      const stripeCustomer = randStr('cus_');
+
+      const collective = await fakeCollective();
+
+      await fakeConnectedAccount({
+        service: Service.STRIPE_CUSTOMER,
+        username: stripeCustomer,
+        clientId: stripeAccount,
+        CollectiveId: collective.id,
+      });
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        id: stripePaymentMethodId,
+        type: 'sepa_debit',
+        sepa_debit: {},
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        account: stripeAccount,
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      const paymentMethod = await models.PaymentMethod.findOne({
+        where: {
+          data: {
+            stripePaymentMethodId,
+            stripeAccount,
+          },
+        },
+      });
+
+      expect(paymentMethod.customerId).to.be.null;
+      expect(paymentMethod.CollectiveId).to.be.null;
+
+      expect(paymentMethod.data.stripeMandate).to.eql({
+        id: 'mandate_1234',
+        type: 'multi_use',
+        status: 'active',
+        payment_method: stripePaymentMethodId,
+      });
+
+      await webhook.paymentMethodAttached({
+        id: 'evt_id',
+        account: stripeAccount,
+        type: 'payment_method.attached',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: stripePaymentMethodId,
+            type: 'sepa_debit',
+            sepa_debit: {},
+            customer: stripeCustomer,
+          } as Stripe.PaymentMethod,
+        },
+      });
+
+      await paymentMethod.reload();
+
+      expect(paymentMethod.customerId).to.eql(stripeCustomer);
+      expect(paymentMethod.CollectiveId).to.eql(collective.id);
+
+      expect(paymentMethod.data.stripeMandate).to.eql({
+        id: 'mandate_1234',
+        type: 'multi_use',
+        status: 'active',
+        payment_method: stripePaymentMethodId,
       });
     });
   });

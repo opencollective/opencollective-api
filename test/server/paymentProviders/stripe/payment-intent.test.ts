@@ -96,17 +96,19 @@ describe('stripe/payment-intent', () => {
 
     describe('recurring orders', () => {
       let order;
+      let stripePaymentMethodId;
 
       const sandbox = createSandbox();
       afterEach(sandbox.restore);
 
       beforeEach(async () => {
+        stripePaymentMethodId = randStr('pm_');
         const paymentMethod = await fakePaymentMethod({
           type: PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT,
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           customerId: 'cus_test',
           data: {
-            stripePaymentMethodId: 'pm_test',
+            stripePaymentMethodId,
           },
         });
         order = await fakeOrder(
@@ -144,7 +146,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },
@@ -170,7 +172,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },
@@ -196,7 +198,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },
@@ -224,7 +226,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },

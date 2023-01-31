@@ -8,7 +8,7 @@ import { VAT_OPTIONS } from '../../../../server/constants/vat';
 import stripe from '../../../../server/lib/stripe';
 import models from '../../../../server/models';
 import { randEmail } from '../../../stores';
-import { fakeCollective, fakeHost, fakeTier, fakeUser } from '../../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeTier, fakeUser, randStr } from '../../../test-helpers/fake-data';
 import * as utils from '../../../utils';
 
 describe('server/graphql/v1/tiers', () => {
@@ -95,12 +95,13 @@ describe('server/graphql/v1/tiers', () => {
     sandbox.stub(stripe.customers, 'create').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
     sandbox.stub(stripe.customers, 'retrieve').callsFake(() => Promise.resolve({ id: 'cus_B5s4wkqxtUtNyM' }));
 
+    const paymentMethodId = randStr('pm_');
     sandbox
       .stub(stripe.paymentMethods, 'create')
-      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+      .resolves({ id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } });
     sandbox
       .stub(stripe.paymentMethods, 'attach')
-      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+      .resolves({ id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } });
 
     /* eslint-disable camelcase */
 

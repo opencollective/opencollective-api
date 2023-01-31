@@ -25,6 +25,7 @@ import models, { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
+import { randStr } from './test-helpers/fake-data';
 
 if (process.env.RECORD) {
   nock.recorder.rec();
@@ -250,13 +251,14 @@ export const createStripeToken = async () => {
  *  and the one that *must* be reset after the test is done.
  */
 export function stubStripeCreate(sandbox, overloadDefaults) {
+  const paymentMethodId = randStr('pm_');
   const values = {
     customer: { id: 'cus_BM7mGwp1Ea8RtL' },
     token: { id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' },
     charge: { id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' },
     paymentIntent: { id: 'pi_1F82vtBYycQg1OMfS2Rctiau', status: 'requires_confirmation' },
     paymentIntentConfirmed: { charges: { data: [{ id: 'ch_1AzPXHD8MNtzsDcgXpUhv4pm' }] }, status: 'succeeded' },
-    paymentMethod: { id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } },
+    paymentMethod: { id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } },
     ...overloadDefaults,
   };
   /* Little helper function that returns the stub with a given
