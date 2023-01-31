@@ -9,7 +9,7 @@ export const CollectiveCreateInput = new GraphQLInputObjectType({
     description: { type: new GraphQLNonNull(GraphQLString) },
     tags: { type: new GraphQLList(GraphQLString) },
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
-    repositoryUrl: { type: GraphQLString },
+    repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
     settings: { type: GraphQLJSON },
   }),
 });

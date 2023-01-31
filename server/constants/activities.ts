@@ -88,13 +88,15 @@ enum ActivityTypes {
   PAYMENT_CREDITCARD_EXPIRING = 'payment.creditcard.expiring',
   // User signup/signin
   USER_CREATED = 'user.created',
-  USER_NEW_TOKEN = 'user.new.token',
+  USER_NEW_TOKEN = 'user.new.token', // Deprecated and replaced by USER_SIGNIN
+  USER_SIGNIN = 'user.signin',
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   TWO_FACTOR_CODE_ADDED = 'user.new.two.factor.code',
   TWO_FACTOR_CODE_DELETED = 'user.remove.two.factor.code',
   // User edits
   USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',
+  USER_PASSWORD_SET = 'user.passwordSet',
   // Gift cards
   USER_CARD_CLAIMED = 'user.card.claimed',
   USER_CARD_INVITED = 'user.card.invited',

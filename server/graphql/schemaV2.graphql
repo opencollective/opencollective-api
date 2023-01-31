@@ -184,10 +184,10 @@ interface Account {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -2456,6 +2456,7 @@ enum ActivityType {
   TWO_FACTOR_CODE_DELETED
   USER_CHANGE_EMAIL
   USER_PAYMENT_METHOD_CREATED
+  USER_PASSWORD_SET
   USER_CARD_CLAIMED
   USER_CARD_INVITED
   WEBHOOK_STRIPE_RECEIVED
@@ -2498,10 +2499,10 @@ type Host implements Account & AccountWithContributions {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -5217,10 +5218,10 @@ type Bot implements Account {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -5734,10 +5735,10 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -6580,10 +6581,10 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -7200,10 +7201,10 @@ type Individual implements Account {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -7729,6 +7730,11 @@ type Individual implements Account {
     """
     offset: Int! = 0
   ): PersonalTokenCollection
+
+  """
+  Has the account a password set? For authenticated user: scope: "account".
+  """
+  hasPassword: Boolean
 }
 
 """
@@ -7887,10 +7893,10 @@ type Organization implements Account & AccountWithContributions {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -8519,10 +8525,10 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -9680,6 +9686,11 @@ type Query {
     Return tags from collectives which includes this search term
     """
     searchTerm: String
+
+    """
+    Return tags which includes this search term
+    """
+    tagSearchTerm: String
     limit: Int! = 10
     offset: Int! = 0
   ): TagStatsCollection!
@@ -11222,6 +11233,7 @@ enum ActivityAndClassesType {
   TWO_FACTOR_CODE_DELETED
   USER_CHANGE_EMAIL
   USER_PAYMENT_METHOD_CREATED
+  USER_PASSWORD_SET
   USER_CARD_CLAIMED
   USER_CARD_INVITED
   WEBHOOK_STRIPE_RECEIVED
@@ -11316,10 +11328,10 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -11928,10 +11940,10 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   description: String
   longDescription: String
   tags: [String]
-  website: String
-  twitterHandle: String
+  website: String @deprecated(reason: "2023-01-16: Please use socialLinks")
+  twitterHandle: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   socialLinks: [SocialLink!]!
   currency: String
   expensePolicy: String
@@ -13163,6 +13175,21 @@ type Mutation {
   setNewsletterOptIn(newsletterOptIn: Boolean!): Individual!
 
   """
+  Set password to Individual. Scope: "account". 2FA.
+  """
+  setPassword(
+    """
+    The password to set.
+    """
+    password: String!
+
+    """
+    The current password (if any) to confirm password change.
+    """
+    currentPassword: String
+  ): Individual!
+
+  """
   Invite a new member to the Collective. Scope: "account".
   """
   inviteMember(
@@ -13834,7 +13861,7 @@ input CollectiveCreateInput {
   description: String!
   tags: [String]
   githubHandle: String @deprecated(reason: "2022-06-03: Please use repositoryUrl")
-  repositoryUrl: String
+  repositoryUrl: String @deprecated(reason: "2023-01-16: Please use socialLinks")
   settings: JSON
 }
 

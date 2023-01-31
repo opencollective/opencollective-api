@@ -6,69 +6,162 @@ import config from 'config';
 import fetch from 'node-fetch';
 import request from 'supertest';
 
-import app from '../../../server/index';
-import models from '../../../server/models';
+import { fakeUser } from '../../test-helpers/fake-data';
+import { startTestServer, stopTestServer } from '../../test-helpers/server';
 import * as utils from '../../utils';
 
 const application = utils.data('application');
-const userData = utils.data('user1');
 
 describe('server/routes/images', () => {
   let user, expressApp;
 
   before(async () => {
-    expressApp = await app();
-  });
-
-  before(function () {
     if (!config.aws.s3.key) {
       this.skip();
     }
+
+    expressApp = await startTestServer();
+    await utils.resetTestDB();
+    user = await fakeUser();
   });
 
-  beforeEach(() => utils.resetTestDB());
-
-  /**
-   * Create user
-   */
-
-  beforeEach(async () => {
-    user = await models.User.create(userData);
+  after(async () => {
+    await stopTestServer();
   });
 
-  it('should upload an image to S3', done => {
+  it('should upload an image to S3', async () => {
     const originalImage = fs.readFileSync(path.join(__dirname, '../../mocks/images/camera.png'), {
       encoding: 'utf8',
     });
-    request(expressApp)
+
+    const res = await request(expressApp)
       .post(`/images/?api_key=${application.api_key}`)
       .attach('file', 'test/mocks/images/camera.png')
-      .set('Authorization', `Bearer ${user.jwt()}`)
-      .expect(200)
-      .then(res => {
-        expect(res.body.url).to.contain('.png');
-        return fetch(res.body.url).then(res => res.text());
-      })
-      .then(image => {
-        expect(image).to.equal(originalImage);
-        done();
-      })
-      .catch(done);
+      .field('kind', 'ACCOUNT_AVATAR')
+      .set('Authorization', `Bearer ${user.jwt()}`);
+
+    expect(res.status).to.eq(200);
+    expect(res.body.url).to.contain('.png');
+    expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/camera.png/);
+    const fetchedFile = await fetch(res.body.url).then(res => res.text());
+    expect(fetchedFile).to.equal(originalImage);
   });
 
-  it('should throw an error if no file field is sent', done => {
-    request(expressApp)
+  describe('fileName', () => {
+    it('can be overwritten', async () => {
+      const res = await request(expressApp)
+        .post(`/images/?api_key=${application.api_key}`)
+        .attach('file', 'test/mocks/images/camera.png')
+        .field('kind', 'ACCOUNT_AVATAR')
+        .field('fileName', 'another-name')
+        .set('Authorization', `Bearer ${user.jwt()}`);
+
+      expect(res.status).to.eq(200);
+      expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/another-name.png/);
+    });
+
+    it('sanitizes relative path', async () => {
+      const res = await request(expressApp)
+        .post(`/images/?api_key=${application.api_key}`)
+        .attach('file', 'test/mocks/images/camera.png')
+        .field('kind', 'ACCOUNT_AVATAR')
+        .field('fileName', '../../another-name')
+        .set('Authorization', `Bearer ${user.jwt()}`);
+
+      expect(res.status).to.eq(200);
+      expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/another-name.png/);
+    });
+
+    it('sanitizes malicious content', async () => {
+      const res = await request(expressApp)
+        .post(`/images/?api_key=${application.api_key}`)
+        .attach('file', 'test/mocks/images/camera.png')
+        .field('kind', 'ACCOUNT_AVATAR')
+        .field('fileName', '~/.\u0000ssh/authorized_keys')
+        .set('Authorization', `Bearer ${user.jwt()}`);
+
+      expect(res.status).to.eq(200);
+      expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/authorized_keys.png/);
+    });
+  });
+
+  // File
+
+  it('should throw an error if no file field is sent', async () => {
+    const res = await request(expressApp)
       .post(`/images/?api_key=${application.api_key}`)
-      .set('Authorization', `Bearer ${user.jwt()}`)
-      .expect(400)
-      .end(done);
+      .field('kind', 'ACCOUNT_AVATAR')
+      .set('Authorization', `Bearer ${user.jwt()}`);
+
+    expect(res.status).to.eq(400);
+    expect(res.body.error).to.deep.eq({
+      code: 400,
+      type: 'missing_required',
+      message: 'Missing required fields',
+      fields: { file: 'File field is required and missing' },
+    });
   });
 
-  it('should upload if the user is not logged in', done => {
-    request(expressApp)
+  it('should throw an error if file type is invalid', async () => {
+    const res = await request(expressApp)
+      .post(`/images/?api_key=${application.api_key}`)
+      .attach('file', 'test/mocks/data.js')
+      .field('kind', 'ACCOUNT_AVATAR')
+      .set('Authorization', `Bearer ${user.jwt()}`);
+
+    expect(res.status).to.eq(400);
+    expect(res.body.error).to.deep.eq({
+      code: 400,
+      message: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, application/pdf',
+      type: 'INVALID_FILE_MIME_TYPE',
+      fields: { file: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, application/pdf' },
+    });
+  });
+
+  // Kind
+
+  it('should throw an error if kind is missing', async () => {
+    const res = await request(expressApp)
       .post(`/images/?api_key=${application.api_key}`)
       .attach('file', 'test/mocks/images/camera.png')
-      .expect(200)
-      .end(done);
+      .set('Authorization', `Bearer ${user.jwt()}`);
+
+    expect(res.status).to.eq(400);
+    expect(res.body.error).to.deep.eq({
+      code: 400,
+      type: 'missing_required',
+      message: 'Missing required fields',
+      fields: { kind: 'Kind field is required and missing' },
+    });
+  });
+
+  it('should throw an error if kind is invalid', async () => {
+    const res = await request(expressApp)
+      .post(`/images/?api_key=${application.api_key}`)
+      .attach('file', 'test/mocks/images/camera.png')
+      .field('kind', '???')
+      .set('Authorization', `Bearer ${user.jwt()}`);
+
+    expect(res.status).to.eq(400);
+    expect(res.body.error).to.deep.eq({
+      code: 400,
+      type: 'INVALID_FILE_KIND',
+      message:
+        'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL',
+      fields: {
+        kind: 'Kind should be one of: ACCOUNT_AVATAR, ACCOUNT_BANNER, EXPENSE_ATTACHED_FILE, EXPENSE_ITEM, ACCOUNT_LONG_DESCRIPTION, UPDATE, COMMENT, TIER_LONG_DESCRIPTION, ACCOUNT_CUSTOM_EMAIL',
+      },
+    });
+  });
+
+  // Misc
+
+  it('should not upload if the user is not logged in', async () => {
+    const res = await request(expressApp)
+      .post(`/images/?api_key=${application.api_key}`)
+      .attach('file', 'test/mocks/images/camera.png')
+      .field('kind', 'ACCOUNT_AVATAR');
+
+    expect(res.status).to.eq(401);
   });
 });

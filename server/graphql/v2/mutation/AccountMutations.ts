@@ -365,6 +365,7 @@ const accountMutations = {
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
+        UserTokenId: req.userToken?.id,
       });
 
       return account;

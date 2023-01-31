@@ -189,3 +189,4 @@ WITH requested_collectives AS (
   
 -- TODO:
 -- Delete associated incognito profiles
+-- Delete uploaded files, unless they're used for paid expenses or other critical things

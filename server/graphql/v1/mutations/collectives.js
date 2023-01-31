@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, isNil, omit, pick, truncate } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, omit, pick, truncate, uniqWith } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -12,6 +12,7 @@ import * as github from '../../../lib/github';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
+import { SocialLinkType } from '../../../models/SocialLink';
 import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { CollectiveInputType } from '../inputTypes';
 
@@ -446,8 +447,52 @@ export function editCollective(_, args, req) {
         }
       })
       .then(async () => {
+        const isSlEqual = (aSl, bSl) => aSl.type === bSl.type && aSl.url === bSl.url;
+
         if (args.collective.socialLinks) {
-          return collective.updateSocialLinks(args.collective.socialLinks);
+          return collective.updateSocialLinks(uniqWith(args.collective.socialLinks, isSlEqual));
+        } else if (
+          args.collective.website ||
+          args.collective.repositoryUrl ||
+          args.collective.githubHandle ||
+          args.collective.twitterHandle
+        ) {
+          const socialLinks = await models.SocialLink.findAll({
+            where: {
+              CollectiveId: collective.id,
+            },
+            order: [['order', 'ASC']],
+          });
+
+          if (args.collective.website) {
+            socialLinks.push({
+              type: SocialLinkType.WEBSITE,
+              url: args.collective.website,
+            });
+          }
+
+          if (args.collective.repositoryUrl) {
+            socialLinks.push({
+              type: SocialLinkType.GIT,
+              url: args.collective.repositoryUrl,
+            });
+          }
+
+          if (args.collective.githubHandle) {
+            socialLinks.push({
+              type: SocialLinkType.GITHUB,
+              url: `https://github.com/${args.collective.githubHandle}`,
+            });
+          }
+
+          if (args.collective.twitterHandle) {
+            socialLinks.push({
+              type: SocialLinkType.TWITTER,
+              url: `https://twitter.com/${args.collective.twitterHandle}`,
+            });
+          }
+
+          return collective.updateSocialLinks(uniqWith(socialLinks, isSlEqual));
         }
       })
       .then(async () => {

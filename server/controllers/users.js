@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import config from 'config';
 
 import { activities } from '../constants';
@@ -50,13 +51,13 @@ export const exists = async (req, res) => {
 
 /**
  * Login or create a new user
- *
+ **
  * TODO: we are passing createProfile from frontend to specify if we need to
  * create a new account. In the future once signin.js is fully deprecated (replaced by signinV2.js)
  * this function should be refactored to remove createProfile.
  */
 export const signin = async (req, res, next) => {
-  const { redirect, websiteUrl, createProfile = true } = req.body;
+  const { redirect, websiteUrl, sendLink, createProfile = true } = req.body;
   try {
     const rateLimit = new RateLimit(
       `user_signin_attempt_ip_${req.ip}`,
@@ -78,6 +79,37 @@ export const signin = async (req, res, next) => {
     } else if (!user && createProfile) {
       user = await models.User.createUserWithCollective(req.body.user);
     }
+
+    // If password set and not passed, challenge user with password
+    if (user.passwordHash && !sendLink) {
+      if (!req.body.user.password) {
+        return res.status(403).send({
+          errorCode: 'PASSWORD_REQUIRED',
+          message: 'Password requested to complete sign in.',
+        });
+      }
+      const validPassword = await bcrypt.compare(req.body.user.password, user.passwordHash);
+      if (!validPassword) {
+        // Would be great to be consistent in the way we send errors
+        // This is what works best with Frontend today
+        return res.status(401).send({
+          error: { message: 'Invalid password' },
+        });
+      }
+
+      const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
+      if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
+        // Send 2FA token, can only be used to get a long term token
+        const token = user.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
+        res.send({ token });
+      } else {
+        // All good, no 2FA, send token
+        const token = await user.generateSessionToken();
+        res.send({ token });
+      }
+      return;
+    }
+
     const loginLink = user.generateLoginLink(redirect || '/', websiteUrl);
     const clientIP = req.ip;
     if (config.env === 'development') {
@@ -125,11 +157,11 @@ export const updateToken = async (req, res) => {
   if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
     const token = req.remoteUser.jwt(
       { scope: 'twofactorauth', sessionId: req.jwtPayload?.sessionId },
-      auth.TOKEN_EXPIRATION_SESSION,
+      auth.TOKEN_EXPIRATION_2FA,
     );
     res.send({ token });
   } else {
-    const token = req.remoteUser.jwt({ sessionId: req.jwtPayload?.sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
     res.send({ token });
   }
 };
@@ -185,6 +217,6 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
   }
 
-  const token = user.jwt({ sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+  const token = await user.generateSessionToken({ sessionId });
   res.send({ token: token });
 };

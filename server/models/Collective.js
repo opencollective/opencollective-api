@@ -89,6 +89,7 @@ import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 import CustomDataTypes from './DataTypes';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
+import { SocialLinkType } from './SocialLink';
 
 const debug = debugLib('models:Collective');
 
@@ -467,6 +468,9 @@ const Collective = sequelize.define(
       type: DataTypes.DATE,
     },
 
+    /**
+     * @deprecated Use collective social links instead
+     */
     twitterHandle: {
       type: DataTypes.STRING, // without the @ symbol. Ex: 'asood123'
       set(twitterHandle) {
@@ -491,8 +495,7 @@ const Collective = sequelize.define(
     },
 
     /**
-     * @deprecated Keeping this one as a virtual field for easier migration. It should be removed
-     * when we'll move to a dedicated [SocialLinks table](https://github.com/opencollective/opencollective/issues/5097)
+     * @deprecated Use collective social links instead
      */
     githubHandle: {
       type: DataTypes.VIRTUAL,
@@ -510,6 +513,9 @@ const Collective = sequelize.define(
       },
     },
 
+    /**
+     * @deprecated Use collective social links instead
+     */
     repositoryUrl: {
       type: DataTypes.STRING,
       validate: {
@@ -527,6 +533,9 @@ const Collective = sequelize.define(
       },
     },
 
+    /**
+     * @deprecated Use collective social links instead
+     */
     website: {
       type: DataTypes.STRING,
       get() {
@@ -902,7 +911,7 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
       });
     }
 
-    return await models.SocialLink.bulkCreate(
+    const updatedSocialLinks = await models.SocialLink.bulkCreate(
       socialLinks.map((socialLink, order) => ({
         url: socialLink.url,
         type: socialLink.type,
@@ -914,6 +923,45 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
         transaction,
       },
     );
+
+    // updates deprecated collective fields with social links until references to these fields are migrated.
+    const collectiveFields = {};
+
+    const twitterSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.TWITTER);
+    if (twitterSocialLink && twitterSocialLink.url) {
+      const match = twitterSocialLink.url.match(/https:\/\/twitter.com\/([^/]*)[/]?$/);
+      if (match && match.length === 2) {
+        collectiveFields.twitterHandle = match[1];
+      }
+    }
+
+    const githubSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.GITHUB);
+    if (githubSocialLink && githubSocialLink.url) {
+      collectiveFields.githubHandle = getGithubHandleFromUrl(githubSocialLink.url);
+    }
+
+    const websiteSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.WEBSITE);
+    if (websiteSocialLink && websiteSocialLink.url) {
+      collectiveFields.website = websiteSocialLink.url;
+    }
+
+    const repositorySocialLink = updatedSocialLinks.find(sl =>
+      [SocialLinkType.GIT, SocialLinkType.GITHUB, SocialLinkType.GITLAB].includes(sl.type),
+    );
+    if (repositorySocialLink && repositorySocialLink.url) {
+      collectiveFields.repositoryUrl = repositorySocialLink.url;
+    }
+
+    await this.update(
+      {
+        ...collectiveFields,
+      },
+      {
+        transaction,
+      },
+    );
+
+    return updatedSocialLinks;
   });
 };
 
@@ -1917,11 +1965,25 @@ Collective.prototype.addUserWithRole = async function (user, role, defaultAttrib
 
     case roles.MEMBER:
     case roles.ACCOUNTANT:
-    case roles.ADMIN:
+    case roles.ADMIN: {
       if (![types.FUND, types.PROJECT, types.EVENT].includes(this.type)) {
         await this.sendNewMemberEmail(user, role, member, sequelizeParams);
       }
+
+      // Sanitization: Clean memberships of children collectives
+      const children = await this.getChildren();
+      if (children.length > 0) {
+        await models.Member.destroy({
+          where: {
+            MemberCollectiveId: user.CollectiveId,
+            CollectiveId: children.map(c => c.id),
+            role,
+          },
+        });
+      }
+
       break;
+    }
   }
 
   return member;
