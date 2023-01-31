@@ -192,8 +192,8 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
 
 <div itemscope itemtype=\\"http://schema.org/EmailMessage\\">
   <div itemprop=\\"potentialAction\\" itemscope itemtype=\\"http://schema.org/ViewAction\\">
-    <link itemprop=\\"url\\" content=\\"https://opencollective/USER_LOGIN_LINK\\">
-    <meta itemprop=\\"name\\" content=\\"login\\">
+    <link itemprop=\\"target\\" content=\\"https://opencollective/USER_LOGIN_LINK\\">
+    <meta itemprop=\\"name\\" content=\\"Login\\">
   </div>
   <meta itemprop=\\"description\\" content=\\"Login to opencollective.com\\">
 </div>
