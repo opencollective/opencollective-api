@@ -1,6 +1,7 @@
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
+// import gqlmin from 'gqlmin';
 import { get, pick } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
@@ -19,6 +20,7 @@ import {
   transferwiseWebhook,
 } from './controllers/webhooks';
 import { getGraphqlCacheKey } from './graphql/cache';
+// import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
@@ -105,8 +107,6 @@ export default async app => {
    * User reset password or new token flow (no jwt verification) or 2FA
    */
   app.post('/users/signin', required('user'), users.signin);
-  // reset password
-  app.post('/users/reset-password', authentication.mustBeLoggedIn, users.resetPassword);
   // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
   app.post('/users/update-token', authentication.mustBeLoggedIn, users.updateToken);
   // check the 2FA code against the token in the db to let 2FA-enabled users log in
@@ -173,6 +173,25 @@ export default async app => {
   });
 
   /* GraphQL server generic options */
+
+  // const authenticationPlugin = {
+  //   async requestDidStart({ context }) {
+  //     if (context.jwtPayload.scope === 'reset-password') {
+  //       if (
+  //         // We verify that the mutation is exactly the one we expect
+  //         !context.body.query ||
+  //         gqlmin(context.body.query) !==
+  //           'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}'
+  //       ) {
+  //         const errorMessage =
+  //           'Not allowed to use tokens with reset-password scope on anything else than the ResetPassord GraphQL operation';
+  //         logger.warn(errorMessage);
+
+  //         throw new Unauthorized(errorMessage);
+  //       }
+  //     }
+  //   },
+  // };
 
   const graphqlServerOptions = {
     introspection: true,

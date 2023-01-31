@@ -109,8 +109,6 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   setPassword = async function (password, { userToken } = {}) {
-    console.log('setPassword', password);
-
     const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
 
     await this.update({ passwordHash });
@@ -122,6 +120,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       CollectiveId: this.CollectiveId,
       UserTokenId: userToken?.id,
     });
+
+    return this;
   };
 
   generateConnectedAccountVerifiedToken = function (connectedAccountId, username) {

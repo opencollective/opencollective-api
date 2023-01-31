@@ -2,6 +2,7 @@ import { URLSearchParams } from 'url';
 
 import config from 'config';
 import debugLib from 'debug';
+import gqlmin from 'gqlmin';
 import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
 import moment from 'moment';
@@ -174,18 +175,17 @@ export const _authenticateUserByJwt = async (req, res, next) => {
         data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
     }
-  } else if (req.jwtPayload.scope === 'reset-password') {
-    if (req.path !== '/users/reset-password') {
+  } else if (req.jwtPayload.scope === 'reset-password' && req.path.startsWith('/graphql')) {
+    if (
+      // We verify that the mutation is exactly the one we expect
+      !req.body.query ||
+      gqlmin(req.body.query) !==
+        'mutation ResetPassword($password:String!){setPassword(password:$password){id goer __typename}}'
+    ) {
       const errorMessage =
-        'Not allowed to use tokens with reset-password scope on routes other than /users/reset-password';
-      if (config.env === 'production' || config.env === 'staging') {
-        logger.error(errorMessage);
-        reportMessageToSentry(errorMessage);
-        next();
-        return;
-      } else {
-        logger.info(`${errorMessage}. Ignoring in non-production environment.`);
-      }
+        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassord GraphQL operation';
+      logger.warn(errorMessage);
+      throw new errors.Unauthorized(errorMessage);
     }
   } else if (req.jwtPayload.scope) {
     return next(errors.Unauthorized(`Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`));

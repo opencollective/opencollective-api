@@ -64,7 +64,7 @@ const individualMutations = {
       await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
 
       // Check current password if one already set
-      if (req.remoteUser.passwordHash) {
+      if (req.remoteUser.passwordHash && req.jwtPayload?.scope !== 'reset-password') {
         if (!args.currentPassword) {
           throw new Unauthorized('Submit current password to change password.');
         }
