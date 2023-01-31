@@ -437,7 +437,7 @@ describe('server/lib/tax-forms', () => {
       expect(client.workflowInstances.createInstance.called).to.be.true;
       const callArgs = client.workflowInstances.createInstance.firstCall.args;
       expect(callArgs[0].participants['participant_swVuvW'].fullName).to.eq('Mr. Legal Name');
-      // when we'll activate authenticated links  expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
+      expect(client.workflowInstances.getAuthenticatedLinkForStep.called).to.be.true;
       expect(doc.requestStatus).to.eq(REQUESTED);
 
       assert.callCount(sendMessageSpy, 1);
