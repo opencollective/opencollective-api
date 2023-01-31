@@ -73,7 +73,7 @@ describe('stripe/payment-intent', () => {
         );
       });
 
-      it('set order status to PROCESSING and update data.paymentIntent', async () => {
+      it('set order status to NEW and update data.paymentIntent', async () => {
         await paymentIntent.processOrder(order);
 
         await order.reload();
@@ -81,7 +81,7 @@ describe('stripe/payment-intent', () => {
         expect(orderJSON).to.have.nested.property('data.paymentIntent');
         expect(orderJSON).to.have.nested.property('data.paymentIntent.amount');
         expect(orderJSON).to.have.nested.property('data.paymentIntent.description');
-        expect(orderJSON).to.have.property('status', OrderStatuses.PROCESSING);
+        expect(orderJSON).to.have.property('status', OrderStatuses.NEW);
       });
 
       it('destroys the order if something goes wrong', async () => {
