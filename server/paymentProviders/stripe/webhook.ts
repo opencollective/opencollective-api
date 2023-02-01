@@ -752,6 +752,11 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   }
 
   const virtualCard = await getVirtualCardForTransaction(virtualCardId);
+  if (!virtualCard) {
+    logger.warn(`Stripe: Webhooks: Received an event for a virtual card that does not exist: ${virtualCardId}`);
+    return;
+  }
+
   const stripeClient = await virtualcard.getStripeClient(virtualCard.host);
   const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
 
