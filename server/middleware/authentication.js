@@ -156,7 +156,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
         const errorMessage = 'This login link is expired or has already been used';
         if (config.env === 'production' || config.env === 'staging') {
           logger.warn(errorMessage);
-          return next(errors.Unauthorized(errorMessage));
+          return next(new errors.Unauthorized(errorMessage));
         } else {
           logger.info(`${errorMessage}. Ignoring in non-production environment.`);
         }
@@ -175,20 +175,30 @@ export const _authenticateUserByJwt = async (req, res, next) => {
         data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
     }
-  } else if (req.jwtPayload.scope === 'reset-password' && req.path.startsWith('/graphql')) {
+  } else if (req.jwtPayload.scope === 'reset-password') {
+    if (user.passwordUpdatedAt) {
+      if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
+        const errorMessage = 'This reset password token is expired or has already been used';
+        logger.warn(errorMessage);
+        return next(new errors.Unauthorized(errorMessage));
+      }
+    }
+
+    // TODO(important): ensure that it's a GraphQL endpoint
     if (
       // We verify that the mutation is exactly the one we expect
       !req.body.query ||
-      gqlmin(req.body.query) !==
-        'mutation ResetPassword($password:String!){setPassword(password:$password){id goer __typename}}'
+      (gqlmin(req.body.query) !==
+        'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}' &&
+        gqlmin(req.body.query) !== 'query ResetPasswordAccount{loggedInAccount{id slug name email __typename}}')
     ) {
       const errorMessage =
-        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassord GraphQL operation';
+        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword GraphQL operations.';
       logger.warn(errorMessage);
-      throw new errors.Unauthorized(errorMessage);
+      return next(new errors.Unauthorized(errorMessage));
     }
   } else if (req.jwtPayload.scope) {
-    return next(errors.Unauthorized(`Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`));
+    return next(new errors.Unauthorized(`Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`));
   }
 
   await user.populateRoles();

@@ -44,6 +44,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare confirmedAt: CreationOptional<Date>;
   public declare lastLoginAt: CreationOptional<Date>;
   public declare passwordHash: CreationOptional<string>;
+  public declare passwordUpdatedAt: CreationOptional<Date>;
 
   // TODO: We should ideally rely on this.changed(...)
   public _emailChanged?: NonAttribute<boolean>;
@@ -97,8 +98,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   generateResetPasswordLink = function ({ websiteUrl } = {}) {
-    const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
-    const token = this.jwt({ scope: 'reset-password', lastLoginAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
+    const passwordUpdatedAt = this.passwordUpdatedAt ? this.passwordUpdatedAt.getTime() : null;
+    const token = this.jwt({ scope: 'reset-password', passwordUpdatedAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues
     if (websiteUrl && config.env !== 'production') {
@@ -111,7 +112,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   setPassword = async function (password, { userToken } = {}) {
     const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
 
-    await this.update({ passwordHash });
+    await this.update({ passwordHash, passwordUpdatedAt: new Date() });
 
     await models.Activity.create({
       type: activities.USER_PASSWORD_SET,
@@ -661,6 +662,10 @@ User.init(
     passwordHash: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+
+    passwordUpdatedAt: {
+      type: DataTypes.DATE,
     },
   },
   {
