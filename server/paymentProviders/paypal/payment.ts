@@ -1,5 +1,6 @@
 import { get, isUndefined, pickBy, truncate } from 'lodash';
 
+import FEATURE from '../../constants/feature';
 import * as constants from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
 import { floatAmountToCents } from '../../lib/math';
@@ -11,6 +12,7 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
+import { reportMessageToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import User from '../../models/User';
@@ -160,16 +162,27 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.T
     throw new Error('This PayPal order has already been charged');
   }
 
-  // Trigger the actual charge
-  const capture = await paypalRequestV2(`${paypalOrderUrl}/capture`, hostCollective, 'POST');
-  const captureId = capture.purchase_units[0].payments.captures[0].id;
-  await order.update({ data: { ...order.data, paypalCaptureId: captureId } });
-  const captureUrl = `payments/captures/${captureId}`;
-  const captureDetails = (await paypalRequestV2(captureUrl, hostCollective, 'GET')) as PaypalCapture;
-  if (captureDetails.status !== 'COMPLETED') {
+  // Confirm the authorization
+  const authorizeResult = await paypalRequestV2(`${paypalOrderUrl}/authorize`, hostCollective, 'POST');
+  const authorizationId = authorizeResult.purchase_units[0].payments.authorizations[0].id;
+
+  // Trigger the capture
+  const captureParams = {};
+  captureParams['final_capture'] = true;
+  captureParams['invoice_id'] = `Contribution #${order.id}`;
+  const triggerCaptureURL = `payments/authorizations/${authorizationId}/capture`;
+  const captureResult = await paypalRequestV2(triggerCaptureURL, hostCollective, 'POST', captureParams);
+  const captureId = captureResult.id;
+  await order.update({ data: { ...order.data, paypalCaptureId: captureId } }); // Store immediately in the order to keep track of it in case anything goes wrong with the next queries
+
+  if (captureResult.status !== 'COMPLETED') {
     // Return nothing, the transactions will be created by the webhook when the charge switches to COMPLETED
     return;
   }
+
+  // Record successfully captured transaction
+  const captureUrl = `payments/captures/${captureId}`;
+  const captureDetails = (await paypalRequestV2(captureUrl, hostCollective, 'GET')) as PaypalCapture;
 
   // Prevent double-records in the (quite unlikely) case where the webhook event would be processed before the API replies
   const existingTransaction = await models.Transaction.findOne({
@@ -177,11 +190,16 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.T
       OrderId: order.id,
       type: 'CREDIT',
       kind: 'CONTRIBUTION',
-      data: { capture: { id: capture.id } },
+      data: { capture: { id: captureId } },
     },
   });
 
   if (existingTransaction) {
+    reportMessageToSentry(`PayPal: Found existing transaction for capture`, {
+      extra: { captureId, orderId: order.id },
+      severity: 'warning',
+      feature: FEATURE.PAYPAL_DONATIONS,
+    });
     return existingTransaction;
   } else {
     return recordPaypalCapture(order, captureDetails);
