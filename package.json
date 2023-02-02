@@ -129,7 +129,7 @@
     "tweetnacl-util": "0.15.1",
     "twitter": "1.7.1",
     "uuid": "9.0.0",
-    "validator": "13.7.0",
+    "validator": "13.9.0",
     "winston": "3.8.2"
   },
   "devDependencies": {
