@@ -156,8 +156,8 @@ export const mandateUpdated = async (event: Stripe.Event) => {
 
 export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
-
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const order = await models.Order.findOne({
     where: {
       data: { paymentIntent: { id: paymentIntent.id } },
@@ -174,11 +174,19 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
     return;
   }
 
+  // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
+  const existingChargeTransaction = await models.Transaction.findOne({
+    where: { OrderId: order.id, data: { charge: { id: charge.id } } },
+  });
+  if (existingChargeTransaction) {
+    logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event ${event.id}`);
+    return;
+  }
+
   await createOrUpdateOrderStripePaymentMethod(order, stripeAccount, paymentIntent);
 
   // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
   // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
-  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const transaction = await createChargeTransactions(charge, { order });
 
   // after successful first payment of a recurring subscription where the payment confirmation is async
