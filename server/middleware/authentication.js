@@ -171,7 +171,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
 
     const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
     const allowedResetPasswordGraphqlOperations = [
-      'query ResetPasswordAccount{loggedInAccount{id slug name email imageUrl __typename}}',
+      'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
       'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}',
     ];
     if (
@@ -190,7 +190,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     // We check the path because we don't want login tokens used on routes besides /users/update-token.
     // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
     // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`;
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
     if (config.env === 'production' || config.env === 'staging') {
       logger.warn(errorMessage);
       return next(new errors.Unauthorized(errorMessage));
