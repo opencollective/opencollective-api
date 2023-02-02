@@ -293,7 +293,9 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
     logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
-  const reason = paymentIntent.last_payment_error.message;
+
+  const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const reason = paymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
   await order.update({
