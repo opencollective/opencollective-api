@@ -44,4 +44,36 @@ export const uploadToS3 = (
     }
   });
 
+/**
+ * Parse S3 URL to get bucket and key. Throws if the URL is not a valid S3 URL.
+ */
+export const parseS3Url = (s3Url: string): { bucket: string; key: string } => {
+  const parsedUrl = new URL(s3Url);
+  if (!parsedUrl.hostname.endsWith('.amazonaws.com')) {
+    throw new Error(`Invalid S3 URL: ${s3Url}`);
+  }
+
+  return {
+    bucket: parsedUrl.hostname.replace(/\.s3[.-][^.]+\.amazonaws\.com$/, ''), // Bucket name is the hostname minus the region, the s3 prefix and aws domain
+    key: decodeURIComponent(parsedUrl.pathname.slice(1)), // Remove leading slash
+  };
+};
+
+export const getFileInfoFromS3 = (s3Url: string): Promise<S3.HeadObjectOutput> => {
+  return new Promise((resolve, reject) => {
+    if (s3) {
+      const { bucket, key } = parseS3Url(s3Url);
+      s3.headObject({ Bucket: bucket, Key: key }, (err, data) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(data);
+        }
+      });
+    } else {
+      reject(new Error('S3 is not set'));
+    }
+  });
+};
+
 export default s3;
