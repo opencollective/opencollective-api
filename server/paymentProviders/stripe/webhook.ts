@@ -3,7 +3,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
-import { get } from 'lodash';
+import { get, omit } from 'lodash';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -160,7 +160,6 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
-      status: OrderStatuses.PROCESSING,
       data: { paymentIntent: { id: paymentIntent.id } },
     },
     include: [
@@ -171,7 +170,7 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Processing Order for Payment Intent ${paymentIntent.id}`);
+    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
 
@@ -191,7 +190,10 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   await order.update({
     status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
     processedAt: new Date(),
-    data: { ...order.data, paymentIntent },
+    data: {
+      ...omit(order.data, 'paymentIntent'),
+      previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+    },
   });
 
   if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
@@ -270,7 +272,6 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
-      status: OrderStatuses.PROCESSING,
       data: { paymentIntent: { id: paymentIntent.id } },
     },
     include: [
