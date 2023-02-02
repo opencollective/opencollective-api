@@ -97,7 +97,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
-  generateResetPasswordLink = function ({ websiteUrl } = {}) {
+  generateResetPasswordLink = function ({ websiteUrl = null } = {}) {
     const passwordUpdatedAt = this.passwordUpdatedAt ? this.passwordUpdatedAt.getTime() : null;
     const token = this.jwt({ scope: 'reset-password', passwordUpdatedAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
     // if a different websiteUrl is passed
@@ -109,7 +109,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
   };
 
-  setPassword = async function (password, { userToken } = {}) {
+  setPassword = async function (password, { userToken = null } = {}) {
     const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
 
     await this.update({ passwordHash, passwordUpdatedAt: new Date() });
