@@ -38,9 +38,9 @@ const processOrder = async order => {
     if (!IS_DRY) {
       await paymentIntentSucceeded({ account: stripeAccount, data: { object: paymentIntent } } as any);
     }
-  } else if (paymentIntent.status === 'canceled') {
+  } else if (charge?.status === 'failed') {
+    console.log(`Order ${order.id} has failed charge: ${charge.id}`);
     if (!IS_DRY) {
-      console.log(`Order ${order.id} is canceled, re-processing payment intent...`);
       await paymentIntentFailed({ account: stripeAccount, data: { object: paymentIntent } } as any);
     }
   }
