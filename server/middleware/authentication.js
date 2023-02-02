@@ -135,22 +135,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
    * in the JWT matches the lastLoginAt in the db. If so, we allow the user
    * to log in, and update the lastLoginAt.
    */
-  if (req.jwtPayload.scope === 'login') {
-    // We check the path because we don't want login tokens used on routes besides /users/update-token.
-    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
-    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
-    if (req.path !== '/users/update-token') {
-      const errorMessage = 'Not allowed to use tokens with login scope on routes other than /users/update-token';
-      if (config.env === 'production' || config.env === 'staging') {
-        logger.error(errorMessage);
-        reportMessageToSentry(errorMessage);
-        next();
-        return;
-      } else {
-        logger.info(`${errorMessage}. Ignoring in non-production environment.`);
-      }
-    }
-
+  if (req.jwtPayload.scope === 'login' && req.path === '/users/update-token') {
     if (user.lastLoginAt) {
       if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
         const errorMessage = 'This login link is expired or has already been used';
@@ -175,7 +160,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
         data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
     }
-  } else if (req.jwtPayload.scope === 'reset-password') {
+  } else if (req.jwtPayload.scope === 'reset-password' && req.isGraphQL) {
     if (user.passwordUpdatedAt) {
       if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
         const errorMessage = 'This reset password token is expired or has already been used';
@@ -184,21 +169,34 @@ export const _authenticateUserByJwt = async (req, res, next) => {
       }
     }
 
-    // TODO(important): ensure that it's a GraphQL endpoint
+    const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
+    const allowedResetPasswordGraphqlOperations = [
+      'query ResetPasswordAccount{loggedInAccount{id slug name email imageUrl __typename}}',
+      'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}',
+    ];
     if (
       // We verify that the mutation is exactly the one we expect
-      !req.body.query ||
-      (gqlmin(req.body.query) !==
-        'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}' &&
-        gqlmin(req.body.query) !== 'query ResetPasswordAccount{loggedInAccount{id slug name email __typename}}')
+      !minifiedGraphqlOperation ||
+      !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
     ) {
       const errorMessage =
-        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword GraphQL operations.';
+        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations.';
       logger.warn(errorMessage);
       return next(new errors.Unauthorized(errorMessage));
     }
+  } else if (req.jwtPayload.scope === 'twofactorauth' && req.path === '/users/two-factor-auth') {
+    // All good, no specific thing to do here
   } else if (req.jwtPayload.scope) {
-    return next(new errors.Unauthorized(`Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`));
+    // We check the path because we don't want login tokens used on routes besides /users/update-token.
+    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
+    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope}).`;
+    if (config.env === 'production' || config.env === 'staging') {
+      logger.warn(errorMessage);
+      return next(new errors.Unauthorized(errorMessage));
+    } else {
+      logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+    }
   }
 
   await user.populateRoles();

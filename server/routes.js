@@ -46,7 +46,8 @@ export default async app => {
   /**
    * Extract GraphQL API Key
    */
-  app.use('/graphql/:version/:apiKey?', (req, res, next) => {
+  app.use('/graphql/:version?/:apiKey?', (req, res, next) => {
+    req.isGraphQL = true; // Helps identify that the request is handled by GraphQL
     req.apiKey = req.params.apiKey;
     next();
   });
