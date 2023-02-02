@@ -633,13 +633,17 @@ const validatePayment = payment => {
 
 const sendOrderConfirmedEmail = async (order, transaction) => {
   const attachments = [];
-  const { collective, tier, interval, fromCollective, paymentMethod } = order;
+  const { collective, interval, fromCollective, paymentMethod } = order;
   const user = await order.getUserForActivity();
   const host = await collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
   const customMessage = collective.settings?.customEmailMessage || parentCollective?.settings?.customEmailMessage;
 
-  if (tier && tier.type === tiers.TICKET) {
+  if (!order.tier && order.TierId) {
+    order.tier = await order.getTier();
+  }
+
+  if (order?.tier?.type === tiers.TICKET) {
     return models.Activity.create({
       type: activities.TICKET_CONFIRMED,
       CollectiveId: collective.id,
@@ -652,7 +656,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
         UserId: user.id,
         recipient: { name: fromCollective.name },
         order: order.activity,
-        tier: tier && tier.info,
+        tier: order.tier.info,
         host: host ? host.info : {},
         customMessage,
       },
