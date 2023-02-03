@@ -186,6 +186,8 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     }
   } else if (req.jwtPayload.scope === 'twofactorauth' && req.path === '/users/two-factor-auth') {
     // All good, no specific thing to do here
+  } else if (req.jwtPayload.scope === 'connected-account') {
+    // TODO: check path here
   } else if (req.jwtPayload.scope) {
     // We check the path because we don't want login tokens used on routes besides /users/update-token.
     // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
