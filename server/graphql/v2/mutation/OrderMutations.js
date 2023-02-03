@@ -372,7 +372,7 @@ const orderMutations = {
     async resolve(_, args, req) {
       checkRemoteUserCanUseOrders(req);
 
-      const order = await fetchOrderWithReference(args.order);
+      let order = await fetchOrderWithReference(args.order);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
       const host = await toAccount.getHostCollective();
 
@@ -427,7 +427,21 @@ const orderMutations = {
           await order.save();
         }
 
-        return order.markAsPaid(req.remoteUser);
+        order = await order.markAsPaid(req.remoteUser);
+
+        if (order.data.isPendingContribution) {
+          await models.Activity.create({
+            type: activities.ORDER_PENDING_RECEIVED,
+            UserId: req.remoteUser.id,
+            CollectiveId: order.CollectiveId,
+            FromCollectiveId: order.FromCollectiveId,
+            OrderId: order.id,
+            HostCollectiveId: host.id,
+            data: { ...order.data },
+          });
+        }
+
+        return order;
       } else if (args.action === 'MARK_AS_EXPIRED') {
         if (!(await canMarkAsExpired(req, order))) {
           throw new ValidationFailed(`Only pending orders can be marked as expired, this one is ${order.status}`);
@@ -778,9 +792,19 @@ const orderMutations = {
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
           memo: args.order.memo,
-          pendingContribution: true,
+          isPendingContribution: true,
         },
         status: OrderStatuses.PENDING,
+      });
+
+      await models.Activity.create({
+        type: activities.ORDER_PENDING_CREATED,
+        UserId: req.remoteUser.id,
+        CollectiveId: toAccount.id,
+        FromCollectiveId: fromAccount.id,
+        OrderId: order.id,
+        HostCollectiveId: host.id,
+        data: { ...order.data },
       });
 
       return order;
