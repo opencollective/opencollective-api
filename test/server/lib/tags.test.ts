@@ -10,6 +10,7 @@ describe('server/lib/tags', () => {
       'o#penCollective',
       'OpenCollective#',
       '##OpenCollective',
+      'opencollective, javascript, React', // Should split up tags that contain commas
       ' test ',
       'double  space',
       '    ', // Empty should be removed
@@ -20,6 +21,8 @@ describe('server/lib/tags', () => {
       'opencollective',
       'o#pencollective',
       'opencollective#',
+      'javascript',
+      'react',
       'test',
       'double space',
       'open source',

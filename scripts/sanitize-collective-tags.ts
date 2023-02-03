@@ -29,12 +29,12 @@ export const sanitizeAllCollectiveTags = async () => {
           },
         );
         console.log(
-          `Successfully updated tags for Collective with id: ${collective.id} - from [${collective.tags}] to ${
-            sanitizedTags ? `[${sanitizedTags}]` : 'NULL'
-          }`,
+          `Successfully updated tags for Collective with id: ${collective.id} - from [${collective.tags?.map(
+            tag => `"${tag}"`,
+          )}] to ${sanitizedTags ? `[${sanitizedTags.map(tag => `"${tag}"`)}]` : 'NULL'}`,
         );
       } catch (error) {
-        console.error(`Error while updating tags for Collective #${collective.id}: ${error.message}`);
+        console.error(`Error while updating tags for Collective with id: ${collective.id} - ${error.message}`);
       }
     }
   }

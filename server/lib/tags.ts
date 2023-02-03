@@ -46,6 +46,7 @@ export const sanitizeTags = (tags: string[] | string | null): string[] | null =>
 
   const sanitizedTags = tags
     .filter(Boolean) // Remove null values
+    .flatMap(t => t.split(',')) // Split tags that contain commas
     .map(t => t.trim()) // Trim tags
     .map(t => t.toLowerCase()) // Lowercase
     .map(t => t.replace(/\s+/g, ' ')) // Replace multiple spaces with one
