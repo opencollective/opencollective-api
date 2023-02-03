@@ -248,6 +248,7 @@ interface Account {
     Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)
     """
     accountType: [AccountType]
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -2169,9 +2170,14 @@ type ExpenseAttachedFile {
   url: URL
 
   """
+  The file info associated with this item (if any)
+  """
+  info: FileInfo
+
+  """
   The original filename
   """
-  name: String
+  name: String @deprecated(reason: "2023-01-23: We're moving this field to \"file.name\"")
 }
 
 """
@@ -2208,6 +2214,11 @@ type ExpenseItem {
   """
   description: String
   url: URL
+
+  """
+  The file associated with this item (if any)
+  """
+  file: FileInfo
 }
 
 """
@@ -2456,6 +2467,7 @@ enum ActivityType {
   PAYMENT_CREDITCARD_EXPIRING
   USER_CREATED
   USER_NEW_TOKEN
+  USER_SIGNIN
   OAUTH_APPLICATION_AUTHORIZED
   TWO_FACTOR_CODE_ADDED
   TWO_FACTOR_CODE_DELETED
@@ -2569,6 +2581,7 @@ type Host implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -5291,6 +5304,7 @@ type Bot implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -5808,6 +5822,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -6654,6 +6669,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -7185,6 +7201,81 @@ interface AccountWithParent {
 }
 
 """
+Exposes information about an uploaded file (image, pdf, etc.)
+"""
+interface FileInfo {
+  """
+  Unique identifier for the file
+  """
+  id: String!
+
+  """
+  URL to access the file
+  """
+  url: URL!
+
+  """
+  Name of the file
+  """
+  name: String
+
+  """
+  Mime type of the file
+  """
+  type: String!
+
+  """
+  Size of the file in bytes
+  """
+  size: Int!
+}
+
+"""
+Exposes information about an uploaded image file
+"""
+type ImageFileInfo implements FileInfo {
+  """
+  Unique identifier for the file
+  """
+  id: String!
+
+  """
+  URL to access the file
+  """
+  url: URL!
+
+  """
+  Name of the file
+  """
+  name: String
+
+  """
+  Mime type of the file
+  """
+  type: String!
+
+  """
+  Size of the file in bytes
+  """
+  size: Int!
+
+  """
+  If the file is an image, this will be the width of the image in pixels
+  """
+  width: Int
+
+  """
+  If the file is an image, this will be the height of the image in pixels
+  """
+  height: Int
+
+  """
+  Blurhash of the image
+  """
+  blurHash: String
+}
+
+"""
 This represents an Individual account
 """
 type Individual implements Account {
@@ -7274,6 +7365,7 @@ type Individual implements Account {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -7966,6 +8058,7 @@ type Organization implements Account & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -8598,6 +8691,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -9691,14 +9785,19 @@ type Query {
   ): Project
   tagStats(
     """
-    Return tags from collectives which includes this search term
+    Return tags from collectives which includes this search term. Using this argument will ignore tagSearchTerm. Skipping this argument will use a more efficient query.
     """
     searchTerm: String
 
     """
-    Return tags which includes this search term
+    Return tags which includes this search term. Using this argument will ignore searchTerm.
     """
     tagSearchTerm: String
+
+    """
+    Return tags from collectives hosted by this host.
+    """
+    host: AccountReferenceInput
     limit: Int! = 10
     offset: Int! = 0
   ): TagStatsCollection!
@@ -11236,6 +11335,7 @@ enum ActivityAndClassesType {
   PAYMENT_CREDITCARD_EXPIRING
   USER_CREATED
   USER_NEW_TOKEN
+  USER_SIGNIN
   OAUTH_APPLICATION_AUTHORIZED
   TWO_FACTOR_CODE_ADDED
   TWO_FACTOR_CODE_DELETED
@@ -11401,6 +11501,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -12013,6 +12114,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     Order of the results
     """
     orderBy: ChronologicalOrderInput! = { field: CREATED_AT, direction: ASC }
+    includeInherited: Boolean = true
   ): MemberCollection!
 
   """
@@ -15236,6 +15338,7 @@ input TierCreateInput {
   maxQuantity: Int
   minimumAmount: AmountInput
   useStandalonePage: Boolean
+  invoiceTemplate: String
   singleTicket: Boolean
 }
 
