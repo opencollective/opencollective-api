@@ -19,7 +19,7 @@ describe('server/paymentProviders/paypal/payment', () => {
   describe('With PayPal auth', () => {
     before(utils.resetTestDB);
 
-    let configStub;
+    let configStub, authorizePaymentNock;
     before(() => {
       // Stub out the configuration with authentication information and environment name.
       configStub = stub(config.paypal, 'payment').get(() => ({
@@ -35,7 +35,12 @@ describe('server/paymentProviders/paypal/payment', () => {
     describe('#processOrder', () => {
       let paymentMethod, order, host, collective;
 
-      const mockPaypalOrderDetail = ({ amount = '10.00', currency = 'USD', captureStatus = 'COMPLETED' } = {}) => {
+      const mockPaypalOrderDetail = ({
+        amount = '10.00',
+        currency = 'USD',
+        captureStatus = 'COMPLETED',
+        failOnOrderDetails = false,
+      } = {}) => {
         // Catch the retrieval of auth tokens
         nock('https://api.sandbox.paypal.com')
           .persist()
@@ -44,27 +49,40 @@ describe('server/paymentProviders/paypal/payment', () => {
           .reply(200, { access_token: 'dat-token' }); // eslint-disable-line camelcase
 
         // Mock the query to get order details
-        nock('https://api.sandbox.paypal.com')
-          .matchHeader('Authorization', 'Bearer dat-token')
-          .get('/v2/checkout/orders/fake-order-id')
-          .reply(200, {
-            purchase_units: [{ amount: { value: amount, currency_code: currency } }],
-          });
+        if (!failOnOrderDetails) {
+          nock('https://api.sandbox.paypal.com')
+            .matchHeader('Authorization', 'Bearer dat-token')
+            .get('/v2/checkout/orders/fake-order-id')
+            .reply(200, {
+              purchase_units: [{ amount: { value: amount, currency_code: currency } }],
+            });
+        } else {
+          nock('https://api.sandbox.paypal.com')
+            .matchHeader('Authorization', 'Bearer dat-token')
+            .get('/v2/checkout/orders/fake-order-id')
+            .reply(401);
+        }
 
-        // Mock the query to trigger the capture
-        nock('https://api.sandbox.paypal.com')
+        // Mock the query to authorize the order
+        authorizePaymentNock = nock('https://api.sandbox.paypal.com')
           .matchHeader('Authorization', 'Bearer dat-token')
-          .post('/v2/checkout/orders/fake-order-id/capture')
+          .post('/v2/checkout/orders/fake-order-id/authorize')
           .reply(200, {
             purchase_units: [
               {
                 amount: { value: amount, currency_code: currency },
                 payments: {
-                  captures: [{ id: 'fake-capture-id' }],
+                  authorizations: [{ id: 'fake-authorization-id' }],
                 },
               },
             ],
           });
+
+        // Mock the query to trigger the capture
+        nock('https://api.sandbox.paypal.com')
+          .matchHeader('Authorization', 'Bearer dat-token')
+          .post(`/v2/payments/authorizations/fake-authorization-id/capture`)
+          .reply(200, { id: 'fake-capture-id', status: captureStatus });
 
         // Mock the query to get the capture details
         nock('https://api.sandbox.paypal.com')
@@ -139,8 +157,10 @@ describe('server/paymentProviders/paypal/payment', () => {
         expect(order.data.paypalCaptureId).to.equal('fake-capture-id');
       });
 
-      it('Handles nicely the case where the capture succeeds but we somehow fail to ge the details', () => {
-        // TODO
+      it('Handles nicely the case where the capture succeeds but we somehow fail to get the details', async () => {
+        mockPaypalOrderDetail({ failOnOrderDetails: true });
+        await expect(paypalPayment.processOrder(order)).to.be.rejectedWith('401');
+        expect(authorizePaymentNock.isDone()).to.be.false; // Shouldn't call authorize
       });
     });
   });
