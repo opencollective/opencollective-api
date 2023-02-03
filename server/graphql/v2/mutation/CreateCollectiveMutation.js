@@ -88,7 +88,8 @@ async function createCollective(_, args, req) {
       }
 
       // Throw validation error if you have not invited enough admins
-      const requiredAdmins = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS)?.numberOfAdmins || 0;
+      const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+      const requiredAdmins = minAdminsPolicy?.numberOfAdmins || 0;
       const adminsIncludingInvitedCount = (args.inviteMembers?.length || 0) + 1;
       if (requiredAdmins > adminsIncludingInvitedCount) {
         throw new ValidationFailed(`This host policy requires at least ${requiredAdmins} admins for this account.`);

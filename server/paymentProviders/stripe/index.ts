@@ -14,6 +14,7 @@ import stripe from '../../lib/stripe';
 import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
+import bacsdebit from './bacsdebit';
 import creditcard from './creditcard';
 import paymentintent from './payment-intent';
 import { webhook } from './webhook';
@@ -25,6 +26,8 @@ const AUTHORIZE_URI = 'https://connect.stripe.com/oauth/authorize';
 export default {
   // Payment Method types implemented using Stripe
   types: {
+    // eslint-disable-next-line camelcase
+    bacs_debit: bacsdebit,
     default: creditcard,
     creditcard,
     paymentintent,

@@ -139,7 +139,7 @@ const virtualCardMutations = {
 
       const { limitInterval } = args;
 
-      const virtualCardMaximumLimitForIntervalPolicy = getPolicy(
+      const virtualCardMaximumLimitForIntervalPolicy = await getPolicy(
         host,
         POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
       );
@@ -277,7 +277,7 @@ const virtualCardMutations = {
         }
 
         const { limitInterval } = args;
-        const virtualCardMaximumLimitForIntervalPolicy = getPolicy(
+        const virtualCardMaximumLimitForIntervalPolicy = await getPolicy(
           virtualCard.host,
           POLICIES.MAXIMUM_VIRTUAL_CARD_LIMIT_AMOUNT_FOR_INTERVAL,
         );

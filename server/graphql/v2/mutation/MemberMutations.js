@@ -241,7 +241,7 @@ const memberMutations = {
             where: { CollectiveId: account.id, role: MemberRoles.ADMIN },
           });
 
-          const policy = getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+          const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
           if (policy?.numberOfAdmins && adminCount <= policy.numberOfAdmins) {
             throw new Forbidden(`Your host policy requires at least ${policy.numberOfAdmins} admins for this account.`);
           }

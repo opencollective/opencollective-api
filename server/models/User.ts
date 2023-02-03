@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import { isEmailBurner } from 'burner-email-providers';
 import config from 'config';
 import debugLib from 'debug';
@@ -43,6 +44,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare confirmedAt: CreationOptional<Date>;
   public declare lastLoginAt: CreationOptional<Date>;
   public declare passwordHash: CreationOptional<string>;
+  public declare passwordUpdatedAt: CreationOptional<Date>;
 
   // TODO: We should ideally rely on this.changed(...)
   public _emailChanged?: NonAttribute<boolean>;
@@ -85,7 +87,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
-    const token = this.jwt({ scope: 'login', lastLoginAt });
+    const token = this.jwt({ scope: 'login', lastLoginAt }, auth.TOKEN_EXPIRATION_LOGIN);
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues
     if (websiteUrl && config.env !== 'production') {
@@ -93,6 +95,34 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     } else {
       return `${config.host.website}/signin/${token}?next=${redirect}`;
     }
+  };
+
+  generateResetPasswordLink = function ({ websiteUrl = null } = {}) {
+    const passwordUpdatedAt = this.passwordUpdatedAt ? this.passwordUpdatedAt.getTime() : null;
+    const token = this.jwt({ scope: 'reset-password', passwordUpdatedAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
+    // if a different websiteUrl is passed
+    // we don't accept that in production to avoid fishing related issues
+    if (websiteUrl && config.env !== 'production') {
+      return `${websiteUrl}/reset-password/${token}`;
+    } else {
+      return `${config.host.website}/reset-password/${token}`;
+    }
+  };
+
+  setPassword = async function (password, { userToken = null } = {}) {
+    const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
+
+    await this.update({ passwordHash, passwordUpdatedAt: new Date() });
+
+    await models.Activity.create({
+      type: activities.USER_PASSWORD_SET,
+      UserId: this.id,
+      FromCollectiveId: this.CollectiveId,
+      CollectiveId: this.CollectiveId,
+      UserTokenId: userToken?.id,
+    });
+
+    return this;
   };
 
   generateConnectedAccountVerifiedToken = function (connectedAccountId, username) {
@@ -632,6 +662,10 @@ User.init(
     passwordHash: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+
+    passwordUpdatedAt: {
+      type: DataTypes.DATE,
     },
   },
   {

@@ -3,7 +3,7 @@
 import config from 'config';
 import debugLib from 'debug';
 import { Request } from 'express';
-import { get } from 'lodash';
+import { get, omit } from 'lodash';
 import type Stripe from 'stripe';
 import { v4 as uuid } from 'uuid';
 
@@ -92,13 +92,74 @@ async function createOrUpdateOrderStripePaymentMethod(
   return pm;
 }
 
-export const paymentIntentSucceeded = async (event: Stripe.Event) => {
+export const mandateUpdated = async (event: Stripe.Event) => {
   const stripeAccount = event.account ?? config.stripe.accountId;
 
+  const stripeMandate = event.data.object as Stripe.Mandate;
+
+  const stripePaymentMethodId =
+    typeof stripeMandate.payment_method === 'string' ? stripeMandate.payment_method : stripeMandate.payment_method.id;
+
+  await sequelize.transaction(async transaction => {
+    const paymentMethod = await models.PaymentMethod.findOne({
+      where: {
+        data: {
+          stripePaymentMethodId,
+        },
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!paymentMethod) {
+      const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
+        stripeAccount,
+      });
+
+      await models.PaymentMethod.create(
+        {
+          name: formatPaymentMethodName(stripePaymentMethod),
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: stripePaymentMethod.type,
+          confirmedAt: new Date(),
+          saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+          data: {
+            stripePaymentMethodId: stripePaymentMethod.id,
+            stripeAccount,
+            ...mapStripePaymentMethodExtraData(stripePaymentMethod),
+            stripeMandate,
+          },
+        },
+        {
+          transaction,
+        },
+      );
+
+      return;
+    } else {
+      await paymentMethod.update(
+        {
+          saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
+          data: {
+            ...paymentMethod.data,
+            stripeMandate,
+          },
+        },
+        {
+          transaction,
+        },
+      );
+    }
+    return;
+  });
+};
+
+export const paymentIntentSucceeded = async (event: Stripe.Event) => {
+  const stripeAccount = event.account ?? config.stripe.accountId;
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
+  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const order = await models.Order.findOne({
     where: {
-      status: OrderStatuses.PROCESSING,
       data: { paymentIntent: { id: paymentIntent.id } },
     },
     include: [
@@ -109,7 +170,16 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Processing Order for Payment Intent ${paymentIntent.id}`);
+    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    return;
+  }
+
+  // If charge was already processed, ignore event. (Potential edge-case: if the webhook is called while processing a 3DS validation)
+  const existingChargeTransaction = await models.Transaction.findOne({
+    where: { OrderId: order.id, data: { charge: { id: charge.id } } },
+  });
+  if (existingChargeTransaction) {
+    logger.info(`Stripe Webhook: ${order.id} already processed charge ${charge.id}, ignoring event ${event.id}`);
     return;
   }
 
@@ -117,7 +187,6 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
 
   // Recently, Stripe updated their library and removed the 'charges' property in favor of 'latest_charge',
   // but this is something that only makes sense in the LatestApiVersion, and that's not the one we're using.
-  const charge = (paymentIntent as any).charges.data[0] as Stripe.Charge;
   const transaction = await createChargeTransactions(charge, { order });
 
   // after successful first payment of a recurring subscription where the payment confirmation is async
@@ -129,7 +198,10 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   await order.update({
     status: !order.SubscriptionId ? OrderStatuses.PAID : OrderStatuses.ACTIVE,
     processedAt: new Date(),
-    data: { ...order.data, paymentIntent },
+    data: {
+      ...omit(order.data, 'paymentIntent'),
+      previousPaymentIntents: [...(order.data.previousPaymentIntents ?? []), paymentIntent],
+    },
   });
 
   if (order.fromCollective?.ParentCollectiveId !== order.collective.id) {
@@ -147,7 +219,7 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
   await sequelize.transaction(async transaction => {
     const order = await models.Order.findOne({
       where: {
-        status: [OrderStatuses.NEW, OrderStatuses.PROCESSING],
+        status: [OrderStatuses.NEW, OrderStatuses.PROCESSING, OrderStatuses.ERROR, OrderStatuses.ACTIVE],
         data: { paymentIntent: { id: paymentIntent.id } },
       },
       transaction,
@@ -208,7 +280,6 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   const order = await models.Order.findOne({
     where: {
-      status: OrderStatuses.PROCESSING,
       data: { paymentIntent: { id: paymentIntent.id } },
     },
     include: [
@@ -222,7 +293,9 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
     logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
-  const reason = paymentIntent.last_payment_error.message;
+
+  const charge = (paymentIntent as any).charges?.data?.[0] as Stripe.Charge;
+  const reason = paymentIntent.last_payment_error?.message || charge?.failure_message || 'unknown';
   logger.info(`Stripe Webook: Payment Intent failed for Order #${order.id}. Reason: ${reason}`);
 
   await order.update({
@@ -568,6 +641,9 @@ function formatPaymentMethodName(paymentMethod: Stripe.PaymentMethod) {
     case 'card': {
       return paymentMethod.card.last4;
     }
+    case PAYMENT_METHOD_TYPE.BACS_DEBIT: {
+      return `${paymentMethod.bacs_debit.sort_code} ****${paymentMethod.bacs_debit.last4}`;
+    }
     default: {
       return '';
     }
@@ -590,10 +666,10 @@ function mapStripePaymentMethodExtraData(pm: Stripe.PaymentMethod): object {
   return pm[pm.type];
 }
 
-async function paymentMethodAttached(event: Stripe.Event) {
+export async function paymentMethodAttached(event: Stripe.Event) {
   const stripePaymentMethod = event.data.object as Stripe.PaymentMethod;
 
-  if (!['us_bank_account', 'sepa_debit'].includes(stripePaymentMethod.type)) {
+  if (!['us_bank_account', 'sepa_debit', 'bacs_debit'].includes(stripePaymentMethod.type)) {
     return;
   }
 
@@ -623,10 +699,20 @@ async function paymentMethodAttached(event: Stripe.Event) {
           stripeAccount,
         },
       },
+      lock: transaction.LOCK.UPDATE,
       transaction,
     });
 
     if (pm) {
+      await pm.update(
+        {
+          customerId: stripeCustomerId,
+          CollectiveId: stripeCustomerAccount.CollectiveId,
+        },
+        {
+          transaction,
+        },
+      );
       return;
     }
 
@@ -677,6 +763,11 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   }
 
   const virtualCard = await getVirtualCardForTransaction(virtualCardId);
+  if (!virtualCard) {
+    logger.warn(`Stripe: Webhooks: Received an event for a virtual card that does not exist: ${virtualCardId}`);
+    return;
+  }
+
   const stripeClient = await virtualcard.getStripeClient(virtualCard.host);
   const webhookSigningSecret = await virtualcard.getWebhookSigninSecret(virtualCard.host);
 
@@ -750,6 +841,8 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       return paymentIntentFailed(event);
     case 'payment_method.attached':
       return paymentMethodAttached(event);
+    case 'mandate.updated':
+      return mandateUpdated(event);
     default:
       // console.log(JSON.stringify(event, null, 4));
       logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);

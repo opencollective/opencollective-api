@@ -178,13 +178,8 @@ function userHasTwoFactorAuthEnabled(user: User) {
  * Returns true if this request / account should enforce 2FA.
  * The parent account, if any, is always the source of truth
  */
-async function shouldEnforceForAccount(req, account: typeof models.Collective): Promise<boolean> {
-  if (account.ParentCollectiveId) {
-    account.parent = account.parent || (await req.loaders.Collective.byId.load(account.ParentCollectiveId));
-    return hasPolicy(account.parent, POLICIES.REQUIRE_2FA_FOR_ADMINS);
-  } else {
-    return hasPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
-  }
+async function shouldEnforceForAccount(req, account?: typeof models.Collective): Promise<boolean> {
+  return await hasPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
 }
 
 /**

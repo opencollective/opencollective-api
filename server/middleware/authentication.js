@@ -2,6 +2,7 @@ import { URLSearchParams } from 'url';
 
 import config from 'config';
 import debugLib from 'debug';
+import gqlmin from 'gqlmin';
 import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
 import moment from 'moment';
@@ -129,39 +130,20 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     req.userToken = userToken;
   }
 
-  if (req.jwtPayload.scope === 'twofactorauth') {
-    return next(errors.Unauthorized('Cannot use this token on this route.'));
-  }
-
   /**
    * Functionality for one-time login links. We check that the lastLoginAt
    * in the JWT matches the lastLoginAt in the db. If so, we allow the user
    * to log in, and update the lastLoginAt.
    */
-  if (req.jwtPayload.scope === 'login') {
-    // We check the path because we don't want login tokens used on routes besides /users/update-token.
-    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
-    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
-    const path = req.path;
-    if (path !== '/users/update-token') {
-      if (config.env === 'production' || config.env === 'staging') {
-        logger.error('Not allowed to use tokens with login scope on routes other than /users/update-token.');
-        reportMessageToSentry(`Not allowed to use tokens with login scope on routes other than /users/update-token`);
-        next();
-        return;
-      } else {
-        logger.info(
-          'Not allowed to use tokens with login scope on routes other than /users/update-token. Ignoring in non-production environment.',
-        );
-      }
-    }
+  if (req.jwtPayload.scope === 'login' && req.path === '/users/update-token') {
     if (user.lastLoginAt) {
       if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
+        const errorMessage = 'This login link is expired or has already been used';
         if (config.env === 'production' || config.env === 'staging') {
-          logger.warn('This login link is expired or has already been used');
-          return next(errors.Unauthorized('This login link is expired or has already been used'));
+          logger.warn(errorMessage);
+          return next(new errors.Unauthorized(errorMessage));
         } else {
-          logger.info('This login link is expired or has already been used. Ignoring in non-production environment.');
+          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
         }
       }
     }
@@ -177,6 +159,43 @@ export const _authenticateUserByJwt = async (req, res, next) => {
         lastLoginAt: new Date(),
         data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
       });
+    }
+  } else if (req.jwtPayload.scope === 'reset-password' && req.isGraphQL) {
+    if (user.passwordUpdatedAt) {
+      if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
+        const errorMessage = 'This reset password token is expired or has already been used';
+        logger.warn(errorMessage);
+        return next(new errors.Unauthorized(errorMessage));
+      }
+    }
+
+    const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
+    const allowedResetPasswordGraphqlOperations = [
+      'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
+      'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}',
+    ];
+    if (
+      // We verify that the mutation is exactly the one we expect
+      !minifiedGraphqlOperation ||
+      !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
+    ) {
+      const errorMessage =
+        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations.';
+      logger.warn(errorMessage);
+      return next(new errors.Unauthorized(errorMessage));
+    }
+  } else if (req.jwtPayload.scope === 'twofactorauth' && req.path === '/users/two-factor-auth') {
+    // All good, no specific thing to do here
+  } else if (req.jwtPayload.scope) {
+    // We check the path because we don't want login tokens used on routes besides /users/update-token.
+    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
+    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
+    if (config.env === 'production' || config.env === 'staging') {
+      logger.warn(errorMessage);
+      return next(new errors.Unauthorized(errorMessage));
+    } else {
+      logger.info(`${errorMessage}. Ignoring in non-production environment.`);
     }
   }
 

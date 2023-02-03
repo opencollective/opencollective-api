@@ -17,6 +17,7 @@ export enum PaymentMethodLegacyTypeEnum {
   PAYMENT_INTENT = 'PAYMENT_INTENT',
   US_BANK_ACCOUNT = 'US_BANK_ACCOUNT',
   SEPA_DEBIT = 'SEPA_DEBIT',
+  BACS_DEBIT = 'BACS_DEBIT',
 }
 
 export const PaymentMethodLegacyType = new GraphQLEnumType({
@@ -37,6 +38,8 @@ export const getLegacyPaymentMethodType = ({ service, type }: PaymentMethod): Pa
       return PaymentMethodLegacyTypeEnum.US_BANK_ACCOUNT;
     } else if (type === PAYMENT_METHOD_TYPE.SEPA_DEBIT) {
       return PaymentMethodLegacyTypeEnum.SEPA_DEBIT;
+    } else if (type === PAYMENT_METHOD_TYPE.BACS_DEBIT) {
+      return PaymentMethodLegacyTypeEnum.BACS_DEBIT;
     }
   } else if (service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
     if (type === PAYMENT_METHOD_TYPE.GIFTCARD) {

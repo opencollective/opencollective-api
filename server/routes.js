@@ -1,6 +1,7 @@
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
+// import gqlmin from 'gqlmin';
 import { get, pick } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
@@ -19,6 +20,7 @@ import {
   transferwiseWebhook,
 } from './controllers/webhooks';
 import { getGraphqlCacheKey } from './graphql/cache';
+// import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
@@ -44,7 +46,8 @@ export default async app => {
   /**
    * Extract GraphQL API Key
    */
-  app.use('/graphql/:version/:apiKey?', (req, res, next) => {
+  app.use('/graphql/:version?/:apiKey?', (req, res, next) => {
+    req.isGraphQL = true; // Helps identify that the request is handled by GraphQL
     req.apiKey = req.params.apiKey;
     next();
   });
@@ -171,6 +174,25 @@ export default async app => {
   });
 
   /* GraphQL server generic options */
+
+  // const authenticationPlugin = {
+  //   async requestDidStart({ context }) {
+  //     if (context.jwtPayload.scope === 'reset-password') {
+  //       if (
+  //         // We verify that the mutation is exactly the one we expect
+  //         !context.body.query ||
+  //         gqlmin(context.body.query) !==
+  //           'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}'
+  //       ) {
+  //         const errorMessage =
+  //           'Not allowed to use tokens with reset-password scope on anything else than the ResetPassord GraphQL operation';
+  //         logger.warn(errorMessage);
+
+  //         throw new Unauthorized(errorMessage);
+  //       }
+  //     }
+  //   },
+  // };
 
   const graphqlServerOptions = {
     introspection: true,

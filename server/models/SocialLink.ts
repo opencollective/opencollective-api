@@ -20,6 +20,11 @@ export enum SocialLinkType {
   GITLAB = 'GITLAB',
   GIT = 'GIT',
   WEBSITE = 'WEBSITE',
+  DISCOURSE = 'DISCOURSE',
+  PIXELFED = 'PIXELFED',
+  GHOST = 'GHOST',
+  PEERTUBE = 'PEERTUBE',
+  TIKTOK = 'TIKTOK',
 }
 
 class SocialLink extends Model<InferAttributes<SocialLink>, InferCreationAttributes<SocialLink>> {

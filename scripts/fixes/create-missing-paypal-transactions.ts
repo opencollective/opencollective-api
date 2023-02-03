@@ -6,6 +6,7 @@ import { omit } from 'lodash';
 import models, { sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
+import { PaypalCapture } from '../../server/types/paypal';
 
 const migrate = async () => {
   const orders = await sequelize.query(
@@ -43,7 +44,8 @@ const migrate = async () => {
     const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
     const paypalOrderDetails = await paypalRequestV2(paypalOrderUrl, hostCollective, 'GET');
     const captureId = paypalOrderDetails.purchase_units[0].payments.captures[0].id;
-    const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, hostCollective, 'GET');
+    const captureUrl = `payments/captures/${captureId}`;
+    const captureDetails = (await paypalRequestV2(captureUrl, hostCollective, 'GET')) as PaypalCapture;
 
     // Record payment info
     if (process.env.DRY) {

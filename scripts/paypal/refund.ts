@@ -23,10 +23,6 @@ const main = async () => {
   program.option('--run', 'Actually run the script');
   program.option('--host <hostSlug>', 'Host that holds the transaction (to speed up the search)');
   program.option('--paypalOnly', 'Do not look for the transaction in DB, only refund PayPal');
-  program.option(
-    '--is-sale',
-    'If the transaction ID is stored in data.paypalSale.id, you can pass this option to speed up the query',
-  );
 
   // Parse arguments
   program.parse();
@@ -41,10 +37,7 @@ const main = async () => {
     for (const captureId of captureIds) {
       let ledgerTransaction;
       if (!options['paypalOnly']) {
-        ledgerTransaction = await findTransactionByPaypalId(captureId, {
-          searchSaleIdOnly: options['isSale'],
-          HostCollectiveId: host?.id,
-        });
+        ledgerTransaction = await findTransactionByPaypalId(captureId, { HostCollectiveId: host?.id });
 
         if (!ledgerTransaction) {
           throw new Error(`No transaction found for PayPal capture ${captureId}`);

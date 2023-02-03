@@ -73,7 +73,7 @@ describe('stripe/payment-intent', () => {
         );
       });
 
-      it('set order status to PROCESSING and update data.paymentIntent', async () => {
+      it('set order status to NEW and update data.paymentIntent', async () => {
         await paymentIntent.processOrder(order);
 
         await order.reload();
@@ -81,7 +81,7 @@ describe('stripe/payment-intent', () => {
         expect(orderJSON).to.have.nested.property('data.paymentIntent');
         expect(orderJSON).to.have.nested.property('data.paymentIntent.amount');
         expect(orderJSON).to.have.nested.property('data.paymentIntent.description');
-        expect(orderJSON).to.have.property('status', OrderStatuses.PROCESSING);
+        expect(orderJSON).to.have.property('status', OrderStatuses.NEW);
       });
 
       it('destroys the order if something goes wrong', async () => {
@@ -96,17 +96,19 @@ describe('stripe/payment-intent', () => {
 
     describe('recurring orders', () => {
       let order;
+      let stripePaymentMethodId;
 
       const sandbox = createSandbox();
       afterEach(sandbox.restore);
 
       beforeEach(async () => {
+        stripePaymentMethodId = randStr('pm_');
         const paymentMethod = await fakePaymentMethod({
           type: PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT,
           service: PAYMENT_METHOD_SERVICE.STRIPE,
           customerId: 'cus_test',
           data: {
-            stripePaymentMethodId: 'pm_test',
+            stripePaymentMethodId,
           },
         });
         order = await fakeOrder(
@@ -144,7 +146,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },
@@ -170,7 +172,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },
@@ -196,7 +198,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },
@@ -224,7 +226,7 @@ describe('stripe/payment-intent', () => {
             amount: 10000,
             description: 'Recurring contribution',
             payment_method_types: ['us_bank_account'],
-            payment_method: 'pm_test',
+            payment_method: stripePaymentMethodId,
             customer: 'cus_test',
           },
           { stripeAccount: 'testUserName' },

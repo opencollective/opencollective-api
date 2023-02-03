@@ -965,14 +965,17 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
   });
 };
 
-Collective.prototype.getParentCollective = function (options) {
+Collective.prototype.getParentCollective = async function (options) {
   if (!this.ParentCollectiveId) {
-    return Promise.resolve(null);
+    return null;
+  } else if (options) {
+    return models.Collective.findByPk(this.ParentCollectiveId, options);
+  } else if (this.parentCollective) {
+    return this.parentCollective;
+  } else {
+    this.parentCollective = await models.Collective.findByPk(this.ParentCollectiveId);
+    return this.parentCollective;
   }
-  if (this.parentCollective) {
-    return Promise.resolve(this.parentCollective);
-  }
-  return models.Collective.findByPk(this.ParentCollectiveId, options);
 };
 
 Collective.prototype.getICS = function () {
@@ -2375,7 +2378,7 @@ Collective.prototype.addHost = async function (hostCollective, creatorUser, opti
         role: roles.ADMIN,
       },
     });
-    const policy = getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
+    const policy = await getPolicy(hostCollective, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
     if (policy?.freeze && policy.numberOfAdmins > adminCount) {
       promises.push(this.disableFeature(FEATURE.RECEIVE_FINANCIAL_CONTRIBUTIONS));
     }

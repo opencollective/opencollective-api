@@ -11,7 +11,7 @@ import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
@@ -27,7 +27,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
-import models from '../../../models';
+import models, { Op } from '../../../models';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -226,8 +226,7 @@ const hasPaymentMethod = order => {
         paymentMethod.type === 'manual' ||
         paymentMethod.type === 'crypto' ||
         paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
-        paymentMethod.type === PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT ||
-        paymentMethod.type === PAYMENT_METHOD_TYPE.SEPA_DEBIT,
+        (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
     );
   }
 };
@@ -353,11 +352,19 @@ export async function createOrder(order, req) {
 
     if (tier) {
       if (tier.data?.singleTicket) {
-        const ticket = await models.Order.findOne({
-          where: { TierId: tier.id, FromCollectiveId: order.fromCollective?.id },
-        });
-        if (order.quantity > 1 || ticket) {
+        if (order.quantity > 1) {
           throw new Error('Cannot order more than 1 ticket per account');
+        } else if (order.fromCollective) {
+          const existingTicket = await models.Order.findOne({
+            where: {
+              TierId: tier.id,
+              FromCollectiveId: order.fromCollective.id,
+              status: { [Op.not]: [status.ERROR, status.EXPIRED] },
+            },
+          });
+          if (existingTicket) {
+            throw new Error('Cannot order more than 1 ticket per account');
+          }
         }
       }
 

@@ -12,6 +12,7 @@ import models from '../../models';
 import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
 import User from '../../models/User';
+import { SubscriptionTransactions } from '../../types/paypal';
 import { PaymentProviderService } from '../types';
 
 import { paypalRequest } from './api';
@@ -294,12 +295,15 @@ export const fetchPaypalSubscription = async (hostCollective, subscriptionId) =>
   return paypalRequest(`billing/subscriptions/${subscriptionId}`, null, hostCollective, 'GET');
 };
 
-export const fetchPaypalTransactionsForSubscription = async (host, subscriptionId) => {
+export const fetchPaypalTransactionsForSubscription = async (
+  host,
+  subscriptionId,
+): Promise<SubscriptionTransactions> => {
   const urlParams = new URLSearchParams();
   urlParams.append('start_time', moment('2020-01-01').toISOString());
   urlParams.append('end_time', moment().toISOString());
   const apiUrl = `billing/subscriptions/${subscriptionId}/transactions?${urlParams.toString()}`;
-  return paypalRequest(apiUrl, null, host, 'GET');
+  return paypalRequest(apiUrl, null, host, 'GET') as Promise<SubscriptionTransactions>;
 };
 
 /**

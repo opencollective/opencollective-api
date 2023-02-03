@@ -15,7 +15,7 @@ import stripe from '../../../server/lib/stripe';
 import models from '../../../server/models';
 import { PayoutMethodTypes } from '../../../server/models/PayoutMethod';
 import stripeMocks from '../../mocks/stripe';
-import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeOrder, fakePayoutMethod, fakeUser, randStr } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 const AMOUNT = 1099;
@@ -71,12 +71,14 @@ describe('server/lib/payments', () => {
       id;
     });
     sandbox.stub(stripe.tokens, 'create').callsFake(() => Promise.resolve({ id: 'tok_1AzPXGD8MNtzsDcgwaltZuvp' }));
+
+    const paymentMethodId = randStr('pm_');
     sandbox
       .stub(stripe.paymentMethods, 'create')
-      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+      .resolves({ id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } });
     sandbox
       .stub(stripe.paymentMethods, 'attach')
-      .resolves({ id: 'pm_123456789012345678901234', type: 'card', card: { fingerprint: 'fingerprint' } });
+      .resolves({ id: paymentMethodId, type: 'card', card: { fingerprint: 'fingerprint' } });
     sandbox.stub(stripe.paymentIntents, 'create').callsFake(() =>
       Promise.resolve({
         id: 'pi_1F82vtBYycQg1OMfS2Rctiau',
