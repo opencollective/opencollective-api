@@ -285,7 +285,7 @@ const ExpensesCollectionQuery = {
       if (req.remoteUser) {
         const userClause: any[] = [{ status: { [Op.notIn]: [expenseStatus.DRAFT, expenseStatus.SPAM] } }];
 
-        if (req.remoteUser.isAdminOfCollective(account)) {
+        if (req.remoteUser.isAdminOfCollectiveOrHost(account)) {
           userClause.push({ status: expenseStatus.DRAFT });
         } else {
           userClause.push({ status: expenseStatus.DRAFT, UserId: req.remoteUser.id });
