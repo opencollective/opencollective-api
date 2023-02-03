@@ -2468,6 +2468,7 @@ enum ActivityType {
   USER_CREATED
   USER_NEW_TOKEN
   USER_SIGNIN
+  USER_RESET_PASSWORD
   OAUTH_APPLICATION_AUTHORIZED
   TWO_FACTOR_CODE_ADDED
   TWO_FACTOR_CODE_DELETED
@@ -7275,6 +7276,33 @@ type ImageFileInfo implements FileInfo {
   blurHash: String
 }
 
+type GenericFileInfo implements FileInfo {
+  """
+  Unique identifier for the file
+  """
+  id: String!
+
+  """
+  URL to access the file
+  """
+  url: URL!
+
+  """
+  Name of the file
+  """
+  name: String
+
+  """
+  Mime type of the file
+  """
+  type: String!
+
+  """
+  Size of the file in bytes
+  """
+  size: Int!
+}
+
 """
 This represents an Individual account
 """
@@ -11336,6 +11364,7 @@ enum ActivityAndClassesType {
   USER_CREATED
   USER_NEW_TOKEN
   USER_SIGNIN
+  USER_RESET_PASSWORD
   OAUTH_APPLICATION_AUTHORIZED
   TWO_FACTOR_CODE_ADDED
   TWO_FACTOR_CODE_DELETED
@@ -14375,6 +14404,9 @@ input ExpenseAttachedFileInput {
   Original filename
   """
   name: String
+    @deprecated(
+      reason: "2023-02-02: This must now be provided when uploading the file. This parameter will be ignored."
+    )
 
   """
   URL of the file

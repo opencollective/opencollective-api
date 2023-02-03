@@ -7,6 +7,7 @@ import { Collective } from './object/Collective';
 import { Credit } from './object/Credit';
 import { Debit } from './object/Debit';
 import { Event } from './object/Event';
+import { GenericFileInfo } from './object/GenericFileInfo';
 import { ImageFileInfo } from './object/ImageFileInfo';
 import { Individual } from './object/Individual';
 import { Member, MemberOf } from './object/Member';
@@ -26,6 +27,7 @@ const types = [
   Event,
   FileInfo,
   ImageFileInfo,
+  GenericFileInfo,
   Individual,
   Member,
   MemberOf,
