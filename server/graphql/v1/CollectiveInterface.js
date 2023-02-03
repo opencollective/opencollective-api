@@ -1189,19 +1189,23 @@ const CollectiveFields = () => {
       resolve: collective => Boolean(get(collective, 'data.isTrustedHost')),
     },
     isTwoFactorAuthEnabled: {
-      type: new GraphQLNonNull(GraphQLBoolean),
+      type: GraphQLBoolean,
       description: 'Returns whether this user has two factor authentication enabled',
-      async resolve(collective) {
-        if (collective.type === types.USER) {
-          const user = await models.User.findOne({
-            attributes: ['id', 'twoFactorAuthToken'],
-            where: { CollectiveId: collective.id },
-          });
-          if (user.twoFactorAuthToken) {
-            return true;
+      async resolve(collective, _, req) {
+        if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
+          if (collective.type === types.USER) {
+            const user = await models.User.findOne({
+              attributes: ['id', 'twoFactorAuthToken'],
+              where: { CollectiveId: collective.id },
+            });
+            if (user.twoFactorAuthToken) {
+              return true;
+            }
           }
+          return false;
+        } else {
+          return null;
         }
-        return false;
       },
     },
     canApply: {
