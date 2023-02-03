@@ -624,7 +624,7 @@ const orderMutations = {
           );
 
           [, updatedDebits] = await models.Transaction.update(
-            { FromCollectiveId: fromAccount.id },
+            { CollectiveId: fromAccount.id },
             {
               transaction: dbTransaction,
               returning: ['id'],
