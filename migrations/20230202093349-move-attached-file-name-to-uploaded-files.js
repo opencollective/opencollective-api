@@ -10,27 +10,31 @@ module.exports = {
       SELECT
         'EXPENSE_ATTACHED_FILE',
         "url",
-        "name",
+        MAX("name"),
         CASE
           WHEN "url" ILIKE '%.pdf' THEN 'application/pdf'
           WHEN "url" ILIKE '%.png' THEN 'image/png'
           WHEN "url" ILIKE '%.jpg' OR "url" ILIKE '%.jpeg' THEN 'image/jpeg'
           WHEN "url" ILIKE '%.jfi' THEN 'image/jfi'
+          WHEN "url" ILIKE '%.jfif' THEN 'image/jfif'
+          WHEN "url" ILIKE '%.heic' THEN 'image/heic'
           WHEN "url" ILIKE '%.svg' THEN 'image/svg+xml'
           WHEN "url" ILIKE '%.csv' THEN 'text/csv'
+          ELSE 'unknown'
         END,
-        "createdAt",
-        "createdAt",
-        "CreatedByUserId",
+        MIN("createdAt"),
+        MIN("createdAt"),
+        MIN("CreatedByUserId"),
         '{"createdFrom": "migrations/20230202093349-move-attached-file-name-to-uploaded-files.js"}'::jsonb
       FROM "ExpenseAttachedFiles"
       WHERE NOT STARTS_WITH("url", 'https://rest.opencollective.com') -- Settlement expenses
       AND NOT STARTS_WITH("url", 'https://loremflickr.com') -- To not break in dev/test envs
       AND NOT EXISTS(
           SELECT 1
-          FROM "UploadedFiles"
-          WHERE "url" = "ExpenseAttachedFiles"."url"
+          FROM "UploadedFiles" uf
+          WHERE uf."url" = "ExpenseAttachedFiles"."url"
         )
+      GROUP BY "url"
     `);
 
     // Drop ExpenseAttachedFiles filename column
