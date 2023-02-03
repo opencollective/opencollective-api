@@ -10,7 +10,7 @@ import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
 
 import { activities } from '../constants';
-import models from '../models';
+import Notification from '../models/Notification';
 
 import authorizedEmailDomains from './authorizedEmailDomains';
 import templates, { EmailTemplates } from './emailTemplates';
@@ -369,7 +369,7 @@ const generateEmailFromTemplate = (
 
 const isNotificationActive = async (template, data) => {
   if (data.user && data.user.id) {
-    return models.Notification.isActive(template, data.user, data.collective);
+    return Notification.isActive(template, data.user, data.collective);
   } else {
     return true;
   }

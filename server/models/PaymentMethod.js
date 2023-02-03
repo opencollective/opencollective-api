@@ -14,11 +14,11 @@ import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { isTestToken } from '../lib/stripe';
 import { cleanTags, formatArrayToString, formatCurrency } from '../lib/utils';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import User from './User';
 
 const debug = debugLib('models:PaymentMethod');
-
-const { models } = sequelize;
 
 const PaymentMethod = sequelize.define(
   'PaymentMethod',
@@ -241,7 +241,7 @@ PaymentMethod.payoutMethods = PAYMENT_METHOD_SERVICES;
  * Returns true if this payment method can be used for the given order
  * based on available balance and user
  * @param {Object} order { totalAmount, currency }
- * @param {Object} user instanceof models.User
+ * @param {Object} user instanceof User
  */
 PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
   // if the user is trying to reuse an existing payment method,
@@ -273,7 +273,7 @@ PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
   const fetchCollectiveName = CollectiveId => {
     return (
       CollectiveId &&
-      models.Collective.findOne({
+      Collective.findOne({
         attributes: ['name'],
         where: { id: CollectiveId },
       }).then(r => r && r.name)
@@ -299,7 +299,7 @@ PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
       );
     }
   } else {
-    const collective = await models.Collective.findByPk(this.CollectiveId);
+    const collective = await Collective.findByPk(this.CollectiveId);
 
     // If there is a monthly limit per member, the user needs to be a member or admin of the collective that owns the payment method
     if (this.monthlyLimitPerMember && !user.isMemberOfCollective(collective)) {
@@ -369,7 +369,7 @@ PaymentMethod.prototype.isPaypalPayment = async function () {
  * - the available balance on the paykey for PayPal (not implemented yet)
  */
 PaymentMethod.prototype.getBalanceForUser = async function (user) {
-  if (user && !(user instanceof models.User)) {
+  if (user && !(user instanceof User)) {
     throw new Error('Internal error at PaymentMethod.getBalanceForUser(user): user is not an instance of User');
   }
 
@@ -417,7 +417,7 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
     where: { type: TransactionTypes.DEBIT },
     include: [
       {
-        model: models.PaymentMethod,
+        model: PaymentMethod,
         required: true,
         attributes: [],
         where: { [Op.or]: { id: this.id, SourcePaymentMethodId: this.id } },
@@ -463,7 +463,7 @@ PaymentMethod.getOrCreate = async (user, paymentMethod) => {
     // NOTE: we have to disable this better behavior because it's breaking too many tests
     /*
       if (paymentMethod.token) {
-        const paymentMethodWithToken = await models.PaymentMethod.findOne({
+        const paymentMethodWithToken = await PaymentMethod.findOne({
           where: { token: paymentMethod.token },
         });
         if (paymentMethodWithToken) {
@@ -479,7 +479,7 @@ PaymentMethod.getOrCreate = async (user, paymentMethod) => {
       CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
     };
     debug('PaymentMethod.create', paymentMethodData);
-    return models.PaymentMethod.create(paymentMethodData);
+    return PaymentMethod.create(paymentMethodData);
   } else {
     return PaymentMethod.findOne({
       where: { uuid: paymentMethod.uuid },

@@ -7,7 +7,10 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
-const { models } = sequelize;
+import Activity from './Activity';
+import Collective from './Collective';
+import Member from './Member';
+import User from './User';
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
 
@@ -102,7 +105,7 @@ const MemberInvitation = sequelize.define(
 // ---- Instance methods ----
 
 MemberInvitation.prototype.accept = async function () {
-  const existingMember = await models.Member.findOne({
+  const existingMember = await Member.findOne({
     where: {
       MemberCollectiveId: this.MemberCollectiveId,
       CollectiveId: this.CollectiveId,
@@ -116,10 +119,10 @@ MemberInvitation.prototype.accept = async function () {
     return this.destroy();
   }
 
-  const user = await models.User.findOne({
+  const user = await User.findOne({
     where: { CollectiveId: this.MemberCollectiveId },
     include: {
-      model: models.Collective,
+      model: Collective,
       as: 'collective',
       attributes: ['id'],
       where: { type: types.USER, isIncognito: false },
@@ -130,7 +133,7 @@ MemberInvitation.prototype.accept = async function () {
     throw new Error(`No profile found for this user. Please contact support`);
   }
 
-  const collective = await models.Collective.findByPk(this.CollectiveId);
+  const collective = await Collective.findByPk(this.CollectiveId);
   if (!collective) {
     throw new Error(`No collective found for this invitation. Please contact support`);
   }
@@ -144,8 +147,8 @@ MemberInvitation.prototype.accept = async function () {
   purgeCacheForCollective(collective.slug);
 
   if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(this.role)) {
-    const memberCollective = await models.Collective.findByPk(this.MemberCollectiveId);
-    await models.Activity.create({
+    const memberCollective = await Collective.findByPk(this.MemberCollectiveId);
+    await Activity.create({
       type: ActivityTypes.COLLECTIVE_CORE_MEMBER_ADDED,
       CollectiveId: this.CollectiveId,
       FromCollectiveId: this.MemberCollectiveId,
@@ -166,7 +169,7 @@ MemberInvitation.prototype.decline = async function () {
   await this.destroy();
   const collective = this.collective || (await this.getCollective());
   const memberCollective = this.memberCollective || (await this.getMemberCollective());
-  await models.Activity.create({
+  await Activity.create({
     type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITATION_DECLINED,
     CollectiveId: this.CollectiveId,
     FromCollectiveId: this.MemberCollectiveId,
@@ -182,9 +185,9 @@ MemberInvitation.prototype.decline = async function () {
 
 MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAdmin = false, sequelizeParams = null) {
   // Load invitee
-  const invitedUser = await models.User.findOne({
+  const invitedUser = await User.findOne({
     where: { CollectiveId: this.MemberCollectiveId },
-    include: [{ model: models.Collective, as: 'collective' }],
+    include: [{ model: Collective, as: 'collective' }],
     ...sequelizeParams,
   });
 
@@ -196,7 +199,7 @@ MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAd
   const collective = this.collective || (await this.getCollective(sequelizeParams));
 
   // Send member invitation
-  await models.Activity.create(
+  await Activity.create(
     {
       type: ActivityTypes.COLLECTIVE_MEMBER_INVITED,
       CollectiveId: collective.id,
@@ -228,7 +231,7 @@ MemberInvitation.invite = async function (collective, memberParams, { transactio
   }
 
   // Ensure the user is not already a member
-  const existingMember = await models.Member.findOne({
+  const existingMember = await Member.findOne({
     where: {
       CollectiveId: collective.id,
       MemberCollectiveId: memberParams.MemberCollectiveId,
@@ -242,7 +245,7 @@ MemberInvitation.invite = async function (collective, memberParams, { transactio
   }
 
   // Update the existing invitation if it exists
-  let invitation = await models.MemberInvitation.findOne({
+  let invitation = await MemberInvitation.findOne({
     include: [{ association: 'collective' }],
     where: {
       CollectiveId: collective.id,
@@ -257,8 +260,8 @@ MemberInvitation.invite = async function (collective, memberParams, { transactio
   } else {
     // Ensure collective has not invited too many people
     const memberCountWhere = { CollectiveId: collective.id, role: MEMBER_INVITATION_SUPPORTED_ROLES };
-    const nbMembers = await models.Member.count({ where: memberCountWhere, ...sequelizeParams });
-    const nbInvitations = await models.MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
+    const nbMembers = await Member.count({ where: memberCountWhere, ...sequelizeParams });
+    const nbInvitations = await MemberInvitation.count({ where: memberCountWhere, ...sequelizeParams });
     if (nbMembers + nbInvitations > config.limits.maxCoreContributorsPerAccount) {
       throw new Error('You exceeded the maximum number of members for this account');
     }
@@ -268,8 +271,8 @@ MemberInvitation.invite = async function (collective, memberParams, { transactio
     invitation.collective = collective;
 
     if (MEMBER_INVITATION_SUPPORTED_ROLES.includes(memberParams.role)) {
-      const memberCollective = await models.Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
-      await models.Activity.create(
+      const memberCollective = await Collective.findByPk(memberParams.MemberCollectiveId, sequelizeParams);
+      await Activity.create(
         {
           type: ActivityTypes.COLLECTIVE_CORE_MEMBER_INVITED,
           CollectiveId: collective.id,
@@ -289,7 +292,7 @@ MemberInvitation.invite = async function (collective, memberParams, { transactio
 
   // Load remote user
   // TODO: We should make `createdByUser` a required param
-  const createdByUser = await models.User.findByPk(memberParams.CreatedByUserId, {
+  const createdByUser = await User.findByPk(memberParams.CreatedByUserId, {
     include: [{ association: 'collective' }],
     ...sequelizeParams,
   });

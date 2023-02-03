@@ -13,6 +13,11 @@ import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 
+import Activity from './Activity';
+import Collective from './Collective';
+import Tier from './Tier';
+import User from './User';
+
 export const sanitizerOptions = buildSanitizerOptions({
   titles: true,
   mainTitles: true,
@@ -43,8 +48,6 @@ const PRIVATE_UPDATE_TARGET_ROLES = [
 ];
 
 const PUBLIC_UPDATE_TARGET_ROLES = [...PRIVATE_UPDATE_TARGET_ROLES, MemberRoles.FOLLOWER];
-
-const { models } = sequelize;
 
 const Update = sequelize.define(
   'Update',
@@ -250,7 +253,7 @@ const Update = sequelize.define(
         await instance.save({ paranoid: false, hooks: false });
       },
       afterCreate: instance => {
-        models.Activity.create({
+        Activity.create({
           type: activities.COLLECTIVE_UPDATE_CREATED,
           UserId: instance.CreatedByUserId,
           CollectiveId: instance.CollectiveId,
@@ -272,7 +275,7 @@ const Update = sequelize.define(
 // Edit an update
 Update.prototype.edit = async function (remoteUser, newUpdateData) {
   if (newUpdateData.TierId) {
-    const tier = await models.Tier.findByPk(newUpdateData.TierId);
+    const tier = await Tier.findByPk(newUpdateData.TierId);
     if (!tier) {
       throw new errors.ValidationFailed('Tier not found');
     }
@@ -293,10 +296,10 @@ Update.prototype.edit = async function (remoteUser, newUpdateData) {
 Update.prototype.publish = async function (remoteUser, notificationAudience) {
   this.publishedAt = new Date();
   this.notificationAudience = notificationAudience;
-  this.collective = this.collective || (await models.Collective.findByPk(this.CollectiveId));
-  this.fromCollective = this.fromCollective || (await models.Collective.findByPk(this.FromCollectiveId));
+  this.collective = this.collective || (await Collective.findByPk(this.CollectiveId));
+  this.fromCollective = this.fromCollective || (await Collective.findByPk(this.FromCollectiveId));
 
-  models.Activity.create({
+  Activity.create({
     type: activities.COLLECTIVE_UPDATE_PUBLISHED,
     UserId: remoteUser.id,
     CollectiveId: this.CollectiveId,
@@ -318,15 +321,15 @@ Update.prototype.unpublish = async function (remoteUser) {
 };
 
 Update.prototype.delete = async function (remoteUser) {
-  await models.Comment.destroy({ where: { UpdateId: this.id } });
-  await models.Update.update({ deletedAt: new Date(), LastEditedByUserId: remoteUser.id }, { where: { id: this.id } });
+  await Comment.destroy({ where: { UpdateId: this.id } });
+  await Update.update({ deletedAt: new Date(), LastEditedByUserId: remoteUser.id }, { where: { id: this.id } });
 
   return this;
 };
 
 // Returns the User model of the User that created this Update
 Update.prototype.getUser = function () {
-  return models.User.findByPk(this.CreatedByUserId);
+  return User.findByPk(this.CreatedByUserId);
 };
 
 Update.prototype.includeHostedAccountsInNotification = async function (notificationAudience) {
@@ -360,7 +363,7 @@ Update.prototype.getUsersToNotify = async function () {
   return sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
     type: sequelize.QueryTypes.SELECT,
     mapToModel: true,
-    model: models.User,
+    model: User,
     replacements: {
       collectiveId: this.CollectiveId,
       targetRoles: this.getTargetMembersRoles(),
@@ -458,7 +461,7 @@ Update.prototype.generateSlug = function () {
 
 Update.makeUpdatesPublic = function () {
   const today = new Date().setUTCHours(0, 0, 0, 0);
-  return models.Update.update(
+  return Update.update(
     {
       isPrivate: false,
     },

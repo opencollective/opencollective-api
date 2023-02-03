@@ -23,7 +23,10 @@ import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
-import models from '.';
+import Activity from './Activity';
+import Collective from './Collective';
+import ConnectedAccount from './ConnectedAccount';
+import Member from './Member';
 
 const debug = debugLib('models:User');
 
@@ -51,8 +54,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public _emailWaitingForValidationChanged?: NonAttribute<boolean>;
 
   // Associations
-  public declare collective?: typeof models.Collective;
-  declare getCollective: BelongsToGetAssociationMixin<typeof models.Collective>;
+  public declare collective?: typeof Collective;
+  declare getCollective: BelongsToGetAssociationMixin<typeof Collective>;
 
   // Non-model attributes
   public rolesByCollectiveId?: NonAttribute<Record<string, string[]>>;
@@ -73,7 +76,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
   generateSessionToken = async function ({ sessionId = null } = {}) {
     if (!parseToBoolean(config.database.readOnly)) {
-      await models.Activity.create({
+      await Activity.create({
         type: activities.USER_SIGNIN,
         UserId: this.id,
         FromCollectiveId: this.CollectiveId,
@@ -114,7 +117,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
 
     await this.update({ passwordHash, passwordUpdatedAt: new Date() });
 
-    await models.Activity.create({
+    await Activity.create({
       type: activities.USER_PASSWORD_SET,
       UserId: this.id,
       FromCollectiveId: this.CollectiveId,
@@ -141,7 +144,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       },
       ...options,
     };
-    return models.Member.findAll(query);
+    return Member.findAll(query);
   };
 
   getIncognitoProfile = async function () {
@@ -161,7 +164,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     if (incognitoProfile) {
       where.MemberCollectiveId = { [Op.in]: [this.CollectiveId, incognitoProfile.id] };
     }
-    const memberships = await models.Member.findAll({ where });
+    const memberships = await Member.findAll({ where });
     memberships.map(m => {
       rolesByCollectiveId[m.CollectiveId] = rolesByCollectiveId[m.CollectiveId] || [];
       rolesByCollectiveId[m.CollectiveId].push(m.role);
@@ -299,7 +302,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    * Returns whether the User has any Orders with status of DISPUTED
    */
   hasDisputedOrders = async function () {
-    const count = await sequelize.models.Order.count({
+    const count = await sequelize.Order.count({
       where: { CreatedByUserId: this.id, status: OrderStatuses.DISPUTED },
     });
     return count > 0;
@@ -318,7 +321,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   findRelatedUsersByConnectedAccounts = async function () {
-    const connectedAccounts = await models.ConnectedAccount.findAll({
+    const connectedAccounts = await ConnectedAccount.findAll({
       where: {
         CollectiveId: this.CollectiveId,
         service: { [Op.in]: [Service.GITHUB, Service.TWITTER, Service.PAYPAL] },
@@ -336,12 +339,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       },
       include: [
         {
-          model: models.Collective,
+          model: Collective,
           as: 'collective',
           required: true,
           include: [
             {
-              model: models.ConnectedAccount,
+              model: ConnectedAccount,
               where: { [Op.or]: connectedAccounts.map(ca => pick(ca, ['service', 'username'])) },
               required: true,
             },
@@ -364,7 +367,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
     debug('findOrCreateByEmail', email, 'other attributes: ', otherAttributes);
     return User.findByEmail(email).then(
-      user => user || models.User.createUserWithCollective(Object.assign({}, { email }, otherAttributes)),
+      user => user || User.createUserWithCollective(Object.assign({}, { email }, otherAttributes)),
     );
   };
 
@@ -412,7 +415,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       countryISO: userData.location?.country,
       address: userData.location?.address,
     };
-    user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
+    user.collective = await Collective.create(userCollectiveData, sequelizeParams);
 
     // It's difficult to predict when the image will be updated by findImageForUser
     // So we skip that in test environment to make it more predictable
@@ -438,8 +441,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   // Getters
   // Collective of type USER corresponding to this user
   // @deprecated use user.getCollective()
-  get userCollective(): NonAttribute<Promise<typeof models.Collective>> {
-    return models.Collective.findByPk(this.CollectiveId).then(userCollective => {
+  get userCollective(): NonAttribute<Promise<typeof Collective>> {
+    return Collective.findByPk(this.CollectiveId).then(userCollective => {
       if (!userCollective) {
         logger.info(`No Collective attached to this user id ${this.id} (User.CollectiveId: ${this.CollectiveId})`);
         return {};

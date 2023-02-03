@@ -7,9 +7,10 @@ import { generateSummaryForHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
+import Activity from './Activity';
 import Comment from './Comment';
+import ConversationFollower from './ConversationFollower';
 import User from './User';
-import models from '.';
 
 class Conversation extends Model<InferAttributes<Conversation>, InferCreationAttributes<Conversation>> {
   public declare readonly id: CreationOptional<number>;
@@ -67,7 +68,7 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
 
     // Create the activity asynchronously. We do it here rather than in a hook because
     // `afterCreate` doesn't wait the end of the transaction to run, see https://github.com/sequelize/sequelize/issues/8585
-    models.Activity.create({
+    Activity.create({
       type: activities.COLLECTIVE_CONVERSATION_CREATED,
       UserId: conversation.CreatedByUserId,
       CollectiveId: conversation.CollectiveId,
@@ -90,7 +91,7 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
     });
 
     // Add user as a follower of the conversation
-    await models.ConversationFollower.follow(user.id, conversation.id);
+    await ConversationFollower.follow(user.id, conversation.id);
     return conversation;
   };
 
@@ -119,7 +120,7 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
    * - Conversation followers
    */
   getUsersFollowing = async function (): Promise<User[]> {
-    const followers = await models.ConversationFollower.findAll({
+    const followers = await ConversationFollower.findAll({
       include: ['user'],
       where: { ConversationId: this.id, isActive: true },
     });

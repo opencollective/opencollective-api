@@ -10,8 +10,8 @@ import { ValidationFailed } from '../graphql/errors';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { getRootDomain } from '../lib/url-utils';
 
+import Collective from './Collective';
 import User from './User';
-import models from '.';
 
 const debug = debugLib('models:Notification');
 
@@ -33,10 +33,10 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare UserId: CreationOptional<number>;
   public declare webhookUrl: CreationOptional<string>;
   public declare User?: User;
-  public declare Collective?: typeof models.Collective;
+  public declare Collective?: typeof Collective;
 
   getUser() {
-    return models.User.findByPk(this.UserId);
+    return User.findByPk(this.UserId);
   }
 
   static async createMany(
@@ -152,10 +152,10 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
    */
   static async getSubscribers(collectiveSlug: string | number, mailinglist: string) {
     const findByAttribute = typeof collectiveSlug === 'string' ? 'findBySlug' : 'findById';
-    const collective = await models.Collective[findByAttribute](collectiveSlug);
+    const collective = await Collective[findByAttribute](collectiveSlug);
 
     const getMembersForEvent = mailinglist =>
-      models.Collective.findOne({
+      Collective.findOne({
         where: { slug: mailinglist, type: 'EVENT' },
       }).then(event => {
         if (!event) {
@@ -198,7 +198,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     if (!memberships || memberships.length === 0) {
       return [];
     }
-    return models.User.findAll({
+    return User.findAll({
       where: {
         CollectiveId: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
       },
@@ -211,7 +211,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     if (!memberships || memberships.length === 0) {
       return [];
     }
-    return models.Collective.findAll({
+    return Collective.findAll({
       where: {
         id: { [Op.in]: memberships.map(m => m.MemberCollectiveId) },
       },
@@ -249,13 +249,13 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
 
     const getUsers = notifications => notifications.map(notification => notification.User);
 
-    const include = [{ model: models.User, required: true }];
+    const include = [{ model: User, required: true }];
     const where = { active: false, ...pick(_where, ['UserId', 'channel']) };
 
     const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
     where['type'] = compact([_where.type, `${_where.type}.for.host`, ...classes]);
 
-    const collective = _where.CollectiveId && (await models.Collective.findByPk(_where.CollectiveId));
+    const collective = _where.CollectiveId && (await Collective.findByPk(_where.CollectiveId));
     if (collective) {
       // When looking for Notifications about specific Collective, we're also including the Collective parent and
       // it's host because:
@@ -297,7 +297,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   /**
    * Check if notification with `notificationType` and `user` is active.
    */
-  static isActive(notificationType: string, user: User, collective?: typeof models.Collective) {
+  static isActive(notificationType: string, user: User, collective?: typeof Collective) {
     debug('isActive', notificationType, user.id);
     const where = {
       type: notificationType,
@@ -321,7 +321,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
    * Counts registered webhooks for a user, for a collective.
    */
   static countRegisteredWebhooks(CollectiveId: number) {
-    return models.Notification.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
+    return Notification.count({ where: { CollectiveId, channel: channels.WEBHOOK } });
   }
 }
 

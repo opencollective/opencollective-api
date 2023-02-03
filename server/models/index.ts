@@ -83,6 +83,9 @@ const models = {
   SocialLink,
 } as const;
 
+console.log('xxxx');
+console.log(models);
+
 /**
  * Relationships
  */
@@ -372,8 +375,11 @@ models.Update.belongsTo(models.Collective, { foreignKey: 'FromCollectiveId', as:
 models.Update.belongsTo(models.Tier, { foreignKey: 'TierId', as: 'tier' });
 models.Update.belongsTo(models.User, { foreignKey: 'LastEditedByUserId', as: 'user' });
 
+console.log('1');
+
 // Uploaded files
 models.UploadedFile.belongsTo(models.User, { foreignKey: 'CreatedByUserId', as: 'user' });
+console.log('2');
 
 // VirtualCard
 models.VirtualCard.belongsTo(models.Collective, {

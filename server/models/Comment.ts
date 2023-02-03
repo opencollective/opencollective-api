@@ -4,9 +4,10 @@ import Temporal from 'sequelize-temporal';
 import { buildSanitizerOptions, sanitizeHTML } from '../lib/sanitize-html';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Collective from './Collective';
+import Conversation from './Conversation';
 import Expense from './Expense';
 import User from './User';
-import models from '.';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
@@ -29,12 +30,12 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare fromCollective?: NonAttribute<typeof models.Collective>;
-  public declare collective?: NonAttribute<typeof models.Collective>;
+  public declare fromCollective?: NonAttribute<typeof Collective>;
+  public declare collective?: NonAttribute<typeof Collective>;
 
   // Returns the User model of the User that created this Update
   getUser = function () {
-    return models.User.findByPk(this.CreatedByUserId);
+    return User.findByPk(this.CreatedByUserId);
   };
 
   /**
@@ -171,10 +172,10 @@ Comment.init(
       beforeDestroy: async (comment, options) => {
         if (comment.ConversationId) {
           const transaction = options.transaction;
-          const conversation = await models.Conversation.findOne({ where: { RootCommentId: comment.id }, transaction });
+          const conversation = await Conversation.findOne({ where: { RootCommentId: comment.id }, transaction });
           if (conversation) {
             await conversation.destroy();
-            await models.Comment.destroy({
+            await Comment.destroy({
               where: { id: { [Op.not]: comment.id }, ConversationId: conversation.id },
               transaction,
             });
@@ -184,7 +185,7 @@ Comment.init(
       afterUpdate: async (comment, options) => {
         if (comment.ConversationId) {
           const transaction = options.transaction;
-          const conversation = await models.Conversation.findOne({ where: { RootCommentId: comment.id }, transaction });
+          const conversation = await Conversation.findOne({ where: { RootCommentId: comment.id }, transaction });
           if (conversation) {
             await conversation.update({ summary: comment.html }, { transaction });
           }

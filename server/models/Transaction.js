@@ -21,14 +21,17 @@ import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
+import Activity from './Activity';
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-import { TransactionSettlementStatus } from './TransactionSettlement';
+import Order from './Order';
+import PaymentMethod from './PaymentMethod';
+import TransactionSettlement, { TransactionSettlementStatus } from './TransactionSettlement';
+import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
 const debug = debugLib('models:Transaction');
-
-const { models } = sequelize;
 
 const Transaction = sequelize.define(
   'Transaction',
@@ -306,12 +309,12 @@ const Transaction = sequelize.define(
  * Instance Methods
  */
 Transaction.prototype.getUser = function () {
-  return models.User.findByPk(this.CreatedByUserId);
+  return User.findByPk(this.CreatedByUserId);
 };
 
 Transaction.prototype.getGiftCardEmitterCollective = function () {
   if (this.UsingGiftCardFromCollectiveId) {
-    return models.Collective.findByPk(this.UsingGiftCardFromCollectiveId);
+    return Collective.findByPk(this.UsingGiftCardFromCollectiveId);
   }
 };
 
@@ -319,10 +322,10 @@ Transaction.prototype.getHostCollective = async function () {
   let HostCollectiveId = this.HostCollectiveId;
   // if the transaction is from the perspective of the fromCollective
   if (!HostCollectiveId) {
-    const fromCollective = await models.Collective.findByPk(this.FromCollectiveId);
+    const fromCollective = await Collective.findByPk(this.FromCollectiveId);
     HostCollectiveId = await fromCollective.getHostCollectiveId();
   }
-  return models.Collective.findByPk(HostCollectiveId);
+  return Collective.findByPk(HostCollectiveId);
 };
 
 Transaction.prototype.getSource = function () {
@@ -362,7 +365,7 @@ Transaction.prototype.hasPlatformTip = function () {
 };
 
 Transaction.prototype.getRelatedTransaction = function (options) {
-  return models.Transaction.findOne({
+  return Transaction.findOne({
     where: {
       TransactionGroup: this.TransactionGroup,
       type: options.type || this.type,
@@ -548,7 +551,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     transaction.amountInHostCurrency = Math.round(transaction.amountInHostCurrency);
   }
 
-  const fromCollective = await models.Collective.findByPk(transaction.FromCollectiveId);
+  const fromCollective = await Collective.findByPk(transaction.FromCollectiveId);
   const fromCollectiveHost = await fromCollective.getHostCollective();
 
   let oppositeTransaction = {
@@ -608,7 +611,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
 
     // Handle Host Fee when paying an Expense between Hosts
     if (oppositeTransaction.kind === 'EXPENSE' && !oppositeTransaction.isRefund) {
-      const collective = await models.Collective.findByPk(transaction.CollectiveId);
+      const collective = await Collective.findByPk(transaction.CollectiveId);
       const collectiveHost = await collective.getHostCollective();
       if (collectiveHost.id !== fromCollectiveHost.id) {
         const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
@@ -617,7 +620,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
           hostFeePercent,
         );
         if (oppositeTransaction.hostFeeInHostCurrency) {
-          await models.Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
+          await Transaction.createHostFeeTransactions(oppositeTransaction, fromCollectiveHost);
         }
       }
     }
@@ -682,7 +685,7 @@ Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction 
 
   // Create settlement
   const settlementStatus = TransactionSettlementStatus.OWED;
-  await models.TransactionSettlement.createForTransaction(platformTipDebtTransaction, settlementStatus);
+  await TransactionSettlement.createForTransaction(platformTipDebtTransaction, settlementStatus);
 
   return platformTipDebtTransaction;
 };
@@ -690,7 +693,7 @@ Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction 
 /**
  * Creates platform tip transactions from a given transaction.
  * @param {Transaction} The actual transaction
- * @param {models.Collective} The host
+ * @param {Collective} The host
  * @param {boolean} Whether tip has been collected already (no debt needed)
  */
 Transaction.createPlatformTipTransactions = async (transactionData, host, isDirectlyCollected = false) => {
@@ -847,7 +850,7 @@ Transaction.createHostFeeShareTransactions = async (
 ) => {
   let order;
   if (transaction.OrderId) {
-    order = await models.Order.findByPk(transaction.OrderId);
+    order = await Order.findByPk(transaction.OrderId);
   }
   const hostFeeSharePercent = await getHostFeeSharePercent(order, host);
   if (!hostFeeSharePercent) {
@@ -855,10 +858,8 @@ Transaction.createHostFeeShareTransactions = async (
   }
 
   // Skip if missing or misconfigured
-  const hostFeeShareCollective = await models.Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId);
-  const hostFeeShareHostCollective = await models.Collective.findByPk(
-    HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId,
-  );
+  const hostFeeShareCollective = await Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.CollectiveId);
+  const hostFeeShareHostCollective = await Collective.findByPk(HOST_FEE_SHARE_TRANSACTION_PROPERTIES.HostCollectiveId);
   if (!hostFeeShareCollective || !hostFeeShareHostCollective) {
     return;
   }
@@ -950,7 +951,7 @@ Transaction.creatHostFeeShareDebtTransactions = async ({ hostFeeShareTransaction
 
   // Create settlement
   const settlementStatus = TransactionSettlementStatus.OWED;
-  await models.TransactionSettlement.createForTransaction(hostFeeShareDebtTransaction, settlementStatus);
+  await TransactionSettlement.createForTransaction(hostFeeShareDebtTransaction, settlementStatus);
 
   return hostFeeShareDebtTransaction;
 };
@@ -970,7 +971,7 @@ Transaction.createFromContributionPayload = async (
   }
 
   // Retrieve Host
-  const collective = await models.Collective.findByPk(transaction.CollectiveId);
+  const collective = await Collective.findByPk(transaction.CollectiveId);
   const host = await collective.getHostCollective();
   transaction.HostCollectiveId = collective.isHostAccount ? collective.id : host.id;
   if (!transaction.HostCollectiveId) {
@@ -1038,10 +1039,10 @@ Transaction.createActivity = (transaction, options) => {
   return (
     Transaction.findByPk(transaction.id, {
       include: [
-        { model: models.Collective, as: 'fromCollective' },
-        { model: models.Collective, as: 'collective' },
-        { model: models.User, as: 'createdByUser' },
-        { model: models.PaymentMethod },
+        { model: Collective, as: 'fromCollective' },
+        { model: Collective, as: 'collective' },
+        { model: User, as: 'createdByUser' },
+        { model: PaymentMethod },
       ],
       transaction: options?.transaction,
     })
@@ -1068,7 +1069,7 @@ Transaction.createActivity = (transaction, options) => {
         if (transaction.PaymentMethod) {
           activityPayload.data.paymentMethod = transaction.PaymentMethod.info;
         }
-        return models.Activity.create(activityPayload, { transaction: options?.transaction });
+        return Activity.create(activityPayload, { transaction: options?.transaction });
       })
       .catch(err => {
         console.error(

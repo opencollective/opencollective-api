@@ -13,9 +13,12 @@ import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize } from '../lib/utils';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
-
-const { models } = sequelize;
+import PaymentMethod from './PaymentMethod';
+import Tier from './Tier';
+import Transaction from './Transaction';
+import User from './User';
 
 const debug = debugLib('models:Order');
 
@@ -269,7 +272,7 @@ Order.prototype.getTotalTransactions = function () {
   if (!this.SubscriptionId) {
     return this.totalAmount;
   }
-  return models.Transaction.sum('amount', {
+  return Transaction.sum('amount', {
     where: {
       OrderId: this.id,
       type: TransactionTypes.CREDIT,
@@ -285,7 +288,7 @@ Order.prototype.getTotalTransactions = function () {
 Order.prototype.setPaymentMethod = function (paymentMethodData) {
   debug('setPaymentMethod', paymentMethodData);
   return this.getUser() // remote user (logged in user) that created the order
-    .then(user => models.PaymentMethod.getOrCreate(user, paymentMethodData))
+    .then(user => PaymentMethod.getOrCreate(user, paymentMethodData))
     .then(pm => this.validatePaymentMethod(pm))
     .then(pm => {
       this.paymentMethod = pm;
@@ -332,7 +335,7 @@ Order.prototype.getOrCreateMembers = async function () {
   // Register user as backer of Open Collective
   let platformTipMember;
   if (this.platformTipAmount) {
-    const platform = await models.Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
+    const platform = await Collective.findByPk(PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId);
     platformTipMember = await platform.findOrAddUserWithRole(
       { id: this.CreatedByUserId, CollectiveId: this.FromCollectiveId },
       roles.BACKER,
@@ -364,7 +367,7 @@ Order.prototype.getUser = function () {
   if (this.createdByUser) {
     return Promise.resolve(this.createdByUser);
   }
-  return models.User.findByPk(this.CreatedByUserId).then(user => {
+  return User.findByPk(this.CreatedByUserId).then(user => {
     this.createdByUser = user;
     debug('getUser', user.dataValues);
     return user.populateRoles();
@@ -402,12 +405,17 @@ Order.prototype.getUserForActivity = async function () {
  * (order.fromCollective, order.collective, order.createdByUser, order.tier)
  * @param {*} order
  */
-Order.prototype.populate = function (
-  foreignKeys = ['FromCollectiveId', 'CollectiveId', 'CreatedByUserId', 'TierId', 'PaymentMethodId'],
-) {
-  return Promise.map(foreignKeys, fk => {
+Order.prototype.populate = function () {
+  const foreignKeys = {
+    FromCollectiveId: Collective,
+    CollectiveId: Collective,
+    CreatedByUserId: User,
+    TierId: Tier,
+    PaymentMethodId: PaymentMethod,
+  };
+  return Promise.map(Object.keys(foreignKeys), fk => {
     const attribute = (fk.substr(0, 1).toLowerCase() + fk.substr(1)).replace(/Id$/, '');
-    const model = fk.replace(/(from|to|createdby)/i, '').replace(/Id$/, '');
+    const model = foreignKeys[fk];
     const promise = () => {
       if (this[attribute]) {
         return Promise.resolve(this[attribute]);
@@ -415,7 +423,7 @@ Order.prototype.populate = function (
       if (!this[fk]) {
         return Promise.resolve(null);
       }
-      return models[model].findByPk(this[fk]);
+      return model.findByPk(this[fk]);
     };
     return promise().then(obj => {
       this[attribute] = obj;
