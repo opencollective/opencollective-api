@@ -10,6 +10,7 @@ declare global {
       remoteUser?: User | null;
       jwtPayload?: {
         sessionId?: string;
+        scope?: string;
         iat: number;
         exp: number;
         sub?: string;
