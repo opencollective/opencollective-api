@@ -28,7 +28,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
-import models, { Op } from '../../../models';
+import models from '../../../models';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
