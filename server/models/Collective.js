@@ -564,8 +564,9 @@ const Collective = sequelize.define(
     tags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       set(tags) {
-        validateTags(tags);
-        this.setDataValue('tags', sanitizeTags(tags));
+        const sanitizedTags = sanitizeTags(tags);
+        validateTags(sanitizedTags);
+        this.setDataValue('tags', sanitizedTags);
       },
     },
 
