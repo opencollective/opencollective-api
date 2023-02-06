@@ -24,9 +24,9 @@ export const fileInfoFields = {
     resolve: file => file.fileType,
   },
   size: {
-    type: new GraphQLNonNull(GraphQLInt),
+    type: GraphQLInt,
     description: 'Size of the file in bytes',
-    resolve: file => file.fileSize || 0,
+    resolve: file => file.fileSize,
   },
 };
 
