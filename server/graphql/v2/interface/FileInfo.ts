@@ -1,5 +1,6 @@
 import { GraphQLInt, GraphQLInterfaceType, GraphQLNonNull, GraphQLString } from 'graphql';
 
+import { isSupportedImageMimeType } from '../../../lib/images';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import URL from '../scalar/URL';
 
@@ -34,4 +35,11 @@ export const FileInfo = new GraphQLInterfaceType({
   name: 'FileInfo',
   description: 'Exposes information about an uploaded file (image, pdf, etc.)',
   fields: () => fileInfoFields,
+  resolveType: uploadedFile => {
+    if (isSupportedImageMimeType(uploadedFile.fileType)) {
+      return 'ImageFileInfo';
+    } else {
+      return 'GenericFileInfo';
+    }
+  },
 });
