@@ -1,14 +1,12 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { get } from 'lodash';
 
-import { isSupportedImageMimeType } from '../../../lib/images';
 import { FileInfo, fileInfoFields } from '../interface/FileInfo';
 
 export const ImageFileInfo = new GraphQLObjectType({
   name: 'ImageFileInfo',
   description: 'Exposes information about an uploaded image file',
   interfaces: () => [FileInfo],
-  isTypeOf: file => isSupportedImageMimeType(file.fileType),
   fields: () => ({
     ...fileInfoFields,
     width: {
