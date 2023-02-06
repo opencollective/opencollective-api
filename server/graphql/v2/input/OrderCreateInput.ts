@@ -157,10 +157,6 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Public order description',
     },
-    memo: {
-      type: GraphQLString,
-      description: 'Private order memo',
-    },
     customData: {
       type: GraphQLJSON,
       description: 'If the tier has some "customFields", use this field to set their values',

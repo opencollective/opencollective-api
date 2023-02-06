@@ -775,27 +775,33 @@ const orderMutations = {
         throw new Unauthorized('Only host admins can process orders');
       }
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
-      const tier = await fetchTierWithReference(args.order.tier, { throwIfMissing: false });
 
-      const description =
-        args.order.description || models.Order.generateDescription(toAccount, undefined, undefined, tier);
-      const order = await models.Order.create({
+      const orderProps = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
-        TierId: tier?.id || null,
         quantity: 1,
         totalAmount: args.order.amount.valueInCents,
         currency: args.order.amount.currency,
-        description,
+        description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         data: {
+          ...(args.order.customData || {}),
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
-          memo: args.order.memo,
           isPendingContribution: true,
         },
         status: OrderStatuses.PENDING,
-      });
+      };
+
+      if (args.order.tier) {
+        const tier = await fetchTierWithReference(args.order.tier, { throwIfMissing: true });
+        if (!args.order.description) {
+          orderProps.description = models.Order.generateDescription(toAccount, undefined, undefined, tier);
+        }
+        orderProps.TierId = tier.id;
+      }
+
+      const order = await models.Order.create(orderProps);
 
       await models.Activity.create({
         type: activities.ORDER_PENDING_CREATED,
