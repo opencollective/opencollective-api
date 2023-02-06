@@ -24,6 +24,7 @@ export enum PAYMENT_METHOD_TYPE {
   US_BANK_ACCOUNT = 'us_bank_account',
   SEPA_DEBIT = 'sepa_debit',
   BACS_DEBIT = 'bacs_debit',
+  BANCONTACT = 'bancontact',
 }
 
 export const PAYMENT_METHOD_TYPES = Object.values(PAYMENT_METHOD_TYPE);
