@@ -81,6 +81,12 @@ enum ActivityTypes {
   ORDER_PROCESSING = 'order.processing',
   ORDER_PAYMENT_FAILED = 'order.payment.failed',
   ORDER_THANKYOU = 'order.thankyou',
+
+  // PENDING CONTRIBUTIONS
+  ORDER_PENDING_CREATED = 'order.pending.created',
+  ORDER_PENDING_FOLLOWUP = 'order.pending.followup',
+  ORDER_PENDING_RECEIVED = 'order.pending.received',
+
   ORDERS_SUSPICIOUS = 'orders.suspicious',
   BACKYOURSTACK_DISPATCH_CONFIRMED = 'backyourstack.dispatch.confirmed',
   PAYMENT_FAILED = 'payment.failed',

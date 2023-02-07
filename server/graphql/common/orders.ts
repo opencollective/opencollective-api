@@ -63,7 +63,7 @@ export async function addFunds(order, remoteUser) {
     description: order.description,
     status: status.NEW,
     TierId: order.tier?.id || null,
-    data: {},
+    data: {} as any,
   };
 
   // Handle specific fees
@@ -76,7 +76,7 @@ export async function addFunds(order, remoteUser) {
   }
 
   if (!isNil(order.processedAt)) {
-    orderData.processedAt = order.processedAt;
+    orderData['processedAt'] = order.processedAt;
   }
 
   const orderCreated = await models.Order.create(orderData);
