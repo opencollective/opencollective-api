@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+import '../server/env';
+
 import { sanitizeTags } from '../server/lib/tags';
 import models, { Op } from '../server/models';
 
