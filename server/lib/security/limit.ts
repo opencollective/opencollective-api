@@ -76,7 +76,7 @@ const getOrdersLimit = (order: typeof models.Order, reqIp: string, reqMask: stri
 };
 
 export const checkOrdersLimit = async (order, reqIp, reqMask) => {
-  if (['ci', 'test'].includes(config.env)) {
+  if (['ci', 'test', 'e2e'].includes(config.env)) {
     return;
   }
 
