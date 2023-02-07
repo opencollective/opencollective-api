@@ -7,8 +7,10 @@ import logger from '../lib/logger';
 
 import { reportErrorToSentry } from './sentry';
 
+export const S3_TRASH_PREFIX = 'trash/';
+
 // Create S3 service object & set credentials and region
-let s3;
+let s3: S3;
 if (config.aws.s3.key) {
   s3 = new S3({
     s3ForcePathStyle: config.aws.s3.forcePathStyle,
@@ -26,7 +28,7 @@ export const uploadToS3 = (
 ): Promise<ManagedUpload.SendData | { Location: string; Bucket: string; Key: string }> =>
   new Promise((resolve, reject) => {
     if (s3) {
-      (s3 as S3).upload(params, (err, data) => {
+      s3.upload(params, (err, data) => {
         if (err) {
           logger.error('Error uploading file to S3: ', err);
           reportErrorToSentry(err);
@@ -74,6 +76,105 @@ export const getFileInfoFromS3 = (s3Url: string): Promise<S3.HeadObjectOutput> =
       reject(new Error('S3 is not set'));
     }
   });
+};
+
+/**
+ * A wrapper around S3.listObjectsV2 that handles pagination to get more than 1000 files.
+ */
+export const listFilesInS3 = async (bucket: string): Promise<S3.Object[]> => {
+  if (!s3) {
+    throw new Error('S3 is not set');
+  }
+
+  const listObjects = async (params: S3.ListObjectsV2Request): Promise<S3.ListObjectsV2Output> => {
+    return new Promise((resolve, reject) => {
+      s3.listObjectsV2(params, (err, data) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(data);
+        }
+      });
+    });
+  };
+
+  const allObjects: S3.Object[] = [];
+  let continuationToken: string | undefined;
+  do {
+    logger.debug(
+      `Fetching S3 objects for bucket ${bucket} ${
+        continuationToken ? `with continuation token ${continuationToken}` : ''
+      }`,
+    );
+    const data = await listObjects({ Bucket: bucket, ContinuationToken: continuationToken });
+    allObjects.push(...(data.Contents || []));
+    continuationToken = data.NextContinuationToken;
+  } while (continuationToken);
+
+  return allObjects;
+};
+
+/**
+ * Move S3 file to a new key, within the same bucket.
+ */
+export const moveFileInS3 = (
+  s3Url: string,
+  newKey: string,
+  params: Omit<S3.Types.CopyObjectRequest, 'Bucket' | 'CopySource' | 'Key'> = {},
+): Promise<void> => {
+  // Unfortunately, s3 has no `moveObject` method, so we have to copy and delete. See https://docs.aws.amazon.com/sdk-for-java/v1/developer-guide/examples-s3-objects.html#copy-object
+  return new Promise((resolve, reject) => {
+    if (s3) {
+      const { bucket, key } = parseS3Url(s3Url);
+      logger.debug(`Moving S3 file ${s3Url} (${key}) to ${newKey}`);
+      // const storageType = 'GLACIER_IR' : 'STANDARD';
+      s3.copyObject(
+        {
+          MetadataDirective: 'COPY',
+          ...params,
+          Bucket: bucket,
+          CopySource: `${bucket}/${encodeURIComponent(key)}`,
+          Key: newKey,
+        },
+        err => {
+          if (err) {
+            reject(err);
+          } else {
+            s3.deleteObject({ Bucket: bucket, Key: key }, err => {
+              if (err) {
+                reject(err);
+              } else {
+                resolve();
+              }
+            });
+          }
+        },
+      );
+    } else {
+      reject(new Error('S3 is not set'));
+    }
+  });
+};
+
+// To differentiate between files that were deleted and files that were never recorded in the DB
+type TrashType = 'deleted' | 'neverRecorded';
+
+/**
+ * Until we're confident permanently deleting files from S3, we'll just move them to a trash folder.
+ */
+export const trashFileFromS3 = async (s3Url: string, trashType: TrashType): Promise<void> => {
+  const { key } = parseS3Url(s3Url);
+  const trashKey = `${S3_TRASH_PREFIX}${trashType}/${key}`;
+  return moveFileInS3(s3Url, trashKey, { StorageClass: 'GLACIER' });
+};
+
+/**
+ * Restore the file from the trash folder to its original location.
+ */
+export const restoreFileFromS3Trash = (s3Url: string, trashType: TrashType): Promise<void> => {
+  const { key } = parseS3Url(s3Url);
+  const originalKey = key.replace(new RegExp(`^${S3_TRASH_PREFIX}${trashType}/`), '');
+  return moveFileInS3(s3Url, originalKey, { StorageClass: 'STANDARD' });
 };
 
 export default s3;
