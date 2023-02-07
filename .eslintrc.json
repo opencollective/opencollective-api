@@ -9,11 +9,14 @@
     "mocha/no-exclusive-tests": "error",
     // use es6 module imports and exports
     "import/no-commonjs": "error",
+    // not useful or desired
+    "import/no-named-as-default-member": "off",
     // common warnings in the codebase
     "no-process-exit": "off",
     "node/shebang": "off",
     "no-useless-escape": "off",
     "prefer-rest-params": "off",
+    // "@typescript-eslint/no-explicit-any": "off",
     // relaxing because we have many errors
     "require-atomic-updates": "off",
     // typescript

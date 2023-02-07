@@ -4,8 +4,7 @@ import { get } from 'lodash';
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
-import OrderStatuses from '../constants/order_status';
-import status from '../constants/order_status';
+import OrderStatus from '../constants/order_status';
 import TierType from '../constants/tiers';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES, TransactionTypes } from '../constants/transactions';
 import * as libPayments from '../lib/payments';
@@ -152,12 +151,12 @@ const Order = sequelize.define(
 
     status: {
       type: DataTypes.STRING,
-      defaultValue: status.NEW,
+      defaultValue: OrderStatus.NEW,
       allowNull: false,
       validate: {
         isIn: {
-          args: [Object.keys(status)],
-          msg: `Must be in ${Object.keys(status)}`,
+          args: [Object.keys(OrderStatus)],
+          msg: `Must be in ${Object.keys(OrderStatus)}`,
         },
       },
     },
@@ -342,7 +341,7 @@ Order.prototype.getOrCreateMembers = async function () {
 
 Order.prototype.markAsExpired = async function () {
   // TODO: We should create an activity to record who rejected the order
-  return this.update({ status: status.EXPIRED });
+  return this.update({ status: OrderStatus.EXPIRED });
 };
 
 Order.prototype.markAsPaid = async function (user) {
@@ -438,13 +437,13 @@ Order.prototype.getSubscriptionForUser = function (user) {
  */
 Order.cancelActiveOrdersByCollective = function (collectiveId) {
   return Order.update(
-    { status: OrderStatuses.CANCELLED },
+    { status: OrderStatus.CANCELLED },
     {
       where: {
         FromCollectiveId: collectiveId,
         SubscriptionId: { [Op.not]: null },
         status: {
-          [Op.not]: [OrderStatuses.PAID, OrderStatuses.CANCELLED, OrderStatuses.REJECTED, OrderStatuses.EXPIRED],
+          [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
         },
       },
     },
@@ -456,13 +455,13 @@ Order.cancelActiveOrdersByCollective = function (collectiveId) {
  */
 Order.cancelActiveOrdersByTierId = function (tierId) {
   return Order.update(
-    { status: OrderStatuses.CANCELLED },
+    { status: OrderStatus.CANCELLED },
     {
       where: {
         TierId: tierId,
         SubscriptionId: { [Op.not]: null },
         status: {
-          [Op.not]: [OrderStatuses.PAID, OrderStatuses.CANCELLED, OrderStatuses.REJECTED, OrderStatuses.EXPIRED],
+          [Op.not]: [OrderStatus.PAID, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.EXPIRED],
         },
       },
     },

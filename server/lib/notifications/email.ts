@@ -10,7 +10,7 @@ import { types as CollectiveType } from '../../constants/collectives';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models from '../../models';
-import Activity from '../../models/Activity';
+import { Activity } from '../../models/Activity';
 import User from '../../models/User';
 import emailLib from '../email';
 import { getTransactionPdf } from '../pdf';

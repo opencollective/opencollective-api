@@ -4,7 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 
 import { HostApplicationStatus } from '../enum/HostApplicationStatus';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';
-import Account from '../interface/Account';
+import { Account } from '../interface/Account';
 
 const HostApplication = new GraphQLObjectType({
   name: 'HostApplication',
