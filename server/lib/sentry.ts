@@ -12,9 +12,10 @@ import * as Tracing from '@sentry/tracing';
 import type { Integration, SeverityLevel } from '@sentry/types';
 import axios, { AxiosError } from 'axios';
 import config from 'config';
-import { isEmpty, isEqual, pick } from 'lodash';
+import { get, isEmpty, isEqual, pick } from 'lodash';
 
 import FEATURE from '../constants/feature';
+import { User } from '../models';
 
 import logger from './logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
@@ -64,12 +65,25 @@ type CaptureErrorParams = {
   tags?: Record<string, string>;
   extra?: Record<string, unknown>;
   breadcrumbs?: Sentry.Breadcrumb[];
-  user?: Sentry.User;
+  user?: Sentry.User | User;
   handler?: HandlerType;
   feature?: FEATURE;
   transactionName?: string;
   /** Used to group Axios errors, when the URL includes parameters */
   requestPath?: string;
+};
+
+const dbUserToSentryUser = (user: User): Sentry.User => {
+  if (!user) {
+    return null;
+  } else {
+    return {
+      id: user['id'].toString(),
+      email: user['email'],
+      username: get(user, 'collective.slug'),
+      ip_address: get(user, 'data.lastSignInRequest.ip')?.toString(), // eslint-disable-line camelcase
+    };
+  }
 };
 
 const stringifyExtra = (value: unknown) => {
@@ -130,7 +144,8 @@ const withScopeFromCaptureErrorParams = (
 
     // Set user
     if (user) {
-      scope.setUser(user);
+      const sentryUser = user instanceof User ? dbUserToSentryUser(user) : user;
+      scope.setUser(sentryUser);
     }
 
     // Set breadcrumbs

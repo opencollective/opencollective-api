@@ -1,6 +1,6 @@
 import config from 'config';
 
-import UploadedFile, { SUPPORTED_FILE_TYPES_IMAGES } from '../models/UploadedFile';
+import UploadedFile from '../models/UploadedFile';
 
 import { getHostname } from './url-utils';
 
@@ -12,10 +12,6 @@ const TRUSTED_IMAGE_PROVIDERS = [
   'abs.twimg.com',
   'secure.meetupstatic.com',
 ];
-
-export const isSupportedImageMimeType = (mimeType: string): boolean => {
-  return (SUPPORTED_FILE_TYPES_IMAGES as readonly string[]).includes(mimeType);
-};
 
 /**
  * Returns true if image is a valid image uploaded in our S3 bucket.

@@ -1,4 +1,5 @@
 import { Account } from './interface/Account';
+import { FileInfo } from './interface/FileInfo';
 import { Amount } from './object/Amount';
 import { Application } from './object/Application';
 import { Bot } from './object/Bot';
@@ -6,6 +7,8 @@ import { Collective } from './object/Collective';
 import { Credit } from './object/Credit';
 import { Debit } from './object/Debit';
 import { Event } from './object/Event';
+import { GenericFileInfo } from './object/GenericFileInfo';
+import { ImageFileInfo } from './object/ImageFileInfo';
 import { Individual } from './object/Individual';
 import { Member, MemberOf } from './object/Member';
 import { Organization } from './object/Organization';
@@ -22,6 +25,9 @@ const types = [
   Credit,
   Debit,
   Event,
+  FileInfo,
+  ImageFileInfo,
+  GenericFileInfo,
   Individual,
   Member,
   MemberOf,

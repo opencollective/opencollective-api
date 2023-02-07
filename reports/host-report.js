@@ -504,14 +504,23 @@ async function HostReport(year, month, hostId) {
     return emailLib.send(emailTemplate, recipients, data, options);
   };
 
-  const query = `
-  with "hosts" as (SELECT DISTINCT "HostCollectiveId" AS id FROM "Collectives" WHERE "deletedAt" IS NULL AND "isActive" IS TRUE AND "HostCollectiveId" IS NOT NULL)
-  SELECT c.* FROM "Collectives" c WHERE c.id IN (SELECT h.id FROM hosts h) ${previewCondition}
-  `;
+  const query = `with "hosts" as (
+    SELECT "HostCollectiveId" AS id
+    FROM "Transactions"
+    WHERE "HostCollectiveId" IS NOT NULL
+    AND "createdAt" >= :startDate
+    AND "createdAt" < :endDate
+    AND "deletedAt" IS NULL
+    GROUP BY "HostCollectiveId"
+  )
+  SELECT c.*
+  FROM "Collectives" c
+  WHERE c.id IN (SELECT h.id FROM hosts h) ${previewCondition} ORDER BY c.id ASC`;
 
   const hosts = await sequelize.query(query, {
     model: models.Collective,
     type: sequelize.QueryTypes.SELECT,
+    replacements: { startDate: startDate, endDate: endDate },
   });
   console.log(`Preparing the ${reportName} for ${hosts.length} hosts`);
 

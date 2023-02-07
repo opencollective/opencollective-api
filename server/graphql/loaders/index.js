@@ -51,6 +51,12 @@ export const loaders = req => {
   context.loaders.Update.reactionsByUpdateId = updatesLoader.reactionsByUpdateId(req, cache);
   context.loaders.Update.remoteUserReactionsByUpdateId = updatesLoader.remoteUserReactionsByUpdateId(req, cache);
 
+  // Uploaded files
+  context.loaders.UploadedFile.byUrl = new DataLoader(async urls => {
+    const files = await models.UploadedFile.findAll({ where: { url: urls } });
+    return sortResultsSimple(urls, files, file => file.url);
+  });
+
   // Conversation
   context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);
   context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount(req, cache);
