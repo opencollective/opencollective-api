@@ -127,11 +127,11 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
   fields: () => ({
     amount: {
       type: new GraphQLNonNull(AmountInput),
-      description: 'The contribution amount for 1 quantity, without platform contribution and taxes',
+      description: 'The contribution amount, without platform contribution and taxes',
     },
     fromAccount: {
       type: new GraphQLNonNull(AccountReferenceInput),
-      description: 'The profile making the order.',
+      description: 'The profile making the contribution.',
     },
     fromAccountInfo: {
       type: OrderFromAccountInfo,
@@ -139,7 +139,7 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
     },
     toAccount: {
       type: new GraphQLNonNull(AccountReferenceInput),
-      description: 'The profile you want to contribute to',
+      description: 'The collective/event/project you want to contribute to',
     },
     platformTipAmount: {
       type: AmountInput,
@@ -159,11 +159,11 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
     },
     customData: {
       type: GraphQLJSON,
-      description: 'If the tier has some "customFields", use this field to set their values',
+      description: 'Custom data related to the Pending Order',
     },
     expectedAt: {
       type: DateString,
-      description: 'When was the money spent?',
+      description: 'When is the money expected?',
     },
     hostFeePercent: {
       type: GraphQLInt,
