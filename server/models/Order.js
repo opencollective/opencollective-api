@@ -87,12 +87,7 @@ const Order = sequelize.define(
         validateTags,
       },
       set(tags) {
-        const sanitizedTags = sanitizeTags(tags);
-        if (!sanitizedTags?.length) {
-          this.setDataValue('tags', null);
-        } else {
-          this.setDataValue('tags', sanitizedTags);
-        }
+        this.setDataValue('tags', sanitizeTags(tags));
       },
     },
 

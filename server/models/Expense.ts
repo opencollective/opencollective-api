@@ -646,12 +646,7 @@ Expense.init(
     tags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       set(tags: string[] | null) {
-        const sanitizedTags = sanitizeTags(tags);
-        if (!sanitizedTags?.length) {
-          this.setDataValue('tags', null);
-        } else {
-          this.setDataValue('tags', sanitizedTags);
-        }
+        this.setDataValue('tags', sanitizeTags(tags));
       },
       validate: { validateTags },
     },
