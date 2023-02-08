@@ -1,8 +1,13 @@
 'use strict';
+import config from 'config';
 
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface) {
+    if (!['e2e', 'ci'].includes(config.env)) {
+      return;
+    }
+
     queryInterface.sequelize.query(`
         INSERT INTO "Collectives"
             (id, name, description, currency, 
@@ -40,6 +45,10 @@ module.exports = {
   },
 
   async down(queryInterface) {
+    if (!['e2e', 'ci'].includes(config.env)) {
+      return;
+    }
+
     queryInterface.sequelize.query(`
         DELETE FROM "ConnectedAccounts" where id = 1333;
         DELETE FROM "Members" where id = 1333;
