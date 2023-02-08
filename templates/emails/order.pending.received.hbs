@@ -1,0 +1,29 @@
+Subject: Funds from {{fromCollective.name}} are now available
+
+{{> header}}
+
+{{> toplogo}}
+
+
+<center>
+  <h1>
+    Funds from {{fromCollective.name}} are now available
+  </h1>
+</center>
+
+<p>
+  Congratulations! Funds from {{fromCollective.name}} are now available in the {{toCollective.name}} budget.
+</p>
+
+<p>The contribution details are below. Please contact {{host.name}} if any of the information is incorrect.</p>
+
+<h2>Contribution Details</h2>
+<p>
+  Description: {{order.description}}<br />
+  Amount: {{currency order.totalAmount currency=order.currency}}<br />
+  {{#if tierName}}
+  Tier: {{tierName}}<br />
+  {{/if}}
+</p>
+
+{{> footer}}

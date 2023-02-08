@@ -1,0 +1,35 @@
+Subject: We've been notified of incoming funds to {{collective.name}}
+
+{{> header}}
+
+{{> toplogo}}
+
+<center>
+  <h1>
+    We've been notified of incoming funds to {{collective.name}}
+  </h1>
+</center>
+
+<p>A pending contribution from {{fromCollective.name}} has been created on the Open Collective platform for
+  {{toCollective.name}}. {{host.name}}, your fiscal host, will keep an eye out for its arrival and you will receive a
+  notification when
+  the funds are available in the {{toCollective.name}} budget. </p>
+
+<p>Please contact {{host.name}} if any of the below information is incorrect or has changed.</p>
+
+<h2>Contribution Details</h2>
+<p>
+  Description: {{order.description}}<br />
+  Amount: {{currency order.totalAmount currency=order.currency}}<br />
+  {{#if tierName}}
+  Tier: {{tierName}}<br />
+  {{/if}}
+  {{#if order.expectedAt}}
+  Expected At: {{moment order.expectedAt}}<br />
+  {{/if}}
+  {{#if order.memo}}
+  Info: <br /> {{order.memo}}<br />
+  {{/if}}
+</p>
+
+{{> footer}}

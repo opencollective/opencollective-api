@@ -152,6 +152,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.COLLECTIVE_FROZEN:
     case ActivityTypes.COLLECTIVE_UNFROZEN:
     case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:
+    case ActivityTypes.ORDER_PENDING_CREATED:
       await notify.collective(activity);
       break;
     case ActivityTypes.COLLECTIVE_UNHOSTED:
@@ -591,6 +592,13 @@ export const notifyByEmail = async (activity: Activity) => {
       await notify.collective(activity, {
         collectiveId: activity.data.fromCollective.id,
       });
+      break;
+
+    case ActivityTypes.ORDER_PENDING_RECEIVED:
+      if (activity.data?.fromAccountInfo?.email) {
+        await emailLib.send(activity.type, activity.data.fromAccountInfo.email, activity.data);
+      }
+      await notify.collective(activity);
       break;
 
     case ActivityTypes.ORDER_PENDING_CONTRIBUTION_NEW:

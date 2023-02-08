@@ -430,6 +430,8 @@ const orderMutations = {
         order = await order.markAsPaid(req.remoteUser);
 
         if (order.data.isPendingContribution) {
+          const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
+          const fromAccount = await req.loaders.Collective.byId.load(order.FromCollectiveId);
           await models.Activity.create({
             type: activities.ORDER_PENDING_RECEIVED,
             UserId: req.remoteUser.id,
@@ -437,7 +439,14 @@ const orderMutations = {
             FromCollectiveId: order.FromCollectiveId,
             OrderId: order.id,
             HostCollectiveId: host.id,
-            data: { ...order.data },
+            data: {
+              order: { ...order.info, ...pick(order.data, ['expectedAt', 'memo']) },
+              fromAccountInfo: order.data.fromAccountInfo,
+              fromCollective: fromAccount.info,
+              host: host.info,
+              toCollective: toAccount.info,
+              tierName: tier?.name,
+            },
           });
         }
 
@@ -793,8 +802,8 @@ const orderMutations = {
         status: OrderStatuses.PENDING,
       };
 
-      if (args.order.tier) {
-        const tier = await fetchTierWithReference(args.order.tier, { throwIfMissing: true });
+      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
+      if (tier) {
         if (!args.order.description) {
           orderProps.description = models.Order.generateDescription(toAccount, undefined, undefined, tier);
         }
@@ -810,7 +819,14 @@ const orderMutations = {
         FromCollectiveId: fromAccount.id,
         OrderId: order.id,
         HostCollectiveId: host.id,
-        data: { ...order.data },
+        data: {
+          order: { ...order.info, ...pick(orderProps.data, ['expectedAt', 'memo']) },
+          fromAccountInfo: orderProps.data.fromAccountInfo,
+          fromCollective: fromAccount.info,
+          host: host.info,
+          toCollective: toAccount.info,
+          tierName: tier?.name,
+        },
       });
 
       return order;
