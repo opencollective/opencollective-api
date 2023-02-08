@@ -30,6 +30,43 @@ const CreditCardWithStripeError = new GraphQLObjectType({
   }),
 });
 
+export const deletePaymentMethod = async (collective, fingerprint, transaction) => {
+  // Check if the credit card is already saved
+  const oldPaymentMethod = await models.PaymentMethod.findOne(
+    {
+      where: {
+        CollectiveId: collective.id,
+        service: 'stripe',
+        saved: true,
+        data: {
+          fingerprint: fingerprint,
+        },
+      },
+    },
+    { transaction },
+  );
+
+  if (oldPaymentMethod) {
+    await oldPaymentMethod.destroy();
+  }
+
+  return oldPaymentMethod;
+};
+
+export const updateExistingOrdersToNewPaymentMethod = async (paymentMethod, oldPaymentMethod, transaction) => {
+  // Update all existing orders with the new payment method
+  await models.Order.update(
+    { PaymentMethodId: paymentMethod.id },
+    {
+      where: {
+        PaymentMethodId: oldPaymentMethod.id,
+        status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
+      },
+    },
+    { transaction },
+  );
+};
+
 const addCreditCard = {
   type: new GraphQLNonNull(CreditCardWithStripeError),
   description: 'Add a new payment method to be used with an Order. Scope: "orders".',
@@ -85,39 +122,11 @@ const addCreditCard = {
     };
 
     await sequelize.transaction(async transaction => {
-      // Check if the credit card is already saved
-      const oldPaymentMethod = await models.PaymentMethod.findOne(
-        {
-          where: {
-            CollectiveId: collective.id,
-            service: 'stripe',
-            type: 'creditcard',
-            saved: true,
-            data: {
-              fingerprint: token.card.fingerprint,
-            },
-          },
-        },
-        { transaction },
-      );
-
-      if (oldPaymentMethod) {
-        await oldPaymentMethod.destroy();
-      }
+      const oldPaymentMethod = await deletePaymentMethod(collective, token.card.fingerprint, transaction);
 
       const paymentMethod = await models.PaymentMethod.create(newPaymentMethodData, { transaction });
 
-      // Update all existing orders with the new payment method
-      await models.Order.update(
-        { PaymentMethodId: paymentMethod.id },
-        {
-          where: {
-            PaymentMethodId: oldPaymentMethod.id,
-            status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
-          },
-        },
-        { transaction },
-      );
+      await updateExistingOrdersToNewPaymentMethod(paymentMethod, oldPaymentMethod, transaction);
     });
 
     let pm;

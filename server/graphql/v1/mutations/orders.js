@@ -28,7 +28,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -37,6 +37,7 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
+import { deletePaymentMethod, updateExistingOrdersToNewPaymentMethod } from '../../v2/mutation/PaymentMethodMutations';
 
 const debug = debugLib('orders');
 
@@ -582,28 +583,15 @@ export async function createOrder(order, req) {
         // Update all existing orders with the new payment method
         if (get(order, 'paymentMethod.service') === 'stripe') {
           // Check if the payment method is already saved
-          const paymentMethod = await models.PaymentMethod.findOne({
-            where: {
-              CollectiveId: fromCollective.id,
-              service: 'stripe',
-              saved: true,
-              data: {
-                fingerprint: order.paymentMethod.data.fingerprint,
-              },
-            },
-          });
-          if (paymentMethod && !order.paymentMethod?.uuid && order.paymentMethod?.save) {
-            await models.Order.update(
-              { PaymentMethodId: orderCreated.paymentMethod.id },
-              {
-                where: {
-                  PaymentMethodId: paymentMethod.id,
-                  status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
-                },
-              },
+          await sequelize.transaction(async transaction => {
+            const oldPaymentMethod = await deletePaymentMethod(
+              fromCollective,
+              order.paymentMethod.data.fingerprint,
+              transaction,
             );
-            await paymentMethod.destroy();
-          }
+
+            await updateExistingOrdersToNewPaymentMethod(orderCreated.paymentMethod, oldPaymentMethod, transaction);
+          });
         }
       }
       // also adds the user as a BACKER of collective
