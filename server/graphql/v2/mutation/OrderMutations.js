@@ -564,9 +564,9 @@ const orderMutations = {
           }
         }
 
-        const isUpdatingPaymentMethod = Boolean(fromAccount) && !isAddedFund(order);
+        const isUpdatingPaymentMethod = Boolean(fromAccount);
 
-        if (isUpdatingPaymentMethod) {
+        if (isUpdatingPaymentMethod && !isAddedFund(order)) {
           // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
           if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
             throw new ValidationFailed(
