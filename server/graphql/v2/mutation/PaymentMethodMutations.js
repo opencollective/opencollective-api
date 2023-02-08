@@ -5,7 +5,7 @@ import { Op } from 'sequelize';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { sequelize } from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
@@ -84,35 +84,43 @@ const addCreditCard = {
       },
     };
 
-    // Check if the credit card is already saved
-    const oldPaymentMethod = await models.PaymentMethod.findOne({
-      where: {
-        CollectiveId: collective.id,
-        service: 'stripe',
-        type: 'creditcard',
-        saved: true,
-        data: {
-          fingerprint: token.card.fingerprint,
+    await sequelize.transaction(async transaction => {
+      // Check if the credit card is already saved
+      const oldPaymentMethod = await models.PaymentMethod.findOne(
+        {
+          where: {
+            CollectiveId: collective.id,
+            service: 'stripe',
+            type: 'creditcard',
+            saved: true,
+            data: {
+              fingerprint: token.card.fingerprint,
+            },
+          },
         },
-      },
+        { transaction },
+      );
+
+      if (oldPaymentMethod) {
+        await oldPaymentMethod.destroy();
+      }
+
+      const paymentMethod = await models.PaymentMethod.create(newPaymentMethodData, { transaction });
+
+      // Update all existing orders with the new payment method
+      await models.Order.update(
+        { PaymentMethodId: paymentMethod.id },
+        {
+          where: {
+            PaymentMethodId: oldPaymentMethod.id,
+            status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
+          },
+        },
+        { transaction },
+      );
     });
-    if (oldPaymentMethod) {
-      await oldPaymentMethod.destroy();
-    }
 
-    let pm = await models.PaymentMethod.create(newPaymentMethodData);
-
-    // Update all existing orders with the new payment method
-    await models.Order.update(
-      { PaymentMethodId: pm.id },
-      {
-        where: {
-          PaymentMethodId: oldPaymentMethod.id,
-          status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
-        },
-      },
-    );
-
+    let pm;
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });
     } catch (error) {
