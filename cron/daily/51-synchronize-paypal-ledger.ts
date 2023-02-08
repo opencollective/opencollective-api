@@ -19,8 +19,8 @@ import { recordPaypalCapture } from '../../server/paymentProviders/paypal/paymen
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
 
 const LIMITED_TO_HOST_SLUGS = process.env.HOST ? process.env.HOST.split(',') : null;
-const START_DATE = process.env.START_DATE ? moment(process.env.START_DATE) : moment().subtract(2, 'day');
-const END_DATE = process.env.END_DATE ? moment(process.env.END_DATE) : moment(START_DATE).add(1, 'day');
+const START_DATE = process.env.START_DATE ? moment.utc(process.env.START_DATE) : moment.utc().subtract(2, 'day');
+const END_DATE = process.env.END_DATE ? moment.utc(process.env.END_DATE) : moment(START_DATE).add(1, 'day');
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
 
 // Filter out transactions that are not related to contributions
