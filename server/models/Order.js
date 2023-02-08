@@ -214,6 +214,7 @@ const Order = sequelize.define(
           SubscriptionId: this.SubscriptionId,
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
+          processedAt: this.processedAt,
           isGuest: Boolean(this.data?.isGuest),
           tags: this.tags,
         };
