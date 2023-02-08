@@ -38,7 +38,7 @@ const checkOrder = async orderId => {
 
 const checkPaypalCapture = async (host, captureId) => {
   const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, host, 'GET');
-  console.log(captureDetails);
+  console.dir(captureDetails, { depth: 10 });
 };
 
 const checkExpense = async expenseId => {
@@ -83,7 +83,7 @@ const showCaptureInfo = async (hostSlug, paypalTransactionId) => {
   });
 
   console.log('==== Capture details ====');
-  console.log(captureDetails);
+  console.dir(captureDetails, { depth: 10 });
   console.log('==== Transactions ====');
   dbTransactions.forEach(t => console.log(`${t.id} - ${t.type} - ${t.amount} ${t.currency}`));
 };
