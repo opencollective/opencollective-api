@@ -69,7 +69,7 @@ export default {
       },
       isTwoFactorAuthEnabled: {
         type: GraphQLBoolean,
-        description: 'Specify whether 2FA should be enabled',
+        description: 'Set this to false to disable 2FA. Other values have no effect.',
       },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
