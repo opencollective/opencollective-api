@@ -197,13 +197,8 @@ Conversation.init(
     },
     tags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
-      set(tags: string[]) {
-        const sanitizedTags = sanitizeTags(tags);
-        if (!tags || sanitizedTags.length === 0) {
-          this.setDataValue('tags', null);
-        } else {
-          this.setDataValue('tags', sanitizedTags);
-        }
+      set(tags: string[] | null) {
+        this.setDataValue('tags', sanitizeTags(tags));
       },
       validate: { validateTags },
     },

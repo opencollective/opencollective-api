@@ -43,7 +43,7 @@ import VirtualCard from './VirtualCard';
  * Models.
  */
 const models = {
-  Activity: Activity,
+  Activity,
   Application: Application,
   Collective: Collective,
   Comment: Comment,
@@ -399,6 +399,47 @@ models.SocialLink.belongsTo(models.Collective, {
 });
 models.Collective.hasMany(models.SocialLink, { foreignKey: 'CollectiveId', as: 'socialLinks' });
 
+export default models;
+
 export { sequelize, Op };
 
-export default models;
+export {
+  Activity,
+  Application,
+  Collective,
+  Comment,
+  EmojiReaction,
+  ConnectedAccount,
+  Conversation,
+  ConversationFollower,
+  CurrencyExchangeRate,
+  Expense,
+  ExpenseAttachedFile,
+  ExpenseItem,
+  HostApplication,
+  LegalDocument,
+  Member,
+  MemberInvitation,
+  MigrationLog,
+  Notification,
+  OAuthAuthorizationCode,
+  Order,
+  PaymentMethod,
+  PayoutMethod,
+  PaypalPlan,
+  PaypalProduct,
+  RecurringExpense,
+  RequiredLegalDocument,
+  Subscription,
+  SuspendedAsset,
+  Tier,
+  Transaction,
+  TransactionSettlement,
+  Update,
+  UploadedFile,
+  User,
+  UserToken,
+  VirtualCard,
+  PersonalToken,
+  SocialLink,
+};

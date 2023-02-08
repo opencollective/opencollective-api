@@ -524,7 +524,7 @@ async function HostReport(year, month, hostId) {
   });
   console.log(`Preparing the ${reportName} for ${hosts.length} hosts`);
 
-  return Promise.map(hosts, processHost, { concurrency: 1 }).then(() => {
+  return Promise.mapSeries(hosts, processHost, { concurrency: 1 }).then(() => {
     console.log('>>> All done. Exiting.');
     process.exit(0);
   });

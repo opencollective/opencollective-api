@@ -81,9 +81,10 @@ import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
+import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, cleanTags, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
 import Order from './Order';
@@ -563,7 +564,9 @@ const Collective = sequelize.define(
     tags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
       set(tags) {
-        this.setDataValue('tags', cleanTags(tags));
+        const sanitizedTags = sanitizeTags(tags);
+        validateTags(sanitizedTags);
+        this.setDataValue('tags', sanitizedTags);
       },
     },
 

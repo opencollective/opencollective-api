@@ -53,7 +53,7 @@ describe('server/models/Conversation', () => {
         tags: ['  SUPER    SAFE   ', '', '          ', 'OPENSOURCE'],
       });
 
-      expect(conversation.tags).to.have.members(['super safe', 'opensource']);
+      expect(conversation.tags).to.have.members(['super safe', 'open source']);
     });
 
     it('rejects tags longer than 30 characters', () => {

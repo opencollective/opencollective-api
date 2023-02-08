@@ -478,27 +478,6 @@ export function parseToBoolean(value) {
   return false;
 }
 
-/**
- * Clean a tags list before inserting to the db. Trim tags, remove empty ones...
- * Will return `null` if the list is empty.
- */
-export const cleanTags = tags => {
-  if (!tags) {
-    return null;
-  } else if (typeof tags === 'string') {
-    tags = [tags];
-  }
-
-  const cleanTagsList = tags
-    .filter(t => Boolean(t)) // Remove null values
-    .map(t => t.trim()) // Trim tags
-    .map(t => t.replace(/^#+/g, '')) // Remove # prefixes
-    .map(t => t.trim()) // Trim again for empty tags with a # prefix
-    .filter(t => t.length > 0); // Remove empty tags
-
-  return cleanTagsList.length > 0 ? cleanTagsList : null;
-};
-
 export const md5 = value => crypto.createHash('md5').update(value).digest('hex');
 
 export const sha512 = value => crypto.createHash('sha512').update(value).digest('hex');

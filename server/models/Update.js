@@ -12,6 +12,7 @@ import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
+import { sanitizeTags, validateTags } from '../lib/tags';
 
 export const sanitizerOptions = buildSanitizerOptions({
   titles: true,
@@ -158,6 +159,12 @@ const Update = sequelize.define(
 
     tags: {
       type: DataTypes.ARRAY(DataTypes.STRING),
+      validate: {
+        validateTags,
+      },
+      set: function (tags) {
+        this.setDataValue('tags', sanitizeTags(tags));
+      },
     },
 
     publishedAt: {
