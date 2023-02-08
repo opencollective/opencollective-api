@@ -67,6 +67,10 @@ export default {
         type: GraphQLBoolean,
         description: 'Specify whether the account is a trusted host',
       },
+      isTwoFactorAuthEnabled: {
+        type: GraphQLBoolean,
+        description: 'Set this to false to disable 2FA. Other values have no effect.',
+      },
     },
     async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
       checkRemoteUserCanRoot(req);
@@ -84,6 +88,14 @@ export default {
 
       if (!isNil(args.isTrustedHost) && Boolean(args.isTrustedHost) !== Boolean(account.data?.isTrustedHost)) {
         await account.update({ data: { ...account.data, isTrustedHost: args.isTrustedHost } });
+      }
+
+      if (args.isTwoFactorAuthEnabled === false) {
+        const user = await account.getUser();
+        await user.update({
+          twoFactorAuthToken: null,
+          twoFactorAuthRecoveryCodes: null,
+        });
       }
       return account;
     },
