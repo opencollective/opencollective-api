@@ -26,7 +26,7 @@ const longDescriptionSanitizerOpts = buildSanitizerOptions({
   videoIframes: true,
 });
 
-type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
+export type TierType = 'TIER' | 'MEMBERSHIP' | 'DONATION' | 'TICKET' | 'PRODUCT' | 'SERVICE';
 
 class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   public declare readonly id: CreationOptional<number>;
@@ -257,12 +257,11 @@ Tier.init(
 
     CollectiveId: {
       type: DataTypes.INTEGER,
+      allowNull: false,
       references: {
         model: 'Collectives',
         key: 'id',
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
     },
 
     // human readable way to uniquely access a tier for a given collective or collective/event combo
@@ -304,6 +303,7 @@ Tier.init(
     type: {
       type: DataTypes.STRING, // TIER, TICKET, DONATION, SERVICE, PRODUCT, MEMBERSHIP
       defaultValue: 'TIER',
+      allowNull: false,
       // TODO validate value
     },
 

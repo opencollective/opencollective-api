@@ -96,6 +96,7 @@ describe('server/models/Tier', () => {
           name: 'sponsor',
           amount: -5,
           interval: 'year',
+          CollectiveId: collective.id,
         }),
       ).to.be.rejectedWith(SequelizeValidationError, 'Validation min on amount failed');
     });
@@ -107,6 +108,7 @@ describe('server/models/Tier', () => {
           name: 'sponsor',
           amount: 0,
           interval: 'year',
+          CollectiveId: collective.id,
         }),
       ).to.be.fulfilled;
     });

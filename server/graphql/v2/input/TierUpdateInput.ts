@@ -12,6 +12,9 @@ import { TierAmountType, TierType } from '../enum';
 import { TierFrequency } from '../enum/TierFrequency';
 
 import { AmountInput } from './AmountInput';
+import { TierCreateInputFields } from './TierCreateInput';
+
+export type TierUpdateInputFields = { id: string } & Partial<TierCreateInputFields>;
 
 export const TierUpdateInput = new GraphQLInputObjectType({
   name: 'TierUpdateInput',
@@ -36,13 +39,13 @@ export const TierUpdateInput = new GraphQLInputObjectType({
       type: AmountInput,
     },
     type: {
-      type: new GraphQLNonNull(TierType),
+      type: TierType,
     },
     amountType: {
-      type: new GraphQLNonNull(TierAmountType),
+      type: TierAmountType,
     },
     frequency: {
-      type: new GraphQLNonNull(TierFrequency),
+      type: TierFrequency,
     },
     presets: {
       type: new GraphQLList(new GraphQLNonNull(GraphQLInt)),
