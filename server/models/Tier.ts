@@ -465,7 +465,12 @@ Tier.init(
         }
       },
       validateFlexibleAmount() {
-        if (this.amountType === 'FLEXIBLE' && this.presets && !this.presets.includes(this.amount)) {
+        if (
+          !isNil(this.amount) &&
+          this.amountType === 'FLEXIBLE' &&
+          this.presets &&
+          !this.presets.includes(this.amount)
+        ) {
           throw new Error(`In ${this.name}'s tier, "Default amount" must be one of suggested values amounts`);
         }
       },

@@ -21,7 +21,7 @@ export const TierUpdateInput = new GraphQLInputObjectType({
       description: 'The public id identifying the tier (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
     },
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: AmountInput,
     },
     name: {
       type: GraphQLNonEmptyString,

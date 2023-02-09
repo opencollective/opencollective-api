@@ -43,7 +43,7 @@ const tierMutations = {
       await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
 
       // Prepare args
-      const amount = getValueInCentsFromAmountInput(args.tier.amount);
+      const amount = args.tier.amount ? getValueInCentsFromAmountInput(args.tier.amount) : null;
       if (args.tier.amountType === 'FIXED') {
         args.tier.presets = null;
         args.tier.minimumAmount = null;
@@ -73,11 +73,13 @@ const tierMutations = {
         tierUpdateData.data.invoiceTemplate = args.tier.invoiceTemplate;
       }
 
+      const updatedTier = await tier.update(tierUpdateData);
+
       // Purge cache
       purgeCacheForCollective(collective.slug);
       purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
 
-      return await tier.update(tierUpdateData);
+      return updatedTier;
     },
   },
   createTier: {
@@ -112,7 +114,7 @@ const tierMutations = {
         ...args.tier,
         CollectiveId: account.id,
         currency: account.currency,
-        amount: getValueInCentsFromAmountInput(args.tier.amount),
+        amount: args.tier.amount ? getValueInCentsFromAmountInput(args.tier.amount) : null,
         minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
         goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
         interval: getIntervalFromTierFrequency(args.tier.frequency),
@@ -130,10 +132,12 @@ const tierMutations = {
         tierCreateData.data.invoiceTemplate = args.tier.invoiceTemplate;
       }
 
+      const tier = await models.Tier.create(tierCreateData);
+
       // Purge cache
       purgeCacheForCollective(account.slug);
 
-      return await models.Tier.create(tierCreateData);
+      return tier;
     },
   },
   deleteTier: {

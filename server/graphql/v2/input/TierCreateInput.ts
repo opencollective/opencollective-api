@@ -17,7 +17,7 @@ export const TierCreateInput = new GraphQLInputObjectType({
   name: 'TierCreateInput',
   fields: () => ({
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: AmountInput,
     },
     name: {
       type: GraphQLNonEmptyString,
