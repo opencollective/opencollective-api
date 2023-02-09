@@ -468,6 +468,7 @@ export const fakeTier = async (tierData: Record<string, unknown> = {}) => {
     currency,
     maxQuantity: randAmount(),
     ...tierData,
+    CollectiveId: tierData.CollectiveId || (await fakeCollective()).id,
   });
 };
 

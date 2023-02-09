@@ -26,7 +26,7 @@ async function createOrderWithSubscription(interval, date, quantity = 1) {
   const user = await models.User.createUserWithCollective({ email: randEmail(), name: 'Test McTesterson' });
   const fromCollective = user.collective;
   const collective = await models.Collective.create({ name: 'Parcel' });
-  const tier = await models.Tier.create({ name: 'backer', amount: 0 });
+  const tier = await models.Tier.create({ name: 'backer', amount: 0, CollectiveId: collective.id });
   const subscription = await models.Subscription.create({
     ...payment,
     isActive: true,
@@ -473,7 +473,7 @@ describe('server/lib/recurring-contributions', () => {
       await utils.resetTestDB();
       user = await models.User.createUserWithCollective({ email: randEmail(), name: 'Test McTesterson' });
       collective = await models.Collective.create({ name: 'Parcel' });
-      tier = await models.Tier.create({ name: 'backer', amount: 0 });
+      tier = await models.Tier.create({ name: 'backer', amount: 0, CollectiveId: collective.id });
     });
 
     it('should filter orders with NULL subscription IDs', async () => {

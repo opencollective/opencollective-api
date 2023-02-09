@@ -3,7 +3,6 @@ import gqlV2 from 'fake-tag';
 
 import OrderStatuses from '../../../../../server/constants/order_status';
 import roles from '../../../../../server/constants/roles';
-import { getTierFrequencyFromInterval } from '../../../../../server/graphql/v2/enum/TierFrequency';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import models from '../../../../../server/models';
 import { fakeCollective, fakeMember, fakeOrder, fakeTier, fakeUser } from '../../../../test-helpers/fake-data';
@@ -59,7 +58,7 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
     adminUser = await fakeUser();
     collective = await fakeCollective({ admin: adminUser });
     memberUser = await fakeUser();
-    existingTier = await fakeTier({ CollectiveId: collective.id });
+    existingTier = await fakeTier({ CollectiveId: collective.id, minimumAmount: 42 });
     await fakeMember({ CollectiveId: memberUser.id, MemberCollectiveId: collective.id, role: roles.MEMBER });
   });
 
@@ -98,6 +97,7 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
         { account: { legacyId: collective.id }, tier: fakeTierCreateInput },
         adminUser,
       );
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.createTier.legacyId).to.exist;
 
@@ -111,29 +111,20 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
     before(() => {
       updateFields = {
         id: idEncode(existingTier.id, IDENTIFIER_TYPES.TIER),
-        name: existingTier.name,
-        type: existingTier.type,
-        amountType: existingTier.amountType,
-        frequency: getTierFrequencyFromInterval(existingTier.interval),
-        amount: {
-          value: existingTier.amount,
-          currency: existingTier.currency,
-        },
+        name: 'New name',
+        singleTicket: true,
+        invoiceTemplate: 'test-template',
       };
     });
 
     it('validates if request user is logged in', async () => {
-      const result = await graphqlQueryV2(EDIT_TIER_MUTATION, { tier: { ...updateFields, name: 'New name' } });
+      const result = await graphqlQueryV2(EDIT_TIER_MUTATION, { tier: updateFields });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be logged in to manage account.');
     });
 
     it('validates if request user is not an admin', async () => {
-      const result = await graphqlQueryV2(
-        EDIT_TIER_MUTATION,
-        { tier: { ...updateFields, name: 'New name' } },
-        memberUser,
-      );
+      const result = await graphqlQueryV2(EDIT_TIER_MUTATION, { tier: updateFields }, memberUser);
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal('You need to be authenticated to perform this action');
     });
@@ -144,11 +135,8 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
     });
 
     it('edited if request user is admin and tier input is valid', async () => {
-      const result = await graphqlQueryV2(
-        EDIT_TIER_MUTATION,
-        { tier: { ...updateFields, name: 'New name' } },
-        adminUser,
-      );
+      const result = await graphqlQueryV2(EDIT_TIER_MUTATION, { tier: updateFields }, adminUser);
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.editTier.legacyId).to.exist;
       expect(result.data.editTier.name).to.equal('New name');
@@ -156,6 +144,12 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
       const editedTier = await models.Tier.findByPk(result.data.editTier.legacyId);
       expect(editedTier).to.exist;
       expect(editedTier.name).to.equal('New name');
+      expect(editedTier.data?.singleTicket).to.equal(true);
+      expect(editedTier.data?.invoiceTemplate).to.equal('test-template');
+
+      // Partial updates: other fields must not have changed
+      expect(editedTier.minimumAmount).to.equal(42);
+      expect(editedTier.interval).to.equal(existingTier.interval);
     });
   });
 

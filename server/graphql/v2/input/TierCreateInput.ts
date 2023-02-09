@@ -8,19 +8,37 @@ import {
 } from 'graphql';
 import { GraphQLNonEmptyString } from 'graphql-scalars';
 
-import { TierAmountType, TierType } from '../enum';
-import { TierFrequency } from '../enum/TierFrequency';
+import { TierType } from '../../../models/Tier';
+import { TierAmountType, TierType as GraphQLTierType } from '../enum';
+import { TierFrequency, TierFrequencyKey } from '../enum/TierFrequency';
 
-import { AmountInput } from './AmountInput';
+import { AmountInput, AmountInputType } from './AmountInput';
+
+export type TierCreateInputFields = {
+  amount?: AmountInputType;
+  name?: string;
+  description?: string;
+  button?: string;
+  goal?: AmountInputType;
+  type: TierType;
+  amountType: 'FLEXIBLE' | 'FIXED';
+  frequency: TierFrequencyKey;
+  presets?: number[];
+  maxQuantity?: number;
+  minimumAmount?: AmountInputType;
+  useStandalonePage?: boolean;
+  invoiceTemplate?: string;
+  singleTicket?: boolean;
+};
 
 export const TierCreateInput = new GraphQLInputObjectType({
   name: 'TierCreateInput',
   fields: () => ({
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: AmountInput,
     },
     name: {
-      type: GraphQLNonEmptyString,
+      type: new GraphQLNonNull(GraphQLNonEmptyString),
     },
     description: {
       type: GraphQLString,
@@ -32,7 +50,7 @@ export const TierCreateInput = new GraphQLInputObjectType({
       type: AmountInput,
     },
     type: {
-      type: new GraphQLNonNull(TierType),
+      type: new GraphQLNonNull(GraphQLTierType),
     },
     amountType: {
       type: new GraphQLNonNull(TierAmountType),

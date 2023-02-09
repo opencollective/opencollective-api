@@ -4,6 +4,12 @@ import { isNil } from 'lodash';
 import { floatAmountToCents } from '../../../lib/math';
 import { Currency } from '../enum/Currency';
 
+export type AmountInputType = {
+  value?: number;
+  currency?: string;
+  valueInCents?: number;
+};
+
 export const AmountInput = new GraphQLInputObjectType({
   name: 'AmountInput',
   description: 'Input type for an amount with the value and currency',
@@ -23,7 +29,10 @@ export const AmountInput = new GraphQLInputObjectType({
   }),
 });
 
-export const getValueInCentsFromAmountInput = (input, { expectedCurrency, allowNilCurrency = true } = {}) => {
+export const getValueInCentsFromAmountInput = (
+  input,
+  { expectedCurrency = null, allowNilCurrency = true }: { expectedCurrency?: string; allowNilCurrency?: boolean } = {},
+) => {
   if (expectedCurrency) {
     assertAmountInputCurrency(input, expectedCurrency, { allowNil: allowNilCurrency });
   }

@@ -1,20 +1,67 @@
 import { GraphQLBoolean, GraphQLNonNull } from 'graphql';
-import { isNil, uniq } from 'lodash';
+import { isNil, isUndefined, omitBy, pick, uniq } from 'lodash';
 
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models from '../../../models';
+import models, { Tier as TierModel } from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { NotFound, Unauthorized } from '../../errors';
 import { getIntervalFromTierFrequency } from '../enum/TierFrequency';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { TierCreateInput } from '../input/TierCreateInput';
+import { TierCreateInput, TierCreateInputFields } from '../input/TierCreateInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
-import { TierUpdateInput } from '../input/TierUpdateInput';
+import { TierUpdateInput, TierUpdateInputFields } from '../input/TierUpdateInput';
 import { Tier } from '../object/Tier';
+
+// Makes sure we default to `undefined` if the amount is not set to not override existing values with `null`
+const getAmountWithDefault = (amountInput, existingAmount = undefined) =>
+  (amountInput ? getValueInCentsFromAmountInput(amountInput) : existingAmount) ?? undefined;
+
+const transformTierInputToAttributes = (
+  tierInput: TierCreateInputFields | TierUpdateInputFields,
+  existingTier: TierModel = null,
+) => {
+  // Copy all fields that don't need to be transformed
+  const attributes = pick(tierInput, [
+    'name',
+    'description',
+    'button',
+    'type',
+    'amountType',
+    'presets',
+    'maxQuantity',
+    'useStandalonePage',
+  ]);
+
+  // Transform fields that need to be transformed
+  attributes['amount'] = getAmountWithDefault(tierInput.amount, existingTier?.amount);
+  attributes['minimumAmount'] = getAmountWithDefault(tierInput.minimumAmount, existingTier?.minimumAmount);
+  attributes['goal'] = getAmountWithDefault(tierInput.goal, existingTier?.goal);
+  attributes['interval'] = getIntervalFromTierFrequency(tierInput.frequency);
+  attributes['data'] = existingTier?.data || null;
+
+  // Set data fields
+  if (tierInput.singleTicket !== undefined) {
+    attributes['data'] = { ...attributes['data'], singleTicket: tierInput.singleTicket };
+  }
+
+  if (tierInput.invoiceTemplate !== undefined) {
+    attributes['data'] = { ...attributes['data'], invoiceTemplate: tierInput.invoiceTemplate };
+  }
+
+  // Adjust some fields based on other fields
+  if (attributes.amountType === 'FIXED') {
+    attributes['presets'] = null;
+    attributes['minimumAmount'] = null;
+  } else if (attributes.presets && !isNil(attributes['amount'])) {
+    attributes['presets'] = uniq([attributes['amount'], ...tierInput.presets]); // Make sure default amount is included in presets
+  }
+
+  return omitBy(attributes, isUndefined);
+};
 
 const tierMutations = {
   editTier: {
@@ -29,7 +76,7 @@ const tierMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const tierId = idDecode(args.tier.id, IDENTIFIER_TYPES.TIER);
-      const tier = await models.Tier.findByPk(tierId);
+      const tier = await TierModel.findByPk(tierId);
       if (!tier) {
         throw new NotFound('Tier Not Found');
       }
@@ -42,42 +89,14 @@ const tierMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
 
-      // Prepare args
-      const amount = getValueInCentsFromAmountInput(args.tier.amount);
-      if (args.tier.amountType === 'FIXED') {
-        args.tier.presets = null;
-        args.tier.minimumAmount = null;
-      } else if (args.tier.presets && !isNil(amount)) {
-        // Make sure default amount is included in presets
-        args.tier.presets = uniq([amount, ...args.tier.presets]);
-      }
-
-      const tierUpdateData = {
-        ...args.tier,
-        id: tierId,
-        amount: amount,
-        minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
-        goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
-        interval: getIntervalFromTierFrequency(args.tier.frequency),
-      };
-
-      if (!tierUpdateData.data && (args.tier.singleTicket !== undefined || args.tier.invoiceTemplate !== undefined)) {
-        tierUpdateData.data = {};
-      }
-
-      if (args.tier.singleTicket !== undefined) {
-        tierUpdateData.data.singleTicket = args.tier.singleTicket;
-      }
-
-      if (args.tier.invoiceTemplate !== undefined) {
-        tierUpdateData.data.invoiceTemplate = args.tier.invoiceTemplate;
-      }
+      // Update tier
+      const updatedTier = await tier.update(transformTierInputToAttributes(args.tier));
 
       // Purge cache
       purgeCacheForCollective(collective.slug);
       purgeCacheForPage(`/${collective.slug}/contribute/${tier.slug}-${tier.id}`);
 
-      return await tier.update(tierUpdateData);
+      return updatedTier;
     },
   },
   createTier: {
@@ -103,37 +122,13 @@ const tierMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
 
-      if (args.tier.amountType === 'FIXED') {
-        args.tier.presets = null;
-        args.tier.minimumAmount = null;
-      }
-
-      const tierCreateData = {
-        ...args.tier,
-        CollectiveId: account.id,
-        currency: account.currency,
-        amount: getValueInCentsFromAmountInput(args.tier.amount),
-        minimumAmount: args.tier.minimumAmount ? getValueInCentsFromAmountInput(args.tier.minimumAmount) : null,
-        goal: args.tier.goal ? getValueInCentsFromAmountInput(args.tier.goal) : null,
-        interval: getIntervalFromTierFrequency(args.tier.frequency),
-      };
-
-      if (args.tier.singleTicket !== undefined || args.tier.invoiceTemplate !== undefined) {
-        tierCreateData.data = {};
-      }
-
-      if (args.tier.singleTicket !== undefined) {
-        tierCreateData.data.singleTicket = args.tier.singleTicket;
-      }
-
-      if (args.tier.invoiceTemplate !== undefined) {
-        tierCreateData.data.invoiceTemplate = args.tier.invoiceTemplate;
-      }
+      // Create tier
+      const tier = await TierModel.create({ ...transformTierInputToAttributes(args.tier), CollectiveId: account.id });
 
       // Purge cache
       purgeCacheForCollective(account.slug);
 
-      return await models.Tier.create(tierCreateData);
+      return tier;
     },
   },
   deleteTier: {
@@ -152,6 +147,10 @@ const tierMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const tier = await fetchTierWithReference(args.tier, { throwIfMissing: true });
+      if (tier === 'custom') {
+        throw new Error('Cannot delete custom tier. Set settings.disableCustomContributions to true instead.');
+      }
+
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();

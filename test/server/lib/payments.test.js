@@ -122,6 +122,7 @@ describe('server/lib/payments', () => {
   beforeEach('create an order', async () => {
     const tier = await models.Tier.create({
       ...utils.data('tier1'),
+      CollectiveId: collective.id,
       slug: PLAN_NAME,
     });
     const o = await models.Order.create({

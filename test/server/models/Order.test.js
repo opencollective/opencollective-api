@@ -14,7 +14,9 @@ describe('server/models/Order', () => {
     }).then(u => (user = u)),
   );
   before('create a collective', () => models.Collective.create({ name: 'Webpack' }).then(c => (collective = c)));
-  before('create a tier', () => models.Tier.create({ name: 'backer', amount: 0 }).then(t => (tier = t)));
+  before('create a tier', () =>
+    models.Tier.create({ name: 'backer', amount: 0, CollectiveId: collective.id }).then(t => (tier = t)),
+  );
   before('create an order', () =>
     models.Order.create({
       CreatedByUserId: user.id,

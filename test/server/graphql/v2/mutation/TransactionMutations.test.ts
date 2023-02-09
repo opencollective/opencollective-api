@@ -282,7 +282,7 @@ describe('refundTransaction legacy tests', () => {
     const host = await models.User.createUserWithCollective(utils.data('host1'));
     const collective = await models.Collective.create(utils.data('collective1'));
     await collective.addHost(host.collective, host);
-    const tier = await models.Tier.create(utils.data('tier1'));
+    const tier = await models.Tier.create({ ...utils.data('tier1'), CollectiveId: collective.id });
     const paymentMethod = await models.PaymentMethod.create(utils.data('paymentMethod2'));
     await models.ConnectedAccount.create({
       service: 'stripe',

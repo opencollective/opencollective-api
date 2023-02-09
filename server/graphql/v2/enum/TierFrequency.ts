@@ -3,7 +3,7 @@ import { invert } from 'lodash';
 
 import INTERVALS from '../../../constants/intervals';
 
-enum TierFrequencyKey {
+export enum TierFrequencyKey {
   MONTHLY = 'MONTHLY',
   YEARLY = 'YEARLY',
   ONETIME = 'ONETIME',
