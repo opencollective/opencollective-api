@@ -249,9 +249,9 @@ export async function createTransactionsForManuallyPaidExpense(
       expense.currency === expense.collective.currency,
       'Expense currency must be the same as collective currency',
     );
-    amounts.hostCurrencyFxRate = expense.amount / grossAmount;
-    amounts.amount = round(amounts.amount * amounts.hostCurrencyFxRate);
-    amounts.netAmountInCollectiveCurrency = round(amounts.netAmountInCollectiveCurrency * amounts.hostCurrencyFxRate);
+    amounts.hostCurrencyFxRate = round(Math.abs(grossAmount / expense.amount), 5);
+    amounts.amount = round(amounts.amount / amounts.hostCurrencyFxRate);
+    amounts.netAmountInCollectiveCurrency = round(amounts.netAmountInCollectiveCurrency / amounts.hostCurrencyFxRate);
   }
 
   expense.collective = expense.collective || (await models.Collective.findByPk(expense.CollectiveId));
