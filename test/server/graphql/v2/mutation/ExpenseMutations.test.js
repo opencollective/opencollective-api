@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import config from 'config';
 import crypto from 'crypto-js';
 import gqlV2 from 'fake-tag';
-import { defaultsDeep, omit, pick, sumBy } from 'lodash';
+import { defaultsDeep, omit, pick, round, sumBy } from 'lodash';
 import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
@@ -1107,6 +1107,100 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(creditTransaction.kind).to.equal(TransactionKind.EXPENSE);
         expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
         expect(creditTransaction.amount).to.equal(expensePlusFees);
+
+        // Check activity
+        const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
+        expect(activities.length).to.equal(1);
+        expect(activities[0].data.host.id).to.equal(host.id);
+        expect(activities[0].TransactionId).to.equal(debitTransaction.id);
+
+        // Check sent emails
+        await waitForCondition(() => emailSendMessageSpy.callCount === 2);
+        expect(emailSendMessageSpy.callCount).to.equal(2);
+        expect(emailSendMessageSpy.args[0][0]).to.equal(expense.User.email);
+        expect(emailSendMessageSpy.args[0][2]).to.contain(`has been paid`);
+        expect(emailSendMessageSpy.args[1][0]).to.equal(hostAdmin.email);
+        expect(emailSendMessageSpy.args[1][1]).to.contain(`Expense paid for ${collective.name}`);
+
+        // User should be added as a CONTRIBUTOR
+        const membership = await models.Member.findOne({
+          where: { MemberCollectiveId: expense.FromCollectiveId, CollectiveId: collective.id, role: 'CONTRIBUTOR' },
+        });
+        expect(membership).to.exist;
+      });
+
+      it('Pays the expense manually (Collective currency != Host currency)', async () => {
+        const host = await fakeCollective({
+          name: 'OC EU',
+          admin: hostAdmin.collective,
+          plan: 'network-host-plan',
+          currency: 'EUR',
+        });
+        const collective = await fakeCollective({
+          name: 'UK',
+          HostCollectiveId: host.id,
+          admin: collectiveAdmin.collective,
+          currency: 'GBP',
+        });
+        const paymentProcessorFee = 61;
+        const payoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+        const expense = await fakeExpense({
+          amount: 4400,
+          CollectiveId: collective.id,
+          status: 'APPROVED',
+          PayoutMethodId: payoutMethod.id,
+          currency: 'GBP',
+        });
+
+        // Updates the collective balance and pay the expense
+        await fakeTransaction({
+          type: 'CREDIT',
+          CollectiveId: collective.id,
+          amount: 100e2,
+          netAmountInCollectiveCurrency: 100e2,
+          amountInHostCurrency: 100e2,
+          currency: 'GBP',
+          hostCurrency: 'USD',
+          hostCurrencyFxRate: 1.1,
+        });
+        const mutationParams = {
+          expenseId: expense.id,
+          action: 'PAY',
+          paymentParams: {
+            paymentProcessorFeeInHostCurrency: paymentProcessorFee,
+            totalAmountPaidInHostCurrency: 5058,
+            forceManual: true,
+          },
+        };
+        emailSendMessageSpy.resetHistory();
+        const result = await graphqlQueryV2(processExpenseMutation, mutationParams, hostAdmin);
+        result.errors && console.error(result.errors);
+        expect(result.data.processExpense.status).to.eq('PAID');
+
+        // Check transactions
+        const debitTransaction = await models.Transaction.findOne({
+          where: {
+            type: 'DEBIT',
+            ExpenseId: expense.id,
+          },
+        });
+
+        expect(debitTransaction.kind).to.equal(TransactionKind.EXPENSE);
+        expect(debitTransaction.currency).to.equal(expense.currency);
+        expect(debitTransaction.hostCurrency).to.equal(host.currency);
+        expect(debitTransaction.hostCurrencyFxRate).to.equal(1.13568);
+        expect(debitTransaction.netAmountInCollectiveCurrency).to.equal(-4400 - round(61 / 1.13568));
+        expect(debitTransaction.paymentProcessorFeeInHostCurrency).to.equal(-61);
+
+        const creditTransaction = await models.Transaction.findOne({
+          where: {
+            type: 'CREDIT',
+            ExpenseId: expense.id,
+          },
+        });
+        expect(creditTransaction.kind).to.equal(TransactionKind.EXPENSE);
+        expect(creditTransaction.netAmountInCollectiveCurrency).to.equal(expense.amount);
+        expect(creditTransaction.amount).to.equal(4400 + round(61 / 1.13568));
 
         // Check activity
         const activities = await expense.getActivities({ where: { type: 'collective.expense.paid' } });
