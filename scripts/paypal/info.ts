@@ -9,6 +9,7 @@ import { get } from 'lodash';
 
 import models, { Op, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
+import { PaypalCapture } from '../../server/types/paypal';
 
 const checkOrder = async orderId => {
   const order = await models.Order.findByPk(orderId);
@@ -37,7 +38,7 @@ const checkOrder = async orderId => {
 
 const checkPaypalCapture = async (host, captureId) => {
   const captureDetails = await paypalRequestV2(`payments/captures/${captureId}`, host, 'GET');
-  console.log(captureDetails);
+  console.dir(captureDetails, { depth: 10 });
 };
 
 const checkExpense = async expenseId => {
@@ -73,6 +74,20 @@ const printAllHostsWithPaypalAccounts = async () => {
   console.log(`Hosts with PayPal: ${hostsLabelLists.join(', ')}`);
 };
 
+const showCaptureInfo = async (hostSlug, paypalTransactionId) => {
+  const host = await models.Collective.findBySlug(hostSlug);
+  const captureUrl = `payments/captures/${paypalTransactionId}`;
+  const captureDetails = (await paypalRequestV2(captureUrl, host, 'GET')) as PaypalCapture;
+  const dbTransactions = await models.Transaction.findAll({
+    where: { data: { paypalCaptureId: paypalTransactionId } },
+  });
+
+  console.log('==== Capture details ====');
+  console.dir(captureDetails, { depth: 10 });
+  console.log('==== Transactions ====');
+  dbTransactions.forEach(t => console.log(`${t.id} - ${t.type} - ${t.amount} ${t.currency}`));
+};
+
 const main = async (): Promise<void> => {
   const command = process.argv[2];
   switch (command) {
@@ -90,6 +105,8 @@ const main = async (): Promise<void> => {
     }
     case 'list-hosts':
       return printAllHostsWithPaypalAccounts();
+    case 'capture':
+      return showCaptureInfo(process.argv[3], process.argv[4]);
     default:
       throw new Error(`Unknown command: ${command}`);
   }
