@@ -186,7 +186,10 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     }
   } else if (req.jwtPayload.scope === 'twofactorauth' && req.path === '/users/two-factor-auth') {
     // All good, no specific thing to do here
-  } else if (req.jwtPayload.scope === 'connected-account' && req.path.startsWith('/connected-accounts/')) {
+  } else if (
+    req.jwtPayload.scope === 'connected-account' &&
+    (req.path.startsWith('/connected-accounts/') || req.path === '/github-repositories')
+  ) {
     // All good, no specific thing to do here
   } else if (req.jwtPayload.scope) {
     // We check the path because we don't want login tokens used on routes besides /users/update-token.
