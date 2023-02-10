@@ -188,7 +188,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     // All good, no specific thing to do here
   } else if (
     req.jwtPayload.scope === 'connected-account' &&
-    (req.path.startsWith('/connected-accounts/') || req.path === '/github-repositories')
+    (req.path.startsWith('/connected-accounts/') || req.path.startsWith('/github-repositories'))
   ) {
     // All good, no specific thing to do here
   } else if (req.jwtPayload.scope) {
