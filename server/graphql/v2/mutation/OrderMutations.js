@@ -556,10 +556,7 @@ const orderMutations = {
 
       for (const order of orders) {
         if (fromAccount) {
-          if (
-            fromAccount.HostCollectiveId !== order.collective.HostCollectiveId &&
-            fromAccount.type !== CollectiveType.USER
-          ) {
+          if (fromAccount.HostCollectiveId && fromAccount.HostCollectiveId !== order.collective.HostCollectiveId) {
             throw new ValidationFailed(`Added Funds cannot be moved to a different host`);
           }
         }
