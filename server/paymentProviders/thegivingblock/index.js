@@ -77,7 +77,7 @@ export async function refresh(account) {
   const body = new URLSearchParams();
   body.set('refreshToken', account.data.refreshToken);
 
-  const { accessToken, refreshToken } = apiRequest(`/refresh-tokens`, { method: 'POST', body }, account);
+  const { accessToken, refreshToken } = await apiRequest(`/refresh-tokens`, { method: 'POST', body }, account);
   return account.update({ data: { ...account.data, accessToken, refreshToken } });
 }
 
