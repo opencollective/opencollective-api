@@ -33,6 +33,10 @@ jobs:
         with:
           node-version-file: 'package.json'
 
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
+
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
@@ -69,6 +73,10 @@ jobs:
         with:
           node-version-file: 'package.json'
 
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
+
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
@@ -104,6 +112,10 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
 
       - name: Restore node_modules
         uses: actions/cache@v3
@@ -178,6 +190,10 @@ jobs:
         with:
           node-version-file: 'package.json'
 
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
+
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
@@ -238,6 +254,10 @@ jobs:
         with:
           node-version-file: 'package.json'
 
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
+
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
@@ -290,6 +310,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
+
       - name: Setup node
         uses: actions/setup-node@v3
         with:
@@ -328,16 +352,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Setup node
         uses: actions/setup-node@v3
         with:
           node-version-file: 'package.json'
+
+      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
+        shell: bash
+        run: npm install -g npm@8.19.2
+
       - name: Restore node_modules
         uses: actions/cache@v3
         id: api-node-modules
         with:
           path: node_modules
           key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
+
       - name: Restore .npm cache
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         uses: actions/cache@v3
@@ -347,6 +378,7 @@ jobs:
           restore-keys: |
             - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
             - ${{ runner.os }}-api-npm-cache-
+
       - name: Install dependencies
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
@@ -382,6 +414,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           schema: 'main:server/graphql/schemaV1.graphql'
           fail-on-breaking: false
+
       - name: GraphQL Inspector (V2)
         uses: kamilkisiela/graphql-inspector@v3.4.0
         with:
