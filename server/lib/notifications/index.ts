@@ -5,7 +5,7 @@ import config from 'config';
 import { activities, channels } from '../../constants';
 import ActivityTypes from '../../constants/activities';
 import models from '../../models';
-import Activity from '../../models/Activity';
+import { Activity } from '../../models/Activity';
 import activitiesLib from '../activities';
 import { reportErrorToSentry } from '../sentry';
 import slackLib from '../slack';

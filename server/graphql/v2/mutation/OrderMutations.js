@@ -20,7 +20,6 @@ import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import { Service } from '../../../constants/connected_account';
 import OrderStatuses from '../../../constants/order_status';
-import status from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import logger from '../../../lib/logger';
@@ -191,16 +190,16 @@ const orderMutations = {
 
       if (!req.remoteUser.isAdminOfCollective(order.fromCollective)) {
         throw new Unauthorized("You don't have permission to cancel this recurring contribution");
-      } else if (!order.Subscription?.isActive && order.status === status.CANCELLED) {
+      } else if (!order.Subscription?.isActive && order.status === OrderStatuses.CANCELLED) {
         throw new Error('Recurring contribution already canceled');
-      } else if (order.status === status.PAID) {
+      } else if (order.status === OrderStatuses.PAID) {
         throw new Error('Cannot cancel a paid order');
       }
 
       // Check 2FA
       await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
 
-      await order.update({ status: status.CANCELLED });
+      await order.update({ status: OrderStatuses.CANCELLED });
       await order.Subscription.deactivate();
 
       await models.Activity.create({

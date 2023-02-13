@@ -24,10 +24,10 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 
-import ExpenseAttachedFile from './ExpenseAttachedFile';
-import ExpenseItem from './ExpenseItem';
+import { ExpenseAttachedFile } from './ExpenseAttachedFile';
+import { ExpenseItem } from './ExpenseItem';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
-import RecurringExpense from './RecurringExpense';
+import { RecurringExpense } from './RecurringExpense';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
