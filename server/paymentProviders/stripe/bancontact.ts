@@ -19,6 +19,10 @@ const processOrder = async (order: typeof models.Order): Promise<void> => {
     );
   }
 
+  if (order?.currency !== 'EUR') {
+    throw new Error('This payment method only accepts EUR payments');
+  }
+
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
