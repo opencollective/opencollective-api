@@ -203,6 +203,11 @@ module.exports = {
     `);
 
     await queryInterface.sequelize.query(`
+      CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "collective_transaction_stats__id"
+      ON "CollectiveTransactionStats"("id")
+    `);
+
+    await queryInterface.sequelize.query(`
       CREATE OR REPLACE VIEW "CurrentCollectiveTransactionStats" as (
         SELECT
           cts."id" as "CollectiveId",
