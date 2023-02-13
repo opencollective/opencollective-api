@@ -19,7 +19,7 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
-import { types as CollectiveType, types } from '../../../constants/collectives';
+import { types } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected_account';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
