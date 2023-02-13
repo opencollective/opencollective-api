@@ -467,10 +467,7 @@ export async function createPaymentMethod(
   createOptions?: CreateOptions,
 ): Promise<typeof PaymentMethod> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const paymentIntentCharges = (originPaymentIntent as any)?.charges?.data;
-  const paymentIntentCharge = <Stripe.Charge>(
-    (paymentIntentCharges && paymentIntentCharges.length >= 1 && paymentIntentCharges[0])
-  );
+  const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;
 
   const paymentMethodData = {
