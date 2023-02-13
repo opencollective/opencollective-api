@@ -542,7 +542,7 @@ const orderMutations = {
       );
       const ordersIds = orders.map(order => order.id);
       const addedFundOrders = orders.filter(order => isAddedFund(order));
-      const isCollective = fromAccount?.type === types.COLLECTIVE;
+      const isUser = fromAccount?.type === types.USER;
       const addedFundPaymentMethod = fromAccount
         ? await models.PaymentMethod.findOne({
             where: {
@@ -635,7 +635,7 @@ const orderMutations = {
           );
 
           // Update paymentMethodId in transactions for Added Funds
-          if (addedFundOrders.length > 0 && isCollective) {
+          if (addedFundOrders.length > 0 && !isUser) {
             await models.Transaction.update(
               { PaymentMethodId: addedFundPaymentMethod.id },
               {
@@ -684,7 +684,7 @@ const orderMutations = {
           where: { id: ordersIds },
         });
 
-        if (addedFundOrders.length > 0 && isCollective && addedFundPaymentMethod) {
+        if (addedFundOrders.length > 0 && !isUser && addedFundPaymentMethod) {
           await models.Order.update(
             { PaymentMethodId: addedFundPaymentMethod.id },
             {
