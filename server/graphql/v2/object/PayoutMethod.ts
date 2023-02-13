@@ -4,7 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
-import PayoutMethodType from '../enum/PayoutMethodType';
+import { PayoutMethodType } from '../enum/PayoutMethodType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
 const PayoutMethod = new GraphQLObjectType({

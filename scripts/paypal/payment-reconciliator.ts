@@ -7,7 +7,6 @@ import { get } from 'lodash';
 import moment from 'moment';
 
 import OrderStatus from '../../server/constants/order_status';
-import OrderStatuses from '../../server/constants/order_status';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected } from '../../server/lib/paypal';
@@ -339,7 +338,7 @@ const reconcileSubscription = async (paypalSubscriptionId: string, _, commander)
     ) {
       console.log(`Order #${order.id} cancelled in PayPal but not in DB`);
       if (options['fix']) {
-        await order.update({ status: OrderStatuses.CANCELLED });
+        await order.update({ status: OrderStatus.CANCELLED });
         await subscription.update({
           isActive: false,
           deactivatedAt: new Date(responseSubscription['status_update_time'] as string),

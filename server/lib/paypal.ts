@@ -6,7 +6,7 @@ import { difference, find } from 'lodash';
 import moment from 'moment';
 
 import models, { Op, sequelize } from '../models';
-import ConnectedAccount from '../models/ConnectedAccount';
+import { ConnectedAccount } from '../models/ConnectedAccount';
 import { paypalRequest } from '../paymentProviders/paypal/api';
 import {
   PayoutBatchDetails,
