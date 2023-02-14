@@ -31,6 +31,22 @@ import * as virtualcard from './virtual-cards';
 
 const debug = debugLib('stripe');
 
+const coercePaymentMethodType = (paymentMethodType: Stripe.PaymentMethod.Type): PAYMENT_METHOD_TYPE => {
+  switch (paymentMethodType) {
+    case 'card':
+      return PAYMENT_METHOD_TYPE.CREDITCARD;
+    case 'sepa_debit':
+      return PAYMENT_METHOD_TYPE.SEPA_DEBIT;
+    case 'bacs_debit':
+      return PAYMENT_METHOD_TYPE.BACS_DEBIT;
+    case 'us_bank_account':
+      return PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT;
+    case 'alipay':
+      return PAYMENT_METHOD_TYPE.ALIPAY;
+    default:
+      return null;
+  }
+};
 async function createOrUpdateOrderStripePaymentMethod(
   order: typeof models.Order,
   stripeAccount: string,
@@ -69,7 +85,7 @@ async function createOrUpdateOrderStripePaymentMethod(
 
   // new payment method
   const pm = await models.PaymentMethod.create({
-    type: stripePaymentMethod.type === 'card' ? PAYMENT_METHOD_TYPE.CREDITCARD : stripePaymentMethod.type,
+    type: coercePaymentMethodType(stripePaymentMethod.type),
     service: PAYMENT_METHOD_SERVICE.STRIPE,
     name: formatPaymentMethodName(stripePaymentMethod),
     token: stripePaymentMethod.id,
@@ -120,7 +136,7 @@ export const mandateUpdated = async (event: Stripe.Event) => {
         {
           name: formatPaymentMethodName(stripePaymentMethod),
           service: PAYMENT_METHOD_SERVICE.STRIPE,
-          type: stripePaymentMethod.type,
+          type: coercePaymentMethodType(stripePaymentMethod.type),
           confirmedAt: new Date(),
           saved: stripeMandate.type === 'multi_use' && stripeMandate.status !== 'inactive',
           data: {
@@ -252,7 +268,7 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
           customerId: paymentIntent.customer,
           CollectiveId: order.FromCollectiveId,
           service: PAYMENT_METHOD_SERVICE.STRIPE,
-          type: stripePaymentMethod.type,
+          type: coercePaymentMethodType(stripePaymentMethod.type),
           confirmedAt: new Date(),
           saved: paymentIntent.setup_future_usage === 'off_session',
           data: {
@@ -722,7 +738,7 @@ export async function paymentMethodAttached(event: Stripe.Event) {
         customerId: stripeCustomerId,
         CollectiveId: stripeCustomerAccount.CollectiveId,
         service: PAYMENT_METHOD_SERVICE.STRIPE,
-        type: stripePaymentMethod.type,
+        type: coercePaymentMethodType(stripePaymentMethod.type),
         confirmedAt: new Date(),
         saved: true,
         data: {
