@@ -116,7 +116,7 @@ export const PaymentMethod = new GraphQLObjectType({
           if (paymentMethod.type === PAYMENT_METHOD_TYPE.GIFTCARD) {
             allowedFields = ['email'];
           } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CREDITCARD) {
-            allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4'];
+            allowedFields = ['fullName', 'expMonth', 'expYear', 'brand', 'country', 'last4', 'wallet.type'];
           } else if (paymentMethod.type === PAYMENT_METHOD_TYPE.CRYPTO) {
             allowedFields = ['depositAddress'];
           }
