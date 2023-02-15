@@ -154,8 +154,12 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     if (UploadedFile.isSupportedImageMimeType(file.mimetype)) {
       const image = sharp(file.buffer);
       const { width, height } = await image.metadata();
-      const pixels = await image.raw().ensureAlpha().toBuffer({ resolveWithObject: true });
-      const blurHash = encode(pixels.data, width, height, 4, 4);
+      const { data, info } = await image
+        .raw()
+        .ensureAlpha()
+        .resize({ fit: sharp.fit.contain, width: 200 })
+        .toBuffer({ resolveWithObject: true });
+      const blurHash = encode(data, info.width, info.height, 4, 4);
       return { width, height, blurHash };
     } else {
       return null;
