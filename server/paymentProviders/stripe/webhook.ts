@@ -44,7 +44,8 @@ const coercePaymentMethodType = (paymentMethodType: Stripe.PaymentMethod.Type): 
     case 'alipay':
       return PAYMENT_METHOD_TYPE.ALIPAY;
     default:
-      return null;
+      logger.warn(`Unknown payment method type: ${paymentMethodType}`);
+      return paymentMethodType as PAYMENT_METHOD_TYPE;
   }
 };
 async function createOrUpdateOrderStripePaymentMethod(
