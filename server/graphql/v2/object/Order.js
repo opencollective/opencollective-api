@@ -4,6 +4,7 @@ import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
+import { getHostFeePercent } from '../../../lib/payments';
 import models from '../../../models';
 import { ORDER_PUBLIC_DATA_FIELDS } from '../../v1/mutations/orders';
 import { ContributionFrequency, OrderStatus } from '../enum';
@@ -149,6 +150,13 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
+      hostFeePercent: {
+        type: GraphQLInt,
+        description: 'Host fee percent attached to the Order.',
+        async resolve(order) {
+          return await getHostFeePercent(order);
+        },
+      },
       platformTipAmount: {
         type: Amount,
         description: 'Platform Tip attached to the Order.',
@@ -235,11 +243,39 @@ export const Order = new GraphQLObjectType({
           }
         },
       },
+      createdByAccount: {
+        type: Account,
+        description: 'The account who created this order',
+        async resolve(order, _, req) {
+          const user = await req.loaders.User.byId.load(order.CreatedByUserId);
+          if (user && user.CollectiveId) {
+            const collective = await req.loaders.Collective.byId.load(user.CollectiveId);
+            if (collective && !collective.isIncognito) {
+              return collective;
+            }
+          }
+        },
+      },
       processedAt: {
         type: GraphQLDateTime,
         description: 'Date the funds were received.',
         async resolve(order) {
           return order?.processedAt;
+        },
+      },
+      pendingContributionData: {
+        type: GraphQLJSON,
+        description: 'Date the funds should arrive.',
+        async resolve(order, _, { remoteUser }) {
+          const pendingContributionFields = ['expectedAt', 'paymentMethod', 'ponumber', 'fromAccountInfo', 'memo'];
+          if (
+            remoteUser?.isAdmin(order.CollectiveId) ||
+            remoteUser?.isAdmin(order.FromCollectiveId) ||
+            remoteUser?.id === order.CreatedByUserId
+          ) {
+            return pick(order.data, pendingContributionFields);
+          }
+          return null;
         },
       },
       needsConfirmation: {
