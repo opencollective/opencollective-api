@@ -692,10 +692,10 @@ export async function sumCollectivesTransactions(
 }
 
 export async function getYearlyIncome(collective) {
-  // Three cases:
-  // 1) All active monthly subscriptions. Multiply by 12
-  // 2) All one-time and yearly subscriptions
-  // 3) All inactive monthly subscriptions that have contributed in the past
+  // 1) All active monthly subscriptions. Multiply by 12.
+  // 2) All active yearly subscriptions.
+  // 3a) All one-time subscriptions in the past year.
+  // 3b) All inactive monthly subscriptions that have contributed in the past year.
 
   // TODO: support netAmountInHostCurrency
   const result = await sequelize.query(
