@@ -24,6 +24,7 @@ import payoutMethodMutations from './PayoutMethodMutations';
 import personalTokenMutations from './PersonalTokenMutations';
 import rootMutations from './RootMutations';
 import socialLinkMutations from './SocialLinkMutations';
+import tagMutations from './TagMutations';
 import tierMutations from './TierMutations';
 import transactionMutations from './TransactionMutations';
 import updateMutations from './UpdateMutations';
@@ -62,6 +63,7 @@ const mutation = {
   ...tierMutations,
   ...personalTokenMutations,
   ...socialLinkMutations,
+  ...tagMutations,
 };
 
 export default mutation;
