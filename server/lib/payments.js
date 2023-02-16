@@ -971,14 +971,14 @@ export const isPlatformTipEligible = async (order, host = null) => {
 };
 
 export const getHostFeePercent = async (order, host = null) => {
-  const collective = order.collective;
+  const collective = order.collective || (await order.getCollective());
 
   const parent = await collective.getParentCollective();
 
   host = host || (await collective.getHostCollective());
 
   // No Host Fee for money going to an host itself
-  if (order.collective.isHostAccount) {
+  if (collective.isHostAccount) {
     return 0;
   }
 
@@ -987,7 +987,7 @@ export const getHostFeePercent = async (order, host = null) => {
     order.data?.hostFeePercent,
   ];
 
-  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'manual') {
+  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'manual') {
     // Fixed for Bank Transfers at collective level
     // As of August 2020, this will be only set on a selection of Collective (some foundation collectives 5%)
     possibleValues.push(collective.data?.bankTransfersHostFeePercent);
@@ -1005,13 +1005,13 @@ export const getHostFeePercent = async (order, host = null) => {
     possibleValues.push(host.data?.bankTransfersHostFeePercent);
   }
 
-  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'prepaid') {
+  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'prepaid') {
     if (order.paymentMethod.data?.hostFeePercent) {
       possibleValues.push(order.paymentMethod.data?.hostFeePercent);
     }
   }
 
-  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'host') {
+  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'host') {
     // Fixed for Added Funds at collective level
     possibleValues.push(collective.data?.addedFundsHostFeePercent);
     // Fixed for Added Funds at parent level
@@ -1020,12 +1020,12 @@ export const getHostFeePercent = async (order, host = null) => {
     possibleValues.push(host.data?.addedFundsHostFeePercent);
   }
 
-  if (order.paymentMethod.service === 'opencollective' && order.paymentMethod.type === 'collective') {
+  if (order.paymentMethod?.service === 'opencollective' && order.paymentMethod?.type === 'collective') {
     // Default to 0 for Collective to Collective on the same Host
     possibleValues.push(0);
   }
 
-  if (order.paymentMethod.service === 'stripe') {
+  if (order.paymentMethod?.service === 'stripe') {
     // Configurable by the Host globally, at the Collective or Parent level
     // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
     // to be removed once we don't have Hosts with `creditCardHostFeePercent`
@@ -1044,7 +1044,7 @@ export const getHostFeePercent = async (order, host = null) => {
     possibleValues.push(host.data?.stripeHostFeePercent);
   }
 
-  if (order.paymentMethod.service === 'paypal') {
+  if (order.paymentMethod?.service === 'paypal') {
     // Configurable by the Host globally or at the Collective level
     possibleValues.push(collective.data?.paypalHostFeePercent);
     possibleValues.push(parent?.data?.paypalHostFeePercent);
