@@ -776,7 +776,9 @@ const orderMutations = {
         throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
       }
 
-      const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
+      const toAccount = args.order.childAccount
+        ? await fetchAccountWithReference(args.order.childAccount, { throwIfMissing: true })
+        : await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
       const host = await toAccount.getHostCollective();
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
@@ -797,6 +799,7 @@ const orderMutations = {
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
           isPendingContribution: true,
+          hostFeePercent: args.order?.hostFeePercent,
         },
         status: OrderStatuses.PENDING,
       };
