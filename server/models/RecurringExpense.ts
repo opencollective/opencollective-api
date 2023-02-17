@@ -104,7 +104,8 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
     const draftedExpense = await models.Expense.create(draft);
     await this.update({ lastDraftedAt: incurredAt });
 
-    const inviteUrl = `${config.host.website}/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
+    // Payee is always an user of the website, we can redirect them to the signin page to make sure they're logged in
+    const inviteUrl = `${config.host.website}/signin?next=/${expense.collective.slug}/expenses/${draftedExpense.id}?key=${draft.data.draftKey}`;
     await draftedExpense
       .createActivity(activities.COLLECTIVE_EXPENSE_RECURRING_DRAFTED, expense.User, {
         ...draftedExpense.data,
