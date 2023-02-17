@@ -1,8 +1,10 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil, uniqBy } from 'lodash';
+import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
+import { types as collectiveTypes } from '../../../constants/collectives';
+import roles from '../../../constants/roles';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
@@ -14,6 +16,7 @@ import {
   stringifyBanSummary,
 } from '../../../lib/moderation';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import models, { sequelize } from '../../../models';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
@@ -98,6 +101,57 @@ export default {
         });
       }
       return account;
+    },
+  },
+  editAccountType: {
+    type: new GraphQLNonNull(Account),
+    description: '[Root only] Edits account type from User to Organization',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to change the type for',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
+
+      if (account.isHostAccount) {
+        throw new Error('Cannot change type of host account');
+      }
+
+      const collectiveData = omit(cloneDeep(account.dataValues), ['id']);
+      collectiveData.slug = `${collectiveData.slug}-user`;
+      collectiveData.createdAt = new Date();
+      let collective;
+
+      await sequelize.transaction(async transaction => {
+        // Create new USER account in the Collectives table
+        collective = await models.Collective.create(collectiveData, { transaction });
+
+        // Update the corresponding CollectiveId in Users to this new profile
+        const user = await models.User.findOne({ where: { CollectiveId: account.id }, transaction });
+        await user.update({ CollectiveId: collective.id }, { transaction });
+
+        // Change the type of the original USER account to Organization
+        await account.update({ type: collectiveTypes.ORGANIZATION }, { transaction });
+      });
+
+      // Add admin user for the new Organization
+      if (collective) {
+        await models.Member.create({
+          CreatedByUserId: req.remoteUser.id,
+          CollectiveId: account.id,
+          MemberCollectiveId: collective.id,
+          role: roles.ADMIN,
+        });
+      }
+
+      return collective;
     },
   },
   clearCacheForAccount: {
