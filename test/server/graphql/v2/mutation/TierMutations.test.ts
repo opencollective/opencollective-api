@@ -196,7 +196,7 @@ describe('server/graphql/v2/mutation/TierMutations', () => {
             name: 'New name',
             amount: {
               valueInCents: 5000,
-              currency: "USD",
+              currency: 'USD',
             },
           },
         },
