@@ -184,8 +184,15 @@ export const _authenticateUserByJwt = async (req, res, next) => {
       logger.warn(errorMessage);
       return next(new errors.Unauthorized(errorMessage));
     }
-  } else if (req.jwtPayload.scope === 'twofactorauth' && req.path === '/users/two-factor-auth') {
-    // All good, no specific thing to do here
+  } else if (req.jwtPayload.scope === 'twofactorauth') {
+    if (!req.path === '/users/two-factor-auth') {
+      // No exception, just ignore the token
+      return;
+    } else {
+      // All good, no specific thing to do here
+      // But we're not even entering this at this point
+      // /users/two-factor-auth use checkTwoFactorAuthJWT and skips _authenticateUserByJwt
+    }
   } else if (req.jwtPayload.scope === 'connected-account') {
     // TODO: check path here
   } else if (req.jwtPayload.scope) {
