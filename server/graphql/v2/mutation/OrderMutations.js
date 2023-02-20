@@ -792,13 +792,15 @@ const orderMutations = {
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
         quantity: 1,
-        totalAmount: args.order.amount.valueInCents,
+        totalAmount: getValueInCentsFromAmountInput(args.order.amount),
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         data: {
-          ...(args.order.customData || {}),
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
+          ponumber: args.order.ponumber,
+          memo: args.order.memo,
+          paymentMethod: args.order.paymentMethod,
           isPendingContribution: true,
           hostFeePercent: args.order?.hostFeePercent,
         },
@@ -837,7 +839,7 @@ const orderMutations = {
   },
   editPendingOrder: {
     type: new GraphQLNonNull(Order),
-    description: 'To submit a new order. Scope: "orders".',
+    description: 'To edit a pending order. Scope: "orders".',
     args: {
       order: {
         type: new GraphQLNonNull(PendingOrderEditInput),
@@ -865,16 +867,17 @@ const orderMutations = {
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
 
       await order.update({
-        CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount?.id || undefined,
-        totalAmount: args.order.amount.valueInCents,
+        totalAmount: getValueInCentsFromAmountInput(args.order.amount),
         currency: args.order.amount.currency,
         description: args.order.description,
         data: {
           ...order.data,
           ...omitBy(
             {
-              ...(args.order.customData || {}),
+              ponumber: args.order.ponumber,
+              memo: args.order.memo,
+              paymentMethod: args.order.paymentMethod,
               fromAccountInfo: args.order.fromAccountInfo,
               expectedAt: args.order.expectedAt,
               isPendingContribution: true,

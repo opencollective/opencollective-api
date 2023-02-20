@@ -19,6 +19,39 @@ import { MemberOf } from './Member';
 import OrderPermissions from './OrderPermissions';
 import { OrderTax } from './OrderTax';
 
+const PendingOrderFromAccountInfo = new GraphQLObjectType({
+  name: 'PendingOrderFromAccountInfo',
+  fields: () => ({
+    name: {
+      type: GraphQLString,
+    },
+    email: {
+      type: GraphQLString,
+    },
+  }),
+});
+
+const PendingOrderData = new GraphQLObjectType({
+  name: 'PendingOrderData',
+  fields: () => ({
+    expectedAt: {
+      type: GraphQLDateTime,
+    },
+    paymentMethod: {
+      type: GraphQLString,
+    },
+    ponumber: {
+      type: GraphQLString,
+    },
+    memo: {
+      type: GraphQLString,
+    },
+    fromAccountInfo: {
+      type: PendingOrderFromAccountInfo,
+    },
+  }),
+});
+
 export const Order = new GraphQLObjectType({
   name: 'Order',
   description: 'Order model',
@@ -264,8 +297,8 @@ export const Order = new GraphQLObjectType({
         },
       },
       pendingContributionData: {
-        type: GraphQLJSON,
-        description: 'Date the funds should arrive.',
+        type: PendingOrderData,
+        description: 'Data about the pending contribution',
         async resolve(order, _, { remoteUser }) {
           const pendingContributionFields = ['expectedAt', 'paymentMethod', 'ponumber', 'fromAccountInfo', 'memo'];
           if (

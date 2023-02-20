@@ -161,9 +161,17 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Public order description',
     },
-    customData: {
-      type: GraphQLJSON,
-      description: 'Custom data related to the Pending Order',
+    memo: {
+      type: GraphQLString,
+      description: 'Private memo for the host',
+    },
+    ponumber: {
+      type: GraphQLString,
+      description: 'External identifier for the order',
+    },
+    paymentMethod: {
+      type: GraphQLString,
+      description: 'Payment method expected for this order',
     },
     expectedAt: {
       type: DateString,
@@ -216,9 +224,17 @@ export const PendingOrderEditInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Public order description',
     },
-    customData: {
-      type: GraphQLJSON,
-      description: 'Custom data related to the Pending Order',
+    memo: {
+      type: GraphQLString,
+      description: 'Private memo for the host',
+    },
+    ponumber: {
+      type: GraphQLString,
+      description: 'External identifier for the order',
+    },
+    paymentMethod: {
+      type: GraphQLString,
+      description: 'Payment method expected for this order',
     },
     expectedAt: {
       type: DateString,

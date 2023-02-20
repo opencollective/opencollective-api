@@ -185,7 +185,6 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
       '$collective.name$',
       'description',
       'data.ponumber',
-      'data.memo',
       'data.fromAccountInfo.name',
       'data.fromAccountInfo.email',
     ],
