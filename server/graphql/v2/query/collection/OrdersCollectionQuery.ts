@@ -180,7 +180,15 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
   const searchTermConditions = buildSearchConditions(args.searchTerm, {
     idFields: ['id'],
     slugFields: ['$fromCollective.slug$', '$collective.slug$'],
-    textFields: ['$fromCollective.name$', '$collective.name$', 'description'],
+    textFields: [
+      '$fromCollective.name$',
+      '$collective.name$',
+      'description',
+      'data.ponumber',
+      'data.memo',
+      'data.fromAccountInfo.name',
+      'data.fromAccountInfo.email',
+    ],
     amountFields: ['totalAmount'],
     stringArrayFields: ['tags'],
     stringArrayTransformFn: (str: string) => str.toLowerCase(), // expense tags are stored lowercase
