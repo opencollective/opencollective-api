@@ -15,7 +15,7 @@ export const TOKEN_EXPIRATION_LOGIN = minutesToSeconds(75);
 export const TOKEN_EXPIRATION_RESET_PASSWORD = minutesToSeconds(75);
 export const TOKEN_EXPIRATION_2FA = minutesToSeconds(15);
 export const TOKEN_EXPIRATION_CONNECTED_ACCOUNT = daysToSeconds(1);
-export const TOKEN_EXPIRATION_SESSION = daysToSeconds(90);
+export const TOKEN_EXPIRATION_SESSION = daysToSeconds(30);
 export const TOKEN_EXPIRATION_PDF = minutesToSeconds(5);
 export const TOKEN_EXPIRATION_CSV = minutesToSeconds(5);
 
