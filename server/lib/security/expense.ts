@@ -101,14 +101,14 @@ const checkExpenseStats = async (
     level: Level.LOW,
     message: `${startCase(
       capitalize(scope),
-    )} was never been paid by this collective but was already paid on the platform`,
+    )} has never been paid by this collective but was already paid on the platform`,
     details,
   });
   // Alerts that there was no expenses paid on the platform
   addBooleanCheck(checks, wasNeverPaidOnThePlatform, {
     scope,
     level: Level.HIGH,
-    message: `${startCase(capitalize(scope))} was never been paid on the platform`,
+    message: `${startCase(capitalize(scope))} has never been paid on the platform`,
     details,
   });
 };
