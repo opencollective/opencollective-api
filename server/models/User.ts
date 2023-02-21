@@ -110,6 +110,10 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   };
 
   setPassword = async function (password, { userToken = null } = {}) {
+    if (Buffer.from(password).length > 72) {
+      throw new Error('Password is too long, should not be more than 72 bytes.');
+    }
+
     const passwordHash = await bcrypt.hash(password, /* saltRounds */ 10);
 
     await this.update({ passwordHash, passwordUpdatedAt: new Date() });
