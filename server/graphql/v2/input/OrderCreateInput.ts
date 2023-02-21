@@ -141,10 +141,6 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(AccountReferenceInput),
       description: 'The collective you want to contribute to',
     },
-    childAccount: {
-      type: AccountReferenceInput,
-      description: 'The event/project you want to contribute to',
-    },
     platformTipAmount: {
       type: AmountInput,
       description: 'Platform tip attached to this order',
