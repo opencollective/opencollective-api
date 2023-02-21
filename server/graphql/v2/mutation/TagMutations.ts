@@ -41,6 +41,10 @@ const tagMutations = {
         throw new Unauthorized();
       }
 
+      if ([args.order, args.expense].filter(Boolean).length !== 1) {
+        throw new Error('A single order or expense must be provided');
+      }
+
       if (args.order) {
         const order = await fetchOrderWithReference(args.order, {
           throwIfMissing: true,
