@@ -310,10 +310,11 @@ const expenseMutations = {
 
       // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
       if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
-        for (const account of [collective, host].filter(Boolean)) {
-          if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
-            break;
-          }
+        if (host && req.remoteUser.isAdminOfCollective(host)) {
+          await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+        }
+        if (req.remoteUser.isAdminOfCollective(collective)) {
+          await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
         }
       }
 
@@ -428,7 +429,11 @@ const expenseMutations = {
         status: expenseStatus.DRAFT,
       });
 
-      const inviteUrl = `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+      // If the payee is already an user, we redirect the action button in the email to signin first and later redirect to the expense
+      const inviteUrl = payee.id
+        ? `${config.host.website}/signin?next=/${collective.slug}/expenses/${expense.id}?key=${draftKey}`
+        : `${config.host.website}/${collective.slug}/expenses/${expense.id}?key=${draftKey}`;
+
       expense
         .createActivity(activities.COLLECTIVE_EXPENSE_INVITE_DRAFTED, remoteUser, { ...expense.data, inviteUrl })
         .catch(e => {

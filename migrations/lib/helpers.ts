@@ -45,15 +45,17 @@ export const moveSection = (
 export const removeSection = (
   existingSettings: Record<string, unknown>,
   sectionName: string,
+  categoryName: string = null,
 ): Record<string, unknown> => {
   if (!existingSettings?.collectivePage?.['sections']) {
     return existingSettings;
   }
 
   const settings = cloneDeep(existingSettings);
-  const sections = settings.collectivePage['sections'];
+  const allSections = settings.collectivePage['sections'];
+  const category = categoryName && allSections.find(s => s.type === 'CATEGORY' && s.name === categoryName);
+  const sections = categoryName ? category?.sections : allSections;
   const [section] = remove(sections, s => s['name'] === sectionName);
-
   if (!section) {
     return existingSettings;
   } else {

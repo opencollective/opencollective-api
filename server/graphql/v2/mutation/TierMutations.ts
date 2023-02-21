@@ -123,7 +123,11 @@ const tierMutations = {
       await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
 
       // Create tier
-      const tier = await TierModel.create({ ...transformTierInputToAttributes(args.tier), CollectiveId: account.id });
+      const tier = await TierModel.create({
+        ...transformTierInputToAttributes(args.tier),
+        CollectiveId: account.id,
+        currency: account.currency,
+      });
 
       // Purge cache
       purgeCacheForCollective(account.slug);

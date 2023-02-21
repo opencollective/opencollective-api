@@ -403,6 +403,7 @@ export const getTagFrequencies = async args => {
         FROM "CollectiveTagStats"
         WHERE "HostCollectiveId" ${args.hostCollectiveId ? '= :hostCollectiveId' : 'IS NULL'} 
         ${args.tagSearchTerm ? `AND "tag" ILIKE :sanitizedTerm` : ``}
+        ORDER BY count DESC
         LIMIT :limit
         OFFSET :offset`,
       {
