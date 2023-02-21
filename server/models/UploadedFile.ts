@@ -24,7 +24,13 @@ import User from './User';
 // Types
 type SUPPORTED_FILE_TYPES_UNION = (typeof SUPPORTED_FILE_TYPES)[number];
 
-type ImageDataShape = {
+type CommonDataShape = {
+  /** A unique identified to record what part of the code uploaded this image. By convention, the default upload function doesn't set this */
+  recordedFrom?: string;
+  completedAt?: string;
+};
+
+type ImageDataShape = CommonDataShape & {
   width: number;
   height: number;
   blurHash: string;
@@ -66,7 +72,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
   declare fileSize: CreationOptional<number>; // In bytes
   declare fileType: CreationOptional<SUPPORTED_FILE_TYPES_UNION>;
   declare url: string;
-  declare data: CreationOptional<ImageDataShape>;
+  declare data: CreationOptional<null | CommonDataShape | ImageDataShape>;
   // Temporal fields
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
