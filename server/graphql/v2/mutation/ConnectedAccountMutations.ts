@@ -42,7 +42,7 @@ const connectedAccountMutations = {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
 
       if ([Service.TRANSFERWISE, Service.PAYPAL, Service.PRIVACY].includes(args.connectedAccount.service)) {
         if (!args.connectedAccount.token) {
@@ -119,7 +119,7 @@ const connectedAccountMutations = {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { alwaysAskForToken: true });
+      await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
 
       await connectedAccount.destroy({ force: true });
 

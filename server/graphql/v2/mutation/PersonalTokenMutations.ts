@@ -29,7 +29,7 @@ const createPersonalToken = {
       : req.remoteUser.collective;
 
     // Enforce 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+    await twoFactorAuthLib.enforceForAccount(req, collective);
 
     if (!req.remoteUser.isAdminOfCollective(collective)) {
       throw new Forbidden();

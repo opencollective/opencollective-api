@@ -67,7 +67,7 @@ const transactionMutations = {
       const host = await models.Collective.findByPk(transaction.HostCollectiveId);
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       const { platformTipTransaction } = await models.Transaction.createPlatformTipTransactions(transactionData, host);
 
@@ -145,10 +145,10 @@ const transactionMutations = {
       }
 
       if (req.remoteUser.isAdminOfCollective(toAccount)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, toAccount, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, toAccount, { onlyAskOnLogin: true });
       } else if (req.remoteUser.isAdmin(transaction.HostCollectiveId)) {
         const host = await models.Collective.findByPk(transaction.HostCollectiveId);
-        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
       }
 
       if (orderToUpdate.SubscriptionId) {

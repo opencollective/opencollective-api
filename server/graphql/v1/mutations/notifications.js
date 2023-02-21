@@ -29,7 +29,7 @@ export async function editWebhooks(args, req) {
     throw NotificationPermissionError;
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   if (!args.notifications) {
     return Promise.resolve();
@@ -102,7 +102,7 @@ export async function createWebhook(args, req) {
     throw new Unauthorized('You do not have permissions to create webhooks for this collective.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   // Check limits
   const { maxWebhooksPerUserPerCollective } = config.limits;
@@ -140,7 +140,7 @@ export async function deleteNotification(args, req) {
     throw new Unauthorized('You need to be logged in as admin to delete this notification.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, notification.Collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, notification.Collective, { onlyAskOnLogin: true });
 
   await notification.destroy();
   return notification;

@@ -394,9 +394,9 @@ export async function createOrder(order, req) {
 
       // We only allow to add funds on behalf of a collective if the user is an admin of that collective or an admin of the host of the collective that receives the money
       if (remoteUser?.isAdminOfCollective(fromCollective)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
       } else if (remoteUser?.isAdminOfCollective(host)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
       } else {
         throw new Error(
           `You don't have sufficient permissions to create an order on behalf of the ${

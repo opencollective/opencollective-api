@@ -241,7 +241,7 @@ const mutations = {
       } else if (!req.remoteUser || !req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();
       } else {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
         await collective.editMembers(args.members, {
           CreatedByUserId: req.remoteUser.id,
@@ -415,7 +415,7 @@ const mutations = {
         throw new Error('User must be admin of collective');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
       if (numberOfGiftCards) {
         return bulkCreateGiftCards(collective, args, req.remoteUser, numberOfGiftCards);

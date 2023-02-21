@@ -34,7 +34,7 @@ export async function createApplication(_, args, req) {
     throw new RateLimitExceeded('You have reached the maximum number of applications for this user');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, req.remoteUser.collective);
+  await twoFactorAuthLib.enforceForAccount(req, req.remoteUser.collective);
 
   const app = await Application.create({
     ...args.application,
@@ -57,7 +57,7 @@ export async function deleteApplication(_, args, req) {
     throw new Forbidden('Authenticated user is not the application owner.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, app.collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, app.collective, { onlyAskOnLogin: true });
 
   return await app.destroy();
 }

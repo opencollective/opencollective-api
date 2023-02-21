@@ -73,7 +73,7 @@ const expenseMutations = {
       }
 
       const fromCollective = await fetchAccountWithReference(args.expense.payee, { throwIfMissing: true });
-      await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
 
       // Right now this endpoint uses the old mutation by adapting the data for it. Once we get rid
       // of the `createExpense` endpoint in V1, the actual code to create the expense should be moved
@@ -226,7 +226,10 @@ const expenseMutations = {
       const expenseId = getDatabaseIdFromExpenseReference(args.expense);
       const expense = await models.Expense.findByPk(expenseId, {
         // Need to load the collective because canDeleteExpense checks expense.collective.HostCollectiveId
-        include: [{ model: models.Collective, as: 'collective', include: [{ association: 'host' }] }],
+        include: [
+          { model: models.Collective, as: 'collective', include: [{ association: 'host' }] },
+          { model: models.Collective, as: 'fromCollective' },
+        ],
       });
 
       if (!expense) {
@@ -238,11 +241,8 @@ const expenseMutations = {
       }
 
       // Check if 2FA is enforced on any of the account remote user is admin of
-      for (const account of [expense.collective, expense.collective.host].filter(Boolean)) {
-        if (await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true })) {
-          break;
-        }
-      }
+      const accountsFor2FA = [expense.fromCollective, expense.collective, expense.collective.host].filter(Boolean);
+      await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
 
       // Cancel recurring expense
       const recurringExpense = await expense.getRecurringExpense();
@@ -310,12 +310,8 @@ const expenseMutations = {
 
       // Enforce 2FA for processing expenses, except for `PAY` action which handles it internally (with rolling limit)
       if (!['PAY', 'SCHEDULE_FOR_PAYMENT'].includes(args.action)) {
-        if (host && req.remoteUser.isAdminOfCollective(host)) {
-          await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
-        }
-        if (req.remoteUser.isAdminOfCollective(collective)) {
-          await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
-        }
+        const accountsFor2FA = [host, collective].filter(Boolean);
+        await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
       }
 
       switch (args.action) {

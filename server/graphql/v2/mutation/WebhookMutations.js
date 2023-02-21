@@ -30,7 +30,7 @@ const createWebhook = {
     }
 
     // Check 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+    await twoFactorAuthLib.enforceForAccount(req, account);
 
     const createParams = {
       channel: 'webhook',
@@ -67,7 +67,7 @@ const updateWebhook = {
     }
 
     // Check 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+    await twoFactorAuthLib.enforceForAccount(req, account);
 
     const updateParams = {};
 
@@ -105,7 +105,7 @@ const deleteWebhook = {
     }
 
     // Check 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
+    await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
     return notification.destroy();
   },

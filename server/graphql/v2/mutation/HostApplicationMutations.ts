@@ -81,7 +81,7 @@ const HostApplicationMutations = {
         throw new Forbidden('You need to be an Admin of the account');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
 
       const host = await fetchAccountWithReference(args.host);
       if (!host) {
@@ -195,7 +195,7 @@ const HostApplicationMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       switch (args.action) {
         case 'APPROVE':

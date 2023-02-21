@@ -183,14 +183,13 @@ async function shouldEnforceForAccount(req, account?: typeof models.Collective):
 }
 
 /**
- * Enforce 2FA if the remote user is an admin of `account` (or root) and this account has
- * the `REQUIRE_2FA_FOR_ADMINS policy` set on itself or its parent.
+ * Enforce 2FA if enabled on `account` and this account has the `REQUIRE_2FA_FOR_ADMINS policy` set on itself or its parent.
  *
- * Otherwise, this function will still check for 2FA if it's enabled on the user account.
+ * Otherwise, this function will still check for 2FA for root users or if it's already enabled on the user account.
  *
  * @returns true if 2FA was validated, false if not required
  */
-async function enforceForAccountAdmins(
+async function enforceForAccount(
   req: Request,
   account: typeof models.Collective,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
@@ -205,9 +204,33 @@ async function enforceForAccountAdmins(
   }
 }
 
+/**
+ * Enforces 2FA with `enforceForAccount` for accounts user is admin of. Stops as soon as a 2FA verification succeeds.
+ *
+ * @returns true if 2FA was validated, false if not required
+ */
+async function enforceForAccountsUserIsAdminOf(
+  req: Request,
+  accounts: typeof models.Collective | Array<typeof models.Collective>,
+  options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
+): Promise<boolean | undefined> {
+  accounts = Array.isArray(accounts) ? accounts : [accounts];
+  for (const account of accounts) {
+    if (req.remoteUser?.isAdminOfCollective(account)) {
+      const result = await enforceForAccount(req, account, options);
+      if (result) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 const twoFactorAuthLib = {
   validateRequest,
-  enforceForAccountAdmins,
+  enforceForAccount,
+  enforceForAccountsUserIsAdminOf,
   validateToken,
   getTwoFactorAuthTokenFromRequest,
   userHasTwoFactorAuthEnabled,

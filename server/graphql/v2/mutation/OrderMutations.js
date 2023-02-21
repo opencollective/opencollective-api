@@ -147,7 +147,7 @@ const orderMutations = {
 
       // Check 2FA for non-guest contributions
       if (req.remoteUser) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, fromCollective, { onlyAskOnLogin: true });
+        await twoFactorAuthLib.enforceForAccount(req, fromCollective, { onlyAskOnLogin: true });
       }
 
       const result = await createOrderLegacy(legacyOrderObj, req);
@@ -197,7 +197,7 @@ const orderMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       await order.update({ status: OrderStatuses.CANCELLED });
       await order.Subscription.deactivate();
@@ -283,7 +283,7 @@ const orderMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, order.fromCollective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, order.fromCollective, { onlyAskOnLogin: true });
 
       let previousOrderValues, previousSubscriptionValues;
       if (haveDetailsChanged) {
@@ -380,7 +380,7 @@ const orderMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
       if (args.action === 'MARK_AS_PAID') {
         if (!(await canMarkAsPaid(req, order))) {

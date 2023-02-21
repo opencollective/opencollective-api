@@ -50,7 +50,7 @@ const virtualCardMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host);
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
@@ -160,7 +160,7 @@ const virtualCardMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, host);
+      await twoFactorAuthLib.enforceForAccount(req, host);
 
       const assignee = await fetchAccountWithReference(args.assignee, {
         loaders: req.loaders,
@@ -244,9 +244,9 @@ const virtualCardMutations = {
       if (args.limitAmount && !req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
         throw new Unauthorized("You don't have permission to update this Virtual Card's limit");
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.collective)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.collective);
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.collective);
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.host)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.host);
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
       } else {
         throw new Unauthorized("You don't have permission to update this Virtual Card");
       }
@@ -336,7 +336,7 @@ const virtualCardMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
 
       const host = await collective.getHostCollective();
       const userCollective = await req.remoteUser.getCollective();
@@ -391,9 +391,9 @@ const virtualCardMutations = {
       }
 
       if (req.remoteUser.isAdmin(virtualCard.HostCollectiveId)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.host);
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
       } else if (req.remoteUser.isAdmin(virtualCard.CollectiveId)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.collective);
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.collective);
       } else {
         throw new Unauthorized("You don't have permission to pause this Virtual Card");
       }
@@ -473,9 +473,9 @@ const virtualCardMutations = {
       }
 
       if (req.remoteUser.isAdminOfCollective(virtualCard.collective)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.collective);
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.collective);
       } else if (req.remoteUser.isAdminOfCollective(virtualCard.host)) {
-        await twoFactorAuthLib.enforceForAccountAdmins(req, virtualCard.host);
+        await twoFactorAuthLib.enforceForAccount(req, virtualCard.host);
       } else {
         throw new Unauthorized("You don't have permission to edit this Virtual Card");
       }

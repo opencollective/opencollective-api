@@ -23,7 +23,7 @@ export async function editPublicMessage(_, { fromAccount, toAccount, FromCollect
     throw new Unauthorized("You don't have the permission to edit member public message");
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, fromAccount, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, fromAccount, { onlyAskOnLogin: true });
 
   const [quantityUpdated, updatedMembers] = await models.Member.update(
     {
