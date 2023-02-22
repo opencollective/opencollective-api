@@ -139,7 +139,7 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
     },
     toAccount: {
       type: new GraphQLNonNull(AccountReferenceInput),
-      description: 'The collective/event/project you want to contribute to',
+      description: 'The collective you want to contribute to',
     },
     platformTipAmount: {
       type: AmountInput,
@@ -157,9 +157,80 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Public order description',
     },
-    customData: {
-      type: GraphQLJSON,
-      description: 'Custom data related to the Pending Order',
+    memo: {
+      type: GraphQLString,
+      description: 'Private memo for the host',
+    },
+    ponumber: {
+      type: GraphQLString,
+      description: 'External identifier for the order',
+    },
+    paymentMethod: {
+      type: GraphQLString,
+      description: 'Payment method expected for this order',
+    },
+    expectedAt: {
+      type: DateString,
+      description: 'When is the money expected?',
+    },
+    hostFeePercent: {
+      type: GraphQLInt,
+      decription: 'Custom Host fee percent for this order',
+    },
+  }),
+});
+
+export const PendingOrderEditInput = new GraphQLInputObjectType({
+  name: 'PendingOrderEditInput',
+  description: 'Input to edit an existing pending order',
+  fields: () => ({
+    id: {
+      type: GraphQLString,
+      description: 'The public id identifying the order (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)',
+    },
+    legacyId: {
+      type: GraphQLInt,
+      description: 'The legacy public id identifying the order (ie: 4242)',
+    },
+    amount: {
+      type: new GraphQLNonNull(AmountInput),
+      description: 'The contribution amount, without platform contribution and taxes',
+    },
+    fromAccount: {
+      type: AccountReferenceInput,
+      description: 'The profile making the contribution.',
+    },
+    fromAccountInfo: {
+      type: OrderFromAccountInfo,
+      description: 'Additional information about the contributing profile',
+    },
+    platformTipAmount: {
+      type: AmountInput,
+      description: 'Platform tip attached to this order',
+    },
+    taxes: {
+      type: new GraphQLList(OrderTaxInput),
+      description: 'Use this field to set the taxes associated to this order',
+    },
+    tier: {
+      type: TierReferenceInput,
+      description: 'The tier you are contributing to',
+    },
+    description: {
+      type: GraphQLString,
+      description: 'Public order description',
+    },
+    memo: {
+      type: GraphQLString,
+      description: 'Private memo for the host',
+    },
+    ponumber: {
+      type: GraphQLString,
+      description: 'External identifier for the order',
+    },
+    paymentMethod: {
+      type: GraphQLString,
+      description: 'Payment method expected for this order',
     },
     expectedAt: {
       type: DateString,

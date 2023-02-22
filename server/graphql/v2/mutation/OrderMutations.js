@@ -11,6 +11,7 @@ import {
   keyBy,
   keys,
   mapValues,
+  omitBy,
   pick,
   uniq,
   uniqBy,
@@ -41,7 +42,7 @@ import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
-import { OrderCreateInput, PendingOrderCreateInput } from '../input/OrderCreateInput';
+import { OrderCreateInput, PendingOrderCreateInput, PendingOrderEditInput } from '../input/OrderCreateInput';
 import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
 import PaymentIntentInput from '../input/PaymentIntentInput';
@@ -49,7 +50,7 @@ import { getLegacyPaymentMethodFromPaymentMethodInput } from '../input/PaymentMe
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
-import { canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
+import { canEdit, canMarkAsExpired, canMarkAsPaid } from '../object/OrderPermissions';
 import PaymentIntent from '../object/PaymentIntent';
 import { StripeError } from '../object/StripeError';
 
@@ -789,14 +790,17 @@ const orderMutations = {
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
         quantity: 1,
-        totalAmount: args.order.amount.valueInCents,
+        totalAmount: getValueInCentsFromAmountInput(args.order.amount),
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         data: {
-          ...(args.order.customData || {}),
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
+          ponumber: args.order.ponumber,
+          memo: args.order.memo,
+          paymentMethod: args.order.paymentMethod,
           isPendingContribution: true,
+          hostFeePercent: args.order?.hostFeePercent,
         },
         status: OrderStatuses.PENDING,
       };
@@ -826,6 +830,61 @@ const orderMutations = {
           toCollective: toAccount.info,
           tierName: tier?.name,
         },
+      });
+
+      return order;
+    },
+  },
+  editPendingOrder: {
+    type: new GraphQLNonNull(Order),
+    description: 'To edit a pending order. Scope: "orders".',
+    args: {
+      order: {
+        type: new GraphQLNonNull(PendingOrderEditInput),
+      },
+    },
+    async resolve(_, args, req) {
+      if (!checkScope(req, 'orders')) {
+        throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
+      }
+
+      const order = await fetchOrderWithReference(args.order, {
+        throwIfMissing: true,
+        include: [{ model: models.Collective, as: 'collective' }],
+      });
+
+      const host = await order.collective.getHostCollective();
+      if (!req.remoteUser?.isAdminOfCollective(host)) {
+        throw new Unauthorized('Only host admins can process orders');
+      }
+
+      if (!(await canEdit(req, order))) {
+        throw new ValidationFailed(`Only pending orders can be edited, this one is ${order.status}`);
+      }
+
+      const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
+
+      await order.update({
+        FromCollectiveId: fromAccount?.id || undefined,
+        totalAmount: getValueInCentsFromAmountInput(args.order.amount),
+        currency: args.order.amount.currency,
+        description: args.order.description,
+        data: {
+          ...order.data,
+          ...omitBy(
+            {
+              ponumber: args.order.ponumber,
+              memo: args.order.memo,
+              paymentMethod: args.order.paymentMethod,
+              fromAccountInfo: args.order.fromAccountInfo,
+              expectedAt: args.order.expectedAt,
+              isPendingContribution: true,
+              hostFeePercent: args.order?.hostFeePercent,
+            },
+            isUndefined,
+          ),
+        },
+        status: OrderStatuses.PENDING,
       });
 
       return order;
