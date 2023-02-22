@@ -87,7 +87,7 @@ const tierMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
       // Update tier
       const updatedTier = await tier.update(transformTierInputToAttributes(args.tier));
@@ -120,7 +120,7 @@ const tierMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
+      await twoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
       // Create tier
       const tier = await TierModel.create({
@@ -161,7 +161,7 @@ const tierMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
 
       if (args.stopRecurringContributions) {
         await models.Order.cancelActiveOrdersByTierId(tier.id);

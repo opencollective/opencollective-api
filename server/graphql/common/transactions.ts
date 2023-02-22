@@ -213,11 +213,11 @@ export async function refundTransaction(
   // Check 2FA
   const collective = transaction.type === 'CREDIT' ? transaction.collective : transaction.fromCollective;
   if (collective && req.remoteUser.isAdminOfCollective(collective)) {
-    await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+    await twoFactorAuthLib.enforceForAccount(req, collective);
   } else {
     const creditTransaction = transaction.type === 'CREDIT' ? transaction : await transaction.getOppositeTransaction();
     if (req.remoteUser.isAdmin(creditTransaction?.HostCollectiveId)) {
-      await twoFactorAuthLib.enforceForAccountAdmins(req, await creditTransaction.getHostCollective());
+      await twoFactorAuthLib.enforceForAccount(req, await creditTransaction.getHostCollective());
     }
   }
 

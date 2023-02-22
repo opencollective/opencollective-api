@@ -21,7 +21,7 @@ export async function editConnectedAccount(req, connectedAccountData) {
     throw new Unauthorized("You don't have permission to edit this connected account");
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, connectedAccount.collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, connectedAccount.collective, { onlyAskOnLogin: true });
 
   await connectedAccount.update(pick(connectedAccountData, editableAttributes));
   return connectedAccount;

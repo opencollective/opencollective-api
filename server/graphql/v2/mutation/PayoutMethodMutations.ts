@@ -37,7 +37,7 @@ const payoutMethodMutations = {
       }
 
       // Enforce 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, collective);
+      await twoFactorAuthLib.enforceForAccount(req, collective);
 
       if (args.payoutMethod.data.isManualBankTransfer) {
         try {

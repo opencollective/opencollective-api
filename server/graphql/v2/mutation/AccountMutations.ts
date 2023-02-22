@@ -393,7 +393,7 @@ const accountMutations = {
         throw new Forbidden();
       }
 
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { onlyAskOnLogin: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { onlyAskOnLogin: true });
 
       for (const key of Object.keys(args.account)) {
         switch (key) {
@@ -488,7 +488,7 @@ const accountMutations = {
         throw new Unauthorized('You need to be logged in as an Admin of the account.');
       }
 
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
       if (await account.isHost()) {
         throw new Error(

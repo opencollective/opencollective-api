@@ -155,7 +155,7 @@ const memberMutations = {
       }
 
       // Enforce 2FA if enabled on the account
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+      await twoFactorAuthLib.enforceForAccount(req, account);
 
       // Edit member
       const editableAttributes = pick(args, ['role', 'description', 'since']);
@@ -249,7 +249,7 @@ const memberMutations = {
       }
 
       // Check 2FA
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+      await twoFactorAuthLib.enforceForAccount(req, account);
 
       // Remove member
       if (args.isInvitation) {
