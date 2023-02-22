@@ -59,7 +59,7 @@ const memberInvitationMutations = {
         throw new Forbidden('You can only invite users.');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+      await twoFactorAuthLib.enforceForAccount(req, account);
 
       const memberParams = {
         ...pick(args, ['role', 'description', 'since']),
@@ -110,7 +110,7 @@ const memberInvitationMutations = {
         throw new Forbidden('You can only edit accountants, admins, or members.');
       }
 
-      await twoFactorAuthLib.enforceForAccountAdmins(req, account);
+      await twoFactorAuthLib.enforceForAccount(req, account);
 
       // Edit member invitation
       const editableAttributes = pick(args, ['role', 'description', 'since']);

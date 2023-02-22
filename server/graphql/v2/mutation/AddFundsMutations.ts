@@ -67,7 +67,7 @@ export const addFundsMutation = {
     }
 
     // Enforce 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, host, { onlyAskOnLogin: true });
+    await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
 
     return addFunds(
       {

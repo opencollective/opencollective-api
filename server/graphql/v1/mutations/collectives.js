@@ -398,7 +398,7 @@ export function editCollective(_, args, req) {
           }
           return Promise.reject(new Unauthorized(errorMsg));
         } else {
-          return twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+          return twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
         }
       })
       .then(async () => {
@@ -529,7 +529,7 @@ export async function archiveCollective(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   if (await collective.isHost()) {
     throw new Error(
@@ -607,7 +607,7 @@ export async function unarchiveCollective(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   if (collective.type === types.EVENT || collective.type === types.PROJECT) {
     const parentCollective = await models.Collective.findByPk(collective.ParentCollectiveId);
@@ -652,7 +652,7 @@ export async function deleteCollective(_, args, req) {
     );
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { alwaysAskForToken: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { alwaysAskForToken: true });
 
   return collectivelib.deleteCollective(collective);
 }
@@ -671,7 +671,7 @@ export async function activateCollectiveAsHost(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   return collective.becomeHost();
 }
@@ -690,7 +690,7 @@ export async function deactivateCollectiveAsHost(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   return collective.deactivateAsHost();
 }
@@ -709,7 +709,7 @@ export async function activateBudget(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   return collective.activateBudget();
 }
@@ -728,7 +728,7 @@ export async function deactivateBudget(_, args, req) {
     throw new Unauthorized('You need to be logged in as an Admin.');
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   return collective.deactivateBudget();
 }

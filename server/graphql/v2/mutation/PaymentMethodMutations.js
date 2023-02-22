@@ -58,7 +58,7 @@ const addCreditCard = {
     }
 
     // Check 2FA
-    await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+    await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
     const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
     const newPaymentMethodData = {

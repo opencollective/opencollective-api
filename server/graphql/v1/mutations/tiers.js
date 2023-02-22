@@ -22,7 +22,7 @@ export function editTiers(_, args, req) {
           `You need to be logged in as a core contributor or as a host of the ${collective.name} collective`,
         );
       } else {
-        return twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+        return twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
       }
     })
     .then(() => collective.editTiers(args.tiers));
@@ -43,7 +43,7 @@ export async function editTier(_, args, req) {
     throw new Unauthorized();
   }
 
-  await twoFactorAuthLib.enforceForAccountAdmins(req, collective, { onlyAskOnLogin: true });
+  await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
   return tier.update(args.tier);
 }

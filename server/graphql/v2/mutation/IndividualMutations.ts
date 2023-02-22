@@ -61,7 +61,7 @@ const individualMutations = {
 
       // Enforce 2FA
       const account = await req.remoteUser.getCollective();
-      await TwoFactorAuthLib.enforceForAccountAdmins(req, account, { alwaysAskForToken: true });
+      await TwoFactorAuthLib.enforceForAccount(req, account, { alwaysAskForToken: true });
 
       // Check current password if one already set
       if (req.remoteUser.passwordHash && req.jwtPayload?.scope !== 'reset-password') {

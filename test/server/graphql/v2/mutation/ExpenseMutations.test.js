@@ -265,6 +265,28 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors[0].message).to.eq('Expenses of type invoice are not allowed by the host');
     });
 
+    it('fails if the fromAccount requires 2FA', async () => {
+      const user = await fakeUser();
+      const collectiveAdmin = await fakeUser();
+      const collective = await fakeCollective({ admin: collectiveAdmin.collective });
+
+      const payee = await fakeCollective({
+        type: 'ORGANIZATION',
+        admin: user.collective,
+        address: null,
+        data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+      });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Two factor authentication must be configured');
+    });
+
     it('creates the expense with the linked items', async () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
@@ -413,6 +435,54 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors).to.not.exist;
         expect(result.data.editExpense.status).to.equal('APPROVED');
         expect(result.data.editExpense.amount).to.equal(expense.amount);
+      });
+    });
+
+    describe('2FA', () => {
+      it('fails if required by the collective and not provided', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({
+          admin: collectiveAdminUser,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, collectiveAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it('fails if required by the host and not provided', async () => {
+        const hostAdminUser = await fakeUser();
+        const host = await fakeHost({ admin: hostAdminUser, data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({ admin: hostAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it("doesn't ask if only admin of the collective, and 2FA is enforced on the host", async () => {
+        const host = await fakeHost({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, collectiveAdminUser);
+        expect(result.errors).to.not.exist;
+      });
+
+      it("doesn't ask for the payee, even if enforced by the host AND collective", async () => {
+        const host = await fakeCollective({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
       });
     });
 
@@ -776,6 +846,50 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.eq(
           "You don't have permission to delete this expense or it needs to be rejected before being deleted",
         );
+      });
+    });
+
+    describe('2FA', () => {
+      it('fails if required by the collective and not provided', async () => {
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({
+          admin: collectiveAdminUser,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), collectiveAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it('fails if required by the host and not provided', async () => {
+        const hostAdminUser = await fakeUser();
+        const host = await fakeHost({ admin: hostAdminUser, data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({ admin: hostAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), hostAdminUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
+      });
+
+      it("doesn't ask if only admin of the collective, and 2FA is enforced on the host", async () => {
+        const host = await fakeHost({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), collectiveAdminUser);
+        expect(result.errors).to.not.exist;
+      });
+
+      it("doesn't ask for the payee, even if enforced by the host AND collective", async () => {
+        const host = await fakeCollective({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
+        const collective = await fakeCollective({
+          HostCollectiveId: host.id,
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+        });
+        const expense = await fakeExpense({ status: 'REJECTED', CollectiveId: collective.id });
+        const result = await graphqlQueryV2(deleteExpenseMutation, prepareGQLParams(expense), expense.User);
+        expect(result.errors).to.not.exist;
       });
     });
   });
