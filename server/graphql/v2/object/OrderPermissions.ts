@@ -22,6 +22,10 @@ export const canMarkAsExpired = async (req: express.Request, order): Promise<boo
   return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
 };
 
+export const canEdit = async (req: express.Request, order): Promise<boolean> => {
+  return order.status === ORDER_STATUS.PENDING && isHostAdmin(req, order);
+};
+
 const OrderPermissions = new GraphQLObjectType({
   name: 'OrderPermissions',
   description: 'Fields for the user permissions on an order',
@@ -42,6 +46,13 @@ const OrderPermissions = new GraphQLObjectType({
       description: 'Whether the current user can mark this order as unpaid',
       async resolve(order, _, req: express.Request): Promise<boolean> {
         return canMarkAsPaid(req, order);
+      },
+    },
+    canEdit: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user edit this pending order',
+      async resolve(order, _, req: express.Request): Promise<boolean> {
+        return canEdit(req, order);
       },
     },
   }),
