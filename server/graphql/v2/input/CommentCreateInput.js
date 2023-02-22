@@ -1,29 +1,29 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
 import { CommentType as CommentTypeEnum } from '../../../models/Comment';
-import { CommentType } from '../enum/CommentType';
+import { GraphQLCommentType } from '../enum/CommentType';
 
-import { ConversationReferenceInput } from './ConversationReferenceInput';
-import { ExpenseReferenceInput } from './ExpenseReferenceInput';
-import { UpdateReferenceInput } from './UpdateReferenceInput';
+import { GraphQLConversationReferenceInput } from './ConversationReferenceInput';
+import { GraphQLExpenseReferenceInput } from './ExpenseReferenceInput';
+import { GraphQLUpdateReferenceInput } from './UpdateReferenceInput';
 
 /**
  * Input type to use as the type for the comment input in createComment mutation.
  */
-export const CommentCreateInput = new GraphQLInputObjectType({
+export const GraphQLCommentCreateInput = new GraphQLInputObjectType({
   name: 'CommentCreateInput',
   description: 'Input to create a comment. You can only specify one entity type: expense, conversation or update',
   fields: () => ({
     html: { type: GraphQLString },
     expense: {
-      type: ExpenseReferenceInput,
+      type: GraphQLExpenseReferenceInput,
       description: 'If your comment is linked to an expense, set it here',
     },
     ConversationId: { type: GraphQLString, deprecationReason: '2022-08-26: Please use "conversation"' },
-    conversation: { type: ConversationReferenceInput },
-    update: { type: UpdateReferenceInput },
+    conversation: { type: GraphQLConversationReferenceInput },
+    update: { type: GraphQLUpdateReferenceInput },
     type: {
-      type: CommentType,
+      type: GraphQLCommentType,
       description: 'The type of the comment',
       defaultValue: CommentTypeEnum.COMMENT,
     },

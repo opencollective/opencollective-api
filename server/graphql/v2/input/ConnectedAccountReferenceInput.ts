@@ -7,7 +7,7 @@ import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 /**
  * An input for referencing ConnectedAccounts.
  */
-export const ConnectedAccountReferenceInput = new GraphQLInputObjectType({
+export const GraphQLConnectedAccountReferenceInput = new GraphQLInputObjectType({
   name: 'ConnectedAccountReferenceInput',
   fields: () => ({
     id: {

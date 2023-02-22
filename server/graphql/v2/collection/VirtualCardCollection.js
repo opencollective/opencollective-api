@@ -1,16 +1,16 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { VirtualCard } from '../object/VirtualCard';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLVirtualCard } from '../object/VirtualCard';
 
-export const VirtualCardCollection = new GraphQLObjectType({
+export const GraphQLVirtualCardCollection = new GraphQLObjectType({
   name: 'VirtualCardCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of Virtual Cards',
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(VirtualCard),
+      type: new GraphQLList(GraphQLVirtualCard),
     },
   }),
 });

@@ -5,13 +5,13 @@ import { SupportedCurrencies, TransferWiseCurrencies } from '../../../constants/
 
 const convertToEnumType = a => mapValues(a, description => ({ description }));
 
-export const Currency = new GraphQLEnumType({
+export const GraphQLCurrency = new GraphQLEnumType({
   name: 'Currency',
   description: 'All supported currencies',
   values: convertToEnumType(SupportedCurrencies),
 });
 
-export const TransferWiseCurrency = new GraphQLEnumType({
+export const GraphQLTransferWiseCurrency = new GraphQLEnumType({
   name: 'TransferWiseCurrency',
   description: 'All currencies supported by TransferWise',
   values: convertToEnumType(TransferWiseCurrencies),

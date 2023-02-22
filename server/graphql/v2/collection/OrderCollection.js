@@ -1,17 +1,17 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Order } from '../object/Order';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLOrder } from '../object/Order';
 
-export const OrderCollection = new GraphQLObjectType({
+export const GraphQLOrderCollection = new GraphQLObjectType({
   name: 'OrderCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Orders"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(Order),
+        type: new GraphQLList(GraphQLOrder),
       },
     };
   },

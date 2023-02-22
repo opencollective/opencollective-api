@@ -10,7 +10,7 @@ export enum TierFrequencyKey {
   FLEXIBLE = 'FLEXIBLE',
 }
 
-export const TierFrequency = new GraphQLEnumType({
+export const GraphQLTierFrequency = new GraphQLEnumType({
   name: 'TierFrequency',
   values: Object.keys(TierFrequencyKey).reduce((values, key) => {
     return { ...values, [key]: {} };

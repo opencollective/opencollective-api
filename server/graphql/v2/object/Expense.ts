@@ -20,30 +20,30 @@ import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
-import { Currency } from '../enum';
-import { ExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
-import ExpenseStatus from '../enum/ExpenseStatus';
-import { ExpenseType } from '../enum/ExpenseType';
-import { FeesPayer } from '../enum/FeesPayer';
-import { LegalDocumentType } from '../enum/LegalDocumentType';
+import { GraphQLCurrency } from '../enum';
+import { GraphQLExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
+import GraphQLExpenseStatus from '../enum/ExpenseStatus';
+import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLFeesPayer } from '../enum/FeesPayer';
+import { GraphQLLegalDocumentType } from '../enum/LegalDocumentType';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { Account } from '../interface/Account';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
-import { Activity } from './Activity';
-import { Amount } from './Amount';
-import ExpenseAttachedFile from './ExpenseAttachedFile';
-import ExpenseItem from './ExpenseItem';
-import ExpensePermissions from './ExpensePermissions';
-import ExpenseQuote from './ExpenseQuote';
-import { Host } from './Host';
-import { Location } from './Location';
-import PayoutMethod from './PayoutMethod';
-import RecurringExpense from './RecurringExpense';
-import { SecurityCheck } from './SecurityCheck';
-import { TaxInfo } from './TaxInfo';
-import { VirtualCard } from './VirtualCard';
+import { GraphQLActivity } from './Activity';
+import { GraphQLAmount } from './Amount';
+import GraphQLExpenseAttachedFile from './ExpenseAttachedFile';
+import GraphQLExpenseItem from './ExpenseItem';
+import GraphQLExpensePermissions from './ExpensePermissions';
+import GraphQLExpenseQuote from './ExpenseQuote';
+import { GraphQLHost } from './Host';
+import { GraphQLLocation } from './Location';
+import GraphQLPayoutMethod from './PayoutMethod';
+import GraphQLRecurringExpense from './RecurringExpense';
+import { GraphQLSecurityCheck } from './SecurityCheck';
+import { GraphQLTaxInfo } from './TaxInfo';
+import { GraphQLVirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'taxes',
@@ -70,7 +70,7 @@ const loadHostForExpense = async (expense, req) => {
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
-const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
+const GraphQLExpense = new GraphQLObjectType<ExpenseModel, express.Request>({
   name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
@@ -100,11 +100,11 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         deprecationReason: '2022-02-09: Please use amountV2',
       },
       amountV2: {
-        type: Amount,
+        type: GraphQLAmount,
         description: 'Total amount of the expense',
         args: {
           currencySource: {
-            type: ExpenseCurrencySource,
+            type: GraphQLExpenseCurrencySource,
             description: 'Source of the currency to express the amount. Defaults to the expense currency',
             defaultValue: 'EXPENSE',
           },
@@ -137,7 +137,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       taxes: {
-        type: new GraphQLNonNull(new GraphQLList(TaxInfo)),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLTaxInfo)),
         description: 'Taxes applied to this expense',
         resolve(expense, _, req) {
           if (!expense.data?.taxes) {
@@ -177,15 +177,15 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         description: 'The time of creation',
       },
       currency: {
-        type: new GraphQLNonNull(Currency),
+        type: new GraphQLNonNull(GraphQLCurrency),
         description: 'Currency that should be used for the payout',
       },
       type: {
-        type: new GraphQLNonNull(ExpenseType),
+        type: new GraphQLNonNull(GraphQLExpenseType),
         description: 'Whether this expense is a receipt or an invoice',
       },
       status: {
-        type: new GraphQLNonNull(ExpenseStatus),
+        type: new GraphQLNonNull(GraphQLExpenseStatus),
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
       },
       onHold: {
@@ -203,7 +203,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         args: {
           ...CollectionArgs,
           orderBy: {
-            type: ChronologicalOrderInput,
+            type: GraphQLChronologicalOrderInput,
             defaultValue: { field: 'createdAt', direction: 'ASC' },
           },
         },
@@ -232,14 +232,14 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       account: {
-        type: new GraphQLNonNull(Account),
+        type: new GraphQLNonNull(GraphQLAccount),
         description: 'The account where the expense was submitted',
         resolve(expense, _, req) {
           return req.loaders.Collective.byId.load(expense.CollectiveId);
         },
       },
       payee: {
-        type: new GraphQLNonNull(Account),
+        type: new GraphQLNonNull(GraphQLAccount),
         description: 'The account being paid by this expense',
         async resolve(expense, _, req) {
           // Allow users to see account's legal names if they can see expense invoice details
@@ -251,7 +251,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       payeeLocation: {
-        type: Location,
+        type: GraphQLLocation,
         description: 'The address of the payee',
         async resolve(expense, _, req) {
           const canSeeLocation = await ExpenseLib.canSeeExpensePayeeLocation(req, expense);
@@ -259,7 +259,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       createdByAccount: {
-        type: Account,
+        type: GraphQLAccount,
         description: 'The account who created this expense',
         async resolve(expense, _, req) {
           const user = await req.loaders.User.byId.load(expense.UserId);
@@ -272,7 +272,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       host: {
-        type: Host,
+        type: GraphQLHost,
         description: 'The account from where the expense was paid',
         async resolve(expense, _, req) {
           if (expense.HostCollectiveId) {
@@ -283,7 +283,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       payoutMethod: {
-        type: PayoutMethod,
+        type: GraphQLPayoutMethod,
         description: 'The payout method to use for this expense',
         async resolve(expense, _, req) {
           if (expense.PayoutMethodId) {
@@ -296,7 +296,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       virtualCard: {
-        type: VirtualCard,
+        type: GraphQLVirtualCard,
         description: 'The virtual card used to pay for this charge',
         async resolve(expense, _, req) {
           if (expense.VirtualCardId) {
@@ -305,7 +305,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       attachedFiles: {
-        type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFile)),
+        type: new GraphQLList(new GraphQLNonNull(GraphQLExpenseAttachedFile)),
         description: '(Optional) files attached to the expense',
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
@@ -314,7 +314,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       items: {
-        type: new GraphQLList(ExpenseItem),
+        type: new GraphQLList(GraphQLExpenseItem),
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseAttachments(req, expense)) {
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
@@ -342,18 +342,18 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       feesPayer: {
-        type: new GraphQLNonNull(FeesPayer),
+        type: new GraphQLNonNull(GraphQLFeesPayer),
         description: 'The fees payer for this expense',
       },
       permissions: {
-        type: new GraphQLNonNull(ExpensePermissions),
+        type: new GraphQLNonNull(GraphQLExpensePermissions),
         description: 'The permissions given to current logged in user for this expense',
         async resolve(expense) {
           return expense; // Individual fields are set by ExpensePermissions's resolvers
         },
       },
       activities: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLActivity))),
         description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
         async resolve(expense, _, req) {
           const activities = await req.loaders.Expense.activities.load(expense.id);
@@ -376,7 +376,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       requiredLegalDocuments: {
-        type: new GraphQLList(LegalDocumentType),
+        type: new GraphQLList(GraphQLLegalDocumentType),
         description:
           'Returns the list of legal documents required from the payee before the expense can be payed. Must be logged in.',
         async resolve(expense, _, req) {
@@ -411,7 +411,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       requestedByAccount: {
-        type: Account,
+        type: GraphQLAccount,
         description: 'The account that requested this expense to be submitted',
         async resolve(expense, _, req) {
           if (expense.data?.invitedByCollectiveId) {
@@ -420,7 +420,7 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       quote: {
-        type: ExpenseQuote,
+        type: GraphQLExpenseQuote,
         async resolve(expense, _, req) {
           if (await ExpenseLib.canPayExpense(req, expense)) {
             const quote = await ExpenseLib.quoteExpense(expense, { req });
@@ -438,13 +438,13 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
         },
       },
       recurringExpense: {
-        type: RecurringExpense,
+        type: GraphQLRecurringExpense,
         async resolve(expense) {
           return expense.getRecurringExpense();
         },
       },
       securityChecks: {
-        type: new GraphQLList(SecurityCheck),
+        type: new GraphQLList(GraphQLSecurityCheck),
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
             return req.loaders.Expense.securityChecks.load(expense);
@@ -464,4 +464,4 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
   },
 });
 
-export { Expense };
+export { GraphQLExpense };

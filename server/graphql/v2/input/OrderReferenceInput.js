@@ -4,7 +4,7 @@ import models, { Op } from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
-export const OrderReferenceInput = new GraphQLInputObjectType({
+export const GraphQLOrderReferenceInput = new GraphQLInputObjectType({
   name: 'OrderReferenceInput',
   fields: () => ({
     id: {

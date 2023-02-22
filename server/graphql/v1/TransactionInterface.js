@@ -10,7 +10,7 @@ import { get, round } from 'lodash';
 
 import models from '../../models';
 import { getContextPermission, PERMISSION_TYPE } from '../common/context-permissions';
-import { TaxInfo } from '../v2/object/TaxInfo';
+import { GraphQLTaxInfo } from '../v2/object/TaxInfo';
 
 import { CollectiveInterfaceType, UserCollectiveType } from './CollectiveInterface';
 import { DateString, ExpenseType, OrderType, PaymentMethodType, SubscriptionType, UserType } from './types';
@@ -65,7 +65,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       platformFeeInHostCurrency: { type: GraphQLInt },
       paymentProcessorFeeInHostCurrency: { type: GraphQLInt },
       taxAmount: { type: GraphQLInt },
-      taxInfo: { type: TaxInfo },
+      taxInfo: { type: GraphQLTaxInfo },
       createdByUser: { type: UserType },
       host: { type: CollectiveInterfaceType },
       paymentMethod: { type: PaymentMethodType },
@@ -191,7 +191,7 @@ const TransactionFields = () => {
       description: 'The amount paid in tax (for example VAT) for this transaction',
     },
     taxInfo: {
-      type: TaxInfo,
+      type: GraphQLTaxInfo,
       description: 'If taxAmount is set, this field will contain more info about the tax',
       resolve(transaction, _, req) {
         const tax = transaction.data?.tax;

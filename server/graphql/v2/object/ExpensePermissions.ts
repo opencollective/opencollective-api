@@ -4,9 +4,9 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import * as ExpenseLib from '../../common/expenses';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-import { parsePermissionFromEvaluator, Permission } from './Permission';
+import { GraphQLPermission, parsePermissionFromEvaluator } from './Permission';
 
-const ExpensePermissions = new GraphQLObjectType({
+const GraphQLExpensePermissions = new GraphQLObjectType({
   name: 'ExpensePermissions',
   description: 'Fields for the user permissions on an expense',
   fields: () => ({
@@ -127,70 +127,70 @@ const ExpensePermissions = new GraphQLObjectType({
     },
     // Extended permissions
     edit: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpense),
     },
     editTags: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canEditExpenseTags),
     },
     delete: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canDeleteExpense),
     },
     seeInvoiceInfo: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canSeeExpenseInvoiceInfo),
     },
     pay: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canPayExpense),
     },
     approve: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canApprove),
     },
     unapprove: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canUnapprove),
     },
     reject: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canReject),
     },
     markAsSpam: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsSpam),
     },
     markAsUnpaid: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canMarkAsUnpaid),
     },
     comment: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canComment),
     },
     usePrivateNote: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canUsePrivateNotes),
     },
     unschedulePayment: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canUnschedulePayment),
     },
     verifyDraftExpense: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canVerifyDraftExpense),
     },
     hold: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canPutOnHold),
     },
     release: {
-      type: new GraphQLNonNull(Permission),
+      type: new GraphQLNonNull(GraphQLPermission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canReleaseHold),
     },
   }),
 });
 
-export default ExpensePermissions;
+export default GraphQLExpensePermissions;

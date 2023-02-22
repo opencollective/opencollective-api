@@ -13,8 +13,8 @@ import {
 import { Kind } from 'graphql/language';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { CaptchaInput } from '../v2/input/CaptchaInput';
-import { SocialLinkInput } from '../v2/input/SocialLinkInput';
+import { GraphQLCaptchaInput } from '../v2/input/CaptchaInput';
+import { GraphQLSocialLinkInput } from '../v2/input/SocialLinkInput';
 
 import { DateString } from './types';
 
@@ -159,7 +159,7 @@ export const CollectiveInputType = new GraphQLInputObjectType({
     twitterHandle: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
     repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
-    socialLinks: { type: new GraphQLList(new GraphQLNonNull(SocialLinkInput)) },
+    socialLinks: { type: new GraphQLList(new GraphQLNonNull(GraphQLSocialLinkInput)) },
     description: { type: GraphQLString },
     longDescription: { type: GraphQLString },
     expensePolicy: { type: GraphQLString },
@@ -332,7 +332,7 @@ export const GuestInfoInput = new GraphQLInputObjectType({
       description: 'The unique guest token',
     },
     captcha: {
-      type: CaptchaInput,
+      type: GraphQLCaptchaInput,
       description: 'Captcha validation for creating an order',
     },
   }),

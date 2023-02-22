@@ -1,10 +1,10 @@
 import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { AmountInput } from './AmountInput';
+import { GraphQLAmountInput } from './AmountInput';
 import { GraphQLTaxInput } from './TaxInput';
 
-export const OrderUpdateInput = new GraphQLInputObjectType({
+export const GraphQLOrderUpdateInput = new GraphQLInputObjectType({
   name: 'OrderUpdateInput',
   fields: () => ({
     id: {
@@ -16,7 +16,7 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
       description: 'The legacy public id identifying the order (ie: 4242)',
     },
     amount: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
       description: 'Amount received by collective, excluding any tips, taxes or fees',
     },
     tax: {
@@ -24,11 +24,11 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
       description: 'The tax to apply to the order',
     },
     paymentProcessorFee: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
       description: 'Amount paid in fees for the payment processor',
     },
     platformTip: {
-      type: AmountInput,
+      type: GraphQLAmountInput,
       description: 'Amount intended as tip for the platform',
     },
     hostFeePercent: {

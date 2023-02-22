@@ -1,10 +1,10 @@
 import { pick } from 'lodash';
 
 import { ApplicationReferenceFields, fetchApplicationWithReference } from '../input/ApplicationReferenceInput';
-import { Application } from '../object/Application';
+import { GraphQLApplication } from '../object/Application';
 
 const ApplicationQuery = {
-  type: Application,
+  type: GraphQLApplication,
   args: {
     ...ApplicationReferenceFields,
   },

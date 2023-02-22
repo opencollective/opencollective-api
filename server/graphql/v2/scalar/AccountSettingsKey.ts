@@ -3,7 +3,7 @@ import { GraphQLScalarType } from 'graphql';
 import { COLLECTIVE_SETTINGS_KEYS_LIST } from '../../../lib/collectivelib';
 import { ValidationFailed } from '../../errors';
 
-const AccountSettingsKey = new GraphQLScalarType({
+const GraphQLAccountSettingsKey = new GraphQLScalarType({
   name: 'AccountSettingsKey',
   description: "Values that can be edited in Account's settings",
   parseValue(value: string): string {
@@ -19,4 +19,4 @@ const AccountSettingsKey = new GraphQLScalarType({
   },
 });
 
-export default AccountSettingsKey;
+export default GraphQLAccountSettingsKey;

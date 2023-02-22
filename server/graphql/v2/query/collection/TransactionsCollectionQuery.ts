@@ -6,36 +6,39 @@ import { cloneDeep, flatten, isNil, pick, uniq } from 'lodash';
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
 import { checkScope } from '../../../common/scope-check';
-import { TransactionCollection } from '../../collection/TransactionCollection';
-import { PaymentMethodType } from '../../enum/PaymentMethodType';
-import { TransactionKind } from '../../enum/TransactionKind';
-import { TransactionType } from '../../enum/TransactionType';
+import { GraphQLTransactionCollection } from '../../collection/TransactionCollection';
+import { GraphQLPaymentMethodType } from '../../enum/PaymentMethodType';
+import { GraphQLTransactionKind } from '../../enum/TransactionKind';
+import { GraphQLTransactionType } from '../../enum/TransactionType';
 import {
-  AccountReferenceInput,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
 } from '../../input/AccountReferenceInput';
-import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
+import {
+  CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
+  GraphQLChronologicalOrderInput,
+} from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, TransactionsCollectionReturnType } from '../../interface/Collection';
 
 export const TransactionsCollectionArgs = {
   limit: { ...CollectionArgs.limit, defaultValue: 100 },
   offset: CollectionArgs.offset,
   type: {
-    type: TransactionType,
+    type: GraphQLTransactionType,
     description: 'The transaction type (DEBIT or CREDIT)',
   },
   paymentMethodType: {
-    type: new GraphQLList(PaymentMethodType),
+    type: new GraphQLList(GraphQLPaymentMethodType),
     description: 'The payment method types. Can include `null` for transactions without a payment method',
   },
   fromAccount: {
-    type: AccountReferenceInput,
+    type: GraphQLAccountReferenceInput,
     description:
       'Reference of the account assigned to the other side of the transaction (CREDIT -> sender, DEBIT -> recipient). Avoid, favor account instead.',
   },
   host: {
-    type: AccountReferenceInput,
+    type: GraphQLAccountReferenceInput,
     description: 'Reference of the host accounting the transaction',
   },
   tags: {
@@ -44,7 +47,7 @@ export const TransactionsCollectionArgs = {
     deprecationReason: '2020-08-09: Was never implemented.',
   },
   orderBy: {
-    type: new GraphQLNonNull(ChronologicalOrderInput),
+    type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
     description: 'The order of results',
     defaultValue: CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
   },
@@ -106,7 +109,7 @@ export const TransactionsCollectionArgs = {
     description: 'Whether to include debt transactions',
   },
   kind: {
-    type: new GraphQLList(TransactionKind),
+    type: new GraphQLList(GraphQLTransactionKind),
     description: 'To filter by transaction kind',
   },
   group: {
@@ -341,10 +344,10 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
 };
 
 const TransactionsCollectionQuery = {
-  type: new GraphQLNonNull(TransactionCollection),
+  type: new GraphQLNonNull(GraphQLTransactionCollection),
   args: {
     account: {
-      type: new GraphQLList(new GraphQLNonNull(AccountReferenceInput)),
+      type: new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput)),
       description:
         'Reference of the account(s) assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
     },

@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ProcessOrderAction = new GraphQLEnumType({
+export const GraphQLProcessOrderAction = new GraphQLEnumType({
   name: 'ProcessOrderAction',
   description: 'Action to apply on the order',
   values: {

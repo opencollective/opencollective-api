@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const UpdateAudienceType = new GraphQLEnumType({
+export const GraphQLUpdateAudienceType = new GraphQLEnumType({
   name: 'UpdateAudience',
   description: 'Defines targets for an update',
   values: {

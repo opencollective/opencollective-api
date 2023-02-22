@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-export const PaypalPaymentInput = new GraphQLInputObjectType({
+export const GraphQLPaypalPaymentInput = new GraphQLInputObjectType({
   name: 'PaypalPaymentInput',
   fields: () => ({
     token: { type: GraphQLString },

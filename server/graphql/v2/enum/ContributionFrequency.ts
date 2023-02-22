@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import INTERVALS from '../../../constants/intervals';
 
-export const ContributionFrequency = new GraphQLEnumType({
+export const GraphQLContributionFrequency = new GraphQLEnumType({
   name: 'ContributionFrequency',
   values: {
     MONTHLY: {},

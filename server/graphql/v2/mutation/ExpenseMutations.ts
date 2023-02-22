@@ -44,36 +44,36 @@ import {
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
-import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
-import { FeesPayer } from '../enum/FeesPayer';
+import { GraphQLExpenseProcessAction } from '../enum/ExpenseProcessAction';
+import { GraphQLFeesPayer } from '../enum/FeesPayer';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ExpenseCreateInput } from '../input/ExpenseCreateInput';
-import { ExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLExpenseCreateInput } from '../input/ExpenseCreateInput';
+import { GraphQLExpenseInviteDraftInput } from '../input/ExpenseInviteDraftInput';
 import {
-  ExpenseReferenceInput,
   fetchExpenseWithReference,
   getDatabaseIdFromExpenseReference,
+  GraphQLExpenseReferenceInput,
 } from '../input/ExpenseReferenceInput';
-import { ExpenseUpdateInput } from '../input/ExpenseUpdateInput';
-import { RecurringExpenseInput } from '../input/RecurringExpenseInput';
-import { Expense } from '../object/Expense';
+import { GraphQLExpenseUpdateInput } from '../input/ExpenseUpdateInput';
+import { GraphQLRecurringExpenseInput } from '../input/RecurringExpenseInput';
+import { GraphQLExpense } from '../object/Expense';
 
 const expenseMutations = {
   createExpense: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: 'Submit an expense to a collective. Scope: "expenses".',
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseCreateInput),
+        type: new GraphQLNonNull(GraphQLExpenseCreateInput),
         description: 'Expense data',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the expense will be created',
       },
       recurring: {
-        type: RecurringExpenseInput,
+        type: GraphQLRecurringExpenseInput,
         description: 'Recurring Expense information',
       },
     },
@@ -119,11 +119,11 @@ const expenseMutations = {
     },
   },
   editExpense: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: 'To update an existing expense',
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseUpdateInput),
+        type: new GraphQLNonNull(GraphQLExpenseUpdateInput),
         description: 'Expense data',
       },
       draftKey: {
@@ -180,11 +180,11 @@ const expenseMutations = {
     },
   },
   deleteExpense: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: `Delete an expense. Only work if the expense is rejected - please check permissions.canDelete. Scope: "expenses".`,
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseReferenceInput),
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
         description: 'Reference of the expense to delete',
       },
     },
@@ -223,15 +223,15 @@ const expenseMutations = {
     },
   },
   processExpense: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: 'Process the expense with the given action. Scope: "expenses".',
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseReferenceInput),
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
         description: 'Reference of the expense to process',
       },
       action: {
-        type: new GraphQLNonNull(ExpenseProcessAction),
+        type: new GraphQLNonNull(GraphQLExpenseProcessAction),
         description: 'The action to trigger',
       },
       message: {
@@ -273,7 +273,7 @@ const expenseMutations = {
               description: 'Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually',
             },
             feesPayer: {
-              type: FeesPayer,
+              type: GraphQLFeesPayer,
               description: 'Who is responsible for paying any due fees.',
               defaultValue: 'COLLECTIVE',
             },
@@ -361,15 +361,15 @@ const expenseMutations = {
     },
   },
   draftExpenseAndInviteUser: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: 'Persist an Expense as a draft and invite someone to edit and submit it. Scope: "expenses".',
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseInviteDraftInput),
+        type: new GraphQLNonNull(GraphQLExpenseInviteDraftInput),
         description: 'Expense data',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account where the expense will be created',
       },
     },
@@ -458,11 +458,11 @@ const expenseMutations = {
     },
   },
   resendDraftExpenseInvite: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: 'To re-send the invitation to complete a draft expense. Scope: "expenses".',
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseReferenceInput),
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
         description: 'Reference of the expense to process',
       },
     },
@@ -498,11 +498,11 @@ const expenseMutations = {
     },
   },
   verifyExpense: {
-    type: new GraphQLNonNull(Expense),
+    type: new GraphQLNonNull(GraphQLExpense),
     description: 'To verify and unverified expense. Scope: "expenses".',
     args: {
       expense: {
-        type: new GraphQLNonNull(ExpenseReferenceInput),
+        type: new GraphQLNonNull(GraphQLExpenseReferenceInput),
         description: 'Reference of the expense to process',
       },
       draftKey: {

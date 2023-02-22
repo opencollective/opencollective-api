@@ -7,15 +7,15 @@ import {
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { Currency } from '../enum';
-import { ExpenseType } from '../enum/ExpenseType';
+import { GraphQLCurrency } from '../enum';
+import { GraphQLExpenseType } from '../enum/ExpenseType';
 
-import { AccountReferenceInput } from './AccountReferenceInput';
-import { ExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
-import { ExpenseItemCreateInput } from './ExpenseItemCreateInput';
-import { ExpenseTaxInput } from './ExpenseTaxInput';
-import { LocationInput } from './LocationInput';
-import { PayoutMethodInput } from './PayoutMethodInput';
+import { GraphQLAccountReferenceInput } from './AccountReferenceInput';
+import { GraphQLExpenseAttachedFileInput } from './ExpenseAttachedFileInput';
+import { GraphQLExpenseItemCreateInput } from './ExpenseItemCreateInput';
+import { GraphQLExpenseTaxInput } from './ExpenseTaxInput';
+import { GraphQLLocationInput } from './LocationInput';
+import { GraphQLPayoutMethodInput } from './PayoutMethodInput';
 
 export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
   description: {
@@ -27,7 +27,7 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
     description: 'Longer text to attach to the expense',
   },
   currency: {
-    type: Currency,
+    type: GraphQLCurrency,
     description: 'Currency that should be used for the payout. Defaults to the account currency',
   },
   tags: {
@@ -35,7 +35,7 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
     description: 'Tags associated to the expense (ie. Food, Engineering...)',
   },
   type: {
-    type: new GraphQLNonNull(ExpenseType),
+    type: new GraphQLNonNull(GraphQLExpenseType),
     description: 'The type of the expense',
   },
   privateMessage: {
@@ -47,27 +47,27 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
     description: 'Custom information to print on the invoice',
   },
   payoutMethod: {
-    type: new GraphQLNonNull(PayoutMethodInput),
+    type: new GraphQLNonNull(GraphQLPayoutMethodInput),
     description: 'The payout method that will be used to reimburse the expense',
   },
   items: {
-    type: new GraphQLList(ExpenseItemCreateInput),
+    type: new GraphQLList(GraphQLExpenseItemCreateInput),
     description: 'The list of items for this expense. Total amount will be computed from them.',
   },
   attachedFiles: {
-    type: new GraphQLList(new GraphQLNonNull(ExpenseAttachedFileInput)),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLExpenseAttachedFileInput)),
     description: '(Optional) A list of files that you want to attach to this expense',
   },
   payee: {
-    type: new GraphQLNonNull(AccountReferenceInput),
+    type: new GraphQLNonNull(GraphQLAccountReferenceInput),
     description: 'Account to reimburse',
   },
   payeeLocation: {
-    type: LocationInput,
+    type: GraphQLLocationInput,
     description: 'The address of the payee',
   },
   tax: {
-    type: new GraphQLList(ExpenseTaxInput),
+    type: new GraphQLList(GraphQLExpenseTaxInput),
     description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
   },
   customData: {
@@ -79,7 +79,7 @@ export const getExpenseCreateInputFields = (): GraphQLInputFieldConfigMap => ({
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
  */
-export const ExpenseCreateInput = new GraphQLInputObjectType({
+export const GraphQLExpenseCreateInput = new GraphQLInputObjectType({
   name: 'ExpenseCreateInput',
   fields: getExpenseCreateInputFields,
 });

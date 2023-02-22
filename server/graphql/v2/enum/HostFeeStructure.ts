@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 
-export const HostFeeStructure = new GraphQLEnumType({
+export const GraphQLHostFeeStructure = new GraphQLEnumType({
   name: 'HostFeeStructure',
   description: 'All supported expense types',
   values: {

@@ -19,7 +19,7 @@ export const ApplicationReferenceFields = {
   },
 };
 
-export const ApplicationReferenceInput = new GraphQLInputObjectType({
+export const GraphQLApplicationReferenceInput = new GraphQLInputObjectType({
   name: 'ApplicationReferenceInput',
   fields: () => ApplicationReferenceFields,
 });

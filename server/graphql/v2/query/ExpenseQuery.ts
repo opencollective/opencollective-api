@@ -2,11 +2,11 @@ import { GraphQLString } from 'graphql';
 
 import expenseStatus from '../../../constants/expense_status';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
-import { ExpenseReferenceInput, fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
-import { Expense } from '../object/Expense';
+import { fetchExpenseWithReference, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
+import { GraphQLExpense } from '../object/Expense';
 
 const ExpenseQuery = {
-  type: Expense,
+  type: GraphQLExpense,
   args: {
     id: {
       type: GraphQLString,
@@ -14,7 +14,7 @@ const ExpenseQuery = {
       deprecationReason: '2020-02-28: Please use the `expense` field.',
     },
     expense: {
-      type: ExpenseReferenceInput,
+      type: GraphQLExpenseReferenceInput,
       description: 'Identifiers to retrieve the expense.',
     },
     draftKey: {

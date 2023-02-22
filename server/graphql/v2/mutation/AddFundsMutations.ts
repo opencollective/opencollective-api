@@ -6,11 +6,11 @@ import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, AmountInputType, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { AmountInputType, getValueInCentsFromAmountInput, GraphQLAmountInput } from '../input/AmountInput';
 import { GraphQLTaxInput, TaxInput } from '../input/TaxInput';
-import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
-import { Order } from '../object/Order';
+import { fetchTierWithReference, GraphQLTierReferenceInput } from '../input/TierReferenceInput';
+import { GraphQLOrder } from '../object/Order';
 
 type AddFundsMutationArgs = {
   fromAccount: Record<string, unknown>;
@@ -26,23 +26,23 @@ type AddFundsMutationArgs = {
 };
 
 export const addFundsMutation = {
-  type: new GraphQLNonNull(Order),
+  type: new GraphQLNonNull(GraphQLOrder),
   description: 'Add funds to the given account. Scope: "host".',
   args: {
     fromAccount: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'The account that will be used as the source of the funds',
     },
     account: {
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
       description: 'The account that will receive the funds',
     },
     tier: {
-      type: TierReferenceInput,
+      type: GraphQLTierReferenceInput,
       description: 'The tier to which the funds will be added',
     },
     amount: {
-      type: new GraphQLNonNull(AmountInput),
+      type: new GraphQLNonNull(GraphQLAmountInput),
       description: 'The total amount of the order, including taxes',
     },
     hostFeePercent: {

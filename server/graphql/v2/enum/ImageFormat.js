@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const ImageFormat = new GraphQLEnumType({
+export const GraphQLImageFormat = new GraphQLEnumType({
   name: 'ImageFormat',
   values: {
     txt: {},

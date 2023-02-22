@@ -12,7 +12,7 @@ import { mapValues } from 'lodash';
 
 import { getExpenseCreateInputFields } from './ExpenseCreateInput';
 
-const ExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
+const GraphQLExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
   name: 'ExpenseInviteeOrganizationInput',
   fields: () => ({
     description: { type: GraphQLString },
@@ -22,7 +22,7 @@ const ExpenseInviteeOrganizationInput = new GraphQLInputObjectType({
   }),
 });
 
-const ExpenseInvitee = new GraphQLInputObjectType({
+const GraphQLExpenseInvitee = new GraphQLInputObjectType({
   name: 'ExpenseInvitee',
   fields: () => ({
     // TODO: This field is not matching the standard with have in other objects (id (string) + legacyId (number)) which forces us to use advanced conditions in the frontend
@@ -32,7 +32,7 @@ const ExpenseInvitee = new GraphQLInputObjectType({
     name: { type: GraphQLString },
     email: { type: GraphQLString },
     isInvite: { type: GraphQLBoolean },
-    organization: { type: ExpenseInviteeOrganizationInput },
+    organization: { type: GraphQLExpenseInviteeOrganizationInput },
   }),
 });
 
@@ -42,7 +42,7 @@ const UNTOUCHED_FIELDS = ['type'];
 /**
  * Input type to use as the type for the expense input in createExpense mutation.
  */
-export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
+export const GraphQLExpenseInviteDraftInput = new GraphQLInputObjectType({
   name: 'ExpenseInviteDraftInput',
   fields: () => ({
     ...mapValues(getExpenseCreateInputFields(), (field: GraphQLInputFieldConfig, fieldName: string) => ({
@@ -56,7 +56,7 @@ export const ExpenseInviteDraftInput = new GraphQLInputObjectType({
       description: 'Note to be sent to the invited user through email.',
     },
     payee: {
-      type: new GraphQLNonNull(ExpenseInvitee),
+      type: new GraphQLNonNull(GraphQLExpenseInvitee),
       description: 'Account to reimburse',
     },
     // Override some fields to JSON to make their attributes optional

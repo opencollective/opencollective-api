@@ -7,23 +7,23 @@ import { Collective } from '../../../models';
 import Agreement from '../../../models/Agreement';
 import { hostResolver } from '../../common/collective';
 import { Unauthorized } from '../../errors';
-import { AgreementCollection } from '../collection/AgreementCollection';
-import { HostFeeStructure } from '../enum/HostFeeStructure';
-import { PaymentMethodService } from '../enum/PaymentMethodService';
-import { PaymentMethodType } from '../enum/PaymentMethodType';
-import { Host } from '../object/Host';
+import { GraphQLAgreementCollection } from '../collection/AgreementCollection';
+import { GraphQLHostFeeStructure } from '../enum/HostFeeStructure';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLHost } from '../object/Host';
 
 import { CollectionArgs } from './Collection';
 
 export const AccountWithHostFields = {
   host: {
     description: 'Returns the Fiscal Host',
-    type: Host,
+    type: GraphQLHost,
     resolve: hostResolver,
   },
   hostFeesStructure: {
     description: 'Describe how the host charges the collective',
-    type: HostFeeStructure,
+    type: GraphQLHostFeeStructure,
     resolve: (account: Collective): HOST_FEE_STRUCTURE | null => {
       if (!account.HostCollectiveId) {
         return null;
@@ -38,8 +38,8 @@ export const AccountWithHostFields = {
     description: 'Fees percentage that the host takes for this collective',
     type: GraphQLFloat,
     args: {
-      paymentMethodService: { type: PaymentMethodService },
-      paymentMethodType: { type: PaymentMethodType },
+      paymentMethodService: { type: GraphQLPaymentMethodService },
+      paymentMethodType: { type: GraphQLPaymentMethodType },
     },
     async resolve(account: Collective, args, req): Promise<number> {
       const parent = await req.loaders.Collective.parent.load(account);
@@ -125,7 +125,7 @@ export const AccountWithHostFields = {
     },
   },
   hostAgreements: {
-    type: new GraphQLNonNull(AgreementCollection),
+    type: new GraphQLNonNull(GraphQLAgreementCollection),
     description: 'Returns agreements this account has with its host',
     args: {
       ...CollectionArgs,
@@ -163,7 +163,7 @@ export const AccountWithHostFields = {
   },
 };
 
-export const AccountWithHost = new GraphQLInterfaceType({
+export const GraphQLAccountWithHost = new GraphQLInterfaceType({
   name: 'AccountWithHost',
   description: 'An account that can be hosted by a Host',
   fields: () => AccountWithHostFields,

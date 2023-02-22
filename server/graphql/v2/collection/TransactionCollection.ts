@@ -1,24 +1,24 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { PaymentMethodType } from '../enum/PaymentMethodType';
-import { TransactionKind } from '../enum/TransactionKind';
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Transaction } from '../interface/Transaction';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { GraphQLTransactionKind } from '../enum/TransactionKind';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLTransaction } from '../interface/Transaction';
 
-export const TransactionCollection = new GraphQLObjectType({
+export const GraphQLTransactionCollection = new GraphQLObjectType({
   name: 'TransactionCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of Transactions (Debit or Credit)',
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(Transaction),
+      type: new GraphQLList(GraphQLTransaction),
     },
     kinds: {
-      type: new GraphQLList(TransactionKind),
+      type: new GraphQLList(GraphQLTransactionKind),
     },
     paymentMethodTypes: {
-      type: new GraphQLNonNull(new GraphQLList(PaymentMethodType)),
+      type: new GraphQLNonNull(new GraphQLList(GraphQLPaymentMethodType)),
       description: 'The types of payment methods used in this collection, regardless of the pagination',
     },
   }),

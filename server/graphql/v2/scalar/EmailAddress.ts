@@ -17,7 +17,7 @@ const validateAndFormat = (value: unknown) => {
  * A field whose value conforms to the standard internet email address format as specified in RFC822: https://www.w3.org/Protocols/rfc822/.
  * Inspired by https://github.com/Urigo/graphql-scalars/blob/master/src/scalars/EmailAddress.ts
  */
-const EmailAddress = new GraphQLScalarType({
+const GraphQLEmailAddress = new GraphQLScalarType({
   name: 'EmailAddress',
   description:
     'A field whose value conforms to the standard internet email address format as specified in RFC822: https://www.w3.org/Protocols/rfc822/.',
@@ -33,4 +33,4 @@ const EmailAddress = new GraphQLScalarType({
   },
 });
 
-export default EmailAddress;
+export default GraphQLEmailAddress;

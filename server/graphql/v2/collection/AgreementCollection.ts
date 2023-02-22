@@ -1,17 +1,17 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Agreement } from '../object/Agreement';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLAgreement } from '../object/Agreement';
 
-export const AgreementCollection = new GraphQLObjectType({
+export const GraphQLAgreementCollection = new GraphQLObjectType({
   name: 'AgreementCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Agreement"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(new GraphQLNonNull(Agreement)),
+        type: new GraphQLList(new GraphQLNonNull(GraphQLAgreement)),
       },
     };
   },

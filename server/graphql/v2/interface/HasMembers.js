@@ -6,28 +6,28 @@ import MemberRoles from '../../../constants/roles';
 import models, { Op, sequelize } from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
-import { MemberCollection } from '../collection/MemberCollection';
-import { AccountType, AccountTypeToModelMapping } from '../enum/AccountType';
-import { MemberRole } from '../enum/MemberRole';
-import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { GraphQLMemberCollection } from '../collection/MemberCollection';
+import { AccountTypeToModelMapping, GraphQLAccountType } from '../enum/AccountType';
+import { GraphQLMemberRole } from '../enum/MemberRole';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
 import MemberInvitationsQuery from '../query/MemberInvitationsQuery';
 import EmailAddress from '../scalar/EmailAddress';
 
 export const HasMembersFields = {
   members: {
     description: 'Get all members (admins, members, backers, followers)',
-    type: new GraphQLNonNull(MemberCollection),
+    type: new GraphQLNonNull(GraphQLMemberCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      role: { type: new GraphQLList(MemberRole) },
-      accountType: { type: new GraphQLList(AccountType) },
+      role: { type: new GraphQLList(GraphQLMemberRole) },
+      accountType: { type: new GraphQLList(GraphQLAccountType) },
       email: {
         type: EmailAddress,
         description: 'Admin only. To filter on the email address of a member, useful to check if a member exists.',
       },
       orderBy: {
-        type: new GraphQLNonNull(ChronologicalOrderInput),
+        type: new GraphQLNonNull(GraphQLChronologicalOrderInput),
         defaultValue: { field: 'createdAt', direction: 'ASC' },
         description: 'Order of the results',
       },

@@ -2,7 +2,7 @@ import { GraphQLEnumType } from 'graphql';
 
 import expenseStatus from '../../../constants/expense_status';
 
-const ExpenseStatusFilter = new GraphQLEnumType({
+const GraphQLExpenseStatusFilter = new GraphQLEnumType({
   name: 'ExpenseStatusFilter',
   description:
     'Describes the values allowed to filter expenses, namely all the expense statuses and the special "READY_TO_PAY" value.',
@@ -24,4 +24,4 @@ const ExpenseStatusFilter = new GraphQLEnumType({
   },
 });
 
-export default ExpenseStatusFilter;
+export default GraphQLExpenseStatusFilter;

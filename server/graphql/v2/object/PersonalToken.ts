@@ -1,12 +1,12 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { OAuthScope } from '../enum/OAuthScope';
+import { GraphQLOAuthScope } from '../enum/OAuthScope';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 
-import { Individual } from './Individual';
+import { GraphQLIndividual } from './Individual';
 
-export const PersonalToken = new GraphQLObjectType({
+export const GraphQLPersonalToken = new GraphQLObjectType({
   name: 'PersonalToken',
   description: 'A personal token',
   fields: () => ({
@@ -28,11 +28,11 @@ export const PersonalToken = new GraphQLObjectType({
       description: 'The date on which the personal token expires',
     },
     scope: {
-      type: new GraphQLList(OAuthScope),
+      type: new GraphQLList(GraphQLOAuthScope),
       description: 'The scopes of the personal token',
     },
     account: {
-      type: new GraphQLNonNull(Individual),
+      type: new GraphQLNonNull(GraphQLIndividual),
       description: 'The account that owns this personal token',
       resolve: async (personalToken, _, req): Promise<Record<string, unknown>> => {
         return req.loaders.Collective.byId.load(personalToken.CollectiveId);

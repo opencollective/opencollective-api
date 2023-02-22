@@ -9,16 +9,19 @@ import PersonalTokenModel from '../../../models/PersonalToken';
 import { checkRemoteUserCanUseApplications } from '../../common/scope-check';
 import { Forbidden, NotFound, RateLimitExceeded } from '../../errors';
 import { fetchAccountWithReference } from '../input/AccountReferenceInput.js';
-import { PersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
-import { fetchPersonalTokenWithReference, PersonalTokenReferenceInput } from '../input/PersonalTokenReferenceInput';
-import { PersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInput';
-import { PersonalToken } from '../object/PersonalToken';
+import { GraphQLPersonalTokenCreateInput } from '../input/PersonalTokenCreateInput';
+import {
+  fetchPersonalTokenWithReference,
+  GraphQLPersonalTokenReferenceInput,
+} from '../input/PersonalTokenReferenceInput';
+import { GraphQLPersonalTokenUpdateInput } from '../input/PersonalTokenUpdateInput';
+import { GraphQLPersonalToken } from '../object/PersonalToken';
 
 const createPersonalToken = {
-  type: PersonalToken,
+  type: GraphQLPersonalToken,
   args: {
     personalToken: {
-      type: new GraphQLNonNull(PersonalTokenCreateInput),
+      type: new GraphQLNonNull(GraphQLPersonalTokenCreateInput),
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
@@ -54,10 +57,10 @@ const createPersonalToken = {
 };
 
 const updatePersonalToken = {
-  type: PersonalToken,
+  type: GraphQLPersonalToken,
   args: {
     personalToken: {
-      type: new GraphQLNonNull(PersonalTokenUpdateInput),
+      type: new GraphQLNonNull(GraphQLPersonalTokenUpdateInput),
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<PersonalTokenModel> {
@@ -79,10 +82,10 @@ const updatePersonalToken = {
 };
 
 const deletePersonalToken = {
-  type: PersonalToken,
+  type: GraphQLPersonalToken,
   args: {
     personalToken: {
-      type: new GraphQLNonNull(PersonalTokenReferenceInput),
+      type: new GraphQLNonNull(GraphQLPersonalTokenReferenceInput),
     },
   },
   async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {

@@ -7,7 +7,7 @@ import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order_status';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
-import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
+import { GraphQLProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
 import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
@@ -169,7 +169,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         const randomUser = await fakeUser();
         const unauthorizedUsers = [null, randomUser, collectiveAdmin];
 
-        const actionsDetails = ProcessHostApplicationAction['_values'];
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
         for (const actionDetails of actionsDetails) {
           const action = actionDetails.value;
           for (const unauthorizedUser of unauthorizedUsers) {
@@ -189,7 +189,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         // Initialize the collective to not have an active application
         await collective.update({ isActive: false, approvedAt: new Date(), HostCollectiveId: null });
 
-        const actionsDetails = ProcessHostApplicationAction['_values'];
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
         for (const actionDetails of actionsDetails) {
           const action = actionDetails.value;
           const result = await callProcessAction({ action }, hostAdmin);
@@ -203,7 +203,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         await collective.update({ isActive: true, approvedAt: new Date(), HostCollectiveId: host.id });
         await application.update({ status: 'APPROVED' });
 
-        const actionsDetails = ProcessHostApplicationAction['_values'];
+        const actionsDetails = GraphQLProcessHostApplicationAction['_values'];
         for (const actionDetails of actionsDetails) {
           const action = actionDetails.value;
           const result = await callProcessAction({ action }, hostAdmin);

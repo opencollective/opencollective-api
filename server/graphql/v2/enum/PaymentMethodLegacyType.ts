@@ -21,7 +21,7 @@ export enum PaymentMethodLegacyTypeEnum {
   BANCONTACT = 'BANCONTACT',
 }
 
-export const PaymentMethodLegacyType = new GraphQLEnumType({
+export const GraphQLPaymentMethodLegacyType = new GraphQLEnumType({
   name: 'PaymentMethodLegacyType',
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore `deprecationReason` is not yet exposed by graphql but it does exist

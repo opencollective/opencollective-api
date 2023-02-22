@@ -6,7 +6,7 @@ import URL from '../scalar/URL';
 /**
  * To create or edit an expense item
  */
-export const ExpenseItemInput = new GraphQLInputObjectType({
+export const GraphQLExpenseItemInput = new GraphQLInputObjectType({
   name: 'ExpenseItemInput',
   fields: () => ({
     id: {

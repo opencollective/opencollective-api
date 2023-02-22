@@ -1,17 +1,17 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { TagStats } from '../object/TagStats';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLTagStats } from '../object/TagStats';
 
-export const TagStatsCollection = new GraphQLObjectType({
+export const GraphQLTagStatsCollection = new GraphQLObjectType({
   name: 'TagStatsCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Tags"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(TagStats),
+        type: new GraphQLList(GraphQLTagStats),
       },
     };
   },

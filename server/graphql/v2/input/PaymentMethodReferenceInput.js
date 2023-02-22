@@ -4,7 +4,7 @@ import models from '../../../models';
 import { NotFound } from '../../errors';
 import { idDecode } from '../identifiers';
 
-export const PaymentMethodReferenceInput = new GraphQLInputObjectType({
+export const GraphQLPaymentMethodReferenceInput = new GraphQLInputObjectType({
   name: 'PaymentMethodReferenceInput',
   fields: () => ({
     id: {

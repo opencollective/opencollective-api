@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const MemberRole = new GraphQLEnumType({
+export const GraphQLMemberRole = new GraphQLEnumType({
   name: 'MemberRole',
   description: 'All member roles',
   values: {

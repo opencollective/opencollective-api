@@ -1,12 +1,12 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-import { ConnectedAccountService } from '../enum/ConnectedAccountService';
+import { GraphQLConnectedAccountService } from '../enum/ConnectedAccountService';
 
 /**
  * An input for ConnectedAccount that can be used for either editing or creating.
  */
-const ConnectedAccountCreateInput = new GraphQLInputObjectType({
+export const GraphQLConnectedAccountCreateInput = new GraphQLInputObjectType({
   name: 'ConnectedAccountCreateInput',
   fields: () => ({
     clientId: {
@@ -30,7 +30,7 @@ const ConnectedAccountCreateInput = new GraphQLInputObjectType({
       description: 'Secret token used to call service',
     },
     service: {
-      type: ConnectedAccountService,
+      type: GraphQLConnectedAccountService,
       description: 'Service which the connected account belongs to',
     },
     username: {
@@ -39,5 +39,3 @@ const ConnectedAccountCreateInput = new GraphQLInputObjectType({
     },
   }),
 });
-
-export { ConnectedAccountCreateInput };

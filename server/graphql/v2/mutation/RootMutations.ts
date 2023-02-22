@@ -23,19 +23,19 @@ import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import { archiveCollective, unarchiveCollective } from '../../v1/mutations/collectives';
-import { AccountCacheType } from '../enum/AccountCacheType';
+import { GraphQLAccountCacheType } from '../enum/AccountCacheType';
 import {
-  AccountReferenceInput,
   fetchAccountsWithReferences,
   fetchAccountWithReference,
+  GraphQLAccountReferenceInput,
 } from '../input/AccountReferenceInput';
-import { ExpenseReferenceInput, fetchExpensesWithReferences } from '../input/ExpenseReferenceInput';
-import { Account } from '../interface/Account';
-import { Expense } from '../object/Expense';
-import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
+import { fetchExpensesWithReferences, GraphQLExpenseReferenceInput } from '../input/ExpenseReferenceInput';
+import { GraphQLAccount } from '../interface/Account';
+import { GraphQLExpense } from '../object/Expense';
+import { GraphQLMergeAccountsResponse } from '../object/MergeAccountsResponse';
 import URL from '../scalar/URL';
 
-const BanAccountResponse = new GraphQLObjectType({
+const GraphQLBanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
   fields: () => ({
     isAllowed: {
@@ -47,7 +47,7 @@ const BanAccountResponse = new GraphQLObjectType({
       description: 'A summary of the changes',
     },
     accounts: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Account))),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccount))),
       description: 'The accounts impacted by the mutation',
     },
   }),
@@ -58,11 +58,11 @@ const BanAccountResponse = new GraphQLObjectType({
  */
 export default {
   editAccountFlags: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: '[Root only] Edits account flags (deleted, banned, archived, trusted host)',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to change the flags for',
       },
       isArchived: {
@@ -108,11 +108,11 @@ export default {
     },
   },
   editAccountType: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: '[Root only] Edits account type from User to Organization',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to change the type for',
       },
     },
@@ -162,15 +162,15 @@ export default {
     },
   },
   clearCacheForAccount: {
-    type: new GraphQLNonNull(Account),
+    type: new GraphQLNonNull(GraphQLAccount),
     description: '[Root only] Clears the cache for a given account',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to clear the cache for',
       },
       type: {
-        type: new GraphQLNonNull(new GraphQLList(AccountCacheType)),
+        type: new GraphQLNonNull(new GraphQLList(GraphQLAccountCacheType)),
         description: 'Types of cache to clear',
         defaultValue: ['CLOUDFLARE', 'GRAPHQL_QUERIES', 'CONTRIBUTORS'],
       },
@@ -199,15 +199,15 @@ export default {
     },
   },
   mergeAccounts: {
-    type: new GraphQLNonNull(MergeAccountsResponse),
+    type: new GraphQLNonNull(GraphQLMergeAccountsResponse),
     description: '[Root only] Merge two accounts, returns the result account',
     args: {
       fromAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to merge from',
       },
       toAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account to merge to',
       },
       dryRun: {
@@ -239,11 +239,11 @@ export default {
     },
   },
   banAccount: {
-    type: new GraphQLNonNull(BanAccountResponse),
+    type: new GraphQLNonNull(GraphQLBanAccountResponse),
     description: '[Root only] Ban accounts',
     args: {
       account: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(AccountReferenceInput))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLAccountReferenceInput))),
         description: 'Account(s) to ban',
       },
       includeAssociatedAccounts: {
@@ -285,15 +285,15 @@ export default {
     },
   },
   moveExpenses: {
-    type: new GraphQLNonNull(new GraphQLList(Expense)),
+    type: new GraphQLNonNull(new GraphQLList(GraphQLExpense)),
     description: '[Root only] A mutation to move expenses from one account to another',
     args: {
       expenses: {
-        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExpenseReferenceInput))),
+        type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseReferenceInput))),
         description: 'The orders to move',
       },
       destinationAccount: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'The account to move the expenses to. This must be a non USER account.',
       },
     },
@@ -322,7 +322,7 @@ export default {
     description: '[Root only] A mutation to set the tax from for an account.',
     args: {
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Reference to the Account the tax form should be set.',
       },
       taxFormLink: {

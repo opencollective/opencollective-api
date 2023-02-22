@@ -8,50 +8,54 @@ import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
-import { CollectiveFeatures } from '../../common/CollectiveFeatures';
+import { GraphQLCollectiveFeatures } from '../../common/CollectiveFeatures';
 import { allowContextPermission, getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkRemoteUserCanUseAccount, checkScope } from '../../common/scope-check';
 import { BadRequest } from '../../errors';
-import { AccountCollection } from '../collection/AccountCollection';
-import { ConversationCollection } from '../collection/ConversationCollection';
-import { MemberCollection, MemberOfCollection } from '../collection/MemberCollection';
-import { OAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
-import { OrderCollection } from '../collection/OrderCollection';
-import { TransactionCollection } from '../collection/TransactionCollection';
-import { UpdateCollection } from '../collection/UpdateCollection';
-import { VirtualCardCollection } from '../collection/VirtualCardCollection';
-import { WebhookCollection, WebhookCollectionArgs, WebhookCollectionResolver } from '../collection/WebhookCollection';
-import { AccountType, AccountTypeToModelMapping, ImageFormat, MemberRole } from '../enum';
-import { ActivityChannel } from '../enum/ActivityChannel';
-import { ExpenseType } from '../enum/ExpenseType';
-import { PaymentMethodService } from '../enum/PaymentMethodService';
-import { PaymentMethodType } from '../enum/PaymentMethodType';
-import { idEncode } from '../identifiers';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ChronologicalOrderInput } from '../input/ChronologicalOrderInput';
-import { ORDER_BY_PSEUDO_FIELDS, OrderByInput } from '../input/OrderByInput';
+import { GraphQLAccountCollection } from '../collection/AccountCollection';
+import { GraphQLConversationCollection } from '../collection/ConversationCollection';
+import { GraphQLMemberCollection, GraphQLMemberOfCollection } from '../collection/MemberCollection';
+import { GraphQLOAuthApplicationCollection } from '../collection/OAuthApplicationCollection';
+import { GraphQLOrderCollection } from '../collection/OrderCollection';
+import { GraphQLTransactionCollection } from '../collection/TransactionCollection';
+import { GraphQLUpdateCollection } from '../collection/UpdateCollection';
+import { GraphQLVirtualCardCollection } from '../collection/VirtualCardCollection';
 import {
+  GraphQLWebhookCollection,
+  WebhookCollectionArgs,
+  WebhookCollectionResolver,
+} from '../collection/WebhookCollection';
+import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLImageFormat, GraphQLMemberRole } from '../enum';
+import { GraphQLActivityChannel } from '../enum/ActivityChannel';
+import { GraphQLExpenseType } from '../enum/ExpenseType';
+import { GraphQLPaymentMethodService } from '../enum/PaymentMethodService';
+import { GraphQLPaymentMethodType } from '../enum/PaymentMethodType';
+import { idEncode } from '../identifiers';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLChronologicalOrderInput } from '../input/ChronologicalOrderInput';
+import { GraphQLOrderByInput, ORDER_BY_PSEUDO_FIELDS } from '../input/OrderByInput';
+import {
+  GraphQLUpdateChronologicalOrderInput,
   UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
-  UpdateChronologicalOrderInput,
 } from '../input/UpdateChronologicalOrderInput';
-import AccountPermissions from '../object/AccountPermissions';
-import { AccountStats } from '../object/AccountStats';
-import { ActivitySubscription } from '../object/ActivitySubscription';
-import { ConnectedAccount } from '../object/ConnectedAccount';
-import { Location } from '../object/Location';
-import { MemberInvitation } from '../object/MemberInvitation';
-import { PaymentMethod } from '../object/PaymentMethod';
-import PayoutMethod from '../object/PayoutMethod';
-import { Policies } from '../object/Policies';
-import { SocialLink } from '../object/SocialLink';
-import { TagStats } from '../object/TagStats';
-import { TransferWise } from '../object/TransferWise';
+import GraphQLAccountPermissions from '../object/AccountPermissions';
+import { GraphQLAccountStats } from '../object/AccountStats';
+import { GraphQLActivitySubscription } from '../object/ActivitySubscription';
+import { GraphQLConnectedAccount } from '../object/ConnectedAccount';
+import { GraphQLLocation } from '../object/Location';
+import { GraphQLMemberInvitation } from '../object/MemberInvitation';
+import { GraphQLPaymentMethod } from '../object/PaymentMethod';
+import GraphQLPayoutMethod from '../object/PayoutMethod';
+import { GraphQLPolicies } from '../object/Policies';
+import { GraphQLSocialLink } from '../object/SocialLink';
+import { GraphQLTagStats } from '../object/TagStats';
+import { GraphQLTransferWise } from '../object/TransferWise';
 import { OrdersCollectionArgs, OrdersCollectionResolver } from '../query/collection/OrdersCollectionQuery';
 import {
   TransactionsCollectionArgs,
   TransactionsCollectionResolver,
 } from '../query/collection/TransactionsCollectionQuery';
-import EmailAddress from '../scalar/EmailAddress';
+import GraphQLEmailAddress from '../scalar/EmailAddress';
 
 import { CollectionArgs } from './Collection';
 import { HasMembersFields } from './HasMembers';
@@ -72,7 +76,7 @@ const accountFieldsDefinition = () => ({
     description: 'The slug identifying the account (ie: babel)',
   },
   type: {
-    type: new GraphQLNonNull(AccountType),
+    type: new GraphQLNonNull(GraphQLAccountType),
     description: 'The type of the account (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL/VENDOR)',
   },
   name: {
@@ -130,7 +134,7 @@ const accountFieldsDefinition = () => ({
     deprecationReason: '2023-01-16: Please use socialLinks',
   },
   socialLinks: {
-    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(SocialLink))),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLSocialLink))),
     async resolve(collective, _, req) {
       return req.loaders.SocialLink.byCollectiveId.load(collective.id);
     },
@@ -150,7 +154,7 @@ const accountFieldsDefinition = () => ({
     args: {
       height: { type: GraphQLInt },
       format: {
-        type: ImageFormat,
+        type: GraphQLImageFormat,
       },
     },
   },
@@ -159,7 +163,7 @@ const accountFieldsDefinition = () => ({
     args: {
       height: { type: GraphQLInt },
       format: {
-        type: ImageFormat,
+        type: GraphQLImageFormat,
       },
     },
   },
@@ -192,7 +196,7 @@ const accountFieldsDefinition = () => ({
     description: 'Returns true if the remote user is an admin of this account',
   },
   parentAccount: {
-    type: Account,
+    type: GraphQLAccount,
     deprecationReason: '2022-12-16: use parent on AccountWithParent instead',
     async resolve(collective, _, req) {
       if (!collective.ParentCollectiveId) {
@@ -203,17 +207,17 @@ const accountFieldsDefinition = () => ({
     },
   },
   members: {
-    type: new GraphQLNonNull(MemberCollection),
+    type: new GraphQLNonNull(GraphQLMemberCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      role: { type: new GraphQLList(MemberRole) },
+      role: { type: new GraphQLList(GraphQLMemberRole) },
       email: {
-        type: EmailAddress,
+        type: GraphQLEmailAddress,
         description: 'Admin only. To filter on the email address of a member, useful to check if a member exists.',
       },
       accountType: {
-        type: new GraphQLList(AccountType),
+        type: new GraphQLList(GraphQLAccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
       includeInherited: {
@@ -224,17 +228,17 @@ const accountFieldsDefinition = () => ({
   },
   memberInvitations: {
     description: 'Get pending member invitations for this account',
-    type: new GraphQLList(MemberInvitation),
+    type: new GraphQLList(GraphQLMemberInvitation),
     args: {
-      role: { type: new GraphQLList(MemberRole) },
+      role: { type: new GraphQLList(GraphQLMemberRole) },
     },
   },
   memberOf: {
-    type: MemberOfCollection,
+    type: GraphQLMemberOfCollection,
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
-      role: { type: new GraphQLList(MemberRole) },
+      role: { type: new GraphQLList(GraphQLMemberRole) },
       isApproved: {
         type: GraphQLBoolean,
         description: 'Filter on (un)approved collectives',
@@ -244,15 +248,15 @@ const accountFieldsDefinition = () => ({
         description: 'Filter on archived collectives',
       },
       accountType: {
-        type: new GraphQLList(AccountType),
+        type: new GraphQLList(GraphQLAccountType),
         description: 'Type of accounts (BOT/COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
       account: {
-        type: AccountReferenceInput,
+        type: GraphQLAccountReferenceInput,
         description: 'Specific account to query the membership of.',
       },
       orderBy: {
-        type: new GraphQLNonNull(OrderByInput),
+        type: new GraphQLNonNull(GraphQLOrderByInput),
         defaultValue: { field: ORDER_BY_PSEUDO_FIELDS.CREATED_AT, direction: 'DESC' },
       },
       orderByRoles: {
@@ -262,18 +266,18 @@ const accountFieldsDefinition = () => ({
     },
   },
   emails: {
-    type: new GraphQLList(new GraphQLNonNull(EmailAddress)),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
       'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
   },
   transactions: {
-    type: new GraphQLNonNull(TransactionCollection),
+    type: new GraphQLNonNull(GraphQLTransactionCollection),
     args: {
       ...TransactionsCollectionArgs,
     },
   },
   orders: {
-    type: new GraphQLNonNull(OrderCollection),
+    type: new GraphQLNonNull(GraphQLOrderCollection),
     args: {
       ...OrdersCollectionArgs,
     },
@@ -282,7 +286,7 @@ const accountFieldsDefinition = () => ({
     type: new GraphQLNonNull(GraphQLJSON),
   },
   conversations: {
-    type: new GraphQLNonNull(ConversationCollection),
+    type: new GraphQLNonNull(GraphQLConversationCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 15 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -293,21 +297,21 @@ const accountFieldsDefinition = () => ({
     },
   },
   conversationsTags: {
-    type: new GraphQLList(TagStats),
+    type: new GraphQLList(GraphQLTagStats),
     description: "Returns conversation's tags for collective sorted by popularity",
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
   },
   expensesTags: {
-    type: new GraphQLList(TagStats),
+    type: new GraphQLList(GraphQLTagStats),
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
     },
   },
   supportedExpenseTypes: {
-    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(ExpenseType))),
+    type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLExpenseType))),
     description: 'The list of expense types supported by this account',
     async resolve(collective, _, req) {
       const host = collective.HostCollectiveId && (await req.loaders.Collective.byId.load(collective.HostCollectiveId));
@@ -322,7 +326,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   transferwise: {
-    type: TransferWise,
+    type: GraphQLTransferWise,
     async resolve(collective) {
       const connectedAccount = await models.ConnectedAccount.findOne({
         where: { service: 'transferwise', CollectiveId: collective.id },
@@ -335,24 +339,24 @@ const accountFieldsDefinition = () => ({
     },
   },
   payoutMethods: {
-    type: new GraphQLList(PayoutMethod),
+    type: new GraphQLList(GraphQLPayoutMethod),
     description: 'The list of payout methods that this account can use to get paid',
   },
   paymentMethods: {
-    type: new GraphQLList(PaymentMethod),
+    type: new GraphQLList(GraphQLPaymentMethod),
     description: 'The list of payment methods that this account can use to pay for Orders',
     args: {
       type: {
-        type: new GraphQLList(PaymentMethodType),
+        type: new GraphQLList(GraphQLPaymentMethodType),
         description: 'Filter on given types (CREDITCARD, GIFTCARD...)',
       },
       enumType: {
-        type: new GraphQLList(PaymentMethodType),
+        type: new GraphQLList(GraphQLPaymentMethodType),
         description: 'Filter on given types (CREDITCARD, GIFTCARD...)',
         deprecationReason: '2021-08-20: use type instead from now',
       },
       service: {
-        type: new GraphQLList(PaymentMethodService),
+        type: new GraphQLList(GraphQLPaymentMethodService),
         description: 'Filter on the given service types (opencollective, stripe, paypal...)',
       },
       includeExpired: {
@@ -363,16 +367,16 @@ const accountFieldsDefinition = () => ({
     },
   },
   paymentMethodsWithPendingConfirmation: {
-    type: new GraphQLList(PaymentMethod),
+    type: new GraphQLList(GraphQLPaymentMethod),
     description:
       'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
   },
   connectedAccounts: {
-    type: new GraphQLList(ConnectedAccount),
+    type: new GraphQLList(GraphQLConnectedAccount),
     description: 'The list of connected accounts (Stripe, Twitter, etc ...)',
   },
   oAuthApplications: {
-    type: OAuthApplicationCollection,
+    type: GraphQLOAuthApplicationCollection,
     description: 'The list of applications created by this account. Admin only. Scope: "applications".',
     args: {
       ...CollectionArgs,
@@ -390,7 +394,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   location: {
-    type: Location,
+    type: GraphQLLocation,
     description: 'The address associated to this account. This field is always public for collectives and events.',
     async resolve(collective, _, req) {
       return req.loaders.Location.byCollectiveId.load(collective.id);
@@ -401,13 +405,13 @@ const accountFieldsDefinition = () => ({
     description: 'Categories set by Open Collective to help moderation.',
   },
   stats: {
-    type: AccountStats,
+    type: GraphQLAccountStats,
     resolve(collective) {
       return collective;
     },
   },
   updates: {
-    type: new GraphQLNonNull(UpdateCollection),
+    type: new GraphQLNonNull(GraphQLUpdateCollection),
     description:
       'Updates published by the account. To see unpublished updates, you need to be an admin and have the scope "updates".',
     args: {
@@ -419,7 +423,7 @@ const accountFieldsDefinition = () => ({
       },
       onlyChangelogUpdates: { type: GraphQLBoolean },
       orderBy: {
-        type: new GraphQLNonNull(UpdateChronologicalOrderInput),
+        type: new GraphQLNonNull(GraphQLUpdateChronologicalOrderInput),
         defaultValue: UPDATE_CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE,
       },
       searchTerm: { type: GraphQLString },
@@ -461,20 +465,20 @@ const accountFieldsDefinition = () => ({
     },
   },
   features: {
-    type: new GraphQLNonNull(CollectiveFeatures),
+    type: new GraphQLNonNull(GraphQLCollectiveFeatures),
     description: 'Describes the features enabled and available for this account',
     resolve(collective) {
       return collective;
     },
   },
   virtualCards: {
-    type: VirtualCardCollection,
+    type: GraphQLVirtualCardCollection,
     description: 'Virtual Cards attached to the account. Admin only. Scope: "virtualCards".',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       state: { type: GraphQLString, defaultValue: null },
-      merchantAccount: { type: AccountReferenceInput, defaultValue: null },
+      merchantAccount: { type: GraphQLAccountReferenceInput, defaultValue: null },
       dateFrom: {
         type: GraphQLDateTime,
         defaultValue: null,
@@ -486,8 +490,8 @@ const accountFieldsDefinition = () => ({
         description: 'Only return expenses that were created before this date',
       },
       orderBy: {
-        type: ChronologicalOrderInput,
-        defaultValue: ChronologicalOrderInput.defaultValue,
+        type: GraphQLChronologicalOrderInput,
+        defaultValue: GraphQLChronologicalOrderInput.defaultValue,
       },
     },
     async resolve(account, args, req) {
@@ -549,7 +553,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   virtualCardMerchants: {
-    type: AccountCollection,
+    type: GraphQLAccountCollection,
     description: 'Virtual Cards Merchants used by the account. Admin only. Scope: "virtualCards".',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
@@ -594,12 +598,12 @@ const accountFieldsDefinition = () => ({
     },
   },
   childrenAccounts: {
-    type: new GraphQLNonNull(AccountCollection),
+    type: new GraphQLNonNull(GraphQLAccountCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
       accountType: {
-        type: new GraphQLList(AccountType),
+        type: new GraphQLList(GraphQLAccountType),
       },
     },
     async resolve(account, args) {
@@ -631,7 +635,7 @@ const accountFieldsDefinition = () => ({
     },
   },
   policies: {
-    type: new GraphQLNonNull(Policies),
+    type: new GraphQLNonNull(GraphQLPolicies),
     description:
       'Policies for the account. To see non-public policies you need to be admin and have the scope: "account".',
     async resolve(account) {
@@ -639,11 +643,11 @@ const accountFieldsDefinition = () => ({
     },
   },
   activitySubscriptions: {
-    type: new GraphQLList(ActivitySubscription),
+    type: new GraphQLList(GraphQLActivitySubscription),
     description: 'List of activities that the logged-in user is subscribed for this collective',
     args: {
       channel: {
-        type: ActivityChannel,
+        type: GraphQLActivityChannel,
       },
     },
     async resolve(collective, args, req) {
@@ -661,19 +665,19 @@ const accountFieldsDefinition = () => ({
     },
   },
   permissions: {
-    type: new GraphQLNonNull(AccountPermissions),
+    type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
   },
 });
 
-export const Account = new GraphQLInterfaceType({
+export const GraphQLAccount = new GraphQLInterfaceType({
   name: 'Account',
   description: 'Account interface shared by all kind of accounts (Bot, Collective, Event, User, Organization)',
   fields: accountFieldsDefinition,
 });
 
 const accountTransactions = {
-  type: new GraphQLNonNull(TransactionCollection),
+  type: new GraphQLNonNull(GraphQLTransactionCollection),
   args: {
     ...TransactionsCollectionArgs,
   },
@@ -683,7 +687,7 @@ const accountTransactions = {
 };
 
 const accountOrders = {
-  type: new GraphQLNonNull(OrderCollection),
+  type: new GraphQLNonNull(GraphQLOrderCollection),
   args: {
     ...OrdersCollectionArgs,
   },
@@ -693,7 +697,7 @@ const accountOrders = {
 };
 
 const accountWebhooks = {
-  type: new GraphQLNonNull(WebhookCollection),
+  type: new GraphQLNonNull(GraphQLWebhookCollection),
   args: {
     ...WebhookCollectionArgs,
   },
@@ -717,7 +721,7 @@ export const AccountFields = {
     },
   },
   type: {
-    type: new GraphQLNonNull(AccountType),
+    type: new GraphQLNonNull(GraphQLAccountType),
     resolve(collective) {
       return invert(AccountTypeToModelMapping)[collective.type];
     },
@@ -727,7 +731,7 @@ export const AccountFields = {
     args: {
       height: { type: GraphQLInt },
       format: {
-        type: ImageFormat,
+        type: GraphQLImageFormat,
       },
     },
     resolve(collective, args) {
@@ -739,7 +743,7 @@ export const AccountFields = {
     args: {
       height: { type: GraphQLInt },
       format: {
-        type: ImageFormat,
+        type: GraphQLImageFormat,
       },
     },
     resolve(collective, args) {
@@ -783,7 +787,7 @@ export const AccountFields = {
   ...HasMembersFields,
   ...IsMemberOfFields,
   emails: {
-    type: new GraphQLList(new GraphQLNonNull(EmailAddress)),
+    type: new GraphQLList(new GraphQLNonNull(GraphQLEmailAddress)),
     description:
       'Returns the emails of the account. Individuals only have one, but organizations can have multiple emails.',
     async resolve(collective, _, req) {
@@ -795,7 +799,7 @@ export const AccountFields = {
   transactions: accountTransactions,
   orders: accountOrders,
   conversations: {
-    type: new GraphQLNonNull(ConversationCollection),
+    type: new GraphQLNonNull(GraphQLConversationCollection),
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 15 },
       offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
@@ -820,7 +824,7 @@ export const AccountFields = {
     },
   },
   conversationsTags: {
-    type: new GraphQLList(TagStats),
+    type: new GraphQLList(GraphQLTagStats),
     description: "Returns conversation's tags for collective sorted by popularity",
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
@@ -830,7 +834,7 @@ export const AccountFields = {
     },
   },
   expensesTags: {
-    type: new GraphQLList(TagStats),
+    type: new GraphQLList(GraphQLTagStats),
     description: 'Returns expense tags for collective sorted by popularity',
     args: {
       limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 30 },
@@ -840,7 +844,7 @@ export const AccountFields = {
     },
   },
   payoutMethods: {
-    type: new GraphQLList(PayoutMethod),
+    type: new GraphQLList(GraphQLPayoutMethod),
     description:
       'The list of payout methods that this collective can use to get paid. In most cases, admin only and scope: "expenses".',
     async resolve(collective, _, req) {
@@ -872,16 +876,16 @@ export const AccountFields = {
     },
   },
   paymentMethods: {
-    type: new GraphQLList(PaymentMethod),
+    type: new GraphQLList(GraphQLPaymentMethod),
     args: {
       type: {
-        type: new GraphQLList(PaymentMethodType),
+        type: new GraphQLList(GraphQLPaymentMethodType),
       },
       enumType: {
-        type: new GraphQLList(PaymentMethodType),
+        type: new GraphQLList(GraphQLPaymentMethodType),
         deprecationReason: '2021-08-20: use type instead from now',
       },
-      service: { type: new GraphQLList(PaymentMethodService) },
+      service: { type: new GraphQLList(GraphQLPaymentMethodService) },
       includeExpired: {
         type: GraphQLBoolean,
         description:
@@ -921,7 +925,7 @@ export const AccountFields = {
     },
   },
   paymentMethodsWithPendingConfirmation: {
-    type: new GraphQLList(PaymentMethod),
+    type: new GraphQLList(GraphQLPaymentMethod),
     description:
       'The list of payment methods for this account that are pending a client confirmation (3D Secure / SCA)',
     async resolve(collective, _, req) {
@@ -950,7 +954,7 @@ export const AccountFields = {
     },
   },
   connectedAccounts: {
-    type: new GraphQLList(ConnectedAccount),
+    type: new GraphQLList(GraphQLConnectedAccount),
     description: 'The list of connected accounts (Stripe, Twitter, etc ...). Admin only. Scope: "connectedAccounts".',
     // Only for admins, no pagination
     async resolve(collective, _, req) {
@@ -975,10 +979,10 @@ export const AccountFields = {
   },
   webhooks: accountWebhooks,
   permissions: {
-    type: new GraphQLNonNull(AccountPermissions),
+    type: new GraphQLNonNull(GraphQLAccountPermissions),
     description: 'Logged-in user permissions on an account',
     resolve: collective => collective, // Individual resolvers in `AccountPermissions`
   },
 };
 
-export default Account;
+export default GraphQLAccount;

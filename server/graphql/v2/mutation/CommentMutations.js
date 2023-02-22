@@ -3,20 +3,20 @@ import { GraphQLNonNull, GraphQLString } from 'graphql';
 import { mustBeLoggedInTo } from '../../../lib/auth';
 import { createComment, deleteComment, editComment } from '../../common/comment';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
-import { CommentCreateInput } from '../input/CommentCreateInput';
-import { CommentUpdateInput } from '../input/CommentUpdateInput';
+import { GraphQLCommentCreateInput } from '../input/CommentCreateInput';
+import { GraphQLCommentUpdateInput } from '../input/CommentUpdateInput';
 import { getConversationDatabaseIdFromReference } from '../input/ConversationReferenceInput';
 import { getDatabaseIdFromExpenseReference } from '../input/ExpenseReferenceInput';
 import { getDatabaseIdFromUpdateReference } from '../input/UpdateReferenceInput';
-import { Comment } from '../object/Comment';
+import { GraphQLComment } from '../object/Comment';
 
 const commentMutations = {
   editComment: {
-    type: Comment,
+    type: GraphQLComment,
     description: 'Edit a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
-        type: new GraphQLNonNull(CommentUpdateInput),
+        type: new GraphQLNonNull(GraphQLCommentUpdateInput),
       },
     },
     resolve(_, { comment }, req) {
@@ -25,7 +25,7 @@ const commentMutations = {
     },
   },
   deleteComment: {
-    type: Comment,
+    type: GraphQLComment,
     args: {
       id: {
         type: new GraphQLNonNull(GraphQLString),
@@ -37,11 +37,11 @@ const commentMutations = {
     },
   },
   createComment: {
-    type: Comment,
+    type: GraphQLComment,
     description: 'Create a comment. Scope: "conversations", "expenses" or "updates".',
     args: {
       comment: {
-        type: new GraphQLNonNull(CommentCreateInput),
+        type: new GraphQLNonNull(GraphQLCommentCreateInput),
       },
     },
     resolve: async (_, { comment }, req) => {

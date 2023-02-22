@@ -7,7 +7,7 @@ import Expense from '../../../models/Expense';
 import { NotFound } from '../../errors';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 
-const ExpenseReferenceInput = new GraphQLInputObjectType({
+const GraphQLExpenseReferenceInput = new GraphQLInputObjectType({
   name: 'ExpenseReferenceInput',
   fields: () => ({
     id: {
@@ -79,7 +79,7 @@ const fetchExpensesWithReferences = async (
 };
 
 export {
-  ExpenseReferenceInput,
+  GraphQLExpenseReferenceInput,
   fetchExpenseWithReference,
   fetchExpensesWithReferences,
   getDatabaseIdFromExpenseReference,

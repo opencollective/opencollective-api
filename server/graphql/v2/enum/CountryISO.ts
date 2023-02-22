@@ -262,7 +262,7 @@ Object.entries(COUNTRY_CODES).forEach(([code, name]) => {
  * Two-letters country code following ISO3166_1
  * Based on https://github.com/stems/graphql-iso-enums/blob/master/types/ISOTerritory.js
  */
-export const CountryISO = new GraphQLEnumType({
+export const GraphQLCountryISO = new GraphQLEnumType({
   name: 'CountryISO',
   description: 'Two-letters country code following ISO3166_1',
   values,

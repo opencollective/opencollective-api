@@ -1,7 +1,7 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-export const FundCreateInput = new GraphQLInputObjectType({
+export const GraphQLFundCreateInput = new GraphQLInputObjectType({
   name: 'FundCreateInput',
   fields: () => ({
     name: { type: new GraphQLNonNull(GraphQLString) },

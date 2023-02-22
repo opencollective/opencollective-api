@@ -1,7 +1,7 @@
 import { GraphQLFloat, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
 
-export const Location = new GraphQLObjectType({
+export const GraphQLLocation = new GraphQLObjectType({
   name: 'Location',
   description: 'Type for Geographic location',
   fields: () => ({

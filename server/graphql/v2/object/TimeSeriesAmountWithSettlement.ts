@@ -1,28 +1,28 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { TransactionSettlementStatus } from '../enum/TransactionSettlementStatus';
-import { getTimeSeriesFields, TimeSeries } from '../interface/TimeSeries';
+import { GraphQLTransactionSettlementStatus } from '../enum/TransactionSettlementStatus';
+import { getTimeSeriesFields, GraphQLTimeSeries } from '../interface/TimeSeries';
 
-import { Amount } from './Amount';
+import { GraphQLAmount } from './Amount';
 
-const TimeSeriesAmountWithSettlementNodes = new GraphQLObjectType({
+const GraphQLTimeSeriesAmountWithSettlementNodes = new GraphQLObjectType({
   name: 'TimeSeriesAmountWithSettlementNode',
   fields: () => ({
     date: { type: new GraphQLNonNull(GraphQLDateTime) },
-    amount: { type: new GraphQLNonNull(Amount) },
-    settlementStatus: { type: new GraphQLNonNull(TransactionSettlementStatus) },
+    amount: { type: new GraphQLNonNull(GraphQLAmount) },
+    settlementStatus: { type: new GraphQLNonNull(GraphQLTransactionSettlementStatus) },
   }),
 });
 
-export const TimeSeriesAmountWithSettlement = new GraphQLObjectType({
+export const GraphQLTimeSeriesAmountWithSettlement = new GraphQLObjectType({
   name: 'TimeSeriesAmountWithSettlement',
   description: 'Amounts with settlements time series',
-  interfaces: [TimeSeries],
+  interfaces: [GraphQLTimeSeries],
   fields: () => ({
     ...getTimeSeriesFields(),
     nodes: {
-      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(TimeSeriesAmountWithSettlementNodes))),
+      type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(GraphQLTimeSeriesAmountWithSettlementNodes))),
       description: 'Time series data points',
     },
   }),

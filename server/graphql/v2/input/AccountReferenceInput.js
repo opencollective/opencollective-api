@@ -21,12 +21,12 @@ const AccountReferenceInputFields = {
   },
 };
 
-export const AccountReferenceInput = new GraphQLInputObjectType({
+export const GraphQLAccountReferenceInput = new GraphQLInputObjectType({
   name: 'AccountReferenceInput',
   fields: () => AccountReferenceInputFields,
 });
 
-const NewAccountOrganizationInput = new GraphQLInputObjectType({
+const GraphQLNewAccountOrganizationInput = new GraphQLInputObjectType({
   name: 'NewAccountOrganizationInput',
   fields: () => ({
     name: { type: GraphQLString },
@@ -37,7 +37,7 @@ const NewAccountOrganizationInput = new GraphQLInputObjectType({
   }),
 });
 
-export const NewAccountOrReferenceInput = new GraphQLInputObjectType({
+export const GraphQLNewAccountOrReferenceInput = new GraphQLInputObjectType({
   name: 'NewAccountOrReferenceInput',
   fields: () => ({
     ...AccountReferenceInputFields,
@@ -51,7 +51,7 @@ export const NewAccountOrReferenceInput = new GraphQLInputObjectType({
       type: GraphQLString,
     },
     organization: {
-      type: NewAccountOrganizationInput,
+      type: GraphQLNewAccountOrganizationInput,
     },
     newsletterOptIn: {
       type: GraphQLBoolean,

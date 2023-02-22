@@ -8,9 +8,9 @@ import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { EventCreateInput } from '../input/EventCreateInput';
-import { Event } from '../object/Event';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLEventCreateInput } from '../input/EventCreateInput';
+import { GraphQLEvent } from '../object/Event';
 
 const DEFAULT_EVENT_SETTINGS = {};
 
@@ -56,16 +56,16 @@ async function createEvent(_, args, req) {
 }
 
 const createEventMutation = {
-  type: Event,
+  type: GraphQLEvent,
   description: 'Create an Event. Scope: "account".',
   args: {
     event: {
       description: 'Information about the Event to create (name, slug, description, tags, settings)',
-      type: new GraphQLNonNull(EventCreateInput),
+      type: new GraphQLNonNull(GraphQLEventCreateInput),
     },
     account: {
       description: 'Reference to the parent Account creating the Event.',
-      type: new GraphQLNonNull(AccountReferenceInput),
+      type: new GraphQLNonNull(GraphQLAccountReferenceInput),
     },
   },
   resolve: (_, args, req) => {

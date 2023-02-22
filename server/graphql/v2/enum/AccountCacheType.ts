@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const AccountCacheType = new GraphQLEnumType({
+export const GraphQLAccountCacheType = new GraphQLEnumType({
   name: 'AccountCacheType',
   values: {
     CLOUDFLARE: {},

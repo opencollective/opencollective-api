@@ -6,9 +6,9 @@ import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { Forbidden, NotFound } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { ProjectCreateInput } from '../input/ProjectCreateInput';
-import { Project } from '../object/Project';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { GraphQLProjectCreateInput } from '../input/ProjectCreateInput';
+import { GraphQLProject } from '../object/Project';
 
 const DEFAULT_PROJECT_SETTINGS = {
   collectivePage: {
@@ -79,16 +79,16 @@ async function createProject(_, args, req) {
 }
 
 const createProjectMutation = {
-  type: Project,
+  type: GraphQLProject,
   description: 'Create a Project. Scope: "account".',
   args: {
     project: {
       description: 'Information about the Project to create (name, slug, description, tags, settings)',
-      type: new GraphQLNonNull(ProjectCreateInput),
+      type: new GraphQLNonNull(GraphQLProjectCreateInput),
     },
     parent: {
       description: 'Reference to the parent Account creating the Project.',
-      type: AccountReferenceInput,
+      type: GraphQLAccountReferenceInput,
     },
   },
   resolve: (_, args, req) => {

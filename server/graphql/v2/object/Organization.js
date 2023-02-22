@@ -2,15 +2,15 @@ import { GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
-import { Account, AccountFields } from '../interface/Account';
-import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
+import { AccountFields, GraphQLAccount } from '../interface/Account';
+import { AccountWithContributionsFields, GraphQLAccountWithContributions } from '../interface/AccountWithContributions';
 
-import { Host } from './Host';
+import { GraphQLHost } from './Host';
 
-export const Organization = new GraphQLObjectType({
+export const GraphQLOrganization = new GraphQLObjectType({
   name: 'Organization',
   description: 'This represents an Organization account',
-  interfaces: () => [Account, AccountWithContributions],
+  interfaces: () => [GraphQLAccount, GraphQLAccountWithContributions],
   isTypeOf: collective => collective.type === 'ORGANIZATION',
   fields: () => {
     return {
@@ -44,7 +44,7 @@ export const Organization = new GraphQLObjectType({
         },
       },
       host: {
-        type: Host,
+        type: GraphQLHost,
         description: 'If the organization is a host account, this will return the matching Host object',
         resolve(collective) {
           if (collective.isHostAccount) {

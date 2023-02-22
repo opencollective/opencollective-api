@@ -2,10 +2,10 @@ import express from 'express';
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
-import { FileInfo } from '../interface/FileInfo';
+import { GraphQLFileInfo } from '../interface/FileInfo';
 import URL from '../scalar/URL';
 
-const ExpenseAttachedFile = new GraphQLObjectType({
+const GraphQLExpenseAttachedFile = new GraphQLObjectType({
   name: 'ExpenseAttachedFile',
   description: "Fields for an expense's attached file",
   fields: () => ({
@@ -18,7 +18,7 @@ const ExpenseAttachedFile = new GraphQLObjectType({
       type: URL,
     },
     info: {
-      type: FileInfo,
+      type: GraphQLFileInfo,
       description: 'The file info associated with this item (if any)',
       resolve(item, _, req: express.Request) {
         // Permission is checked in the parent resolver
@@ -44,4 +44,4 @@ const ExpenseAttachedFile = new GraphQLObjectType({
   }),
 });
 
-export default ExpenseAttachedFile;
+export default GraphQLExpenseAttachedFile;

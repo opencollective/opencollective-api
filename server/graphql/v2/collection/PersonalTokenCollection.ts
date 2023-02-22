@@ -1,16 +1,16 @@
 import { GraphQLList, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { PersonalToken } from '../object/PersonalToken';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLPersonalToken } from '../object/PersonalToken';
 
-export const PersonalTokenCollection = new GraphQLObjectType({
+export const GraphQLPersonalTokenCollection = new GraphQLObjectType({
   name: 'PersonalTokenCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "PersonalToken"',
   fields: () => ({
     ...CollectionFields,
     nodes: {
-      type: new GraphQLList(PersonalToken),
+      type: new GraphQLList(GraphQLPersonalToken),
     },
   }),
 });

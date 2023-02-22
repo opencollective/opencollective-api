@@ -1,17 +1,17 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
-import { Collection, CollectionFields } from '../interface/Collection';
-import { Activity } from '../object/Activity';
+import { CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLActivity } from '../object/Activity';
 
-export const ActivityCollection = new GraphQLObjectType({
+export const GraphQLActivityCollection = new GraphQLObjectType({
   name: 'ActivityCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of "Activities"',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(new GraphQLNonNull(Activity)),
+        type: new GraphQLList(new GraphQLNonNull(GraphQLActivity)),
       },
     };
   },

@@ -1,11 +1,11 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
-import { ActivityType } from '../enum';
+import { GraphQLActivityType } from '../enum';
 import { idEncode } from '../identifiers';
-import { Account } from '../interface/Account';
+import { GraphQLAccount } from '../interface/Account';
 import URL from '../scalar/URL';
 
-export const Webhook = new GraphQLObjectType({
+export const GraphQLWebhook = new GraphQLObjectType({
   name: 'Webhook',
   description: 'An webhook attached to an account',
   fields: () => ({
@@ -22,7 +22,7 @@ export const Webhook = new GraphQLObjectType({
       },
     },
     activityType: {
-      type: ActivityType,
+      type: GraphQLActivityType,
       resolve(notification) {
         return notification.type;
       },
@@ -34,7 +34,7 @@ export const Webhook = new GraphQLObjectType({
       },
     },
     account: {
-      type: new GraphQLNonNull(Account),
+      type: new GraphQLNonNull(GraphQLAccount),
       resolve(notification, args, req) {
         return req.loaders.Collective.byId.load(notification.CollectiveId);
       },

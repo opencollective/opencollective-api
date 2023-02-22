@@ -2,7 +2,7 @@ import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt } from 'graphql';
 import { isNil } from 'lodash';
 
 import { floatAmountToCents } from '../../../lib/math';
-import { Currency } from '../enum/Currency';
+import { GraphQLCurrency } from '../enum/Currency';
 
 export type AmountInputType = {
   value?: number;
@@ -10,7 +10,7 @@ export type AmountInputType = {
   valueInCents?: number;
 };
 
-export const AmountInput = new GraphQLInputObjectType({
+export const GraphQLAmountInput = new GraphQLInputObjectType({
   name: 'AmountInput',
   description: 'Input type for an amount with the value and currency',
   fields: () => ({
@@ -19,7 +19,7 @@ export const AmountInput = new GraphQLInputObjectType({
       description: 'The value in plain',
     },
     currency: {
-      type: Currency,
+      type: GraphQLCurrency,
       description: 'The currency string',
     },
     valueInCents: {

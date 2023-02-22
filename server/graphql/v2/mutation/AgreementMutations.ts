@@ -9,13 +9,13 @@ import { UploadedFile } from '../../../models';
 import AgreementModel from '../../../models/Agreement';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Unauthorized } from '../../errors';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AgreementReferenceInput, fetchAgreementWithReference } from '../input/AgreementReferenceInput';
-import { Agreement } from '../object/Agreement';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { fetchAgreementWithReference, GraphQLAgreementReferenceInput } from '../input/AgreementReferenceInput';
+import { GraphQLAgreement } from '../object/Agreement';
 
 export default {
   addAgreement: {
-    type: new GraphQLNonNull(Agreement),
+    type: new GraphQLNonNull(GraphQLAgreement),
     description: 'Add an agreement for the given host account. Scope: "host".',
     args: {
       title: {
@@ -27,11 +27,11 @@ export default {
         description: 'Optional date in which this agreement expires.',
       },
       host: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Host where the agreement will be created.',
       },
       account: {
-        type: new GraphQLNonNull(AccountReferenceInput),
+        type: new GraphQLNonNull(GraphQLAccountReferenceInput),
         description: 'Account that is a party in this agreement',
       },
       attachment: {
@@ -76,11 +76,11 @@ export default {
     },
   },
   editAgreement: {
-    type: new GraphQLNonNull(Agreement),
+    type: new GraphQLNonNull(GraphQLAgreement),
     description: 'Edit an agreement for the given host account. Scope: "host".',
     args: {
       agreement: {
-        type: new GraphQLNonNull(AgreementReferenceInput),
+        type: new GraphQLNonNull(GraphQLAgreementReferenceInput),
         description: 'Agreement to update.',
       },
       title: {
@@ -118,11 +118,11 @@ export default {
     },
   },
   deleteAgreement: {
-    type: new GraphQLNonNull(Agreement),
+    type: new GraphQLNonNull(GraphQLAgreement),
     description: 'Delete an agreement for the given host account. Scope: "host".',
     args: {
       agreement: {
-        type: new GraphQLNonNull(AgreementReferenceInput),
+        type: new GraphQLNonNull(GraphQLAgreementReferenceInput),
         description: 'Agreement to delete.',
       },
     },

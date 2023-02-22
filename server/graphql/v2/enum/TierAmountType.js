@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-export const TierAmountType = new GraphQLEnumType({
+export const GraphQLTierAmountType = new GraphQLEnumType({
   name: 'TierAmountType',
   values: {
     FIXED: {},

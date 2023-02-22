@@ -1,19 +1,19 @@
 import { GraphQLList, GraphQLNonNull, GraphQLObjectType } from 'graphql';
 
 import models from '../../../models';
-import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { Collection, CollectionArgs, CollectionFields } from '../interface/Collection';
-import { Webhook } from '../object/Webhook';
+import { fetchAccountWithReference, GraphQLAccountReferenceInput } from '../input/AccountReferenceInput';
+import { CollectionArgs, CollectionFields, GraphQLCollection } from '../interface/Collection';
+import { GraphQLWebhook } from '../object/Webhook';
 
-export const WebhookCollection = new GraphQLObjectType({
+export const GraphQLWebhookCollection = new GraphQLObjectType({
   name: 'WebhookCollection',
-  interfaces: [Collection],
+  interfaces: [GraphQLCollection],
   description: 'A collection of webhooks',
   fields: () => {
     return {
       ...CollectionFields,
       nodes: {
-        type: new GraphQLList(Webhook),
+        type: new GraphQLList(GraphQLWebhook),
       },
     };
   },
@@ -22,7 +22,7 @@ export const WebhookCollection = new GraphQLObjectType({
 export const WebhookCollectionArgs = {
   limit: CollectionArgs.limit,
   offset: CollectionArgs.offset,
-  account: { type: new GraphQLNonNull(AccountReferenceInput) },
+  account: { type: new GraphQLNonNull(GraphQLAccountReferenceInput) },
 };
 
 export const WebhookCollectionResolver = async (args, req) => {

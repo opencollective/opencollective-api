@@ -1,18 +1,18 @@
 import { GraphQLNonNull, GraphQLObjectType } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 
-import { Amount } from './Amount';
+import { GraphQLAmount } from './Amount';
 
-const ExpenseQuote = new GraphQLObjectType({
+const GraphQLExpenseQuote = new GraphQLObjectType({
   name: 'ExpenseQuote',
   description: 'Fields for an expense quote',
   fields: () => ({
     sourceAmount: {
-      type: new GraphQLNonNull(Amount),
+      type: new GraphQLNonNull(GraphQLAmount),
       description: 'Amount of this item',
     },
     paymentProcessorFeeAmount: {
-      type: new GraphQLNonNull(Amount),
+      type: new GraphQLNonNull(GraphQLAmount),
       description: 'Amount of payment processor fee',
     },
     estimatedDeliveryAt: {
@@ -22,4 +22,4 @@ const ExpenseQuote = new GraphQLObjectType({
   }),
 });
 
-export default ExpenseQuote;
+export default GraphQLExpenseQuote;

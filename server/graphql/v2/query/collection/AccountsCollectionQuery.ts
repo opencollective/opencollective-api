@@ -3,12 +3,12 @@ import { Order } from 'sequelize';
 
 import { searchCollectivesInDB } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
-import { AccountCollection } from '../../collection/AccountCollection';
-import { AccountType, AccountTypeToModelMapping, CountryISO } from '../../enum';
-import { PaymentMethodService } from '../../enum/PaymentMethodService';
-import { TagSearchOperator } from '../../enum/TagSearchOperator';
-import { AccountReferenceInput, fetchAccountsIdsWithReference } from '../../input/AccountReferenceInput';
-import { OrderByInput } from '../../input/OrderByInput';
+import { GraphQLAccountCollection } from '../../collection/AccountCollection';
+import { AccountTypeToModelMapping, GraphQLAccountType, GraphQLCountryISO } from '../../enum';
+import { GraphQLPaymentMethodService } from '../../enum/PaymentMethodService';
+import { GraphQLTagSearchOperator } from '../../enum/TagSearchOperator';
+import { fetchAccountsIdsWithReference, GraphQLAccountReferenceInput } from '../../input/AccountReferenceInput';
+import { GraphQLOrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
 export const CommonAccountsCollectionQueryArgs = {
@@ -21,7 +21,7 @@ export const CommonAccountsCollectionQueryArgs = {
     description: 'Only accounts that match these tags',
   },
   tagSearchOperator: {
-    type: new GraphQLNonNull(TagSearchOperator),
+    type: new GraphQLNonNull(GraphQLTagSearchOperator),
     defaultValue: 'AND',
     description: "Operator to use when searching with tags. Defaults to 'AND'",
   },
@@ -39,22 +39,22 @@ export const CommonAccountsCollectionQueryArgs = {
     defaultValue: false,
   },
   country: {
-    type: new GraphQLList(CountryISO),
+    type: new GraphQLList(GraphQLCountryISO),
     description: 'Limit the search to collectives belonging to these countries',
   },
 };
 
 const AccountsCollectionQuery = {
-  type: new GraphQLNonNull(AccountCollection),
+  type: new GraphQLNonNull(GraphQLAccountCollection),
   args: {
     ...CollectionArgs,
     ...CommonAccountsCollectionQueryArgs,
     host: {
-      type: new GraphQLList(AccountReferenceInput),
+      type: new GraphQLList(GraphQLAccountReferenceInput),
       description: 'Host hosting the account',
     },
     type: {
-      type: new GraphQLList(AccountType),
+      type: new GraphQLList(GraphQLAccountType),
       description:
         'Only return accounts that match these account types (COLLECTIVE, FUND, EVENT, PROJECT, ORGANIZATION or INDIVIDUAL)',
     },
@@ -67,13 +67,13 @@ const AccountsCollectionQuery = {
       description: 'Only accounts with custom contribution (/donate) enabled',
     },
     supportedPaymentMethodService: {
-      type: new GraphQLList(PaymentMethodService),
+      type: new GraphQLList(GraphQLPaymentMethodService),
       description: 'Only accounts that support one of these payment services will be returned',
       deprecationReason:
         '2022-04-22: Introduced for Hacktoberfest. Reference: https://github.com/opencollective/opencollective-api/pull/7440#issuecomment-1121504508',
     },
     orderBy: {
-      type: OrderByInput,
+      type: GraphQLOrderByInput,
       description:
         'The order of results. Defaults to [RANK, DESC] (or [CREATED_AT, DESC] if `supportedPaymentMethodService` is provided)',
     },
