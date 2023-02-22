@@ -121,14 +121,17 @@ export const signin = async (req, res, next) => {
         { sendEvenIfNotProduction: true },
       );
     } else {
+      const collective = await user.getCollective();
       const loginLink = user.generateLoginLink(redirect || '/', websiteUrl);
+      const securitySettingsLink = new URL(loginLink);
+      securitySettingsLink.searchParams.set('next', `/${collective.slug}/admin/user-security`);
       if (config.env === 'development') {
         logger.info(`Login Link: ${loginLink}`);
       }
       await emailLib.send(
         activities.USER_NEW_TOKEN,
         user.email,
-        { loginLink, clientIP: req.ip },
+        { loginLink, clientIP: req.ip, noPassword: !user.passwordHash, securitySettingsLink },
         { sendEvenIfNotProduction: true },
       );
 

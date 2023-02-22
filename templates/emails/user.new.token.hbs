@@ -1,12 +1,12 @@
-Subject: Open Collective: Login
+Subject: Open Collective: Sign In
 
 {{> header}}
 
 <h1>🗝</h1>
 
 <center>
-  <h3>You are one click away from logging into Open Collective.</h3>
-  <a href="{{{loginLink}}}" class="btn blue"><div>One-click login</div></a>
+  <h3>You are one click away from signing into Open Collective.</h3>
+  <a href="{{{loginLink}}}" class="btn blue"><div>One-click Sign In</div></a>
   <br/>
   <br/>
   <br/>
@@ -16,6 +16,14 @@ Subject: Open Collective: Login
     Link not working? Try this:<br/>
     <a href="{{loginLink}}" style="word-break: break-all; font-size: 12px;">{{loginLink}}</a>
   </p>
+  {{#if noPassword}}
+    <br/>
+    <hr/>
+    <p>
+    💡Tip: Want to use a password instead next time?<br/>
+    You can now set one from the <a href="{{securitySettingsLink}}">security</a> section of your personal settings.
+    </p>
+  {{/if}}
 </center>
 
 <div itemscope itemtype="http://schema.org/EmailMessage">
@@ -23,7 +31,7 @@ Subject: Open Collective: Login
     <link itemprop="target" content="{{{loginLink}}}"/>
     <meta itemprop="name" content="Login"/>
   </div>
-  <meta itemprop="description" content="Login to opencollective.com"/>
+  <meta itemprop="description" content="Sign In to opencollective.com"/>
 </div>
 
 {{> footer}}
