@@ -75,7 +75,7 @@ describe('server/routes/oauth', () => {
     expect(decodedToken.access_token.startsWith('test_oauth_')).to.be.true;
     const iat = fakeNow.getTime() / 1000;
     expect(decodedToken.iat).to.eq(iat); // 1640995200
-    expect(decodedToken.exp).to.eq(iat + 7776000);
+    expect(decodedToken.exp).to.eq(iat + 2592000);
 
     // Test OAuth token with a real query
     const gqlRequestResult = await request(expressApp)
