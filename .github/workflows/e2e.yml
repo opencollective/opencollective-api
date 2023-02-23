@@ -55,11 +55,6 @@ jobs:
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
 
     steps:
-      # - name: Add stripe apt sources
-      #   run: |
-      #     curl -s https://packages.stripe.dev/api/security/keypair/stripe-cli-gpg/public | gpg --dearmor | sudo tee /usr/share/keyrings/stripe.gpg
-      #     echo "deb [signed-by=/usr/share/keyrings/stripe.gpg] https://packages.stripe.dev/stripe-cli-debian-local stable main" | sudo tee -a /etc/apt/sources.list.d/stripe.list
-
       - name: Update apt
         run: sudo apt-get update || exit 0
 
@@ -72,8 +67,11 @@ jobs:
       - name: Install graphicsmagick
         run: sudo apt-get install -y graphicsmagick
 
-      # - name: Install stripe-cli
-      #   run: sudo apt-get install -y stripe
+      - name: Install stripe-cli
+        run: |
+          sudo apt-get install -y wget
+          wget https://github.com/stripe/stripe-cli/releases/download/v1.13.9/stripe_1.13.9_linux_x86_64.tar.gz -O /tmp/stripe_1.13.9_linux_x86_64.tar.gz
+          sudo tar xzvf /tmp/stripe_1.13.9_linux_x86_64.tar.gz -C /bin/
 
       - name: Checkout
         uses: actions/checkout@v3
