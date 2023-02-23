@@ -125,7 +125,9 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     */
     // Update lastUsedAt if lastUsedAt older than 1 minute ago
     if (!userToken.lastUsedAt || now.diff(moment(userToken.lastUsedAt), 'minutes') > 1) {
-      await userToken.update({ lastUsedAt: new Date() });
+      if (!parseToBoolean(config.database.readOnly)) {
+        await userToken.update({ lastUsedAt: new Date() });
+      }
     }
     req.userToken = userToken;
   }

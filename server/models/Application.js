@@ -76,6 +76,9 @@ const Application = sequelize.define(
     deletedAt: {
       type: DataTypes.DATE,
     },
+    data: {
+      type: DataTypes.JSONB,
+    },
   },
   {
     paranoid: true,
