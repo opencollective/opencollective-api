@@ -6,7 +6,7 @@ exports[`lib/security/expense checkExpense() returns potential threats related t
 | ------------- | ------ | ---------------------------------------------------------------- |
 | USER          | HIGH   | This user may be impersonating multiple profiles                 |
 | USER          | MEDIUM | User is not using 2FA                                            |
-| USER          | HIGH   | User was never been paid on the platform                         |
-| PAYOUT_METHOD | HIGH   | Payout Method was never been paid on the platform                |
+| USER          | HIGH   | User has never been paid on the platform                         |
+| PAYOUT_METHOD | HIGH   | Payout Method has never been paid on the platform                |
 | PAYOUT_METHOD | HIGH   | Payout Method details is being used by other user or collectives |"
 `;
