@@ -106,6 +106,14 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     return;
   }
 
+  // Make tokens expire on password update
+  const iat = moment(req.jwtPayload.iat * 1000);
+  if (user.passwordUpdatedAt && moment(user.passwordUpdatedAt).diff(iat, 'seconds') > 0) {
+    const errorMessage = 'This token is expired';
+    logger.warn(errorMessage);
+    return next(new errors.Unauthorized(errorMessage));
+  }
+
   const accessToken = req.jwtPayload.access_token;
   if (accessToken) {
     const userToken = await UserToken.findOne({ where: { accessToken } });
@@ -174,7 +182,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
     const allowedResetPasswordGraphqlOperations = [
       'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
-      'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}',
+      'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
     ];
     if (
       // We verify that the mutation is exactly the one we expect

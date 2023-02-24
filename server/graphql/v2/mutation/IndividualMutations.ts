@@ -8,6 +8,7 @@ import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
 import { RateLimitExceeded, Unauthorized } from '../../errors';
 import { Individual } from '../object/Individual';
+import { SetPasswordResponse } from '../object/SetPasswordResponse';
 
 const individualMutations = {
   setChangelogViewDate: {
@@ -39,7 +40,7 @@ const individualMutations = {
     },
   },
   setPassword: {
-    type: new GraphQLNonNull(Individual),
+    type: new GraphQLNonNull(SetPasswordResponse),
     description: 'Set password to Individual. Scope: "account". 2FA.',
     args: {
       password: {
@@ -78,8 +79,16 @@ const individualMutations = {
       await rateLimit.reset();
 
       const user = await req.remoteUser.setPassword(args.password, { userToken: req.userToken });
+      const individual = await user.getCollective();
 
-      return user.getCollective();
+      let token;
+
+      // We don't want OAuth tokens to be exchanged against a session token
+      if (req.userToken?.type !== 'OAUTH') {
+        token = await user.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+      }
+
+      return { individual, token };
     },
   },
 };
