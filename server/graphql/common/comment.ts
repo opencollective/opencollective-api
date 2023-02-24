@@ -6,13 +6,14 @@ import models from '../../models';
 import Comment from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense from '../../models/Expense';
+import Update from '../../models/Update';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
 import { canComment } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
-type CommentableEntity = typeof models.Update | Expense | Conversation;
+type CommentableEntity = Update | Expense | Conversation;
 
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };
@@ -20,13 +21,13 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
   let entity;
 
   if (commentValues.ExpenseId) {
-    entity = await models.Expense.findByPk(commentValues.ExpenseId, { include });
+    entity = await Expense.findByPk(commentValues.ExpenseId, { include });
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
   } else if (commentValues.ConversationId) {
-    entity = await models.Conversation.findByPk(commentValues.ConversationId, { include });
+    entity = await Conversation.findByPk(commentValues.ConversationId, { include });
     activityType = ActivityTypes.CONVERSATION_COMMENT_CREATED;
   } else if (commentValues.UpdateId) {
-    entity = await models.Update.findByPk(commentValues.UpdateId, { include });
+    entity = await Update.findByPk(commentValues.UpdateId, { include });
     activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
   }
 
@@ -41,7 +42,7 @@ const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, A
 async function editComment(commentData, req): Promise<Comment> {
   mustBeLoggedInTo(req.remoteUser, 'edit this comment');
 
-  const comment = await models.Comment.findByPk(commentData.id);
+  const comment = await Comment.findByPk(commentData.id);
   if (!comment) {
     throw new NotFound(`This comment does not exist or has been deleted.`);
   }
@@ -105,7 +106,7 @@ async function createComment(commentData, req): Promise<Comment> {
   }
 
   if (ExpenseId) {
-    if (!(await canComment(req, commentedEntity))) {
+    if (!(await canComment(req, commentedEntity as Expense))) {
       throw new ValidationFailed('You are not allowed to comment on this expense');
     }
   } else if (UpdateId) {
@@ -115,7 +116,7 @@ async function createComment(commentData, req): Promise<Comment> {
   }
 
   // Create comment
-  const comment = await models.Comment.create({
+  const comment = await Comment.create({
     CreatedByUserId: remoteUser.id,
     FromCollectiveId: remoteUser.CollectiveId,
     CollectiveId: commentedEntity.collective.id,

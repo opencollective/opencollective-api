@@ -241,7 +241,7 @@ export const fakeUpdate = async (updateData: Record<string, unknown> = {}, seque
       ...updateData,
       FromCollectiveId: updateData.FromCollectiveId || (await fakeCollective()).id,
       CollectiveId: updateData.CollectiveId || (await fakeCollective()).id,
-      CreatedByUserId: updateData.CreatedByUserId || (await fakeUser()).id,
+      CreatedByUserId: (updateData.CreatedByUserId as number) || (await fakeUser()).id,
     },
     sequelizeParams,
   );
@@ -418,7 +418,7 @@ export const fakeEmojiReaction = async (
     });
   } else {
     const CollectiveId = (await fakeCollective()).id;
-    const UpdateId = reactionData.UpdateId || (await fakeUpdate({ CollectiveId })).id;
+    const UpdateId = (reactionData.UpdateId as number) || (await fakeUpdate({ CollectiveId })).id;
     return models.EmojiReaction.create({
       UserId,
       FromCollectiveId,
@@ -628,7 +628,7 @@ export const fakeTransaction = async (
   transactionData: Record<string, unknown> = {},
   { settlementStatus = undefined, createDoubleEntry = false } = {},
 ) => {
-  const amount = transactionData.amount || randAmount(10, 100) * 100;
+  const amount = (transactionData.amount as number) || randAmount(10, 100) * 100;
   const CreatedByUserId = transactionData.CreatedByUserId || (await fakeUser()).id;
   const FromCollectiveId = transactionData.FromCollectiveId || (await fakeCollective()).id;
   const CollectiveId = transactionData.CollectiveId || (await fakeCollective()).id;
