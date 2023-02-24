@@ -438,6 +438,8 @@ const coercePaymentMethodType = (paymentMethodType: Stripe.PaymentMethod.Type): 
       return PAYMENT_METHOD_TYPE.US_BANK_ACCOUNT;
     case 'alipay':
       return PAYMENT_METHOD_TYPE.ALIPAY;
+    case 'bancontact':
+      return PAYMENT_METHOD_TYPE.BANCONTACT;
     default:
       logger.warn(`Unknown payment method type: ${paymentMethodType}`);
       return paymentMethodType as PAYMENT_METHOD_TYPE;
