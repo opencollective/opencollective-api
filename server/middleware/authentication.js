@@ -182,7 +182,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
     const allowedResetPasswordGraphqlOperations = [
       'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
-      'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}__typename}}',
+      'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
     ];
     if (
       // We verify that the mutation is exactly the one we expect
