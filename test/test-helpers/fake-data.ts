@@ -55,6 +55,7 @@ import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
+export { randEmail };
 export const randStr = (prefix = '') => `${prefix}${uuid().split('-')[0]}`;
 export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() * max) + min;
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);
