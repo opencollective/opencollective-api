@@ -167,32 +167,20 @@ export default async app => {
    * GraphQL scope
    */
   app.use('/graphql/v1', async (req, res, next) => {
+    // 1) We don't have proper "scope" handling in GraphQL v1, easy call is to restrict for OAuth
+    // 2) GraphQL v1 is not officially supported and should not be used by third party developers
     if (req.userToken && req.userToken.type === 'OAUTH') {
-      throw new errors.Unauthorized('OAuth access tokens are not accepted on GraphQL v1.');
+      // We need exceptions for prototype and internal tools
+      if (!req.userToken.client?.data?.enableGraphqlV1) {
+        const errorMessage = 'OAuth access tokens are not accepted on GraphQL v1';
+        logger.warn(errorMessage);
+        return next(new errors.Unauthorized(errorMessage));
+      }
     }
     next();
   });
 
   /* GraphQL server generic options */
-
-  // const authenticationPlugin = {
-  //   async requestDidStart({ context }) {
-  //     if (context.jwtPayload.scope === 'reset-password') {
-  //       if (
-  //         // We verify that the mutation is exactly the one we expect
-  //         !context.body.query ||
-  //         gqlmin(context.body.query) !==
-  //           'mutation ResetPassword($password:String!){setPassword(password:$password){id __typename}}'
-  //       ) {
-  //         const errorMessage =
-  //           'Not allowed to use tokens with reset-password scope on anything else than the ResetPassord GraphQL operation';
-  //         logger.warn(errorMessage);
-
-  //         throw new Unauthorized(errorMessage);
-  //       }
-  //     }
-  //   },
-  // };
 
   const graphqlServerOptions = {
     introspection: true,
