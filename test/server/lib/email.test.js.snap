@@ -142,7 +142,7 @@ Made with ❤️ from all over the world
 `;
 
 exports[`server/lib/email render Automatically generates text version 1`] = `
-"Subject: Open Collective: Login
+"Subject: Open Collective: Sign In
 
 <!DOCTYPE html PUBLIC \\"-//W3C//DTD XHTML 1.0 Transitional//EN\\" \\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\\">
 <html xmlns=\\"http://www.w3.org/1999/xhtml\\">
@@ -177,8 +177,8 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
 <h1 style=\\"color: #3399FF; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 36px; font-weight: 300; line-height: 44px; text-align: center;\\">🗝</h1>
 
 <center>
-  <h3 style=\\"color: #303233; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 20px; font-weight: bold; line-height: 25px;\\">You are one click away from logging into Open Collective.</h3>
-  <a href=\\"https://opencollective/USER_LOGIN_LINK\\" class=\\"btn blue\\" style=\\"text-decoration: none; padding: 10px; border: 1px solid #3399FF; border-radius: 16px; display: inline-block; font-weight: 600; font-size: 14px; line-height: 17px; padding-bottom: 14px; padding-left: 24px; padding-right: 24px; padding-top: 14px; border-radius: 100px; min-height: 18px; background-color: #3399FF; background: linear-gradient(180deg,#1869F5 0%,#1258e2 100%); background-color: #1869F5; border-color: #1869F5; color: #FFFFFF;\\"><div style=\\"font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; line-height: 17px; font-size: 12px; text-align: center; color: white;\\">One-click login</div></a>
+  <h3 style=\\"color: #303233; font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; font-size: 20px; font-weight: bold; line-height: 25px;\\">You are one click away from signing into Open Collective.</h3>
+  <a href=\\"https://opencollective/USER_LOGIN_LINK\\" class=\\"btn blue\\" style=\\"text-decoration: none; padding: 10px; border: 1px solid #3399FF; border-radius: 16px; display: inline-block; font-weight: 600; font-size: 14px; line-height: 17px; padding-bottom: 14px; padding-left: 24px; padding-right: 24px; padding-top: 14px; border-radius: 100px; min-height: 18px; background-color: #3399FF; background: linear-gradient(180deg,#1869F5 0%,#1258e2 100%); background-color: #1869F5; border-color: #1869F5; color: #FFFFFF;\\"><div style=\\"font-family: 'Inter', sans-serif; font-weight: 600; font-size: 14px; line-height: 17px; font-size: 12px; text-align: center; color: white;\\">One-click Sign In</div></a>
   <br>
   <br>
   <br>
@@ -195,7 +195,7 @@ exports[`server/lib/email render Automatically generates text version 1`] = `
     <link itemprop=\\"target\\" content=\\"https://opencollective/USER_LOGIN_LINK\\">
     <meta itemprop=\\"name\\" content=\\"Login\\">
   </div>
-  <meta itemprop=\\"description\\" content=\\"Login to opencollective.com\\">
+  <meta itemprop=\\"description\\" content=\\"Sign In to opencollective.com\\">
 </div>
 
 </td>
@@ -260,9 +260,9 @@ exports[`server/lib/email render Automatically generates text version 2`] = `
 "🗝
 
 
-YOU ARE ONE CLICK AWAY FROM LOGGING INTO OPEN COLLECTIVE.
+YOU ARE ONE CLICK AWAY FROM SIGNING INTO OPEN COLLECTIVE.
 
-One-click login
+One-click Sign In
 [https://opencollective/USER_LOGIN_LINK]
 
 
