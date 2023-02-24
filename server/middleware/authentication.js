@@ -106,7 +106,7 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     return;
   }
 
-  // Make tokens epire on password update
+  // Make tokens expire on password update
   const iat = moment(req.jwtPayload.iat * 1000);
   if (user.passwordUpdatedAt && moment(user.passwordUpdatedAt).diff(iat, 'seconds') > 0) {
     const errorMessage = 'This token is expired';
