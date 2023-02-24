@@ -82,7 +82,9 @@ const individualMutations = {
       const individual = await user.getCollective();
 
       let token;
-      if (req.jwtPayload?.scope !== 'reset-password') {
+
+      // We don't want OAuth tokens to be exchanged against a session token
+      if (req.userToken?.type !== 'OAUTH') {
         token = await user.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
       }
 
