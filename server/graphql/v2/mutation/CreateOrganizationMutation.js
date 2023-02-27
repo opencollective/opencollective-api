@@ -1,10 +1,13 @@
-import { GraphQLNonNull } from 'graphql';
+import { GraphQLList, GraphQLNonNull } from 'graphql';
 import { pick } from 'lodash';
 
 import roles from '../../../constants/roles';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import models from '../../../models';
+import { MEMBER_INVITATION_SUPPORTED_ROLES } from '../../../models/MemberInvitation';
+import { processInviteMembersInput } from '../../common/members';
 import { checkRemoteUserCanUseAccount } from '../../common/scope-check';
+import { InviteMemberInput } from '../input/InviteMemberInput';
 import { OrganizationCreateInput } from '../input/OrganizationCreateInput';
 import { Organization } from '../object/Organization';
 
@@ -37,6 +40,12 @@ async function createOrganization(_, args, req) {
   // Add authenticated user as an admin
   await organization.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id });
 
+  if (args.inviteMembers && args.inviteMembers.length) {
+    await processInviteMembersInput(organization, args.inviteMembers, {
+      supportedRoles: MEMBER_INVITATION_SUPPORTED_ROLES,
+      user: req.remoteUser,
+    });
+  }
   return organization;
 }
 
@@ -47,6 +56,10 @@ const createOrganizationMutation = {
     organization: {
       description: 'Information about the organization to create (name, slug, description, website, ...)',
       type: new GraphQLNonNull(OrganizationCreateInput),
+    },
+    inviteMembers: {
+      type: new GraphQLList(InviteMemberInput),
+      description: 'List of members to invite on Organization creation.',
     },
   },
   resolve: (_, args, req) => {
