@@ -1244,9 +1244,14 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   const { collective } = expense;
   const { host } = collective;
+  const isPaidCreditCardCharge =
+    expense.type === EXPENSE_TYPE.CHARGE &&
+    ['PAID', 'PROCESSING'].includes(expense.status) &&
+    Boolean(expense.VirtualCardId);
 
-  // Check if 2FA is enforced on any of the account remote user is admin of, stop the loop if 2FA gets validated for any of them
-  if (req.remoteUser) {
+  // Check if 2FA is enforced on any of the account remote user is admin of, unless it's a paid credit card charge
+  // since we strictly limit the fields that can be updated in that case
+  if (req.remoteUser && !isPaidCreditCardCharge) {
     const accountsFor2FA = [expense.fromCollective, collective, host].filter(Boolean);
     await twoFactorAuthLib.enforceForAccountsUserIsAdminOf(req, accountsFor2FA);
   }
@@ -1274,11 +1279,6 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   if (!options?.['skipPermissionCheck'] && !(await canEditExpense(req, expense))) {
     throw new Unauthorized("You don't have permission to edit this expense");
   }
-
-  const isPaidCreditCardCharge =
-    expense.type === EXPENSE_TYPE.CHARGE &&
-    ['PAID', 'PROCESSING'].includes(expense.status) &&
-    Boolean(expense.VirtualCardId);
 
   if (isPaidCreditCardCharge && !hasItemChanges) {
     throw new ValidationFailed(
