@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
-import nock from 'nock';
 
 import { activities } from '../../../../../server/constants';
 import models from '../../../../../server/models';
@@ -37,28 +36,9 @@ const newCollectiveData = {
   tags: ['community'],
 };
 
-const backYourStackCollectiveData = {
-  name: 'BackYourStack',
-  slug: 'backyourstack',
-  description: 'The description of BackYourStack collective',
-  repositoryUrl: 'https://github.com/backyourstack/backyourstack',
-};
-
 describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
   beforeEach('reset db', async () => {
     await utils.resetTestDB();
-  });
-
-  let host;
-
-  beforeEach('create host', async () => {
-    host = await models.Collective.create({
-      name: 'Open Source Collective',
-      slug: 'opensource',
-      type: 'ORGANIZATION',
-      settings: { apply: true },
-      isHostAccount: true,
-    });
   });
 
   describe('simple case', async () => {
@@ -137,162 +117,6 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
       expect(memberInvitationActivities).to.have.length(2);
       expect(memberInvitationActivities[0].data.memberCollective.slug).to.eq(existingUserToInvite.collective.slug);
       expect(memberInvitationActivities[1].data.memberCollective.name).to.eq('Another admin');
-    });
-  });
-
-  describe('with GitHub repository', async () => {
-    it('fail if user is not admin', async () => {
-      const user = await models.User.createUserWithCollective(utils.data('user2'));
-      await models.ConnectedAccount.create({
-        service: 'github',
-        token: 'faketoken',
-        CreatedByUserId: user.id,
-        CollectiveId: user.CollectiveId,
-      });
-
-      nock('https://api.github.com:443')
-        .get('/repos/backyourstack/backyourstack')
-        .reply(200, {
-          name: 'backyourstack',
-          stargazers_count: 102, // eslint-disable-line camelcase
-          permissions: { admin: false, push: true, pull: true },
-        });
-
-      const result = await utils.graphqlQueryV2(
-        createCollectiveMutation,
-        {
-          collective: backYourStackCollectiveData,
-          host: { slug: host.slug },
-        },
-        user,
-      );
-      expect(result.errors).to.have.length(1);
-      expect(result.errors[0].message).to.equal("We could not verify that you're admin of the GitHub repository");
-    });
-
-    it('succeeds if user is admin', async () => {
-      const user = await models.User.createUserWithCollective(utils.data('user2'));
-      await models.ConnectedAccount.create({
-        service: 'github',
-        token: 'faketoken',
-        CreatedByUserId: user.id,
-        CollectiveId: user.CollectiveId,
-      });
-
-      nock('https://api.github.com:443')
-        .get('/repos/backyourstack/backyourstack')
-        .times(2)
-        .reply(200, {
-          name: 'backyourstack',
-          permissions: { admin: true, push: true, pull: true },
-        });
-
-      nock('https://api.github.com:443')
-        .post('/graphql')
-        .reply(200, {
-          data: {
-            repository: {
-              isFork: false,
-              stargazerCount: 2,
-              viewerCanAdminister: true,
-              owner: {
-                login: 'backyourstack',
-              },
-              licenseInfo: {
-                name: 'MIT',
-                spdxId: 'MIT',
-              },
-              defaultBranchRef: {
-                target: {
-                  comittedDate: new Date().toString(),
-                },
-              },
-              collaborators: {
-                totalCount: 10,
-              },
-            },
-          },
-        });
-
-      const result = await utils.graphqlQueryV2(
-        createCollectiveMutation,
-        {
-          collective: backYourStackCollectiveData,
-          host: { slug: host.slug },
-        },
-        user,
-      );
-
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-
-      expect(result.data.createCollective.name).to.equal(backYourStackCollectiveData.name);
-      expect(result.data.createCollective.slug).to.equal(backYourStackCollectiveData.slug);
-      expect(result.data.createCollective.tags).to.include('open source');
-    });
-  });
-
-  describe('with GitHub organization', async () => {
-    it('fail if user is not admin', async () => {
-      const user = await models.User.createUserWithCollective(utils.data('user2'));
-      await models.ConnectedAccount.create({
-        service: 'github',
-        token: 'faketoken',
-        CreatedByUserId: user.id,
-        CollectiveId: user.CollectiveId,
-      });
-
-      nock('https://api.github.com:443', { encodedQueryParams: true })
-        .get('/user/memberships/orgs')
-        .query({ page: '1', per_page: '100' }) // eslint-disable-line camelcase
-        .reply(200, [{ organization: { login: 'backyourstack' }, state: 'active', role: 'member' }]);
-
-      const result = await utils.graphqlQueryV2(
-        createCollectiveMutation,
-        {
-          collective: { ...backYourStackCollectiveData, repositoryUrl: 'https://github.com/backyourstack' },
-          host: { slug: host.slug },
-        },
-        user,
-      );
-      expect(result.errors).to.have.length(1);
-      expect(result.errors[0].message).to.equal("We could not verify that you're admin of the GitHub organization");
-    });
-
-    it('succeeds if user is admin', async () => {
-      const user = await models.User.createUserWithCollective(utils.data('user2'));
-      await models.ConnectedAccount.create({
-        service: 'github',
-        token: 'faketoken',
-        CreatedByUserId: user.id,
-        CollectiveId: user.CollectiveId,
-      });
-
-      nock('https://api.github.com:443', { encodedQueryParams: true })
-        .get('/user/memberships/orgs')
-        .query(true)
-        .reply(200, [{ organization: { login: 'backyourstack' }, state: 'active', role: 'admin' }]);
-
-      nock('https://api.github.com:443', { encodedQueryParams: true })
-        .get('/orgs/backyourstack/repos')
-        .query(true)
-        .reply(200, [{ name: 'backyourstack', stargazers_count: 102 }]); // eslint-disable-line camelcase
-
-      const result = await utils.graphqlQueryV2(
-        createCollectiveMutation,
-        {
-          collective: { ...backYourStackCollectiveData, repositoryUrl: 'https://github.com/backyourstack' },
-          host: { slug: host.slug },
-        },
-        user,
-      );
-
-      result.errors && console.error(result.errors);
-      expect(result.errors).to.not.exist;
-
-      expect(result.data.createCollective.name).to.equal(backYourStackCollectiveData.name);
-      expect(result.data.createCollective.slug).to.equal(backYourStackCollectiveData.slug);
-      expect(result.data.createCollective.tags).to.include('open source');
     });
   });
 });

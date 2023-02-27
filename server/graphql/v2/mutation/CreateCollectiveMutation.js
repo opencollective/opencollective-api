@@ -8,6 +8,7 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import { isCollectiveSlugReserved } from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import logger from '../../../lib/logger';
 import { OSCValidator } from '../../../lib/osc-validator';
 import { getPolicy } from '../../../lib/policies';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
@@ -126,7 +127,8 @@ async function createCollective(_, args, req) {
           const { allValidationsPassed } = validatedRepositoryInfo || {};
           shouldAutomaticallyApprove = allValidationsPassed || bypassGithubValidation;
         } catch (error) {
-          throw new ValidationFailed(error.message);
+          logger.error(error);
+          shouldAutomaticallyApprove = false;
         }
 
         if (githubHandle.includes('/')) {
