@@ -934,7 +934,9 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       // Try to move order
       const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.equal(`Added Funds cannot be moved to a different host`);
+      expect(result.errors[0].message).to.equal(
+        `Currently we only support moving added funds where both the payee and payer is of type USER`,
+      );
     });
   });
 

@@ -19,7 +19,6 @@ import {
 
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
-import { types } from '../../../constants/collectives';
 import { Service } from '../../../constants/connected_account';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
@@ -541,23 +540,13 @@ const orderMutations = {
           .filter(Boolean),
       );
       const ordersIds = orders.map(order => order.id);
-      const addedFundOrders = orders.filter(order => isAddedFund(order));
-      const isUser = fromAccount?.type === types.USER;
-      const addedFundPaymentMethod = fromAccount
-        ? await models.PaymentMethod.findOne({
-            where: {
-              CollectiveId: fromAccount.id,
-              service: 'opencollective',
-              type: 'collective',
-              deletedAt: null,
-            },
-          })
-        : null;
 
       for (const order of orders) {
         if (fromAccount) {
-          if (fromAccount.HostCollectiveId && fromAccount.HostCollectiveId !== order.collective.HostCollectiveId) {
-            throw new ValidationFailed(`Added Funds cannot be moved to a different host`);
+          if (isAddedFund && (order.fromCollective.HostCollectiveId || fromAccount.HostCollectiveId)) {
+            throw new ValidationFailed(
+              `Currently we only support moving added funds where both the payee and payer is of type USER`,
+            );
           }
         }
 
@@ -630,19 +619,6 @@ const orderMutations = {
               },
             },
           );
-
-          // Update paymentMethodId in transactions for Added Funds
-          if (addedFundOrders.length > 0 && !isUser) {
-            await models.Transaction.update(
-              { PaymentMethodId: addedFundPaymentMethod.id },
-              {
-                transaction: dbTransaction,
-                where: {
-                  [Op.or]: addedFundOrders.map(order => ({ OrderId: order.id })),
-                },
-              },
-            );
-          }
         }
 
         // Update members
@@ -680,17 +656,6 @@ const orderMutations = {
           returning: true,
           where: { id: ordersIds },
         });
-
-        if (addedFundOrders.length > 0 && !isUser && addedFundPaymentMethod) {
-          await models.Order.update(
-            { PaymentMethodId: addedFundPaymentMethod.id },
-            {
-              transaction: dbTransaction,
-              returning: true,
-              where: { [Op.or]: addedFundOrders.map(order => ({ id: order.id })) },
-            },
-          );
-        }
 
         // Log the update
         const descriptionDetails = [];
