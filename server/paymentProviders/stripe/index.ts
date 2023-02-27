@@ -15,6 +15,7 @@ import { addParamsToUrl } from '../../lib/utils';
 import models from '../../models';
 
 import bacsdebit from './bacsdebit';
+import bancontact from './bancontact';
 import creditcard from './creditcard';
 import paymentintent from './payment-intent';
 import { webhook } from './webhook';
@@ -28,6 +29,7 @@ export default {
   types: {
     // eslint-disable-next-line camelcase
     bacs_debit: bacsdebit,
+    bancontact: bancontact,
     default: creditcard,
     creditcard,
     paymentintent,
