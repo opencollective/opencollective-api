@@ -1,4 +1,5 @@
 import { GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { Order } from 'sequelize';
 
 import models, { Op } from '../../../../models';
 import { UpdatesCollection } from '../../collection/UpdatesCollection';
@@ -53,7 +54,7 @@ const UpdatesCollectionQuery = {
       }
     }
 
-    const order = [['publishedAt', 'DESC']];
+    const order: Order = [['publishedAt', 'DESC']];
     const result = await models.Update.findAndCountAll({ where, order, offset, limit, include });
     return { nodes: result.rows, totalCount: result.count, limit, offset };
   },

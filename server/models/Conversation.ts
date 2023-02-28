@@ -25,6 +25,9 @@ class Conversation extends Model<InferAttributes<Conversation>, InferCreationAtt
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
+  public declare collective?: typeof models.Collective;
+  public declare fromCollective?: typeof models.Collective;
+
   // ---- Static methods ----
 
   static createWithComment = async function (
