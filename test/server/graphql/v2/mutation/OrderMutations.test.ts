@@ -935,7 +935,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
       expect(result.errors).to.exist;
       expect(result.errors[0].message).to.equal(
-        `Currently we only support moving added funds where both the payee and payer is of type USER`,
+        `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
       );
     });
   });
