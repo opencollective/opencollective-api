@@ -96,6 +96,16 @@ const doFormatMessage = (activity, format) => {
     update = linkify(format, activity.data.url, 'update');
   }
 
+  // get member data
+  let member;
+  if (activity.data.member) {
+    member = linkify(
+      format,
+      `${config.host.website}/${activity.data.member.memberCollective.slug}`,
+      activity.data.member.memberCollective.name,
+    );
+  }
+
   let collective;
   if (linkify) {
     collective = linkify(format, publicUrl, collectiveName);
@@ -163,6 +173,9 @@ const doFormatMessage = (activity, format) => {
 
     case activities.COLLECTIVE_UPDATE_PUBLISHED:
       return `New ${update} published on ${collective}`;
+
+    case activities.COLLECTIVE_MEMBER_CREATED:
+      return `New member ${member} joined ${collective}`;
 
     default:
       return '';
