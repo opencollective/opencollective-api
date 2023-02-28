@@ -90,6 +90,12 @@ const doFormatMessage = (activity, format) => {
     );
   }
 
+  // get update data
+  let update;
+  if (activity.data.update) {
+    update = linkify(format, activity.data.url, 'update');
+  }
+
   let collective;
   if (linkify) {
     collective = linkify(format, publicUrl, collectiveName);
@@ -151,6 +157,12 @@ const doFormatMessage = (activity, format) => {
 
     case activities.COLLECTIVE_APPLY:
       return handleCollectiveApply(activity, format);
+
+    case activities.COLLECTIVE_UPDATE_CREATED:
+      return `New update drafted on ${collective}`;
+
+    case activities.COLLECTIVE_UPDATE_PUBLISHED:
+      return `New ${update} published on ${collective}`;
 
     default:
       return '';

@@ -517,7 +517,9 @@ Update.init(
         instance.slug = newSlug;
         await instance.save({ hooks: false });
       },
-      afterCreate: instance => {
+      afterCreate: async instance => {
+        const collective = await models.Collective.findByPk(instance.CollectiveId);
+        const fromCollective = await models.Collective.findByPk(instance.FromCollectiveId);
         models.Activity.create({
           type: activities.COLLECTIVE_UPDATE_CREATED,
           UserId: instance.CreatedByUserId,
@@ -526,6 +528,8 @@ Update.init(
           // TODO(InconsistentActivities): Should have HostCollectiveId
           data: {
             update: instance.activity,
+            collective: collective.activity,
+            fromCollective: fromCollective.activity,
           },
         });
       },
