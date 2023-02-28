@@ -8,6 +8,7 @@
 import '../../server/env';
 
 import { Command } from 'commander';
+import { toPath } from 'lodash';
 import moment from 'moment';
 
 import logger from '../../server/lib/logger';
@@ -18,6 +19,8 @@ import { sequelize } from '../../server/models';
 const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true;
 
 /**
+ * /!\ `fieldName` is not escaped, make sure it's not user input.
+ *
  * Formats the field name to be used in SQL queries, handling nested JSON fields.
  * Examples:
  * - "url" will be converted to "url"
@@ -25,18 +28,8 @@ const DRY_RUN = process.env.DRY_RUN ? parseToBoolean(process.env.DRY_RUN) : true
  * - "Collective.settings.nested.message" will be converted to "settings"->'nested'->>'message'
  */
 const prepareFieldNameForSQL = (fieldName: string): string => {
-  const splitName = fieldName.split('.');
-  return splitName
-    .map((name, index) => {
-      if (index === 0) {
-        return `"${name}"`;
-      } else if (index === splitName.length - 1) {
-        return `->>'${name}'`;
-      } else {
-        return `->'${name}'`;
-      }
-    })
-    .join('');
+  const [column, ...path] = toPath(fieldName);
+  return !path.length ? `"${column}"` : `"${column}"#>>'{${path.join(',')}}'`;
 };
 
 const main = async options => {

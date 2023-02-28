@@ -8,7 +8,7 @@
 import '../../server/env';
 
 import { Command } from 'commander';
-import { pickBy } from 'lodash';
+import { pickBy, toPath } from 'lodash';
 import PQueue from 'p-queue';
 
 import { getFileInfoFromS3 } from '../../server/lib/awsS3';
@@ -63,6 +63,8 @@ const recordFile = async (
 };
 
 /**
+ * /!\ `fieldName` is not escaped, make sure it's not user input.
+ *
  * Formats the field name to be used in SQL queries, handling nested JSON fields.
  * Examples:
  * - "url" will be converted to "url"
@@ -70,18 +72,8 @@ const recordFile = async (
  * - "Collective.settings.nested.message" will be converted to "settings"->'nested'->>'message'
  */
 const prepareFieldNameForSQL = (fieldName: string): string => {
-  const splitName = fieldName.split('.');
-  return splitName
-    .map((name, index) => {
-      if (index === 0) {
-        return `"${name}"`;
-      } else if (index === splitName.length - 1) {
-        return `->>'${name}'`;
-      } else {
-        return `->'${name}'`;
-      }
-    })
-    .join('');
+  const [column, ...path] = toPath(fieldName);
+  return !path.length ? `"${column}"` : `"${column}"#>>'{${path.join(',')}}'`;
 };
 
 const main = async options => {
