@@ -8,12 +8,14 @@ describe('server/lib/utils', () => {
       redactSensitiveFields({
         password: 'password',
         newPassword: 'newPassword',
+        currentPassword: 'currentPassword',
         variables: {
           password: 'password',
           newPassword: 'newPassword',
+          currentPassword: 'currentPassword',
         },
       }),
-      '{"password":"[REDACTED]","newPassword":"[REDACTED]","variables":{"password":"[REDACTED]","newPassword":"[REDACTED]"}}',
+      '{"password":"[REDACTED]","newPassword":"[REDACTED]","currentPassword":"[REDACTED]","variables":{"password":"[REDACTED]","newPassword":"[REDACTED]","currentPassword":"[REDACTED]"}}',
     );
   });
 
