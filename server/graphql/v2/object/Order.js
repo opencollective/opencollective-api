@@ -155,8 +155,20 @@ export const Order = new GraphQLObjectType({
       transactions: {
         description: 'Transactions for this order ordered by createdAt ASC',
         type: new GraphQLNonNull(new GraphQLList(Transaction)),
-        resolve(order, _, req) {
-          return req.loaders.Transaction.byOrderId.load(order.id);
+        args: {
+          collectiveContextOnly: {
+            type: GraphQLBoolean,
+            description:
+              'Only return transactions that are related to the collective context of the order. (Transaction.CollectiveId = Order.CollectiveId)',
+          },
+        },
+        async resolve(order, args, req) {
+          const transactions = await req.loaders.Transaction.byOrderId.load(order.id);
+          if (args.collectiveContextOnly && transactions.length > 0) {
+            return transactions.filter(t => t.CollectiveId === order.CollectiveId);
+          } else {
+            return transactions;
+          }
         },
       },
       createdAt: {
