@@ -345,7 +345,7 @@ export const OrderInputType = new GraphQLInputObjectType({
     },
     totalAmount: { type: GraphQLInt },
     hostFeePercent: { type: GraphQLFloat },
-    platformFeePercent: { type: GraphQLInt },
+    platformFeePercent: { type: GraphQLFloat },
     platformFee: { type: GraphQLInt },
     isFeesOnTop: { type: GraphQLBoolean },
     currency: { type: GraphQLString },

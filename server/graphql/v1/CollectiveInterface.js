@@ -609,7 +609,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       endsAt: { type: DateString },
       timezone: { type: GraphQLString },
       hostFeePercent: { type: GraphQLFloat },
-      platformFeePercent: { type: GraphQLInt },
+      platformFeePercent: { type: GraphQLFloat },
       currency: { type: GraphQLString },
       image: { type: GraphQLString },
       imageUrl: {
@@ -1067,7 +1067,7 @@ const CollectiveFields = () => {
       },
     },
     platformFeePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       resolve(collective) {
         return collective.platformFeePercent;
       },
