@@ -46,6 +46,10 @@ export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, strin
   'image/gif': '.gif',
   'application/pdf': '.pdf',
 } as const;
+
+/**
+ * Any kind added here will need to be added to `server/lib/uploaded-files.ts` as well.
+ */
 export const SUPPORTED_FILE_KINDS = [
   // Base fields
   'ACCOUNT_AVATAR',
