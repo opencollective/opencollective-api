@@ -555,5 +555,12 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
 export const ifStr = (condition, expression) => (condition ? expression : '');
 
 export const redactSensitiveFields = fastRedact({
-  paths: ['password', 'newPassword', 'currentPassword', '*.password', '*.newPassword', '*.currentPassword'],
+  paths: [
+    'password',
+    'newPassword',
+    'currentPassword',
+    'variables.password',
+    'variables.newPassword',
+    'variables.currentPassword',
+  ],
 });
