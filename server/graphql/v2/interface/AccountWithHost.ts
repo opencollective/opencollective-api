@@ -1,4 +1,4 @@
-import { GraphQLBoolean, GraphQLFloat, GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
+import { GraphQLBoolean, GraphQLFloat, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { isNumber } from 'lodash';
 
@@ -96,7 +96,7 @@ export const AccountWithHostFields = {
   },
   platformFeePercent: {
     description: 'Fees percentage that the platform takes for this collective',
-    type: GraphQLInt,
+    type: GraphQLFloat,
   },
   approvedAt: {
     description: 'Date of approval by the Fiscal Host.',

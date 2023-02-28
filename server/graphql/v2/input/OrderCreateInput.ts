@@ -1,5 +1,6 @@
 import {
   GraphQLBoolean,
+  GraphQLFloat,
   GraphQLInputObjectType,
   GraphQLInt,
   GraphQLList,
@@ -174,7 +175,7 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       description: 'When is the money expected?',
     },
     hostFeePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       decription: 'Custom Host fee percent for this order',
     },
   }),
@@ -237,7 +238,7 @@ export const PendingOrderEditInput = new GraphQLInputObjectType({
       description: 'When is the money expected?',
     },
     hostFeePercent: {
-      type: GraphQLInt,
+      type: GraphQLFloat,
       decription: 'Custom Host fee percent for this order',
     },
   }),

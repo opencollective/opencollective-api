@@ -1,6 +1,14 @@
 import config from 'config';
 import express from 'express';
-import { GraphQLBoolean, GraphQLInt, GraphQLInterfaceType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLInterfaceType,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { isNil } from 'lodash';
 import { OrderItem } from 'sequelize';
 
@@ -74,7 +82,7 @@ export const AccountWithContributionsFields = {
     },
   },
   platformFeePercent: {
-    type: new GraphQLNonNull(GraphQLInt),
+    type: new GraphQLNonNull(GraphQLFloat),
     description: 'How much platform fees are charged for this account',
     resolve(account: typeof models.Collective): number {
       return isNil(account.platformFeePercent) ? config.fees.default.platformPercent : account.platformFeePercent;
