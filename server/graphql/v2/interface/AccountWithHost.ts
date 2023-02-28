@@ -50,7 +50,7 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.addedFundsHostFeePercent);
+        possibleValues.push(host?.data?.addedFundsHostFeePercent);
       } else if (args.paymentMethodType === 'manual') {
         possibleValues.push(account.data?.bankTransfersHostFeePercent);
         possibleValues.push(parent?.data?.bankTransfersHostFeePercent);
@@ -60,7 +60,7 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.bankTransfersHostFeePercent);
+        possibleValues.push(host?.data?.bankTransfersHostFeePercent);
       } else if (args.paymentMethodService === 'stripe') {
         // the setting used to be named `creditCardHostFeePercent` but it's meant to be used for Stripe generally
         // to be removed once we don't have Hosts with `creditCardHostFeePercent`
@@ -74,8 +74,8 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.creditCardHostFeePercent);
-        possibleValues.push(host.data?.stripeHostFeePercent);
+        possibleValues.push(host?.data?.creditCardHostFeePercent);
+        possibleValues.push(host?.data?.stripeHostFeePercent);
       } else if (args.paymentMethodService === 'paypal') {
         possibleValues.push(account.data?.paypalHostFeePercent);
         possibleValues.push(parent?.data?.paypalHostFeePercent);
@@ -85,7 +85,7 @@ export const AccountWithHostFields = {
         if (parent?.data?.useCustomHostFee) {
           possibleValues.push(parent?.hostFeePercent);
         }
-        possibleValues.push(host.data?.paypalHostFeePercent);
+        possibleValues.push(host?.data?.paypalHostFeePercent);
       }
 
       possibleValues.push(account.hostFeePercent);

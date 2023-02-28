@@ -1,4 +1,12 @@
-import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { GraphQLJSON } from 'graphql-type-json';
 import { pick } from 'lodash';
@@ -184,7 +192,7 @@ export const Order = new GraphQLObjectType({
         },
       },
       hostFeePercent: {
-        type: GraphQLInt,
+        type: GraphQLFloat,
         description: 'Host fee percent attached to the Order.',
         async resolve(order) {
           return await getHostFeePercent(order);
