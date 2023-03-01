@@ -543,7 +543,7 @@ const orderMutations = {
 
       for (const order of orders) {
         if (fromAccount) {
-          if (isAddedFund) {
+          if (isAddedFund(order)) {
             if (get(order, 'fromCollective.HostCollectiveId', null) !== get(fromAccount, 'HostCollectiveId', null)) {
               throw new ValidationFailed(
                 `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
