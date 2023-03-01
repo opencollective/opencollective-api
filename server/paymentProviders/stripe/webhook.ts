@@ -165,7 +165,7 @@ export const paymentIntentSucceeded = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
 
@@ -222,7 +222,7 @@ export const paymentIntentProcessing = async (event: Stripe.Event) => {
     });
 
     if (!order) {
-      logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+      logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
       return;
     }
 
@@ -287,7 +287,7 @@ export const paymentIntentFailed = async (event: Stripe.Event) => {
   });
 
   if (!order) {
-    logger.warn(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
+    logger.debug(`Stripe Webhook: Could not find Order for Payment Intent ${paymentIntent.id}`);
     return;
   }
 
@@ -711,7 +711,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
   } else if (event.type.startsWith('issuing_card')) {
     virtualCardId = (<Stripe.Issuing.Card>event.data.object).id;
   } else {
-    logger.warn(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+    logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
     return;
   }
 
@@ -721,7 +721,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
 
   const virtualCard = await getVirtualCardForTransaction(virtualCardId);
   if (!virtualCard) {
-    logger.warn(`Stripe: Webhooks: Received an event for a virtual card that does not exist: ${virtualCardId}`);
+    logger.debug(`Stripe: Webhooks: Received an event for a virtual card that does not exist: ${virtualCardId}`);
     return;
   }
 
@@ -749,7 +749,7 @@ async function handleIssuingWebhooks(request: Request<unknown, Stripe.Event>) {
     case 'issuing_card.updated':
       return virtualcard.processCardUpdate(event);
     default:
-      logger.warn(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
+      logger.debug(`Stripe: Webhooks: Received an unsupported issuing event type: ${event.type}`);
       return;
   }
 }
@@ -802,7 +802,7 @@ export const webhook = async (request: Request<unknown, Stripe.Event>) => {
       return mandateUpdated(event);
     default:
       // console.log(JSON.stringify(event, null, 4));
-      logger.warn(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
+      logger.debug(`Stripe: Webhooks: Received an unsupported event type: ${event.type}`);
       return;
   }
 };
