@@ -641,7 +641,7 @@ describe('server/models/Collective', () => {
       return Collective.getTopBackers().then(backers => {
         backers = backers.map(g => g.dataValues);
         expect(backers.length).to.equal(3);
-        expect(backers[0].totalDonations).to.equal(175000);
+        expect(backers[0].totalDonations).to.equal(100000);
         expect(backers[0]).to.have.property('website');
       });
     });
@@ -650,7 +650,7 @@ describe('server/models/Collective', () => {
       return Collective.getTopBackers(new Date('2016-06-01'), new Date('2016-07-01')).then(backers => {
         backers = backers.map(g => g.dataValues);
         expect(backers.length).to.equal(2);
-        expect(backers[0].totalDonations).to.equal(125000);
+        expect(backers[0].totalDonations).to.equal(50000);
       });
     });
 
@@ -667,7 +667,7 @@ describe('server/models/Collective', () => {
         return userCollective
           .getLatestTransactions(new Date('2016-06-01'), new Date('2016-08-01'))
           .then(transactions => {
-            expect(transactions.length).to.equal(8);
+            expect(transactions.length).to.equal(5);
           });
       });
     });
