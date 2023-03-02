@@ -258,6 +258,7 @@ export const AccountStats = new GraphQLObjectType({
       },
       yearlyBudgetManaged: {
         type: new GraphQLNonNull(Amount),
+        deprecationReason: '2023-03-01: This field will be removed soon, please use totalMoneyManaged',
         async resolve(collective) {
           if (collective.isHostAccount) {
             return {

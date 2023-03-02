@@ -536,6 +536,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       },
       yearlyBudgetManaged: {
         type: GraphQLInt,
+        deprecationReason: '2023-03-01: This field will be removed soon, please use totalMoneyManaged from GraphQL V2',
         resolve(collective) {
           if (collective.isHostAccount) {
             return queries.getTotalAnnualBudgetForHost(collective.id);
