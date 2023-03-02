@@ -24,13 +24,16 @@ const getJoinCondition = (
   association: OrderAssociation,
   includeHostedAccounts = false,
 ): Record<string, unknown> => {
+  const associationFields = { collective: 'CollectiveId', fromCollective: 'FromCollectiveId' };
+  const field = associationFields[association] || `$${association}.id$`;
+
   if (!includeHostedAccounts) {
-    return { [`$${association}.id$`]: account.id };
+    return { [field]: account.id };
   } else {
     return {
       [Op.or]: [
         {
-          [`$${association}.id$`]: account.id,
+          [field]: account.id,
         },
         {
           [`$${association}.HostCollectiveId$`]: account.id,
