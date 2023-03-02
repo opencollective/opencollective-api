@@ -13,8 +13,14 @@ const createCollectiveMutation = gqlV2/* GraphQL */ `
     $collective: CollectiveCreateInput!
     $host: AccountReferenceInput
     $inviteMembers: [InviteMemberInput]
+    $applicationData: JSON
   ) {
-    createCollective(collective: $collective, host: $host, inviteMembers: $inviteMembers) {
+    createCollective(
+      collective: $collective
+      host: $host
+      inviteMembers: $inviteMembers
+      applicationData: $applicationData
+    ) {
       name
       slug
       tags
@@ -163,6 +169,9 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         {
           collective: backYourStackCollectiveData,
           host: { slug: host.slug },
+          applicationData: {
+            useGithubValidation: true,
+          },
         },
         user,
       );
@@ -219,6 +228,9 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         {
           collective: backYourStackCollectiveData,
           host: { slug: host.slug },
+          applicationData: {
+            useGithubValidation: true,
+          },
         },
         user,
       );
@@ -252,6 +264,9 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         {
           collective: { ...backYourStackCollectiveData, repositoryUrl: 'https://github.com/backyourstack' },
           host: { slug: host.slug },
+          applicationData: {
+            useGithubValidation: true,
+          },
         },
         user,
       );
@@ -283,6 +298,9 @@ describe('server/graphql/v2/mutation/CreateCollectiveMutations', () => {
         {
           collective: { ...backYourStackCollectiveData, repositoryUrl: 'https://github.com/backyourstack' },
           host: { slug: host.slug },
+          applicationData: {
+            useGithubValidation: true,
+          },
         },
         user,
       );
