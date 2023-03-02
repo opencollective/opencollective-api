@@ -109,8 +109,7 @@ const HostApplicationMutations = {
 
       // Trigger automated Github approval when repository is on github.com
       const repositoryUrl = args.applicationData?.repositoryUrl;
-      const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
-      if (hostname === 'github.com') {
+      if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl);
         try {
           // For e2e testing, we enable testuser+(admin|member|host)@opencollective.com to create collective without github validation

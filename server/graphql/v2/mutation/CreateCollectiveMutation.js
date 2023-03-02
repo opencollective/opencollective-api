@@ -97,8 +97,7 @@ async function createCollective(_, args, req) {
 
       // Trigger automated Github approval when repository is on github.com (or using deprecated automateApprovaWithGithub argument )
       const repositoryUrl = args.applicationData?.repositoryUrl || args.collective.repositoryUrl;
-      const { hostname } = repositoryUrl ? new URL(repositoryUrl) : { hostname: '' };
-      if (hostname === 'github.com' || args.automateApprovalWithGithub) {
+      if (args.applicationData?.useGithubValidation) {
         const githubHandle = github.getGithubHandleFromUrl(repositoryUrl) || args.collective.githubHandle;
         const opensourceHost = defaultHostCollective('opensource');
         host = await loaders.Collective.byId.load(opensourceHost.CollectiveId);
