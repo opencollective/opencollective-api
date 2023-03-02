@@ -155,7 +155,8 @@ export const signin = async (req, res, next) => {
  * back a JWT with scope 'twofactorauth' to trigger
  * the 2FA flow on the frontend
  */
-export const updateToken = async (req, res) => {
+export const exchangeLoginToken = async (req, res) => {
+  // TODO: check scope and make sure current token is a login token
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
     const token = req.remoteUser.jwt(
@@ -167,6 +168,16 @@ export const updateToken = async (req, res) => {
     const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
     res.send({ token });
   }
+};
+
+/**
+  TODO
+ */
+export const refreshToken = async (req, res) => {
+  // TODO: check scope and make sure current token is a session token
+  // TODO: make sure that oAuth token can't be exchanged against session token
+  const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+  res.send({ token });
 };
 
 /**
