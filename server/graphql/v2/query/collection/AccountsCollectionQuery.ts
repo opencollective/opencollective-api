@@ -10,23 +10,44 @@ import { AccountReferenceInput, fetchAccountsIdsWithReference } from '../../inpu
 import { OrderByInput } from '../../input/OrderByInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
+export const CommonAccountsCollectionQueryArgs = {
+  searchTerm: {
+    type: GraphQLString,
+    description: 'Search accounts related to this term based on name, description, tags, slug, and location',
+  },
+  tag: {
+    type: new GraphQLList(GraphQLString),
+    description: 'Only accounts that match these tags',
+  },
+  tagSearchOperator: {
+    type: new GraphQLNonNull(TagSearchOperator),
+    defaultValue: 'AND',
+    description: "Operator to use when searching with tags. Defaults to 'AND'",
+  },
+  includeArchived: {
+    type: GraphQLBoolean,
+    description: 'Included collectives which are archived',
+  },
+  isActive: {
+    type: GraphQLBoolean,
+    description: 'Only return "active" accounts with Financial Contributions enabled if true.',
+  },
+  skipRecentAccounts: {
+    type: GraphQLBoolean,
+    description: 'Whether to skip recent suspicious accounts (48h)',
+    defaultValue: false,
+  },
+  country: {
+    type: new GraphQLList(CountryISO),
+    description: 'Limit the search to collectives belonging to these countries',
+  },
+};
+
 const AccountsCollectionQuery = {
   type: new GraphQLNonNull(AccountCollection),
   args: {
     ...CollectionArgs,
-    searchTerm: {
-      type: GraphQLString,
-      description: 'Search accounts related to this term based on name, description, tags, slug, and location',
-    },
-    tag: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Only accounts that match these tags',
-    },
-    tagSearchOperator: {
-      type: new GraphQLNonNull(TagSearchOperator),
-      defaultValue: 'AND',
-      description: "Operator to use when searching with tags. Defaults to 'AND'",
-    },
+    ...CommonAccountsCollectionQueryArgs,
     host: {
       type: new GraphQLList(AccountReferenceInput),
       description: 'Host hosting the account',
@@ -40,14 +61,6 @@ const AccountsCollectionQuery = {
       type: GraphQLBoolean,
       description: 'Only return Fiscal Hosts accounts if true',
     },
-    includeArchived: {
-      type: GraphQLBoolean,
-      description: 'Included collectives which are archived',
-    },
-    isActive: {
-      type: GraphQLBoolean,
-      description: 'Only return "active" accounts with Financial Contributions enabled if true.',
-    },
     hasCustomContributionsEnabled: {
       type: GraphQLBoolean,
       description: 'Only accounts with custom contribution (/donate) enabled',
@@ -57,15 +70,6 @@ const AccountsCollectionQuery = {
       description: 'Only accounts that support one of these payment services will be returned',
       deprecationReason:
         '2022-04-22: Introduced for Hacktoberfest. Reference: https://github.com/opencollective/opencollective-api/pull/7440#issuecomment-1121504508',
-    },
-    skipRecentAccounts: {
-      type: GraphQLBoolean,
-      description: 'Whether to skip recent suspicious accounts (48h)',
-      defaultValue: false,
-    },
-    country: {
-      type: new GraphQLList(CountryISO),
-      description: 'Limit the search to collectives belonging to these countries',
     },
     orderBy: {
       type: OrderByInput,
