@@ -636,26 +636,6 @@ describe('server/models/Collective', () => {
       });
   });
 
-  it('get the related collectives', () => {
-    const defaultValues = {
-      HostCollectiveId: hostUser.CollectiveId,
-      PaymentMethodId: 1,
-    };
-    return Collective.createMany(utils.data('relatedCollectives'))
-      .then(collectives => collectives.map(c => c.id))
-      .map(CollectiveId =>
-        Transaction.createDoubleEntry({
-          ...transactions[2],
-          CollectiveId,
-          ...defaultValues,
-        }),
-      )
-      .then(() => collective.getRelatedCollectives(3, 0))
-      .then(relatedCollectives => {
-        expect(relatedCollectives).to.have.length(3);
-      });
-  });
-
   describe('backers', () => {
     it('gets the top backers', () => {
       return Collective.getTopBackers().then(backers => {

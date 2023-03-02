@@ -663,7 +663,6 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     });
   } else {
     // normal order
-    const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
     const data = {
       order: order.activity,
       transaction: pick(transaction, ['createdAt', 'uuid']),
@@ -672,7 +671,6 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
       host: host ? host.info : {},
       fromCollective: fromCollective.minimal,
       interval,
-      relatedCollectives,
       monthlyInterval: interval === 'month',
       firstPayment: true,
       subscriptionsLink: interval && getEditRecurringContributionsUrl(fromCollective),

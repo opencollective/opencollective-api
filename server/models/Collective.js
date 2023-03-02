@@ -3126,18 +3126,6 @@ Collective.prototype.isHostOf = function (CollectiveId) {
   }).then(r => Boolean(r));
 };
 
-Collective.prototype.getRelatedCollectives = function (limit = 3, minTotalDonationInCents = 10000, orderBy, orderDir) {
-  return Collective.getCollectivesSummaryByTag(
-    this.tags,
-    limit,
-    [this.id],
-    minTotalDonationInCents,
-    true,
-    orderBy,
-    orderDir,
-  ).then(({ collectives }) => collectives);
-};
-
 // get the host of the parent collective if any, or of this collective
 Collective.prototype.getHostCollective = function () {
   if (this.HostCollectiveId) {
@@ -3626,71 +3614,6 @@ Collective.findBySlug = (slug, options = {}, throwIfMissing = true) => {
     }
     return collective;
   });
-};
-
-Collective.getCollectivesSummaryByTag = (
-  tags,
-  limit = 3,
-  excludeList = [],
-  minTotalDonationInCents,
-  randomOrder,
-  orderBy,
-  orderDir,
-  offset,
-) => {
-  debug(
-    'getCollectivesSummaryByTag',
-    tags,
-    limit,
-    excludeList,
-    minTotalDonationInCents,
-    randomOrder,
-    orderBy,
-    orderDir,
-    offset,
-  );
-  return queries
-    .getCollectivesByTag(tags, limit, excludeList, minTotalDonationInCents, randomOrder, orderBy, orderDir, offset)
-    .then(({ collectives, total }) => {
-      debug('getCollectivesSummaryByTag', collectives && collectives.length, 'collectives found');
-      return Promise.all(
-        collectives.map(collective => {
-          debug('getCollectivesSummaryByTag', 'collective', collective.slug);
-          return Promise.all([
-            collective.getYearlyIncome(),
-            queries
-              .getMembersWithTotalDonations({ CollectiveId: collective.id }, { role: 'BACKER' })
-              .then(users => models.Tier.appendTier(collective, users)),
-          ]).then(results => {
-            const usersByRole = {};
-            const users = results[1];
-            users.map(user => {
-              usersByRole[user.dataValues.role] = usersByRole[user.dataValues.role] || [];
-              usersByRole[user.dataValues.role].push(user);
-            });
-            const collectiveInfo = collective.card;
-            collectiveInfo.yearlyIncome = results[0];
-            const backers = usersByRole[roles.BACKER] || [];
-            collectiveInfo.backersAndSponsorsCount = backers.length;
-            collectiveInfo.membersCount = (usersByRole[roles.ADMIN] || []).length;
-            collectiveInfo.sponsorsCount = backers.filter(b => b.tier && b.tier.name.match(/sponsor/i)).length;
-            collectiveInfo.backersCount = collectiveInfo.backersAndSponsorsCount - collectiveInfo.sponsorsCount;
-            collectiveInfo.githubContributorsCount =
-              collective.data && collective.data.githubContributors
-                ? Object.keys(collective.data.githubContributors).length
-                : 0;
-            collectiveInfo.contributorsCount =
-              collectiveInfo.membersCount +
-              collectiveInfo.githubContributorsCount +
-              collectiveInfo.backersAndSponsorsCount;
-            return collectiveInfo;
-          });
-        }),
-      ).then(allCollectives => ({
-        total,
-        collectives: allCollectives,
-      }));
-    });
 };
 
 Temporal(Collective, sequelize);

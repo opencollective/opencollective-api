@@ -123,7 +123,6 @@ const processCollective = async collective => {
     collective.getTotalTransactions(startDate, endDate, 'donation'),
     collective.getTotalTransactions(startDate, endDate, 'expense'),
     collective.getExpenses(null, startDate, endDate),
-    collective.getRelatedCollectives(3, 0, 'c."createdAt"', 'DESC'),
     collective.getBackersStats(startDate, endDate),
     collective.getNewOrders(startDate, endDate, { status: { [Op.or]: ['ACTIVE', 'PAID'] } }),
     collective.getCancelledOrders(startDate, endDate),
@@ -163,17 +162,16 @@ const processCollective = async collective => {
           activeBackers: tier.activeBackers,
         }));
         data.collective.backers = res.backers;
-        data.collective.stats = results[6];
-        data.collective.newOrders = results[7];
-        data.collective.cancelledOrders = results[8];
+        data.collective.stats = results[5];
+        data.collective.newOrders = results[6];
+        data.collective.cancelledOrders = results[7];
         data.collective.stats.balance = results[1];
         data.collective.stats.totalDonations = results[2];
         data.collective.stats.totalExpenses = results[3];
         data.collective.expenses = results[4].map(expense => expense.info);
-        data.relatedCollectives = results[5] || [];
-        data.collective.updates = results[9].map(u => u.info);
-        data.collective.transactions = await enrichTransactionsWithHostFee(results[11]);
-        const nextGoal = results[10];
+        data.collective.updates = results[8].map(u => u.info);
+        data.collective.transactions = await enrichTransactionsWithHostFee(results[10]);
+        const nextGoal = results[9];
         if (nextGoal) {
           nextGoal.tweet = `🚀 ${collective.twitterHandle ? `@${collective.twitterHandle}` : collective.name} is at ${
             nextGoal.percentage
