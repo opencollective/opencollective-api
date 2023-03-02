@@ -239,7 +239,7 @@ async function payExpense(
     });
 
     // Simulate transfer success in other environments so transactions don't get stuck.
-    if (!transferwise.isProduction) {
+    if (['development', 'staging'].includes(config.env)) {
       const response = await transferwise.simulateTransferSuccess(connectedAccount, transfer.id);
       await expense.update({ data: { ...expense.data, transfer: response } });
 

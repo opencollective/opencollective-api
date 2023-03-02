@@ -41,6 +41,8 @@ const axios = Axios.create({
   baseURL: config.transferwise.apiUrl,
 });
 
+export const isProduction = config.env === 'production';
+
 type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
 
 const signString = (data: string) => {
@@ -623,8 +625,6 @@ export const fundBatchGroup = async (
       }
     });
 };
-
-export const isProduction = config.env === 'production';
 
 const publicKey = fs.readFileSync(
   path.join(
