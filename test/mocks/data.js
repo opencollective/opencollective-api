@@ -99,40 +99,6 @@ export default {
     },
   },
 
-  relatedCollectives: [
-    {
-      name: 'Reinventing Brussels',
-      slug: 'reinventingbrussels',
-      description: 'connect all the initiatives that create a welcoming &amp; sustainable city with deep human values',
-      image: 'https://opencollective-production.s3-us-west-1.amazonaws.com/1738fae0-9a20-11e6-8650-f92e594d5de8.png',
-      currency: 'EUR',
-      settings: {
-        style: { hero: { cover: { background: 'rgb(36,189,213)' } } },
-      },
-      tags: ['#brusselstogether'],
-      isActive: true,
-    },
-    {
-      name: 'Refugees Got Talent',
-      slug: 'refugeesgottalent',
-      description: 'offer a space and artistic material to refugees artists, so they can practice their art again.',
-      image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
-      currency: 'EUR',
-      tags: ['#brusselstogether'],
-      isActive: true,
-    },
-    {
-      name: 'Brussels Smart City',
-      slug: 'brusselssmartcity',
-      description: 'improve the life of Brussels Citizens by the use of technology',
-      image: 'https://cl.ly/0Q3N193Z1e3u/BrusselsTogetherLogo.png',
-      currency: 'EUR',
-      tags: ['#brusselstogether'],
-      backgroundImage: 'http://www.hiddendistrict.be/wp-content/uploads/2015/01/Brussels_view-1000x500.jpg',
-      isActive: true,
-    },
-  ],
-
   paymentMethod1: {
     token: 'PA-1B0110758V169653C',
     service: 'paypal',

@@ -423,83 +423,6 @@ export const countMembersToNotifyForUpdateSQLQuery = `
 `;
 
 /**
- * Get top collectives based on total donations
- */
-const getCollectivesByTag = async (
-  tag,
-  limit,
-  excludeList,
-  minTotalDonationInCents,
-  randomOrder,
-  orderBy,
-  orderDir,
-  offset,
-) => {
-  let tagClause = '';
-  let excludeClause = '';
-  let minTotalDonationInCentsClause = '';
-  let orderClause = 'BY "totalDonations"';
-  const orderDirection = orderDir === 'asc' ? 'ASC' : 'DESC';
-  if (orderBy) {
-    orderClause = `BY ${orderBy}`;
-  } else if (randomOrder) {
-    orderClause = 'BY random()';
-  }
-  if (excludeList && excludeList.length > 0) {
-    excludeClause = `AND c.id not in (${excludeList})`;
-  }
-  if (minTotalDonationInCents && minTotalDonationInCents > 0) {
-    minTotalDonationInCentsClause = `WHERE "totalDonations" >= ${minTotalDonationInCents}`;
-  } else {
-    minTotalDonationInCentsClause = '';
-  }
-
-  if (tag) {
-    tagClause = 'AND c.tags && $tag'; // && operator means "overlaps", e.g. ARRAY[1,4,3] && ARRAY[2,1] == true
-  }
-
-  if (typeof tag === 'string') {
-    tag = [tag];
-  }
-
-  const params = {
-    bind: { tag },
-    model: models.Collective,
-  };
-
-  const allFields = 'c.*, td.*';
-
-  const sql = fields =>
-    `
-    WITH "totalDonations" AS (
-      SELECT t."CollectiveId", SUM("netAmountInCollectiveCurrency") as "totalDonations"
-      FROM "Collectives" c
-      LEFT JOIN "Transactions" t ON t."CollectiveId" = c.id
-      WHERE
-        c.type = 'COLLECTIVE'
-        AND c."isActive" IS TRUE
-        ${excludeClause}
-        AND c."deletedAt" IS NULL
-        AND t.type='CREDIT'
-        AND t."PaymentMethodId" IS NOT NULL
-        ${tagClause}
-        GROUP BY t."CollectiveId"
-    )
-    select ${fields} FROM "totalDonations" td LEFT JOIN "Collectives" c on td."CollectiveId" = c.id ${minTotalDonationInCentsClause}
-    ORDER ${orderClause} ${orderDirection} NULLS LAST
-  `.replace(/\s\s+/g, ' '); // this is to remove the new lines and save log space.
-
-  const [[totalResult], collectives] = await Promise.all([
-    sequelize.query(`${sql('COUNT(c.*) OVER() as "total"')} LIMIT 1`, params),
-    sequelize.query(`${sql(allFields)} LIMIT ${limit} OFFSET ${offset || 0}`, params),
-  ]);
-
-  const total = totalResult ? get(totalResult, 'dataValues.total') : 0;
-
-  return { total, collectives };
-};
-
-/**
  * Get list of all unique tags for collectives.
  */
 const getUniqueCollectiveTags = () => {
@@ -1148,7 +1071,6 @@ const getCollectivesWithMinBackers = memoize(getCollectivesWithMinBackersQuery, 
 });
 
 const queries = {
-  getCollectivesByTag,
   getCollectivesOrderedByMonthlySpending,
   getCollectivesOrderedByMonthlySpendingQuery,
   getCollectivesWithBalance,

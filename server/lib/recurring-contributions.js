@@ -381,7 +381,7 @@ export async function createPaymentFailedActivity(order, lastAttempt) {
 export async function sendThankYouEmail(order, transaction, isFirstPayment = false) {
   const attachments = [];
   const { collective, paymentMethod } = order;
-  const relatedCollectives = await order.collective.getRelatedCollectives(3, 0);
+
   const user = await order.getUserForActivity();
   const host = await order.collective.getHostCollective();
   const parentCollective = await collective.getParentCollective();
@@ -394,7 +394,6 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
     collective: order.collective.info,
     host: host ? host.info : {},
     fromCollective: order.fromCollective.minimal,
-    relatedCollectives,
     config: { host: config.host },
     interval: order.Subscription?.interval || order.interval,
     subscriptionsLink: getEditRecurringContributionsUrl(order.fromCollective),
