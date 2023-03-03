@@ -1,4 +1,6 @@
+/* eslint-disable camelcase */
 import { execSync } from 'child_process';
+import fs from 'fs';
 import querystring from 'querystring';
 
 import Promise from 'bluebird';
@@ -26,10 +28,6 @@ import models, { sequelize } from '../server/models';
 /* Test data */
 import jsonData from './mocks/data';
 import { randStr } from './test-helpers/fake-data';
-
-if (process.env.RECORD) {
-  nock.recorder.rec();
-}
 
 jsonData.application = {
   name: 'client',
@@ -508,4 +506,31 @@ export const generateValid2FAHeader = user => {
   });
 
   return `totp ${twoFactorAuthenticatorCode}`;
+};
+
+export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNocks = x => x) => {
+  if (process.env.RECORD) {
+    nock.recorder.rec({
+      output_objects: true,
+      dont_print: true,
+    });
+  }
+  const recordFile = `${testFileName}.responses.json`;
+
+  before(() => {
+    if (process.env.RECORD) {
+      nock(baseUrl);
+    } else {
+      const nocks = nock.loadDefs(recordFile).map(preProcessNocks);
+      nock.define(nocks);
+    }
+  });
+
+  after(() => {
+    if (process.env.RECORD) {
+      const nockCalls = nock.recorder.play();
+      fs.writeFileSync(recordFile, JSON.stringify(nockCalls, null, 2));
+    }
+    nock.restore();
+  });
 };
