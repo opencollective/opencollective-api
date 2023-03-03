@@ -452,20 +452,18 @@ export const AccountStats = new GraphQLObjectType({
             `
             SELECT
               (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
-              COUNT(o."id") as "count",
+              COUNT(DISTINCT o."id") as "count",
               ABS(SUM(t."amount")) as "amount",
               t."currency"
-            FROM "Transactions" t
-            LEFT JOIN "Orders" o
-              ON t."OrderId" = o."id"
-            INNER JOIN "Collectives" c
-              ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
-            WHERE t."type" = 'CREDIT'
-              AND t."kind" = 'CONTRIBUTION'
-              AND t."CollectiveId" IN (:collectiveIds)
-              AND t."RefundTransactionId" IS NULL
+            FROM "Orders" o
+            INNER JOIN "Transactions" t ON t."OrderId" = o."id"
               AND t."deletedAt" IS NULL
-              AND t."FromCollectiveId" NOT IN (:collectiveIds)
+              AND t."RefundTransactionId" IS NULL
+            WHERE o."deletedAt" IS NULL
+              AND o."CollectiveId" IN (:collectiveIds)
+              AND o."FromCollectiveId" NOT IN (:collectiveIds)
+              AND t."type" = 'CREDIT'
+              AND t."kind" = 'CONTRIBUTION'
               ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
               ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
             GROUP BY "label", t."currency"
@@ -500,18 +498,15 @@ export const AccountStats = new GraphQLObjectType({
               (CASE WHEN o."SubscriptionId" IS NOT NULL THEN 'recurring' ELSE 'one-time' END) as "label",
               ABS(SUM(t."amount")) as "amount",
               t."currency"
-            FROM "Transactions" t
-            LEFT JOIN "Orders" o
-              ON t."OrderId" = o."id"
-            INNER JOIN "Collectives" c
-              ON c."id" = t."CollectiveId" AND c."deletedAt" IS NULL
-            WHERE
-              t."type" = 'CREDIT'
-              AND t."kind" = 'CONTRIBUTION'
-              AND t."CollectiveId" IN (:collectiveIds)
-              AND t."RefundTransactionId" IS NULL
+            FROM "Orders" o
+            INNER JOIN "Transactions" t ON t."OrderId" = o."id"
               AND t."deletedAt" IS NULL
-              AND t."FromCollectiveId" NOT IN (:collectiveIds)
+              AND t."RefundTransactionId" IS NULL
+            WHERE o."deletedAt" IS NULL
+              AND o."CollectiveId" IN (:collectiveIds)
+              AND o."FromCollectiveId" NOT IN (:collectiveIds)
+              AND t."type" = 'CREDIT'
+              AND t."kind" = 'CONTRIBUTION'
               ${dateFrom ? `AND t."createdAt" >= :startDate` : ``}
               ${dateTo ? `AND t."createdAt" <= :endDate` : ``}
             GROUP BY "date", "label", t."currency"

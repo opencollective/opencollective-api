@@ -29,12 +29,14 @@ describe('server/graphql/v2/object/AccountStats', () => {
   let collective, project;
   beforeEach(async () => {
     collective = await fakeCollective({ type: 'COLLECTIVE' });
-    await fakeTransaction({ CollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 100000 });
-    const order = await fakeOrder({ CollectiveId: collective.id, amount: 50000 }, { withSubscription: true });
-    await fakeTransaction({ CollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 50000, OrderId: order.id });
+    const order1 = await fakeOrder({ CollectiveId: collective.id, amount: 100000 }, { withSubscription: false });
+    await fakeTransaction({ CollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 100000, OrderId: order1.id });
+    const order2 = await fakeOrder({ CollectiveId: collective.id, amount: 50000 }, { withSubscription: true });
+    await fakeTransaction({ CollectiveId: collective.id, kind: 'CONTRIBUTION', amount: 50000, OrderId: order2.id });
 
     project = await fakeCollective({ ParentCollectiveId: collective.id, type: 'PROJECT' });
-    await fakeTransaction({ CollectiveId: project.id, kind: 'CONTRIBUTION', amount: 10000 });
+    const order3 = await fakeOrder({ CollectiveId: project.id, amount: 10000 }, { withSubscription: false });
+    await fakeTransaction({ CollectiveId: project.id, kind: 'CONTRIBUTION', amount: 10000, OrderId: order3.id });
   });
 
   describe('contributionsAmount', () => {

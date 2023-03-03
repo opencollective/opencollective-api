@@ -4,7 +4,7 @@ import { Amount } from '../object/Amount';
 
 export const AmountStats = new GraphQLObjectType({
   name: 'AmountStats',
-  description: 'Statistics aith amounts',
+  description: 'Statistics with amounts',
   fields: () => ({
     label: {
       type: new GraphQLNonNull(GraphQLString),
