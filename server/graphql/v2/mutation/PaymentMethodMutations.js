@@ -1,6 +1,5 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { omit, pick } from 'lodash';
-import { Op } from 'sequelize';
 
 import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
@@ -10,6 +9,7 @@ import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
+import { deletePaymentMethod, updateExistingOrdersToNewPaymentMethod } from '../../v1/mutations/orders';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CreditCardCreateInput } from '../input/CreditCardCreateInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
@@ -29,43 +29,6 @@ const CreditCardWithStripeError = new GraphQLObjectType({
     },
   }),
 });
-
-export const deletePaymentMethod = async (collective, fingerprint, transaction) => {
-  // Check if the credit card is already saved
-  const oldPaymentMethod = await models.PaymentMethod.findOne(
-    {
-      where: {
-        CollectiveId: collective.id,
-        service: 'stripe',
-        saved: true,
-        data: {
-          fingerprint: fingerprint,
-        },
-      },
-    },
-    { transaction },
-  );
-
-  if (oldPaymentMethod) {
-    await oldPaymentMethod.destroy();
-  }
-
-  return oldPaymentMethod;
-};
-
-export const updateExistingOrdersToNewPaymentMethod = async (paymentMethod, oldPaymentMethod, transaction) => {
-  // Update all existing orders with the new payment method
-  await models.Order.update(
-    { PaymentMethodId: paymentMethod.id },
-    {
-      where: {
-        PaymentMethodId: oldPaymentMethod.id,
-        status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
-      },
-    },
-    { transaction },
-  );
-};
 
 const addCreditCard = {
   type: new GraphQLNonNull(CreditCardWithStripeError),
@@ -121,15 +84,15 @@ const addCreditCard = {
       },
     };
 
+    let pm;
     await sequelize.transaction(async transaction => {
       const oldPaymentMethod = await deletePaymentMethod(collective, token.card.fingerprint, transaction);
 
-      const paymentMethod = await models.PaymentMethod.create(newPaymentMethodData, { transaction });
+      pm = await models.PaymentMethod.create(newPaymentMethodData, { transaction });
 
-      await updateExistingOrdersToNewPaymentMethod(paymentMethod, oldPaymentMethod, transaction);
+      await updateExistingOrdersToNewPaymentMethod(pm, oldPaymentMethod, transaction);
     });
 
-    let pm;
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });
     } catch (error) {

@@ -5,7 +5,6 @@ import config from 'config';
 import debugLib from 'debug';
 import * as hcaptcha from 'hcaptcha';
 import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
-import { Op } from 'sequelize';
 
 import activities from '../../../constants/activities';
 import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
@@ -28,7 +27,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../../lib/utils';
-import models, { sequelize } from '../../../models';
+import models, { Op, sequelize } from '../../../models';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -37,7 +36,6 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
-import { deletePaymentMethod, updateExistingOrdersToNewPaymentMethod } from '../../v2/mutation/PaymentMethodMutations';
 
 const debug = debugLib('orders');
 
@@ -229,6 +227,45 @@ const hasPaymentMethod = order => {
         paymentMethod.type === 'crypto' ||
         paymentMethod.type === PAYMENT_METHOD_TYPE.PAYMENT_INTENT ||
         (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
+    );
+  }
+};
+
+export const deletePaymentMethod = async (collective, fingerprint, transaction) => {
+  // Check if the credit card is already saved
+  const oldPaymentMethod = await models.PaymentMethod.findOne(
+    {
+      where: {
+        CollectiveId: collective.id,
+        service: 'stripe',
+        saved: true,
+        data: {
+          fingerprint: fingerprint,
+        },
+      },
+    },
+    { transaction },
+  );
+
+  if (oldPaymentMethod) {
+    await oldPaymentMethod.destroy();
+  }
+
+  return oldPaymentMethod;
+};
+
+export const updateExistingOrdersToNewPaymentMethod = async (paymentMethod, oldPaymentMethod, transaction) => {
+  if (paymentMethod && oldPaymentMethod) {
+    // Update all existing orders with the new payment method
+    await models.Order.update(
+      { PaymentMethodId: paymentMethod.id },
+      {
+        where: {
+          PaymentMethodId: oldPaymentMethod.id,
+          status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
+        },
+      },
+      { transaction },
     );
   }
 };
@@ -581,7 +618,7 @@ export async function createOrder(order, req) {
         await orderCreated.setPaymentMethod(order.paymentMethod);
 
         // Update all existing orders with the new payment method
-        if (get(order, 'paymentMethod.service') === 'stripe') {
+        if (get(order, 'paymentMethod.service') === 'stripe' && order.paymentMethod.data?.fingerprint) {
           // Check if the payment method is already saved
           await sequelize.transaction(async transaction => {
             const oldPaymentMethod = await deletePaymentMethod(
