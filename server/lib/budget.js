@@ -1,6 +1,6 @@
 import Promise from 'bluebird';
 import config from 'config';
-import { difference, groupBy } from 'lodash';
+import { difference } from 'lodash';
 
 import expenseStatus from '../constants/expense_status';
 import { TransactionTypes } from '../constants/transactions';
@@ -74,7 +74,7 @@ export async function getBalanceAmount(
     result = results[collective.id];
   }
 
-  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),
@@ -145,7 +145,7 @@ export async function getTotalAmountReceivedAmount(
     result = results[collective.id];
   }
 
-  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),
@@ -183,7 +183,7 @@ export async function getTotalAmountSpentAmount(
     result = results[collective.id];
   }
 
-  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),
@@ -705,7 +705,7 @@ export async function getYearlyBudgetAmount(collective, { loaders, currency } = 
     result = results[collective.id];
   }
 
-  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),
@@ -714,10 +714,12 @@ export async function getYearlyBudgetAmount(collective, { loaders, currency } = 
 }
 
 export async function getYearlyBudgets(collectiveIds) {
-  // 1a) All active monthly subscriptions. Multiply by 12.
-  // 1b) All active yearly subscriptions.
-  // 2a) All one-time subscriptions in the past year.
-  // 2b) All inactive monthly subscriptions that have contributed in the past year.
+  // 1) Active Recurring Contributions
+  //   a) All active monthly contributions. Multiply by 12.
+  //   b) All active yearly contributions
+  // 2) Past Year Contributions
+  //   a) All one-time contributions in the past year.
+  //   b) All inactive recurring contributions that have contributed in the past year.
 
   const results = await sequelize.query(
     `
