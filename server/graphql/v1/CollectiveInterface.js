@@ -531,7 +531,7 @@ export const CollectiveStatsType = new GraphQLObjectType({
       yearlyBudget: {
         type: GraphQLInt,
         resolve(collective, args, req) {
-          return req.loaders.Collective.yearlyIncome.load(collective.id);
+          return collective.getYearlyBudget({ loaders: req.loaders });
         },
       },
       yearlyBudgetManaged: {

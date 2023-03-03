@@ -274,7 +274,7 @@ const processCollective = async CollectiveId => {
     collective.getTotalTransactions(startDate, endDate, 'donation'),
     collective.getTotalTransactions(startDate, endDate, 'expense'),
     collective.getExpenses(null, startDate, endDate),
-    collective.getYearlyIncome(),
+    collective.getYearlyBudget(),
     models.Expense.findAll({
       where: {
         CollectiveId: collective.id,

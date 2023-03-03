@@ -691,110 +691,111 @@ export async function sumCollectivesTransactions(
   return totals;
 }
 
-export async function getYearlyIncome(collectiveIds) {
-  const ids = Array.isArray(collectiveIds) ? collectiveIds : [collectiveIds];
+export async function getYearlyBudgetAmount(collective, { loaders, currency } = {}) {
+  currency = currency || collective.currency;
 
-  // Three cases:
-  // 1) All active monthly subscriptions. Multiply by 12.
-  // 2) All active yearly subscriptions.
-  // 3a) All one-time subscriptions in the past year.
-  // 3b) All inactive monthly subscriptions that have contributed in the past year.
+  let result;
 
-  const yearlyIncomeQuery = await sequelize.query(
+  // Optimized version using loaders
+  if (loaders) {
+    result = await loaders.Collective.yearlyBudget.load(collective.id);
+  } else {
+    const results = await getYearlyBudgets([collective.id]);
+    // we're guaranteed to have only one result per Collective
+    result = results[collective.id];
+  }
+
+  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need (currency)
+  const fxRate = await getFxRate(result.currency, currency);
+  return {
+    value: Math.round(result.value * fxRate),
+    currency,
+  };
+}
+
+export async function getYearlyBudgets(collectiveIds) {
+  // 1a) All active monthly subscriptions. Multiply by 12.
+  // 1b) All active yearly subscriptions.
+  // 2a) All one-time subscriptions in the past year.
+  // 2b) All inactive monthly subscriptions that have contributed in the past year.
+
+  const results = await sequelize.query(
     `
-      WITH active_subscriptions as (
+      WITH "ActiveRecurringContributions" as (
         SELECT
             o."CollectiveId",
-            o.currency,
-            (COALESCE(SUM(o."totalAmount") FILTER(WHERE s.interval = 'month'), 0) * 12 +
-            COALESCE(SUM(o."totalAmount") FILTER(WHERE s.interval = 'year'), 0)) as amount
+            o."currency",
+            (
+              COALESCE(SUM(COALESCE(o."totalAmount", 0) - COALESCE(o."platformTipAmount", 0)) FILTER(WHERE o.interval = 'month'), 0) * 12
+              +
+              COALESCE(SUM(COALESCE(o."totalAmount", 0) - COALESCE(o."platformTipAmount", 0)) FILTER(WHERE o.interval = 'year'), 0)
+            ) as "amount"
           FROM "Orders" o
-          INNER JOIN "Subscriptions" s ON o."SubscriptionId" = s.id
-          AND o."deletedAt" IS NULL
-          AND s."deletedAt" IS NULL
-          AND s."isActive" IS TRUE
-          GROUP BY o."CollectiveId", o.currency
+          WHERE o."CollectiveId" IN (:CollectiveIds)
+            AND o."deletedAt" IS NULL
+            AND o."status" = 'ACTIVE'
+          GROUP BY o."CollectiveId", o."currency"
       ),
-      last_twelve_months_contributions as (
+      "PastYearContributions" as (
           SELECT
             t."CollectiveId",
-            t."hostCurrency" as currency,
-            SUM(t."amountInHostCurrency") +
-              SUM(coalesce(t."platformFeeInHostCurrency", 0)) +
-              SUM(coalesce(t."hostFeeInHostCurrency", 0)) +
-              SUM(coalesce(t."paymentProcessorFeeInHostCurrency", 0)) +
-              SUM(coalesce(t."taxAmount" * t."hostCurrencyFxRate", 0)) "amount"
+            t."hostCurrency" as "currency",
+            SUM(
+              COALESCE(t."amountInHostCurrency", 0) +
+              COALESCE(t."platformFeeInHostCurrency", 0) +
+              COALESCE(t."hostFeeInHostCurrency", 0) +
+              COALESCE(t."paymentProcessorFeeInHostCurrency", 0) +
+              COALESCE(t."taxAmount" * t."hostCurrencyFxRate", 0)
+            ) as "amount"
           FROM "Transactions" t
-          LEFT JOIN "Orders" o ON t."OrderId" = o.id
-          LEFT JOIN "Subscriptions" s ON s.id = o."SubscriptionId"
-          WHERE t."RefundTransactionId" IS NULL
-          AND t.type = 'CREDIT'
-          AND t."deletedAt" IS NULL
-          AND t."createdAt" > (current_date - INTERVAL '12 months')
-          AND (s.id IS NULL or s."isActive" IS FALSE)
+          INNER JOIN "Orders" o ON t."OrderId" = o.id
+            AND o."status" != 'ACTIVE'
+          WHERE t."CollectiveId" IN (:CollectiveIds)
+            AND t."type" = 'CREDIT'
+            AND t."kind" = 'CONTRIBUTION'
+            AND t."deletedAt" IS NULL
+            AND t."RefundTransactionId" IS NULL
+            AND t."createdAt" > (current_date - INTERVAL '12 months')
           GROUP BY t."CollectiveId", t."hostCurrency"
       ),
-      combined as (
-        SELECT * FROM active_subscriptions
+      "CombinedContributions" as (
+        SELECT * FROM "ActiveRecurringContributions"
         UNION ALL
-        SELECT * FROM last_twelve_months_contributions
+        SELECT * FROM "PastYearContributions"
       )
       SELECT
-        "CollectiveId", currency, sum(amount) as amount
-      FROM combined
-      WHERE "CollectiveId" in (:CollectiveIds)
-      GROUP BY "CollectiveId", currency;
+        "CollectiveId", "currency", SUM("amount") as "amount"
+      FROM "CombinedContributions"
+      GROUP BY "CollectiveId", "currency";
       `,
     {
-      replacements: { CollectiveIds: ids },
+      replacements: { CollectiveIds: collectiveIds },
       type: sequelize.QueryTypes.SELECT,
     },
   );
 
-  if (!yearlyIncomeQuery) {
-    return;
-  }
+  const totals = {};
 
-  const currencyQuery = await sequelize.query(
-    `
-    SELECT c.id as "CollectiveId", c.currency, h.currency as "hostCurrency"
-    FROM "Collectives" c
-    LEFT JOIN "Collectives" h ON h.id = c."HostCollectiveId"
-    WHERE c.id IN (:CollectiveIds);
-  `,
-    {
-      replacements: { CollectiveIds: ids },
-      type: sequelize.QueryTypes.SELECT,
-    },
-  );
+  // In case we have results in multiple currencies, we consolidate on the first currency found
+  for (const result of results) {
+    const collectiveId = result['CollectiveId'];
 
-  if (!currencyQuery) {
-    return;
-  }
-
-  const currenciesByCollectiveId = groupBy(currencyQuery, 'CollectiveId');
-  const resultsByCollectiveId = groupBy(yearlyIncomeQuery, 'CollectiveId');
-
-  const yearlyIncomes = [];
-
-  for (const collectiveId of ids) {
-    const collectiveResults = resultsByCollectiveId[collectiveId] ?? [];
-    const collectiveCurrencies = currenciesByCollectiveId[collectiveId]?.[0];
-    const targetCurrency = collectiveCurrencies?.hostCurrency ?? collectiveCurrencies?.currency;
-
-    let yearlyIncome = 0;
-    for (const result of collectiveResults) {
-      const fxRate = await getFxRate(result.currency, targetCurrency);
-      yearlyIncome += Math.round(result.amount * fxRate);
+    // Initialize Collective total
+    if (!totals[collectiveId]) {
+      totals[collectiveId] = { CollectiveId: collectiveId, currency: result['currency'], value: 0 };
     }
-    yearlyIncomes.push(yearlyIncome);
+
+    const fxRate = await getFxRate(result['currency'], totals[collectiveId].currency);
+    totals[collectiveId].value += Math.round(result['amount'] * fxRate);
   }
 
-  if (!Array.isArray(collectiveIds) && yearlyIncomes.length === 1) {
-    return yearlyIncomes[0];
+  for (const CollectiveId of collectiveIds) {
+    if (!totals[CollectiveId]) {
+      totals[CollectiveId] = { CollectiveId, currency: 'USD', value: 0 };
+    }
   }
 
-  return yearlyIncomes;
+  return totals;
 }
 
 // Calculate the total "blocked funds" for each collective

@@ -6,7 +6,7 @@ import ExpenseStatuses from '../../../server/constants/expense_status';
 import {
   getBalances,
   getCurrentCollectiveBalances,
-  getYearlyIncome,
+  getYearlyBudgets,
   sumCollectivesTransactions,
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
@@ -17,10 +17,11 @@ import { resetTestDB } from '../../utils';
 describe('server/lib/budget', () => {
   before(resetTestDB);
 
-  describe('getYearlyIncome', () => {
+  describe('getYearlyBudget', () => {
     it('returns 0 for collective without transactions', async () => {
       const collective = await fakeCollective();
-      expect(await getYearlyIncome(collective.id)).to.equal(0);
+      const yearlyBudgets = await getYearlyBudgets([collective.id]);
+      expect(yearlyBudgets[collective.id].value).to.equal(0);
     });
 
     it('calculates the budget', async () => {
@@ -59,7 +60,10 @@ describe('server/lib/budget', () => {
       );
 
       // Recent one-time: $10
-      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 10e2 }, { createDoubleEntry: true });
+      await fakeOrder(
+        { CollectiveId: collective.id, totalAmount: 1000, interval: null },
+        { withSubscription: false, withTransactions: true },
+      );
 
       // Cancelled subscriptions (count as one-time): $10 x 3 = $30
       const cancelledOrder = await fakeOrder(
@@ -69,6 +73,7 @@ describe('server/lib/budget', () => {
       await cancelledOrder.Subscription.deactivate();
       const cancelledOrderTransactionValues = {
         type: 'CREDIT',
+        kind: 'CONTRIBUTION',
         CollectiveId: collective.id,
         OrderId: cancelledOrder.id,
         amount: cancelledOrder.totalAmount,
@@ -78,8 +83,12 @@ describe('server/lib/budget', () => {
       await fakeTransaction(cancelledOrderTransactionValues, { createDoubleEntry: true });
       await fakeTransaction(cancelledOrderTransactionValues, { createDoubleEntry: true });
 
-      // Total should be the sum of all the above
-      expect(await getYearlyIncome(collective.id)).to.equal(235e2);
+      // Total should be the sum of all the above:
+      // - Active Contributions: $150.00 + $45.00 = 195.00
+      // - Past Contributions: $10.00 + $30.00
+      // = Total: $235.00
+      const yearlyBudgets = await getYearlyBudgets([collective.id]);
+      expect(yearlyBudgets[collective.id].value).to.equal(235e2);
     });
   });
 
