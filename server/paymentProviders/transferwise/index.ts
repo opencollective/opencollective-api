@@ -32,6 +32,8 @@ import {
   Transfer,
 } from '../../types/transferwise';
 
+import { handleTransferStateChange } from './webhook';
+
 const providerName = 'transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
@@ -235,6 +237,20 @@ async function payExpense(
     fund = await transferwise.fundTransfer(connectedAccount, {
       transferId: transfer.id,
     });
+
+    // Simulate transfer success in other environments so transactions don't get stuck.
+    if (!transferwise.isProduction) {
+      const response = await transferwise.simulateTransferSuccess(connectedAccount, transfer.id);
+      await expense.update({ data: { ...expense.data, transfer: response } });
+
+      // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
+      if (config.env === 'development') {
+        await handleTransferStateChange({
+          // eslint-disable-next-line camelcase
+          data: { resource: response, current_state: 'outgoing_payment_sent' },
+        } as any);
+      }
+    }
   } catch (e) {
     logger.error(`Wise: Error paying expense ${expense.id}`, e);
     await transferwise.cancelTransfer(connectedAccount, transfer.id);
