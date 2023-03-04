@@ -233,22 +233,20 @@ const hasPaymentMethod = order => {
 
 export const deletePaymentMethod = async (collective, fingerprint, transaction) => {
   // Check if the credit card is already saved
-  const oldPaymentMethod = await models.PaymentMethod.findOne(
-    {
-      where: {
-        CollectiveId: collective.id,
-        service: 'stripe',
-        saved: true,
-        data: {
-          fingerprint: fingerprint,
-        },
+  const oldPaymentMethod = await models.PaymentMethod.findOne({
+    where: {
+      CollectiveId: collective.id,
+      service: 'stripe',
+      saved: true,
+      data: {
+        fingerprint: fingerprint,
       },
     },
-    { transaction },
-  );
+    transaction,
+  });
 
   if (oldPaymentMethod) {
-    await oldPaymentMethod.destroy();
+    await oldPaymentMethod.destroy({ transaction });
   }
 
   return oldPaymentMethod;
@@ -264,8 +262,8 @@ export const updateExistingOrdersToNewPaymentMethod = async (paymentMethod, oldP
           PaymentMethodId: oldPaymentMethod.id,
           status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
         },
+        transaction,
       },
-      { transaction },
     );
   }
 };
