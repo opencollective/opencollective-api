@@ -37,6 +37,7 @@ type ImageDataShape = CommonDataShape & {
 };
 
 // Constants
+export const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
 export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf'] as const;
@@ -214,6 +215,21 @@ UploadedFile.init(
     fileName: {
       type: DataTypes.STRING,
       allowNull: true,
+      set(fileName: string | null): void {
+        this.setDataValue('fileName', fileName || null);
+      },
+      validate: {
+        notEmpty: true,
+        len: {
+          args: [1, MAX_FILENAME_LENGTH],
+          msg: `File name cannot exceed ${MAX_FILENAME_LENGTH} characters`,
+        },
+        hasExtension: (fileName: string): void => {
+          if (fileName && !path.extname(fileName)) {
+            throw new Error('File name must have an extension');
+          }
+        },
+      },
     },
     fileSize: {
       type: DataTypes.INTEGER,
