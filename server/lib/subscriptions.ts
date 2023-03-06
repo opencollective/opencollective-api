@@ -153,6 +153,13 @@ export const updateSubscriptionDetails = async (
   if (amountInCents !== order.totalAmount) {
     newOrderData['totalAmount'] = amountInCents;
     newSubscriptionData['amount'] = amountInCents;
+    // If the order has taxes, we need to update the taxAmount
+    if (order.data?.tax?.percentage) {
+      const taxRate = order.data.tax.percentage / 100;
+      const amountWithoutTip = amountInCents - order.platformTipAmount;
+      const grossAmount = amountWithoutTip / (1 + taxRate);
+      newOrderData['taxAmount'] = Math.round(amountWithoutTip - grossAmount);
+    }
   }
 
   // Update interval

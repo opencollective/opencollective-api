@@ -253,7 +253,7 @@ const orderMutations = {
       checkRemoteUserCanUseOrders(req);
 
       const decodedId = idDecode(args.order.id, IDENTIFIER_TYPES.ORDER);
-      const haveDetailsChanged = !isUndefined(args.amount) && !isUndefined(args.tier);
+      const haveDetailsChanged = !isUndefined(args.amount) || !isUndefined(args.tier);
       const hasPaymentMethodChanged = !isUndefined(args.paymentMethod);
 
       const order = await models.Order.findOne({
@@ -263,6 +263,7 @@ const orderMutations = {
           { association: 'collective', required: true },
           { association: 'fromCollective', required: true },
           { association: 'paymentMethod' },
+          { association: 'Tier' },
         ],
       });
 
@@ -289,7 +290,12 @@ const orderMutations = {
       let previousOrderValues, previousSubscriptionValues;
       if (haveDetailsChanged) {
         // Update details (eg. amount, tier)
-        const tier = !isNull(args.tier.id) && (await fetchTierWithReference(args.tier, { throwIfMissing: true }));
+        const tier = isNull(args.tier)
+          ? null
+          : args.tier
+          ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
+          : order.Tier;
+
         const membership =
           !isNull(order) &&
           (await models.Member.findOne({

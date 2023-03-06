@@ -1095,6 +1095,42 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         expect(result.data.updateOrder.tier.name).to.eq(fixedTier.name);
       });
 
+      it('when changing the amount, the tax amount is updated too', async () => {
+        const orderWithTaxes = await fakeOrder(
+          {
+            CreatedByUserId: user.id,
+            FromCollectiveId: user.CollectiveId,
+            CollectiveId: collective.id,
+            status: 'ACTIVE',
+            totalAmount: 1300,
+            taxAmount: 200,
+            platformTipAmount: 100,
+            currency: 'USD',
+            data: { tax: { id: 'VAT', percentage: 20 } },
+          },
+          {
+            withSubscription: true,
+          },
+        );
+
+        const result = await graphqlQueryV2(
+          updateOrderMutation,
+          {
+            order: { id: idEncode(orderWithTaxes.id, 'order') },
+            amount: { valueInCents: 2000, currency: 'USD' },
+          },
+          user,
+        );
+
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        await orderWithTaxes.reload();
+        expect(orderWithTaxes.totalAmount).to.eq(2100);
+        expect(orderWithTaxes.platformTipAmount).to.eq(100);
+        expect(orderWithTaxes.taxAmount).to.eq(333); // 20% VAT on $2000 (tip is not included in the tax calculation)
+        expect(orderWithTaxes.totalAmount - orderWithTaxes.taxAmount - orderWithTaxes.platformTipAmount).to.eq(1667); // Gross amount
+      });
+
       describe('update interval', async () => {
         let clock;
 
