@@ -675,7 +675,7 @@ export const Host = new GraphQLObjectType({
         description: 'Returns whether the host has any Stripe disputed orders',
         async resolve(host) {
           return Boolean(
-            await models.Order.findOne({
+            await models.Order.count({
               where: { status: OrderStatuses.DISPUTED },
               include: [
                 {
@@ -684,7 +684,6 @@ export const Host = new GraphQLObjectType({
                   where: { HostCollectiveId: host.id, kind: TransactionKind.CONTRIBUTION },
                 },
               ],
-              attributes: [],
             }),
           );
         },
@@ -694,7 +693,7 @@ export const Host = new GraphQLObjectType({
         description: 'Returns whether the host has any Stripe in review orders',
         async resolve(host) {
           return Boolean(
-            await models.Order.findOne({
+            await models.Order.count({
               where: { status: OrderStatuses.IN_REVIEW },
               include: [
                 {
@@ -703,7 +702,6 @@ export const Host = new GraphQLObjectType({
                   where: { HostCollectiveId: host.id, kind: TransactionKind.CONTRIBUTION },
                 },
               ],
-              attributes: [],
             }),
           );
         },
