@@ -3,7 +3,7 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface) {
-    await queryInterface.addIndex('Transactions', ['CollectiveId', 'createdAt', 'type']);
+    await queryInterface.addIndex('Transactions', ['CollectiveId', 'createdAt', 'type'], { concurrently: true });
   },
 
   async down(queryInterface) {
