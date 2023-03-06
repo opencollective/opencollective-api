@@ -182,16 +182,21 @@ const Expense = new GraphQLObjectType({
             return null;
           }
 
-          const { count, rows } = await models.Comment.findAndCountAll({
-            where: {
-              ExpenseId: { [Op.eq]: expense.id },
-            },
-            order: [[orderBy.field, orderBy.direction]],
+          return {
             offset,
             limit,
-          });
-
-          return { offset, limit, totalCount: count, nodes: rows };
+            totalCount: async () => {
+              return req.loaders.Comment.countByExpenseId.load(expense.id);
+            },
+            nodes: async () => {
+              return models.Comment.findAll({
+                where: { ExpenseId: { [Op.eq]: expense.id } },
+                order: [[orderBy.field, orderBy.direction]],
+                offset,
+                limit,
+              });
+            },
+          };
         },
       },
       account: {
