@@ -5,6 +5,7 @@ import '../../server/env';
 import { groupBy, size } from 'lodash';
 
 import { activities } from '../../server/constants';
+import FEATURE from '../../server/constants/feature';
 import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
@@ -78,29 +79,38 @@ export async function run() {
     const collectiveHandle = collective.slug;
     logger.info(`Cancelling ${accountOrders.length} subscriptions for @${collectiveHandle}`);
     for (const order of accountOrders) {
-      const host = await getHostFromOrder(order);
-      const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
-      logger.debug(
-        `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
-      );
-      if (!process.env.DRY) {
-        await order.Subscription.deactivate(reason, host);
-        await models.Activity.create({
-          type: activities.SUBSCRIPTION_CANCELED,
-          CollectiveId: order.CollectiveId,
-          FromCollectiveId: order.FromCollectiveId,
-          HostCollectiveId: order.collective.HostCollectiveId,
-          OrderId: order.id,
-          UserId: order.CreatedByUserId,
-          data: {
-            subscription: order.Subscription,
-            collective: order.collective.minimal,
-            fromCollective: order.fromCollective.minimal,
-            reasonCode: reasonCode,
-            reason: reason,
-          },
+      try {
+        const host = await getHostFromOrder(order);
+        const [reasonCode, reason] = getOrderCancelationReason(collective, order, host);
+        logger.debug(
+          `Cancelling subscription ${order.Subscription.id} from order ${order.id} of @${collectiveHandle} (host: ${host.slug})`,
+        );
+        if (!process.env.DRY) {
+          await order.Subscription.deactivate(reason, host);
+          await models.Activity.create({
+            type: activities.SUBSCRIPTION_CANCELED,
+            CollectiveId: order.CollectiveId,
+            FromCollectiveId: order.FromCollectiveId,
+            HostCollectiveId: order.collective.HostCollectiveId,
+            OrderId: order.id,
+            UserId: order.CreatedByUserId,
+            data: {
+              subscription: order.Subscription,
+              collective: order.collective.minimal,
+              fromCollective: order.fromCollective.minimal,
+              reasonCode: reasonCode,
+              reason: reason,
+            },
+          });
+          await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
+        }
+      } catch (e) {
+        logger.error(`Error while cancelling subscriptions for @${collectiveHandle}: ${e.message}`);
+        reportErrorToSentry(e, {
+          feature: FEATURE.RECURRING_CONTRIBUTIONS,
+          severity: 'error',
+          extra: { collectiveHandle, order: order.info },
         });
-        await sleep(500); // To prevent rate-limiting issues when calling 3rd party payment processor APIs
       }
     }
   }
