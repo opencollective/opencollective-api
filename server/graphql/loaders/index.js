@@ -10,6 +10,7 @@ import {
   getBalances,
   getSumCollectivesAmountReceived,
   getSumCollectivesAmountSpent,
+  getYearlyBudgets,
   sumCollectivesTransactions,
 } from '../../lib/budget';
 import { getFxRate } from '../../lib/currency';
@@ -249,6 +250,10 @@ export const loaders = req => {
 
   context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo(req, cache);
 
+  context.loaders.Collective.yearlyBudget = new DataLoader(ids =>
+    getYearlyBudgets(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
+  );
+
   // Collective - Stats
   context.loaders.Collective.stats = {
     backers: new DataLoader(ids => {
@@ -450,7 +455,8 @@ export const loaders = req => {
         `
         SELECT "Order"."TierId" AS "TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
         FROM "Transactions" AS "Transaction"
-        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Transaction"."CollectiveId" = "Order"."CollectiveId" AND ("Order"."deletedAt" IS NULL)
+        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Order"."deletedAt" IS NULL
+          AND "Transaction"."CollectiveId" = "Order"."CollectiveId"
         WHERE "TierId" IN (?)
         AND "Transaction"."deletedAt" IS NULL
         AND "Transaction"."RefundTransactionId" IS NULL

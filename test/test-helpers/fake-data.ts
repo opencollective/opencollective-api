@@ -495,6 +495,7 @@ export const fakeOrder = async (
     quantity: 1,
     currency: collective.currency,
     totalAmount: randAmount(100, 99999999),
+    status: withSubscription ? 'ACTIVE' : 'PAID',
     ...orderData,
     TierId: tier?.id || null,
     CreatedByUserId,

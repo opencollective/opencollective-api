@@ -52,7 +52,7 @@ import {
   getTotalAmountReceivedTimeSeries,
   getTotalAmountSpentAmount,
   getTotalMoneyManagedAmount,
-  getYearlyIncome,
+  getYearlyBudgetAmount,
 } from '../lib/budget';
 import { purgeCacheForCollective } from '../lib/cache';
 import {
@@ -853,7 +853,7 @@ Collective.prototype.getNextGoal = async function (until) {
     }
     if (goal.type === 'yearlyBudget') {
       if (!stats.yearlyBudget) {
-        stats.yearlyBudget = await this.getYearlyIncome();
+        stats.yearlyBudget = await this.getYearlyBudget();
       }
       if (stats.yearlyBudget < goal.amount) {
         nextGoal = goal;
@@ -2886,8 +2886,12 @@ Collective.prototype.getBalance = function (options) {
   return getBalanceAmount(this, options).then(result => result.value);
 };
 
-Collective.prototype.getYearlyIncome = function () {
-  return getYearlyIncome(this);
+Collective.prototype.getYearlyBudgetAmount = function () {
+  return getYearlyBudgetAmount(this);
+};
+
+Collective.prototype.getYearlyBudget = function () {
+  return getYearlyBudgetAmount(this).then(result => result.value);
 };
 
 Collective.prototype.getTotalAmountReceivedAmount = function (options) {
