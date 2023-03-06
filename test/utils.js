@@ -521,6 +521,7 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
     if (process.env.RECORD) {
       nock(baseUrl);
     } else {
+      nock.cleanAll();
       const nocks = nock.loadDefs(recordFile).map(preProcessNocks);
       nock.define(nocks);
     }
@@ -531,6 +532,7 @@ export const useIntegrationTestRecorder = (baseUrl, testFileName, preProcessNock
       const nockCalls = nock.recorder.play();
       fs.writeFileSync(recordFile, JSON.stringify(nockCalls, null, 2));
     }
+    nock.cleanAll();
     nock.restore();
   });
 };
