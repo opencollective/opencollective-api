@@ -105,7 +105,7 @@ export const addFundsMutation = {
       throw new ValidationFailed('Tax rate must be between 0 and 1');
     }
 
-    const host = await account.getHostCollective();
+    const host = await account.getHostCollective({ loaders: req.loaders });
     if (!host) {
       throw new ValidationFailed('Adding funds is only possible for account with a host or independent.');
     }

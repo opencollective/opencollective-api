@@ -2912,14 +2912,22 @@ class Collective extends Model<
   };
 
   // get the host of the parent collective if any, or of this collective
-  getHostCollective = async function ({ returnEvenIfNotApproved = false } = {}) {
+  getHostCollective = async function ({ loaders, returnEvenIfNotApproved = false } = {}) {
     if (!this.isActive && !returnEvenIfNotApproved) {
       return null;
     }
 
-    if (this.HostCollectiveId) {
-      return models.Collective.findByPk(this.HostCollectiveId);
+    if (this.host) {
+      return this.host;
     }
+
+    if (this.HostCollectiveId) {
+      const host = loaders
+        ? await loaders.Collective.byId.load(this.HostCollectiveId)
+        : await models.Collective.findByPk(this.HostCollectiveId);
+      return (this.host = host);
+    }
+
     return models.Member.findOne({
       attributes: ['MemberCollectiveId'],
       where: { role: roles.HOST, CollectiveId: this.ParentCollectiveId },

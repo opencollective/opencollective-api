@@ -42,7 +42,7 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-      const host = await collective.getHostCollective();
+      const host = await collective.getHostCollective({ loaders: req.loaders });
       if (!req.remoteUser.isAdminOfCollective(host)) {
         throw new Unauthorized("You don't have permission to edit this collective");
       }
@@ -127,7 +127,7 @@ const virtualCardMutations = {
       checkRemoteUserCanUseVirtualCards(req);
 
       const collective = await fetchAccountWithReference(args.account, { loaders: req.loaders, throwIfMissing: true });
-      const host = await collective.getHostCollective();
+      const host = await collective.getHostCollective({ loaders: req.loaders });
 
       const limitAmountInCents = getValueInCentsFromAmountInput(args.limitAmount, {
         expectedCurrency: host.currency,
@@ -334,8 +334,8 @@ const virtualCardMutations = {
       // Check 2FA
       await twoFactorAuthLib.enforceForAccount(req, collective);
 
-      const host = await collective.getHostCollective();
-      const userCollective = await req.remoteUser.getCollective();
+      const host = await collective.getHostCollective({ loaders: req.loaders });
+      const userCollective = await req.remoteUser.getCollective({ loaders: req.loaders });
       const activity = {
         type: activities.VIRTUAL_CARD_REQUESTED,
         UserId: req.remoteUser.id,
@@ -478,7 +478,7 @@ const virtualCardMutations = {
 
       await virtualCard.delete();
 
-      const userCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
+      const userCollective = await req.loaders.Collective.byId.load(req.remoteUser.CollectiveId);
 
       await models.Activity.create({
         type: activities.COLLECTIVE_VIRTUAL_CARD_DELETED,

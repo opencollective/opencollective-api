@@ -47,12 +47,12 @@ const queries = {
         description: 'If false, will return null instead of an error if collective is not found',
       },
     },
-    resolve(_, args) {
+    resolve(_, args, req) {
       let collective;
       if (args.slug) {
         collective = models.Collective.findBySlug(args.slug.toLowerCase(), null, args.throwIfMissing);
       } else if (args.id) {
-        collective = models.Collective.findByPk(args.id);
+        collective = req.loaders.Collective.byId.load(args.id);
       } else {
         return new Error('Please provide a slug or an id');
       }
@@ -147,19 +147,19 @@ const queries = {
       let host;
       if (transaction.HostCollectiveId) {
         // If a `HostCollectiveId` is defined, we load it directly
-        host = await transaction.getHostCollective();
+        host = await transaction.getHostCollective({ loaders: req.loaders });
       } else if (transaction.isRefund || transaction.kind === 'EXPENSE') {
         const debitTransaction = await transaction.getOppositeTransaction();
         if (debitTransaction) {
-          host = await debitTransaction.getHostCollective();
+          host = await debitTransaction.getHostCollective({ loaders: req.loaders });
         }
       } else {
         // TODO: Keeping the code below to be safe and not break anything, but the logic is wrong:
         // A collective can change host and we would display the wrong one there. `Transaction.HostCollectiveId`
         // should be the single source of truth for this.
         const collectiveId = transaction.type === 'CREDIT' ? transaction.CollectiveId : transaction.FromCollectiveId;
-        const collective = await models.Collective.findByPk(collectiveId);
-        host = await collective.getHostCollective();
+        const collective = await req.loaders.Collective.byId.load(collectiveId);
+        host = await collective.getHostCollective({ loaders: req.loaders });
       }
 
       if (!host) {

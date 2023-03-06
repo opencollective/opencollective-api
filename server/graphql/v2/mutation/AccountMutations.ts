@@ -240,7 +240,7 @@ const accountMutations = {
       checkRemoteUserCanUseHost(req);
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
-      account.host = await account.getHostCollective();
+      account.host = await account.getHostCollective({ loaders: req.loaders });
       if (!account.host) {
         throw new ValidationFailed('Cannot find the host of this account');
       } else if (!req.remoteUser.isAdminOfCollective(account.host)) {
