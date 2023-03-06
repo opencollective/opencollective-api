@@ -1268,7 +1268,7 @@ Collective.prototype.deactivateAsHost = async function () {
     { where: { HostCollectiveId: this.id } },
   );
 
-  await models.Member.update({ deletedAt: new Date() }, { where: { MemberCollectiveId: this.id, role: 'HOST' } });
+  await models.Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
 
   await models.Collective.update(
     { HostCollectiveId: null },
