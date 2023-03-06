@@ -734,6 +734,7 @@ export const loaders = req => {
           },
           CollectiveId: { [Op.in]: keys.map(k => k.CollectiveId) },
           type: TransactionTypes.CREDIT,
+          kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
           RefundTransactionId: null,
         },
         group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],
