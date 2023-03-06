@@ -9343,6 +9343,26 @@ type Query {
     tagSearchOperator: TagSearchOperator! = AND
 
     """
+    Included collectives which are archived
+    """
+    includeArchived: Boolean
+
+    """
+    Only return "active" accounts with Financial Contributions enabled if true.
+    """
+    isActive: Boolean
+
+    """
+    Whether to skip recent suspicious accounts (48h)
+    """
+    skipRecentAccounts: Boolean = false
+
+    """
+    Limit the search to collectives belonging to these countries
+    """
+    country: [CountryISO]
+
+    """
     Host hosting the account
     """
     host: [AccountReferenceInput]
@@ -9358,16 +9378,6 @@ type Query {
     isHost: Boolean
 
     """
-    Included collectives which are archived
-    """
-    includeArchived: Boolean
-
-    """
-    Only return "active" accounts with Financial Contributions enabled if true.
-    """
-    isActive: Boolean
-
-    """
     Only accounts with custom contribution (/donate) enabled
     """
     hasCustomContributionsEnabled: Boolean
@@ -9379,16 +9389,6 @@ type Query {
       @deprecated(
         reason: "2022-04-22: Introduced for Hacktoberfest. Reference: https://github.com/opencollective/opencollective-api/pull/7440#issuecomment-1121504508"
       )
-
-    """
-    Whether to skip recent suspicious accounts (48h)
-    """
-    skipRecentAccounts: Boolean = false
-
-    """
-    Limit the search to collectives belonging to these countries
-    """
-    country: [CountryISO]
 
     """
     The order of results. Defaults to [RANK, DESC] (or [CREATED_AT, DESC] if `supportedPaymentMethodService` is provided)
@@ -9666,14 +9666,44 @@ type Query {
     offset: Int! = 0
 
     """
-    Filter hosts by tags (multiple = OR)
+    Search accounts related to this term based on name, description, tags, slug, and location
     """
-    tags: [String] @deprecated(reason: "2020-06-30: Please use tag (singular)")
+    searchTerm: String
+
+    """
+    Only accounts that match these tags
+    """
+    tag: [String]
+
+    """
+    Operator to use when searching with tags. Defaults to 'AND'
+    """
+    tagSearchOperator: TagSearchOperator! = AND
+
+    """
+    Included collectives which are archived
+    """
+    includeArchived: Boolean
+
+    """
+    Only return "active" accounts with Financial Contributions enabled if true.
+    """
+    isActive: Boolean
+
+    """
+    Whether to skip recent suspicious accounts (48h)
+    """
+    skipRecentAccounts: Boolean = false
+
+    """
+    Limit the search to collectives belonging to these countries
+    """
+    country: [CountryISO]
 
     """
     Filter hosts by tags (multiple = OR)
     """
-    tag: [String]
+    tags: [String] @deprecated(reason: "2020-06-30: Please use tag (singular)")
   ): HostCollection
   individual(
     """

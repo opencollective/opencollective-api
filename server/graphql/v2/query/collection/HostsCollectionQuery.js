@@ -1,35 +1,39 @@
 import { GraphQLList, GraphQLString } from 'graphql';
-import { pick } from 'lodash';
 
-import rawQueries from '../../../../lib/queries';
+import { searchCollectivesInDB } from '../../../../lib/search';
 import { HostCollection } from '../../collection/HostCollection';
 import { CollectionArgs } from '../../interface/Collection';
+
+import { CommonAccountsCollectionQueryArgs } from './AccountsCollectionQuery';
 
 const HostsCollectionQuery = {
   type: HostCollection,
   args: {
     ...CollectionArgs,
+    ...CommonAccountsCollectionQueryArgs,
     tags: {
       type: new GraphQLList(GraphQLString),
       description: 'Filter hosts by tags (multiple = OR)',
       deprecationReason: '2020-06-30: Please use tag (singular)',
     },
-    tag: {
-      type: new GraphQLList(GraphQLString),
-      description: 'Filter hosts by tags (multiple = OR)',
-    },
   },
   async resolve(_, args) {
-    const { collectives, total } = await rawQueries.getHosts({
-      ...pick(args, ['limit', 'offset']),
-      tags: args.tag || args.tags,
+    const searchParams = {
+      orderBy: { field: 'HOSTED_COLLECTIVES_COUNT', direction: 'DESC' },
+      isHost: true,
       onlyOpenHosts: true,
-      minNbCollectivesHosted: 0,
-      orderBy: 'collectives',
-      orderDirection: 'DESC',
-    });
+      onlyActive: args.isActive ? true : null,
+      skipRecentAccounts: args.skipRecentAccounts,
+      countries: args.country,
+      tags: args.tag ?? args.tags,
+      tagSearchOperator: args.tagSearchOperator,
+      includeArchived: args.includeArchived,
+    };
 
-    return { nodes: collectives, totalCount: total, limit: args.limit, offset: args.offset };
+    const cleanTerm = args.searchTerm?.trim();
+    const [accounts, totalCount] = await searchCollectivesInDB(cleanTerm, args.offset, args.limit, searchParams);
+
+    return { nodes: accounts, totalCount, limit: args.limit, offset: args.offset };
   },
 };
 

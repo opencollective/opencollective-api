@@ -153,6 +153,13 @@ const getSortSubQuery = (searchTermConditions, orderBy = null) => {
       END`,
 
     CREATED_AT: `c."createdAt"`,
+    HOSTED_COLLECTIVES_COUNT: `
+        SELECT COUNT(1) FROM "Collectives" hosted
+        WHERE hosted."HostCollectiveId" = c.id 
+        AND hosted."deletedAt" IS NULL
+        AND hosted."isActive" = TRUE
+        AND hosted."type" IN ('COLLECTIVE', 'FUND')
+    `,
   };
 
   let sortQueryType = orderBy?.field || 'RANK';
@@ -188,6 +195,7 @@ export const searchCollectivesInDB = async (
     countries,
     tags,
     tagSearchOperator,
+    ...args
   } = {},
 ) => {
   // Build dynamic conditions based on arguments
@@ -209,6 +217,9 @@ export const searchCollectivesInDB = async (
 
   if (isHost) {
     dynamicConditions += `AND c."isHostAccount" IS TRUE AND c."type" = 'ORGANIZATION' `;
+    if (args.onlyOpenHosts) {
+      dynamicConditions += ` AND c."settings" #>> '{apply}' IS NOT NULL AND (c."settings" #>> '{apply}') != 'false'`;
+    }
   }
 
   if (types?.length) {

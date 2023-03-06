@@ -11,7 +11,7 @@ import {
 } from '../../../server/lib/search';
 import { Op } from '../../../server/models';
 import { newUser } from '../../stores';
-import { fakeCollective, fakeUser, randStr } from '../../test-helpers/fake-data';
+import { fakeCollective, fakeHost, fakeUser, randStr } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
 describe('server/lib/search', () => {
@@ -214,6 +214,79 @@ describe('server/lib/search', () => {
 
         const searchPromise = searchCollectivesByEmail(searchedUser.email, user);
         await expect(searchPromise).to.be.eventually.rejectedWith('Rate limit exceeded');
+      });
+    });
+
+    describe('Hosts', async () => {
+      beforeEach(async () => {
+        await resetTestDB();
+      });
+      it('returns exact match', async () => {
+        const host = await fakeHost({
+          name: 'New Host',
+        });
+        const [collectives] = await searchCollectivesInDB('New Host', 0, 10, {
+          isHost: true,
+        });
+        expect(collectives[0].id).to.equal(host.id);
+      });
+
+      it('Returns all hosts', async () => {
+        await fakeHost({
+          name: 'New Host 1',
+        });
+        await fakeHost({
+          name: 'New Host 2',
+        });
+        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+          isHost: true,
+        });
+        expect(collectives).to.have.length(2);
+      });
+
+      it('Returns only hosts with open applications', async () => {
+        await fakeHost({
+          name: 'New Host 1',
+        });
+        const openHost = await fakeHost({
+          name: 'New Host 2',
+          settings: {
+            apply: true,
+          },
+        });
+        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+          isHost: true,
+          onlyOpenHosts: true,
+        });
+        expect(collectives).to.have.length(1);
+        expect(collectives[0].id).to.equal(openHost.id);
+      });
+
+      it('Orders by hosted collectives', async () => {
+        const zeroCollectives = await fakeHost({
+          name: 'New Host 1',
+        });
+        const threeCollectives = await fakeHost({
+          name: 'New Host 2',
+        });
+        fakeCollective({ HostCollectiveId: threeCollectives.id });
+        fakeCollective({ HostCollectiveId: threeCollectives.id });
+        fakeCollective({ HostCollectiveId: threeCollectives.id });
+
+        const oneCollective = await fakeHost({
+          name: 'New Host 3',
+        });
+
+        fakeCollective({ HostCollectiveId: oneCollective.id });
+
+        const [collectives] = await searchCollectivesInDB('', 0, 10, {
+          isHost: true,
+          orderBy: { field: 'HOSTED_COLLECTIVES_COUNT', direction: 'DESC' },
+        });
+        expect(collectives).to.have.length(3);
+        expect(collectives[0].id).to.equal(threeCollectives.id);
+        expect(collectives[1].id).to.equal(oneCollective.id);
+        expect(collectives[2].id).to.equal(zeroCollectives.id);
       });
     });
   });
