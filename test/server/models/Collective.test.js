@@ -370,14 +370,11 @@ describe('server/models/Collective', () => {
     });
 
     it('auto cancel pending host applications when host is deactivated', async () => {
-      const temporaryHost = await models.Collective.create({
+      const temporaryHost = await fakeHost({
         name: 'Temporary Host',
         slug: 'temporaryHost',
-        hostFeePercent: 0,
-        type: 'ORGANIZATION',
         currency: 'EUR',
         CreatedByUserId: user1.id,
-        isHostAccount: true,
       });
       await models.Member.create({
         CollectiveId: temporaryHost.id,
