@@ -453,15 +453,19 @@ export const loaders = req => {
     sequelize
       .query(
         `
-        SELECT "Order"."TierId" AS "TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
+        SELECT "Order"."TierId", COALESCE(SUM("Transaction"."netAmountInCollectiveCurrency"), 0) AS "totalDonated"
         FROM "Transactions" AS "Transaction"
-        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id" AND "Order"."deletedAt" IS NULL
-          AND "Transaction"."CollectiveId" = "Order"."CollectiveId"
-        WHERE "TierId" IN (?)
+        INNER JOIN "Orders" AS "Order" ON "Transaction"."OrderId" = "Order"."id"
+          AND "Order"."deletedAt" IS NULL
+          -- the following would make the query slow
+          -- replaced by "kind" condition for the same effect
+          -- AND "Transaction"."CollectiveId" = "Order"."CollectiveId"
+        WHERE "Order"."TierId" IN (?)
         AND "Transaction"."deletedAt" IS NULL
         AND "Transaction"."RefundTransactionId" IS NULL
         AND "Transaction"."type" = 'CREDIT'
-        GROUP BY "TierId";
+        AND "Transaction"."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
+        GROUP BY "Order"."TierId";
       `,
         {
           replacements: [ids],
