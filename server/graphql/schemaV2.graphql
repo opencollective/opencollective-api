@@ -1270,6 +1270,11 @@ type Expense {
   quote: ExpenseQuote
   recurringExpense: RecurringExpense
   securityChecks: [SecurityCheck]
+
+  """
+  Custom data for this expense
+  """
+  customData: JSON
 }
 
 """
@@ -4296,7 +4301,7 @@ type TimeSeriesAmountNode {
 }
 
 """
-Statistics aith amounts
+Statistics with amounts
 """
 type AmountStats {
   """
@@ -14456,6 +14461,11 @@ input ExpenseCreateInput {
   The list of taxes that should be applied to the expense (VAT, GST, etc...)
   """
   tax: [ExpenseTaxInput]
+
+  """
+  Custom data to be stored in the expense
+  """
+  customData: JSON
 }
 
 input PayoutMethodInput {
@@ -14664,6 +14674,11 @@ input ExpenseUpdateInput {
   The list of taxes that should be applied to the expense (VAT, GST, etc...)
   """
   tax: [ExpenseTaxInput]
+
+  """
+  Custom data to be stored in the expense
+  """
+  customData: JSON
 }
 
 input ExpenseItemInput {
