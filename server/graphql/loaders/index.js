@@ -18,6 +18,7 @@ import models, { Op, sequelize } from '../../models';
 
 import collectiveLoaders from './collective';
 import commentsLoader from './comments';
+import contributorsLoaders from './contributors';
 import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
@@ -61,6 +62,11 @@ export const loaders = req => {
   // Conversation
   context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);
   context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount(req, cache);
+
+  // Contributors
+  context.loaders.Contributors = {
+    forCollectiveId: contributorsLoaders.forCollectiveId(req, cache),
+  };
 
   // Expense
   context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);

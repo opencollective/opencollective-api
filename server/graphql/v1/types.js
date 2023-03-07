@@ -22,7 +22,7 @@ import orderStatus from '../../constants/order_status';
 import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { getCollectiveAvatarUrl } from '../../lib/collectivelib';
-import { getContributorsForTier } from '../../lib/contributors';
+import { filterContributors } from '../../lib/contributors';
 import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
@@ -1497,8 +1497,10 @@ export const TierType = new GraphQLObjectType({
             defaultValue: 3000,
           },
         },
-        resolve(tier, args) {
-          return getContributorsForTier(tier.CollectiveId, tier.id, { limit: args.limit });
+        async resolve(tier, args, req) {
+          const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(tier.CollectiveId);
+          const tierContributors = contributorsCache?.tiers?.[tier.id.toString()];
+          return tierContributors ? filterContributors(tierContributors, args) : [];
         },
       },
       stats: {
