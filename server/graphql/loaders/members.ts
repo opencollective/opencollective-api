@@ -65,7 +65,7 @@ export const generateCountAdminMembersOfCollective = () => {
       },
     });
     const result = _.keyBy(adminsByCollective, 'CollectiveId');
-    return collectiveIds.map(collectiveId => result[collectiveId].dataValues.adminCount);
+    return collectiveIds.map(collectiveId => result[collectiveId]?.dataValues?.adminCount || 0);
   });
 };
 
