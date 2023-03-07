@@ -11,7 +11,7 @@ import { hasPolicy } from '../policies';
 
 import totp from './totp';
 
-const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 4 * 60 * 60; // 1 hour
+const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
 type ValidateRequestOptions = {
   // require user configured 2FA
