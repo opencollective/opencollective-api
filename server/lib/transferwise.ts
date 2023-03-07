@@ -401,7 +401,7 @@ export const simulateTransferSuccess = async (
         requestPath: `/v1/simulation/transfers/:id/${status}`,
         connectedAccount,
       },
-      'Development: There was an simulating transfer status for Wise',
+      'Development: There was an error simulating transfer status for Wise',
     );
   }
 
