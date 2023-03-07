@@ -41,6 +41,8 @@ const axios = Axios.create({
   baseURL: config.transferwise.apiUrl,
 });
 
+export const isProduction = config.env === 'production';
+
 type TransferwiseErrorCodes = 'balance.payment-option-unavailable' | string;
 
 const signString = (data: string) => {
@@ -381,6 +383,31 @@ export const getTransfer = async (connectedAccount: ConnectedAccount, transferId
   );
 };
 
+export const simulateTransferSuccess = async (
+  connectedAccount: ConnectedAccount,
+  transferId: number,
+): Promise<Transfer> => {
+  if (isProduction) {
+    throw new Error('Simulate transfer success is only available in development');
+  }
+
+  let response;
+  const statuses = ['processing', 'funds_converted', 'outgoing_payment_sent'];
+  for (const status of statuses) {
+    response = await requestDataAndThrowParsedError(
+      axios.get,
+      `/v1/simulation/transfers/${transferId}/${status}`,
+      {
+        requestPath: `/v1/simulation/transfers/:id/${status}`,
+        connectedAccount,
+      },
+      'Development: There was an error simulating transfer status for Wise',
+    );
+  }
+
+  return response;
+};
+
 export const getAccountRequirements = async (
   connectedAccount: ConnectedAccount,
   { sourceCurrency, targetCurrency, ...amount }: GetTemporaryQuote,
@@ -598,8 +625,6 @@ export const fundBatchGroup = async (
       }
     });
 };
-
-const isProduction = config.env === 'production';
 
 const publicKey = fs.readFileSync(
   path.join(

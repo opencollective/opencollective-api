@@ -32,6 +32,8 @@ import {
   Transfer,
 } from '../../types/transferwise';
 
+import { handleTransferStateChange } from './webhook';
+
 const providerName = 'transferwise';
 
 const hashObject = obj => crypto.createHash('sha1').update(JSON.stringify(obj)).digest('hex').slice(0, 7);
@@ -118,7 +120,7 @@ async function quoteExpense(
       'For multi-currency expenses, the host currency must be the same as the collective currency',
     );
     assert(
-      expense.currency === payoutMethod.unfilteredData.currency,
+      expense.currency === targetCurrency,
       'For multi-currency expenses, the payout currency must be the same as the expense currency',
     );
     quoteParams['targetCurrency'] = expense.currency;
@@ -131,17 +133,14 @@ async function quoteExpense(
     );
     quoteParams['sourceAmount'] = expense.amount / 100;
   } else {
-    let rate = 1;
-    if (targetCurrency !== expense.host.currency) {
-      const [exchangeRate] = await transferwise.getExchangeRates(
-        connectedAccount,
-        expense.host.currency,
-        targetCurrency,
-      );
-      assert(exchangeRate, `No exchange rate found for ${expense.host.currency} -> ${targetCurrency}`);
-      rate = exchangeRate.rate;
+    const targetAmount = expense.amount;
+    // Convert Expense amount to targetCurrency
+    if (targetCurrency !== expense.currency) {
+      const [exchangeRate] = await transferwise.getExchangeRates(connectedAccount, expense.currency, targetCurrency);
+      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount * exchangeRate.rate);
+    } else {
+      quoteParams['targetAmount'] = centsAmountToFloat(targetAmount);
     }
-    quoteParams['targetAmount'] = centsAmountToFloat(expense.amount * rate);
   }
 
   const quote = await transferwise.createQuote(connectedAccount, quoteParams);
@@ -238,6 +237,20 @@ async function payExpense(
     fund = await transferwise.fundTransfer(connectedAccount, {
       transferId: transfer.id,
     });
+
+    // Simulate transfer success in other environments so transactions don't get stuck.
+    if (['development', 'staging'].includes(config.env)) {
+      const response = await transferwise.simulateTransferSuccess(connectedAccount, transfer.id);
+      await expense.update({ data: { ...expense.data, transfer: response } });
+
+      // In development mode we don't have webhooks set up, so we need to manually trigger the event handler.
+      if (config.env === 'development') {
+        await handleTransferStateChange({
+          // eslint-disable-next-line camelcase
+          data: { resource: response, current_state: 'outgoing_payment_sent' },
+        } as any);
+      }
+    }
   } catch (e) {
     logger.error(`Wise: Error paying expense ${expense.id}`, e);
     await transferwise.cancelTransfer(connectedAccount, transfer.id);
