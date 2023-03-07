@@ -7,6 +7,7 @@ import { round } from 'lodash';
 import ExpenseStatuses from '../../server/constants/expense_status';
 import { payExpense } from '../../server/graphql/common/expenses';
 import cache from '../../server/lib/cache';
+import models from '../../server/models';
 import Expense from '../../server/models/Expense';
 import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import { handleTransferStateChange } from '../../server/paymentProviders/transferwise/webhook';
@@ -18,7 +19,7 @@ import {
   fakeTransaction,
   fakeUser,
 } from '../test-helpers/fake-data';
-import { resetTestDB, useIntegrationTestRecorder } from '../utils';
+import { resetTestDB, snapshotLedger, useIntegrationTestRecorder } from '../utils';
 
 describe('/test/stories/transferwise.test.ts', () => {
   useIntegrationTestRecorder(config.transferwise.apiUrl, __filename, nock => {
@@ -30,14 +31,13 @@ describe('/test/stories/transferwise.test.ts', () => {
   });
 
   before(async () => {
-    await cache.clear();
     await resetTestDB();
+    await cache.clear();
     config.fixer = { accessKey: 'fake-token' };
   });
 
-  let counter = 1;
-
   const setupTest = async ({ expenseCurrency, collectiveCurrency, payoutData }) => {
+    await models.Transaction.truncate();
     const hostCurrency = 'USD';
     const expenseAmount = 100e2;
     const hostAdmin = await fakeUser();
@@ -45,12 +45,14 @@ describe('/test/stories/transferwise.test.ts', () => {
       admin: hostAdmin.collective,
       plan: 'network-host-plan',
       currency: hostCurrency,
+      name: 'Open Source Collective',
     });
     const collective = await fakeCollective({
       HostCollectiveId: host.id,
       currency: collectiveCurrency,
+      name: `Babel ${collectiveCurrency}`,
     });
-    const user = await fakeUser();
+    const user = await fakeUser(undefined, { name: 'Donnortello' });
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
@@ -83,6 +85,7 @@ describe('/test/stories/transferwise.test.ts', () => {
     await hostAdmin.populateRoles();
     await fakeTransaction({
       CollectiveId: collective.id,
+      FromCollectiveId: host.id,
       amount: 100000000,
       amountInHostCurrency: 100000000,
       currency: collectiveCurrency,
@@ -103,7 +106,7 @@ describe('/test/stories/transferwise.test.ts', () => {
       currency: expenseCurrency,
       PayoutMethodId: payoutMethod.id,
       type: 'INVOICE',
-      description: `Wise test #${counter++}`,
+      description: `Expense in ${expenseCurrency}`,
     });
 
     await payExpense({ remoteUser: hostAdmin } as any, { id: expense.id });
@@ -130,6 +133,21 @@ describe('/test/stories/transferwise.test.ts', () => {
       amountInHostCurrency: -1 * amountInHostCurrency,
       paymentProcessorFeeInHostCurrency: -1 * fee,
     });
+
+    await snapshotLedger([
+      'kind',
+      'description',
+      'type',
+      'amount',
+      'paymentProcessorFeeInHostCurrency',
+      'amountInHostCurrency',
+      'netAmountInCollectiveCurrency',
+      'CollectiveId',
+      'currency',
+      'FromCollectiveId',
+      'HostCollectiveId',
+      'hostCurrency',
+    ]);
 
     return { expense, debit };
   };
