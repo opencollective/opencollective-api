@@ -87,6 +87,7 @@ import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import CustomDataTypes from './DataTypes';
+import { HostApplicationStatus } from './HostApplication';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 import { SocialLinkType } from './SocialLink';
@@ -1260,6 +1261,19 @@ Collective.prototype.deactivateAsHost = async function () {
       `You can't deactivate hosting while still hosting ${hostedCollectives} other collectives. Please contact support: support@opencollective.com.`,
     );
   }
+
+  // Make sure we clean up all pending applications
+  await models.HostApplication.update(
+    { status: HostApplicationStatus.EXPIRED },
+    { where: { HostCollectiveId: this.id } },
+  );
+
+  await models.Member.destroy({ where: { MemberCollectiveId: this.id, role: 'HOST' } });
+
+  await models.Collective.update(
+    { HostCollectiveId: null },
+    { hooks: false, where: { HostCollectiveId: this.id, isActive: false } },
+  );
 
   // TODO unsubscribe from OpenCollective tier plan.
 

@@ -369,6 +369,35 @@ describe('server/models/Collective', () => {
       }
     });
 
+    it('auto cancel pending host applications when host is deactivated', async () => {
+      const temporaryHost = await fakeHost({
+        name: 'Temporary Host',
+        slug: 'temporaryHost',
+        currency: 'EUR',
+        CreatedByUserId: user1.id,
+      });
+      await models.Member.create({
+        CollectiveId: temporaryHost.id,
+        MemberCollectiveId: user1.CollectiveId,
+        role: 'ADMIN',
+        CreatedByUserId: user1.id,
+      });
+      const pendingCollective = await models.Collective.create({
+        name: 'Pending collective',
+        slug: 'pending-collective',
+        type: 'COLLECTIVE',
+        isActive: false,
+        CreatedByUserId: user2.id,
+      });
+      await pendingCollective.addHost(temporaryHost, user2);
+      expect(pendingCollective.isActive).to.equal(false);
+      expect(pendingCollective.HostCollectiveId).to.equal(temporaryHost.id);
+      await temporaryHost.deactivateAsHost();
+      expect(temporaryHost.isHostAccount).to.be.false;
+      await pendingCollective.reload();
+      expect(pendingCollective.HostCollectiveId).to.be.null;
+    });
+
     it('changes host successfully and sends email notification to host', async () => {
       const assertCollectiveCurrency = async (collective, currency) => {
         const tiers = await models.Tier.findAll({
