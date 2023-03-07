@@ -9,10 +9,10 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { isNil } from 'lodash';
+import { isNil, omit } from 'lodash';
 import { OrderItem } from 'sequelize';
 
-import { getPaginatedContributorsForCollective } from '../../../lib/contributors';
+import { filterContributors } from '../../../lib/contributors';
 import models from '../../../models';
 import { ContributorCollection } from '../collection/ContributorCollection';
 import { TierCollection } from '../collection/TierCollection';
@@ -77,8 +77,18 @@ export const AccountWithContributionsFields = {
       ...CollectionArgs,
       roles: { type: new GraphQLList(MemberRole) },
     },
-    resolve(collective: typeof models.Collective, args): Promise<Record<string, unknown>> {
-      return getPaginatedContributorsForCollective(collective.id, args);
+    async resolve(collective: typeof models.Collective, args, req): Promise<Record<string, unknown>> {
+      const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
+      const contributors = contributorsCache.all || [];
+      const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));
+      const offset = args.offset || 0;
+      const limit = args.limit || 50;
+      return {
+        offset,
+        limit,
+        totalCount: filteredContributors.length,
+        nodes: filteredContributors.slice(offset, limit),
+      };
     },
   },
   platformFeePercent: {

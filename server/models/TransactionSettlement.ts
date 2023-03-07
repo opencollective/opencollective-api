@@ -77,6 +77,7 @@ class TransactionSettlement extends Model<
         AND t."deletedAt" IS NULL
         AND ts."deletedAt" IS NULL
         ${settlementStatus ? 'AND ts."status" = :settlementStatus' : ''}
+        ORDER BY "id" ASC
       `,
       {
         model: Transaction,

@@ -21,7 +21,7 @@ import FEATURE_STATUS from '../../constants/feature-status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import roles from '../../constants/roles';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
-import { getContributorsForCollective } from '../../lib/contributors';
+import { filterContributors } from '../../lib/contributors';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
@@ -1411,8 +1411,9 @@ const CollectiveFields = () => {
         limit: { type: GraphQLInt, defaultValue: 1000 },
         roles: { type: new GraphQLList(ContributorRoleEnum) },
       },
-      resolve(collective, args) {
-        return getContributorsForCollective(collective.id, args);
+      async resolve(collective, args, req) {
+        const contributors = await req.loaders.Contributors.forCollectiveId.load(collective.id);
+        return filterContributors(contributors.all, args);
       },
     },
     collectives: {
