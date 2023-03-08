@@ -14,6 +14,7 @@ import {
 import Temporal from 'sequelize-temporal';
 
 import activities from '../constants/activities';
+import { types } from '../constants/collectives';
 import { Service } from '../constants/connected_account';
 import OrderStatuses from '../constants/order_status';
 import roles from '../constants/roles';
@@ -23,6 +24,7 @@ import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
+import Collective from './Collective';
 import models from '.';
 
 const debug = debugLib('models:User');
@@ -51,8 +53,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public _emailWaitingForValidationChanged?: NonAttribute<boolean>;
 
   // Associations
-  public declare collective?: typeof models.Collective;
-  declare getCollective: BelongsToGetAssociationMixin<typeof models.Collective>;
+  public declare collective?: Collective;
+  declare getCollective: BelongsToGetAssociationMixin<Collective>;
 
   // Non-model attributes
   public rolesByCollectiveId?: NonAttribute<Record<string, string[]>>;
@@ -396,7 +398,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     }
 
     const userCollectiveData = {
-      type: 'USER',
+      type: types.USER,
       name: collectiveName,
       legalName: userData.legalName,
       image: userData.image,
@@ -442,7 +444,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   // Getters
   // Collective of type USER corresponding to this user
   // @deprecated use user.getCollective()
-  get userCollective(): NonAttribute<Promise<typeof models.Collective>> {
+  get userCollective(): NonAttribute<Promise<Collective | Record<string, never>>> {
     return models.Collective.findByPk(this.CollectiveId).then(userCollective => {
       if (!userCollective) {
         logger.info(`No Collective attached to this user id ${this.id} (User.CollectiveId: ${this.CollectiveId})`);

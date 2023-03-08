@@ -13,7 +13,7 @@ import logger from '../../server/lib/logger';
 import { getHostsWithPayPalConnected, listPayPalTransactions } from '../../server/lib/paypal';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { parseToBoolean } from '../../server/lib/utils';
-import models, { sequelize } from '../../server/models';
+import models, { Collective, sequelize } from '../../server/models';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { recordPaypalCapture } from '../../server/paymentProviders/paypal/payment';
 import { PaypalCapture, PaypalTransactionSearchResult } from '../../server/types/paypal';
@@ -189,7 +189,7 @@ const loadDataForSubscription = async (paypalSubscriptionId, expectedHost) => {
  * Subscriptions are an easy case, we only need to record the capture
  */
 const handleSubscriptionTransaction = async (
-  host: typeof models.Collective,
+  host: Collective,
   transaction: PaypalTransactionSearchResult['transaction_details'][0],
   captureDetails: PaypalCapture,
 ) => {

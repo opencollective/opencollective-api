@@ -6,7 +6,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Expense from './Expense';
 import User from './User';
-import models from '.';
+import models, { Collective } from '.';
 
 // Options for sanitizing comment's body
 const sanitizeOptions = buildSanitizerOptions({
@@ -29,8 +29,8 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare fromCollective?: NonAttribute<typeof models.Collective>;
-  public declare collective?: NonAttribute<typeof models.Collective>;
+  public declare fromCollective?: NonAttribute<Collective>;
+  public declare collective?: NonAttribute<Collective>;
 
   // Returns the User model of the User that created this Update
   getUser = function () {

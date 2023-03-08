@@ -1,4 +1,5 @@
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { Order } from 'sequelize';
 
 import { searchCollectivesInDB } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
@@ -133,7 +134,7 @@ const AccountsCollectionQuery = {
         throw new Error(`Only CREATED_AT is supported for orderBy when using supportedPaymentMethodService`);
       }
 
-      const order = [['createdAt', orderBy.direction || 'DESC']];
+      const order: Order = [['createdAt', orderBy.direction || 'DESC']];
       const result = await models.Collective.findAndCountAll({ where, order, offset, limit });
       return { nodes: result.rows, totalCount: result.count, limit, offset };
     } else {

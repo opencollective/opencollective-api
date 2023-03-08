@@ -8,7 +8,7 @@ import { clamp } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
-import models, { Collective } from '../models';
+import { Collective } from '../models';
 import { Activity } from '../models/Activity';
 
 /** Return type when running a spam analysis */
@@ -607,10 +607,7 @@ const stringifyUrl = url => {
 
 const addLine = (message: string, line: string): string => (line ? `${message}\n${line}` : message);
 
-export const collectiveBayesContent = async (
-  collective: Collective,
-  extraString = '',
-): Promise<string> => {
+export const collectiveBayesContent = async (collective: Collective, extraString = ''): Promise<string> => {
   const slugString = (collective.slug || '').split('-').join(' ');
   const websiteString = stringifyUrl(collective.website || '');
 
@@ -636,10 +633,7 @@ export const collectiveBayesCheck = async (collective: Collective, extraString =
 /**
  * Checks the values for this collective to try to determinate if it's a spammy profile.
  */
-export const collectiveSpamCheck = async (
-  collective: Collective,
-  context: string,
-): Promise<SpamAnalysisReport> => {
+export const collectiveSpamCheck = async (collective: Collective, context: string): Promise<SpamAnalysisReport> => {
   const result = { score: 0, keywords: new Set<string>(), domains: new Set<string>() };
 
   let bayesCheck = null;
@@ -672,7 +666,7 @@ export const collectiveSpamCheck = async (
     bayes: bayesCheck,
     keywords: Array.from(result.keywords),
     domains: Array.from(result.domains),
-    data: collective.info || collective,
+    data: collective.info || (collective as unknown as Record<string, unknown>),
     context,
   };
 };

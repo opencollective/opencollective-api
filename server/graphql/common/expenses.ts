@@ -47,7 +47,7 @@ import { createTransactionsForManuallyPaidExpense, createTransactionsFromPaidExp
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import { canUseFeature } from '../../lib/user-permissions';
 import { formatCurrency, parseToBoolean } from '../../lib/utils';
-import models, { sequelize } from '../../models';
+import models, { Collective, sequelize } from '../../models';
 import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
@@ -861,9 +861,9 @@ const checkExpenseItems = (expenseType, items: (ExpenseItem | Record<string, unk
 
 const checkExpenseType = (
   type: EXPENSE_TYPE,
-  account: typeof models.Collective,
-  parent: typeof models.Collective | null,
-  host: typeof models.Collective | null,
+  account: Collective,
+  parent: Collective | null,
+  host: Collective | null,
 ): void => {
   // Check flag in settings in the priority order of collective > parent > host
   const accounts = { account, parent, host };
@@ -946,11 +946,11 @@ type TaxDefinition = {
 type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
-  payeeLocation?: Record<string, unknown>;
+  payeeLocation?: { address: string; country: string; structured: Record<string, unknown> };
   items?: Record<string, unknown>[];
   attachedFiles?: Record<string, unknown>[];
-  collective?: Record<string, unknown>;
-  fromCollective?: Record<string, unknown>;
+  collective?: Collective;
+  fromCollective?: Collective;
   tags?: string[];
   incurredAt?: Date;
   type?: EXPENSE_TYPE;
@@ -2252,11 +2252,7 @@ export const getExpenseAmountInDifferentCurrency = async (expense, toCurrency, r
  * Move expenses to destination account
  * @param expenses the list of models.Expense, with the collective association preloaded
  */
-export const moveExpenses = async (
-  req: express.Request,
-  expenses: Expense[],
-  destinationAccount: typeof models.Collective,
-) => {
+export const moveExpenses = async (req: express.Request, expenses: Expense[], destinationAccount: Collective) => {
   // Root also checked in the mutation resolver, but duplicating just to be safe if someone decides to use this elsewhere
   checkRemoteUserCanRoot(req);
   if (!expenses.length) {

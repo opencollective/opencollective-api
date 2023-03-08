@@ -17,7 +17,7 @@ import logger from '../../lib/logger';
 import { centsAmountToFloat } from '../../lib/math';
 import { reportErrorToSentry } from '../../lib/sentry';
 import * as transferwise from '../../lib/transferwise';
-import models, { sequelize } from '../../models';
+import models, { Collective, sequelize } from '../../models';
 import { ConnectedAccount } from '../../models/ConnectedAccount';
 import Expense from '../../models/Expense';
 import PayoutMethod from '../../models/PayoutMethod';
@@ -261,7 +261,7 @@ async function payExpense(
 }
 
 const getOrCreateActiveBatch = async (
-  host: typeof models.Collective,
+  host: Collective,
   options?: { connectedAccount?: string; token?: string },
 ): Promise<BatchGroup> => {
   const expense = await models.Expense.findOne({
@@ -413,7 +413,7 @@ async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
 }
 
 async function getAvailableCurrencies(
-  host: typeof models.Collective,
+  host: Collective,
   ignoreBlockedCurrencies = true,
 ): Promise<{ code: string; minInvoiceAmount: number }[]> {
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
@@ -464,7 +464,7 @@ function validatePayoutMethod(connectedAccount: ConnectedAccount, payoutMethod: 
 }
 
 async function getRequiredBankInformation(
-  host: typeof models.Collective,
+  host: Collective,
   currency: string,
   accountDetails?: Record<string, unknown>,
 ): Promise<Array<TransactionRequirementsType>> {

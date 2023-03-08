@@ -32,9 +32,11 @@ import prependHttp from 'prepend-http';
 import {
   CreationOptional,
   FindOptions,
+  HasManyGetAssociationsMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
+  NonAttribute,
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
@@ -93,8 +95,10 @@ import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 
+import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import { HostApplicationStatus } from './HostApplication';
+import LegalDocument from './LegalDocument';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
@@ -108,6 +112,16 @@ type Goal = {
 
 type Settings = {
   goals?: Array<Goal>;
+  features?: {
+    contactForm?: boolean;
+  };
+  transferwise?: {
+    ignorePaymentProcessorFees?: boolean;
+  };
+  virtualcards?: {
+    reminder?: boolean;
+    autopause?: boolean;
+  };
 };
 
 type GeoLocationLatLong = {
@@ -173,7 +187,6 @@ const sanitizeSettingsValue = value => {
 
 const { models } = sequelize;
 
-
 class Collective extends Model<
   InferAttributes<
     Collective,
@@ -229,6 +242,18 @@ class Collective extends Model<
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt?: CreationOptional<Date>;
+
+  public declare host?: NonAttribute<Collective>;
+
+  public declare members?: NonAttribute<Array<typeof models.Member>>;
+  public declare getMembers: HasManyGetAssociationsMixin<typeof models.Member>;
+
+  public declare legalDocuments?: NonAttribute<LegalDocument[]>;
+
+  public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
+
+  public declare parent?: NonAttribute<Collective>;
+  public declare children?: NonAttribute<Collective[]>;
 
   static async createOrganization(collectiveData, adminUser, creator) {
     const CreatedByUserId = creator?.id || adminUser.id;
@@ -633,7 +658,7 @@ class Collective extends Model<
     });
   };
 
-  getParentCollective = async function (options) {
+  getParentCollective = async function (options = undefined) {
     if (!this.ParentCollectiveId) {
       return null;
     } else if (options) {
@@ -1180,7 +1205,7 @@ class Collective extends Model<
   };
 
   // Returns the User model of the User that created this collective
-  getUser = async function (queryParams) {
+  getUser = async function (queryParams = undefined) {
     if (this.type === types.USER) {
       return models.User.findOne({ where: { CollectiveId: this.id }, ...queryParams });
     } else {
@@ -1624,7 +1649,7 @@ class Collective extends Model<
     context: {
       skipActivity?: any;
     } = {},
-    transaction,
+    transaction = undefined,
   ) {
     if (role === roles.HOST) {
       return logger.info('Please use Collective.addHost(hostCollective, remoteUser);');
@@ -2022,7 +2047,7 @@ class Collective extends Model<
    * @param {*} creatorUser { id } (optional, falls back to hostCollective.CreatedByUserId)
    * @param {object} [options] (optional, to peform specific actions)
    */
-  addHost = async function (hostCollective, creatorUser, options) {
+  addHost = async function (hostCollective, creatorUser, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
     }
@@ -2215,7 +2240,7 @@ class Collective extends Model<
    * @param {*} newHostCollective: { id }
    * @param {*} remoteUser { id }
    */
-  changeHost = async function (newHostCollectiveId, remoteUser, options) {
+  changeHost = async function (newHostCollectiveId, remoteUser = undefined, options = undefined) {
     // Skip
     if (this.HostCollectiveId === newHostCollectiveId) {
       return this;
@@ -2568,15 +2593,15 @@ class Collective extends Model<
     return getBalanceAmount(this, { ...options, withBlockedFunds: true });
   };
 
-  getBalanceWithBlockedFunds = function (options) {
+  getBalanceWithBlockedFunds = function (options: any = {}) {
     return getBalanceAmount(this, { ...options, withBlockedFunds: true }).then(result => result.value);
   };
 
-  getBalanceAmount = function (options) {
+  getBalanceAmount = function (options: any = {}) {
     return getBalanceAmount(this, options);
   };
 
-  getBalance = function (options) {
+  getBalance = function (options: any = {}) {
     return getBalanceAmount(this, options).then(result => result.value);
   };
 

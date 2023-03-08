@@ -15,7 +15,7 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
-import models from '../../models';
+import models, { Collective } from '../../models';
 import PaymentMethod from '../../models/PaymentMethod';
 import User from '../../models/User';
 
@@ -248,7 +248,7 @@ export async function resolvePaymentMethodForOrder(
 
 export async function getOrCreateStripeCustomer(
   stripeAccount: string,
-  collective: typeof models.Collective,
+  collective: Collective,
   user: User,
 ): Promise<string> {
   let stripeCustomerConnectedAccount = await collective.getCustomerStripeAccount(stripeAccount);
@@ -277,7 +277,7 @@ export async function getOrCreateStripeCustomer(
 
 export async function attachCardToPlatformCustomer(
   paymentMethod: typeof models.PaymentMethod,
-  collective: typeof models.Collective,
+  collective: Collective,
   user: User,
 ): Promise<PaymentMethod> {
   const platformCustomer = await getOrCreateStripeCustomer(config.stripe.accountId, collective, user);
@@ -305,7 +305,7 @@ export async function attachCardToPlatformCustomer(
 
 export async function getOrCloneCardPaymentMethod(
   platformPaymentMethod: typeof models.PaymentMethod,
-  collective: typeof models.Collective,
+  collective: Collective,
   hostStripeAccount: string,
   hostCustomer: string,
 ): Promise<{ id: string; customer: string }> {

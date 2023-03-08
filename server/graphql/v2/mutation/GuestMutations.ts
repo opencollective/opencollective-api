@@ -5,7 +5,7 @@ import { TOKEN_EXPIRATION_SESSION } from '../../../lib/auth';
 import emailLib from '../../../lib/email';
 import { confirmGuestAccountByEmail } from '../../../lib/guest-accounts';
 import RateLimit from '../../../lib/rate-limit';
-import models from '../../../models';
+import models, { Collective } from '../../../models';
 import { BadRequest, NotFound, RateLimitExceeded } from '../../errors';
 import { Account } from '../interface/Account';
 import EmailAddress from '../scalar/EmailAddress';
@@ -115,7 +115,7 @@ const guestMutations = {
       _: void,
       args: Record<string, unknown>,
       req: Record<string, unknown>,
-    ): Promise<typeof models.Collective> {
+    ): Promise<{ account: Collective; accessToken: string }> {
       // NOTE(oauth-scope): No scope needed
 
       // Adding a rate limite here to prevent attackers from guessing email addresses

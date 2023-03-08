@@ -289,11 +289,11 @@ const approveApplication = async (host, collective, req) => {
     const newAccountData = { isActive: true, approvedAt: new Date(), HostCollectiveId: host.id };
 
     // Approve all events and projects created by this collective
-    await models.Collective.update(
-      newAccountData,
-      { where: { ParentCollectiveId: collective.id }, hooks: false },
-      { transaction },
-    );
+    await models.Collective.update(newAccountData, {
+      where: { ParentCollectiveId: collective.id },
+      hooks: false,
+      transaction,
+    });
 
     // Approve the collective
     await collective.update(newAccountData, { transaction });

@@ -17,8 +17,8 @@ import sequelize, { Op } from '../lib/sequelize';
 import { objHasOnlyKeys } from '../lib/utils';
 import { RecipientAccount as BankAccountPayoutMethodData } from '../types/transferwise';
 
+import Collective from './Collective';
 import User from './User';
-import models from '.';
 
 /**
  * Match the Postgres enum defined for `PayoutMethods` > `type`
@@ -86,7 +86,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   public declare CollectiveId: number;
   public declare CreatedByUserId: ForeignKey<User['id']>;
 
-  public declare Collective?: typeof models.Collective;
+  public declare Collective?: Collective;
 
   private static editableFields = ['data', 'name', 'isSaved'];
 
@@ -117,7 +117,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   static async createFromData(
     payoutMethodData: Record<string, unknown>,
     user: User,
-    collective: typeof models.Collective,
+    collective: Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     const cleanData = PayoutMethod.cleanData(payoutMethodData);
@@ -140,7 +140,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
   static async getOrCreateFromData(
     payoutMethodData: Record<string, unknown>,
     user: User,
-    collective: typeof models.Collective,
+    collective: Collective,
     dbTransaction: Transaction | null,
   ): Promise<PayoutMethod> {
     // We try to load the existing payment method if it exists for this collective

@@ -2,11 +2,12 @@ import config from 'config';
 import { pick } from 'lodash';
 
 import { activities } from '../../constants';
+import { types } from '../../constants/collectives';
 import roles from '../../constants/roles';
 import cache, { fetchCollectiveId } from '../../lib/cache';
 import emailLib from '../../lib/email';
 import logger from '../../lib/logger';
-import models, { Op, sequelize } from '../../models';
+import models, { Collective, Op, sequelize } from '../../models';
 import User from '../../models/User';
 import { ValidationFailed } from '../errors';
 
@@ -37,7 +38,7 @@ export const createUser = (
     location: Record<string, unknown>;
   },
   { organizationData, sendSignInLink, throwIfExists, redirect, websiteUrl, creationRequest }: CreateUserOptions,
-): Promise<{ user: User; organization?: typeof models.Collective }> => {
+): Promise<{ user: User; organization?: Collective }> => {
   return sequelize.transaction(async transaction => {
     let user = await models.User.findOne({ where: { email: userData.email.toLowerCase() }, transaction });
 
@@ -56,7 +57,7 @@ export const createUser = (
     // Create organization
     if (organizationData) {
       const organizationParams = {
-        type: 'ORGANIZATION',
+        type: types.ORGANIZATION,
         CreatedByUserId: user.id,
         ...pick(organizationData, [
           'name',

@@ -38,7 +38,7 @@ class TransactionSettlement extends Model<
 
   // ---- Static methods ----
 
-  static async getAccountsWithOwedSettlements(): Promise<(typeof Collective)[]> {
+  static async getAccountsWithOwedSettlements(): Promise<Collective[]> {
     return sequelize.query(
       `
         SELECT c.*

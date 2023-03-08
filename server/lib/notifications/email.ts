@@ -9,7 +9,7 @@ import Channels from '../../constants/channels';
 import { types as CollectiveType } from '../../constants/collectives';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
-import models from '../../models';
+import models, { Collective } from '../../models';
 import { Activity } from '../../models/Activity';
 import User from '../../models/User';
 import emailLib from '../email';
@@ -25,7 +25,7 @@ type NotifySubscribersOptions = {
   attachments?: any[];
   bcc?: string;
   cc?: string;
-  collective?: typeof models.Collective;
+  collective?: Collective;
   exclude?: number[];
   from?: string;
   replyTo?: string;
@@ -112,7 +112,7 @@ export const notify = {
   async collective(
     activity: Partial<Activity>,
     options?: NotifySubscribersOptions & {
-      collective?: typeof models.Collective;
+      collective?: Collective;
       collectiveId?: number;
       role?: Array<roles>;
     },

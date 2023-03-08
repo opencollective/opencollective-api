@@ -6,7 +6,7 @@ import FEATURE from '../../constants/feature';
 import FEATURE_STATUS from '../../constants/feature-status';
 import { hasFeature, isFeatureAllowedForCollectiveType } from '../../lib/allowed-features';
 import { isPastEvent } from '../../lib/collectivelib';
-import models, { sequelize } from '../../models';
+import { Collective, sequelize } from '../../models';
 
 import { hasMultiCurrency } from './expenses';
 
@@ -167,7 +167,7 @@ const checkMultiCurrencyExpense = async (collective, req): Promise<FEATURE_STATU
  */
 export const getFeatureStatusResolver =
   (feature: FEATURE) =>
-  async (collective: typeof models.Collective, _, req): Promise<FEATURE_STATUS> => {
+  async (collective: Collective, _, req): Promise<FEATURE_STATUS> => {
     if (!collective) {
       return FEATURE_STATUS.UNSUPPORTED;
     } else if (!isFeatureAllowedForCollectiveType(collective.type, feature, collective.isHostAccount)) {

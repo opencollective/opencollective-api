@@ -13,7 +13,7 @@ import { isNil, omit } from 'lodash';
 import { OrderItem } from 'sequelize';
 
 import { filterContributors } from '../../../lib/contributors';
-import models from '../../../models';
+import models, { Collective } from '../../../models';
 import { ContributorCollection } from '../collection/ContributorCollection';
 import { TierCollection } from '../collection/TierCollection';
 import { AccountType, MemberRole } from '../enum';
@@ -30,7 +30,7 @@ export const AccountWithContributionsFields = {
         description: 'Type of account (COLLECTIVE/EVENT/ORGANIZATION/INDIVIDUAL)',
       },
     },
-    async resolve(account: typeof models.Collective, args, req: express.Request): Promise<number> {
+    async resolve(account: Collective, args, req: express.Request): Promise<number> {
       if (!account.hasBudget()) {
         return 0;
       }
@@ -55,7 +55,7 @@ export const AccountWithContributionsFields = {
         defaultValue: 100,
       },
     },
-    async resolve(account: typeof models.Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    async resolve(account: Collective, args: Record<string, unknown>): Promise<Record<string, unknown>> {
       if (!account.hasBudget()) {
         return { nodes: [], totalCount: 0 };
       }
@@ -77,7 +77,7 @@ export const AccountWithContributionsFields = {
       ...CollectionArgs,
       roles: { type: new GraphQLList(MemberRole) },
     },
-    async resolve(collective: typeof models.Collective, args, req): Promise<Record<string, unknown>> {
+    async resolve(collective: Collective, args, req): Promise<Record<string, unknown>> {
       const contributorsCache = await req.loaders.Contributors.forCollectiveId.load(collective.id);
       const contributors = contributorsCache.all || [];
       const filteredContributors = filterContributors(contributors, omit(args, ['offset', 'limit']));
@@ -94,7 +94,7 @@ export const AccountWithContributionsFields = {
   platformFeePercent: {
     type: new GraphQLNonNull(GraphQLFloat),
     description: 'How much platform fees are charged for this account',
-    resolve(account: typeof models.Collective): number {
+    resolve(account: Collective): number {
       return isNil(account.platformFeePercent) ? config.fees.default.platformPercent : account.platformFeePercent;
     },
   },
@@ -102,7 +102,7 @@ export const AccountWithContributionsFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     description:
       'Returns true if a custom contribution to Open Collective can be submitted for contributions made to this account',
-    async resolve(account: typeof models.Collective, _, req: express.Request): Promise<boolean> {
+    async resolve(account: Collective, _, req: express.Request): Promise<boolean> {
       if (!isNil(account.data?.platformTips)) {
         return account.data.platformTips;
       }

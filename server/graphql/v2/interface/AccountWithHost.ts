@@ -3,7 +3,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import { isNumber } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
-import models from '../../../models';
+import { Collective } from '../../../models';
 import { hostResolver } from '../../common/collective';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
@@ -19,7 +19,7 @@ export const AccountWithHostFields = {
   hostFeesStructure: {
     description: 'Describe how the host charges the collective',
     type: HostFeeStructure,
-    resolve: (account: typeof models.Collective): HOST_FEE_STRUCTURE | null => {
+    resolve: (account: Collective): HOST_FEE_STRUCTURE | null => {
       if (!account.HostCollectiveId) {
         return null;
       } else if (account.data?.useCustomHostFee) {
@@ -36,7 +36,7 @@ export const AccountWithHostFields = {
       paymentMethodService: { type: PaymentMethodService },
       paymentMethodType: { type: PaymentMethodType },
     },
-    async resolve(account: typeof models.Collective, args, req): Promise<number> {
+    async resolve(account: Collective, args, req): Promise<number> {
       const parent = await req.loaders.Collective.parent.load(account);
       const host = await req.loaders.Collective.host.load(account);
       const possibleValues = [];
@@ -101,21 +101,21 @@ export const AccountWithHostFields = {
   approvedAt: {
     description: 'Date of approval by the Fiscal Host.',
     type: GraphQLDateTime,
-    resolve(account: typeof models.Collective): Promise<Date> {
+    resolve(account: Collective): Date {
       return account.approvedAt;
     },
   },
   isApproved: {
     description: "Returns whether it's approved by the Fiscal Host",
     type: new GraphQLNonNull(GraphQLBoolean),
-    resolve(account: typeof models.Collective): boolean {
+    resolve(account: Collective): boolean {
       return account.isApproved();
     },
   },
   isActive: {
     description: "Returns whether it's active: can accept financial contributions and pay expenses.",
     type: new GraphQLNonNull(GraphQLBoolean),
-    resolve(account: typeof models.Collective): boolean {
+    resolve(account: Collective): boolean {
       return Boolean(account.isActive);
     },
   },

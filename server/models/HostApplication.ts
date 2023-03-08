@@ -3,8 +3,8 @@ import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes 
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import Collective from './Collective';
 import User from './User';
-import models from '.';
 
 export enum HostApplicationStatus {
   PENDING = 'PENDING',
@@ -28,8 +28,8 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
   // ---- Static ----
 
   static async getByStatus(
-    host: typeof models.Collective,
-    collective: typeof models.Collective,
+    host: Collective,
+    collective: Collective,
     status: HostApplicationStatus,
   ): Promise<HostApplication | null> {
     return this.findOne({
@@ -43,8 +43,8 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
   }
 
   static async recordApplication(
-    host: typeof models.Collective,
-    collective: typeof models.Collective,
+    host: Collective,
+    collective: Collective,
     user: User,
     data: Record<string, unknown>,
   ): Promise<HostApplication> {
@@ -66,8 +66,8 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
    * Update the `status` for pending application(s) for this `host` <> `collective` (if any)
    */
   static async updatePendingApplications(
-    host: typeof models.Collective,
-    collective: typeof models.Collective,
+    host: Collective,
+    collective: Collective,
     status: HostApplicationStatus,
   ): Promise<void> {
     await this.update(

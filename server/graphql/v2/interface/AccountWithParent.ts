@@ -1,7 +1,7 @@
 import { GraphQLInterfaceType } from 'graphql';
 
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
-import models from '../../../models';
+import { Collective } from '../../../models';
 
 import { Account } from './Account';
 
@@ -9,7 +9,7 @@ export const AccountWithParentFields = {
   parent: {
     description: 'The Account parenting this account',
     type: Account,
-    async resolve(account, _, req): Promise<typeof models.Collective | null> {
+    async resolve(account, _, req): Promise<Collective | null> {
       if (!account.ParentCollectiveId) {
         return null;
       } else {
