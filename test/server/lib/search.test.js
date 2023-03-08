@@ -269,15 +269,15 @@ describe('server/lib/search', () => {
         const threeCollectives = await fakeHost({
           name: 'New Host 2',
         });
-        fakeCollective({ HostCollectiveId: threeCollectives.id });
-        fakeCollective({ HostCollectiveId: threeCollectives.id });
-        fakeCollective({ HostCollectiveId: threeCollectives.id });
+        await fakeCollective({ HostCollectiveId: threeCollectives.id });
+        await fakeCollective({ HostCollectiveId: threeCollectives.id });
+        await fakeCollective({ HostCollectiveId: threeCollectives.id });
 
         const oneCollective = await fakeHost({
           name: 'New Host 3',
         });
 
-        fakeCollective({ HostCollectiveId: oneCollective.id });
+        await fakeCollective({ HostCollectiveId: oneCollective.id });
 
         const [collectives] = await searchCollectivesInDB('', 0, 10, {
           isHost: true,
