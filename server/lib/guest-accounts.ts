@@ -7,23 +7,13 @@ import { types as COLLECTIVE_TYPE } from '../constants/collectives';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { Collective, sequelize } from '../models';
 import User from '../models/User';
+import { Location } from '../types/Location';
 
 export const DEFAULT_GUEST_NAME = 'Guest';
 
 type GuestProfileDetails = {
   user: User;
   collective: Collective;
-};
-
-type Location = {
-  country?: string | null;
-  address?: string | null;
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  postalCode?: string | null;
-  zone?: string | null;
-  structured?: Record<string, string> | null;
 };
 
 /**

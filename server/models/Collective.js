@@ -1,7 +1,6 @@
 import assert from 'assert';
 
 import { TaxType } from '@opencollective/taxes';
-import AddressFormatter, { formatAddress } from '@shopify/address';
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
@@ -67,6 +66,7 @@ import {
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
+import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
 import {
   getHostFees,
@@ -2199,37 +2199,7 @@ Collective.prototype.setLocation = async function (locationInput, transaction) {
     if (address || url) {
       formattedAddress = address || url;
     } else {
-      /** A few countries (see list in frontend/components/I18nAddressFields.js)
-       * are present in the input type, but not available in the @shopify/address formatter.
-       *
-       * All except Antartica (AQ) are US territories and use the US address format.
-       * The US format is provided as a fallback which does not rely on the Shopify API,
-       * since this can also fail to respond to the getCountry request
-       */
-      try {
-        // Locale is set to English (only affects language - not the formatting)
-        const addressFormatter = new AddressFormatter('en');
-        const formattingCountry = await addressFormatter.getCountry(country);
-        formattedAddress = formatAddress(
-          {
-            address1,
-            address2,
-            city,
-            province: zone,
-            zip: postalCode,
-          },
-          formattingCountry,
-        )
-          .filter(Boolean)
-          .join(', ');
-      } catch (error) {
-        console.log('Error formatting address using @shopify/address:', error.message);
-
-        // Use fallback formatting (US format)
-        formattedAddress = [address1, address2, [city, zone, postalCode].filter(Boolean).join(' ')]
-          .filter(Boolean)
-          .join(', ');
-      }
+      formattedAddress = await formatAddress({ address1, address2, city, zone, postalCode, country });
     }
 
     promises.push(
