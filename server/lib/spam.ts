@@ -8,7 +8,7 @@ import { clamp } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
 
 import slackLib, { OPEN_COLLECTIVE_SLACK_CHANNEL } from '../lib/slack';
-import models from '../models';
+import models, { Collective } from '../models';
 import { Activity } from '../models/Activity';
 
 /** Return type when running a spam analysis */
@@ -608,7 +608,7 @@ const stringifyUrl = url => {
 const addLine = (message: string, line: string): string => (line ? `${message}\n${line}` : message);
 
 export const collectiveBayesContent = async (
-  collective: typeof models.Collective,
+  collective: Collective,
   extraString = '',
 ): Promise<string> => {
   const slugString = (collective.slug || '').split('-').join(' ');
@@ -625,7 +625,7 @@ export const collectiveBayesContent = async (
   return `${slugString} ${collective.name} ${collective.description} ${longDescriptionString} ${urlsString} ${websiteString} ${extraString}`;
 };
 
-export const collectiveBayesCheck = async (collective: typeof models.Collective, extraString = ''): Promise<string> => {
+export const collectiveBayesCheck = async (collective: Collective, extraString = ''): Promise<string> => {
   const content = await collectiveBayesContent(collective, extraString);
 
   const classifier = await getBayesClassifier();
@@ -637,7 +637,7 @@ export const collectiveBayesCheck = async (collective: typeof models.Collective,
  * Checks the values for this collective to try to determinate if it's a spammy profile.
  */
 export const collectiveSpamCheck = async (
-  collective: typeof models.Collective,
+  collective: Collective,
   context: string,
 ): Promise<SpamAnalysisReport> => {
   const result = { score: 0, keywords: new Set<string>(), domains: new Set<string>() };
