@@ -2,8 +2,6 @@ import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttrib
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-import User from './User';
-
 type GeoLocationShape = {
   type?: string;
   coordinates?: [number, number];
@@ -13,7 +11,6 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
   declare id: CreationOptional<number>;
 
   declare name: CreationOptional<string>;
-  declare address: CreationOptional<string>;
   declare address1: CreationOptional<string>;
   declare address2: CreationOptional<string>;
   declare postalCode: CreationOptional<string>;
@@ -21,6 +18,8 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
   declare zone: CreationOptional<string>;
   declare country: CreationOptional<string>;
   declare geoLocationLatLong: CreationOptional<null | GeoLocationShape>;
+  declare formattedAddress: CreationOptional<string>;
+  declare url: CreationOptional<string>;
 
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
@@ -28,7 +27,6 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
 
   // Relationships
   declare CollectiveId: ForeignKey<number>;
-  declare CreatedByUserId: ForeignKey<User['id']>;
 }
 
 Location.init(
@@ -40,10 +38,6 @@ Location.init(
       type: DataTypes.INTEGER,
     },
     name: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    address: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -75,6 +69,14 @@ Location.init(
       type: DataTypes.JSONB,
       allowNull: true,
     },
+    formattedAddress: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     CollectiveId: {
       type: DataTypes.INTEGER,
       references: { key: 'id', model: 'Collectives' },
@@ -96,18 +98,11 @@ Location.init(
       allowNull: true,
       type: DataTypes.DATE,
     },
-    CreatedByUserId: {
-      type: DataTypes.INTEGER,
-      references: { key: 'id', model: 'Users' },
-      allowNull: true,
-      onDelete: 'SET NULL',
-      onUpdate: 'SET NULL',
-    },
   },
   {
     sequelize,
     tableName: 'Locations',
-    // paranoid: true, // For soft-deletion
+    paranoid: true, // For soft-deletion
   },
 );
 
