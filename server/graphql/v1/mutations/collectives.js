@@ -42,18 +42,6 @@ export async function createCollective(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
-  const location = args.collective.location;
-  if (location) {
-    collectiveData.locationName = location.name;
-    collectiveData.address = location.address;
-    collectiveData.countryISO = location.country;
-    if (location.lat) {
-      collectiveData.geoLocationLatLong = {
-        type: 'Point',
-        coordinates: [location.lat, location.long],
-      };
-    }
-  }
   // Set private instructions
   if (args.collective.privateInstructions) {
     collectiveData.data = {
@@ -146,6 +134,10 @@ export async function createCollective(_, args, req) {
     );
   } else {
     promises.push(collective.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id }));
+  }
+
+  if (args.collective.location) {
+    promises.push(collective.setLocation(args.collective.location));
   }
 
   await Promise.all(promises);
@@ -395,7 +387,7 @@ export function editCollective(_, args, req) {
       })
       .then(() => {
         if (!isUndefined(args.collective.location)) {
-          return collective.setLocation(args.collective.location, req.remoteUser);
+          return collective.setLocation(args.collective.location);
         }
       })
       .then(() => {
