@@ -93,7 +93,7 @@ describe('server/lib/merge-accounts', () => {
 
   before(async function () {
     // This test can take some time to setup on local env
-    this.timeout(45000);
+    this.timeout(90000);
 
     await resetTestDB();
 
