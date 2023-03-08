@@ -625,11 +625,7 @@ export const LocationType = new GraphQLObjectType({
     },
     name: {
       type: GraphQLString,
-      description: 'A short name for the location (eg. Google Headquarters)',
-    },
-    address: {
-      type: GraphQLString,
-      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
+      description: 'A short name for the location (eg. Open Collective Headquarters)',
     },
     address1: {
       type: GraphQLString,
@@ -641,7 +637,7 @@ export const LocationType = new GraphQLObjectType({
     },
     postalCode: {
       type: GraphQLString,
-      description: 'Postal code',
+      description: 'Postal/zip code',
     },
     city: {
       type: GraphQLString,
@@ -663,10 +659,24 @@ export const LocationType = new GraphQLObjectType({
       type: GraphQLFloat,
       description: 'Longitude',
     },
-    // structured: {
-    //   type: GraphQLJSON,
-    //   description: 'Structured JSON address',
-    // },
+    url: {
+      type: GraphQLString,
+      description: 'URL for the location',
+    },
+    formattedAddress: {
+      type: GraphQLString,
+      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
+    },
+    address: {
+      type: GraphQLString,
+      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
+      deprecationReason: '2023-03-07: Renamed to `formattedAddress`',
+    },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
+      deprecationReason: '2023-03-07: Structured fields are now available directly on the Location object',
+    },
   }),
 });
 
