@@ -104,7 +104,7 @@ models.Collective.belongsToMany(models.Collective, {
   } as any,
 });
 models.Collective.belongsToMany(models.Collective, {
-  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId', } as any,
+  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' } as any,
   as: 'memberOfCollectives',
 });
 models.Collective.hasMany(models.Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
