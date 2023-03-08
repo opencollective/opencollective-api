@@ -29,9 +29,10 @@ import {
 import moment from 'moment';
 import fetch from 'node-fetch';
 import prependHttp from 'prepend-http';
+import { FindOptions } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
-import { isISO31661Alpha2 } from 'validator';
+import validator from 'validator';
 
 import activities from '../constants/activities';
 import { CollectiveTypesList, types } from '../constants/collectives';
@@ -79,7 +80,7 @@ import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
 import { buildSanitizerOptions, sanitizeHTML, stripHTML } from '../lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../lib/sentry';
-import sequelize, { DataTypes, Op, Sequelize } from '../lib/sequelize';
+import sequelize, { DataTypes, Op, Sequelize, Transaction } from '../lib/sequelize';
 import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib/spam';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
@@ -90,9 +91,14 @@ import CustomDataTypes from './DataTypes';
 import { HostApplicationStatus } from './HostApplication';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
-import { SocialLinkType } from './SocialLink';
+import SocialLink, { SocialLinkType } from './SocialLink';
 
 const debug = debugLib('models:Collective');
+
+type Goal = {
+  type: string;
+  amount: number;
+};
 
 const defaultTiers = currency => {
   return [
@@ -383,7 +389,7 @@ const Collective = sequelize.define(
       validate: {
         len: 2,
         isCountryISO(value) {
-          if (!(isNull(value) || isISO31661Alpha2(value))) {
+          if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
             throw new Error('Invalid Country ISO.');
           }
         },
@@ -418,7 +424,7 @@ const Collective = sequelize.define(
         validate(settings) {
           const error = validateSettings(settings);
           if (error) {
-            throw new Error(error);
+            throw new Error(error as string);
           }
         },
       },
@@ -822,11 +828,11 @@ const Collective = sequelize.define(
  * Used for the monthly reports to backers
  */
 Collective.prototype.getNextGoal = async function (until) {
-  const goals = get(this, 'settings.goals');
+  const goals = <Array<Goal>>get(this, 'settings.goals');
   if (!goals) {
     return null;
   }
-  const stats = {};
+  const stats: { balance?: number; yearlyBudget?: number } = {};
   goals.sort((a, b) => {
     if (a.amount < b.amount) {
       return -1;
@@ -887,7 +893,7 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
   }
 
   return await sequelize.transaction(async transaction => {
-    const existingLinks = await models.SocialLink.findAll({
+    const existingLinks = await SocialLink.findAll({
       where: {
         CollectiveId: this.id,
       },
@@ -895,8 +901,8 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
       lock: true,
     });
 
-    const isSameLink = (link1, link2) => link1.url === link2.url && link1.type === link2.type;
-    const removedLinks = differenceWith(existingLinks, isSameLink);
+    const isSameLink = (link1: SocialLink, link2: SocialLink) => link1.url === link2.url && link1.type === link2.type;
+    const removedLinks = differenceWith(existingLinks, socialLinks, isSameLink);
 
     if (removedLinks.length !== 0) {
       await models.SocialLink.destroy({
@@ -927,7 +933,12 @@ Collective.prototype.updateSocialLinks = async function (socialLinks) {
     );
 
     // updates deprecated collective fields with social links until references to these fields are migrated.
-    const collectiveFields = {};
+    const collectiveFields: {
+      twitterHandle?: string;
+      githubHandle?: string;
+      website?: string;
+      repositoryUrl?: string;
+    } = {};
 
     const twitterSocialLink = updatedSocialLinks.find(sl => sl.type === SocialLinkType.TWITTER);
     if (twitterSocialLink && twitterSocialLink.url) {
@@ -989,14 +1000,14 @@ Collective.prototype.getICS = function () {
       const url = `${config.host.website}/${parentCollective.slug}/events/${this.slug}`;
       const startDate = new Date(this.startsAt);
       const endDate = new Date(this.endsAt);
-      const start = [
+      const start: ics.DateArray = [
         startDate.getFullYear(),
         startDate.getMonth() + 1,
         startDate.getDate(),
         startDate.getHours(),
         startDate.getMinutes(),
       ];
-      const end = [
+      const end: ics.DateArray = [
         endDate.getFullYear(),
         endDate.getMonth() + 1,
         endDate.getDate(),
@@ -1017,7 +1028,7 @@ Collective.prototype.getICS = function () {
       if (this.location.country) {
         location += `, ${this.location.country}`;
       }
-      const alarms = [
+      const alarms: Array<ics.Alarm> = [
         {
           action: 'audio',
           trigger: { hours: 24, minutes: 0, before: true },
@@ -1033,7 +1044,7 @@ Collective.prototype.getICS = function () {
           attach: 'Glass',
         },
       ];
-      const event = {
+      const event: ics.EventAttributes = {
         title: this.name,
         description: descriptionParts.join('\n\n'),
         start,
@@ -1096,7 +1107,7 @@ Collective.prototype.findImageForUser = function (user, force = false) {
  * Returns the incognito member for this collective (or null if none exists).
  * Be careful: the link between an account and the incognito profile is a private information.
  */
-Collective.prototype.getIncognitoMember = async function ({ transaction } = {}) {
+Collective.prototype.getIncognitoMember = async function ({ transaction }: { transaction?: Transaction } = {}) {
   return models.Member.findOne({
     transaction,
     where: {
@@ -1114,7 +1125,7 @@ Collective.prototype.getIncognitoMember = async function ({ transaction } = {}) 
  * Returns the incognito profile for this collective (or null if none exists).
  * Be careful: the link between an account and the incognito profile is a private information.
  */
-Collective.prototype.getIncognitoProfile = async function ({ transaction } = {}) {
+Collective.prototype.getIncognitoProfile = async function ({ transaction }: { transaction?: Transaction } = {}) {
   if (this.type !== types.USER) {
     return null;
   } else if (this.isIncognito) {
@@ -1128,7 +1139,9 @@ Collective.prototype.getIncognitoProfile = async function ({ transaction } = {})
 /**
  * Returns the incognito profile for this collective, creating it if necessary
  */
-Collective.prototype.getOrCreateIncognitoProfile = async function ({ transaction } = {}) {
+Collective.prototype.getOrCreateIncognitoProfile = async function ({
+  transaction,
+}: { transaction?: Transaction } = {}) {
   if (this.type !== types.USER) {
     throw new Error(`Incognito profiles can only be created for users (not ${this.type})`);
   }
@@ -1196,7 +1209,12 @@ Collective.prototype.checkAndUpdateImage = async function (image, force = false)
 // this Payment Method will be used for "Add Funds"
 Collective.prototype.becomeHost = async function () {
   if (!this.isHostAccount) {
-    const updatedValues = { isHostAccount: true, plan: 'start-plan-2021' };
+    const updatedValues = {
+      isHostAccount: true,
+      plan: 'start-plan-2021',
+      hostFeePercent: undefined,
+      platformFeePercent: undefined,
+    };
     // hostFeePercent and platformFeePercent are not supposed to be set at this point
     // but we're dealing with legacy tests here
     if (this.hostFeePercent === null) {
@@ -1308,7 +1326,7 @@ Collective.prototype.deactivateAsHost = async function () {
   return this;
 };
 
-Collective.prototype.enableFeature = async function (feature, { transaction } = {}) {
+Collective.prototype.enableFeature = async function (feature, { transaction }: { transaction?: Transaction } = {}) {
   assert(FEATURE[feature], `Feature ${feature} is not supported`);
 
   const children = await this.getChildren({ transaction });
@@ -1318,7 +1336,7 @@ Collective.prototype.enableFeature = async function (feature, { transaction } = 
   return Promise.all([this, ...children].map(processCollective));
 };
 
-Collective.prototype.disableFeature = async function (feature, { transaction } = {}) {
+Collective.prototype.disableFeature = async function (feature, { transaction }: { transaction?: Transaction } = {}) {
   assert(FEATURE[feature], `Feature ${feature} is not supported`);
 
   const children = await this.getChildren({ transaction });
@@ -1528,7 +1546,7 @@ Collective.prototype.getAdmins = async function () {
   return members.map(member => member.memberCollective);
 };
 
-Collective.prototype.getMemberships = async function ({ role } = {}) {
+Collective.prototype.getMemberships = async function ({ role }: { role?: string } = {}) {
   const members = await models.Member.findAll({
     where: {
       MemberCollectiveId: this.id,
@@ -1543,7 +1561,13 @@ Collective.prototype.getMemberships = async function ({ role } = {}) {
  * Get the admin users { id, email } of this collective
  *
  */
-Collective.prototype.getAdminUsers = async function ({ collectiveAttributes, paranoid = true } = {}) {
+Collective.prototype.getAdminUsers = async function ({
+  collectiveAttributes,
+  paranoid = true,
+}: {
+  collectiveAttributes?: any;
+  paranoid?: boolean;
+} = {}) {
   if (this.type === 'USER' && !this.isIncognito) {
     // Incognito profiles rely on the `Members` entry to know which user it belongs to
     return [
@@ -1599,7 +1623,7 @@ Collective.prototype.getMembersUsers = async function ({
   });
 };
 
-Collective.prototype.getChildren = function (query = {}) {
+Collective.prototype.getChildren = function (query: FindOptions<any> = {}) {
   return Collective.findAll({
     order: [
       ['createdAt', 'DESC'],
@@ -1610,7 +1634,7 @@ Collective.prototype.getChildren = function (query = {}) {
   });
 };
 
-Collective.prototype.getEvents = function (query = {}) {
+Collective.prototype.getEvents = function (query: FindOptions<any> = {}) {
   return this.getChildren({
     order: [
       ['startsAt', 'DESC'],
@@ -1622,7 +1646,7 @@ Collective.prototype.getEvents = function (query = {}) {
   });
 };
 
-Collective.prototype.getProjects = function (query = {}) {
+Collective.prototype.getProjects = function (query: FindOptions<any> = {}) {
   return this.getChildren({
     ...query,
     order: [
@@ -1699,7 +1723,7 @@ Collective.prototype.getNewOrders = async function (startDate = 0, endDate = new
  * @param {*} endDate end of the time period
  */
 Collective.prototype.getCancelledOrders = async function (startDate = 0, endDate = new Date()) {
-  let orders = await models.Order.findAll({
+  let orders = <Array<any>>await models.Order.findAll({
     where: {
       CollectiveId: this.id,
     },
@@ -1749,8 +1773,8 @@ Collective.prototype.getCancelledOrders = async function (startDate = 0, endDate
  * type: COLLECTIVE/USER/ORGANIZATION or an array of types
  * until: date till when to count the number of backers
  */
-Collective.prototype.getBackersCount = function (options = {}) {
-  const query = {
+Collective.prototype.getBackersCount = function (options: any = {}) {
+  const query = <any>{
     attributes: [[Sequelize.fn('COUNT', Sequelize.fn('DISTINCT', Sequelize.col('FromCollectiveId'))), 'count']],
     where: {
       CollectiveId: this.id,
@@ -1802,7 +1826,7 @@ Collective.prototype.getBackersCount = function (options = {}) {
 
   return models.Transaction[method](query).then(res => {
     if (options.group) {
-      const stats = { id: this.id };
+      const stats = { id: this.id, all: undefined };
       let all = 0;
       // when it's a raw query, the result is not in dataValues
       res.forEach(r => {
@@ -1875,9 +1899,8 @@ Collective.prototype.getTiersWithUsers = async function (
     tiersById[tier.id] = tier;
   }
 
-  const backerCollectives = await queries.getMembersWithTotalDonations(
-    { CollectiveId: this.id, role: 'BACKER' },
-    options,
+  const backerCollectives = <Array<any>>(
+    await queries.getMembersWithTotalDonations({ CollectiveId: this.id, role: 'BACKER' }, options)
   );
 
   // Map the users to their respective tier
@@ -1941,7 +1964,15 @@ Collective.prototype.getBackerTier = function (backerCollective) {
  * @param {*} role
  * @param {*} defaultAttributes
  */
-Collective.prototype.addUserWithRole = async function (user, role, defaultAttributes = {}, context = {}, transaction) {
+Collective.prototype.addUserWithRole = async function (
+  user,
+  role,
+  defaultAttributes: { TierId?: any } = {},
+  context: {
+    skipActivity?: any;
+  } = {},
+  transaction,
+) {
   if (role === roles.HOST) {
     return logger.info('Please use Collective.addHost(hostCollective, remoteUser);');
   }
@@ -2280,7 +2311,7 @@ Collective.prototype.setCurrency = async function (currency) {
         'You cannot change the currency of an Host with transactions. Please contact support@opencollective.com.',
       );
     }
-    let collectives = await this.getHostedCollectives();
+    let collectives = <Array<any>>await this.getHostedCollectives();
     collectives = collectives.filter(collective => collective.id !== this.id);
     // We use setCurrency so that it will cascade to Tiers
     if (collectives.length > 0) {
@@ -2304,7 +2335,7 @@ Collective.prototype.setCurrency = async function (currency) {
   // No, the currency should not matter, and for the Hosts it's forbidden to change currency
 
   // Update tiers, skip or delete when they are already used?
-  const tiers = await this.getTiers();
+  const tiers = <Array<any>>await this.getTiers();
   if (tiers.length > 0) {
     await Promise.map(
       tiers,
@@ -2320,11 +2351,11 @@ Collective.prototype.setCurrency = async function (currency) {
   }
 
   // Cascade currency to events and projects
-  const events = await this.getEvents();
+  const events = <Array<any>>await this.getEvents();
   if (events.length > 0) {
     await Promise.map(events, event => event.setCurrency(currency), { concurrency: 3 });
   }
-  const projects = await this.getProjects();
+  const projects = <Array<any>>await this.getProjects();
   if (projects.length > 0) {
     await Promise.map(projects, project => project.setCurrency(currency), { concurrency: 3 });
   }
@@ -2375,6 +2406,7 @@ Collective.prototype.addHost = async function (hostCollective, creatorUser, opti
     HostCollectiveId: hostCollective.id,
     hostFeePercent: hostCollective.hostFeePercent,
     platformFeePercent: hostCollective.platformFeePercent,
+    currency: undefined,
     ...(shouldAutomaticallyApprove ? { isActive: true, approvedAt: new Date() } : null),
   };
 
@@ -2614,7 +2646,7 @@ Collective.prototype.changeHost = async function (newHostCollectiveId, remoteUse
 
 // edit the list of members and admins of this collective (create/update/remove)
 // creates a User and a UserCollective if needed
-Collective.prototype.editMembers = async function (members, defaultAttributes = {}) {
+Collective.prototype.editMembers = async function (members, defaultAttributes: { remoteUserCollectiveId?: any } = {}) {
   if (!members || members.length === 0) {
     return null;
   }
@@ -2633,7 +2665,7 @@ Collective.prototype.editMembers = async function (members, defaultAttributes = 
   });
 
   // Load existing data
-  const [oldMembers, oldInvitations] = await Promise.all([
+  const [oldMembers, oldInvitations] = <[Array<any>, Array<any>]>await Promise.all([
     this.getMembers({ where: { role: { [Op.in]: allowedRoles } } }),
     models.MemberInvitation.findAll({
       where: { CollectiveId: this.id, role: { [Op.in]: allowedRoles } },
@@ -2743,14 +2775,14 @@ Collective.prototype.editMembers = async function (members, defaultAttributes = 
 };
 
 // edit the tiers of this collective (create/update/remove)
-Collective.prototype.editTiers = function (tiers) {
+Collective.prototype.editTiers = function (tiers?: Array<any>) {
   // All kind of accounts can have Tiers
 
   if (!tiers) {
     return this.getTiers();
   }
 
-  return this.getTiers()
+  return <Promise<Array<any>>>this.getTiers()
     .then(oldTiers => {
       // remove the tiers that are not present anymore in the updated collective
       const diff = difference(
@@ -2790,7 +2822,7 @@ Collective.prototype.getExpensesForHost = function (
   createdByUserId,
   excludedTypes,
 ) {
-  const where = {
+  const where: any = {
     createdAt: { [Op.lt]: endDate },
   };
   if (status) {
@@ -2820,7 +2852,7 @@ Collective.prototype.getExpensesForHost = function (
 };
 
 Collective.prototype.getExpenses = function (status, startDate, endDate = new Date(), createdByUserId, excludedTypes) {
-  const where = {
+  const where: any = {
     createdAt: { [Op.lt]: endDate },
     CollectiveId: this.id,
   };
@@ -2844,7 +2876,7 @@ Collective.prototype.getExpenses = function (status, startDate, endDate = new Da
 };
 
 Collective.prototype.getUpdates = function (status, startDate = 0, endDate = new Date()) {
-  const where = {
+  const where: any = {
     createdAt: { [Op.lt]: endDate },
     CollectiveId: this.id,
   };
@@ -2863,7 +2895,7 @@ Collective.prototype.getUpdates = function (status, startDate = 0, endDate = new
 
 // Returns the last payment method that has been confirmed attached to this collective
 Collective.prototype.getPaymentMethod = async function (where, mustBeConfirmed = true) {
-  const query = {
+  const query: any = {
     where: {
       ...where,
       CollectiveId: this.id,
@@ -3010,7 +3042,7 @@ Collective.prototype.getTransactions = function ({
   includeExpenseTransactions = true,
 }) {
   // Base query
-  const query = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
+  const query: any = { where: this.transactionsWhereQuery(includeUsedGiftCardsEmittedByOthers) };
 
   // Select attributes
   if (attributes) {
@@ -3106,7 +3138,7 @@ Collective.prototype.getTotalTransactions = function (
  * @param {*} tags if not null, only takes into account donations made to collectives that contains one of those tags
  */
 Collective.prototype.getLatestTransactions = function (since, until, tags) {
-  const conditionOnCollective = {};
+  const conditionOnCollective: any = {};
   if (tags) {
     conditionOnCollective.tags = { [Op.overlap]: tags };
   }
@@ -3240,7 +3272,7 @@ Collective.prototype.getImageUrl = function (args = {}) {
   return getCollectiveAvatarUrl(this.slug, this.type, this.image, args);
 };
 
-Collective.prototype.getBackgroundImageUrl = function (args = {}) {
+Collective.prototype.getBackgroundImageUrl = function (args: any = {}) {
   if (!this.backgroundImage) {
     return null;
   }
@@ -3496,7 +3528,7 @@ Collective.prototype.getHostMetrics = async function (from, to, collectiveIds) {
 
 Collective.prototype.setPolicies = async function (policies) {
   for (const policy of Object.keys(policies)) {
-    if (!Object.keys(POLICIES).includes(policy)) {
+    if (!POLICIES[policy]) {
       throw new Error(`Policy ${policy} is not supported`);
     }
   }

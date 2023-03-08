@@ -55,7 +55,7 @@ async function convertCurrencyForTimeSeries(results, currency) {
 
 export async function getPlatformTips(
   host,
-  { startDate = null, endDate = null, groupTimeUnit, collectiveIds = null } = {},
+  { startDate = null, endDate = null, groupTimeUnit = null, collectiveIds = null } = {},
 ) {
   const timeUnitFragments = { select: '', groupBy: '', orderBy: '' };
   if (groupTimeUnit) {

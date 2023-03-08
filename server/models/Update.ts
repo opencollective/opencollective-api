@@ -83,8 +83,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   public declare collective?: typeof models.Collective;
   public declare fromCollective?: typeof models.Collective;
 
-  public declare getCollective: BelongsToGetAssociationMixin<Collective>;
-  public declare getFromCollective: BelongsToGetAssociationMixin<Collective>;
+  public declare getCollective: BelongsToGetAssociationMixin<typeof Collective>;
+  public declare getFromCollective: BelongsToGetAssociationMixin<typeof Collective>;
   public declare getCreatedByUser: BelongsToGetAssociationMixin<User>;
   public declare getLastEditedByUser: BelongsToGetAssociationMixin<User>;
 
