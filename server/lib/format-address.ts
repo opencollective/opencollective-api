@@ -1,13 +1,6 @@
 import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopify/address';
 
-type Address = {
-  address1?: string | null;
-  address2?: string | null;
-  city?: string | null;
-  postalCode?: string | null;
-  zone?: string | null;
-  country?: string | null;
-};
+import { Location } from '../types/Location';
 
 type Options = {
   includeCountry?: boolean;
@@ -16,7 +9,7 @@ type Options = {
 };
 
 export async function formatAddress(
-  { address1, address2, city, postalCode, zone, country }: Address,
+  { address1, address2, city, postalCode, zone, country }: Location,
   { includeCountry = false, lineDivider = 'comma', locale = 'en' }: Options = {},
 ): Promise<string> {
   let addressLines: string[];
