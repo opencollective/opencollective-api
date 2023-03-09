@@ -334,21 +334,7 @@ models.LegalDocument.belongsTo(models.Collective, { foreignKey: 'CollectiveId', 
 
 // Location
 models.Location.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
-models.Collective.hasOne(models.Location, {
-  foreignKey: 'CollectiveId',
-
-  as: 'displayLocation',
-  scope: {
-    type: 'DISPLAY',
-  },
-});
-models.Collective.hasOne(models.Location, {
-  foreignKey: 'CollectiveId',
-  as: 'legalLocation',
-  scope: {
-    type: 'LEGAL',
-  },
-});
+models.Collective.hasOne(models.Location, { foreignKey: 'CollectiveId', as: 'location' });
 
 // RequiredLegalDocument
 models.RequiredLegalDocument.belongsTo(models.Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });

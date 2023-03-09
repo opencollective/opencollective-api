@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, isNil, omit, pick, truncate, uniqWith } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate, uniqWith } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -320,38 +320,6 @@ export function editCollective(_, args, req) {
     throw new ValidationFailed('githubHandle must be a valid github handle');
   }
 
-  // Set location values
-  let location;
-  if (args.collective.location === null) {
-    location = {
-      name: null,
-      address: null,
-      lat: null,
-      long: null,
-      country: null,
-    };
-  } else {
-    location = args.collective.location || {};
-  }
-
-  if (location.lat) {
-    newCollectiveData.geoLocationLatLong = {
-      type: 'Point',
-      coordinates: [location.lat, location.long],
-    };
-  } else if (location.lat === null) {
-    newCollectiveData.geoLocationLatLong = null;
-  }
-  if (location.name !== undefined) {
-    newCollectiveData.locationName = location.name;
-  }
-  if (location.address !== undefined) {
-    newCollectiveData.address = location.address;
-  }
-  if (location.country !== undefined) {
-    newCollectiveData.countryISO = location.country;
-  }
-
   let originalCollective, collective, parentCollective;
 
   return (
@@ -423,6 +391,11 @@ export function editCollective(_, args, req) {
         // if we try to change the `currency`
         if (newCollectiveData.currency !== undefined && newCollectiveData.currency !== collective.currency) {
           return collective.updateCurrency(newCollectiveData.currency, req.remoteUser);
+        }
+      })
+      .then(() => {
+        if (!isUndefined(args.collective.location)) {
+          return collective.setLocation(args.collective.location, req.remoteUser);
         }
       })
       .then(() => {

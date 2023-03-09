@@ -603,7 +603,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       tags: { type: new GraphQLList(GraphQLString) },
       location: {
         type: LocationType,
-        description: 'Name, address, country, lat, long of the location.',
+        description: 'Name, address, street, city, postal code, zone, country, lat, long of the location.',
       },
       createdAt: { type: DateString },
       startsAt: { type: DateString },

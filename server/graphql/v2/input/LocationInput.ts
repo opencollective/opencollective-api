@@ -15,6 +15,26 @@ export const LocationInput = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
     },
+    address1: {
+      type: GraphQLString,
+      description: 'Street name and house number',
+    },
+    address2: {
+      type: GraphQLString,
+      description: 'Apt, suite, etc',
+    },
+    postalCode: {
+      type: GraphQLString,
+      description: 'Postal code',
+    },
+    city: {
+      type: GraphQLString,
+      description: 'City name',
+    },
+    zone: {
+      type: GraphQLString,
+      description: 'State/province/region',
+    },
     country: {
       type: CountryISO,
       description: 'Two letters country code (eg. FR, BE...etc)',
@@ -27,9 +47,9 @@ export const LocationInput = new GraphQLInputObjectType({
       type: GraphQLFloat,
       description: 'Longitude',
     },
-    structured: {
-      type: GraphQLJSON,
-      description: 'Structured JSON address',
-    },
+    // structured: {
+    //   type: GraphQLJSON,
+    //   description: 'Structured JSON address',
+    // },
   }),
 });

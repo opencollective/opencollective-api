@@ -14,14 +14,13 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
 
   declare name: CreationOptional<string>;
   declare address: CreationOptional<string>;
-  declare street: CreationOptional<string>;
-  declare street2: CreationOptional<string>;
+  declare address1: CreationOptional<string>;
+  declare address2: CreationOptional<string>;
   declare postalCode: CreationOptional<string>;
   declare city: CreationOptional<string>;
-  declare state: CreationOptional<string>;
-  declare countryISO: CreationOptional<string>;
+  declare zone: CreationOptional<string>;
+  declare country: CreationOptional<string>;
   declare geoLocationLatLong: CreationOptional<null | GeoLocationShape>;
-  declare type: CreationOptional<'LEGAL' | 'DISPLAY'>;
 
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
@@ -48,11 +47,11 @@ Location.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    street: {
+    address1: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    street2: {
+    address2: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -64,22 +63,17 @@ Location.init(
       type: DataTypes.STRING,
       allowNull: true,
     },
-    state: {
+    zone: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    countryISO: {
+    country: {
       type: DataTypes.STRING,
       allowNull: true,
     },
     geoLocationLatLong: {
       type: DataTypes.JSONB,
       allowNull: true,
-    },
-    type: {
-      type: DataTypes.ENUM('LEGAL', 'DISPLAY'),
-      defaultValue: 'DISPLAY',
-      allowNull: false,
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
@@ -113,7 +107,7 @@ Location.init(
   {
     sequelize,
     tableName: 'Locations',
-    paranoid: true, // For soft-deletion
+    // paranoid: true, // For soft-deletion
   },
 );
 

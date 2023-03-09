@@ -485,7 +485,18 @@ Expense.init(
           }
 
           // Validate keys
-          const validKeys = ['address', 'country', 'name', 'lat', 'long', 'structured'];
+          const validKeys = [
+            'address',
+            'address1',
+            'address2',
+            'city',
+            'postalCode',
+            'zone',
+            'country',
+            'name',
+            'lat',
+            'long',
+          ];
           Object.keys(value).forEach(key => {
             if (!validKeys.includes(key)) {
               throw new Error(`Invalid location key: ${key}`);

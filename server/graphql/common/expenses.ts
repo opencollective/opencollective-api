@@ -1074,7 +1074,15 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
   // Update payee's location
   if (!expenseData.payeeLocation?.address && fromCollective.location) {
-    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country', 'structured']);
+    expenseData.payeeLocation = pick(fromCollective.location, [
+      'address',
+      'country',
+      'address1',
+      'address2',
+      'postalCode',
+      'zone',
+      'city',
+    ]);
   } else if (
     expenseData.payeeLocation?.address &&
     (!fromCollective.location.address || !fromCollective.location.structured)

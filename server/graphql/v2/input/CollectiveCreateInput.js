@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
+import { LocationInput } from './LocationInput';
 
 export const CollectiveCreateInput = new GraphQLInputObjectType({
   name: 'CollectiveCreateInput',
@@ -8,6 +9,7 @@ export const CollectiveCreateInput = new GraphQLInputObjectType({
     slug: { type: new GraphQLNonNull(GraphQLString) },
     description: { type: new GraphQLNonNull(GraphQLString) },
     tags: { type: new GraphQLList(GraphQLString) },
+    location: { type: LocationInput },
     githubHandle: { type: GraphQLString, deprecationReason: '2022-06-03: Please use repositoryUrl' },
     repositoryUrl: { type: GraphQLString, deprecationReason: '2023-01-16: Please use socialLinks' },
     settings: { type: GraphQLJSON },

@@ -47,7 +47,7 @@ export const ORDER_PUBLIC_DATA_FIELDS = {
 const mustUpdateLocation = (existingLocation, newLocation) => {
   const simpleFields = ['country', 'name', 'address'];
   const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
-  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
+  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured); // TODO: fix
 };
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {

@@ -14,15 +14,11 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      address: {
+      address1: {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      street: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      street2: {
+      address2: {
         type: DataTypes.STRING,
         allowNull: true,
       },
@@ -34,11 +30,11 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      state: {
+      zone: {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      countryISO: {
+      country: {
         type: DataTypes.STRING,
         allowNull: true,
       },
@@ -46,10 +42,9 @@ module.exports = {
         type: DataTypes.JSONB,
         allowNull: true,
       },
-      type: {
-        type: DataTypes.ENUM('LEGAL', 'DISPLAY'),
-        defaultValue: 'DISPLAY',
-        allowNull: false,
+      address: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       CollectiveId: {
         type: DataTypes.INTEGER,
@@ -82,20 +77,34 @@ module.exports = {
     });
 
     await queryInterface.sequelize.query(`
-      INSERT INTO
-        "Locations" ("name", "address", "countryISO", "type", "CollectiveId", "geoLocationLatLong")
-      SELECT
-        "locationName",
-        "address",
-        "countryISO",
-        CASE
-          WHEN "type" = 'INDIVIDUAL' THEN 'LEGAL'::"enum_Locations_type"
-          ELSE 'DISPLAY'::"enum_Locations_type"
+      INSERT INTO "Locations" ("name", "address", "address1", "country", "CollectiveId", "geoLocationLatLong")
+      SELECT 
+        CASE 
+          WHEN "locationName" IS NULL THEN 
+            CASE 
+              WHEN "address" IS NOT NULL THEN 
+                split_part("address", ',', 1)
+              ELSE 
+                NULL 
+            END 
+          ELSE 
+            "locationName" 
         END,
-        "id",
+        CASE 
+          WHEN "locationName" = 'Online' AND "address" IS NOT NULL THEN NULL ELSE
+          WHEN "address" != '' THEN "address" ELSE NULL END,
+        CASE 
+          WHEN "locationName" = 'Online' AND "address" IS NOT NULL THEN "address" ELSE NULL END,
+        "countryISO",
+        id,
         "geoLocationLatLong"
-      FROM "Collectives" 
-  `);
+      FROM "Collectives"
+      WHERE 
+        "locationName" IS NOT NULL OR 
+        "address" IS NOT NULL OR 
+        "countryISO" IS NOT NULL OR 
+        "geoLocationLatLong" IS NOT NULL;
+    `);
   },
 
   async down(queryInterface) {
