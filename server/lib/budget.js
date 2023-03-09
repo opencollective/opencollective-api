@@ -754,7 +754,7 @@ export async function getYearlyBudgets(collectiveIds) {
             AND o."status" != 'ACTIVE'
           WHERE t."CollectiveId" IN (:CollectiveIds)
             AND t."type" = 'CREDIT'
-            AND t."kind" = 'CONTRIBUTION'
+            AND t."kind" IN ('CONTRIBUTION', 'ADDED_FUNDS')
             AND t."deletedAt" IS NULL
             AND t."RefundTransactionId" IS NULL
             AND t."createdAt" > (current_date - INTERVAL '12 months')
