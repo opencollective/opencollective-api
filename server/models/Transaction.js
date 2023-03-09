@@ -864,7 +864,7 @@ Transaction.createHostFeeShareTransactions = async (
   }
 
   // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
-  const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
+  const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent); // TODO without taxes
   const currency = hostFeeTransaction.hostCurrency;
 
   // Skip if the amount is zero (e.g.: 15% * 0.03 = 0.0045 and rounded to 0)
@@ -904,7 +904,7 @@ Transaction.createHostFeeShareTransactions = async (
 
   let hostFeeShareDebtTransaction;
   if (!isDirectlyCollected) {
-    hostFeeShareDebtTransaction = await Transaction.creatHostFeeShareDebtTransactions(
+    hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
       { transaction, hostFeeTransaction, hostFeeShareTransaction },
       host,
     );
@@ -913,9 +913,9 @@ Transaction.createHostFeeShareTransactions = async (
   return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
 };
 
-Transaction.creatHostFeeShareDebtTransactions = async ({ hostFeeShareTransaction }) => {
+Transaction.createHostFeeShareDebtTransactions = async ({ hostFeeShareTransaction }) => {
   if (hostFeeShareTransaction.type === DEBIT) {
-    throw new Error('creatHostFeeShareDebtTransactions must be given a CREDIT transaction');
+    throw new Error('createHostFeeShareDebtTransactions must be given a CREDIT transaction');
   }
 
   // Create debt transaction
