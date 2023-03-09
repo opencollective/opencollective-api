@@ -487,6 +487,7 @@ Expense.init(
           // Validate keys
           const validKeys = [
             'address',
+            'formattedAddress',
             'address1',
             'address2',
             'city',
@@ -496,6 +497,7 @@ Expense.init(
             'name',
             'lat',
             'long',
+            'structured',
           ];
           Object.keys(value).forEach(key => {
             if (!validKeys.includes(key)) {
