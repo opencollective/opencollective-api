@@ -76,9 +76,9 @@ export const simulateMergeAccounts = async (from: Collective, into: Collective):
     summary += `${str}\n`;
   };
 
-  const addCountsToSummary = counts => {
+  const addCountsToSummary = (counts: Record<string, number>) => {
     Object.entries(counts).forEach(([key, count]) => {
-      if ((count as number) > 0) {
+      if (count > 0) {
         addLineToSummary(`  - ${key}: ${count}`);
       }
     });
