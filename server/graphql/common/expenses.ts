@@ -1078,14 +1078,12 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   if (!(expenseData.payeeLocation?.address || expenseData.payeeLocation?.address1) && fromCollective.location) {
     expenseData.payeeLocation = pick(fromCollective.location, [
       'formattedAddress',
-      'address',
       'country',
       'address1',
       'address2',
       'postalCode',
       'zone',
       'city',
-      'structured',
     ]);
   } else {
     const structuredLocation = expenseData.payeeLocation?.structured || {
@@ -1097,16 +1095,20 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
       country: expenseData.payeeLocation?.country,
     };
 
+    /* Update payee's location for USER's if it is not of new format
+     * Only for USER's, since other Collective types have public location fields, and exposing payeeLocation might be undesired
+     */
+    if (fromCollective.type === 'USER' && !fromCollective.location?.address1 && !expenseData.payeeLocation?.address) {
+      await fromCollective.setLocation(structuredLocation);
+    }
+
     // Create formatted address
     const formattedAddress =
-      expenseData.payeeLocation.address || (await formatAddress(structuredLocation, { lineDivider: 'newline' }));
+      expenseData.payeeLocation?.address || (await formatAddress(structuredLocation, { lineDivider: 'newline' }));
 
     expenseData.payeeLocation = {
       ...expenseData.payeeLocation,
       formattedAddress,
-      // Support for legacy fields:
-      address: formattedAddress,
-      structured: structuredLocation,
     };
   }
 
@@ -1323,11 +1325,11 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     }
   }
 
-  // Skip to not publish locations not intended to be published?
-  // // Let's take the opportunity to update collective's location
-  // if (expenseData.payeeLocation && !fromCollective.location) {
-  //   await fromCollective.setLocation(expenseData.payeeLocation);
-  // }
+  /* Let's take the opportunity to update collective's location
+      Only for USER's since other Collective types have public location fields and payeeLocation is private by default */
+  if (expenseData.payeeLocation && !fromCollective.location && fromCollective.type === 'USER') {
+    await fromCollective.setLocation(expenseData.payeeLocation);
+  }
 
   const cleanExpenseData = <Pick<ExpenseData, ExpenseEditableFieldsUnion>>(
     pick(expenseData, isPaidCreditCardCharge ? EXPENSE_PAID_CHARGE_EDITABLE_FIELDS : EXPENSE_EDITABLE_FIELDS)
