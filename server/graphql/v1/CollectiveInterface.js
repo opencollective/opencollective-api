@@ -1029,39 +1029,10 @@ const CollectiveFields = () => {
         if (collective.isIncognito) {
           const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
           if (mainProfile) {
-            collective = mainProfile;
+            return mainProfile.getLocation();
           }
         }
-
-        const location = await collective.getLocation();
-
-        if (!location) {
-          return null;
-        }
-
-        return {
-          id: `location-collective-${collective.id}`, // Used for GraphQL caching
-          name: location.name,
-          address1: location.address1,
-          address2: location.address2,
-          postalCode: location.postalCode,
-          city: location.city,
-          zone: location.zone,
-          country: location.country,
-          lat: location.geoLocationLatLong?.coordinates?.[0],
-          long: location.geoLocationLatLong?.coordinates?.[1],
-          url: location.url,
-          formattedAddress: location.formattedAddress,
-          // Deprecated fields below
-          address: location.name === 'Online' && location.url ? location.url : location.formattedAddress,
-          structured: {
-            address1: location.address1,
-            address2: location.address2,
-            postalCode: location.postalCode,
-            city: location.city,
-            zone: location.zone,
-          },
-        };
+        return collective.getLocation();
       },
     },
     createdAt: {

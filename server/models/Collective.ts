@@ -41,6 +41,7 @@ import {
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
 import validator from 'validator';
+import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
 import { CollectiveTypesList, types } from '../constants/collectives';
@@ -74,6 +75,7 @@ import {
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
+import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
 import {
   getHostFees,
@@ -124,9 +126,9 @@ type Settings = {
   };
 };
 
-type GeoLocationLatLong = {
-  coordinates: [number, number];
-};
+// type GeoLocationLatLong = {
+//   coordinates: [number, number];
+// };
 
 const defaultTiers = currency => {
   return [
@@ -190,7 +192,7 @@ const { models } = sequelize;
 class Collective extends Model<
   InferAttributes<
     Collective,
-    { omit: 'info' | 'location' | 'previewImage' | 'cards' | 'invoice' | 'minimal' | 'activity' | 'searchIndex' }
+    { omit: 'info' | 'previewImage' | 'cards' | 'invoice' | 'minimal' | 'activity' | 'searchIndex' }
   >,
   InferCreationAttributes<Collective>
 > {
@@ -215,10 +217,10 @@ class Collective extends Model<
   public declare currency: string;
   public declare image: string;
   public declare backgroundImage: string;
-  public declare locationName: string;
-  public declare address: string;
-  public declare countryISO: string;
-  public declare geoLocationLatLong: GeoLocationLatLong;
+  // public declare locationName: string;
+  // public declare address: string;
+  // public declare countryISO: string;
+  // public declare geoLocationLatLong: GeoLocationLatLong;
   public declare settings: Settings;
   public declare isPledged: boolean;
   public declare data: any;
@@ -352,18 +354,6 @@ class Collective extends Model<
     });
   };
 
-  get location() {
-    return {
-      id: `location-collective-${this.id}`, // Used for GraphQL caching
-      name: this.locationName,
-      address: this.address,
-      country: this.countryISO,
-      structured: this.data?.address,
-      lat: this.geoLocationLatLong?.coordinates?.[0],
-      long: this.geoLocationLatLong?.coordinates?.[1],
-    };
-  }
-
   get previewImage() {
     if (!this.image) {
       return null;
@@ -392,9 +382,9 @@ class Collective extends Model<
       previewImage: this.previewImage,
       data: this.data,
       backgroundImage: this.backgroundImage,
-      locationName: this.locationName,
-      address: this.address,
-      geoLocationLatLong: this.geoLocationLatLong,
+      // locationName: this.locationName,
+      // address: this.address,
+      // geoLocationLatLong: this.geoLocationLatLong,
       startsAt: this.startsAt,
       endsAt: this.endsAt,
       timezone: this.timezone,
@@ -443,8 +433,8 @@ class Collective extends Model<
       image: this.image,
       backgroundImage: this.backgroundImage,
       publicUrl: this.publicUrl,
-      locationName: this.locationName,
-      address: this.address,
+      // locationName: this.locationName,
+      // address: this.address,
       description: this.description,
       settings: this.settings,
       currency: this.currency,
@@ -492,7 +482,7 @@ class Collective extends Model<
       slug: this.slug,
       type: this.type,
       tags: this.tags,
-      locationName: this.locationName,
+      // locationName: this.locationName,
       balance: (this as any).balance, // useful in ranking
       yearlyBudget: (this as any).yearlyBudget,
       backersCount: (this as any).backersCount,
@@ -1865,6 +1855,97 @@ class Collective extends Model<
     });
 
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
+  };
+
+  getLocation = async function () {
+    const location = await models.Location.findOne({ where: { CollectiveId: this.id } });
+
+    if (!location) {
+      return null;
+    }
+
+    return {
+      id: `location-collective-${this.id}`, // Used for GraphQL caching
+      name: location.name,
+      address1: location.address1,
+      address2: location.address2,
+      postalCode: location.postalCode,
+      city: location.city,
+      zone: location.zone,
+      country: location.country,
+      lat: location.geoLocationLatLong?.coordinates?.[0],
+      long: location.geoLocationLatLong?.coordinates?.[1],
+      url: location.url,
+      formattedAddress: location.formattedAddress,
+      // Deprecated fields below
+      address: location.name === 'Online' && location.url ? location.url : location.formattedAddress,
+      structured: {
+        address1: location.address1,
+        address2: location.address2,
+        postalCode: location.postalCode,
+        city: location.city,
+        zone: location.zone,
+      },
+    };
+  };
+
+  setLocation = async function (locationInput, transaction) {
+    const { name, address1, address2, city, zone, postalCode, country, lat, long, address } = locationInput;
+    let { url } = locationInput;
+    let formattedAddress;
+
+    // Prevent trying to set legacy address and new address at the same time
+    if (address && (address1 || address2 || city || zone || postalCode)) {
+      throw new Error('Do not use deprecated `address` together with address1/city/zone/postalCode');
+    }
+
+    if (url && !isURL(url)) {
+      throw new Error('Invalid URL');
+    }
+
+    const sequelizeParams = transaction ? { transaction } : undefined;
+
+    const location = await this.getDbLocation();
+    const promises = [];
+
+    if (location) {
+      promises.push(location.destroy(sequelizeParams));
+    }
+
+    if (locationInput) {
+      // Support legacy behavior of adding the url as the address input
+      if (name === 'Online' && isURL(address)) {
+        url = address;
+      }
+
+      // Set formatted address
+      if (address || url) {
+        formattedAddress = address || url;
+      } else {
+        formattedAddress = await formatAddress({ address1, address2, city, zone, postalCode, country });
+      }
+
+      promises.push(
+        models.Location.create(
+          {
+            CollectiveId: this.id,
+            name: name || null,
+            address1: address1 || null,
+            address2: address2 || null,
+            postalCode: postalCode || null,
+            city: city || null,
+            zone: zone || null,
+            country: country || null,
+            geoLocationLatLong: lat ? { type: 'Point', coordinates: [lat, long] } : null,
+            formattedAddress: formattedAddress || null,
+            url: url || null,
+          },
+          sequelizeParams,
+        ),
+      );
+    }
+
+    await Promise.all(promises);
   };
 
   updateHostFee = async function (hostFeePercent, remoteUser) {
@@ -3455,36 +3536,36 @@ Collective.init(
       },
     },
 
-    locationName: DataTypes.STRING,
+    // locationName: DataTypes.STRING,
 
-    address: DataTypes.STRING,
+    // address: DataTypes.STRING,
 
-    countryISO: {
-      type: DataTypes.STRING,
-      validate: {
-        len: [2, 2],
-        isCountryISO(value) {
-          if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
-            throw new Error('Invalid Country ISO.');
-          }
-        },
-      },
-    },
+    // countryISO: {
+    //   type: DataTypes.STRING,
+    //   validate: {
+    //     len: [2, 2],
+    //     isCountryISO(value) {
+    //       if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
+    //         throw new Error('Invalid Country ISO.');
+    //       }
+    //     },
+    //   },
+    // },
 
-    geoLocationLatLong: {
-      type: DataTypes.JSONB,
-      validate: {
-        validate(data) {
-          if (!data) {
-            return;
-          } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
-            throw new Error('Invalid GeoLocation');
-          } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
-            throw new Error('Invalid latitude/longitude');
-          }
-        },
-      },
-    },
+    // geoLocationLatLong: {
+    //   type: DataTypes.JSONB,
+    //   validate: {
+    //     validate(data) {
+    //       if (!data) {
+    //         return;
+    //       } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
+    //         throw new Error('Invalid GeoLocation');
+    //       } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
+    //         throw new Error('Invalid latitude/longitude');
+    //       }
+    //     },
+    //   },
+    // },
 
     settings: {
       type: DataTypes.JSONB,
