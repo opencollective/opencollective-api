@@ -1,10 +1,11 @@
+import { isNull } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
+import validator from 'validator';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
-type GeoLocationShape = {
-  type?: string;
-  coordinates?: [number, number];
+type GeoLocationLatLong = {
+  coordinates: [number, number];
 };
 
 class Location extends Model<InferAttributes<Location>, InferCreationAttributes<Location>> {
@@ -17,7 +18,7 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
   declare city: CreationOptional<string>;
   declare zone: CreationOptional<string>;
   declare country: CreationOptional<string>;
-  declare geoLocationLatLong: CreationOptional<null | GeoLocationShape>;
+  declare geoLocationLatLong: CreationOptional<null | GeoLocationLatLong>;
   declare formattedAddress: CreationOptional<string>;
   declare url: CreationOptional<string>;
 
@@ -64,10 +65,29 @@ Location.init(
     country: {
       type: DataTypes.STRING,
       allowNull: true,
+      validate: {
+        len: [2, 2],
+        isCountryISO(value) {
+          if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
+            throw new Error('Invalid Country ISO.');
+          }
+        },
+      },
     },
     geoLocationLatLong: {
       type: DataTypes.JSONB,
       allowNull: true,
+      validate: {
+        validate(data) {
+          if (!data) {
+            return;
+          } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
+            throw new Error('Invalid GeoLocation');
+          } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
+            throw new Error('Invalid latitude/longitude');
+          }
+        },
+      },
     },
     formattedAddress: {
       type: DataTypes.STRING,
