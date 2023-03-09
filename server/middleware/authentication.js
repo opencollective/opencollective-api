@@ -3,14 +3,13 @@ import { URLSearchParams } from 'url';
 import config from 'config';
 import debugLib from 'debug';
 import gqlmin from 'gqlmin';
-import jwt from 'jsonwebtoken';
 import { get, isNil, omitBy } from 'lodash';
 import moment from 'moment';
 import passport from 'passport';
 
 import * as connectedAccounts from '../controllers/connectedAccounts';
+import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
-import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import { reportMessageToSentry } from '../lib/sentry';
 import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
@@ -20,8 +19,6 @@ import paymentProviders from '../paymentProviders';
 const { User, UserToken } = models;
 
 const { BadRequest, CustomError, Unauthorized } = errors;
-
-const { jwtSecret } = config.keys.opencollective;
 
 const debug = debugLib('auth');
 
@@ -44,40 +41,86 @@ const debug = debugLib('auth');
  * expirations errors. This is a cleaned up version of that code that only
  * decodes the token (expected behaviour).
  */
-export const parseJwtNoExpiryCheck = (req, res, next) => {
+const parseJwt = req => {
   let token = req.params.access_token || req.query.access_token || req.body.access_token;
   if (!token) {
-    try {
-      token = getTokenFromRequestHeaders(req);
-      if (!token) {
-        return next();
-      }
-    } catch (err) {
-      return next(err);
-    }
+    token = getTokenFromRequestHeaders(req);
   }
 
-  jwt.verify(token, jwtSecret, (err, decoded) => {
-    // JWT library either returns an error or the decoded version
-    if (err && err.name === 'TokenExpiredError') {
-      req.jwtExpired = true;
-      req.jwtPayload = jwt.decode(token, jwtSecret); // we need to decode again
-    } else if (err) {
-      return next(new BadRequest(err.message));
-    } else {
-      req.jwtPayload = decoded;
+  if (token) {
+    try {
+      return verifyJwt(token);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        throw new CustomError(401, 'jwt_expired', 'jwt expired');
+      } else {
+        throw new BadRequest(err.message);
+      }
     }
-
-    return next();
-  });
+  }
 };
 
-export const checkJwtExpiry = (req, res, next) => {
-  if (req.jwtExpired) {
-    return next(new CustomError(401, 'jwt_expired', 'jwt expired'));
-  }
+const checkJwtScope = req => {
+  const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
+  const allowedResetPasswordGraphqlOperations = [
+    'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
+    'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
+  ];
 
-  return next();
+  const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
+
+  const scope = req.jwtPayload.scope || 'session';
+
+  switch (scope) {
+    case 'twofactorauth':
+      if (!req.originalUrl.startsWith('/users/two-factor-auth')) {
+        throw new errors.Unauthorized(errorMessage);
+      }
+      break;
+
+    case 'connected-account':
+      if (!req.originalUrl.startsWith('/github-repositories')) {
+        throw new errors.Unauthorized(errorMessage);
+      }
+      break;
+
+    case 'login':
+      if (!req.originalUrl.startsWith('/users/exchange-login-token')) {
+        if (['production', 'staging'].includes(config.env)) {
+          throw new errors.Unauthorized(errorMessage);
+        } else {
+          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+        }
+      }
+      break;
+
+    case 'reset-password':
+      if (
+        // We verify that the mutation is exactly the one we expect
+        !req.isGraphQL ||
+        !minifiedGraphqlOperation ||
+        !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
+      ) {
+        throw new errors.Unauthorized(
+          'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations',
+        );
+      }
+
+      break;
+
+    case 'oauth':
+    case 'session':
+      // No generic check
+
+      // In other places, OAuth tokens will be prevented to:
+      // - use GraphQL v1
+      // - refreshToken to get a session token
+      break;
+
+    default:
+      // Unknown scope
+      throw new errors.Unauthorized(errorMessage);
+  }
 };
 
 /**
@@ -85,12 +128,7 @@ export const checkJwtExpiry = (req, res, next) => {
  *  - req.remoteUser
  *  - req.remoteUser.memberships[CollectiveId] = [roles]
  */
-export const _authenticateUserByJwt = async (req, res, next) => {
-  if (!req.jwtPayload) {
-    next();
-    return;
-  }
-
+const _authenticateUserByJwt = async (req, res, next) => {
   const userId = Number(req.jwtPayload.sub);
   const user = await User.findByPk(userId, {
     include: [{ association: 'collective', required: false, attributes: ['id'] }],
@@ -124,13 +162,11 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     }
     const now = moment();
     // Check token expiration
-    /*
     if (userToken.accessTokenExpiresAt && now.diff(moment(userToken.accessTokenExpiresAt), 'seconds') > 0) {
       logger.warn(`UserToken expired for ${userId}`);
       next();
       return;
     }
-    */
     // Update lastUsedAt if lastUsedAt older than 1 minute ago
     if (!userToken.lastUsedAt || now.diff(moment(userToken.lastUsedAt), 'minutes') > 1) {
       if (!parseToBoolean(config.database.readOnly)) {
@@ -140,81 +176,22 @@ export const _authenticateUserByJwt = async (req, res, next) => {
     req.userToken = userToken;
   }
 
-  /**
-   * Functionality for one-time login links. We check that the lastLoginAt
-   * in the JWT matches the lastLoginAt in the db. If so, we allow the user
-   * to log in, and update the lastLoginAt.
-   */
-  if (req.jwtPayload.scope === 'login' && req.path === '/users/update-token') {
-    if (user.lastLoginAt) {
-      if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
-        const errorMessage = 'This login link is expired or has already been used';
-        if (config.env === 'production' || config.env === 'staging') {
-          logger.warn(errorMessage);
-          return next(new errors.Unauthorized(errorMessage));
-        } else {
-          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
-        }
-      }
-    }
-
-    // If a guest signs in, it's safe to directly confirm its account
-    if (!user.confirmedAt) {
-      await confirmGuestAccount(user);
-    }
-
-    if (!parseToBoolean(config.database.readOnly) && req.jwtPayload?.traceless !== true) {
-      await user.update({
-        // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
-        lastLoginAt: new Date(),
-        data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
-      });
-    }
-  } else if (req.jwtPayload.scope === 'reset-password' && req.isGraphQL) {
-    if (user.passwordUpdatedAt) {
-      if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
-        const errorMessage = 'This reset password token is expired or has already been used';
+  // Extra checks for `login` and `reset-password` scopes
+  if (req.jwtPayload.scope === 'login' && user.lastLoginAt) {
+    if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
+      const errorMessage = 'This login link is expired or has already been used';
+      if (['production', 'staging'].includes(config.env)) {
         logger.warn(errorMessage);
         return next(new errors.Unauthorized(errorMessage));
+      } else {
+        logger.info(`${errorMessage}. Ignoring in non-production environment.`);
       }
     }
-
-    const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
-    const allowedResetPasswordGraphqlOperations = [
-      'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
-      'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
-    ];
-    if (
-      // We verify that the mutation is exactly the one we expect
-      !minifiedGraphqlOperation ||
-      !allowedResetPasswordGraphqlOperations.includes(minifiedGraphqlOperation)
-    ) {
-      const errorMessage =
-        'Not allowed to use tokens with reset-password scope on anything else than the ResetPassword allowed GraphQL operations.';
+  } else if (req.jwtPayload.scope === 'reset-password' && user.passwordUpdatedAt) {
+    if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {
+      const errorMessage = 'This reset password token is expired or has already been used';
       logger.warn(errorMessage);
       return next(new errors.Unauthorized(errorMessage));
-    }
-  } else if (req.jwtPayload.scope === 'twofactorauth') {
-    if (!req.path === '/users/two-factor-auth') {
-      // No exception, just ignore the token
-      return;
-    } else {
-      // All good, no specific thing to do here
-      // But we're not even entering this at this point
-      // /users/two-factor-auth use checkTwoFactorAuthJWT and skips _authenticateUserByJwt
-    }
-  } else if (req.jwtPayload.scope === 'connected-account') {
-    // TODO: check path here
-  } else if (req.jwtPayload.scope) {
-    // We check the path because we don't want login tokens used on routes besides /users/update-token.
-    // TODO: write a middleware to use on the API that checks JWTs and routes to make sure they aren't
-    // being misused on any route (for example, tokens with 'login' scope and 'twofactorauth' scope).
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload.scope})`;
-    if (config.env === 'production' || config.env === 'staging') {
-      logger.warn(errorMessage);
-      return next(new errors.Unauthorized(errorMessage));
-    } else {
-      logger.info(`${errorMessage}. Ignoring in non-production environment.`);
     }
   }
 
@@ -238,22 +215,25 @@ export function authenticateUser(req, res, next) {
     return next();
   }
 
-  parseJwtNoExpiryCheck(req, res, e => {
-    // If a token was submitted but is invalid, we continue without authenticating the user
-    if (e) {
-      debug('>>> checkJwtExpiry invalid error', e);
-      return next();
-    }
+  try {
+    req.jwtPayload = parseJwt(req);
+  } catch (e) {
+    debug('>>> parseJwt invalid error', e);
+    return next(e);
+  }
 
-    checkJwtExpiry(req, res, e => {
-      // If a token was submitted and is expired, we continue without authenticating the user
-      if (e) {
-        debug('>>> checkJwtExpiry expiry error', e);
-        return next();
-      }
-      _authenticateUserByJwt(req, res, next);
-    });
-  });
+  if (!req.jwtPayload) {
+    return next();
+  }
+
+  try {
+    checkJwtScope(req);
+  } catch (e) {
+    debug('>>> checkJwtScope error', e);
+    return next(e);
+  }
+
+  _authenticateUserByJwt(req, res, next);
 }
 
 export const authenticateService = (req, res, next) => {
@@ -443,27 +423,3 @@ export function mustBeLoggedIn(req, res, next) {
     }
   });
 }
-
-export const checkTwoFactorAuthJWT = (req, res, next) => {
-  let token;
-  try {
-    token = getTokenFromRequestHeaders(req);
-  } catch (err) {
-    return next(err);
-  }
-
-  jwt.verify(token, jwtSecret, (err, decoded) => {
-    // JWT library either returns an error or the decoded version
-    if (err) {
-      return next(new BadRequest(err.message));
-    } else {
-      req.jwtPayload = decoded;
-      // if token does not have scope of 'twofactorauth' we should reject it
-      if (!req.jwtPayload || req.jwtPayload.scope !== 'twofactorauth') {
-        return next(new Unauthorized('Cannot use this token on this route.'));
-      } else {
-        return next();
-      }
-    }
-  });
-};

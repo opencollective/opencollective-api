@@ -1,11 +1,9 @@
 import config from 'config';
-import { get } from 'lodash';
 
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
 import models from '../models';
-import paymentProviders from '../paymentProviders';
 
 export const createOrUpdate = async (req, res, next, accessToken, data) => {
   if (!req.remoteUser) {
@@ -136,28 +134,6 @@ export const disconnect = async (req, res) => {
   }
 };
 
-export const verify = (req, res, next) => {
-  const payload = req.jwtPayload;
-  const service = req.params.service;
-
-  if (get(paymentProviders, `${service}.oauth.verify`)) {
-    return paymentProviders[service].oauth.verify(req, res, next);
-  }
-
-  if (!payload) {
-    return next(new errors.Unauthorized());
-  }
-  if (payload.scope === 'connected-account' && payload.username) {
-    res.send({
-      service,
-      username: payload.username,
-      connectedAccountId: payload.connectedAccountId,
-    });
-  } else {
-    return next(new errors.BadRequest('Github authorization failed'));
-  }
-};
-
 const getGithubAccount = async req => {
   const payload = req.jwtPayload;
   const githubAccount = await models.ConnectedAccount.findOne({
@@ -174,6 +150,11 @@ const GITHUB_REPOS_FETCH_TIMEOUT = 1 * 60 * 1000;
 
 // used in Frontend by createCollective "GitHub flow"
 export const fetchAllRepositories = async (req, res, next) => {
+  if (req.jwtPayload?.scope !== 'connected-account') {
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope || 'session'})`;
+    return next(new errors.BadRequest(errorMessage));
+  }
+
   const githubAccount = await getGithubAccount(req);
   try {
     req.setTimeout(GITHUB_REPOS_FETCH_TIMEOUT);

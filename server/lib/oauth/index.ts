@@ -5,8 +5,6 @@ import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-a
 import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
 import Promise from 'bluebird';
-import config from 'config';
-import jwt from 'jsonwebtoken';
 import { assign } from 'lodash';
 
 import * as auth from '../../lib/auth';
@@ -24,20 +22,13 @@ class CustomTokenHandler extends TokenHandler {
   getTokenType = function (model) {
     return {
       valueOf: () => {
-        const accessToken = jwt.sign(
+        const accessToken = model.user.jwt(
           {
+            scope: 'oauth',
             // eslint-disable-next-line camelcase
             access_token: model.accessToken,
           },
-          config.keys.opencollective.jwtSecret,
-          {
-            expiresIn: auth.TOKEN_EXPIRATION_SESSION, // 90 days
-            subject: String(model.user.id),
-            algorithm: auth.ALGORITHM,
-            header: {
-              kid: auth.KID,
-            },
-          },
+          auth.TOKEN_EXPIRATION_SESSION,
         );
         // eslint-disable-next-line camelcase
         return { access_token: accessToken };
