@@ -8,7 +8,7 @@ import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
-import models, { Op, sequelize } from '../models';
+import models, { Collective, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
 
 import logger from './logger';
@@ -275,7 +275,7 @@ export function isCollectiveSlugReserved(slug: string): boolean {
 /**
  * Returns true if the event is passed
  */
-export const isPastEvent = (event: typeof models.Collective): boolean => {
+export const isPastEvent = (event: Collective): boolean => {
   if (!event.endsAt) {
     return false;
   } else {

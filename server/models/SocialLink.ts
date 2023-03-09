@@ -35,7 +35,7 @@ class SocialLink extends Model<InferAttributes<SocialLink>, InferCreationAttribu
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
 
-  public declare collective?: NonAttribute<typeof Collective>;
+  public declare collective?: NonAttribute<Collective>;
 }
 
 SocialLink.init(

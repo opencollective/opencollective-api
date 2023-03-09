@@ -1,7 +1,8 @@
 import { flatten, isEmpty, keyBy, mapValues, some } from 'lodash';
+import { Model, ModelStatic } from 'sequelize';
 
 import { types as CollectiveTypes } from '../constants/collectives';
-import models, { Op, sequelize } from '../models';
+import models, { Collective, Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
 import User from '../models/User';
 
@@ -23,7 +24,7 @@ const countEntities = async (fieldsConfig, entityId) => {
  * Get a summary of all items handled by the `mergeAccounts` function
  */
 export const getMovableItemsCounts = async (
-  fromCollective: typeof models.Collective,
+  fromCollective: Collective,
 ): Promise<{
   account: Record<keyof CollectiveFieldsConfig, number>;
   user: Record<keyof UserFieldsConfig, number>;
@@ -46,7 +47,7 @@ export const getMovableItemsCounts = async (
   }
 };
 
-const checkMergeCollective = (from: typeof models.Collective, into: typeof models.Collective): void => {
+const checkMergeCollective = (from: Collective, into: Collective): void => {
   if (!from || !into) {
     throw new Error('Cannot merge profiles, one of them does not exist');
   } else if (from.type !== into.type) {
@@ -63,10 +64,7 @@ const checkMergeCollective = (from: typeof models.Collective, into: typeof model
 /**
  * Simulate the `mergeAccounts` function. Returns a summary of the changes as a string
  */
-export const simulateMergeAccounts = async (
-  from: typeof models.Collective,
-  into: typeof models.Collective,
-): Promise<string> => {
+export const simulateMergeAccounts = async (from: Collective, into: Collective): Promise<string> => {
   // Detect errors that would completely block the process (throws)
   checkMergeCollective(from, into);
 
@@ -78,7 +76,7 @@ export const simulateMergeAccounts = async (
     summary += `${str}\n`;
   };
 
-  const addCountsToSummary = counts => {
+  const addCountsToSummary = (counts: Record<string, number>) => {
     Object.entries(counts).forEach(([key, count]) => {
       if (count > 0) {
         addLineToSummary(`  - ${key}: ${count}`);
@@ -121,13 +119,9 @@ type CollectiveField =
 type CollectiveFieldsConfig = Record<
   string,
   {
-    model: typeof models.Collective;
+    model: ModelStatic<Model>;
     field: CollectiveField;
-    getIdsToIgnore?: (
-      from: typeof models.Collective,
-      into: typeof models.Collective,
-      sqlTransaction,
-    ) => Promise<number[]>;
+    getIdsToIgnore?: (from: Collective, into: Collective, sqlTransaction) => Promise<number[]>;
   }
 >;
 
@@ -138,7 +132,7 @@ type CollectiveFieldsConfig = Record<
 const collectiveFieldsConfig: CollectiveFieldsConfig = {
   activities: { model: models.Activity, field: 'CollectiveId' },
   applications: { model: models.Application, field: 'CollectiveId' },
-  childrenCollectives: { model: models.Collective, field: 'ParentCollectiveId' },
+  childrenCollectives: { model: Collective, field: 'ParentCollectiveId' },
   comments: { model: models.Comment, field: 'CollectiveId' },
   commentsCreated: { model: models.Comment, field: 'FromCollectiveId' },
   connectedAccounts: { model: models.ConnectedAccount, field: 'CollectiveId' },
@@ -263,7 +257,7 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
         },
       );
 
-      summary[entity] = results.map(r => r.id);
+      summary[entity] = (results as unknown as { id: number | string }[]).map(r => r.id);
 
       if (idsToIgnore.length) {
         summary[`${entity}-deleted`] = idsToIgnore;
@@ -273,7 +267,7 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
           hooks: false,
           sideEffects: false,
           validate: false,
-        });
+        } as any);
       }
     } catch (e) {
       if (e.name === 'SequelizeUniqueConstraintError' && entityConfig.model === models.LegalDocument) {
@@ -328,8 +322,8 @@ const mergeUsers = async (fromUser, toUser, transaction): Promise<MergeUsersSumm
  * @returns an array of warning messages
  */
 export const mergeAccounts = async (
-  from: typeof models.Collective,
-  into: typeof models.Collective,
+  from: Collective,
+  into: Collective,
   userId: number | null = null,
 ): Promise<string[]> => {
   // Make sure all conditions are met before we start
@@ -367,7 +361,7 @@ export const mergeAccounts = async (
     // Mark from profile as deleted
     const collectiveData = { ...(from.data || {}), mergedIntoCollectiveId: into.id };
     await models.Collective.update(
-      { deletedAt: Date.now(), slug: `${from.slug}-merged`, data: collectiveData },
+      { deletedAt: new Date(), slug: `${from.slug}-merged`, data: collectiveData },
       { where: { id: from.id }, transaction },
     );
 

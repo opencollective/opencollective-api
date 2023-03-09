@@ -4,7 +4,7 @@ import fetch from 'node-fetch';
 import logger from '../../lib/logger';
 import { getHostPaypalAccount } from '../../lib/paypal';
 import { reportMessageToSentry } from '../../lib/sentry';
-import models from '../../models';
+import { Collective } from '../../models';
 
 /** Build an URL for the PayPal API */
 export function paypalUrl(path: string, version = 'v1'): string {
@@ -101,7 +101,7 @@ export async function paypalRequest(urlPath, body, hostCollective, method = 'POS
 
 export async function paypalRequestV2(
   urlPath: string,
-  hostCollective: typeof models.Collective,
+  hostCollective: Collective,
   method = 'POST',
   body = null,
 ): Promise<Record<string, unknown>> {

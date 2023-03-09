@@ -8,7 +8,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
-import models from '../../models';
+import models, { Collective } from '../../models';
 import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
 import User from '../../models/User';
@@ -23,7 +23,7 @@ export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 export const cancelPaypalSubscription = async (
   order: typeof models.Order,
   reason = undefined,
-  host: typeof models.Collective = undefined,
+  host: Collective = undefined,
 ): Promise<void> => {
   const collective = order.collective || (await order.getCollective());
   const hostCollective = host || (await collective.getHostCollective());
@@ -138,8 +138,8 @@ async function createPaypalPlan(host, collective, productId, interval, amount, c
 }
 
 export async function getOrCreatePlan(
-  host: typeof models.Collective,
-  collective: typeof models.Collective,
+  host: Collective,
+  collective: Collective,
   interval: INTERVALS,
   amount: number,
   currency: string,

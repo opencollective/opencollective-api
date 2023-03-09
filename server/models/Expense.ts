@@ -24,6 +24,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
 
+import Collective from './Collective';
 import { ExpenseAttachedFile } from './ExpenseAttachedFile';
 import { ExpenseItem } from './ExpenseItem';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
@@ -72,9 +73,9 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare deletedAt: CreationOptional<Date>;
 
   public declare Transactions?: (typeof models.Transaction)[];
-  public declare collective?: typeof models.Collective;
-  public declare fromCollective?: typeof models.Collective;
-  public declare host?: typeof models.Collective;
+  public declare collective?: Collective;
+  public declare fromCollective?: Collective;
+  public declare host?: Collective;
   public declare User?: User;
   public declare PayoutMethod?: PayoutMethod;
   public declare virtualCard?: VirtualCard;
@@ -82,7 +83,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare attachedFiles?: ExpenseAttachedFile[];
 
   // Association getters
-  declare getCollective: BelongsToGetAssociationMixin<typeof models.Collective>;
+  declare getCollective: BelongsToGetAssociationMixin<Collective>;
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;

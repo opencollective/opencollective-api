@@ -13,7 +13,7 @@ import { capitalize, days, formatCurrency } from '../lib/utils';
 import { isSupportedVideoProvider, supportedVideoProviders } from '../lib/validators';
 
 import CustomDataTypes from './DataTypes';
-import models from '.';
+import models, { Collective } from '.';
 
 const debug = debugLib('models:Tier');
 
@@ -55,7 +55,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare Collective?: typeof models.Collective;
+  public declare Collective?: Collective;
 
   /**
    * Instance Methods

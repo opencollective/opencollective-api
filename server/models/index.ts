@@ -101,10 +101,10 @@ models.Collective.belongsToMany(models.Collective, {
     model: models.Member,
     unique: false,
     foreignKey: 'MemberCollectiveId',
-  },
+  } as any,
 });
 models.Collective.belongsToMany(models.Collective, {
-  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' },
+  through: { model: models.Member, unique: false, foreignKey: 'CollectiveId' } as any,
   as: 'memberOfCollectives',
 });
 models.Collective.hasMany(models.Member, { foreignKey: 'MemberCollectiveId', as: 'memberships' });
@@ -322,8 +322,6 @@ models.Collective.hasOne(models.User, {
   as: 'user',
   foreignKey: 'CollectiveId',
   constraints: false,
-  allowNull: true,
-  defaultValue: null,
 });
 models.Transaction.belongsTo(models.Order);
 models.Order.hasMany(models.Transaction);

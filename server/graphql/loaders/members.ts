@@ -2,11 +2,11 @@ import DataLoader from 'dataloader';
 import _, { groupBy, partition, uniq } from 'lodash';
 
 import MemberRoles from '../../constants/roles';
-import models, { sequelize } from '../../models';
+import models, { Collective, sequelize } from '../../models';
 
 export const generateAdminUsersEmailsForCollectiveLoader = () => {
   return new DataLoader(
-    async (collectives: (typeof models.Collective)[]) => {
+    async (collectives: Collective[]) => {
       const [userCollectives, otherCollectives] = partition(collectives, collective => collective.type === 'USER');
       const queries = [];
 
@@ -49,7 +49,7 @@ export const generateAdminUsersEmailsForCollectiveLoader = () => {
       });
     },
     {
-      cacheKeyFn: (collective: typeof models.Collective) => collective.id,
+      cacheKeyFn: (collective: Collective) => collective.id,
     },
   );
 };

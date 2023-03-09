@@ -80,8 +80,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   public declare updatedAt: Date;
   public declare deletedAt: Date;
 
-  public declare collective?: typeof models.Collective;
-  public declare fromCollective?: typeof models.Collective;
+  public declare collective?: Collective;
+  public declare fromCollective?: Collective;
 
   public declare getCollective: BelongsToGetAssociationMixin<Collective>;
   public declare getFromCollective: BelongsToGetAssociationMixin<Collective>;

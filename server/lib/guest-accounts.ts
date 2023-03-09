@@ -5,14 +5,14 @@ import { v4 as uuid } from 'uuid';
 
 import { types as COLLECTIVE_TYPE } from '../constants/collectives';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
-import models, { sequelize } from '../models';
+import models, { Collective, sequelize } from '../models';
 import User from '../models/User';
 
 export const DEFAULT_GUEST_NAME = 'Guest';
 
 type GuestProfileDetails = {
   user: User;
-  collective: typeof models.Collective;
+  collective: Collective;
 };
 
 type Location = {
@@ -127,7 +127,7 @@ export const getOrCreateGuestProfile = async (
 export const confirmGuestAccount = async (
   user: User,
 ): Promise<{
-  collective: typeof models.Collective;
+  collective: Collective;
   user: User;
 }> => {
   // 1. Mark user as confirmed
@@ -152,7 +152,7 @@ export const confirmGuestAccountByEmail = async (
   email: string,
   emailConfirmationToken: string,
 ): Promise<{
-  collective: typeof models.Collective;
+  collective: Collective;
   user: User;
 }> => {
   const user = await models.User.findOne({ where: { email } });

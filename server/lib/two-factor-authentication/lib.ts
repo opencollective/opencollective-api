@@ -4,7 +4,7 @@ import { isNil } from 'lodash';
 
 import POLICIES from '../../constants/policies';
 import { Unauthorized } from '../../graphql/errors';
-import models from '../../models';
+import { Collective } from '../../models';
 import User from '../../models/User';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
@@ -178,7 +178,7 @@ function userHasTwoFactorAuthEnabled(user: User) {
  * Returns true if this request / account should enforce 2FA.
  * The parent account, if any, is always the source of truth
  */
-async function shouldEnforceForAccount(req, account?: typeof models.Collective): Promise<boolean> {
+async function shouldEnforceForAccount(req, account?: Collective): Promise<boolean> {
   return await hasPolicy(account, POLICIES.REQUIRE_2FA_FOR_ADMINS);
 }
 
@@ -191,7 +191,7 @@ async function shouldEnforceForAccount(req, account?: typeof models.Collective):
  */
 async function enforceForAccount(
   req: Request,
-  account: typeof models.Collective,
+  account: Collective,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
 ): Promise<boolean | undefined> {
   if (!req.remoteUser) {
@@ -211,7 +211,7 @@ async function enforceForAccount(
  */
 async function enforceForAccountsUserIsAdminOf(
   req: Request,
-  accounts: typeof models.Collective | Array<typeof models.Collective>,
+  accounts: Collective | Array<Collective>,
   options: Omit<ValidateRequestOptions, 'requireTwoFactorAuthEnabled'> = undefined,
 ): Promise<boolean | undefined> {
   accounts = Array.isArray(accounts) ? accounts : [accounts];

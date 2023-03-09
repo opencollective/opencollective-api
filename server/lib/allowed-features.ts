@@ -2,7 +2,7 @@ import { get } from 'lodash';
 
 import { types } from '../constants/collectives';
 import FEATURE from '../constants/feature';
-import models from '../models';
+import { Collective } from '../models';
 
 const HOST_TYPES = [types.USER, types.ORGANIZATION];
 
@@ -83,7 +83,11 @@ const FEATURES_ONLY_FOR_ACTIVE_HOSTS = new Set([
 /**
  * Returns true if feature is allowed for this collective type, false otherwise.
  */
-export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature: FEATURE, isHost?: false): boolean => {
+export const isFeatureAllowedForCollectiveType = (
+  collectiveType: types,
+  feature: FEATURE,
+  isHost?: boolean,
+): boolean => {
   const allowedTypes = FeatureAllowedForTypes[feature];
   const allowedForType = allowedTypes ? allowedTypes.includes(collectiveType) : true;
 
@@ -101,12 +105,12 @@ export const isFeatureAllowedForCollectiveType = (collectiveType: types, feature
   return true;
 };
 
-export const hasOptedOutOfFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
+export const hasOptedOutOfFeature = (collective: Collective, feature: FEATURE): boolean => {
   const optOutFlag = OPT_OUT_FEATURE_FLAGS[feature];
   return optOutFlag ? get(collective, optOutFlag) === false : false;
 };
 
-export const hasOptedInForFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
+export const hasOptedInForFeature = (collective: Collective, feature: FEATURE): boolean => {
   const optInFlag = OPT_IN_FEATURE_FLAGS[feature];
   return get(collective, optInFlag) === true;
 };
@@ -114,7 +118,7 @@ export const hasOptedInForFeature = (collective: typeof models.Collective, featu
 /**
  * If a given feature is allowed for the collective type, check if it is activated for collective.
  */
-export const hasFeature = (collective: typeof models.Collective, feature: FEATURE): boolean => {
+export const hasFeature = (collective: Collective, feature: FEATURE): boolean => {
   if (!collective) {
     return false;
   } else if (get(collective, `data.features.${FEATURE.ALL}`) === false) {

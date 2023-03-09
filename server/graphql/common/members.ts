@@ -2,7 +2,7 @@ import { pick } from 'lodash';
 
 import { invalidateContributorsCache } from '../../lib/contributors';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
-import models from '../../models';
+import models, { Collective } from '../../models';
 import { Forbidden, NotFound, Unauthorized } from '../errors';
 import { fetchAccountWithReference } from '../v2/input/AccountReferenceInput';
 
@@ -51,7 +51,7 @@ export async function editPublicMessage(_, { fromAccount, toAccount, FromCollect
 }
 
 export async function processInviteMembersInput(
-  collective: typeof models.Collective,
+  collective: Collective,
   inviteMemberInputs: [{ memberAccount?; memberInfo?; role; description?; since? }],
   options: { skipDefaultAdmin?; transaction?; supportedRoles?: [string]; user? },
 ) {

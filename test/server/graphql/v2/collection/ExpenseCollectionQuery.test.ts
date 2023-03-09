@@ -7,6 +7,7 @@ import { US_TAX_FORM_THRESHOLD } from '../../../../../server/constants/tax-form'
 import * as libcurrency from '../../../../../server/lib/currency';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
+import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
 import {
   fakeCollective,
   fakeExpense,
@@ -130,7 +131,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
     before(async () => {
       sandbox = createSandbox();
       host = await fakeHostWithRequiredLegalDocument();
-      otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
+      otherPayoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
       const collective = await fakeCollective({ HostCollectiveId: host.id, currency: 'USD' });
       const collectiveWithoutBalance = await fakeCollective({ HostCollectiveId: host.id });
       const baseExpenseData = {

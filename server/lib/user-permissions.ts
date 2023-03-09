@@ -3,14 +3,14 @@
  */
 
 import FEATURE from '../constants/feature';
-import models from '../models';
+import { Collective } from '../models';
 import User from '../models/User';
 
 /**
  * Returns true if the given user can use the passed feature. Will always return false
  * if user is not set.
  */
-export const canUseFeature = (account: User | typeof models.Collective, feature: FEATURE): boolean => {
+export const canUseFeature = (account: User | Collective, feature: FEATURE): boolean => {
   // Must be provided
   if (!account) {
     return false;
@@ -33,6 +33,6 @@ export const canUseFeature = (account: User | typeof models.Collective, feature:
  * Some exceptions can be added to this rule depending on the context (ie. host admins can see the legal name
  * for the payees of expenses they have to treat). See `PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME`.
  */
-export const canSeeLegalName = (user: User | null, account: typeof models.Collective | null): boolean => {
+export const canSeeLegalName = (user: User | null, account: Collective | null): boolean => {
   return account?.isHostAccount || Boolean(user?.isAdminOfCollective(account));
 };

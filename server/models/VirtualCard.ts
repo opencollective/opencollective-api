@@ -36,8 +36,8 @@ class VirtualCard extends Model<InferAttributes<VirtualCard, { omit: 'info' }>, 
 
   // Associations
   public declare collective?: NonAttribute<any>;
-  public declare host?: NonAttribute<typeof Collective>;
-  public declare getHost: BelongsToGetAssociationMixin<typeof Collective>;
+  public declare host?: NonAttribute<Collective>;
+  public declare getHost: BelongsToGetAssociationMixin<Collective>;
   public declare user?: NonAttribute<any>;
 
   async getExpensesMissingDetails(): Promise<Array<any>> {

@@ -3,16 +3,14 @@ import path from 'path';
 
 import { pick, startCase } from 'lodash';
 
-import models, { Op, sequelize } from '../models';
+import models, { Collective, Op, sequelize } from '../models';
 import { MigrationLogType } from '../models/MigrationLog';
 
 /**
  * From a given account, returns its entire network of accounts: administrated profiles,
  * other profiles administrated by the same admins, etc...
  */
-export const getAccountsNetwork = async (
-  accounts: (typeof models.Collective)[],
-): Promise<(typeof models.Collective)[]> => {
+export const getAccountsNetwork = async (accounts: Collective[]): Promise<Collective[]> => {
   if (!accounts?.length) {
     return [];
   }
@@ -137,7 +135,7 @@ const getUndeletableTransactionsCount = async collectiveIds => {
   return result.count;
 };
 
-export const getBanSummary = async (accounts: (typeof models.Collective)[]): Promise<BanSummary> => {
+export const getBanSummary = async (accounts: Collective[]): Promise<BanSummary> => {
   const collectiveIds = accounts.map(a => a.id);
   return {
     undeletableTransactionsCount: await getUndeletableTransactionsCount(collectiveIds),
@@ -178,7 +176,7 @@ type BanResult = Record<string, number>;
 /**
  * A wrapper around the ban-collectives.sql query. Use carefully!
  */
-export const banAccounts = (accounts: (typeof models.Collective)[], userId: number): Promise<BanResult> => {
+export const banAccounts = (accounts: Collective[], userId: number): Promise<BanResult> => {
   const banCollectivesQuery = readFileSync(path.join(__dirname, '../../sql/ban-collectives.sql'), 'utf8');
 
   return sequelize.transaction(async transaction => {

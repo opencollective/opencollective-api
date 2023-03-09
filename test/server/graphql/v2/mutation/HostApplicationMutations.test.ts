@@ -6,6 +6,7 @@ import { createSandbox } from 'sinon';
 import { activities, roles } from '../../../../../server/constants';
 import OrderStatuses from '../../../../../server/constants/order_status';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
+import VirtualCardProviders from '../../../../../server/constants/virtual_card_providers';
 import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
@@ -545,7 +546,7 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const virtualCard = await fakeVirtualCard({
         HostCollectiveId: host.id,
         CollectiveId: collective.id,
-        provider: 'STRIPE',
+        provider: VirtualCardProviders.STRIPE,
       });
       const result = await graphqlQueryV2(
         REMOVE_HOST_MUTATION,

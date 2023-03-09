@@ -11,7 +11,7 @@ import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
 import { getRootDomain } from '../lib/url-utils';
 
 import User from './User';
-import models from '.';
+import models, { Collective } from '.';
 
 const debug = debugLib('models:Notification');
 
@@ -33,7 +33,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   public declare UserId: CreationOptional<number>;
   public declare webhookUrl: CreationOptional<string>;
   public declare User?: User;
-  public declare Collective?: typeof models.Collective;
+  public declare Collective?: Collective;
 
   getUser() {
     return models.User.findByPk(this.UserId);
@@ -297,7 +297,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
   /**
    * Check if notification with `notificationType` and `user` is active.
    */
-  static isActive(notificationType: string, user: User, collective?: typeof models.Collective) {
+  static isActive(notificationType: string, user: User, collective?: Collective) {
     debug('isActive', notificationType, user.id);
     const where = {
       type: notificationType,

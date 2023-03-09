@@ -5,7 +5,7 @@ import { truncate } from 'lodash';
 
 import { activities } from '../constants';
 import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
-import models, { Op } from '../models';
+import models, { Collective, Op } from '../models';
 import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../models/LegalDocument';
 
 import logger from './logger';
@@ -17,7 +17,7 @@ import { isEmailInternal } from './utils';
  * @returns {Collective} all the accounts that need to be sent a tax form (both users and orgs)
  * @param {number} year
  */
-export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<(typeof models.Collective)[]> {
+export async function findAccountsThatNeedToBeSentTaxForm(year: number): Promise<Collective[]> {
   const collectiveIds = await queries.getTaxFormsRequiredForAccounts(null, year);
   if (!collectiveIds.size) {
     return [];
@@ -109,7 +109,7 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
 
 export async function sendHelloWorksUsTaxForm(
   client: HelloWorks,
-  account: typeof models.Collective,
+  account: Collective,
   year: number,
   callbackUrl: string,
   workflowId: string,

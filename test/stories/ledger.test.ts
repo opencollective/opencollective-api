@@ -21,6 +21,7 @@ import { markExpenseAsUnpaid, payExpense } from '../../server/graphql/common/exp
 import { createRefundTransaction, executeOrder } from '../../server/lib/payments';
 import * as libPayments from '../../server/lib/payments';
 import models from '../../server/models';
+import { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import paymentProviders from '../../server/paymentProviders';
 import * as webhook from '../../server/paymentProviders/stripe/webhook';
 import stripeMocks from '../mocks/stripe';
@@ -90,7 +91,7 @@ const setupTestData = async (
   const contributorUser = await fakeUser(undefined, { name: 'Ben' });
   const contributorCollective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
   const ocInc = await fakeHost({ name: 'OC Inc', id: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId });
-  await fakePayoutMethod({ type: 'OTHER', CollectiveId: ocInc.id }); // For the settlement expense
+  await fakePayoutMethod({ type: PayoutMethodTypes.OTHER, CollectiveId: ocInc.id }); // For the settlement expense
   await fakeUser({ id: SETTLEMENT_EXPENSE_PROPERTIES.UserId, name: 'Pia' });
   let FromCollectiveId;
   if (selfContribution) {
