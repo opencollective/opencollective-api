@@ -9622,6 +9622,11 @@ type Query {
     Whether to include expenses from children of the account (Events and Projects)
     """
     includeChildrenExpenses: Boolean! = false
+
+    """
+    Only return expenses that contains this custom data. Requires being an admin of the collective, payee or host.
+    """
+    customData: JSON
   ): ExpenseCollection!
   fund(
     """

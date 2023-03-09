@@ -16,6 +16,7 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
+  randStr,
 } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -26,8 +27,16 @@ const expensesQuery = gqlV2/* GraphQL */ `
     $host: AccountReferenceInput
     $status: ExpenseStatusFilter
     $searchTerm: String
+    $customData: JSON
   ) {
-    expenses(fromAccount: $fromAccount, account: $account, host: $host, status: $status, searchTerm: $searchTerm) {
+    expenses(
+      fromAccount: $fromAccount
+      account: $account
+      host: $host
+      status: $status
+      searchTerm: $searchTerm
+      customData: $customData
+    ) {
       totalCount
       nodes {
         id
@@ -122,6 +131,99 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.expenses.nodes.length).to.eq(1);
       expect(result.data.expenses.nodes[0].legacyId).to.eq(expenses[0].id);
+    });
+  });
+
+  describe('Filter by custom data', () => {
+    it('Needs to be logged in', async () => {
+      const result = await graphqlQueryV2(expensesQuery, { customData: { key: 'value' } });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('You need to be logged in to filter by customData');
+    });
+
+    it('Needs to filter by account, fromAccount or host', async () => {
+      const user = await fakeUser();
+      const result = await graphqlQueryV2(expensesQuery, { customData: { key: 'value' } }, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq(
+        'You need to filter by at least one of fromAccount, account or host to filter by customData',
+      );
+    });
+
+    it('Needs to be an admin of account, fromAccount or host', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective();
+      const testAccount = async (accountKey: string) => {
+        const args = { [accountKey]: { legacyId: collective.id }, customData: { key: 'value' } };
+        const result = await graphqlQueryV2(expensesQuery, args, user);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq(
+          'You need to be an admin of the fromAccount, account or host to filter by customData',
+        );
+      };
+
+      await testAccount('account');
+      await testAccount('fromAccount');
+      await testAccount('host');
+    });
+
+    it('Can filter using a simple field', async () => {
+      const randomValue = randStr();
+      await fakeExpense({ data: { customData: { myKey: 'anotherValue', anotherKey: 42 } } }); // To make sure it's not returned
+      const expense = await fakeExpense({ data: { customData: { myKey: randomValue, anotherKey: 42 } } });
+      const result = await graphqlQueryV2(
+        expensesQuery,
+        { fromAccount: { legacyId: expense.FromCollectiveId }, customData: { myKey: randomValue } },
+        expense.User,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.nodes.length).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('Can filter using a nested value', async () => {
+      const randomValue = randStr();
+      await fakeExpense({ data: { customData: { myKey: 'anotherValue', anotherKey: 42 } } }); // To make sure it's not returned
+      const expense = await fakeExpense({
+        data: { customData: { myKey: { nestedKey: randomValue }, anotherKey: 42 } },
+      });
+      const result = await graphqlQueryV2(
+        expensesQuery,
+        { fromAccount: { legacyId: expense.FromCollectiveId }, customData: { myKey: { nestedKey: randomValue } } },
+        expense.User,
+      );
+
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.expenses.nodes.length).to.eq(1);
+      expect(result.data.expenses.nodes[0].legacyId).to.eq(expense.id);
+    });
+
+    it('Payload needs to be a valid object', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const testInvalidPayload = async payload => {
+        const args = { fromAccount: { legacyId: collective.id }, customData: payload };
+        const result = await graphqlQueryV2(expensesQuery, args, user);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.eq('Expense custom data must be an object');
+      };
+
+      await testInvalidPayload('invalid');
+      await testInvalidPayload(42);
+      await testInvalidPayload(true);
+    });
+
+    it('Payload cannot be too large', async () => {
+      const user = await fakeUser();
+      const collective = await fakeCollective({ admin: user });
+      const payload = { key: 'a'.repeat(10001) };
+      const args = { fromAccount: { legacyId: collective.id }, customData: payload };
+      const result = await graphqlQueryV2(expensesQuery, args, user);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.011kB');
     });
   });
 

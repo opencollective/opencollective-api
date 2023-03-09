@@ -801,7 +801,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
   }
 }
 
-const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
+export const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
   if (!value) {
     return;
   }
