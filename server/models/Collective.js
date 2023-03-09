@@ -375,37 +375,6 @@ const Collective = sequelize.define(
       },
     },
 
-    locationName: DataTypes.STRING,
-
-    address: DataTypes.STRING,
-
-    countryISO: {
-      type: DataTypes.STRING,
-      validate: {
-        len: 2,
-        isCountryISO(value) {
-          if (!(isNull(value) || isISO31661Alpha2(value))) {
-            throw new Error('Invalid Country ISO.');
-          }
-        },
-      },
-    },
-
-    geoLocationLatLong: {
-      type: DataTypes.JSONB,
-      validate: {
-        validate(data) {
-          if (!data) {
-            return;
-          } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
-            throw new Error('Invalid GeoLocation');
-          } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
-            throw new Error('Invalid latitude/longitude');
-          }
-        },
-      },
-    },
-
     settings: {
       type: DataTypes.JSONB,
       get() {
@@ -595,38 +564,6 @@ const Collective = sequelize.define(
     paranoid: true,
 
     getterMethods: {
-      async location() {
-        const location = await this.getLocation();
-        if (!location) {
-          return null;
-        }
-
-        return {
-          id: `location-collective-${this.id}`, // Used for GraphQL caching
-          name: location.name,
-          address1: location.address1,
-          address2: location.address2,
-          postalCode: location.postalCode,
-          city: location.city,
-          zone: location.zone,
-          country: location.country,
-          lat: location.geoLocationLatLong?.coordinates?.[0],
-          long: location.geoLocationLatLong?.coordinates?.[1],
-          url: location.url,
-          formattedAddress: location.formattedAddress,
-          // Deprecated fields below
-          address: location.name === 'Online' && location.url ? location.url : location.formattedAddress,
-          structured: {
-            address1: location.address1,
-            address2: location.address2,
-            postalCode: location.postalCode,
-            city: location.city,
-            zone: location.zone,
-            country: location.country,
-          },
-        };
-      },
-
       previewImage() {
         if (!this.image) {
           return null;

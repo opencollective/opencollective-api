@@ -1017,24 +1017,51 @@ const CollectiveFields = () => {
       type: LocationType,
       description: 'Name, address, lat, long of the location.',
       async resolve(collective, _, req) {
-        const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION];
-        if (publicAddressesCollectiveTypes.includes(collective.type)) {
-          return collective.location;
-        } else if (!req.remoteUser) {
-          return null;
-        } else if (req.remoteUser.isAdminOfCollective(collective)) {
-          // For incognito profiles, we retrieve the location from the main user profile
-          if (collective.isIncognito) {
-            const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
-            if (mainProfile) {
-              return mainProfile.location;
-            }
-          }
+        const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION]; // TODO: Address disrepancy between v1 and v2 (v2 being more permissive)
+        const canSeeLocation =
+          publicAddressesCollectiveTypes.includes(collective.type) || req.remoteUser?.isAdmin(collective.id);
 
-          return collective.location;
-        } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
-          return collective.location;
+        if (!canSeeLocation) {
+          return null;
         }
+
+        // For incognito profiles, we retrieve the location from the main user profile
+        if (collective.isIncognito) {
+          const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
+          if (mainProfile) {
+            collective = mainProfile;
+          }
+        }
+
+        const location = await collective.getLocation();
+
+        if (!location) {
+          return null;
+        }
+
+        return {
+          id: `location-collective-${collective.id}`, // Used for GraphQL caching
+          name: location.name,
+          address1: location.address1,
+          address2: location.address2,
+          postalCode: location.postalCode,
+          city: location.city,
+          zone: location.zone,
+          country: location.country,
+          lat: location.geoLocationLatLong?.coordinates?.[0],
+          long: location.geoLocationLatLong?.coordinates?.[1],
+          url: location.url,
+          formattedAddress: location.formattedAddress,
+          // Deprecated fields below
+          address: location.name === 'Online' && location.url ? location.url : location.formattedAddress,
+          structured: {
+            address1: location.address1,
+            address2: location.address2,
+            postalCode: location.postalCode,
+            city: location.city,
+            zone: location.zone,
+          },
+        };
       },
     },
     createdAt: {

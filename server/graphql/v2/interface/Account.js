@@ -393,6 +393,57 @@ const accountFieldsDefinition = () => ({
   location: {
     type: Location,
     description: 'The address associated to this account. This field is always public for collectives and events.',
+    async resolve(collective, _, req) {
+      const canSeeLocation =
+        collective.type !== CollectiveTypes.USER ||
+        (req.remoteUser?.isAdmin(collective.id) && checkScope(req, 'account')) ||
+        (await collective.isHost());
+
+      if (!canSeeLocation) {
+        return null;
+      }
+
+      // For incognito profiles, we retrieve the location from the main user profile
+      if (collective.isIncognito) {
+        if (!checkScope(req, 'incognito')) {
+          return null;
+        }
+        const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
+        if (mainProfile) {
+          collective = mainProfile;
+        }
+      }
+
+      const location = await collective.getLocation();
+
+      if (!location) {
+        return null;
+      }
+
+      return {
+        id: `location-collective-${collective.id}`, // Used for GraphQL caching
+        name: location.name,
+        address1: location.address1,
+        address2: location.address2,
+        postalCode: location.postalCode,
+        city: location.city,
+        zone: location.zone,
+        country: location.country,
+        lat: location.geoLocationLatLong?.coordinates?.[0],
+        long: location.geoLocationLatLong?.coordinates?.[1],
+        url: location.url,
+        formattedAddress: location.formattedAddress,
+        // Deprecated fields below
+        address: location.name === 'Online' && location.url ? location.url : location.formattedAddress,
+        structured: {
+          address1: location.address1,
+          address2: location.address2,
+          postalCode: location.postalCode,
+          city: location.city,
+          zone: location.zone,
+        },
+      };
+    },
   },
   categories: {
     type: new GraphQLNonNull(new GraphQLList(GraphQLString)),
