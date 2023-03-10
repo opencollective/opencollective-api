@@ -1082,7 +1082,6 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
     (!existingLocation.address || !existingLocation.structured)
   ) {
-    // TODO: Perhaps only do this for USER's, since other types have public locations, and this might be unexpected to expose expenseData?
     await fromCollective.setLocation(expenseData.payeeLocation);
 
     // Create formatted address if it does not exist
@@ -1310,7 +1309,6 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   }
 
   // Let's take the opportunity to update collective's location
-  // TODO: Perhaps only do this for USER's, since other types have public locations, and this might be unexpected to expose expenseData?
   const existingLocation = await fromCollective.getLocation();
   if (
     (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
