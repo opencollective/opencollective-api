@@ -15,6 +15,7 @@ import {
   differenceWith,
   get,
   includes,
+  isNull,
   isUndefined,
   omit,
   pick,
@@ -40,6 +41,7 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
+import validator from 'validator';
 
 import activities from '../constants/activities';
 import { CollectiveTypesList, types } from '../constants/collectives';
@@ -214,6 +216,7 @@ class Collective extends Model<
   public declare currency: string;
   public declare image: string;
   public declare backgroundImage: string;
+  public declare countryISO: string;
   public declare settings: Settings;
   public declare isPledged: boolean;
   public declare data: any;
@@ -248,7 +251,7 @@ class Collective extends Model<
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
 
   public declare getLocation: HasOneGetAssociationMixin<Location>;
-  public readonly location?: Location;
+  public declare location?: LocationType;
 
   public declare parent?: NonAttribute<Collective>;
   public declare children?: NonAttribute<Collective[]>;
@@ -1869,6 +1872,10 @@ class Collective extends Model<
       const { name, country, lat, long, structured } = locationInput;
       let { address } = locationInput;
 
+      // Set Collective.countryISO. TODO: refactor
+      this.countryISO = country;
+      this.save();
+
       // Set formatted address
       if (!address) {
         address = await formatAddress({ structured, country });
@@ -3477,6 +3484,18 @@ Collective.init(
       },
       get() {
         return this.getDataValue('backgroundImage');
+      },
+    },
+
+    countryISO: {
+      type: DataTypes.STRING,
+      validate: {
+        len: [2, 2],
+        isCountryISO(value) {
+          if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
+            throw new Error('Invalid Country ISO.');
+          }
+        },
       },
     },
 
