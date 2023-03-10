@@ -35,6 +35,7 @@ import models, {
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
+import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
@@ -794,7 +795,7 @@ export const fakePaymentMethod = async (data: Record<string, unknown>) => {
   });
 };
 
-export const fakeLegalDocument = async (data: Record<string, unknown> = {}) => {
+export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocumentModelInterface>> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',

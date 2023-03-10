@@ -6,7 +6,11 @@ import { truncate } from 'lodash';
 import { activities } from '../constants';
 import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
 import models, { Collective, Op } from '../models';
-import { LEGAL_DOCUMENT_REQUEST_STATUS, LEGAL_DOCUMENT_TYPE } from '../models/LegalDocument';
+import {
+  LEGAL_DOCUMENT_REQUEST_STATUS,
+  LEGAL_DOCUMENT_TYPE,
+  LegalDocumentModelInterface,
+} from '../models/LegalDocument';
 
 import logger from './logger';
 import queries from './queries';
@@ -113,7 +117,7 @@ export async function sendHelloWorksUsTaxForm(
   year: number,
   callbackUrl: string,
   workflowId: string,
-): Promise<typeof models.LegalDocument> {
+): Promise<LegalDocumentModelInterface> {
   const host = await account.getHostCollective();
   const accountToSubmitRequestTo = host || account; // If the account has a fiscal host, it's its responsibility to fill the request
   const adminUsers = await getAdminsForAccount(accountToSubmitRequestTo);
