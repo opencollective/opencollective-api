@@ -771,7 +771,7 @@ const validateExpenseCustomData = (value: Record<string, unknown> | null): void 
   // Validate size
   const payloadSize = Buffer.byteLength(JSON.stringify(value), 'utf8');
   if (payloadSize > 10e3) {
-    throw new ValidationFailed(`Expense custom data cannot exceed 10kb. Current size: ${payloadSize / 1000}kb`);
+    throw new ValidationFailed(`Expense custom data cannot exceed 10kB. Current size: ${payloadSize / 1000}kB`);
   }
 };
 

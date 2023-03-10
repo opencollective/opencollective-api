@@ -406,7 +406,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('fails if custom data exceeds a certain size', async () => {
-      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kb is 2500 emojis
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
       const user = await fakeUser();
       const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id }, customData };
@@ -418,7 +418,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       );
 
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kb. Current size: 10.008kb');
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
     });
   });
 
@@ -779,11 +779,11 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('fails if custom data exceeds a certain size', async () => {
       const expense = await fakeExpense({ status: 'PENDING' });
-      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kb is 2500 emojis
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
       const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), customData };
       const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kb. Current size: 10.008kb');
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
     });
   });
 
