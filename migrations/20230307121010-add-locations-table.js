@@ -14,26 +14,6 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      address1: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      address2: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      postalCode: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      city: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
-      zone: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
       structured: {
         type: DataTypes.JSONB,
         allowNull: true,
@@ -98,7 +78,8 @@ module.exports = {
           "locationName" IS NOT NULL OR 
           "address" IS NOT NULL OR 
           "countryISO" IS NOT NULL OR 
-          "geoLocationLatLong" IS NOT NULL;
+          "geoLocationLatLong" IS NOT NULL OR
+          "data"->'address' IS NOT NULL;
     `);
   },
 
