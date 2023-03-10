@@ -14,20 +14,20 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      structured: {
-        type: DataTypes.JSONB,
+      address: {
+        type: DataTypes.STRING,
         allowNull: true,
       },
       country: {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      geoLocationLatLong: {
+      structured: {
         type: DataTypes.JSONB,
         allowNull: true,
       },
-      address: {
-        type: DataTypes.STRING,
+      geoLocationLatLong: {
+        type: DataTypes.JSONB,
         allowNull: true,
       },
       CollectiveId: {
@@ -56,19 +56,8 @@ module.exports = {
     await queryInterface.sequelize.query(`
       INSERT INTO "Locations" ("name", "address", "country", "CollectiveId", "geoLocationLatLong", "structured")
       SELECT 
-          CASE 
-              WHEN "locationName" IS NULL THEN 
-                  CASE 
-                      WHEN "address" IS NOT NULL THEN 
-                          split_part("address", ',', 1)
-                      ELSE 
-                          NULL 
-                  END 
-              ELSE 
-                  "locationName" 
-          END,
-          "address"
-          END,
+          "locationName",
+          "address",
           "countryISO",
           id,
           "geoLocationLatLong",
