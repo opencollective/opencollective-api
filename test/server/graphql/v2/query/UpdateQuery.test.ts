@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 
+import MemberRoles from '../../../../../server/constants/roles';
 import {
   fakeCollective,
   fakeHost,
@@ -88,7 +89,7 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       await Promise.all(
         backerOrgs.map(async org => {
           await addRandomMemberUsers(org, nbAdminsPerOrg, 'ADMIN');
-          return fakeMember({ MemberCollectiveId: org.id, CollectiveId: collective.id, role: 'BACKER' });
+          return fakeMember({ MemberCollectiveId: org.id, CollectiveId: collective.id, role: MemberRoles.BACKER });
         }),
       );
 

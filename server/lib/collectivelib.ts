@@ -8,8 +8,9 @@ import activities from '../constants/activities';
 import { types as CollectiveTypes } from '../constants/collectives';
 import { MODERATION_CATEGORIES } from '../constants/moderation-categories';
 import { VAT_OPTIONS } from '../constants/vat';
-import models, { Collective, Op, sequelize } from '../models';
+import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
+import { MemberModelInterface } from '../models/Member';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -374,12 +375,12 @@ export async function deleteCollective(collective) {
     user = await models.User.findOne({ where: { CollectiveId: collective.id } });
   }
 
-  const members = models.Member.findAll({
+  const members = Member.findAll({
     where: {
       [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
     },
   });
-  await map(members, (member: typeof models.Member) => member.destroy(), { concurrency: 3 });
+  await map(members, (member: MemberModelInterface) => member.destroy(), { concurrency: 3 });
 
   const orders = await models.Order.findAll({
     where: {

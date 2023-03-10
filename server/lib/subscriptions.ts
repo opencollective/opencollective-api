@@ -5,6 +5,7 @@ import INTERVALS from '../constants/intervals';
 import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
 import models, { sequelize } from '../models';
+import { MemberModelInterface } from '../models/Member';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
@@ -107,7 +108,7 @@ type OrderSubscriptionUpdate = {
  */
 export const updateOrderSubscription = async (
   order: typeof models.Order,
-  member: typeof models.Member,
+  member: MemberModelInterface,
   newOrderData: Record<string, unknown>,
   newSubscriptionData: Record<string, unknown>,
   newMemberData: Record<string, unknown>,
@@ -139,7 +140,7 @@ export const updateOrderSubscription = async (
 export const updateSubscriptionDetails = async (
   order: typeof models.Order,
   tier: Tier,
-  member: typeof models.Member,
+  member: MemberModelInterface,
   amountInCents: number,
 ): Promise<OrderSubscriptionUpdate> => {
   // Make sure the new details are ok values, that match tier's minimum amount if there's one

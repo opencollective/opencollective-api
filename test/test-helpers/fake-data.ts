@@ -18,6 +18,7 @@ import { types as CollectiveType, types } from '../../server/constants/collectiv
 import OAuthScopes from '../../server/constants/oauth-scopes';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
+import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
 import models, {
@@ -34,6 +35,7 @@ import models, {
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
+import { MemberModelInterface } from '../../server/models/Member';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
@@ -140,7 +142,9 @@ export const fakeHostApplication = async data => {
  * Creates a fake collective. All params are optionals.
  */
 export const fakeCollective = async (
-  collectiveData: Partial<InferCreationAttributes<Collective>> & { admin?: User | { id: number } } = {},
+  collectiveData: Partial<InferCreationAttributes<Collective>> & {
+    admin?: User | { id: number; CreatedByUserId: number };
+  } = {},
   sequelizeParams: CreateOptions = {},
 ) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
@@ -186,7 +190,7 @@ export const fakeCollective = async (
   }
   if (collectiveData.admin) {
     try {
-      const admin = collectiveData.admin as Record<string, unknown>;
+      const admin = collectiveData.admin;
       const isUser = admin instanceof models.User;
       await models.Member.create(
         {
@@ -595,7 +599,7 @@ export const fakeOrder = async (
       MemberCollectiveId: order.FromCollectiveId,
       CollectiveId: order.CollectiveId,
       CreatedByUserId: order.CreatedByUserId,
-      role: 'BACKER',
+      role: MemberRoles.BACKER,
       TierId: tier?.id || null,
     });
   }
@@ -721,9 +725,7 @@ export const fakeTransaction = async (
 /**
  * Creates a fake member. All params are optionals.
  */
-export const fakeMember = async (
-  data: Record<string, unknown> & { CollectiveId?: number; MemberCollectiveId?: number } = {},
-) => {
+export const fakeMember = async (data: Partial<InferCreationAttributes<MemberModelInterface>> = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)
