@@ -419,7 +419,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     user.collective = await models.Collective.create(userCollectiveData, sequelizeParams);
 
     if (userData.location) {
-      await user.collective.setLocation(userData.location);
+      await user.collective.setLocation(userData.location, transaction);
     }
 
     // It's difficult to predict when the image will be updated by findImageForUser
