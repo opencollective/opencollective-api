@@ -15,7 +15,6 @@ import {
   differenceWith,
   get,
   includes,
-  isNull,
   isUndefined,
   omit,
   pick,
@@ -40,7 +39,6 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
-import validator from 'validator';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
@@ -96,6 +94,7 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { Location } from '../types/Location';
 
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
@@ -125,10 +124,6 @@ type Settings = {
     autopause?: boolean;
   };
 };
-
-// type GeoLocationLatLong = {
-//   coordinates: [number, number];
-// };
 
 const defaultTiers = currency => {
   return [
@@ -217,10 +212,6 @@ class Collective extends Model<
   public declare currency: string;
   public declare image: string;
   public declare backgroundImage: string;
-  // public declare locationName: string;
-  // public declare address: string;
-  // public declare countryISO: string;
-  // public declare geoLocationLatLong: GeoLocationLatLong;
   public declare settings: Settings;
   public declare isPledged: boolean;
   public declare data: any;
@@ -1857,55 +1848,13 @@ class Collective extends Model<
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
   };
 
-  getLocation = async function () {
-    const location = await models.Location.findOne({ where: { CollectiveId: this.id } });
-
-    if (!location) {
-      return null;
-    }
-
-    return {
-      id: `location-collective-${this.id}`, // Used for GraphQL caching
-      name: location.name,
-      address1: location.address1,
-      address2: location.address2,
-      postalCode: location.postalCode,
-      city: location.city,
-      zone: location.zone,
-      country: location.country,
-      lat: location.geoLocationLatLong?.coordinates?.[0],
-      long: location.geoLocationLatLong?.coordinates?.[1],
-      url: location.url,
-      formattedAddress: location.formattedAddress,
-      // Deprecated fields below
-      address: location.name === 'Online' && location.url ? location.url : location.formattedAddress,
-      structured: {
-        address1: location.address1,
-        address2: location.address2,
-        postalCode: location.postalCode,
-        city: location.city,
-        zone: location.zone,
-      },
-    };
-  };
-
-  setLocation = async function (locationInput, transaction) {
-    const { name, address1, address2, city, zone, postalCode, country, lat, long, address } = locationInput;
-    let { url } = locationInput;
-    let formattedAddress;
-
-    // Prevent trying to set legacy address and new address at the same time
-    if (address && (address1 || address2 || city || zone || postalCode)) {
-      throw new Error('Do not use deprecated `address` together with address1/city/zone/postalCode');
-    }
-
-    if (url && !isURL(url)) {
-      throw new Error('Invalid URL');
-    }
-
+  setLocation = async function (locationInput: Location, transaction?: any) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
-    const location = await this.getDbLocation();
+    const location = await this.getLocation();
+
+    // TODO: compare location and input to see if there is any difference, to avoid setting location unnecessarily 
+
     const promises = [];
 
     if (location) {
@@ -1913,16 +1862,12 @@ class Collective extends Model<
     }
 
     if (locationInput) {
-      // Support legacy behavior of adding the url as the address input
-      if (name === 'Online' && isURL(address)) {
-        url = address;
-      }
+      const { name, country, lat, long, structured } = locationInput;
+      let { address } = locationInput;
 
       // Set formatted address
-      if (address || url) {
-        formattedAddress = address || url;
-      } else {
-        formattedAddress = await formatAddress({ address1, address2, city, zone, postalCode, country });
+      if (!address) {
+        address = await formatAddress({ structured, country });
       }
 
       promises.push(
@@ -1930,15 +1875,10 @@ class Collective extends Model<
           {
             CollectiveId: this.id,
             name: name || null,
-            address1: address1 || null,
-            address2: address2 || null,
-            postalCode: postalCode || null,
-            city: city || null,
-            zone: zone || null,
             country: country || null,
-            geoLocationLatLong: lat ? { type: 'Point', coordinates: [lat, long] } : null,
-            formattedAddress: formattedAddress || null,
-            url: url || null,
+            geoLocationLatLong: lat && long ? { coordinates: [lat, long] } : null,
+            address: address || null,
+            structured,
           },
           sequelizeParams,
         ),
@@ -3535,37 +3475,6 @@ Collective.init(
         return this.getDataValue('backgroundImage');
       },
     },
-
-    // locationName: DataTypes.STRING,
-
-    // address: DataTypes.STRING,
-
-    // countryISO: {
-    //   type: DataTypes.STRING,
-    //   validate: {
-    //     len: [2, 2],
-    //     isCountryISO(value) {
-    //       if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
-    //         throw new Error('Invalid Country ISO.');
-    //       }
-    //     },
-    //   },
-    // },
-
-    // geoLocationLatLong: {
-    //   type: DataTypes.JSONB,
-    //   validate: {
-    //     validate(data) {
-    //       if (!data) {
-    //         return;
-    //       } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
-    //         throw new Error('Invalid GeoLocation');
-    //       } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
-    //         throw new Error('Invalid latitude/longitude');
-    //       }
-    //     },
-    //   },
-    // },
 
     settings: {
       type: DataTypes.JSONB,

@@ -223,21 +223,7 @@ const Expense = new GraphQLObjectType({
         description: 'The address of the payee',
         async resolve(expense, _, req) {
           const canSeeLocation = await ExpenseLib.canSeeExpensePayeeLocation(req, expense);
-          if (!canSeeLocation) {
-            return null;
-          }
-
-          return {
-            id: `location-expense-${expense.id}`,
-            ...expense.payeeLocation?.structured, // Destructure structured fields into the object, to support new format with old data
-            ...expense.payeeLocation,
-            formattedAddress: expense.payeeLocation?.formattedAddress || expense.payeeLocation?.address,
-            // Support for deprecated fields:
-            address: expense.payeeLocation?.address || expense.payeeLocation?.formattedAddress,
-            structured:
-              expense.payeeLocation?.structured ||
-              pick(expense.payeeLocation, ['address1', 'address2', 'postalCode', 'city', 'zone']),
-          };
+          return !canSeeLocation ? null : { id: `location-expense-${expense.id}`, ...expense.payeeLocation };
         },
       },
       createdByAccount: {

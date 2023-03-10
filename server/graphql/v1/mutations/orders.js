@@ -47,7 +47,7 @@ export const ORDER_PUBLIC_DATA_FIELDS = {
 const mustUpdateLocation = (existingLocation, newLocation) => {
   const simpleFields = ['country', 'name', 'address'];
   const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
-  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured); // TODO: fix
+  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
 };
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
@@ -86,11 +86,9 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   // (we don't want to let guests update the profile of an existing account that they may not own)
   const isVerifiedProfile = !fromAccount.data?.isGuest;
   if (!isGuest || !isVerifiedProfile) {
-    if (mustUpdateLocation(fromAccount.location, location)) {
-      accountUpdatePayload.data = { ...fromAccount.data, address: location.structured || fromAccount.data?.structured };
-      accountUpdatePayload.locationName = location.name || fromAccount.locationName;
-      accountUpdatePayload.address = location.address || fromAccount.address;
-      accountUpdatePayload.countryISO = location.country || fromAccount.countryISO;
+    const existingLocation = await fromAccount.getLocation();
+    if (mustUpdateLocation(existingLocation, location)) {
+      await fromAccount.setLocation(location);
     }
     if (mustUpdateNames(fromAccount, fromAccountInfo)) {
       accountUpdatePayload.name = fromAccountInfo.name || fromAccountInfo.name;

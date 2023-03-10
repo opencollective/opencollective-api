@@ -1075,40 +1075,24 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   }
 
   // Update payee's location
-  if (!(expenseData.payeeLocation?.address || expenseData.payeeLocation?.address1) && fromCollective.location) {
-    expenseData.payeeLocation = pick(fromCollective.location, [
-      'formattedAddress',
-      'country',
-      'address1',
-      'address2',
-      'postalCode',
-      'zone',
-      'city',
-    ]);
-  } else {
-    const structuredLocation = expenseData.payeeLocation?.structured || {
-      address1: expenseData.payeeLocation?.address1,
-      address2: expenseData.payeeLocation?.address2,
-      postalCode: expenseData.payeeLocation?.postalCode,
-      city: expenseData.payeeLocation?.city,
-      zone: expenseData.payeeLocation?.zone,
-      country: expenseData.payeeLocation?.country,
-    };
+  const existingLocation = await fromCollective.getLocation();
+  if (!(expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) && existingLocation) {
+    expenseData.payeeLocation = pick(existingLocation, ['address', 'country', 'structured']);
+  } else if (
+    (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
+    (!existingLocation.address || !existingLocation.structured)
+  ) {
+    // TODO: Perhaps only do this for USER's, since other types have public locations, and this might be unexpected to expose expenseData?
+    await fromCollective.setLocation(expenseData.payeeLocation);
 
-    /* Update payee's location for USER's if it is not of new format
-     * Only for USER's, since other Collective types have public location fields, and exposing payeeLocation might be undesired
-     */
-    if (fromCollective.type === 'USER' && !fromCollective.location?.address1 && !expenseData.payeeLocation?.address) {
-      await fromCollective.setLocation(structuredLocation);
-    }
-
-    // Create formatted address
-    const formattedAddress =
-      expenseData.payeeLocation?.address || (await formatAddress(structuredLocation, { lineDivider: 'newline' }));
+    // Create formatted address if it does not exist
+    const address =
+      expenseData.payeeLocation?.address ||
+      (await formatAddress(expenseData.payeeLocation, { lineDivider: 'newline' }));
 
     expenseData.payeeLocation = {
+      address,
       ...expenseData.payeeLocation,
-      formattedAddress,
     };
   }
 
@@ -1325,9 +1309,13 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     }
   }
 
-  /* Let's take the opportunity to update collective's location
-      Only for USER's since other Collective types have public location fields and payeeLocation is private by default */
-  if (expenseData.payeeLocation && !fromCollective.location && fromCollective.type === 'USER') {
+  // Let's take the opportunity to update collective's location
+  // TODO: Perhaps only do this for USER's, since other types have public locations, and this might be unexpected to expose expenseData?
+  const existingLocation = await fromCollective.getLocation();
+  if (
+    (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
+    (!existingLocation.address || !existingLocation.structured)
+  ) {
     await fromCollective.setLocation(expenseData.payeeLocation);
   }
 

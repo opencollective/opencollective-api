@@ -9,11 +9,14 @@ type Options = {
 };
 
 export async function formatAddress(
-  { address1, address2, city, postalCode, zone, country }: Location,
+  { country, structured }: Location,
   { includeCountry = false, lineDivider = 'comma', locale = 'en' }: Options = {},
 ): Promise<string> {
+  if (!structured) {
+    return null;
+  }
   let addressLines: string[];
-
+  const { address1, address2, city, zone, postalCode } = structured;
   /** A few countries (see list in frontend/components/I18nAddressFields.js)
    * are present in the input type, but not available in the @shopify/address formatter.
    *

@@ -24,7 +24,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       const userCollective = await models.Collective.findByPk(req.remoteUser.CollectiveId);
 
       userCollective.description = userCollective.description || profile.bio;
-      userCollective.locationName = userCollective.locationName || profile.location;
       userCollective.website = userCollective.website || profile.blog || profile.html_url;
       userCollective.image = userCollective.image || `https://avatars.githubusercontent.com/${data.profile.username}`;
       userCollective.repositoryUrl = `https://github.com/${data.profile.username}`;
@@ -81,7 +80,6 @@ export const createOrUpdate = async (req, res, next, accessToken, data) => {
       collective.backgroundImage =
         collective.backgroundImage || (profile.profile_banner_url ? `${profile.profile_banner_url}/1500x500` : null);
       collective.website = collective.website || profile.url;
-      collective.locationName = collective.locationName || profile.location;
       collective.twitterHandle = profile.screen_name;
       await collective.save();
 

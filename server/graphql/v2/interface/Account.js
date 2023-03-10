@@ -5,7 +5,6 @@ import { assign, get, invert, isEmpty, isNull, merge, omitBy } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
-import { validateAddress } from '../../../lib/format-address';
 import { buildSearchConditions } from '../../../lib/search';
 import { canSeeLegalName } from '../../../lib/user-permissions';
 import models, { Op } from '../../../models';

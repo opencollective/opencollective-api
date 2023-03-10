@@ -8,26 +8,33 @@ type GeoLocationLatLong = {
   coordinates: [number, number];
 };
 
+type StructuredAddress = {
+  address1?: string;
+  address2?: string;
+  city?: string;
+  postalCode?: string;
+  zone?: string;
+};
+
 class Location extends Model<InferAttributes<Location>, InferCreationAttributes<Location>> {
   declare id: CreationOptional<number>;
 
   declare name: CreationOptional<string>;
-  declare address1: CreationOptional<string>;
-  declare address2: CreationOptional<string>;
-  declare postalCode: CreationOptional<string>;
-  declare city: CreationOptional<string>;
-  declare zone: CreationOptional<string>;
   declare country: CreationOptional<string>;
+  declare address: CreationOptional<string>;
+  declare structured: CreationOptional<null | StructuredAddress>;
   declare geoLocationLatLong: CreationOptional<null | GeoLocationLatLong>;
-  declare formattedAddress: CreationOptional<string>;
-  declare url: CreationOptional<string>;
+
+  // Virtual fields
+  declare lat: number;
+  declare long: number;
+
+  // Relationships
+  declare CollectiveId: ForeignKey<number>;
 
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
   declare deletedAt: CreationOptional<Date>;
-
-  // Relationships
-  declare CollectiveId: ForeignKey<number>;
 }
 
 Location.init(
@@ -39,26 +46,6 @@ Location.init(
       type: DataTypes.INTEGER,
     },
     name: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    address1: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    address2: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    postalCode: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    city: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    zone: {
       type: DataTypes.STRING,
       allowNull: true,
     },
@@ -81,7 +68,7 @@ Location.init(
         validate(data) {
           if (!data) {
             return;
-          } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
+          } else if (!data.coordinates || data.coordinates.length !== 2) {
             throw new Error('Invalid GeoLocation');
           } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
             throw new Error('Invalid latitude/longitude');
@@ -89,13 +76,27 @@ Location.init(
         },
       },
     },
-    formattedAddress: {
+    structured: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+    },
+    address: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    url: {
-      type: DataTypes.STRING,
+    lat: {
+      type: DataTypes.VIRTUAL(DataTypes.FLOAT),
       allowNull: true,
+      get() {
+        return this.geoLocationLatLong?.coordinates?.[0];
+      },
+    },
+    long: {
+      type: DataTypes.VIRTUAL(DataTypes.FLOAT),
+      allowNull: true,
+      get() {
+        return this.geoLocationLatLong?.coordinates?.[1];
+      },
     },
     CollectiveId: {
       type: DataTypes.INTEGER,
