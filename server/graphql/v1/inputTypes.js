@@ -234,6 +234,10 @@ export const LocationInputType = new GraphQLInputObjectType({
       type: GraphQLString,
       description: 'A short name for the location (eg. Open Collective Headquarters)',
     },
+    address: {
+      type: GraphQLString,
+      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
+    },
     country: {
       type: GraphQLString,
       description: 'Two letters country code (eg. FR, BE...etc)',
@@ -245,10 +249,6 @@ export const LocationInputType = new GraphQLInputObjectType({
     long: {
       type: GraphQLFloat,
       description: 'Longitude',
-    },
-    address: {
-      type: GraphQLString,
-      description: 'Postal address without country (eg. 12 opensource avenue, 7500 Paris)',
     },
     structured: {
       type: GraphQLJSON,

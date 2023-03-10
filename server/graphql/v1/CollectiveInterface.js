@@ -603,7 +603,7 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
       tags: { type: new GraphQLList(GraphQLString) },
       location: {
         type: LocationType,
-        description: 'Name, address, street, city, postal code, zone, country, lat, long of the location.',
+        description: 'Name, address, country, lat, long of the location.',
       },
       createdAt: { type: DateString },
       startsAt: { type: DateString },
@@ -1017,22 +1017,24 @@ const CollectiveFields = () => {
       type: LocationType,
       description: 'Name, address, lat, long of the location.',
       async resolve(collective, _, req) {
-        const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION]; // TODO: Address disrepancy between v1 and v2 (v2 being more permissive)
-        const canSeeLocation =
-          publicAddressesCollectiveTypes.includes(collective.type) || req.remoteUser?.isAdmin(collective.id);
-
-        if (!canSeeLocation) {
+        const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION];
+        if (publicAddressesCollectiveTypes.includes(collective.type)) {
+          return collective.getLocation();
+        } else if (!req.remoteUser) {
           return null;
-        }
-
-        // For incognito profiles, we retrieve the location from the main user profile
-        if (collective.isIncognito) {
-          const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
-          if (mainProfile) {
-            return mainProfile.getLocation();
+        } else if (req.remoteUser.isAdminOfCollective(collective)) {
+          // For incognito profiles, we retrieve the location from the main user profile
+          if (collective.isIncognito) {
+            const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
+            if (mainProfile) {
+              return mainProfile.getLocation();
+            }
           }
+
+          return collective.getLocation();
+        } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
+          return collective.getLocation();
         }
-        return collective.getLocation();
       },
     },
     createdAt: {

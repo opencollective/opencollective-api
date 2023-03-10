@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLJSON } from 'graphql-type-json';
+
 import { LocationInput } from './LocationInput';
 
 export const CollectiveCreateInput = new GraphQLInputObjectType({
