@@ -62,7 +62,7 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   if (isGuest && currency === 'USD' && !isContributingFromSameHost) {
     // Contributions that are more than $5000 must have an address attached
     if (totalAmount > 5000e2) {
-      if (!location.structured && (!location.address || !location.country)) {
+      if (!location?.structured && (!location?.address || !location?.country)) {
         throw new BadRequest('Contributions that are more than $5000 must have an address attached');
       }
     }

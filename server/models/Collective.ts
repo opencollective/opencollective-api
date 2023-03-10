@@ -687,11 +687,11 @@ class Collective extends Model<
         }
 
         const location = await this.getLocation();
-        let locationString = location.name || '';
-        if (location.address) {
+        let locationString = location?.name || '';
+        if (location?.address) {
           locationString += `, ${location.address}`;
         }
-        if (location.country) {
+        if (location?.country) {
           locationString += `, ${location.country}`;
         }
         const alarms: Array<ics.Alarm> = [
@@ -724,7 +724,7 @@ class Collective extends Model<
           },
           alarms,
         };
-        if (location.lat) {
+        if (location?.lat) {
           event.geo = { lat: location.lat, lon: location.long };
         }
         ics.createEvent(event, (err, res) => {
