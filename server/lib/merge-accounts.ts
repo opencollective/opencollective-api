@@ -206,14 +206,6 @@ const mergeCollectiveFields = async (from, into, transaction) => {
     fieldsToUpdate['name'] = from.name;
   }
 
-  if (from.countryISO && !into.countryISO) {
-    fieldsToUpdate['countryISO'] = from.countryISO;
-  }
-
-  if (from.address && !into.address) {
-    fieldsToUpdate['address'] = from.address;
-  }
-
   if (isEmpty(fieldsToUpdate)) {
     return into;
   }
