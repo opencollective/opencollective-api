@@ -1853,7 +1853,9 @@ class Collective extends Model<
 
     const location = await this.getLocation();
 
-    // TODO: compare location and input to see if there is any difference, to avoid setting location unnecessarily 
+    if (!mustUpdateLocation(location, locationInput)) {
+      return;
+    }
 
     const promises = [];
 

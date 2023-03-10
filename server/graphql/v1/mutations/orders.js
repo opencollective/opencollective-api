@@ -4,7 +4,7 @@ import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
 import * as hcaptcha from 'hcaptcha';
-import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
+import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
@@ -17,6 +17,7 @@ import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
+import { mustUpdateLocation } from '../../../lib/location';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
 import recaptcha from '../../../lib/recaptcha';
@@ -36,18 +37,11 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
-
 const debug = debugLib('orders');
 
 export const ORDER_PUBLIC_DATA_FIELDS = {
   pledgeCurrency: 'thegivingblock.pledgeCurrency',
   pledgeAmount: 'thegivingblock.pledgeAmount',
-};
-
-const mustUpdateLocation = (existingLocation, newLocation) => {
-  const simpleFields = ['country', 'name', 'address'];
-  const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
-  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
 };
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
