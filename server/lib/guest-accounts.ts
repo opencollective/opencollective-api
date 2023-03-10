@@ -27,15 +27,7 @@ const updateCollective = async (collective, newInfo, transaction) => {
   }
 
   if (newInfo.location) {
-    if (newInfo.location.country && newInfo.location.country !== collective.countryISO) {
-      fieldsToUpdate['countryISO'] = newInfo.location.country;
-    }
-    if (newInfo.location.address && newInfo.location.address !== collective.address) {
-      fieldsToUpdate['address'] = newInfo.location.address;
-    }
-    if (newInfo.location.structured) {
-      fieldsToUpdate['data'] = { ...(collective.data || {}), address: newInfo.location.structured };
-    }
+    await collective.setLocation(newInfo.location, { transaction });
   }
 
   return isEmpty(fieldsToUpdate) ? collective : collective.update(fieldsToUpdate, { transaction });
@@ -99,13 +91,15 @@ export const getOrCreateGuestProfile = async (
           slug: `guest-${uuid().split('-')[0]}`,
           name: name || DEFAULT_GUEST_NAME,
           legalName,
-          data: { isGuest: true, address: location?.structured },
-          address: location?.address,
-          countryISO: location?.country,
+          data: { isGuest: true },
           CreatedByUserId: user.id,
         },
+
         { transaction },
       );
+      if (location) {
+        await collective.setLocation(location, { transaction });
+      }
     }
 
     if (!user.CollectiveId) {
