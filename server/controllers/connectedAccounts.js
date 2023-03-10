@@ -151,7 +151,9 @@ const GITHUB_REPOS_FETCH_TIMEOUT = 1 * 60 * 1000;
 // used in Frontend by createCollective "GitHub flow"
 export const fetchAllRepositories = async (req, res, next) => {
   if (req.jwtPayload?.scope !== 'connected-account') {
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope || 'session'})`;
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: connected-account)`;
     return next(new errors.BadRequest(errorMessage));
   }
 

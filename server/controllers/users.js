@@ -159,9 +159,23 @@ export const signin = async (req, res, next) => {
  * B) If no 2FA, we send back a "session" token
  */
 export const exchangeLoginToken = async (req, res, next) => {
+  const rateLimit = new RateLimit(
+    `user_exchange_login_token_ip_${req.ip}`,
+    config.limits.userExchangeLoginTokenPerHourPerIp,
+    ONE_HOUR_IN_SECONDS,
+    true,
+  );
+  if (!(await rateLimit.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
   // This is already checked in checkJwtScope but lets' make it clear
   if (req.jwtPayload?.scope !== 'login') {
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope || 'session'})`;
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: login)`;
     return next(new BadRequest(errorMessage));
   }
 
@@ -192,13 +206,25 @@ export const exchangeLoginToken = async (req, res, next) => {
  * Exchange a session JWT against a fresh one with extended expiration
  */
 export const refreshToken = async (req, res, next) => {
+  const rateLimit = new RateLimit(
+    `user_refresh_token_ip_${req.ip}`,
+    config.limits.userRefreshTokenPerHourPerIp,
+    ONE_HOUR_IN_SECONDS,
+    true,
+  );
+  if (!(await rateLimit.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
   if (req.personalToken) {
     const errorMessage = `Cannot use this token on this route (personal token)`;
     return next(new BadRequest(errorMessage));
   }
 
   if (req.jwtPayload?.scope && req.jwtPayload?.scope !== 'session') {
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope})`;
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope}, expected: session)`;
     return next(new BadRequest(errorMessage));
   }
 
@@ -217,7 +243,9 @@ export const refreshToken = async (req, res, next) => {
  */
 export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   if (req.jwtPayload?.scope !== 'twofactorauth') {
-    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope || 'session'})`;
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: twofactorauth)`;
     return next(new BadRequest(errorMessage));
   }
 

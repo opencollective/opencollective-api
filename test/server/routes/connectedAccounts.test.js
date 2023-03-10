@@ -3,14 +3,13 @@ import config from 'config';
 import request from 'supertest';
 
 import app from '../../../server/index';
-import models from '../../../server/models';
 import * as utils from '../../utils';
 
 const clientId = config.github.clientID;
 const application = utils.data('application');
 
 describe('server/routes/connectedAccounts', () => {
-  let req, user, expressApp;
+  let req, expressApp;
 
   before(async () => {
     expressApp = await app();
@@ -18,15 +17,15 @@ describe('server/routes/connectedAccounts', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  describe('WHEN calling /connected-accounts/github', () => {
+  describe('WHEN calling /connected-accounts/github/oauthUrl', () => {
     beforeEach(done => {
-      req = request(expressApp).get('/connected-accounts/github');
+      req = request(expressApp).get('/connected-accounts/github/oauthUrl');
       done();
     });
 
     describe('WHEN calling /connected-accounts/github with API key', () => {
       beforeEach(done => {
-        req = request(expressApp).get('/connected-accounts/github').send({ api_key: application.api_key }); // eslint-disable-line camelcase
+        req = request(expressApp).get('/connected-accounts/github/oauthUrl').send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 
@@ -73,74 +72,6 @@ describe('server/routes/connectedAccounts', () => {
               `${config.host.website}/api/connected-accounts/github/callback`,
             )}&client_id=${clientId}`,
           );
-          done();
-        });
-      });
-    });
-  });
-
-  describe('WHEN calling /connected-accounts/github/verify', () => {
-    // Create user.
-    beforeEach(async () => {
-      user = await models.User.createUserWithCollective(utils.data('user1'));
-    });
-
-    beforeEach(done => {
-      req = request(expressApp).get('/connected-accounts/github/verify');
-      done();
-    });
-
-    describe('WHEN calling without API key', () => {
-      beforeEach(done => {
-        const token = user.jwt({ scope: '' });
-        req = req.set('Authorization', `Bearer ${token}`);
-        done();
-      });
-
-      it('THEN returns 400', () => req.expect(400));
-    });
-
-    describe('WHEN providing API key but no token', () => {
-      beforeEach(done => {
-        req = req.send({ api_key: application.api_key }); // eslint-disable-line camelcase
-        done();
-      });
-
-      it('THEN returns 401 Unauthorized', () => req.expect(401));
-    });
-
-    describe('WHEN providing API key and token but no username', () => {
-      beforeEach(done => {
-        req = req
-          .set('Authorization', `Bearer ${user.jwt({ scope: 'github' })}`)
-          .send({ api_key: application.api_key }); // eslint-disable-line camelcase
-        done();
-      });
-
-      it('THEN returns 400', () => req.expect(400));
-    });
-
-    describe('WHEN providing API key, token and scope', () => {
-      beforeEach(done => {
-        req = req
-          .set(
-            'Authorization',
-            `Bearer ${user.jwt({
-              scope: 'connected-account',
-              username: 'asood123',
-              connectedAccountId: 1,
-            })}`,
-          )
-          .send({ api_key: application.api_key }); // eslint-disable-line camelcase
-        done();
-      });
-
-      it('THEN returns 200 OK', done => {
-        req.expect(200).end((err, res) => {
-          expect(err).to.not.exist;
-          expect(res.body.service).to.be.equal('github');
-          expect(res.body.username).to.be.equal('asood123');
-          expect(res.body.connectedAccountId).to.be.equal(1);
           done();
         });
       });
