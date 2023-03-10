@@ -32,6 +32,7 @@ import {
   CreationOptional,
   FindOptions,
   HasManyGetAssociationsMixin,
+  HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -39,7 +40,6 @@ import {
 } from 'sequelize';
 import Temporal from 'sequelize-temporal';
 import { v4 as uuid } from 'uuid';
-import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
 import { CollectiveTypesList, types } from '../constants/collectives';
@@ -83,6 +83,7 @@ import {
   getPlatformTips,
 } from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
+import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
@@ -94,12 +95,13 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
-import { Location } from '../types/Location';
+import { Location as LocationType } from '../types/Location';
 
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import { HostApplicationStatus } from './HostApplication';
 import LegalDocument from './LegalDocument';
+import Location from './Location';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
@@ -244,6 +246,8 @@ class Collective extends Model<
   public declare legalDocuments?: NonAttribute<LegalDocument[]>;
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
+
+  public declare getLocation: HasOneGetAssociationMixin<Location>;
 
   public declare parent?: NonAttribute<Collective>;
   public declare children?: NonAttribute<Collective[]>;
@@ -1848,7 +1852,7 @@ class Collective extends Model<
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
   };
 
-  setLocation = async function (locationInput: Location, transaction?: any) {
+  setLocation = async function (locationInput: LocationType, transaction?: any) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
     const location = await this.getLocation();

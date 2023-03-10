@@ -3,17 +3,10 @@ import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttrib
 import validator from 'validator';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+import { StructuredAddress } from '../types/Location';
 
 type GeoLocationLatLong = {
   coordinates: [number, number];
-};
-
-type StructuredAddress = {
-  address1?: string;
-  address2?: string;
-  city?: string;
-  postalCode?: string;
-  zone?: string;
 };
 
 class Location extends Model<InferAttributes<Location>, InferCreationAttributes<Location>> {
@@ -23,9 +16,10 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
   declare country: CreationOptional<string>;
   declare address: CreationOptional<string>;
   declare structured: CreationOptional<null | StructuredAddress>;
+
   declare geoLocationLatLong: CreationOptional<null | GeoLocationLatLong>;
 
-  // Virtual fields
+  // Virtual lat/long fields
   declare lat: number;
   declare long: number;
 
