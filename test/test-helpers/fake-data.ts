@@ -36,6 +36,7 @@ import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { MemberModelInterface } from '../../server/models/Member';
+import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
@@ -748,7 +749,7 @@ export const fakeMember = async (data: Partial<InferCreationAttributes<MemberMod
  * Creates a fake member invitation
  */
 export const fakeMemberInvitation = async (
-  data: Record<string, unknown> & { CollectiveId?: number; MemberCollectiveId?: number } = {},
+  data: Partial<InferCreationAttributes<MemberInvitationModelInterface>> = {},
 ) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId

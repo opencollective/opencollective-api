@@ -11,6 +11,7 @@ import { VAT_OPTIONS } from '../constants/vat';
 import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
 import { MemberModelInterface } from '../models/Member';
+import { MemberInvitationModelInterface } from '../models/MemberInvitation';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -418,7 +419,7 @@ export async function deleteCollective(collective) {
   const memberInvitations = await models.MemberInvitation.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(memberInvitations, (memberInvitation: typeof models.MemberInvitation) => memberInvitation.destroy(), {
+  await map(memberInvitations, (memberInvitation: MemberInvitationModelInterface) => memberInvitation.destroy(), {
     concurrency: 3,
   });
 
