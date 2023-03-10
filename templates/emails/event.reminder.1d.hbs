@@ -1,4 +1,4 @@
-Subject: ⏰ Reminder: {{ collective.name }} tomorrow {{ moment collective.startsAt timezone=collective.timezone format="h:mma" }} at {{ collective.locationName }}
+Subject: ⏰ Reminder: {{ collective.name }} tomorrow {{ moment collective.startsAt timezone=collective.timezone format="h:mma" }} at {{ collective.location.name }}
 
 {{> header}}
 
@@ -16,8 +16,8 @@ Subject: ⏰ Reminder: {{ collective.name }} tomorrow {{ moment collective.start
 <div class="description">
   {{ moment collective.startsAt timezone=collective.timezone format="MMMM Do" }} at {{ moment collective.startsAt timezone=collective.timezone format="h:mma" }}
   <br />
-  {{ collective.locationName }}<br />
-  ({{collective.address}})
+  {{ collective.location.name }}<br />
+  ({{collective.location.address}})
 </div>
 
 <p>
@@ -54,10 +54,10 @@ Subject: ⏰ Reminder: {{ collective.name }} tomorrow {{ moment collective.start
         "endDate":             "{{collective.endsAt}}",
         "location": {
           "@type":             "Place",
-          "name":              "{{collective.locationName}}",
+          "name":              "{{collective.location.name}}",
           "address": {
             "@type":           "PostalAddress",
-            "streetAddress":   "{{collective.address}}",
+            "streetAddress":   "{{collective.location.address}}",
             "addressLocality": "",
             "addressRegion":   "",
             "postalCode":      "",

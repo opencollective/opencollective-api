@@ -366,12 +366,11 @@ describe('server/graphql/v1/createOrder', () => {
       name: 'Sustain OSS London 2019',
       description: 'Short description',
       longDescription: 'Longer description',
-      locationName: 'Github',
-      address: 'San Francisco',
       slug: 'sustainoss-london',
       startsAt,
       endsAt,
     });
+    await event.setLocation({ name: 'Github', address: 'San Fransisco' });
     // Given an order request
     const user = (await store.newUser('John Appleseed')).user;
     const newOrder = cloneDeep(baseOrder);

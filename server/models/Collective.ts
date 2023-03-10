@@ -248,6 +248,7 @@ class Collective extends Model<
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
 
   public declare getLocation: HasOneGetAssociationMixin<Location>;
+  public readonly location?: Location;
 
   public declare parent?: NonAttribute<Collective>;
   public declare children?: NonAttribute<Collective[]>;
@@ -377,9 +378,6 @@ class Collective extends Model<
       previewImage: this.previewImage,
       data: this.data,
       backgroundImage: this.backgroundImage,
-      // locationName: this.locationName,
-      // address: this.address,
-      // geoLocationLatLong: this.geoLocationLatLong,
       startsAt: this.startsAt,
       endsAt: this.endsAt,
       timezone: this.timezone,
@@ -420,6 +418,7 @@ class Collective extends Model<
   }
 
   get invoice() {
+    // TODO: Not used?
     return {
       id: this.id,
       createdAt: this.createdAt,
@@ -428,8 +427,6 @@ class Collective extends Model<
       image: this.image,
       backgroundImage: this.backgroundImage,
       publicUrl: this.publicUrl,
-      // locationName: this.locationName,
-      // address: this.address,
       description: this.description,
       settings: this.settings,
       currency: this.currency,
@@ -469,6 +466,7 @@ class Collective extends Model<
   }
 
   get searchIndex() {
+    // TODO: Not used?
     return {
       id: this.id,
       name: this.name,
@@ -477,7 +475,6 @@ class Collective extends Model<
       slug: this.slug,
       type: this.type,
       tags: this.tags,
-      // locationName: this.locationName,
       balance: (this as any).balance, // useful in ranking
       yearlyBudget: (this as any).yearlyBudget,
       backersCount: (this as any).backersCount,
@@ -661,7 +658,7 @@ class Collective extends Model<
       throw new Error('Can only generate ICS for collectives of type EVENT');
     }
     return new Promise(resolve => {
-      return this.getParentCollective().then(parentCollective => {
+      return this.getParentCollective().then(async parentCollective => {
         const url = `${config.host.website}/${parentCollective.slug}/events/${this.slug}`;
         const startDate = new Date(this.startsAt);
         const endDate = new Date(this.endsAt);
@@ -686,12 +683,13 @@ class Collective extends Model<
           descriptionParts.push(`Private instructions:\n${stripHTML(this.data.privateInstructions)}`);
         }
 
-        let location = this.location.name || '';
-        if (this.location.address) {
-          location += `, ${this.location.address}`;
+        const location = await this.getLocation();
+        let locationString = location.name || '';
+        if (location.address) {
+          locationString += `, ${location.address}`;
         }
-        if (this.location.country) {
-          location += `, ${this.location.country}`;
+        if (location.country) {
+          locationString += `, ${location.country}`;
         }
         const alarms: Array<ics.Alarm> = [
           {
@@ -714,7 +712,7 @@ class Collective extends Model<
           description: descriptionParts.join('\n\n'),
           start,
           end,
-          location,
+          location: locationString,
           url,
           status: 'CONFIRMED',
           organizer: {
@@ -723,8 +721,8 @@ class Collective extends Model<
           },
           alarms,
         };
-        if (this.location.lat) {
-          event.geo = { lat: this.location.lat, lon: this.location.long };
+        if (location.lat) {
+          event.geo = { lat: location.lat, lon: location.long };
         }
         ics.createEvent(event, (err, res) => {
           if (err) {
@@ -3717,7 +3715,6 @@ Collective.init(
       },
       afterCreate: async (instance, options) => {
         instance.findImage();
-
         if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(instance.type)) {
           await models.PaymentMethod.create(
             {
