@@ -10,6 +10,7 @@ import cache from '../cache';
 import { hasPolicy } from '../policies';
 
 import totp from './totp';
+import yubikeyOTP from './yubikey_otp';
 
 const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
@@ -28,11 +29,12 @@ type ValidateRequestOptions = {
 
 export enum TwoFactorMethod {
   TOTP = 'totp',
+  YUBIKEY_OTP = 'yubikey_otp',
 }
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
-export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP];
+export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP, TwoFactorMethod.YUBIKEY_OTP];
 
 export type Token = {
   type: TwoFactorMethod;
@@ -45,6 +47,7 @@ export interface TwoFactorAuthProvider {
 
 export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
   [TwoFactorMethod.TOTP]: totp,
+  [TwoFactorMethod.YUBIKEY_OTP]: yubikeyOTP,
 };
 
 function getTwoFactorAuthTokenFromRequest(req: Request): Token {
@@ -165,6 +168,10 @@ function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
   const methods = [];
   if (remoteUser.twoFactorAuthToken) {
     methods.push(TwoFactorMethod.TOTP);
+  }
+
+  if (remoteUser.yubikeyDeviceId) {
+    methods.push(TwoFactorMethod.YUBIKEY_OTP);
   }
 
   return methods;
