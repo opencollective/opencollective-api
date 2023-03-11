@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 import { createSandbox } from 'sinon';
 
+import OrderStatuses from '../../../../../server/constants/order_status';
 import models, { PaymentMethod } from '../../../../../server/models';
 import { fakeCollective, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
@@ -49,7 +50,7 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
         user,
       );
       const paymentMethod = await models.PaymentMethod.findAll({ where: { token: 'tok_visa' } });
-      order = await fakeOrder({ PaymentMethodId: paymentMethod[0].id });
+      order = await fakeOrder({ PaymentMethodId: paymentMethod[0].id, status: OrderStatuses.ACTIVE });
     });
 
     after(async () => {
