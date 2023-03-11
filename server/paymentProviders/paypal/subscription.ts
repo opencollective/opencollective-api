@@ -9,6 +9,7 @@ import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective } from '../../models';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
 import User from '../../models/User';
@@ -37,7 +38,7 @@ export const createPaypalPaymentMethodForSubscription = (
   order: typeof models.Order,
   user: User,
   paypalSubscriptionId: string,
-): Promise<typeof models.PaymentMethod> => {
+): Promise<PaymentMethodModelInterface> => {
   return models.PaymentMethod.create({
     service: PAYMENT_METHOD_SERVICE.PAYPAL,
     type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
@@ -201,7 +202,7 @@ export async function getOrCreatePlan(
 
 export const setupPaypalSubscriptionForOrder = async (
   order: typeof models.Order,
-  paymentMethod: typeof models.PaymentMethod,
+  paymentMethod: PaymentMethodModelInterface,
 ): Promise<typeof models.Order> => {
   const hostCollective = await order.collective.getHostCollective();
   const existingSubscription = order.SubscriptionId && (await order.getSubscription());
@@ -333,7 +334,7 @@ const verifySubscription = async (order: typeof models.Order, paypalSubscription
   }
 };
 
-export const isPaypalSubscriptionPaymentMethod = (paymentMethod: typeof models.PaymentMethod): boolean => {
+export const isPaypalSubscriptionPaymentMethod = (paymentMethod: PaymentMethodModelInterface): boolean => {
   return (
     paymentMethod?.service === PAYMENT_METHOD_SERVICE.PAYPAL && paymentMethod.type === PAYMENT_METHOD_TYPE.SUBSCRIPTION
   );

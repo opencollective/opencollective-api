@@ -4,6 +4,7 @@ import { assert, createSandbox } from 'sinon';
 import { run as runCronJob } from '../../../cron/hourly/70-cancel-subscriptions-for-cancelled-orders';
 import { activities } from '../../../server/constants';
 import OrderStatuses from '../../../server/constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import models from '../../../server/models';
 import * as PaypalAPI from '../../../server/paymentProviders/paypal/api';
 import {
@@ -22,8 +23,8 @@ import { resetTestDB } from '../../utils';
 const fakePayPalSubscriptionOrder = async collective => {
   const paypalSubscriptionId = randStr();
   const paymentMethod = await fakePaymentMethod({
-    service: 'paypal',
-    type: 'subscription',
+    service: PAYMENT_METHOD_SERVICE.PAYPAL,
+    type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
     token: paypalSubscriptionId,
   });
   return fakeOrder(

@@ -38,6 +38,7 @@ import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
+import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
@@ -781,7 +782,7 @@ const fakePaymentMethodToken = (service, type) => {
 /**
  * Creates a fake Payment Method. All params are optionals.
  */
-export const fakePaymentMethod = async (data: Record<string, unknown>) => {
+export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<PaymentMethodModelInterface>>) => {
   const service = data.service || sample(PAYMENT_METHOD_SERVICES);
   const type = data.type || sample(PAYMENT_METHOD_TYPES);
   const token = data.token || fakePaymentMethodToken(service, type);

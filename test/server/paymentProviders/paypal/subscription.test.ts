@@ -3,6 +3,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
 import { setupPaypalSubscriptionForOrder } from '../../../../server/paymentProviders/paypal/subscription';
 import { randEmail } from '../../../stores';
@@ -17,7 +18,11 @@ import {
 import { resetTestDB } from '../../../utils';
 
 const fakePaypalSubscriptionPm = subscription => {
-  return fakePaymentMethod({ service: 'paypal', type: 'subscription', token: subscription.id });
+  return fakePaymentMethod({
+    service: PAYMENT_METHOD_SERVICE.PAYPAL,
+    type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+    token: subscription.id,
+  });
 };
 
 describe('server/paymentProviders/paypal/subscription', () => {

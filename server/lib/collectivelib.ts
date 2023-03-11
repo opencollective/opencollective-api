@@ -12,6 +12,7 @@ import models, { Collective, Member, Op, sequelize } from '../models';
 import Expense from '../models/Expense';
 import { MemberModelInterface } from '../models/Member';
 import { MemberInvitationModelInterface } from '../models/MemberInvitation';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 
 import logger from './logger';
 import { stripHTML } from './sanitize-html';
@@ -407,7 +408,7 @@ export async function deleteCollective(collective) {
   const paymentMethods = await models.PaymentMethod.findAll({
     where: { CollectiveId: collective.id },
   });
-  await map(paymentMethods, (paymentMethod: typeof models.PaymentMethod) => paymentMethod.destroy(), {
+  await map(paymentMethods, (paymentMethod: PaymentMethodModelInterface) => paymentMethod.destroy(), {
     concurrency: 3,
   });
 

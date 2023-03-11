@@ -16,7 +16,7 @@ import {
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models, { Collective } from '../../models';
-import PaymentMethod from '../../models/PaymentMethod';
+import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
@@ -276,10 +276,10 @@ export async function getOrCreateStripeCustomer(
 }
 
 export async function attachCardToPlatformCustomer(
-  paymentMethod: typeof models.PaymentMethod,
+  paymentMethod: PaymentMethodModelInterface,
   collective: Collective,
   user: User,
-): Promise<PaymentMethod> {
+): Promise<PaymentMethodModelInterface> {
   const platformCustomer = await getOrCreateStripeCustomer(config.stripe.accountId, collective, user);
 
   let stripePaymentMethod = await stripe.paymentMethods.create({
@@ -304,7 +304,7 @@ export async function attachCardToPlatformCustomer(
 }
 
 export async function getOrCloneCardPaymentMethod(
-  platformPaymentMethod: typeof models.PaymentMethod,
+  platformPaymentMethod: PaymentMethodModelInterface,
   collective: Collective,
   hostStripeAccount: string,
   hostCustomer: string,
@@ -467,7 +467,7 @@ export async function createPaymentMethod(
     CreatedByUserId?: number;
   },
   createOptions?: CreateOptions,
-): Promise<typeof PaymentMethod> {
+): Promise<PaymentMethodModelInterface> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const paymentIntentCharge: Stripe.Charge = (originPaymentIntent as any)?.charges?.data?.[0];
   const paymentMethodChargeDetails = paymentIntentCharge?.payment_method_details;

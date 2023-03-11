@@ -6,6 +6,7 @@ import OrderStatus from '../constants/order_status';
 import { Unauthorized } from '../graphql/errors';
 import models, { sequelize } from '../models';
 import { MemberModelInterface } from '../models/Member';
+import { PaymentMethodModelInterface } from '../models/PaymentMethod';
 import Tier from '../models/Tier';
 import User from '../models/User';
 
@@ -39,7 +40,7 @@ const getNextChargeDateForUpdateContribution = (baseNextChargeDate, newInterval)
 export const updatePaymentMethodForSubscription = async (
   user: User,
   order: typeof models.Order,
-  newPaymentMethod: typeof models.PaymentMethod,
+  newPaymentMethod: PaymentMethodModelInterface,
 ): Promise<typeof models.Order> => {
   const prevPaymentMethod = order.paymentMethod;
   const newPaymentMethodCollective = await newPaymentMethod.getCollective();

@@ -6,8 +6,9 @@ import logger from '../../lib/logger';
 import { getApplicationFee } from '../../lib/payments';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
-import models, { Collective } from '../../models';
+import { Collective } from '../../models';
 import Order from '../../models/Order';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import User from '../../models/User';
 
 import {
@@ -119,7 +120,7 @@ const createChargeAndTransactions = async (
 };
 
 export const setupCreditCard = async (
-  paymentMethod: typeof models.PaymentMethod,
+  paymentMethod: PaymentMethodModelInterface,
   { user, collective }: { user?: User; collective?: Collective } = {},
 ) => {
   paymentMethod = await attachCardToPlatformCustomer(paymentMethod, collective, user);

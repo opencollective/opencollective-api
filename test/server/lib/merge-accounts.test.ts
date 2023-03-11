@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { mergeWith } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts';
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
@@ -42,7 +43,11 @@ const addFakeDataToAccount = async (account): Promise<void> => {
       FromCollectiveId: randomCollective.id,
       CreatedByUserId: user.id,
     }),
-    Faker.fakePaymentMethod({ CollectiveId: account.id, service: 'stripe', type: 'creditcard' }),
+    Faker.fakePaymentMethod({
+      CollectiveId: account.id,
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: PAYMENT_METHOD_TYPE.CREDITCARD,
+    }),
     Faker.fakePayoutMethod({ CollectiveId: account.id }),
     Faker.fakePaypalProduct({ CollectiveId: account.id }),
     // TODO Faker.fakeRequiredLegalDocument({ HostCollectiveId: account.id }),

@@ -75,7 +75,7 @@ export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   if (!pm) {
     return null;
   } else if (pm.id) {
-    return fetchPaymentMethodWithReference(pm);
+    return fetchPaymentMethodWithReference(pm) as any;
   }
 
   if (pm.creditCardInfo) {
