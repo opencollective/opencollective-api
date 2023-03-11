@@ -9,6 +9,7 @@ import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective } from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import PaypalPlan from '../../models/PaypalPlan';
 import Tier from '../../models/Tier';
@@ -22,7 +23,7 @@ import { getCaptureIdFromPaypalTransaction, refundPaypalCapture } from './paymen
 export const CANCEL_PAYPAL_EDITED_SUBSCRIPTION_REASON = 'Updated subscription';
 
 export const cancelPaypalSubscription = async (
-  order: typeof models.Order,
+  order: OrderModelInterface & { Subscription?: typeof models.Subscription },
   reason = undefined,
   host: Collective = undefined,
 ): Promise<void> => {
@@ -35,7 +36,7 @@ export const cancelPaypalSubscription = async (
 };
 
 export const createPaypalPaymentMethodForSubscription = (
-  order: typeof models.Order,
+  order: OrderModelInterface,
   user: User,
   paypalSubscriptionId: string,
 ): Promise<PaymentMethodModelInterface> => {
@@ -201,9 +202,9 @@ export async function getOrCreatePlan(
 }
 
 export const setupPaypalSubscriptionForOrder = async (
-  order: typeof models.Order,
+  order: OrderModelInterface,
   paymentMethod: PaymentMethodModelInterface,
-): Promise<typeof models.Order> => {
+): Promise<OrderModelInterface> => {
   const hostCollective = await order.collective.getHostCollective();
   const existingSubscription = order.SubscriptionId && (await order.getSubscription());
   const paypalSubscriptionId = paymentMethod.token;
@@ -270,15 +271,15 @@ export const setupPaypalSubscriptionForOrder = async (
 
 export const updateSubscriptionWithPaypal = async (
   user: User,
-  order: typeof models.Order,
+  order: OrderModelInterface,
   paypalSubscriptionId: string,
-): Promise<typeof models.Order> => {
+): Promise<OrderModelInterface> => {
   const paymentMethod = await createPaypalPaymentMethodForSubscription(order, user, paypalSubscriptionId);
   return setupPaypalSubscriptionForOrder(order, paymentMethod);
 };
 
-const createSubscription = async (order: typeof models.Order, paypalSubscriptionId) => {
-  return order.createSubscription({
+const createSubscription = async (order: OrderModelInterface, paypalSubscriptionId) => {
+  return (order as any).createSubscription({
     paypalSubscriptionId,
     amount: order.totalAmount,
     currency: order.currency,
@@ -311,7 +312,7 @@ export const fetchPaypalTransactionsForSubscription = async (
  * Ensures that subscription can be used for this contribution. This is to prevent malicious users
  * from manually creating a subscription that would not match the minimum imposed by a tier.
  */
-const verifySubscription = async (order: typeof models.Order, paypalSubscription) => {
+const verifySubscription = async (order: OrderModelInterface, paypalSubscription) => {
   if (paypalSubscription.status !== 'APPROVED') {
     throw new Error('Subscription must be approved to be activated');
   }
@@ -346,7 +347,7 @@ const PayPalSubscription: PaymentProviderService = {
     isRecurringManagedExternally: true,
   },
 
-  async processOrder(order: typeof models.Order): Promise<void> {
+  async processOrder(order: OrderModelInterface): Promise<void> {
     await setupPaypalSubscriptionForOrder(order, order.paymentMethod);
   },
 

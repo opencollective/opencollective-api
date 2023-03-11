@@ -16,6 +16,7 @@ import {
 } from '../../lib/payments';
 import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund } from '../../lib/stripe';
 import models, { Collective } from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 import User from '../../models/User';
 
@@ -194,7 +195,7 @@ export const createChargeTransactions = async (charge, { order }) => {
  */
 export async function resolvePaymentMethodForOrder(
   hostStripeAccount: string,
-  order: typeof models.Order,
+  order: OrderModelInterface,
 ): Promise<{ id: string; customer: string }> {
   const isPlatformHost = hostStripeAccount === config.stripe.accountId;
 

@@ -15,6 +15,7 @@ import { paypalAmountToCents } from '../../lib/paypal';
 import { reportMessageToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
 
@@ -88,7 +89,7 @@ const recordTransaction = async (
 // these 3 functions to handle them all.
 
 export function recordPaypalSale(
-  order: typeof models.Order,
+  order: OrderModelInterface,
   paypalSale: PaypalSale,
 ): Promise<typeof models.Transaction> {
   const currency = paypalSale.amount.currency;
@@ -100,7 +101,7 @@ export function recordPaypalSale(
 }
 
 export function recordPaypalTransaction(
-  order: typeof models.Order,
+  order: OrderModelInterface,
   paypalTransaction: PaypalTransaction,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<typeof models.Transaction> {
@@ -114,7 +115,7 @@ export function recordPaypalTransaction(
 }
 
 export const recordPaypalCapture = async (
-  order: typeof models.Order,
+  order: OrderModelInterface,
   capture: PaypalCapture,
   { data = undefined, createdAt = undefined } = {},
 ): Promise<typeof models.Transaction> => {
@@ -241,7 +242,7 @@ export const refundPaypalCapture = async (
 };
 
 /** Process order in paypal and create transactions in our db */
-export async function processOrder(order: typeof models.Order): Promise<typeof models.Transaction | undefined> {
+export async function processOrder(order: OrderModelInterface): Promise<typeof models.Transaction | undefined> {
   if (order.paymentMethod.data.orderId) {
     return processPaypalOrder(order, order.paymentMethod.data.orderId);
   } else {

@@ -16,6 +16,7 @@ import { v4 as uuid } from 'uuid';
 import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType, types } from '../../server/constants/collectives';
 import OAuthScopes from '../../server/constants/oauth-scopes';
+import OrderStatuses from '../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
@@ -27,7 +28,9 @@ import models, {
   ExpenseAttachedFile,
   Notification,
   PaypalProduct,
+  Subscription,
   Tier,
+  Transaction,
   Update,
   UploadedFile,
   VirtualCard,
@@ -38,6 +41,7 @@ import { HostApplicationStatus } from '../../server/models/HostApplication';
 import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
 import { MemberModelInterface } from '../../server/models/Member';
 import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
+import { OrderModelInterface } from '../../server/models/Order';
 import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
@@ -531,7 +535,7 @@ export const fakeTier = async (tierData: Partial<InferCreationAttributes<Tier>> 
  * Creates a fake order. All params are optionals.
  */
 export const fakeOrder = async (
-  orderData: Record<string, unknown> & { CollectiveId?: number } = {},
+  orderData: Partial<InferCreationAttributes<OrderModelInterface>> & { subscription?: any } = {},
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
@@ -546,11 +550,14 @@ export const fakeOrder = async (
     ? await fakeTier()
     : null;
 
-  const order = await models.Order.create({
+  const order: OrderModelInterface & {
+    subscription?: typeof Subscription;
+    transactions?: (typeof Transaction)[];
+  } = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
     totalAmount: randAmount(100, 99999999),
-    status: withSubscription ? 'ACTIVE' : 'PAID',
+    status: withSubscription ? OrderStatuses.ACTIVE : OrderStatuses.PAID,
     ...orderData,
     TierId: tier?.id || null,
     CreatedByUserId,
@@ -569,7 +576,7 @@ export const fakeOrder = async (
       currency: order.currency,
       isActive: true,
       quantity: order.quantity,
-      ...(<Record<string, unknown> | null>orderData.subscription),
+      ...orderData.subscription,
     });
     await order.update({ SubscriptionId: subscription.id });
     order.Subscription = subscription;

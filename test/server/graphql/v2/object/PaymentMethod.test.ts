@@ -3,6 +3,7 @@ import gqlV2 from 'fake-tag';
 import { times } from 'lodash';
 import moment from 'moment';
 
+import OrderStatuses from '../../../../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { fakeOrder, fakePaymentMethod, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
@@ -58,7 +59,7 @@ describe('server/graphql/v2/object/PaymentMethod', () => {
       await fakeOrder({
         PaymentMethodId: paymentMethod.id,
         CreatedByUserId: user.id,
-        status: 'REQUIRE_CLIENT_CONFIRMATION',
+        status: OrderStatuses.REQUIRE_CLIENT_CONFIRMATION,
         data: { needsConfirmation: true },
       });
 
@@ -66,7 +67,7 @@ describe('server/graphql/v2/object/PaymentMethod', () => {
       await fakeOrder({
         PaymentMethodId: paymentMethod.id,
         CreatedByUserId: user.id,
-        status: 'PAID',
+        status: OrderStatuses.PAID,
       });
 
       const result = await graphqlQueryV2(

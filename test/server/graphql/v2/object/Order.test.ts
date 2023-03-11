@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
 
+import OrderStatuses from '../../../../../server/constants/order_status';
 import { fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2, resetTestDB } from '../../../../utils';
 
@@ -28,7 +29,7 @@ describe('server/graphql/v2/object/PaymentMethod', () => {
       const order = await fakeOrder({
         CreatedByUserId: user.id,
         FromCollectiveId: user.collective.id,
-        status: 'REQUIRE_CLIENT_CONFIRMATION',
+        status: OrderStatuses.REQUIRE_CLIENT_CONFIRMATION,
         data: { needsConfirmation: true },
       });
 
@@ -39,7 +40,7 @@ describe('server/graphql/v2/object/PaymentMethod', () => {
     });
 
     it('is null when not an admin of fromCollective', async () => {
-      const order = await fakeOrder({ status: 'PAID' });
+      const order = await fakeOrder({ status: OrderStatuses.PAID });
       const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, user);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
@@ -47,7 +48,7 @@ describe('server/graphql/v2/object/PaymentMethod', () => {
     });
 
     it('is false when payment method is not pending a confirmation', async () => {
-      const order = await fakeOrder({ status: 'PAID', FromCollectiveId: user.collective.id });
+      const order = await fakeOrder({ status: OrderStatuses.PAID, FromCollectiveId: user.collective.id });
       const result = await graphqlQueryV2(orderQuery, { legacyId: order.id }, user);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;

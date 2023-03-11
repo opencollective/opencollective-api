@@ -33,7 +33,7 @@ describe('stripe/payment-intent', () => {
         order = await fakeOrder({
           PaymentMethodId: paymentMethod.id,
           FromCollectiveId: paymentMethod.CollectiveId,
-          status: 'NEW',
+          status: OrderStatuses.NEW,
           totalAmount: 100e2,
           description: 'Do you even donate, brah?!',
 

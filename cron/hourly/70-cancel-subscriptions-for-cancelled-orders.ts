@@ -11,6 +11,7 @@ import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sleep } from '../../server/lib/utils';
 import models, { Op } from '../../server/models';
+import { OrderModelInterface } from '../../server/models/Order';
 
 /**
  * Since the collective has been archived, its HostCollectiveId has been set to null.
@@ -50,7 +51,7 @@ const getOrderCancelationReason = (collective, order, orderHost) => {
  * performance constraints.
  */
 export async function run() {
-  const orphanOrders = await models.Order.findAll({
+  const orphanOrders = await models.Order.findAll<OrderModelInterface & { Subscription?: typeof models.Subscription }>({
     where: { status: OrderStatuses.CANCELLED },
     include: [
       {
@@ -61,7 +62,7 @@ export async function run() {
         required: true,
         where: { isActive: true },
       },
-      { association: 'collective', require: true },
+      { association: 'collective', required: true },
       { association: 'fromCollective' },
       { association: 'paymentMethod' },
     ],

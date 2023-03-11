@@ -5,6 +5,7 @@ import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
+import OrderStatuses from '../../../../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as payments from '../../../../../server/lib/payments';
@@ -897,7 +898,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'ACTIVE',
+          status: OrderStatuses.ACTIVE,
         },
         {
           withSubscription: true,
@@ -908,7 +909,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'ACTIVE',
+          status: OrderStatuses.ACTIVE,
         },
         {
           withSubscription: true,
@@ -1139,7 +1140,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             CreatedByUserId: user.id,
             FromCollectiveId: user.CollectiveId,
             CollectiveId: collective.id,
-            status: 'ACTIVE',
+            status: OrderStatuses.ACTIVE,
             totalAmount: 1300,
             taxAmount: 200,
             platformTipAmount: 100,
@@ -1189,7 +1190,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1230,7 +1231,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1271,7 +1272,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1309,8 +1310,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'PENDING',
-          frequency: 'ONETIME',
+          status: OrderStatuses.PENDING,
+          interval: 'ONETIME',
           totalAmount: 10000,
           currency: 'USD',
         });
@@ -1388,8 +1389,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
-        status: 'PENDING',
-        frequency: 'ONETIME',
+        status: OrderStatuses.PENDING,
+        interval: 'ONETIME',
         totalAmount: 10100,
         currency: 'USD',
         platformTipAmount: 100,

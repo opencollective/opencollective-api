@@ -3,6 +3,7 @@
 import { expect } from 'chai';
 import { assert, createSandbox } from 'sinon';
 
+import OrderStatuses from '../../../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalAPI from '../../../../server/paymentProviders/paypal/api';
 import { setupPaypalSubscriptionForOrder } from '../../../../server/paymentProviders/paypal/subscription';
@@ -55,7 +56,12 @@ describe('server/paymentProviders/paypal/subscription', () => {
   describe('setupPaypalSubscriptionForOrder', () => {
     it('activates the subscription when params are valid', async () => {
       const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
-      const order = await fakeOrder({ CollectiveId: host.id, status: 'NEW', TierId: null, totalAmount: 1000 });
+      const order = await fakeOrder({
+        CollectiveId: host.id,
+        status: OrderStatuses.NEW,
+        TierId: null,
+        totalAmount: 1000,
+      });
       const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
       const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
       paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
@@ -70,7 +76,11 @@ describe('server/paymentProviders/paypal/subscription', () => {
     describe('subscription matches the contribution', () => {
       it('must be APPROVED', async () => {
         const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
-        const order = await fakeOrder({ CollectiveId: host.id, status: 'NEW', PaymentMethodId: paymentMethod.id });
+        const order = await fakeOrder({
+          CollectiveId: host.id,
+          status: OrderStatuses.NEW,
+          PaymentMethodId: paymentMethod.id,
+        });
         const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
         const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
         paypalRequestStub.withArgs(subscriptionUrl).returns({ ...validSubscriptionParams, status: 'ACTIVE' });
@@ -82,7 +92,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
 
       it('must have an existing plan', async () => {
         const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
-        const order = await fakeOrder({ CollectiveId: host.id, status: 'NEW', TierId: null });
+        const order = await fakeOrder({ CollectiveId: host.id, status: OrderStatuses.NEW, TierId: null });
         const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
         const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
         paypalRequestStub.withArgs(subscriptionUrl).returns({ ...validSubscriptionParams, plan_id: 'xxxxxxx' });
@@ -96,7 +106,12 @@ describe('server/paymentProviders/paypal/subscription', () => {
 
       it('must have a plan that match amount', async () => {
         const paymentMethod = await fakePaypalSubscriptionPm(validSubscriptionParams);
-        const order = await fakeOrder({ CollectiveId: host.id, status: 'NEW', TierId: null, totalAmount: 5000 });
+        const order = await fakeOrder({
+          CollectiveId: host.id,
+          status: OrderStatuses.NEW,
+          TierId: null,
+          totalAmount: 5000,
+        });
         const paypalRequestStub = sandbox.stub(PaypalAPI, 'paypalRequest');
         const subscriptionUrl = `billing/subscriptions/${paymentMethod.token}`;
         paypalRequestStub.withArgs(subscriptionUrl).returns(validSubscriptionParams);
@@ -114,7 +129,7 @@ describe('server/paymentProviders/paypal/subscription', () => {
         return fakeOrder(
           {
             CollectiveId: host.id,
-            status: 'NEW',
+            status: OrderStatuses.NEW,
             TierId: null,
             totalAmount: 1000,
             subscription: { paypalSubscriptionId, isActive: false },

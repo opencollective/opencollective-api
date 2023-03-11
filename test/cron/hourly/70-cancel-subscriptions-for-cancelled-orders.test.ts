@@ -31,7 +31,7 @@ const fakePayPalSubscriptionOrder = async collective => {
     {
       CollectiveId: collective.id,
       interval: 'month',
-      status: 'ACTIVE',
+      status: OrderStatuses.ACTIVE,
       totalAmount: 1000,
       subscription: { paypalSubscriptionId, isActive: true, isManagedExternally: true },
       PaymentMethodId: paymentMethod.id,

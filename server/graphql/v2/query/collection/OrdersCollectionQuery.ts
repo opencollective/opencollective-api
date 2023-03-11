@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { Includeable } from 'sequelize';
+import { Includeable, Order } from 'sequelize';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op } from '../../../../models';
@@ -244,7 +244,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     where['TierId'] = tier.id;
   }
 
-  const order = [[args.orderBy.field, args.orderBy.direction]];
+  const order: Order = [[args.orderBy.field, args.orderBy.direction]];
   const { offset, limit } = args;
   const result = await models.Order.findAndCountAll({ include, where, order, offset, limit });
   return {

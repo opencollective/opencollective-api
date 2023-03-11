@@ -122,7 +122,7 @@ async function handleSaleCompleted(req: Request): Promise<void> {
     await order.update({ status: OrderStatus.ACTIVE, processedAt: new Date() });
   }
 
-  const nextChargeDate = moment().add(1, order.interval);
+  const nextChargeDate = moment().add(1, order.interval as any);
   await order.Subscription.update({
     chargeNumber: (order.Subscription.chargeNumber || 0) + 1,
     nextChargeDate: nextChargeDate,
