@@ -1745,7 +1745,7 @@ class Collective extends Model<
         memberCollectiveUser: memberCollectiveUser ? memberCollectiveUser.info : undefined,
       },
       order: order && {
-        ...order.activity,
+        ...order.info,
         tier: order.Tier && order.Tier.minimal,
         subscription: {
           interval: order.Subscription && order.Subscription.interval,
