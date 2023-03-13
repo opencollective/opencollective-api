@@ -1311,10 +1311,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
           status: OrderStatuses.PENDING,
-          interval: 'ONETIME',
+          frequency: 'ONETIME',
           totalAmount: 10000,
           currency: 'USD',
-        });
+        } as any);
       });
 
       it('should mark as expired', async () => {
@@ -1390,11 +1390,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
         status: OrderStatuses.PENDING,
-        interval: 'ONETIME',
+        frequency: 'ONETIME',
         totalAmount: 10100,
         currency: 'USD',
         platformTipAmount: 100,
-      });
+      } as any);
 
       const result = await graphqlQueryV2(
         processPendingOrderMutation,
