@@ -90,6 +90,7 @@ const mutationExpenseFields = gqlV2/* GraphQL */ `
     status
     privateMessage
     invoiceInfo
+    customData
     taxes {
       id
       type
@@ -200,6 +201,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       payoutMethod: { type: 'PAYPAL', data: { email: randEmail() } },
       items: [{ description: 'A first item', amount: 4200 }],
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      customData: { myCustomField: 'myCustomValue' },
     });
 
     beforeEach(() => {
@@ -310,6 +312,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.amount).to.eq(4200);
       expect(createdExpense.payee.legacyId).to.eq(payee.id);
       expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
+      expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
 
       // Updates collective location
       await payee.reload();
@@ -400,6 +403,22 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(resultExpense.amount).to.equal(12000); // items sum + 20% tax
       expect(resultExpense.taxes[0].type).to.equal('VAT');
       expect(resultExpense.taxes[0].rate).to.equal(0.2);
+    });
+
+    it('fails if custom data exceeds a certain size', async () => {
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
+      const user = await fakeUser();
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
+      const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id }, customData };
+      const collective = await fakeCollective();
+      const result = await graphqlQueryV2(
+        createExpenseMutation,
+        { expense: expenseData, account: { legacyId: collective.id } },
+        user,
+      );
+
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
     });
   });
 
@@ -756,6 +775,15 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       // Ensure activity is created
       const activities = await expense.getActivities({ where: { type: 'collective.expense.updated' } });
       expect(activities).to.have.length(1);
+    });
+
+    it('fails if custom data exceeds a certain size', async () => {
+      const expense = await fakeExpense({ status: 'PENDING' });
+      const customData = { a: '🌞'.repeat(2500) }; // Each emoji is 4 bytes, 10kB is 2500 emojis
+      const updatedExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), customData };
+      const result = await graphqlQueryV2(editExpenseMutation, { expense: updatedExpenseData }, expense.User);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.eq('Expense custom data cannot exceed 10kB. Current size: 10.008kB');
     });
   });
 

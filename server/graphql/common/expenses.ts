@@ -12,6 +12,7 @@ import {
   isEqual,
   isNil,
   isNumber,
+  isUndefined,
   keyBy,
   mapValues,
   omit,
@@ -242,6 +243,16 @@ export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req
 
 export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
+};
+
+export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, expense) => {
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveAccountant,
+    isCollectiveAdmin,
+    isHostAdmin,
+    isAdminOfHostWhoPaidExpense,
+  ]);
 };
 
 /** Checks if the user can verify or resend a draft */
@@ -747,6 +758,23 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
   }
 }
 
+const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
+  if (!value) {
+    return;
+  }
+
+  // Validate type: must be a JSON object
+  if (typeof value !== 'object') {
+    throw new ValidationFailed('Expense custom data must be an object');
+  }
+
+  // Validate size
+  const payloadSize = Buffer.byteLength(JSON.stringify(value), 'utf8');
+  if (payloadSize > 10e3) {
+    throw new ValidationFailed(`Expense custom data cannot exceed 10kB. Current size: ${payloadSize / 1000}kB`);
+  }
+};
+
 export const scheduleExpenseForPayment = async (
   req: express.Request,
   expense: Expense,
@@ -961,6 +989,7 @@ type ExpenseData = {
   amount?: number;
   currency?: string;
   tax?: TaxDefinition[];
+  customData: Record<string, unknown>;
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
@@ -1108,6 +1137,13 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     }
   }
 
+  // Expense data
+  const data = { recipient, taxes };
+  if (expenseData.customData) {
+    validateExpenseCustomData(expenseData.customData);
+    data['customData'] = expenseData.customData;
+  }
+
   const expense = await sequelize.transaction(async t => {
     // Create expense
     const createdExpense = await models.Expense.create(
@@ -1124,7 +1160,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: computeTotalAmountForExpense(itemsData, taxes),
-        data: { recipient, taxes },
+        data,
       },
       { transaction: t },
     );
@@ -1421,6 +1457,11 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     if (!isEqual(expense.data?.taxes, taxes)) {
       set(updatedExpenseProps, 'data.taxes', taxes);
     }
+    if (!isUndefined(expenseData.customData) && !isEqual(expense.data?.customData, expenseData.customData)) {
+      validateExpenseCustomData(expenseData.customData);
+      set(updatedExpenseProps, 'data.customData', expenseData.customData);
+    }
+
     return expense.update(updatedExpenseProps, { transaction });
   });
 

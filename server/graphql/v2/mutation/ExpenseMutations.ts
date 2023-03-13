@@ -91,6 +91,7 @@ const expenseMutations = {
           'currency',
           'items',
           'tax',
+          'customData',
         ]),
         payoutMethod,
         collective: await fetchAccountWithReference(args.account, req),
@@ -135,6 +136,7 @@ const expenseMutations = {
         payeeLocation: expense.payeeLocation,
         privateMessage: expense.privateMessage,
         invoiceInfo: expense.invoiceInfo,
+        customData: expense.customData,
         payoutMethod: expense.payoutMethod && {
           id: expense.payoutMethod.id && idDecode(expense.payoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD),
           data: expense.payoutMethod.data,
