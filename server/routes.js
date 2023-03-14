@@ -146,7 +146,7 @@ export default async app => {
    */
   app.use('/graphql', async (req, res, next) => {
     req.startAt = req.startAt || new Date();
-    const cacheKey = getGraphqlCacheKey(req);
+    const cacheKey = getGraphqlCacheKey(req); // Returns null if not cacheable (e.g. if logged in)
     const enabled = parseToBoolean(config.graphql.cache.enabled);
     if (cacheKey && enabled) {
       const fromCache = await cache.get(cacheKey);
@@ -155,6 +155,7 @@ export default async app => {
         req.endAt = req.endAt || new Date();
         const executionTime = req.endAt - req.startAt;
         res.set('Execution-Time', executionTime);
+        res.set('GraphQLCacheHit', true);
         res.send(fromCache);
         return;
       }
@@ -205,14 +206,15 @@ export default async app => {
     },
     formatResponse: (response, ctx) => {
       const req = ctx.context;
-
-      if (req.cacheKey && !response?.errors) {
-        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
-      }
-
       req.endAt = req.endAt || new Date();
       const executionTime = req.endAt - req.startAt;
       req.res.set('Execution-Time', executionTime);
+
+      // This will never happen for logged-in users as cacheKey is not set
+      if (req.cacheKey && !response?.errors && executionTime > config.graphql.cache.minExecutionTimeToCache) {
+        cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+      }
+
       return response;
     },
   };
