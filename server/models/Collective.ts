@@ -2845,7 +2845,11 @@ class Collective extends Model<
   };
 
   // get the host of the parent collective if any, or of this collective
-  getHostCollective = function () {
+  getHostCollective = async function ({ returnEvenIfNotApproved = false } = {}) {
+    if (!this.isActive && !returnEvenIfNotApproved) {
+      return null;
+    }
+
     if (this.HostCollectiveId) {
       return models.Collective.findByPk(this.HostCollectiveId);
     }
@@ -2861,7 +2865,11 @@ class Collective extends Model<
     });
   };
 
-  getHostCollectiveId = function () {
+  getHostCollectiveId = async function ({ returnEvenIfNotApproved = false } = {}) {
+    if (!this.isActive && !returnEvenIfNotApproved) {
+      return null;
+    }
+
     if (this.HostCollectiveId) {
       return Promise.resolve(this.HostCollectiveId);
     }
