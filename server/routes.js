@@ -1,7 +1,7 @@
+import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
-// import gqlmin from 'gqlmin';
 import { get, pick } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
@@ -27,7 +27,7 @@ import cache from './lib/cache';
 import errors from './lib/errors';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
-import { reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
+import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -181,12 +181,62 @@ export default async app => {
     next();
   });
 
+  /* GraphQL server protection rules */
+  const logRejection = (ctx, err) => {
+    logger.warn(`Query complexity is too high: ${err.message}`);
+    if (ctx._ast) {
+      const operation = ctx._ast.definitions?.find(d => d.kind === 'OperationDefinition');
+      reportMessageToSentry('Query complexity is too high', {
+        handler: HandlerType.GQL,
+        severity: 'warning',
+        transactionName: `GraphQL complexity too high: ${operation?.name?.value}`,
+        extra: {
+          query: ctx._ast.loc?.source?.body || '',
+          message: err.message,
+        },
+      });
+    }
+  };
+
+  const apolloArmor = new ApolloArmor({
+    // Depth is the number of nested fields in a query
+    maxDepth: {
+      onReject: [logRejection],
+      propagateOnRejection: false,
+      n: 15, // Currently identified max: 13 in contribution flow
+    },
+    // Cost is computed by the complexity plugin, it's a mix of the number of fields and the complexity of each field
+    costLimit: {
+      onReject: [logRejection],
+      ignoreIntrospection: true,
+      propagateOnRejection: false,
+      maxCost: 2, // Currently identified max: around 7500 on expense form
+    },
+    // Tokens are the number of fields in a query
+    maxTokens: {
+      onReject: [logRejection],
+      propagateOnRejection: false,
+      n: 1000, // Currently identified max: 805 in the expense flow
+    },
+    maxAliases: { enabled: false }, // Not clear what value this adds
+    maxDirectives: { enabled: false }, // Not clear what value this adds
+    blockFieldSuggestion: { enabled: false }, // Our schema is public, no need to hide fields
+  });
+
+  const graphqlProtection = apolloArmor.protect();
+  const graphqlPlugins = [...graphqlProtection.plugins];
+
   /* GraphQL server generic options */
+  if (config.sentry?.dsn) {
+    graphqlPlugins.push(SentryGraphQLPlugin);
+  }
 
   const graphqlServerOptions = {
     introspection: true,
     playground: isDevelopment,
-    plugins: config.sentry?.dsn ? [SentryGraphQLPlugin] : undefined,
+    ...graphqlProtection,
+    debug: !['production', 'staging'].includes(config.env), // Keep stracktraces in dev & CI
+    plugins: graphqlPlugins,
     // Align with behavior from express-graphql
     context: ({ req }) => {
       return req;
