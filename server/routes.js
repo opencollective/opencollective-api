@@ -26,6 +26,7 @@ import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
 import errors from './lib/errors';
 import logger from './lib/logger';
+import sendMessageToSupport from './lib/message-support';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
 import { reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
@@ -262,6 +263,11 @@ export default async app => {
     noCache,
     authentication.authenticateServiceDisconnect,
   );
+
+  /**
+   * Contact Form
+   */
+  app.post('/contact/send-message', sendMessageToSupport);
 
   app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
 
