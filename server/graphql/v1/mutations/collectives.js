@@ -9,11 +9,12 @@ import roles from '../../../constants/roles';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import * as collectivelib from '../../../lib/collectivelib';
 import * as github from '../../../lib/github';
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../../lib/rate-limit';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { defaultHostCollective } from '../../../lib/utils';
 import models, { sequelize } from '../../../models';
 import { SocialLinkType } from '../../../models/SocialLink';
-import { NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { CollectiveInputType } from '../inputTypes';
 
 const DEFAULT_COLLECTIVE_SETTINGS = {
@@ -21,12 +22,19 @@ const DEFAULT_COLLECTIVE_SETTINGS = {
 };
 
 export async function createCollective(_, args, req) {
-  if (!req.remoteUser) {
+  const { remoteUser } = req;
+  if (!remoteUser) {
     throw new Unauthorized('You need to be logged in to create a collective');
   }
 
   if (!args.collective.name) {
     throw new ValidationFailed('collective.name required');
+  }
+
+  const rateLimitKey = remoteUser ? `collective_create_${remoteUser.id}` : `collective_create_ip_${req.ip}`;
+  const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
+  if (!(await rateLimit.registerCall())) {
+    throw new RateLimitExceeded();
   }
 
   // TODO: enable me when Cypress helpers are migrated to v2
