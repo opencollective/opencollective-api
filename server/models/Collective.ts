@@ -3386,10 +3386,18 @@ Collective.init(
       },
     },
 
-    description: DataTypes.STRING, // max 95 characters
+    description: {
+      type: DataTypes.STRING,
+      validate: {
+        len: [0,95]
+      },
+     },
 
     longDescription: {
       type: DataTypes.TEXT,
+      validate: {
+        len: [0,50000] // just to prevent people from putting a lot of text in there
+      },
       set(longDescription: string) {
         if (longDescription) {
           this.setDataValue('longDescription', sanitizeHTML(longDescription, longDescriptionSanitizerOptions));
@@ -3469,9 +3477,19 @@ Collective.init(
       },
     },
 
-    locationName: DataTypes.STRING,
+    locationName: { 
+      type: DataTypes.STRING,
+      validate: {
+        len: [0,5000] // Just to prevent people typing too much in here.
+      },
+    },
 
-    address: DataTypes.STRING,
+    address: { 
+      type: DataTypes.STRING,
+      validate: {
+        len: [0,5000] // Just to prevent people typing too much in here.
+      },
+    },
 
     countryISO: {
       type: DataTypes.STRING,
