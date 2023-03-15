@@ -7,7 +7,6 @@ import * as hcaptcha from 'hcaptcha';
 import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
@@ -15,19 +14,18 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import { checkCaptcha } from '../../../lib/check-captcha';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
-import recaptcha from '../../../lib/recaptcha';
-import { checkCaptcha } from '../../../lib/check-captcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency, parseToBoolean } from '../../../lib/utils';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Op } from '../../../models';
 import {
   BadRequest,
