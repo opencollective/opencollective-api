@@ -7876,7 +7876,7 @@ type Individual implements Account {
   If the individual is a host account, this will return the matching Host object
   """
   host: Host
-  hasSeenLatestChangelogEntry: Boolean!
+  hasSeenLatestChangelogEntry: Boolean
   oAuthAuthorizations(
     """
     The number of results to fetch (default 10, max 1000)
