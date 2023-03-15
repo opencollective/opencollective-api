@@ -886,6 +886,12 @@ class Collective extends Model<
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
   becomeHost = async function () {
+    if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
+      throw new Error('This account type cannot become a host');
+    } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
+      throw new Error('This account is already attached to another host, please remove host first');
+    }
+
     if (!this.isHostAccount) {
       const updatedValues = {
         isHostAccount: true,
@@ -1081,7 +1087,7 @@ class Collective extends Model<
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
   activateBudget = async function () {
-    if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
+    if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type) || this.HostCollectiveId !== this.id) {
       return;
     }
 
@@ -2050,6 +2056,8 @@ class Collective extends Model<
   addHost = async function (hostCollective, creatorUser, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
+    } else if (this.isHostAccount) {
+      throw new Error(`This collective already is a host`);
     }
 
     const member = {

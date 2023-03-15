@@ -688,6 +688,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
       before('create collective1(currency USD, No Host)', () =>
         models.Collective.create({
           name: 'collective1',
+          type: 'ORGANIZATION',
           currency: 'USD',
           isActive: true,
           approvedAt: new Date(),
