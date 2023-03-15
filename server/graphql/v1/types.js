@@ -247,8 +247,11 @@ export const UserType = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(user) {
+        type: GraphQLBoolean,
+        async resolve(user, args, req) {
+          if (req.remoteUser?.id !== user.id) {
+            return null;
+          }
           return hasSeenLatestChangelogEntry(user);
         },
       },
