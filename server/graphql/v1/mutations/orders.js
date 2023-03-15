@@ -3,7 +3,6 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import * as hcaptcha from 'hcaptcha';
 import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
