@@ -20,7 +20,7 @@ env:
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
 jobs:
-  lint:
+  static:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -58,87 +58,17 @@ jobs:
         if: steps.api-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
 
-      - run: npm run lint:check
+      - name: Lint Check
+        run: npm run lint:check
 
-  prettier:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+      - name: Prettify Check
+        run: npm run prettier:check
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: TypeScript Check
+        run: npm run type:check
 
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
-
-      - name: Restore node_modules
-        uses: actions/cache@v3
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
-
-      - run: npm run prettier:check
-
-  typescript:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
-
-      - name: Restore node_modules
-        uses: actions/cache@v3
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
-
-      - run: npm run type:check
+      - name: Build
+        run: npm run build
 
   # depcheck:
   #   runs-on: ubuntu-latest
@@ -176,54 +106,7 @@ jobs:
   #       run: npm ci --prefer-offline --no-audit
 
   #     - run: npm run depcheck
-
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version-file: 'package.json'
-
-      - name: Force NPM version (this step can be moved once Vercel defaults to node 18.14)
-        shell: bash
-        run: npm install -g npm@8.19.2
-
-      - name: Restore node_modules
-        uses: actions/cache@v3
-        id: api-node-modules
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-api-node-modules-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-
-      - name: Restore .npm cache
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        uses: actions/cache@v3
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-          restore-keys: |
-            - ${{ runner.os }}-api-npm-cache-${{ hashFiles('package-lock.json') }}-${{ secrets.CACHE_VERSION }}
-            - ${{ runner.os }}-api-npm-cache-
-
-      - name: Install dependencies
-        if: steps.api-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Cache build
-        uses: actions/cache@v3
-        with:
-          path: dist
-          key: ${{ runner.os }}-api-build-${{ github.sha }}
-
-      - name: Build
-        run: npm run build
-
+ 
   test:
     runs-on: ubuntu-latest
 
