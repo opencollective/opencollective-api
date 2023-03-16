@@ -290,11 +290,12 @@ const orderMutations = {
       let previousOrderValues, previousSubscriptionValues;
       if (haveDetailsChanged) {
         // Update details (eg. amount, tier)
-        const tier = isNull(args.tier)
-          ? null
-          : args.tier
-          ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
-          : order.Tier;
+        const tier =
+          isNull(args.tier) || args.tier?.isCustom
+            ? null
+            : args.tier
+            ? await fetchTierWithReference(args.tier, { throwIfMissing: true })
+            : order.Tier;
 
         const membership =
           !isNull(order) &&
