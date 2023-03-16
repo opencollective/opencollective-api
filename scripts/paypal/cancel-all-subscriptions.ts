@@ -97,7 +97,7 @@ const main = async () => {
   }
 
   // Collective has changed host, so we must find the previous host
-  const allTransactions = <(typeof models.Transaction)[]>flatten(orders.map(o => (o as any).Transactions)); // TODO: is Transactions plural correct
+  const allTransactions = flatten(orders.map(o => o.Transactions));
   const allHostIds = uniq(allTransactions.map(t => t.HostCollectiveId));
   if (allHostIds.length !== 1) {
     throw new Error(`Collective ${collectiveSlug} has multiple hosts, or some transactions are missing`);
