@@ -557,9 +557,7 @@ const findMissingPaypalTransactions = async (_, commander) => {
             });
           } else {
             console.log(
-              `Would have recorded transaction ${paypalTransactionId} in ledger for order ${order.id} (${
-                (order as any).slug
-              })`,
+              `Would have recorded transaction ${paypalTransactionId} in ledger for order ${order.id} (${order.collective.slug})`,
             );
           }
         }
