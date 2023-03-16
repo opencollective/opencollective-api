@@ -248,6 +248,7 @@ const twoFactorAuthLib = {
   validateToken,
   getTwoFactorAuthTokenFromRequest,
   userHasTwoFactorAuthEnabled,
+  twoFactorMethodsSupportedByUser,
 };
 
 export default twoFactorAuthLib;

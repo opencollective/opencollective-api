@@ -98,9 +98,18 @@ export const signin = async (req, res, next) => {
       }
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-      if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
+      if (twoFactorAuthenticationEnabled && twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)) {
         // Send 2FA token, can only be used to get a long term token
-        const token = user.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
+        const token = user.jwt(
+          {
+            scope: 'twofactorauth',
+            supported2FAMethods: [
+              TwoFactorMethod.RECOVERY_CODE,
+              ...twoFactorAuthLib.twoFactorMethodsSupportedByUser(user),
+            ],
+          },
+          auth.TOKEN_EXPIRATION_2FA,
+        );
         return res.send({ token });
       } else {
         // All good, no 2FA, send token
@@ -184,8 +193,17 @@ export const exchangeLoginToken = async (req, res, next) => {
   }
 
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-  if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
-    const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
+  if (twoFactorAuthenticationEnabled && twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
+    const token = req.remoteUser.jwt(
+      {
+        scope: 'twofactorauth',
+        supported2FAMethods: [
+          TwoFactorMethod.RECOVERY_CODE,
+          ...twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser),
+        ],
+      },
+      auth.TOKEN_EXPIRATION_2FA,
+    );
     res.send({ token });
   } else {
     const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
@@ -240,7 +258,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return next(new BadRequest(errorMessage));
   }
 
-  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode } = req.body;
+  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode, twoFactorAuthenticationType } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
   const sessionId = req.jwtPayload.sessionId;
@@ -264,12 +282,12 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   }
 
   const code = twoFactorAuthenticatorCode || twoFactorAuthenticationRecoveryCode;
+  const type =
+    twoFactorAuthenticationType ?? (twoFactorAuthenticatorCode ? TwoFactorMethod.TOTP : TwoFactorMethod.RECOVERY_CODE);
 
   if (!code) {
     return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
   }
-
-  const type = twoFactorAuthenticatorCode ? TwoFactorMethod.TOTP : TwoFactorMethod.RECOVERY_CODE;
 
   try {
     await twoFactorAuthLib.validateToken(user, {
