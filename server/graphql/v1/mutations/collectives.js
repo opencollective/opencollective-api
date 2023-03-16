@@ -1,6 +1,7 @@
 import config from 'config';
 import slugify from 'limax';
 import { cloneDeep, get, isEqual, isNil, omit, pick, truncate, uniqWith } from 'lodash';
+import fetch from 'node-fetch';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -498,6 +499,15 @@ export function editCollective(_, args, req) {
       .then(async () => {
         // Ask cloudflare to refresh the cache for this collective's page
         purgeCacheForCollective(collective.slug);
+
+        // revalidate collective page
+        const url = new URL(`${config.host.website}/api/revalidate`);
+        url.searchParams.set('secret', config.keys.opencollective.apiKey);
+        url.searchParams.set('path', `${collective.slug}`);
+        await fetch(url, {
+          method: 'POST',
+        });
+
         const data = getCollectiveDataDiff(originalCollective, collective);
         // Create the activity which will store the data diff
         await models.Activity.create({
