@@ -1,8 +1,13 @@
 coverage:
   status:
-    project:
+    patch:
       default:
-        threshold: 0.1
-    patch: off
-  
-comment: false
+        target: 100% # Makes sure all new code is tested
+        informational: true # Don't fail the build if coverage is below target
+
+ignore:
+  - reports
+  - migrations
+
+comment:
+  behavior: once # update, if exists. Otherwise post new. Skip if deleted.
