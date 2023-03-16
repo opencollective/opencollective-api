@@ -22,18 +22,16 @@ import {
   fakeComment,
   fakeConversation,
   fakeExpense,
-  fakeMember,
   fakeUpdate,
   fakeUser,
   fakeUserToken,
 } from '../../../test-helpers/fake-data';
-import { makeRequest, resetTestDB } from '../../../utils';
+import { makeRequest } from '../../../utils';
 
-describe('server/graphql/v2/mutation/AccountMutations', () => {
+describe('server/graphql/common/scope-check', () => {
   let req, userToken, application, userOwningTheToken, randomUser;
 
   before(async () => {
-    await resetTestDB();
     application = await fakeApplication({ type: 'oAuth' });
     userOwningTheToken = await fakeUser();
     randomUser = await fakeUser();
@@ -380,9 +378,8 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
     let rootUser;
 
     before(async () => {
-      await resetTestDB();
       rootUser = await fakeUser({ data: { isRoot: true } });
-      await fakeMember({ CollectiveId: rootUser.id, MemberCollectiveId: 1, role: 'ADMIN' });
+      rootUser.rolesByCollectiveId = { 1: ['ADMIN'] };
     });
     beforeEach(async () => {
       req = makeRequest(rootUser);
