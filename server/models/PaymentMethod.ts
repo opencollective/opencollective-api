@@ -62,6 +62,7 @@ export interface PaymentMethodModelInterface
   saved: boolean;
 
   getCollective(): Promise<Collective>;
+  Collective?: Collective;
 }
 
 const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodStaticInterface = sequelize.define(

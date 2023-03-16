@@ -173,7 +173,7 @@ export const OrdersCollectionResolver = async (args, req: express.Request) => {
     const paymentMethod = await fetchPaymentMethodWithReference(args.paymentMethod, {
       sequelizeOpts: { attributes: ['id'], include: [{ model: models.Collective }] },
     });
-    if (!req.remoteUser?.isAdminOfCollective((paymentMethod as any).Collective)) {
+    if (!req.remoteUser?.isAdminOfCollective(paymentMethod.Collective)) {
       throw new Unauthorized('You must be an admin of the payment method to fetch its orders');
     }
     where['PaymentMethodId'] = paymentMethod.id;
