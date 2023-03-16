@@ -246,6 +246,8 @@
     "start:e2e:server": "node ./dist/e2e.js",
     "test": "TZ=UTC nyc mocha",
     "test:update": "TZ=UTC CHAI_JEST_SNAPSHOT_UPDATE_ALL=true nyc mocha",
+    "test:clean-db-snapshots": "rm -rf test/dbdumps/snapshots/*",
+    "test:update-db-snapshots": "npm run test:clean-db-snapshots && UPDATE_DB_SNAPSHOTS=true npm run test $(grep -rH 'getOrCreateDBSnapshot' --include='*.test.js' --include='*.test.ts' . | cut -d ':' -f 1 | uniq)",
     "test:clean": "rm -rf .nyc_output coverage",
     "test:coverage": "codecov",
     "test:graphql": "npm run test test/server/graphql",

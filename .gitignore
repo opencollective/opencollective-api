@@ -10,7 +10,8 @@ lib-cov
 
 node_modules
 coverage
-dbdumps
+dbdumps/*
+!test/dbdumps/snapshots
 test-results.xml
 dist
 yarn.lock
@@ -38,6 +39,5 @@ typings
 
 # test artifacts
 output/
-
 
 *.swp
