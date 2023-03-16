@@ -39,7 +39,6 @@ const transformTierInputToAttributes = (
   // Transform fields that need to be transformed
   attributes['amount'] = getAmountWithDefault(tierInput.amount, existingTier?.amount);
   attributes['minimumAmount'] = getAmountWithDefault(tierInput.minimumAmount, existingTier?.minimumAmount);
-  attributes['goal'] = getAmountWithDefault(tierInput.goal, existingTier?.goal);
   attributes['interval'] = getIntervalFromTierFrequency(tierInput.frequency);
   attributes['data'] = existingTier?.data || null;
 
@@ -50,6 +49,10 @@ const transformTierInputToAttributes = (
 
   if (tierInput.invoiceTemplate !== undefined) {
     attributes['data'] = { ...attributes['data'], invoiceTemplate: tierInput.invoiceTemplate };
+  }
+
+  if (tierInput.goal !== undefined) {
+    attributes['goal'] = tierInput.goal ? getValueInCentsFromAmountInput(tierInput.goal) : null;
   }
 
   // Adjust some fields based on other fields
