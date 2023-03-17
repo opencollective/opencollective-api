@@ -14,7 +14,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(resetTestDB);
 
   describe('Permissions', () => {
-    let expense, ownerUser, collectiveAdminUser, hostAdminUser, randomUser, payoutMethod;
+    let expense, ownerUser, collectiveAdminUser, hostAdminUser, hostAccountantUser, randomUser, payoutMethod;
 
     const expenseQuery = gqlV2/* GraphQL */ `
       query Expense($id: Int!) {
@@ -50,9 +50,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
     before(async () => {
       ownerUser = await fakeUser({}, { legalName: 'A Legal Name' });
       hostAdminUser = await fakeUser();
+      hostAccountantUser = await fakeUser();
       collectiveAdminUser = await fakeUser();
       randomUser = await fakeUser();
       const host = await fakeCollective({ admin: hostAdminUser.collective });
+      await host.addUserWithRole(hostAccountantUser, 'ACCOUNTANT');
       const collective = await fakeCollective({ admin: collectiveAdminUser.collective, HostCollectiveId: host.id });
       payoutMethod = await fakePayoutMethod({ type: 'OTHER', data: { content: 'Test content' } });
       expense = await fakeExpense({
@@ -62,24 +64,26 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       });
     });
 
-    it('can only see Payout method data if owner, or collective/host admin', async () => {
+    it('can only see Payout method data if owner, or host admin/accountant', async () => {
       // Query
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
       const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
       const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
       // Check results
       expect(resultUnauthenticated.data.expense.payoutMethod.data).to.be.null;
       expect(resultAsRandomUser.data.expense.payoutMethod.data).to.be.null;
-      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsCollectiveAdmin.data.expense.payoutMethod.data).to.be.null;
       expect(resultAsOwner.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
       expect(resultAsHostAdmin.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
+      expect(resultAsHostAccountant.data.expense.payoutMethod.data).to.deep.equal(payoutMethod.data);
     });
 
-    it('can only see uploaded files URLs if owner, or collective/host admin', async () => {
+    it('can only see uploaded files URLs if owner, or collective/host admin/accountant', async () => {
       // Query
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
@@ -87,6 +91,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
       const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
 
       // Check results
       const expectFilesToBeNull = data => {
@@ -106,6 +111,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expectFilesToBeNull(resultUnauthenticated.data);
       expectFilesToBeNull(resultAsRandomUser.data);
       expectFilesToNotBeNull(resultAsCollectiveAdmin.data);
+      expectFilesToNotBeNull(resultAsHostAccountant.data);
       expectFilesToNotBeNull(resultAsOwner.data);
       expectFilesToNotBeNull(resultAsHostAdmin.data);
     });
@@ -116,6 +122,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
       const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
       const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
@@ -123,6 +130,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultUnauthenticated.data.expense.payee.legalName).to.be.null;
       expect(resultAsRandomUser.data.expense.payee.legalName).to.be.null;
       expect(resultAsCollectiveAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
+      expect(resultAsHostAccountant.data.expense.payee.legalName).to.equal('A Legal Name');
       expect(resultAsOwner.data.expense.payee.legalName).to.equal('A Legal Name');
       expect(resultAsHostAdmin.data.expense.payee.legalName).to.equal('A Legal Name');
     });
@@ -132,6 +140,7 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       const queryParams = { id: expense.id };
       const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
       const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
       const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
 
       expect(resultUnauthenticated.data.expense.permissions.approve).to.deep.equal({
@@ -147,6 +156,11 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
       expect(resultAsCollectiveAdmin.data.expense.permissions.approve).to.deep.equal({
         allowed: true,
         reason: null,
+      });
+
+      expect(resultAsHostAccountant.data.expense.permissions.approve).to.deep.equal({
+        allowed: false,
+        reason: 'MINIMAL_CONDITION_NOT_MET',
       });
     });
   });

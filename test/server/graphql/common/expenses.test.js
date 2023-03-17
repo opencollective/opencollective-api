@@ -112,8 +112,8 @@ describe('server/graphql/common/expenses', () => {
     it('can see only with the allowed roles', async () => {
       expect(await canSeeExpensePayoutMethod(publicReq, expense)).to.be.false;
       expect(await canSeeExpensePayoutMethod(randomUserReq, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(collectiveAdminReq, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(collectiveAccountantReq, expense)).to.be.true;
+      expect(await canSeeExpensePayoutMethod(collectiveAdminReq, expense)).to.be.false;
+      expect(await canSeeExpensePayoutMethod(collectiveAccountantReq, expense)).to.be.false;
       expect(await canSeeExpensePayoutMethod(hostAdminReq, expense)).to.be.true;
       expect(await canSeeExpensePayoutMethod(hostAccountantReq, expense)).to.be.true;
       expect(await canSeeExpensePayoutMethod(expenseOwnerReq, expense)).to.be.true;
@@ -506,8 +506,8 @@ describe('server/graphql/common/expenses', () => {
       expect(await canComment(hostAdminReq, expense)).to.be.true;
       expect(await canComment(expenseOwnerReq, expense)).to.be.true;
       expect(await canComment(limitedHostAdminReq, expense)).to.be.false;
-      expect(await canComment(collectiveAccountantReq, expense)).to.be.false;
-      expect(await canComment(hostAccountantReq, expense)).to.be.false;
+      expect(await canComment(collectiveAccountantReq, expense)).to.be.true;
+      expect(await canComment(hostAccountantReq, expense)).to.be.true;
     });
   });
 
