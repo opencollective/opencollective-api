@@ -24,8 +24,10 @@ export const KID = 'HS256-2019-09-02';
 
 /** Generate a JWToken with the received parameters */
 export function createJwt(subject, payload, expiresIn) {
-  if (payload.scope === 'session' && !payload.sessionId) {
-    payload.sessionId = crypto.hash(generateKey(256));
+  if (payload?.scope === 'session') {
+    if (!payload.sessionId) {
+      payload.sessionId = crypto.hash(generateKey(256));
+    }
   }
   return jwt.sign(payload, config.keys.opencollective.jwtSecret, {
     expiresIn,
