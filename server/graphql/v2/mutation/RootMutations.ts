@@ -1,5 +1,6 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLNonEmptyString } from 'graphql-scalars';
 import { isNil, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
@@ -13,6 +14,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import { setTaxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
@@ -249,6 +251,40 @@ export default {
       });
 
       return moveExpenses(req, expenses, destinationAccount);
+    },
+  },
+  setTaxForm: {
+    type: new GraphQLObjectType({
+      name: 'SetTaxFormResult',
+      fields: {
+        success: { type: GraphQLBoolean },
+      },
+    }),
+    description: '[Root only] A mutation to set the tax from for an account.',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Reference to the Account the tax form should be set.',
+      },
+      taxFormLink: {
+        type: new GraphQLNonNull(GraphQLNonEmptyString),
+        description: 'The tax from link.',
+      },
+      year: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'The tax form year.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanRoot(req);
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+
+      await setTaxForm(account, args.taxFormLink, args.year);
+
+      return { success: true };
     },
   },
 };
