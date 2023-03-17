@@ -184,14 +184,6 @@ export const exchangeLoginToken = async (req, res, next) => {
     await confirmGuestAccount(req.remoteUser);
   }
 
-  if (!parseToBoolean(config.database.readOnly) && req.jwtPayload?.traceless !== true) {
-    await req.remoteUser.update({
-      // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
-      lastLoginAt: new Date(),
-      data: { ...req.remoteUser.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
-    });
-  }
-
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
     const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);

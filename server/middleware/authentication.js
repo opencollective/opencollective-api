@@ -61,7 +61,7 @@ const parseJwt = req => {
 };
 
 const checkJwtScope = req => {
-  const minifiedGraphqlOperation = req.body.query ? gqlmin(req.body.query) : null;
+  const minifiedGraphqlOperation = req.body?.query ? gqlmin(req.body.query) : null;
   const allowedResetPasswordGraphqlOperations = [
     'query ResetPasswordAccount{loggedInAccount{id type slug name email imageUrl __typename}}',
     'mutation ResetPassword($password:String!){setPassword(password:$password){individual{id __typename}token __typename}}',
@@ -71,21 +71,23 @@ const checkJwtScope = req => {
 
   const scope = req.jwtPayload.scope || 'session';
 
+  const path = req.originalUrl || req.path;
+
   switch (scope) {
     case 'twofactorauth':
-      if (!req.originalUrl.startsWith('/users/two-factor-auth')) {
+      if (!path.startsWith('/users/two-factor-auth')) {
         throw new errors.Unauthorized(errorMessage);
       }
       break;
 
     case 'connected-account':
-      if (!req.originalUrl.startsWith('/github-repositories')) {
+      if (!path.startsWith('/github-repositories')) {
         throw new errors.Unauthorized(errorMessage);
       }
       break;
 
     case 'login':
-      if (!req.originalUrl.startsWith('/users/exchange-login-token')) {
+      if (!path.startsWith('/users/exchange-login-token')) {
         if (['production', 'staging'].includes(config.env)) {
           throw new errors.Unauthorized(errorMessage);
         } else {
@@ -177,15 +179,24 @@ const _authenticateUserByJwt = async (req, res, next) => {
   }
 
   // Extra checks for `login` and `reset-password` scopes
-  if (req.jwtPayload.scope === 'login' && user.lastLoginAt) {
-    if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
-      const errorMessage = 'This login link is expired or has already been used';
-      if (['production', 'staging'].includes(config.env)) {
-        logger.warn(errorMessage);
-        return next(new errors.Unauthorized(errorMessage));
-      } else {
-        logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+  if (req.jwtPayload.scope === 'login') {
+    if (user.lastLoginAt) {
+      if (!req.jwtPayload.lastLoginAt || user.lastLoginAt.getTime() !== req.jwtPayload.lastLoginAt) {
+        const errorMessage = 'This login link is expired or has already been used';
+        if (['production', 'staging'].includes(config.env)) {
+          logger.warn(errorMessage);
+          return next(new errors.Unauthorized(errorMessage));
+        } else {
+          logger.info(`${errorMessage}. Ignoring in non-production environment.`);
+        }
       }
+    }
+    if (!parseToBoolean(config.database.readOnly) && req.jwtPayload?.traceless !== true) {
+      await user.update({
+        // The login was accepted, we can update lastLoginAt. This will invalidate all older login tokens.
+        lastLoginAt: new Date(),
+        data: { ...user.data, lastSignInRequest: { ip: req.ip, userAgent: req.header('user-agent') } },
+      });
     }
   } else if (req.jwtPayload.scope === 'reset-password' && user.passwordUpdatedAt) {
     if (!req.jwtPayload.passwordUpdatedAt || user.passwordUpdatedAt.getTime() !== req.jwtPayload.passwordUpdatedAt) {

@@ -5,11 +5,11 @@ import { expect } from 'chai';
 import { authenticateUser } from '../../../server/middleware/authentication';
 import { fakeUser } from '../../test-helpers/fake-data';
 
-describe('authenticateUser()', () => {
+describe('server/middleware/authentication', () => {
   it('updates user lastLoginAt if scope = login', async () => {
     const user = await fakeUser();
     const jwt = user.jwt({ scope: 'login' });
-    const req = { path: '/users/update-token', params: { access_token: jwt }, header: () => 'Test' };
+    const req = { path: '/users/exchange-login-token', params: { access_token: jwt }, header: () => 'Test' };
 
     await new Promise(resolve => {
       authenticateUser(req, {}, resolve);
@@ -22,7 +22,7 @@ describe('authenticateUser()', () => {
   it('does not updates user lastLoginAt if scope = login and traceless = true', async () => {
     const user = await fakeUser();
     const jwt = user.jwt({ scope: 'login', traceless: true });
-    const req = { path: '/users/update-token', params: { access_token: jwt }, header: () => 'Test' };
+    const req = { path: '/users/exchange-login-token', params: { access_token: jwt }, header: () => 'Test' };
 
     await new Promise(resolve => {
       authenticateUser(req, {}, resolve);
