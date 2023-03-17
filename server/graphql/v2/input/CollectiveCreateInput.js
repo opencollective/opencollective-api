@@ -1,5 +1,5 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
 export const CollectiveCreateInput = new GraphQLInputObjectType({
   name: 'CollectiveCreateInput',

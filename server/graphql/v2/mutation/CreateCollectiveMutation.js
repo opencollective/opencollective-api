@@ -1,6 +1,6 @@
 import config from 'config';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 import { get, pick } from 'lodash';
 
 import POLICIES from '../../../constants/policies';

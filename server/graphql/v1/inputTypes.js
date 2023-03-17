@@ -11,7 +11,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { Kind } from 'graphql/language';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
 import { CaptchaInput } from '../v2/input/CaptchaInput';
 import { SocialLinkInput } from '../v2/input/SocialLinkInput';

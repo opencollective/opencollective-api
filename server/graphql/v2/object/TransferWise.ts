@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSON, GraphQLJSONObject } from 'graphql-type-json';
+import { GraphQLJSON, GraphQLJSONObject } from 'graphql-scalars';
 
 import transferwise from '../../../paymentProviders/transferwise';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
