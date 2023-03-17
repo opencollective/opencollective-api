@@ -1,12 +1,13 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
+import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
-import { NotFound, Unauthorized } from '../errors';
+import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
 
 import * as applicationMutations from './mutations/applications';
 import * as backyourstackMutations from './mutations/backyourstack';
@@ -153,7 +154,14 @@ const mutations = {
         defaultValue: true,
       },
     },
-    resolve(_, args, req) {
+    async resolve(_, args, req) {
+      const { remoteUser } = req;
+      const rateLimitKey = remoteUser ? `user_create_${remoteUser.id}` : `user_create_ip_${req.ip}`;
+      const rateLimit = new RateLimit(rateLimitKey, 60, ONE_HOUR_IN_SECONDS, true);
+      if (!(await rateLimit.registerCall())) {
+        throw new RateLimitExceeded();
+      }
+
       return createUser(args.user, {
         organizationData: args.organization,
         sendSignInLink: args.sendSignInLink,
