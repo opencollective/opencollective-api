@@ -291,6 +291,7 @@ export default async app => {
     noCache,
     authentication.authenticateService,
   );
+  app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
   app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);

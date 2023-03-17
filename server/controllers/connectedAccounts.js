@@ -1,9 +1,11 @@
 import config from 'config';
+import { get } from 'lodash';
 
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
 import models from '../models';
+import paymentProviders from '../paymentProviders';
 
 export const createOrUpdate = async (req, res, next, accessToken, data) => {
   if (!req.remoteUser) {
@@ -131,6 +133,28 @@ export const disconnect = async (req, res) => {
         message: err.message,
       },
     });
+  }
+};
+
+export const verify = (req, res, next) => {
+  const payload = req.jwtPayload;
+  const service = req.params.service;
+
+  if (get(paymentProviders, `${service}.oauth.verify`)) {
+    return paymentProviders[service].oauth.verify(req, res, next);
+  }
+
+  if (!payload) {
+    return next(new errors.Unauthorized());
+  }
+  if (payload.scope === 'connected-account' && payload.username) {
+    res.send({
+      service,
+      username: payload.username,
+      connectedAccountId: payload.connectedAccountId,
+    });
+  } else {
+    return next(new errors.BadRequest('Github authorization failed'));
   }
 };
 
