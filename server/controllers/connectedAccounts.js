@@ -4,6 +4,7 @@ import { get } from 'lodash';
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
+import logger from '../lib/logger';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
