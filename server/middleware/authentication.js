@@ -18,7 +18,7 @@ import paymentProviders from '../paymentProviders';
 
 const { User, UserToken } = models;
 
-const { BadRequest, CustomError, Unauthorized } = errors;
+const { CustomError, Unauthorized } = errors;
 
 const debug = debugLib('auth');
 
