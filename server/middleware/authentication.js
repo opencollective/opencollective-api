@@ -54,7 +54,10 @@ const parseJwt = req => {
       if (err.name === 'TokenExpiredError') {
         throw new CustomError(401, 'jwt_expired', 'jwt expired');
       } else {
-        throw new BadRequest(err.message);
+        // If a token was submitted but is invalid, we continue without authenticating the user
+        // NOTE: This is historical behavior and could be reconsidered.
+        return;
+        // throw new BadRequest(err.message);
       }
     }
   }
