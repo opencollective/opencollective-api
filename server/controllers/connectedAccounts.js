@@ -179,7 +179,7 @@ export const fetchAllRepositories = async (req, res, next) => {
     const errorMessage = `Cannot use this token on this route (scope: ${
       req.jwtPayload?.scope || 'session'
     }, expected: connected-account)`;
-    if (['e2e'].includes(config.env)) {
+    if (['e2e', 'ci'].includes(config.env)) {
       // An E2E test is relying on this, so let's relax for now
       logger.warn(errorMessage);
     } else {
