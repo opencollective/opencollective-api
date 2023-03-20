@@ -3,6 +3,7 @@ import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'g
 
 import models from '../../../models';
 import { canEditExpenseTags } from '../../common/expenses';
+import { checkRemoteUserCanUseExpenses, checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { NotFound, Unauthorized } from '../../errors';
 import { ExpenseReferenceInput, fetchExpenseWithReference } from '../input/ExpenseReferenceInput';
 import { fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
@@ -37,15 +38,13 @@ const tagMutations = {
       },
     },
     resolve: async (_: void, args, req: Request) => {
-      if (!req.remoteUser) {
-        throw new Unauthorized();
-      }
-
       if ([args.order, args.expense].filter(Boolean).length !== 1) {
         throw new Error('A single order or expense must be provided');
       }
 
       if (args.order) {
+        checkRemoteUserCanUseOrders(req);
+
         const order = await fetchOrderWithReference(args.order, {
           throwIfMissing: true,
           include: [{ model: models.Collective, as: 'collective' }],
@@ -58,6 +57,8 @@ const tagMutations = {
 
         return order;
       } else if (args.expense) {
+        checkRemoteUserCanUseExpenses(req);
+
         const expense = await fetchExpenseWithReference(args.expense, { throwIfMissing: true });
         await canEditExpenseTags(req, expense, { throw: true });
 
