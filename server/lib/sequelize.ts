@@ -1,10 +1,10 @@
 import config from 'config';
 import debugLib from 'debug';
 import pg from 'pg';
-import Sequelize from 'sequelize';
+import { DataTypes, Sequelize, Utils } from 'sequelize';
 
-import { getDBConf } from '../lib/db';
-import logger from '../lib/logger';
+import { getDBConf } from './db';
+import logger from './logger';
 
 // this is needed to prevent sequelize from converting integers to strings, when model definition isn't clear
 // like in case of the key totalOrders and raw query (like User.getTopBackers())
@@ -55,6 +55,8 @@ if (config.database.options.pool) {
   }
 }
 
+addPointDataType();
+
 const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
   host: dbConfig.host,
   port: dbConfig.port,
@@ -62,6 +64,46 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.username, dbConfig.p
   ...config.database.options,
 });
 
-export { Op, DataTypes, Model, QueryTypes, Sequelize, Transaction } from 'sequelize';
-
+export { Op, Model, QueryTypes, Sequelize, Transaction } from 'sequelize';
+export { DataTypes };
 export default sequelize;
+
+function addPointDataType() {
+  class Point extends DataTypes.ABSTRACT {
+    toSql() {
+      return 'POINT';
+    }
+  }
+
+  // Mandatory: set the type key
+  Point.prototype.key = Point.key = 'POINT';
+
+  // Mandatory: add the new type to DataTypes. Optionally wrap it on `Utils.classToInvokable` to
+  // be able to use this datatype directly without having to call `new` on it.
+  DataTypes.POINT = Utils.classToInvokable(Point);
+
+  // Optional: disable escaping after stringifier. Do this at your own risk, since this opens opportunity for SQL injections.
+  // DataTypes.POINT.escape = false;
+
+  // const PgTypes = DataTypes.postgres;
+
+  // // Mandatory: map postgres datatype name
+  // DataTypes.POINT.types.postgres = ['point'];
+
+  // // Mandatory: create a postgres-specific child datatype with its own parse
+  // // method. The parser will be dynamically mapped to the OID of pg_new_type.
+  // PgTypes.POINT = function POINT() {
+  //   if (!(this instanceof PgTypes.POINT)) {
+  //     return new PgTypes.POINT();
+  //   }
+  //   DataTypes.POINT.apply(this, arguments);
+  // };
+  // util.inherits(PgTypes.POINT, DataTypes.POINT);
+
+  // // Mandatory: create, override or reassign a postgres-specific parser
+  // // PgTypes.POINT.parse = value => value;
+  // PgTypes.POINT.parse = DataTypes.POINT.parse || (x => x);
+
+  // Optional: add or override methods of the postgres-specific datatype
+  // like toSql, escape, validate, _stringify, _sanitize...
+}

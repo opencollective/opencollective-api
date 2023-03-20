@@ -5,9 +5,7 @@ import validator from 'validator';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import { StructuredAddress } from '../types/Location';
 
-type GeoLocationLatLong = {
-  coordinates: [number, number];
-};
+type Point = [number, number];
 
 class Location extends Model<InferAttributes<Location>, InferCreationAttributes<Location>> {
   declare id: CreationOptional<number>;
@@ -17,7 +15,7 @@ class Location extends Model<InferAttributes<Location>, InferCreationAttributes<
   declare address: CreationOptional<string>;
   declare structured: CreationOptional<null | StructuredAddress>;
 
-  declare geoLocationLatLong: CreationOptional<null | GeoLocationLatLong>;
+  declare latLong: CreationOptional<null | Point>;
 
   // Virtual lat/long fields
   declare lat: number;
@@ -55,20 +53,9 @@ Location.init(
         },
       },
     },
-    geoLocationLatLong: {
-      type: DataTypes.JSONB,
+    latLong: {
+      type: DataTypes.POINT,
       allowNull: true,
-      validate: {
-        validate(data) {
-          if (!data) {
-            return;
-          } else if (!data.coordinates || data.coordinates.length !== 2) {
-            throw new Error('Invalid GeoLocation');
-          } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
-            throw new Error('Invalid latitude/longitude');
-          }
-        },
-      },
     },
     structured: {
       type: DataTypes.JSONB,
@@ -82,14 +69,14 @@ Location.init(
       type: DataTypes.VIRTUAL(DataTypes.FLOAT),
       allowNull: true,
       get() {
-        return this.geoLocationLatLong?.coordinates?.[0];
+        return this.latLong?.[0];
       },
     },
     long: {
       type: DataTypes.VIRTUAL(DataTypes.FLOAT),
       allowNull: true,
       get() {
-        return this.geoLocationLatLong?.coordinates?.[1];
+        return this.latLong?.[1];
       },
     },
     CollectiveId: {

@@ -1318,17 +1318,24 @@ describe('server/models/Collective', () => {
   describe('location', () => {
     it('validates latitude/longitude', async () => {
       // Invalid
-      await expect(fakeCollective({ geoLocationLatLong: 42 })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: 'nope' })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: {} })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point' } })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: 42 } })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55] } })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'TOTO', coordinates: [55, -66] } })).to.be.rejected;
+      const sequelizeParams = { include: [{ association: 'location' }] };
+      await expect(fakeCollective({ location: { latLong: 42 } }, sequelizeParams)).to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: 'nope' } }, sequelizeParams)).to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: {} } }, sequelizeParams)).to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: { type: 'Point' } } }, sequelizeParams)).to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: { type: 'Point', coordinates: 42 } } }, sequelizeParams)).to.be
+        .rejected;
+      await expect(fakeCollective({ location: { latLong: { type: 'Point', coordinates: [55] } } }, sequelizeParams)).to
+        .be.rejected;
+      await expect(fakeCollective({ location: { latLong: [55] } }, sequelizeParams)).to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: { type: 'TOTO', coordinates: [55, -66] } } }, sequelizeParams))
+        .to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: 42 } }, sequelizeParams)).to.be.rejected;
+      await expect(fakeCollective({ location: { latLong: [55] } }, sequelizeParams)).to.be.rejected;
 
       // Valid
-      await expect(fakeCollective({ geoLocationLatLong: null })).to.be.fulfilled;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } })).to.be.fulfilled;
+      await expect(fakeCollective({ location: { latLong: null } }, sequelizeParams)).to.be.fulfilled;
+      await expect(fakeCollective({ location: { latLong: [55, -66] } }, sequelizeParams)).to.be.fulfilled;
     });
   });
 

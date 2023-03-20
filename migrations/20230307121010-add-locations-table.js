@@ -26,8 +26,8 @@ module.exports = {
         type: DataTypes.JSONB,
         allowNull: true,
       },
-      geoLocationLatLong: {
-        type: DataTypes.JSONB,
+      latLong: {
+        type: DataTypes.POINT,
         allowNull: true,
       },
       CollectiveId: {
@@ -54,13 +54,13 @@ module.exports = {
     });
 
     await queryInterface.sequelize.query(`
-      INSERT INTO "Locations" ("name", "address", "country", "CollectiveId", "geoLocationLatLong", "structured")
+      INSERT INTO "Locations" ("name", "address", "country", "CollectiveId", "latLong", "structured")
       SELECT 
           "locationName",
           "address",
           "countryISO",
           id,
-          "geoLocationLatLong",
+          ST_SetSRID(ST_MakePoint(("geoLocationLatLong"->>'coordinates')::float, (("geoLocationLatLong"->'coordinates'->>1)::float)), 4326),
           "data"->'address'
       FROM "Collectives"
       WHERE 
