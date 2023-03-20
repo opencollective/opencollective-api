@@ -1,10 +1,12 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { omit, pick } from 'lodash';
 
+import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
+import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
@@ -55,6 +57,8 @@ const addCreditCard = {
     const collective = await fetchAccountWithReference(args.account, { throwIfMissing: true });
     if (!req.remoteUser?.isAdminOfCollective(collective)) {
       throw new Forbidden(`Must be an admin of ${collective.name}`);
+    } else if ((await checkCanUsePaymentMethods(collective)) === FEATURE_STATUS.UNSUPPORTED) {
+      throw new Forbidden('This collective cannot use payment methods');
     }
 
     // Check 2FA

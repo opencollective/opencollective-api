@@ -95,7 +95,7 @@ const checkVirtualCardFeatureStatus = async account => {
   return FEATURE_STATUS.DISABLED;
 };
 
-const checkCanUsePaymentMethods = async collective => {
+export const checkCanUsePaymentMethods = async collective => {
   // Ignore type if the account already has some payment methods setup. Useful for Organizations that were turned into Funds.
   const hasPaymentMethods = await checkExistsInDB(
     `
@@ -122,7 +122,7 @@ const checkCanUsePaymentMethods = async collective => {
   }
 };
 
-const checkCanEmitGiftCards = async collective => {
+export const checkCanEmitGiftCards = async collective => {
   // Ignore type if the account already has some gift cards setup. Useful for Organizations that were turned into Funds.
 
   const hasCreatedGiftCards = await checkExistsInDB(
