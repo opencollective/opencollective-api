@@ -1153,7 +1153,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     expenseData.payeeLocation = pick(existingLocation, ['address', 'country', 'structured']);
   } else if (
     (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
-    (!existingLocation.address || !existingLocation.structured)
+    (!existingLocation?.address || !existingLocation?.structured)
   ) {
     await fromCollective.setLocation(expenseData.payeeLocation);
 
@@ -1392,7 +1392,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   const existingLocation = await fromCollective.getLocation();
   if (
     (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
-    (!existingLocation.address || !existingLocation.structured)
+    (!existingLocation?.address || !existingLocation?.structured)
   ) {
     await fromCollective.setLocation(expenseData.payeeLocation);
   }
