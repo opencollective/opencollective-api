@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 
-import MemberRoles from '../../../../server/constants/roles';
 import {
   checkRemoteUserCanRoot,
   checkRemoteUserCanUseAccount,
