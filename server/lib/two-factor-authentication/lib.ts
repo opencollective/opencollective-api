@@ -9,9 +9,9 @@ import User from '../../models/User';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
 
-import recoveryCode from './recovery_code';
+import recoveryCode from './recovery-code';
 import totp from './totp';
-import yubikeyOTP from './yubikey_otp';
+import yubikeyOTP from './yubikey-otp';
 
 const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
