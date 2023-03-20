@@ -1,5 +1,5 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
-import { GraphQLJSONObject } from 'graphql-type-json';
+import { GraphQLJSONObject } from 'graphql-scalars';
 
 import { VirtualCardProvider } from '../enum/VirtualCardProvider';
 

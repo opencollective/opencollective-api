@@ -1,6 +1,6 @@
 import { GraphQLInt, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSONObject } from 'graphql-type-json';
+import { GraphQLJSONObject } from 'graphql-scalars';
 
 import ExpenseStatus from '../../../constants/expense_status';
 import { VirtualCardLimitIntervals } from '../../../constants/virtual-cards';
