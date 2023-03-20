@@ -9,7 +9,7 @@ import {
   GraphQLObjectType,
   GraphQLString,
 } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 import { get, has, isNull, merge, omitBy, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';

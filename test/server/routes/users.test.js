@@ -84,8 +84,8 @@ describe('server/routes/users', () => {
   /**
    * Receive a valid token & return a brand new token
    */
-  describe('#updateToken', () => {
-    const updateTokenUrl = `/users/update-token?api_key=${application.api_key}`;
+  describe('#exchangeLoginToken', () => {
+    const updateTokenUrl = `/users/exchange-login-token?api_key=${application.api_key}`;
 
     it('should fail if no token is provided', async () => {
       const response = await request(expressApp).post(updateTokenUrl);
@@ -95,7 +95,7 @@ describe('server/routes/users', () => {
     it('should fail if expired token is provided', async () => {
       // Given a user and an authentication token
       const user = await fakeUser({ email: 'test@mctesterson.com' });
-      const expiredToken = user.jwt({}, -1);
+      const expiredToken = user.jwt({ scope: 'login' }, -1);
 
       // When the endpoint is hit with an expired token
       const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${expiredToken}`);
@@ -107,7 +107,7 @@ describe('server/routes/users', () => {
     it("should fail if user's collective is marked as deleted", async () => {
       const user = await fakeUser({ email: 'test@mctesterson.com' });
       await user.collective.destroy(); // mark collective as deleted
-      const currentToken = user.jwt();
+      const currentToken = user.jwt({ scope: 'login' });
       const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
       expect(response.statusCode).to.equal(401);
     });
@@ -115,7 +115,7 @@ describe('server/routes/users', () => {
     it('should validate received token', async () => {
       // Given a user and an authentication token
       const user = await fakeUser({ email: 'test@mctesterson.com' });
-      const currentToken = user.jwt();
+      const currentToken = user.jwt({ scope: 'login' });
 
       // When the endpoint is hit with a valid token
       const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
@@ -135,7 +135,7 @@ describe('server/routes/users', () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
       const user = await fakeUser({ email: 'mopsa@mopsa.mopsa', twoFactorAuthToken: encryptedToken });
-      const currentToken = user.jwt();
+      const currentToken = user.jwt({ scope: 'login' });
 
       // When the endpoint is hit with a valid token
       const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
@@ -160,6 +160,54 @@ describe('server/routes/users', () => {
     });
   });
 
+  describe('#refreshToken', () => {
+    const updateTokenUrl = `/users/refresh-token?api_key=${application.api_key}`;
+
+    it('should fail if no token is provided', async () => {
+      const response = await request(expressApp).post(updateTokenUrl);
+      expect(response.statusCode).to.equal(401);
+    });
+
+    it('should fail if expired token is provided', async () => {
+      // Given a user and an authentication token
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
+      const expiredToken = user.jwt({ scope: 'session' }, -1);
+
+      // When the endpoint is hit with an expired token
+      const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${expiredToken}`);
+
+      // Then the API rejects the request
+      expect(response.statusCode).to.equal(401);
+    });
+
+    it("should fail if user's collective is marked as deleted", async () => {
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
+      await user.collective.destroy(); // mark collective as deleted
+      const currentToken = user.jwt({ scope: 'session' });
+      const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
+      expect(response.statusCode).to.equal(401);
+    });
+
+    it('should validate received token', async () => {
+      // Given a user and an authentication token
+      const user = await fakeUser({ email: 'test@mctesterson.com' });
+      const currentToken = user.jwt({ scope: 'session' });
+
+      // When the endpoint is hit with a valid token
+      const response = await request(expressApp).post(updateTokenUrl).set('Authorization', `Bearer ${currentToken}`);
+
+      // Then it responds with success
+      expect(response.statusCode).to.equal(200);
+
+      // And then the response also contains a valid token
+      const parsedToken = auth.verifyJwt(response.body.token);
+      expect(parsedToken).to.be.exist;
+
+      // And then the token should have a long expiration
+      expect(moment(parsedToken.exp).diff(parsedToken.iat)).to.equal(auth.TOKEN_EXPIRATION_SESSION);
+    });
+  });
+
   /**
    * Receive a valid 2FA token & return a brand new token
    */
@@ -168,7 +216,7 @@ describe('server/routes/users', () => {
 
     it('should fail if no token is provided', async () => {
       const response = await request(expressApp).post(twoFactorAuthUrl);
-      expect(response.statusCode).to.equal(400);
+      expect(response.statusCode).to.equal(401);
     });
 
     it('should fail if token with wrong scope is provided', async () => {

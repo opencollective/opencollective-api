@@ -64,6 +64,7 @@ export default {
     hostFeePercent: 10,
     tags: ['open source', 'test'],
     isActive: true,
+    approvedAt: new Date(2020, 1, 1),
   },
 
   collective2: {
@@ -77,6 +78,7 @@ export default {
     hostFeePercent: 0,
     tags: ['meetup', 'test'],
     isActive: true,
+    approvedAt: new Date(2020, 1, 1),
   },
 
   collective3: {
@@ -613,6 +615,7 @@ export default {
     type: 'EVENT',
     name: 'January meetup',
     isActive: true,
+    approvedAt: new Date(2020, 1, 1),
     slug: 'jan-meetup',
     description: 'January monthly meetup',
     startsAt: '2017-01-06 UTC+0300',

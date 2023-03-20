@@ -4,6 +4,7 @@ import { get } from 'lodash';
 import { mustBeLoggedInTo } from '../lib/auth';
 import errors from '../lib/errors';
 import * as github from '../lib/github';
+import logger from '../lib/logger';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -172,6 +173,18 @@ const GITHUB_REPOS_FETCH_TIMEOUT = 1 * 60 * 1000;
 
 // used in Frontend by createCollective "GitHub flow"
 export const fetchAllRepositories = async (req, res, next) => {
+  if (req.jwtPayload?.scope !== 'connected-account') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: connected-account)`;
+    if (['e2e', 'ci'].includes(config.env)) {
+      // An E2E test is relying on this, so let's relax for now
+      logger.warn(errorMessage);
+    } else {
+      return next(new errors.BadRequest(errorMessage));
+    }
+  }
+
   const githubAccount = await getGithubAccount(req);
   try {
     req.setTimeout(GITHUB_REPOS_FETCH_TIMEOUT);

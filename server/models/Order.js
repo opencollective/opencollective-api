@@ -206,7 +206,10 @@ const Order = sequelize.define(
           quantity: this.quantity,
           interval: this.interval,
           totalAmount: this.totalAmount,
+          // introducing 3 new values to clarify
+          netAmount: this.totalAmount - this.platformTipAmount,
           platformTipAmount: this.platformTipAmount,
+          chargeAmount: this.totalAmount,
           description: this.description,
           privateMessage: this.privateMessage,
           publicMessage: this.publicMessage,
@@ -214,26 +217,6 @@ const Order = sequelize.define(
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           processedAt: this.processedAt,
-          isGuest: Boolean(this.data?.isGuest),
-          tags: this.tags,
-        };
-      },
-
-      activity() {
-        return {
-          id: this.id,
-          // totalAmount should not be changed, it's confusing
-          totalAmount: this.totalAmount - this.platformTipAmount,
-          // introducing 3 new values to clarify
-          netAmount: this.totalAmount - this.platformTipAmount,
-          platformTipAmount: this.platformTipAmount,
-          chargeAmount: this.totalAmount,
-          currency: this.currency,
-          description: this.description,
-          publicMessage: this.publicMessage,
-          interval: this.interval,
-          quantity: this.quantity,
-          createdAt: this.createdAt,
           isGuest: Boolean(this.data?.isGuest),
           tags: this.tags,
         };

@@ -7,7 +7,7 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 
 import { DateString } from '../../v1/types';
 import { ContributionFrequency } from '../enum';
