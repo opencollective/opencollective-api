@@ -96,8 +96,8 @@ export const Host = new GraphQLObjectType({
       },
       totalHostedCollectives: {
         type: GraphQLInt,
-        resolve(collective) {
-          return collective.getHostedCollectivesCount();
+        resolve(host, _, req) {
+          return req.loaders.Collective.hostedCollectivesCount.load(host.id);
         },
       },
       isOpenToApplications: {

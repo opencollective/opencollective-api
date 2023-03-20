@@ -4,6 +4,7 @@ import { createContext } from 'dataloader-sequelize';
 import { get, groupBy } from 'lodash';
 import moment from 'moment';
 
+import { types as CollectiveType } from '../../constants/collectives';
 import orderStatus from '../../constants/order_status';
 import { TransactionTypes } from '../../constants/transactions';
 import {
@@ -116,6 +117,23 @@ export const loaders = req => {
     filter: collective => Boolean(collective.approvedAt),
     loader: hostIds => context.loaders.Collective.byId.loadMany(hostIds),
   });
+
+  context.loaders.Collective.hostedCollectivesCount = new DataLoader(async collectiveIds => {
+    const results = await models.Collective.findAll({
+      raw: true,
+      attributes: ['HostCollectiveId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
+      group: ['HostCollectiveId'],
+      where: {
+        HostCollectiveId: { [Op.in]: collectiveIds },
+        type: CollectiveType.COLLECTIVE,
+        isActive: true,
+      },
+    });
+
+    return sortResultsSimple(collectiveIds, results, r => r.HostCollectiveId).map(result => result?.count ?? 0);
+  });
+
+  // Collective - Parent
 
   context.loaders.Collective.parent = buildLoaderForAssociation(models.Collective, 'parent', {
     loader: parentIds => context.loaders.Collective.byId.loadMany(parentIds),
