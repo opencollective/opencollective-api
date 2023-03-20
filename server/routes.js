@@ -217,7 +217,7 @@ export default async app => {
       onReject: [logRejection],
       ignoreIntrospection: true,
       propagateOnRejection: false,
-      maxCost: 2, // Currently identified max: around 7500 on expense form
+      maxCost: 10000, // Currently identified max: around 7500 on expense form
     },
     // Tokens are the number of fields in a query
     maxTokens: {
