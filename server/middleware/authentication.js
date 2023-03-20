@@ -84,7 +84,7 @@ const checkJwtScope = req => {
       break;
 
     case 'connected-account':
-      if (!path.startsWith('/github-repositories')) {
+      if (!path.startsWith('/github-repositories') && !path.startsWith('/connected-accounts/github/verify')) {
         throw new errors.Unauthorized(errorMessage);
       }
       break;
