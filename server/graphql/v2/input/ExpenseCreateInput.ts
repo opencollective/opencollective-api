@@ -1,4 +1,5 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
+import { GraphQLJSON } from 'graphql-type-json';
 
 import { Currency } from '../enum';
 import { ExpenseType } from '../enum/ExpenseType';
@@ -67,6 +68,10 @@ export const ExpenseCreateInput = new GraphQLInputObjectType({
     tax: {
       type: new GraphQLList(ExpenseTaxInput),
       description: 'The list of taxes that should be applied to the expense (VAT, GST, etc...)',
+    },
+    customData: {
+      type: GraphQLJSON,
+      description: 'Custom data to be stored in the expense',
     },
   }),
 });

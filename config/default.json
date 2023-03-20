@@ -175,7 +175,8 @@
   "graphql": {
     "cache": {
       "enabled": false,
-      "ttl": 300
+      "ttl": 300,
+      "minExecutionTimeToCache": 750
     }
   },
   "pdfService": {

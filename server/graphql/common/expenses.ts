@@ -12,6 +12,7 @@ import {
   isEqual,
   isNil,
   isNumber,
+  isUndefined,
   keyBy,
   mapValues,
   omit,
@@ -93,6 +94,14 @@ const isOwner = async (req: express.Request, expense: Expense): Promise<boolean>
   return req.remoteUser.isAdminOfCollective(expense.fromCollective);
 };
 
+const isOwnerAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.FromCollectiveId);
+};
+
 const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
@@ -103,20 +112,37 @@ const isDraftPayee = async (req: express.Request, expense: Expense): Promise<boo
   }
 };
 
-const isCollectiveAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
+const isHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  if (!req.remoteUser) {
+    return false;
+  }
+
+  if (expense.HostCollectiveId) {
+    return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.HostCollectiveId);
+  }
+
+  expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+  if (!expense.collective) {
+    return false;
+  } else {
+    return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.HostCollectiveId);
+  }
+};
+
+const isCollectiveOrHostAccountant = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, expense.CollectiveId)) {
     return true;
+  } else if (await isHostAccountant(req, expense)) {
+    return true;
   }
 
-  const collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-  if (!collective) {
+  expense.collective = expense.collective || (await req.loaders.Collective.byId.load(expense.CollectiveId));
+  if (!expense.collective) {
     return false;
-  } else if (req.remoteUser.hasRole(roles.ACCOUNTANT, collective.HostCollectiveId)) {
-    return true;
-  } else if (collective.ParentCollectiveId) {
-    return req.remoteUser.hasRole(roles.ACCOUNTANT, collective.ParentCollectiveId);
+  } else if (expense.collective.ParentCollectiveId) {
+    return req.remoteUser.hasRole(roles.ACCOUNTANT, expense.collective.ParentCollectiveId);
   } else {
     return false;
   }
@@ -150,7 +176,7 @@ const isHostAdmin = async (req: express.Request, expense: Expense): Promise<bool
   return req.remoteUser.isAdmin(expense.collective.HostCollectiveId) && expense.collective.isActive;
 };
 
-const isAdminOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
+const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -199,10 +225,11 @@ const remoteUserMeetsOneCondition = async (
 export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
+    isOwnerAccountant,
     isCollectiveAdmin,
-    isCollectiveAccountant,
+    isCollectiveOrHostAccountant,
     isHostAdmin,
-    isAdminOfHostWhoPaidExpense,
+    isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
 };
 
@@ -210,10 +237,10 @@ export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, 
 export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
-    isCollectiveAdmin,
-    isCollectiveAccountant,
+    isOwnerAccountant,
     isHostAdmin,
-    isAdminOfHostWhoPaidExpense,
+    isHostAccountant,
+    isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
 };
 
@@ -226,7 +253,14 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
   return remoteUserMeetsOneCondition(
     req,
     expense,
-    [isOwner, isCollectiveAdmin, isCollectiveAccountant, isHostAdmin, isAdminOfHostWhoPaidExpense],
+    [
+      isOwner,
+      isOwnerAccountant,
+      isCollectiveAdmin,
+      isCollectiveOrHostAccountant,
+      isHostAdmin,
+      isAdminOrAccountantOfHostWhoPaidExpense,
+    ],
     options,
   );
 };
@@ -235,15 +269,26 @@ export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
 export const canSeeExpensePayeeLocation: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
+    isOwnerAccountant,
     isCollectiveAdmin,
-    isCollectiveAccountant,
+    isCollectiveOrHostAccountant,
     isHostAdmin,
-    isAdminOfHostWhoPaidExpense,
+    isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
 };
 
 export const canSeeExpenseSecurityChecks: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin]);
+};
+
+export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, expense) => {
+  return remoteUserMeetsOneCondition(req, expense, [
+    isOwner,
+    isCollectiveOrHostAccountant,
+    isCollectiveAdmin,
+    isHostAdmin,
+    isAdminOrAccountantOfHostWhoPaidExpense,
+  ]);
 };
 
 /** Checks if the user can verify or resend a draft */
@@ -323,7 +368,12 @@ export const canEditExpenseTags: ExpensePermissionEvaluator = async (
     // Only collective/host admins can edit tags after the expense is paid
     return remoteUserMeetsOneCondition(req, expense, [isHostAdmin, isCollectiveAdmin], options);
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
+    return remoteUserMeetsOneCondition(
+      req,
+      expense,
+      [isOwner, isOwnerAccountant, isHostAdmin, isCollectiveAdmin],
+      options,
+    );
   }
 };
 
@@ -599,17 +649,22 @@ export const canComment: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isCollectiveAdmin, isHostAdmin, isOwner], options);
+    return remoteUserMeetsOneCondition(
+      req,
+      expense,
+      [isCollectiveAdmin, isHostAdmin, isOwner, isOwnerAccountant, isCollectiveOrHostAccountant],
+      options,
+    );
   }
 };
 
 export const canViewRequiredLegalDocuments: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [
     isHostAdmin,
-    isCollectiveAdmin,
-    isCollectiveAccountant,
+    isHostAccountant,
     isOwner,
-    isAdminOfHostWhoPaidExpense,
+    isOwnerAccountant,
+    isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
 };
 
@@ -748,6 +803,23 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     cache.set(expensePaidAmountKey, currentPaidExpenseAmount + expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
   }
 }
+
+const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
+  if (!value) {
+    return;
+  }
+
+  // Validate type: must be a JSON object
+  if (typeof value !== 'object') {
+    throw new ValidationFailed('Expense custom data must be an object');
+  }
+
+  // Validate size
+  const payloadSize = Buffer.byteLength(JSON.stringify(value), 'utf8');
+  if (payloadSize > 10e3) {
+    throw new ValidationFailed(`Expense custom data cannot exceed 10kB. Current size: ${payloadSize / 1000}kB`);
+  }
+};
 
 export const scheduleExpenseForPayment = async (
   req: express.Request,
@@ -963,6 +1035,7 @@ type ExpenseData = {
   amount?: number;
   currency?: string;
   tax?: TaxDefinition[];
+  customData: Record<string, unknown>;
 };
 
 const EXPENSE_EDITABLE_FIELDS = [
@@ -1116,6 +1189,13 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
     }
   }
 
+  // Expense data
+  const data = { recipient, taxes };
+  if (expenseData.customData) {
+    validateExpenseCustomData(expenseData.customData);
+    data['customData'] = expenseData.customData;
+  }
+
   const expense = await sequelize.transaction(async t => {
     // Create expense
     const createdExpense = await models.Expense.create(
@@ -1132,7 +1212,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
         PayoutMethodId: payoutMethod && payoutMethod.id,
         legacyPayoutMethod: models.Expense.getLegacyPayoutMethodTypeFromPayoutMethod(payoutMethod),
         amount: computeTotalAmountForExpense(itemsData, taxes),
-        data: { recipient, taxes },
+        data,
       },
       { transaction: t },
     );
@@ -1430,6 +1510,11 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     if (!isEqual(expense.data?.taxes, taxes)) {
       set(updatedExpenseProps, 'data.taxes', taxes);
     }
+    if (!isUndefined(expenseData.customData) && !isEqual(expense.data?.customData, expenseData.customData)) {
+      validateExpenseCustomData(expenseData.customData);
+      set(updatedExpenseProps, 'data.customData', expenseData.customData);
+    }
+
     return expense.update(updatedExpenseProps, { transaction });
   });
 

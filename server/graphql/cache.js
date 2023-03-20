@@ -81,7 +81,7 @@ export function getGraphqlCacheKey(req) {
       }
       return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
     case 'BudgetSectionWithHost':
-      if (!checkSupportedVariables(req, ['slug', 'limit', 'hostSlug', 'kind'])) {
+      if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
         return;
       }
       if (req.body.variables.limit !== 3) {

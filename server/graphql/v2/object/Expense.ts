@@ -26,6 +26,7 @@ import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
 import ExpensePermissions from './ExpensePermissions';
 import ExpenseQuote from './ExpenseQuote';
+import { Host } from './Host';
 import { Location } from './Location';
 import PayoutMethod from './PayoutMethod';
 import RecurringExpense from './RecurringExpense';
@@ -240,7 +241,7 @@ const Expense = new GraphQLObjectType({
         },
       },
       host: {
-        type: Account,
+        type: Host,
         description: 'The account from where the expense was paid',
         async resolve(expense, _, req) {
           if (expense.HostCollectiveId) {
@@ -392,6 +393,15 @@ const Expense = new GraphQLObjectType({
         async resolve(expense, _, req) {
           if (await ExpenseLib.canSeeExpenseSecurityChecks(req, expense)) {
             return checkExpense(expense);
+          }
+        },
+      },
+      customData: {
+        type: GraphQLJSON,
+        description: 'Custom data for this expense',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseCustomData(req, expense)) {
+            return expense.data?.customData || null;
           }
         },
       },

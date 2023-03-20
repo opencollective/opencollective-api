@@ -27,7 +27,8 @@
     "apolloEngineAPIKeyV2": "APOLLO_ENGINE_API_KEY_V2",
     "cache": {
       "enabled": "GRAPHQL_CACHE_ENABLED",
-      "ttl": "GRAPHQL_CACHE_TTL"
+      "ttl": "GRAPHQL_CACHE_TTL",
+      "minExecutionTimeToCache": "GRAPHQL_CACHE_MIN_EXECUTION_TIME_TO_CACHE"
     }
   },
   "memcache": {

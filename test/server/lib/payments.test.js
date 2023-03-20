@@ -327,12 +327,10 @@ describe('server/lib/payments', () => {
               expect(subscription).to.have.property('currency', CURRENCY);
             }));
 
-          it('successfully sends out an email to donor', done => {
-            setTimeout(() => {
-              expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
-              expect(emailSendSpy.lastCall.args[1]).to.equal(user2.email);
-              done();
-            }, 80);
+          it('successfully sends out an email to donor', async () => {
+            await utils.waitForCondition(() => emailSendSpy.callCount > 0);
+            expect(emailSendSpy.lastCall.args[0]).to.equal(activities.ORDER_THANKYOU);
+            expect(emailSendSpy.lastCall.args[1]).to.equal(user2.email);
           });
         });
       });

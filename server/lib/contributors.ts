@@ -50,7 +50,7 @@ export interface ContributorsCacheEntry {
 type ContributorsList = Array<Contributor>;
 
 /** Time in seconds before contributors cache for a collective expires */
-const CACHE_VALIDITY = 3600; // 1h
+const CACHE_VALIDITY = 60 * 60 * 12; // 12 hours
 
 /** Returns the contributors cache key for this collective */
 const getCacheKey = (collectiveId: number): string => {
