@@ -27,7 +27,7 @@ const updateCollective = async (collective, newInfo, transaction) => {
   }
 
   if (newInfo.location) {
-    await collective.setLocation(newInfo.location, { transaction });
+    await collective.setLocation(newInfo.location, transaction);
   }
 
   return isEmpty(fieldsToUpdate) ? collective : collective.update(fieldsToUpdate, { transaction });
@@ -98,7 +98,7 @@ export const getOrCreateGuestProfile = async (
         { transaction },
       );
       if (location) {
-        await collective.setLocation(location, { transaction });
+        await collective.setLocation(location, transaction);
       }
     }
 

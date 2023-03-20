@@ -1872,7 +1872,7 @@ class Collective extends Model<
       const { name, country, lat, long, structured } = locationInput;
       let { address } = locationInput;
 
-      // Set Collective.countryISO. TODO: refactor
+      // Set Collective.countryISO
       this.countryISO = country;
       this.save();
 
