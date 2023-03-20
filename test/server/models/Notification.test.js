@@ -328,6 +328,8 @@ describe('server/models/Notification', () => {
         tag: 'webpack would love to be hosted by host',
       });
 
+      await collective.update({ isActive: true, approvedAt: new Date() });
+
       emailSendMessageSpy.resetHistory();
     });
 

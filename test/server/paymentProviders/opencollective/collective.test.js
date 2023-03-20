@@ -77,6 +77,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         name: 'Host 1',
         currency: 'USD',
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (host1 = c)),
     );
 
@@ -85,6 +86,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         name: 'Host 2',
         currency: 'USD',
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (host2 = c)),
     );
 
@@ -93,6 +95,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         name: 'Host 3',
         currency: 'EUR',
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (host3 = c)),
     );
 
@@ -102,6 +105,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         currency: 'USD',
         HostCollectiveId: host1.id,
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (collective1 = c)),
     );
 
@@ -111,6 +115,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         currency: 'USD',
         HostCollectiveId: host1.id,
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (collective2 = c)),
     );
 
@@ -120,6 +125,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         currency: 'USD',
         HostCollectiveId: host2.id,
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (collective3 = c)),
     );
 
@@ -129,6 +135,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         currency: 'USD',
         HostCollectiveId: host3.id,
         isActive: true,
+        approvedAt: new Date(),
       }).then(c => (collective5 = c)),
     );
 
@@ -495,6 +502,7 @@ describe('server/paymentProviders/opencollective/collective', () => {
         currency: 'USD',
         HostCollectiveId: host.id,
         isActive: true,
+        approvedAt: new Date(),
         type: 'COLLECTIVE',
         CreatedByUserId: user.id,
       };

@@ -515,6 +515,21 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         config.captcha.enabled = captchaDefaultValue;
       });
     });
+
+    describe('Common checks', () => {
+      it('collective must be approved by fiscal host', async () => {
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+        const fromUser = await fakeUser();
+        const orderData = { ...validOrderParams, toAccount: { legacyId: collective.id } };
+
+        const result = await callCreateOrder({ order: orderData }, fromUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          'This collective has no host and cannot accept financial contributions at this time.',
+        );
+      });
+    });
   });
 
   describe('moveOrders', () => {

@@ -132,6 +132,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'collective1',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective1 = c)),
       );
       before('creates User 1', () =>
@@ -249,6 +250,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'collective1',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective1 = c)),
       );
       before('create a credit card payment method', () =>
@@ -332,6 +334,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'Host 1',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => {
           host1 = c;
           // Create stripe connected account to host
@@ -345,6 +348,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           HostCollectiveId: host1.id,
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective1 = c)),
       );
       before('create collective2', () =>
@@ -353,6 +357,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           HostCollectiveId: host1.id,
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective2 = c)),
       );
 
@@ -596,6 +601,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'Test HOST',
           currency: CURRENCY,
           isActive: true,
+          approvedAt: new Date(),
         });
         await store.stripeConnectedAccount(hostCollective.id);
       });
@@ -625,6 +631,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'Test Collective',
           currency: CURRENCY,
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (targetCollective = c));
         await targetCollective.addHost(hostCollective, user, { shouldAutomaticallyApprove: true });
       });
@@ -683,6 +690,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'collective1',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective1 = c)),
       );
       before('create collective2(currency USD, No Host)', () =>
@@ -690,6 +698,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'collective2',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective2 = c)),
       );
       before('creates User 1', () =>
@@ -784,6 +793,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           currency: 'USD',
           image: 'https://cldup.com/rdmBCmH20l.png',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => (collective1 = c)),
       );
 
@@ -941,6 +951,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'Host 1',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => {
           host1 = c;
           // Create stripe connected account to host
@@ -952,6 +963,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'Host 2',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
         }).then(c => {
           host2 = c;
           // Create stripe connected account to host
@@ -963,6 +975,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'collective1',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
           tags: ['open source'],
         }).then(c => (collective1 = c)),
       );
@@ -971,6 +984,7 @@ describe('server/paymentProviders/opencollective/giftcard', () => {
           name: 'collective2',
           currency: 'USD',
           isActive: true,
+          approvedAt: new Date(),
           tags: ['meetup'],
         }).then(c => (collective2 = c)),
       );

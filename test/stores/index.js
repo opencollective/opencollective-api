@@ -165,6 +165,7 @@ export async function newCollectiveWithHost(name, currency, hostCurrency, hostFe
   await collective.addHost(hostCollective, hostAdmin);
   // We activate the collective
   collective.isActive = true;
+  collective.approvedAt = new Date();
   // when adding the host, the collective.currency becomes the currency of the host
   // so if we explicitly want a different currency for the collective, we need to update it again
   if (currency !== hostCurrency) {

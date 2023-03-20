@@ -40,6 +40,7 @@ describe('server/paymentProviders/opencollective/manual', () => {
       currency: 'USD',
       HostCollectiveId: host.id,
       isActive: true,
+      approvedAt: new Date(),
       hostFeePercent,
     });
   });
