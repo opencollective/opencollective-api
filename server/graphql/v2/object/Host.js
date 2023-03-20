@@ -20,6 +20,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
+import sequelize from '../../../lib/sequelize';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -535,7 +536,7 @@ export const Host = new GraphQLObjectType({
           }
           const where = {
             HostCollectiveId: host.id,
-            kind: TransactionKind.CONTRIBUTION,
+            kind: [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS],
             type: TransactionTypes.CREDIT,
             isRefund: false,
             RefundTransactionId: null,
@@ -555,25 +556,36 @@ export const Host = new GraphQLObjectType({
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
-          const distinct = { distinct: true, col: 'OrderId' };
+          const contributionsCountPromise = models.Transaction.findAll({
+            attributes: [
+              [
+                sequelize.literal(`CASE WHEN "Order"."interval" IS NOT NULL THEN 'recurring' ELSE 'one-time' END`),
+                'label',
+              ],
+              [sequelize.literal(`COUNT(*)`), 'count'],
+              [sequelize.literal(`COUNT(DISTINCT "Order"."id")`), 'countDistinct'],
+            ],
+            where,
+            include: [{ model: models.Order, attributes: [] }],
+            group: ['label'],
+            raw: true,
+          });
 
           return {
             contributionsCount: () =>
-              models.Transaction.count({
-                where,
-              }),
+              contributionsCountPromise.then(results => results.reduce((total, result) => total + result.count, 0)),
             oneTimeContributionsCount: () =>
-              models.Transaction.count({
-                where,
-                include: [{ model: models.Order, where: { interval: null } }],
-                ...distinct,
-              }),
+              contributionsCountPromise.then(results =>
+                results
+                  .filter(result => result.label === 'one-time')
+                  .reduce((total, result) => total + result.countDistinct, 0),
+              ),
             recurringContributionsCount: () =>
-              models.Transaction.count({
-                where,
-                include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
-                ...distinct,
-              }),
+              contributionsCountPromise.then(results =>
+                results
+                  .filter(result => result.label === 'recurring')
+                  .reduce((total, result) => total + result.countDistinct, 0),
+              ),
             dailyAverageIncomeAmount: async () => {
               const contributionsAmountSum = await models.Transaction.sum('amount', { where });
               const dailyAverageIncomeAmount = contributionsAmountSum / numberOfDays;
