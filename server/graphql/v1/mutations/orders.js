@@ -253,19 +253,17 @@ export const deletePaymentMethod = async (collective, fingerprint, transaction) 
 };
 
 export const updateExistingOrdersToNewPaymentMethod = async (paymentMethod, oldPaymentMethod, transaction) => {
-  if (paymentMethod && oldPaymentMethod) {
-    // Update all existing orders with the new payment method
-    await models.Order.update(
-      { PaymentMethodId: paymentMethod.id },
-      {
-        where: {
-          PaymentMethodId: oldPaymentMethod.id,
-          status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
-        },
-        transaction,
+  // Update all existing orders with the new payment method
+  await models.Order.update(
+    { PaymentMethodId: paymentMethod.id },
+    {
+      where: {
+        PaymentMethodId: oldPaymentMethod.id,
+        status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
       },
-    );
-  }
+      transaction,
+    },
+  );
 };
 
 export async function createOrder(order, req) {
@@ -625,7 +623,9 @@ export async function createOrder(order, req) {
               transaction,
             );
 
-            await updateExistingOrdersToNewPaymentMethod(orderCreated.paymentMethod, oldPaymentMethod, transaction);
+            if (orderCreated.paymentMethod && oldPaymentMethod) {
+              await updateExistingOrdersToNewPaymentMethod(orderCreated.paymentMethod, oldPaymentMethod, transaction);
+            }
           });
         }
       }

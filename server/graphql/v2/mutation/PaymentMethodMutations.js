@@ -90,7 +90,9 @@ const addCreditCard = {
 
       pm = await models.PaymentMethod.create(newPaymentMethodData, { transaction });
 
-      await updateExistingOrdersToNewPaymentMethod(pm, oldPaymentMethod, transaction);
+      if (pm && oldPaymentMethod) {
+        await updateExistingOrdersToNewPaymentMethod(pm, oldPaymentMethod, transaction);
+      }
     });
 
     try {

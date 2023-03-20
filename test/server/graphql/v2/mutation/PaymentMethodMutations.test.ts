@@ -4,7 +4,7 @@ import { createSandbox } from 'sinon';
 
 import OrderStatuses from '../../../../../server/constants/order_status';
 import models, { PaymentMethod } from '../../../../../server/models';
-import { fakeCollective, fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
+import { fakeOrder, fakeUser } from '../../../../test-helpers/fake-data';
 import { graphqlQueryV2 } from '../../../../utils';
 import * as utils from '../../../../utils';
 
@@ -30,14 +30,12 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
       }
     `;
 
-    let user, collective, order, sandbox, result;
+    let user, order, sandbox, result;
 
     before(async () => {
+      await utils.resetTestDB();
       sandbox = createSandbox();
       user = await fakeUser();
-      collective = await fakeCollective({
-        admin: user.collective,
-      });
       result = await graphqlQueryV2(
         addCreditCardMutation,
         {
@@ -45,7 +43,7 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
             token: 'tok_visa',
           },
           name: '1990',
-          account: { legacyId: collective.id },
+          account: { legacyId: user.id },
         },
         user,
       );
@@ -73,7 +71,7 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
             token: 'tok_visa',
           },
           name: '1993',
-          account: { legacyId: collective.id },
+          account: { legacyId: user.id },
         },
         user,
       );
@@ -100,7 +98,7 @@ describe('server/graphql/v2/mutation/PaymentMethodMutations', () => {
             token: 'tok_visa',
           },
           name: '1995',
-          account: { legacyId: collective.id },
+          account: { legacyId: user.id },
         },
         user,
       );
