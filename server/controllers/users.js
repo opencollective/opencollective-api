@@ -6,6 +6,7 @@ import { BadRequest } from '../graphql/errors';
 import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import errors from '../lib/errors';
+import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
 import { verifyTwoFactorAuthenticationRecoveryCode } from '../lib/two-factor-authentication';
@@ -148,20 +149,44 @@ export const signin = async (req, res, next) => {
 };
 
 /**
- * Receive a login JWT and generate another one.
- * This can be used right after the first login.
- * Also check if the user has two-factor authentication
+ * Exchange a login JWT (received by email).
+
+ * A) Check if the user has two-factor authentication
  * enabled on their account, and if they do, we send
  * back a JWT with scope 'twofactorauth' to trigger
  * the 2FA flow on the frontend
+ *
+ * B) If no 2FA, we send back a "session" token
  */
-export const updateToken = async (req, res) => {
+export const exchangeLoginToken = async (req, res, next) => {
+  const rateLimit = new RateLimit(
+    `user_exchange_login_token_ip_${req.ip}`,
+    config.limits.userExchangeLoginTokenPerHourPerIp,
+    ONE_HOUR_IN_SECONDS,
+    true,
+  );
+  if (!(await rateLimit.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
+  // This is already checked in checkJwtScope but lets' make it clear
+  if (req.jwtPayload?.scope !== 'login') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: login)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  // If a guest signs in, it's safe to directly confirm its account
+  if (!req.remoteUser.confirmedAt) {
+    await confirmGuestAccount(req.remoteUser);
+  }
+
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
   if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
-    const token = req.remoteUser.jwt(
-      { scope: 'twofactorauth', sessionId: req.jwtPayload?.sessionId },
-      auth.TOKEN_EXPIRATION_2FA,
-    );
+    const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
     res.send({ token });
   } else {
     const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
@@ -170,9 +195,52 @@ export const updateToken = async (req, res) => {
 };
 
 /**
+ * Exchange a session JWT against a fresh one with extended expiration
+ */
+export const refreshToken = async (req, res, next) => {
+  const rateLimit = new RateLimit(
+    `user_refresh_token_ip_${req.ip}`,
+    config.limits.userRefreshTokenPerHourPerIp,
+    ONE_HOUR_IN_SECONDS,
+    true,
+  );
+  if (!(await rateLimit.registerCall())) {
+    return res.status(403).send({
+      error: { message: 'Rate limit exceeded' },
+    });
+  }
+
+  if (req.personalToken) {
+    const errorMessage = `Cannot use this token on this route (personal token)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  if (req.jwtPayload?.scope && req.jwtPayload?.scope !== 'session') {
+    const errorMessage = `Cannot use this token on this route (scope: ${req.jwtPayload?.scope}, expected: session)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  // TODO: not necessary once all oAuth tokens have the scope "oauth"
+  if (req.jwtPayload?.access_token) {
+    const errorMessage = `Cannot use this token on this route (oAuth access_token)`;
+    return next(new BadRequest(errorMessage));
+  }
+
+  const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
+  res.send({ token });
+};
+
+/**
  * Verify the 2FA code or recovery code the user has entered when logging in and send back another JWT.
  */
 export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
+  if (req.jwtPayload?.scope !== 'twofactorauth') {
+    const errorMessage = `Cannot use this token on this route (scope: ${
+      req.jwtPayload?.scope || 'session'
+    }, expected: twofactorauth)`;
+    return next(new BadRequest(errorMessage));
+  }
+
   const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode } = req.body;
 
   const userId = Number(req.jwtPayload.sub);

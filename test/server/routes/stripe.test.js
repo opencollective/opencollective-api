@@ -46,7 +46,7 @@ describe('server/routes/stripe', () => {
   describe('authorize', () => {
     it('should return an error if the user is not logged in', done => {
       request(expressApp)
-        .get('/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}')
+        .get(`/connected-accounts/stripe/oauthUrl?api_key=${application.api_key}`)
         .expect(401)
         .end(done);
     });

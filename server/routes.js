@@ -105,13 +105,16 @@ export default async app => {
   }
 
   /**
-   * User reset password or new token flow (no jwt verification) or 2FA
+   * Sign In related features
    */
   app.post('/users/signin', required('user'), users.signin);
   // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
-  app.post('/users/update-token', authentication.mustBeLoggedIn, users.updateToken);
+  app.post('/users/update-token', authentication.mustBeLoggedIn, users.exchangeLoginToken); // deprecated
+  app.post('/users/exchange-login-token', authentication.mustBeLoggedIn, users.exchangeLoginToken);
+  // check JWT and send an extended JWT back
+  app.post('/users/refresh-token', authentication.mustBeLoggedIn, users.refreshToken);
   // check the 2FA code against the token in the db to let 2FA-enabled users log in
-  app.post('/users/two-factor-auth', authentication.checkTwoFactorAuthJWT, users.twoFactorAuthAndUpdateToken);
+  app.post('/users/two-factor-auth', authentication.mustBeLoggedIn, users.twoFactorAuthAndUpdateToken);
 
   /**
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
@@ -177,6 +180,10 @@ export default async app => {
         logger.warn(errorMessage);
         return next(new errors.Unauthorized(errorMessage));
       }
+    }
+
+    if (req.personalToken) {
+      logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
     }
     next();
   });
@@ -284,12 +291,7 @@ export default async app => {
     noCache,
     authentication.authenticateService,
   );
-  app.get(
-    '/connected-accounts/:service/verify',
-    noCache,
-    authentication.parseJwtNoExpiryCheck,
-    connectedAccounts.verify,
-  );
+  app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
   app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);
