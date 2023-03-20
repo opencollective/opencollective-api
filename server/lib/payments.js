@@ -655,7 +655,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
         EventCollectiveId: collective.id,
         UserId: user.id,
         recipient: { name: fromCollective.name },
-        order: order.activity,
+        order: order.info,
         tier: order.tier.info,
         host: host ? host.info : {},
         customMessage,
@@ -664,8 +664,8 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
   } else {
     // normal order
     const data = {
-      order: order.activity,
-      transaction: pick(transaction, ['createdAt', 'uuid']),
+      order: order.info,
+      transaction: transaction ? transaction.info : null,
       user: user.info,
       collective: collective.info,
       host: host ? host.info : {},
