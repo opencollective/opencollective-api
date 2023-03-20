@@ -124,8 +124,8 @@ export const loaders = req => {
       attributes: ['HostCollectiveId', [sequelize.fn('COUNT', sequelize.col('id')), 'count']],
       group: ['HostCollectiveId'],
       where: {
-        HostCollectiveId: { [Op.in]: collectiveIds },
-        type: CollectiveType.COLLECTIVE,
+        HostCollectiveId: collectiveIds,
+        type: [CollectiveType.COLLECTIVE, CollectiveType.FUND],
         isActive: true,
       },
     });
