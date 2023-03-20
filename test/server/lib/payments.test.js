@@ -133,10 +133,11 @@ describe('server/lib/payments', () => {
       currency: CURRENCY,
       TierId: tier.id,
     });
+
     order = await o.setPaymentMethod({ token: STRIPE_TOKEN });
   });
-  beforeEach('add host to collective', () => collective.addHost(host.collective, host));
-  beforeEach('add host to collective2', () => collective2.addHost(host.collective, host));
+  beforeEach('add host to collective', () => collective.addHost(host, user, { shouldAutomaticallyApprove: true }));
+  beforeEach('add host to collective2', () => collective2.addHost(host, user, { shouldAutomaticallyApprove: true }));
 
   beforeEach('create stripe account', async () => {
     await models.ConnectedAccount.create({

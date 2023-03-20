@@ -81,7 +81,7 @@ const setupTestData = async (
     plan: 'grow-plan-2021', // Use a plan with 15% host share
   });
   await hostAdmin.populateRoles();
-  await host.update({ HostCollectiveId: host.id, isActive: true });
+  await host.update({ HostCollectiveId: host.id, isActive: true, approvedAt: new Date() });
   const collective = await fakeCollective({
     HostCollectiveId: host.id,
     name: 'ESLint',

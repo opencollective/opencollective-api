@@ -54,6 +54,7 @@ describe('server/graphql/v1/paymentMethods', () => {
       name: 'tipbox',
       type: 'COLLECTIVE',
       isActive: true,
+      approvedAt: new Date(),
       currency: 'EUR',
       hostFeePercent: 5,
       HostCollectiveId: host.id,
