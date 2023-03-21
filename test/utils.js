@@ -98,11 +98,11 @@ export const sleep = async (timeout = 200) =>
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
- * @param {*} options: { timeout, delay }
+ * @param {*} options: { timeout, delay, step, tag }
  * @returns {Promise}
  */
-export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
-  new Promise(resolve => {
+export const waitForCondition = (cond, { timeout = 10000, delay = 0, step = 100, tag } = {}) =>
+  new Promise((resolve, reject) => {
     let hasConditionBeenMet = false;
     setTimeout(() => {
       if (hasConditionBeenMet) {
@@ -110,15 +110,15 @@ export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =
       }
       console.log('>>> waitForCondition Timeout Error');
       console.trace();
-      throw new Error('Timeout waiting for condition', cond);
-    }, options.timeout || 10000);
+      reject(new Error('Timeout waiting for condition', cond));
+    }, timeout);
     const isConditionMet = () => {
       hasConditionBeenMet = Boolean(cond());
-      debugWaitForCondition(options.tag, `Has condition been met?`, hasConditionBeenMet);
+      debugWaitForCondition(tag, `Has condition been met?`, hasConditionBeenMet);
       if (hasConditionBeenMet) {
-        return setTimeout(resolve, options.delay || 0);
+        return setTimeout(resolve, delay);
       } else {
-        return setTimeout(isConditionMet, options.step || 100);
+        return setTimeout(isConditionMet, step);
       }
     };
     isConditionMet();
