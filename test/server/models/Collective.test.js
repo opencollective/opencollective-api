@@ -306,6 +306,7 @@ describe('server/models/Collective', () => {
         hostFeePercent: 0,
         type: 'ORGANIZATION',
         currency: 'EUR',
+        isHostAccount: true,
         CreatedByUserId: user1.id,
       });
       await models.Member.create({
@@ -1318,17 +1319,21 @@ describe('server/models/Collective', () => {
   describe('location', () => {
     it('validates latitude/longitude', async () => {
       // Invalid
-      await expect(fakeCollective({ geoLocationLatLong: 42 })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: 'nope' })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: {} })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point' } })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: 42 } })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55] } })).to.be.rejected;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'TOTO', coordinates: [55, -66] } })).to.be.rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: 42 } })).to.be.rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: 'nope' } })).to.be.rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: {} } })).to.be.rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point' } } })).to.be.rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point', coordinates: 42 } } })).to.be
+        .rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point', coordinates: [55] } } })).to.be
+        .rejected;
+      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'TOTO', coordinates: [55, -66] } } })).to.be
+        .rejected;
 
       // Valid
-      await expect(fakeCollective({ geoLocationLatLong: null })).to.be.fulfilled;
-      await expect(fakeCollective({ geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } })).to.be.fulfilled;
+      await expect(fakeCollective({ location: { geoLocationLatLong: null } })).to.be.fulfilled;
+      await expect(fakeCollective({ location: { geoLocationLatLong: { type: 'Point', coordinates: [55, -66] } } })).to
+        .be.fulfilled;
     });
   });
 

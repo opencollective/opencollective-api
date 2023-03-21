@@ -293,7 +293,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       const user = await fakeUser();
       const collectiveAdmin = await fakeUser();
       const collective = await fakeCollective({ admin: collectiveAdmin.collective });
-      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, address: null });
+      const payee = await fakeCollective({ type: 'ORGANIZATION', admin: user.collective, location: { address: null } });
       const expenseData = { ...getValidExpenseData(), payee: { legacyId: payee.id } };
 
       const result = await graphqlQueryV2(
@@ -314,9 +314,10 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(createdExpense.payeeLocation).to.deep.equal(expenseData.payeeLocation);
       expect(createdExpense.customData.myCustomField).to.eq('myCustomValue');
 
-      // Updates collective location
-      await payee.reload();
-      expect(payee.address).to.eq('123 Potatoes street');
+      // Should have updated collective's location
+      await payee.reload({ include: [{ association: 'location' }] });
+      expect(payee.location.address).to.eq('123 Potatoes street');
+      expect(payee.location.country).to.eq('BE');
       expect(payee.countryISO).to.eq('BE');
 
       // And then an email should have been sent to the admin. This
@@ -334,7 +335,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it("use collective's location if not provided", async () => {
-      const user = await fakeUser({}, { address: '123 Potatoes Street', countryISO: 'BE' });
+      const user = await fakeUser({}, { location: { address: '123 Potatoes Street', country: 'BE' } });
       const collective = await fakeCollective();
       const expenseData = {
         ...getValidExpenseData(),

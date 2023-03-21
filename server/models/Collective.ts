@@ -1893,7 +1893,7 @@ class Collective extends Model<
             CollectiveId: this.id,
             name: name || null,
             country: country || null,
-            geoLocationLatLong: lat && long ? { coordinates: [lat, long] } : null,
+            geoLocationLatLong: lat || long ? { type: 'Point', coordinates: [lat, long] } : null,
             address: address || null,
             structured,
           },

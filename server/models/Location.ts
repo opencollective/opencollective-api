@@ -62,7 +62,7 @@ Location.init(
         validate(data) {
           if (!data) {
             return;
-          } else if (!data.coordinates || data.coordinates.length !== 2) {
+          } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
             throw new Error('Invalid GeoLocation');
           } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
             throw new Error('Invalid latitude/longitude');

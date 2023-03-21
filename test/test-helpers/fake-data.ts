@@ -9,7 +9,7 @@
 import config from 'config';
 import { get, padStart, sample } from 'lodash';
 import moment from 'moment';
-import type { CreateOptions, InferCreationAttributes } from 'sequelize';
+import type { Attributes, CreateOptions, InferAttributes, InferCreationAttributes } from 'sequelize';
 import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
@@ -131,7 +131,7 @@ export const fakeHostApplication = async data => {
  */
 export const fakeCollective = async (
   collectiveData: Partial<InferCreationAttributes<Collective>> & { admin?: User | { id: number } } = {},
-  sequelizeParams: CreateOptions = {},
+  sequelizeParams: CreateOptions<Attributes<Collective>> = {},
 ) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
   if (!collectiveData.CreatedByUserId) {
@@ -140,8 +140,6 @@ export const fakeCollective = async (
   if (collectiveData.HostCollectiveId === undefined) {
     collectiveData.HostCollectiveId = (await fakeHost()).id;
   }
-
-  const { location, ...restCollectiveData } = collectiveData;
   const collective = await models.Collective.create(
     {
       type,
@@ -155,14 +153,10 @@ export const fakeCollective = async (
       tags: [randStr(), randStr()],
       isActive: true,
       approvedAt: collectiveData.HostCollectiveId ? new Date() : null,
-      ...restCollectiveData,
+      ...collectiveData,
     },
-    sequelizeParams,
+    { ...sequelizeParams, ...(collectiveData?.location && { include: [{ association: 'location' }] }) },
   );
-
-  if (location) {
-    await collective.setLocation(location, sequelizeParams?.transaction);
-  }
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
   if (collective.host) {
