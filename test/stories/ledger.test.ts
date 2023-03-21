@@ -251,7 +251,7 @@ describe('test/stories/ledger', () => {
       expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 (tip) - 200 (processor fee) - 68 (host fee share)
 
       // Check host metrics pre-refund
-      let hostMetrics = await host.getHostMetrics();
+      let hostMetrics = await host.getResolvedHostMetrics();
       expect(hostMetrics).to.deep.equal({
         hostFees: 450,
         platformFees: 0,
@@ -284,7 +284,7 @@ describe('test/stories/ledger', () => {
       expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(1068);
 
       // Check host metrics
-      hostMetrics = await host.getHostMetrics();
+      hostMetrics = await host.getResolvedHostMetrics();
       expect(hostMetrics).to.deep.equal({
         hostFees: 0,
         platformFees: 0,
@@ -372,7 +372,7 @@ describe('test/stories/ledger', () => {
       expect(await host.getTotalMoneyManaged()).to.eq(8732); // 10000 - 1000 - 200 - 68
 
       // Check host metrics pre-refund
-      let hostMetrics = await host.getHostMetrics();
+      let hostMetrics = await host.getResolvedHostMetrics();
       expect(hostMetrics).to.deep.equal({
         hostFees: 450,
         platformFees: 0,
@@ -405,7 +405,7 @@ describe('test/stories/ledger', () => {
       expect(await ocInc.getBalanceWithBlockedFunds()).to.eq(Math.round(1068 * hostToPlatformFxRate));
 
       // Check host metrics
-      hostMetrics = await host.getHostMetrics();
+      hostMetrics = await host.getResolvedHostMetrics();
       expect(hostMetrics).to.deep.equal({
         hostFees: 0,
         platformFees: 0,
@@ -500,7 +500,7 @@ describe('test/stories/ledger', () => {
       );
 
       // Check host metrics pre-refund
-      let hostMetrics = await host.getHostMetrics();
+      let hostMetrics = await host.getResolvedHostMetrics();
       expect(hostMetrics).to.deep.equal({
         hostFees: expectedHostFeeInHostCurrency,
         platformFees: 0,
@@ -542,7 +542,7 @@ describe('test/stories/ledger', () => {
       );
 
       // Check host metrics
-      hostMetrics = await host.getHostMetrics();
+      hostMetrics = await host.getResolvedHostMetrics();
       expect(hostMetrics).to.deep.equal({
         hostFees: 0,
         platformFees: 0,

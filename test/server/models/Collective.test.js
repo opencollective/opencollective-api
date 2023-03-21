@@ -1277,7 +1277,7 @@ describe('server/models/Collective', () => {
         CreatedByUserId: user.id,
       });
 
-      metrics = await gbpHost.getHostMetrics(lastMonth);
+      metrics = await gbpHost.getResolvedHostMetrics(lastMonth);
     });
 
     it('returns acurate metrics for requested month', async () => {

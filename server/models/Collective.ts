@@ -93,7 +93,7 @@ import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, getDomain, isPromise, md5 } from '../lib/utils';
 
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
@@ -3184,6 +3184,25 @@ class Collective extends Model<
       // We don't support this property anymore
       settledHostFeeShare: { value: 0, currency: this.currency },
     };
+  };
+
+  // For compatibility with some tests
+  getResolvedHostMetrics = async function (from, to, collectiveIds) {
+    const metrics = this.getHostMetrics(from, to, collectiveIds);
+
+    const resolvedMetrics = {};
+    for (const key of Object.keys(metrics)) {
+      if (['hostFeeSharePercent'].includes(key)) {
+        resolvedMetrics[key] = metrics[key];
+      } else if (['platformFees', 'pendingPlatformFees', 'settledHostFeeShare'].includes(key)) {
+        resolvedMetrics[key] = metrics[key].value;
+      } else {
+        const amount = await metrics[key]();
+        const value = isPromise(amount.value) ? await amount.value : amount.value;
+        resolvedMetrics[key] = value;
+      }
+    }
+    return resolvedMetrics;
   };
 
   setPolicies = async function (policies) {
