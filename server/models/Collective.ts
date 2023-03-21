@@ -2989,7 +2989,12 @@ class Collective extends Model<
       return Promise.resolve(null);
     }
     return models.Collective.count({
-      where: { HostCollectiveId: this.id, type: types.COLLECTIVE, isActive: true },
+      where: {
+        HostCollectiveId: this.id,
+        type: [types.COLLECTIVE, types.FUND],
+        isActive: true,
+        approvedAt: { [Op.not]: null },
+      },
     });
   };
 
