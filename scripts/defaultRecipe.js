@@ -11,46 +11,19 @@ const entries = [
       {
         model: 'Collective',
         on: 'HostCollectiveId',
-        limit: 20,
+        limit: 30,
+        where: { isActive: true },
+        order: [['id', 'DESC']],
         dependencies: [
           {
             model: 'Order',
             limit: 50,
-            dependencies: [
-              'Transaction',
-              {
-                model: 'Collective',
-                from: 'CollectiveId',
-              },
-              {
-                model: 'Collective',
-                from: 'FromCollectiveId',
-              },
-              {
-                model: 'Subscription',
-                from: 'SubscriptionId',
-              },
-            ],
+            order: [['id', 'DESC']],
           },
           {
             model: 'Expense',
             limit: 50,
-            dependencies: [
-              {
-                model: 'Collective',
-                from: 'CollectiveId',
-              },
-              {
-                model: 'Collective',
-                from: 'FromCollectiveId',
-              },
-              {
-                model: 'RecurringExpense',
-                from: 'RecurringExpenseId',
-              },
-              'Transaction',
-              'ExpenseItem',
-            ],
+            order: [['id', 'DESC']],
           },
           'Tier',
         ],
@@ -59,7 +32,7 @@ const entries = [
         model: 'Member',
         on: 'CollectiveId',
         where: {
-          role: 'ADMIN',
+          role: ['ADMIN', 'MEMBER', 'HOST'],
         },
         dependencies: [
           {
@@ -73,7 +46,40 @@ const entries = [
 ];
 
 const defaultDependencies = {
-  Collective: ['User', 'PaymentMethod', 'PayoutMethod', 'ConnectedAccount'],
+  Collective: ['User', 'ConnectedAccount'],
+  Expense: [
+    'Transaction',
+    'ExpenseItem',
+    'PayoutMethod',
+    {
+      model: 'Collective',
+      from: 'CollectiveId',
+    },
+    {
+      model: 'Collective',
+      from: 'FromCollectiveId',
+    },
+    {
+      model: 'RecurringExpense',
+      from: 'RecurringExpenseId',
+    },
+  ],
+  Order: [
+    'Transaction',
+    'PaymentMethod',
+    {
+      model: 'Collective',
+      from: 'CollectiveId',
+    },
+    {
+      model: 'Collective',
+      from: 'FromCollectiveId',
+    },
+    {
+      model: 'Subscription',
+      from: 'SubscriptionId',
+    },
+  ],
 };
 
 // eslint-disable-next-line import/no-commonjs
