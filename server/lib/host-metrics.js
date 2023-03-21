@@ -112,7 +112,7 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
   if (groupTimeUnit) {
     return convertCurrencyForTimeSeries(results, host.currency);
   } else {
-    return { value: computeTotal(results, host.currency), currency: host.currency };
+    return { value: await computeTotal(results, host.currency), currency: host.currency };
   }
 }
 
@@ -153,7 +153,7 @@ GROUP BY t."hostCurrency"`,
     },
   );
 
-  return { value: computeTotal(results, host.currency), currency: host.currency };
+  return { value: await computeTotal(results, host.currency), currency: host.currency };
 }
 
 export async function getHostFees(host, { startDate = null, endDate = null, collectiveIds = null } = {}) {
@@ -426,7 +426,7 @@ export async function getPendingHostFeeShare(
     },
   );
 
-  return { value: computeTotal(results, host.currency), currency: host.currency };
+  return { value: await computeTotal(results, host.currency), currency: host.currency };
 }
 
 /**

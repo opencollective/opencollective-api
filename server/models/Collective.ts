@@ -93,7 +93,7 @@ import { collectiveSpamCheck, notifyTeamAboutSuspiciousCollective } from '../lib
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
-import { capitalize, formatCurrency, getDomain, isPromise, md5 } from '../lib/utils';
+import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
@@ -3198,8 +3198,8 @@ class Collective extends Model<
         resolvedMetrics[key] = metrics[key].value;
       } else {
         const amount = await metrics[key]();
-        const value = isPromise(amount.value) ? await amount.value : amount.value;
-        resolvedMetrics[key] = value;
+        // const value = isPromise(amount.value) ? await amount.value : amount.value;
+        resolvedMetrics[key] = amount.value;
       }
     }
     return resolvedMetrics;

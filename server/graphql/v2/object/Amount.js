@@ -1,7 +1,7 @@
 import { GraphQLFloat, GraphQLObjectType } from 'graphql';
 import { isNil } from 'lodash';
 
-import { isPromise } from '../../../lib/utils';
+// import { isPromise } from '../../../lib/utils';
 import { Currency } from '../enum/Currency';
 
 import CurrencyExchangeRate from './CurrencyExchangeRate';
@@ -13,7 +13,8 @@ export const Amount = new GraphQLObjectType({
     value: {
       type: GraphQLFloat,
       async resolve(amount) {
-        const value = isPromise(amount.value) ? await amount.value : amount.value;
+        // const value = isPromise(amount.value) ? await amount.value : amount.value;
+        const value = amount.value;
         if (isNil(value)) {
           return null;
         } else {
@@ -30,7 +31,8 @@ export const Amount = new GraphQLObjectType({
     valueInCents: {
       type: GraphQLFloat,
       async resolve(amount) {
-        const value = isPromise(amount.value) ? await amount.value : amount.value;
+        // const value = isPromise(amount.value) ? await amount.value : amount.value;
+        const value = amount.value;
         if (isNil(value)) {
           return null;
         } else {

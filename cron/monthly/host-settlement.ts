@@ -106,7 +106,7 @@ AND t."createdAt" < :endDate`,
     if (pendingPlatformTips) {
       items.push({
         incurredAt: new Date(),
-        amount: pendingPlatformTips,
+        amount: pendingPlatformTips.value,
         description: 'Platform Tips',
       });
     }
@@ -114,7 +114,7 @@ AND t."createdAt" < :endDate`,
     if (pendingHostFeeShare) {
       items.push({
         incurredAt: new Date(),
-        amount: pendingHostFeeShare,
+        amount: pendingHostFeeShare.value,
         description: 'Shared Revenue',
       });
     }
