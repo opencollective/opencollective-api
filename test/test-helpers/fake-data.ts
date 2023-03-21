@@ -9,7 +9,7 @@
 import config from 'config';
 import { get, padStart, sample } from 'lodash';
 import moment from 'moment';
-import type { Attributes, CreateOptions, InferAttributes, InferCreationAttributes } from 'sequelize';
+import type { Attributes, CreateOptions, InferCreationAttributes } from 'sequelize';
 import speakeasy from 'speakeasy';
 import { v4 as uuid } from 'uuid';
 
