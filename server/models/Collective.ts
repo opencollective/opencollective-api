@@ -274,13 +274,13 @@ class Collective extends Model<
     return collective;
   }
 
-  static createMany = (collectives, defaultValues) => {
-    return Promise.map(collectives, u => Collective.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
-      error => {
-        logger.error(error);
-        reportErrorToSentry(error);
-      },
-    );
+  static createMany = (collectives, defaultValues, sequelizeParams) => {
+    return Promise.map(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
+      concurrency: 1,
+    }).catch(error => {
+      logger.error(error);
+      reportErrorToSentry(error);
+    });
   };
 
   static getTopBackers = async (since, until, tags, limit) => {
