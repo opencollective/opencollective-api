@@ -1,4 +1,4 @@
-import { isNull } from 'lodash';
+import { isNil } from 'lodash';
 import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
 import validator from 'validator';
 
@@ -49,7 +49,7 @@ Location.init(
       validate: {
         len: [2, 2],
         isCountryISO(value) {
-          if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
+          if (!(isNil(value) || validator.isISO31661Alpha2(value))) {
             throw new Error('Invalid Country ISO.');
           }
         },
