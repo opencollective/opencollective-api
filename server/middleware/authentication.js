@@ -346,7 +346,9 @@ export async function checkPersonalToken(req, res, next) {
       debug('Valid Personal Token (Api Key)');
       // Update lastUsedAt if lastUsedAt older than 1 minute ago
       if (!personalToken.lastUsedAt || now.diff(moment(personalToken.lastUsedAt), 'minutes') > 1) {
-        await personalToken.update({ lastUsedAt: new Date() });
+        if (!parseToBoolean(config.database.readOnly)) {
+          await personalToken.update({ lastUsedAt: new Date() });
+        }
       }
       req.personalToken = personalToken;
       const collectiveId = personalToken.CollectiveId;
