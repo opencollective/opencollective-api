@@ -1845,15 +1845,7 @@ class Collective extends Model<
   getHostedCollectives = async function (queryParams = {}) {
     return models.Collective.findAll({
       ...queryParams,
-      where: { isActive: true, HostCollectiveId: this.id },
-      includes: [
-        {
-          attributes: [],
-          association: 'members',
-          required: true,
-          where: { MemberCollectiveId: this.id, role: roles.HOST },
-        },
-      ],
+      where: { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } },
     });
   };
 

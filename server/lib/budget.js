@@ -424,7 +424,7 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   currency = currency || host.currency;
 
   if (!collectiveIds) {
-    const collectives = await host.getHostedCollectives({ attributes: ['id'] });
+    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
     collectiveIds = collectives.map(result => result.id);
     collectiveIds.push(host.id);
   }
