@@ -292,7 +292,7 @@ export async function run() {
     }
 
     const host = await models.Collective.findByPk(hostId);
-    const plan = await host.getPlan();
+    const plan = host.getPlan();
 
     const { HostName, currency } = hostTransactions[0];
 

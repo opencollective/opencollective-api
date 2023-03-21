@@ -552,3 +552,7 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
  * @returns string
  */
 export const ifStr = (condition, expression) => (condition ? expression : '');
+
+export function isPromise(obj) {
+  return !!obj && (typeof obj === 'object' || typeof obj === 'function') && typeof obj.then === 'function';
+}

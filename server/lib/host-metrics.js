@@ -112,7 +112,7 @@ GROUP BY "_currency"${timeUnitFragments.groupBy} ${timeUnitFragments.orderBy}`,
   if (groupTimeUnit) {
     return convertCurrencyForTimeSeries(results, host.currency);
   } else {
-    return computeTotal(results, host.currency);
+    return { value: computeTotal(results, host.currency), currency: host.currency };
   }
 }
 
@@ -153,15 +153,15 @@ GROUP BY t."hostCurrency"`,
     },
   );
 
-  return computeTotal(results, host.currency);
+  return { value: computeTotal(results, host.currency), currency: host.currency };
 }
 
-export async function getHostFees(host, { startDate = null, endDate = null, fromCollectiveIds = null } = {}) {
+export async function getHostFees(host, { startDate = null, endDate = null, collectiveIds = null } = {}) {
   const newResults = await sequelize.query(
     `SELECT SUM(t1."amountInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."CollectiveId" = :CollectiveId
-${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
+${collectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
 AND t1."kind" = 'HOST_FEE'
 ${startDate ? `AND t1."createdAt" >= :startDate` : ``}
 ${endDate ? `AND t1."createdAt" <= :endDate` : ``}
@@ -170,7 +170,7 @@ GROUP BY t1."hostCurrency"`,
     {
       replacements: {
         CollectiveId: host.id,
-        FromCollectiveIds: fromCollectiveIds,
+        FromCollectiveIds: collectiveIds,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
       type: sequelize.QueryTypes.SELECT,
@@ -182,7 +182,7 @@ GROUP BY t1."hostCurrency"`,
     `SELECT SUM(t1."hostFeeInHostCurrency") as "_amount", t1."hostCurrency" as "_currency"
 FROM "Transactions" as t1
 WHERE t1."HostCollectiveId" = :HostCollectiveId
-${fromCollectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
+${collectiveIds ? `AND t1."FromCollectiveId" IN (:FromCollectiveIds)` : ``}
 ${startDate ? `AND t1."createdAt" >= :startDate` : ``}
 ${endDate ? `AND t1."createdAt" <= :endDate` : ``}
 AND NOT (t1."type" = 'DEBIT' AND t1."kind" = 'ADDED_FUNDS')
@@ -191,7 +191,7 @@ GROUP BY t1."hostCurrency"`,
     {
       replacements: {
         HostCollectiveId: host.id,
-        FromCollectiveIds: fromCollectiveIds,
+        FromCollectiveIds: collectiveIds,
         ...computeDatesAsISOStrings(startDate, endDate),
       },
       type: sequelize.QueryTypes.SELECT,
@@ -207,7 +207,7 @@ GROUP BY t1."hostCurrency"`,
     total += await computeTotal(newResults, host.currency);
   }
 
-  return total;
+  return { value: total, currency: host.currency };
 }
 
 export async function getHostFeesTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {
@@ -357,7 +357,7 @@ GROUP BY t1."hostCurrency"`,
   // we're looking at the DEBIT, so it's a negative number
   total = oppositeTotal(total);
 
-  return total;
+  return { value: total, currency: host.currency };
 }
 
 export async function getHostFeeShareTimeSeries(host, { startDate = null, endDate = null, timeUnit } = {}) {
@@ -426,7 +426,7 @@ export async function getPendingHostFeeShare(
     },
   );
 
-  return computeTotal(results, host.currency);
+  return { value: computeTotal(results, host.currency), currency: host.currency };
 }
 
 /**

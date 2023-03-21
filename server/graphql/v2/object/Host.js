@@ -8,7 +8,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { find, get, isEmpty, keyBy, mapValues } from 'lodash';
+import { find, get, isEmpty, keyBy } from 'lodash';
 import moment from 'moment';
 
 import { roles } from '../../../constants';
@@ -150,9 +150,7 @@ export const Host = new GraphQLObjectType({
             });
             collectiveIds = collectives.map(collective => collective.id);
           }
-          const metrics = await host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
-          const toAmount = value => ({ value, currency: host.currency });
-          return mapValues(metrics, (value, key) => (key.includes('Percent') ? value : toAmount(value)));
+          return host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
         },
       },
       hostMetricsTimeSeries: {

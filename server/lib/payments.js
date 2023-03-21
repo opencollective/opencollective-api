@@ -961,7 +961,7 @@ export const isPlatformTipEligible = async (order, host = null) => {
 
   host = host || (await order.collective.getHostCollective());
   if (host) {
-    const plan = await host.getPlan();
+    const plan = host.getPlan();
     return plan.platformTips;
   }
 
@@ -1069,7 +1069,7 @@ export const getHostFeePercent = async (order, host = null) => {
 export const getHostFeeSharePercent = async (order, host = null) => {
   host = host || (await order.collective.getHostCollective());
 
-  const plan = await host.getPlan();
+  const plan = host.getPlan();
 
   const possibleValues = [];
 

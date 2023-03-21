@@ -3120,7 +3120,7 @@ class Collective extends Model<
     return total;
   };
 
-  getPlan = async function () {
+  getPlan = function () {
     if (this.plan) {
       const planData = plans[this.plan];
       if (planData) {
@@ -3158,53 +3158,32 @@ class Collective extends Model<
    * @param {Date} to The end date upto which the metrics should be calculated.
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
-  getHostMetrics = async function (from, to, collectiveIds) {
+  getHostMetrics = function (from, to, collectiveIds) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
+
     from = from ? moment(from) : null;
     to = to ? moment(to) : null;
 
-    const plan = await this.getPlan();
-    const hostFeeSharePercent = plan.hostFeeSharePercent || 0;
+    const plan = this.getPlan();
 
-    const hostFees = await getHostFees(this, { startDate: from, endDate: to, fromCollectiveIds: collectiveIds });
+    const parameters = { startDate: from, endDate: to, collectiveIds };
 
-    const hostFeeShare = await getHostFeeShare(this, {
-      startDate: from,
-      endDate: to,
-      collectiveIds,
-    });
-    const pendingHostFeeShare = await getPendingHostFeeShare(this, {
-      startDate: from,
-      endDate: to,
-      collectiveIds,
-    });
-    const settledHostFeeShare = hostFeeShare - pendingHostFeeShare;
-
-    const totalMoneyManaged = await this.getTotalMoneyManaged({ endDate: to, collectiveIds });
-
-    const platformTips = await getPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
-    const pendingPlatformTips = await getPendingPlatformTips(this, { startDate: from, endDate: to, collectiveIds });
-
-    // We don't support platform fees anymore
-    const platformFees = 0;
-    const pendingPlatformFees = 0;
-
-    const metrics = {
-      hostFees,
-      platformFees,
-      pendingPlatformFees,
-      platformTips,
-      pendingPlatformTips,
-      hostFeeShare,
-      pendingHostFeeShare,
-      settledHostFeeShare,
-      hostFeeSharePercent,
-      totalMoneyManaged,
+    return {
+      hostFeeSharePercent: plan.hostFeeSharePercent || 0,
+      hostFees: async () => getHostFees(this, parameters),
+      platformTips: async () => getPlatformTips(this, parameters),
+      pendingPlatformTips: async () => getPendingPlatformTips(this, parameters),
+      hostFeeShare: async () => getHostFeeShare(this, parameters),
+      pendingHostFeeShare: async () => getPendingHostFeeShare(this, parameters),
+      totalMoneyManaged: async () => this.getTotalMoneyManagedAmount({ endDate: to, collectiveIds }),
+      // We don't support platform fees anymore
+      platformFees: { value: 0, currency: this.currency },
+      pendingPlatformFees: { value: 0, currency: this.currency },
+      // We don't support this property anymore
+      settledHostFeeShare: { value: 0, currency: this.currency },
     };
-
-    return metrics;
   };
 
   setPolicies = async function (policies) {
