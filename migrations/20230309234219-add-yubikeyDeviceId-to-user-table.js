@@ -7,7 +7,6 @@ module.exports = {
       type: Sequelize.STRING,
       allowNull: true,
       defaultValue: null,
-      unique: true,
     });
     await queryInterface.addColumn('UserHistories', 'yubikeyDeviceId', {
       type: Sequelize.STRING,
