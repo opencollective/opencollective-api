@@ -41,6 +41,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'attachedFiles',
   'payoutMethod',
   'payeeLocation',
+  'taxes',
 ];
 
 const loadHostForExpense = async (expense, req) => {
