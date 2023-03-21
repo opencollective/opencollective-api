@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 
 import { Command } from 'commander';
 import { readJsonSync, writeJsonSync } from 'fs-extra';
-import { cloneDeepWith, compact, concat, repeat, set, uniqBy } from 'lodash';
+import { cloneDeepWith, compact, concat, flatten, repeat, set, uniqBy } from 'lodash';
 
 import { md5 } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
@@ -240,6 +240,7 @@ const serialize = model => document => ({ ...document.dataValues, ...Sanitizers[
 type RecipeItem = {
   model?: string;
   where?: Record<string, any>;
+  order?: Record<string, any>;
   dependencies?: Array<RecipeItem | string>;
   defaultDependencies?: Array<RecipeItem | string>;
   on?: string;
@@ -250,7 +251,7 @@ type RecipeItem = {
 
 const parsed = {};
 
-const traverse = async ({ model, where, dependencies, limit, defaultDependencies, depth = 1 }: RecipeItem) => {
+const traverse = async ({ model, where, order, dependencies, limit, defaultDependencies, depth = 1 }: RecipeItem) => {
   const acc: any[] = [];
   let records;
   if (model && where) {
@@ -262,6 +263,7 @@ const traverse = async ({ model, where, dependencies, limit, defaultDependencies
       .findAll({
         where,
         limit,
+        order,
       })
       .then(r => r.map(serialize(model)));
 
@@ -279,6 +281,7 @@ const traverse = async ({ model, where, dependencies, limit, defaultDependencies
       const isLast = records.indexOf(record) === records.length - 1;
       console.info(`${repeat('  │', depth - 1)}  ${isLast ? '└' : '├'} ${record.model} #${record.id}`);
 
+      const pResults = [];
       for (const d of dependencies) {
         const dependency = typeof d === 'string' ? { model: d } : d;
         const { on, from, ...dep } = dependency;
@@ -292,8 +295,10 @@ const traverse = async ({ model, where, dependencies, limit, defaultDependencies
         } else {
           continue;
         }
-        acc.push(...(await traverse({ ...dep, where: dWhere, defaultDependencies, depth: depth + 1 })));
+        pResults.push(traverse({ ...dep, where: dWhere, defaultDependencies, depth: depth + 1 }));
       }
+      const results = await Promise.all(pResults);
+      acc.push(...flatten(results));
     }
   }
   return uniqBy(acc, r => `${r.model}.${r.id}`);
@@ -314,7 +319,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
   const { entries, defaultDependencies } = require(recipe);
   const hash = md5(JSON.stringify({ entries, defaultDependencies }));
   let docs = [];
-  console.time('>>>Dump');
+  console.time('>>> Dump');
   for (const entry of entries) {
     console.log(`\n>>> Traversing DB for entry ${entries.indexOf(entry) + 1}/${entries.length}...`);
     const newdocs = await traverse({ ...entry, defaultDependencies });
