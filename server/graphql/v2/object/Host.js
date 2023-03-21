@@ -96,7 +96,7 @@ export const Host = new GraphQLObjectType({
       },
       totalHostedCollectives: {
         type: GraphQLInt,
-        deprecationReason: '2023-03-20: Renamed to totalHostedCollectives',
+        deprecationReason: '2023-03-20: Renamed to totalHostedAccounts',
         resolve(host, _, req) {
           return req.loaders.Collective.hostedCollectivesCount.load(host.id);
         },
