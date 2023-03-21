@@ -2706,7 +2706,7 @@ type Host implements Account & AccountWithContributions {
   platformContributionAvailable: Boolean!
   contributionPolicy: String
   hostFeePercent: Float
-  totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedCollectives")
+  totalHostedCollectives: Int @deprecated(reason: "2023-03-20: Renamed to totalHostedAccounts")
   totalHostedAccounts: Int
   isOpenToApplications: Boolean
   termsUrl: URL

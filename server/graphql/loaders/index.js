@@ -127,6 +127,7 @@ export const loaders = req => {
         HostCollectiveId: collectiveIds,
         type: [CollectiveType.COLLECTIVE, CollectiveType.FUND],
         isActive: true,
+        approvedAt: { [Op.not]: null },
       },
     });
 
