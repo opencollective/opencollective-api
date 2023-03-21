@@ -9,7 +9,9 @@ import User from '../../models/User';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
 
+import recoveryCode from './recovery-code';
 import totp from './totp';
+import yubikeyOTP from './yubikey-otp';
 
 const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
@@ -28,11 +30,17 @@ type ValidateRequestOptions = {
 
 export enum TwoFactorMethod {
   TOTP = 'totp',
+  YUBIKEY_OTP = 'yubikey_otp',
+  RECOVERY_CODE = 'recovery_code',
 }
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
-export const SupportedTwoFactorMethods = [TwoFactorMethod.TOTP];
+export const SupportedTwoFactorMethods = [
+  TwoFactorMethod.TOTP,
+  TwoFactorMethod.YUBIKEY_OTP,
+  TwoFactorMethod.RECOVERY_CODE,
+];
 
 export type Token = {
   type: TwoFactorMethod;
@@ -45,6 +53,8 @@ export interface TwoFactorAuthProvider {
 
 export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
   [TwoFactorMethod.TOTP]: totp,
+  [TwoFactorMethod.YUBIKEY_OTP]: yubikeyOTP,
+  [TwoFactorMethod.RECOVERY_CODE]: recoveryCode,
 };
 
 function getTwoFactorAuthTokenFromRequest(req: Request): Token {
@@ -167,6 +177,10 @@ function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
     methods.push(TwoFactorMethod.TOTP);
   }
 
+  if (remoteUser.yubikeyDeviceId) {
+    methods.push(TwoFactorMethod.YUBIKEY_OTP);
+  }
+
   return methods;
 }
 
@@ -234,6 +248,7 @@ const twoFactorAuthLib = {
   validateToken,
   getTwoFactorAuthTokenFromRequest,
   userHasTwoFactorAuthEnabled,
+  twoFactorMethodsSupportedByUser,
 };
 
 export default twoFactorAuthLib;
