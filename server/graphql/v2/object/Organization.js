@@ -27,11 +27,12 @@ export const Organization = new GraphQLObjectType({
             - Hosts can see the address of organizations submitting expenses to their collectives.
         `,
         async resolve(organization, _, req) {
+          const location = await organization.getLocation();
           const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
           if (canSeeLocation) {
-            return organization.location;
+            return location;
           } else {
-            return { country: organization.location?.country };
+            return { country: location?.country };
           }
         },
       },
