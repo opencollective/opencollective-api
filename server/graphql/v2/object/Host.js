@@ -142,7 +142,7 @@ export const Host = new GraphQLObjectType({
             description: 'The end date of the time series',
           },
         },
-        async resolve(host, args) {
+        async resolve(host, args, req) {
           let collectiveIds;
           if (args.account) {
             const collectives = await fetchAccountsWithReferences(args.account, {
@@ -150,7 +150,9 @@ export const Host = new GraphQLObjectType({
             });
             collectiveIds = collectives.map(collective => collective.id);
           }
-          return host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds);
+          return host.getHostMetrics(args.dateFrom || args.from, args.dateTo || args.to, collectiveIds, {
+            loaders: req.loaders,
+          });
         },
       },
       hostMetricsTimeSeries: {

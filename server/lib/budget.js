@@ -419,7 +419,7 @@ export async function getSumCollectivesAmountReceived(
   return { ...fastResults, ...results };
 }
 
-export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
+export async function getTotalMoneyManagedAmount(host, { endDate, collectiveIds, currency, version } = {}) {
   version = version || host.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || host.currency;
 
@@ -434,7 +434,6 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   }
 
   const results = await sumCollectivesTransactions(collectiveIds, {
-    startDate,
     endDate,
     excludeRefunds: false,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',

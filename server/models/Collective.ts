@@ -3158,7 +3158,7 @@ class Collective extends Model<
    * @param {Date} to The end date upto which the metrics should be calculated.
    * @param {[Integer]} [collectiveIds] Optional, a list of collective ids for which the metrics are returned.
    */
-  getHostMetrics = function (from, to, collectiveIds) {
+  getHostMetrics = function (from, to, collectiveIds, { loaders = null } = {}) {
     if (!this.isHostAccount || !this.isActive || this.type !== types.ORGANIZATION) {
       return null;
     }
@@ -3177,7 +3177,7 @@ class Collective extends Model<
       pendingPlatformTips: async () => getPendingPlatformTips(this, parameters),
       hostFeeShare: async () => getHostFeeShare(this, parameters),
       pendingHostFeeShare: async () => getPendingHostFeeShare(this, parameters),
-      totalMoneyManaged: async () => this.getTotalMoneyManagedAmount({ endDate: to, collectiveIds }),
+      totalMoneyManaged: async () => this.getTotalMoneyManagedAmount({ endDate: to, collectiveIds, loaders }),
       // We don't support platform fees anymore
       platformFees: { value: 0, currency: this.currency },
       pendingPlatformFees: { value: 0, currency: this.currency },
