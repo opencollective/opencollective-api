@@ -261,7 +261,7 @@ describe('test/stories/ledger', () => {
         hostFeeShare: 68,
         pendingHostFeeShare: 0,
         hostFeeSharePercent: 15,
-        settledHostFeeShare: 68,
+        settledHostFeeShare: 0, // This is deprecated
         totalMoneyManaged: 8732,
       });
 
@@ -294,7 +294,7 @@ describe('test/stories/ledger', () => {
         hostFeeShare: 0, // Refunded. -> 68 - 68 = 0
         hostFeeSharePercent: 15,
         pendingHostFeeShare: -68, // -> 0 - 68 = -68 (Negative because owed by platform)
-        settledHostFeeShare: 68, // hostFeeShare - pendingHostFeeShare (weak metric)
+        settledHostFeeShare: 0, // This is deprecated
         totalMoneyManaged: -1268,
       });
 
@@ -382,7 +382,7 @@ describe('test/stories/ledger', () => {
         hostFeeShare: 68,
         hostFeeSharePercent: 15,
         pendingHostFeeShare: 0,
-        settledHostFeeShare: 68,
+        settledHostFeeShare: 0, // This is deprecated
         totalMoneyManaged: 8732,
       });
 
@@ -415,7 +415,7 @@ describe('test/stories/ledger', () => {
         hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
         pendingHostFeeShare: -68, // -> 0 - 68 = -68 (Negative because owed by platform)
-        settledHostFeeShare: 68, // hostFeeShare - pendingHostFeeShare (weak metric)
+        settledHostFeeShare: 0, // This is deprecated
         totalMoneyManaged: -1268,
       });
 
@@ -510,7 +510,7 @@ describe('test/stories/ledger', () => {
         hostFeeShare: expectedHostFeeShareInHostCurrency,
         hostFeeSharePercent: 15,
         pendingHostFeeShare: 0,
-        settledHostFeeShare: expectedHostFeeShareInHostCurrency,
+        settledHostFeeShare: 0, // This is deprecated
         totalMoneyManaged: expectedNetAmountInHostCurrency,
       });
 
@@ -552,7 +552,7 @@ describe('test/stories/ledger', () => {
         hostFeeShare: 0, // Refunded
         hostFeeSharePercent: 15,
         pendingHostFeeShare: -expectedHostFeeShareInHostCurrency, // Negative because owed by platform
-        settledHostFeeShare: expectedHostFeeShareInHostCurrency, // hostFeeShare - pendingHostFeeShare (weak metric)
+        settledHostFeeShare: 0, // This is deprecated
         totalMoneyManaged: -platformTipInHostCurrency - processorFeeInHostCurrency - expectedHostFeeShareInHostCurrency,
       });
 
