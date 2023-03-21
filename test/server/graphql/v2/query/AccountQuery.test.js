@@ -121,30 +121,30 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     it('is public for host accounts', async () => {
       const hostAdminUser = await fakeUser();
       const randomUser = await fakeUser();
-      const host = await fakeHost({ address: 'PRIVATE!', admin: hostAdminUser.collective });
+      const host = await fakeHost({ location: { address: 'PRIVATE!' }, admin: hostAdminUser });
       const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
       const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
       const resultHostAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdminUser);
-      expect(resultUnauthenticated.data.account.location.address).to.eq('PRIVATE!');
-      expect(resultRandomUser.data.account.location.address).to.eq('PRIVATE!');
-      expect(resultHostAdmin.data.account.location.address).to.eq('PRIVATE!');
+      expect(resultUnauthenticated.data.account.location?.address).to.eq('PRIVATE!');
+      expect(resultRandomUser.data.account.location?.address).to.eq('PRIVATE!');
+      expect(resultHostAdmin.data.account.location?.address).to.eq('PRIVATE!');
     });
 
     it('is private for organization accounts', async () => {
       const adminUser = await fakeUser();
       const randomUser = await fakeUser();
-      const host = await fakeOrganization({ address: 'PRIVATE!', admin: adminUser.collective });
+      const host = await fakeOrganization({ location: { address: 'PRIVATE!' }, admin: adminUser.collective });
       const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
       const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
       const resultAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, adminUser);
       expect(resultUnauthenticated.data.account.location.address).to.be.null;
       expect(resultRandomUser.data.account.location.address).to.be.null;
-      expect(resultAdmin.data.account.location.address).to.eq('PRIVATE!');
+      expect(resultAdmin.data.account.location?.address).to.eq('PRIVATE!');
     });
 
     it('is private for user accounts', async () => {
       const randomUser = await fakeUser();
-      const user = await fakeUser({}, { address: 'PRIVATE!' });
+      const user = await fakeUser({}, { location: { address: 'PRIVATE!' } });
       const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: user.collective.slug });
       const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, randomUser);
       const resultAdmin = await graphqlQueryV2(accountQuery, { slug: user.collective.slug }, user);
@@ -155,14 +155,14 @@ describe('server/graphql/v2/query/AccountQuery', () => {
 
     describe('for incognito', () => {
       it('is retrieved from the main profile', async () => {
-        const user = await fakeUser(null, { address: 'PRIVATE!' });
+        const user = await fakeUser(null, { location: { address: 'PRIVATE!' } });
         const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
         const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug }, user);
         expect(result.data.account.location.address).to.eq('PRIVATE!');
       });
 
       it('is only available for admin', async () => {
-        const user = await fakeUser(null, { address: 'PRIVATE!' });
+        const user = await fakeUser(null, { location: { address: 'PRIVATE!' } });
         const incognitoProfile = await user.collective.getOrCreateIncognitoProfile();
         const result = await graphqlQueryV2(accountQuery, { slug: incognitoProfile.slug });
         expect(result.data.account.location).to.be.null;

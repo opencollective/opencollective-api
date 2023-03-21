@@ -140,6 +140,8 @@ export const fakeCollective = async (
   if (collectiveData.HostCollectiveId === undefined) {
     collectiveData.HostCollectiveId = (await fakeHost()).id;
   }
+
+  const { location, ...restCollectiveData } = collectiveData;
   const collective = await models.Collective.create(
     {
       type,
@@ -153,10 +155,14 @@ export const fakeCollective = async (
       tags: [randStr(), randStr()],
       isActive: true,
       approvedAt: collectiveData.HostCollectiveId ? new Date() : null,
-      ...collectiveData,
+      ...restCollectiveData,
     },
     sequelizeParams,
   );
+
+  if (location) {
+    await collective.setLocation(location, sequelizeParams?.transaction);
+  }
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
   if (collective.host) {

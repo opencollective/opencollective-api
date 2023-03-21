@@ -6,7 +6,7 @@ export default {
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
     twitterHandle: 'wwcode',
-    address: 'Paradize street\nSan Francisco CA 94100\nUSA',
+    location: { address: 'Paradize street\nSan Francisco CA 94100\nUSA' },
     currency: 'USD',
     isHostAccount: true,
     settings: { apply: true },
@@ -33,7 +33,7 @@ export default {
   user3: {
     name: 'Xavier Damman',
     email: 'user3@opencollective.com',
-    address: 'Rue du paradis\n1000 Brussels\nBelgium',
+    location: { address: 'Rue du paradis\n1000 Brussels\nBelgium' },
   },
 
   user4: {
