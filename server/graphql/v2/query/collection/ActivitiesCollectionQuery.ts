@@ -98,6 +98,7 @@ const ActivitiesCollectionQuery = {
       const childrenAccounts = await models.Collective.findAll({
         attributes: ['id'],
         where: { ParentCollectiveId: parentIds, id: { [Op.notIn]: parentIds } },
+        raw: true,
       });
 
       childrenAccounts.forEach(childAccount => {

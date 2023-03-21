@@ -104,6 +104,7 @@ export const loaders = req => {
       attributes: ['id'],
       where: { id: { [Op.in]: ids }, isActive: true },
       include: [{ model: models.Collective, as: 'host' }],
+      raw: true,
     }).then(results => {
       const resultsById = {};
       for (const result of results) {
