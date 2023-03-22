@@ -113,7 +113,11 @@ describe('server/lib/merge-accounts', () => {
     await addFakeDataToAccount(fromUser.collective);
     await addFakeDataToAccount(toUser.collective);
 
-    fromOrganization = await Faker.fakeCollective({ slug: 'from-org', countryISO: 'FR' });
+    fromOrganization = await Faker.fakeCollective({
+      slug: 'from-org',
+      countryISO: 'FR',
+      location: { country: 'FR', address: 'ABC Street 123' },
+    });
     toOrganization = await Faker.fakeCollective({ slug: 'to-org', countryISO: null });
     await addFakeDataToAccount(fromOrganization);
     await addFakeDataToAccount(toOrganization);
@@ -153,12 +157,14 @@ describe('server/lib/merge-accounts', () => {
       await mergeAccounts(fromOrganization, toOrganization);
 
       // Profile info
-      await fromOrganization.reload({ paranoid: false });
-      await toOrganization.reload();
+      await fromOrganization.reload({ paranoid: false, include: [{ association: 'location' }] });
+      await toOrganization.reload({ include: [{ association: 'location' }] });
       expect(fromOrganization.deletedAt).to.not.be.null;
       expect(fromOrganization.slug).to.eq('from-org-merged');
       expect(fromOrganization.data.mergedIntoCollectiveId).to.eq(toOrganization.id);
       expect(toOrganization.countryISO).to.eq('FR');
+      expect(toOrganization.location?.country).to.eq('FR');
+      expect(toOrganization.location?.address).to.eq('ABC Street 123');
 
       // Associated data
       const postMoveFromItemsCounts = await getMovableItemsCounts(fromOrganization);
