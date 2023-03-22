@@ -1,7 +1,7 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { cloneDeep, flatten, uniq } from 'lodash';
+import { cloneDeep, flatten, isNil, pick, uniq } from 'lodash';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
@@ -120,10 +120,10 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
   const include = [];
 
   // Check Pagination arguments
-  if (args.limit <= 0) {
+  if (isNil(args.limit) || args.limit < 0) {
     args.limit = 100;
   }
-  if (args.offset <= 0) {
+  if (isNil(args.offset) || args.offset < 0) {
     args.offset = 0;
   }
   if (args.limit > 10000 && !req.remoteUser?.isRoot()) {
@@ -294,17 +294,28 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     ['id', args.orderBy.direction],
   ];
   const { offset, limit } = args;
-  const result = await models.Transaction.findAndCountAll({
+
+  const queryParameters = {
     where: sequelize.and(...where),
-    limit,
-    offset,
     order,
+    offset,
+    limit,
     include,
-  });
+  };
+
+  let totalCount, nodes;
+  if (limit === 0) {
+    totalCount = await models.Transaction.count(pick(queryParameters, ['where']));
+    nodes = [];
+  } else {
+    const result = await models.Transaction.findAndCountAll(queryParameters);
+    totalCount = result.count;
+    nodes = result.rows;
+  }
 
   return {
-    nodes: result.rows,
-    totalCount: result.count,
+    nodes,
+    totalCount,
     limit: args.limit,
     offset: args.offset,
     kinds: () => {
