@@ -1,5 +1,4 @@
 import DataLoader from 'dataloader';
-import express from 'express';
 import { set } from 'lodash';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji';
@@ -34,16 +33,16 @@ export default {
       return commentIds.map(id => reactionsMap[id] || {});
     });
   },
-  remoteUserReactionsByCommentId: (req: express.Request): DataLoader<number, typeof models.EmojiReaction> => {
+  remoteUserReactionsByCommentId: ({ remoteUser }): DataLoader<number, typeof models.EmojiReaction> => {
     return new DataLoader(async commentIds => {
-      if (!req.remoteUser) {
+      if (!remoteUser) {
         return commentIds.map(() => []);
       }
 
       type ReactionsListQueryResult = [{ CommentId: number; emojis: ReactionEmoji[] }];
       const reactionsList = (await models.EmojiReaction.findAll({
         attributes: ['CommentId', [sequelize.fn('ARRAY_AGG', sequelize.col('emoji')), 'emojis']],
-        where: { FromCollectiveId: req.remoteUser.CollectiveId, CommentId: { [Op.in]: commentIds } },
+        where: { FromCollectiveId: remoteUser.CollectiveId, CommentId: { [Op.in]: commentIds } },
         group: ['CommentId'],
         raw: true,
       })) as unknown as ReactionsListQueryResult;

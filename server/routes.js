@@ -20,6 +20,7 @@ import {
   transferwiseWebhook,
 } from './controllers/webhooks';
 import { getGraphqlCacheKey } from './graphql/cache';
+import { loaders } from './graphql/loaders';
 // import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -168,6 +169,31 @@ export default async app => {
   });
 
   /**
+   * GraphQL loaders
+   */
+  let globalLoader;
+  app.use((req, res, next) => {
+    if (req.remoteUser) {
+      console.log('Custom loader for remoteUser');
+      req.loaders = loaders({ remoteUser: req.remoteUser });
+    } else {
+      if (!globalLoader) {
+        console.log('Initializing global loader');
+        globalLoader = loaders();
+        // Could be bad to delete it if a request is already using it
+        // Have to be smarter
+        setTimeout(() => {
+          console.log('Evicting global loader');
+          globalLoader = null;
+        }, 300 * 1000);
+      }
+      req.loaders = globalLoader;
+    }
+
+    next();
+  });
+
+  /**
    * GraphQL scope
    */
   app.use('/graphql/v1', async (req, res, next) => {
@@ -185,6 +211,7 @@ export default async app => {
     if (req.personalToken) {
       logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
     }
+
     next();
   });
 

@@ -74,9 +74,8 @@ export default {
    * - be an admin of a collective where user is a member (even as incognito, and regardless of the role)
    * - be an admin of the host of a collective where user is a member (even as incognito, and regardless of the role)
    */
-  canSeePrivateInfo: (req): DataLoader<number, boolean> => {
+  canSeePrivateInfo: ({ remoteUser }): DataLoader<number, boolean> => {
     return new DataLoader(async (collectiveIds: number[]) => {
-      const remoteUser = req.remoteUser;
       if (!remoteUser) {
         return collectiveIds.map(() => false);
       }
@@ -120,7 +119,7 @@ export default {
       return collectiveIds.map(collectiveId => {
         return (
           collectiveId === remoteUser.CollectiveId ||
-          req.remoteUser.isAdmin(collectiveId) ||
+          remoteUser.isAdmin(collectiveId) ||
           administratedMemberCollectiveIds.has(collectiveId)
         );
       });

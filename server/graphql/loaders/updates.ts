@@ -25,16 +25,16 @@ export default {
       return updateIds.map(id => reactionsMap[id] || {});
     });
   },
-  remoteUserReactionsByUpdateId: (req: express.Request): DataLoader<number, ReactionEmoji> => {
+  remoteUserReactionsByUpdateId: ({ remoteUser }): DataLoader<number, ReactionEmoji> => {
     return new DataLoader(async updateIds => {
-      if (!req.remoteUser) {
+      if (!remoteUser) {
         return updateIds.map(() => []);
       }
 
       type ReactionsListQueryResult = [{ UpdateId: number; emojis: ReactionEmoji[] }];
       const reactionsList = (await models.EmojiReaction.findAll({
         attributes: ['UpdateId', [sequelize.fn('ARRAY_AGG', sequelize.col('emoji')), 'emojis']],
-        where: { FromCollectiveId: req.remoteUser.CollectiveId, UpdateId: { [Op.in]: updateIds } },
+        where: { FromCollectiveId: remoteUser.CollectiveId, UpdateId: { [Op.in]: updateIds } },
         group: ['UpdateId'],
         raw: true,
         mapToModel: false,
