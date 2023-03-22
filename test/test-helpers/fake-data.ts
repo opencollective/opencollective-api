@@ -7,7 +7,7 @@
 // to use in loops and repeated tests.
 
 import config from 'config';
-import { get, padStart, sample } from 'lodash';
+import { get, kebabCase, padStart, sample } from 'lodash';
 import moment from 'moment';
 import type { Attributes, CreateOptions, InferCreationAttributes } from 'sequelize';
 import speakeasy from 'speakeasy';
@@ -23,10 +23,12 @@ import { crypto } from '../../server/lib/encryption';
 import models, {
   Collective,
   ConnectedAccount,
+  ExpenseAttachedFile,
   Notification,
   PaypalProduct,
   Tier,
   Update,
+  UploadedFile,
   VirtualCard,
 } from '../../server/models';
 import Comment from '../../server/models/Comment';
@@ -35,6 +37,11 @@ import { HostApplicationStatus } from '../../server/models/HostApplication';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
+import {
+  SUPPORTED_FILE_EXTENSIONS,
+  SUPPORTED_FILE_KINDS,
+  SUPPORTED_FILE_TYPES,
+} from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
@@ -44,6 +51,9 @@ export const randNumber = (min = 0, max = 10000000) => Math.floor(Math.random() 
 export const randAmount = (min = 100, max = 10000000) => randNumber(min, max);
 export const multiple = (fn, n, args) => Promise.all([...Array(n).keys()].map(() => fn(args)));
 export const fakeOpenCollectiveS3URL = () => `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/${randStr()}`;
+export function fakeS3URL(kind, filename = uuid()) {
+  return `https://${config.aws.s3.bucket}.s3.us-west-1.amazonaws.com/${kebabCase(kind)}/${uuid()}/${filename}`;
+}
 
 const randStrOfLength = length =>
   Math.round(Math.pow(36, length + 1) - Math.random() * Math.pow(36, length))
@@ -273,6 +283,33 @@ export const fakeExpenseItem = async (attachmentData: Record<string, unknown> = 
     ...attachmentData,
     ExpenseId: (attachmentData.ExpenseId as number) || (await fakeExpense({ items: [] })).id,
     CreatedByUserId: <number>attachmentData.CreatedByUserId || (await fakeUser()).id,
+  });
+};
+
+export const fakeExpenseAttachedFile = async (
+  attachmentData: Partial<InferCreationAttributes<ExpenseAttachedFile>> = {},
+): Promise<ExpenseAttachedFile> => {
+  return models.ExpenseAttachedFile.create({
+    url: <string>attachmentData.url || `${randUrl()}.pdf`,
+    ...attachmentData,
+    ExpenseId: (attachmentData.ExpenseId as number) || (await fakeExpense({ items: [] })).id,
+    CreatedByUserId: <number>attachmentData.CreatedByUserId || (await fakeUser()).id,
+  });
+};
+
+export const fakeUploadedFile = async (fileData: Partial<InferCreationAttributes<UploadedFile>> = {}) => {
+  const fileType = sample(SUPPORTED_FILE_TYPES);
+  const extension = SUPPORTED_FILE_EXTENSIONS[fileType];
+  const fileName = `${randStr()}${extension}`;
+  const kind = sample(SUPPORTED_FILE_KINDS);
+  return models.UploadedFile.create({
+    url: fakeS3URL(kind, fileName),
+    kind,
+    fileSize: randNumber(100, 100000),
+    fileName,
+    fileType,
+    ...fileData,
+    CreatedByUserId: <number>fileData.CreatedByUserId || (await fakeUser()).id,
   });
 };
 

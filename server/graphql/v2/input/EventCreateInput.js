@@ -1,6 +1,5 @@
 import { GraphQLInputObjectType, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 export const EventCreateInput = new GraphQLInputObjectType({
   name: 'EventCreateInput',

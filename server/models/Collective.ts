@@ -1831,15 +1831,7 @@ class Collective extends Model<
   getHostedCollectives = async function (queryParams = {}) {
     return models.Collective.findAll({
       ...queryParams,
-      where: { isActive: true, HostCollectiveId: this.id },
-      includes: [
-        {
-          attributes: [],
-          association: 'members',
-          required: true,
-          where: { MemberCollectiveId: this.id, role: roles.HOST },
-        },
-      ],
+      where: { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } },
     });
   };
 
@@ -3021,7 +3013,12 @@ class Collective extends Model<
       return Promise.resolve(null);
     }
     return models.Collective.count({
-      where: { HostCollectiveId: this.id, type: types.COLLECTIVE, isActive: true },
+      where: {
+        HostCollectiveId: this.id,
+        type: [types.COLLECTIVE, types.FUND],
+        isActive: true,
+        approvedAt: { [Op.not]: null },
+      },
     });
   };
 

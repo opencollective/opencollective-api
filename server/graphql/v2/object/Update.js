@@ -1,6 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { types as CollectiveType } from '../../../constants/collectives';
 import models from '../../../models';

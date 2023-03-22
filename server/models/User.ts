@@ -35,6 +35,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare emailWaitingForValidation: CreationOptional<string>;
   public declare emailConfirmationToken: CreationOptional<string>;
   public declare twoFactorAuthToken: CreationOptional<string>;
+  public declare yubikeyDeviceId: CreationOptional<string>;
   public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
   public declare CollectiveId: number;
   public declare newsletterOptIn: boolean;
@@ -653,6 +654,11 @@ User.init(
     },
 
     twoFactorAuthToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    yubikeyDeviceId: {
       type: DataTypes.STRING,
       allowNull: true,
     },

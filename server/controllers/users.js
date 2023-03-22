@@ -9,12 +9,11 @@ import errors from '../lib/errors';
 import { confirmGuestAccount } from '../lib/guest-accounts';
 import logger from '../lib/logger';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../lib/rate-limit';
-import { verifyTwoFactorAuthenticationRecoveryCode } from '../lib/two-factor-authentication';
-import { validateTOTPToken } from '../lib/two-factor-authentication/totp';
+import twoFactorAuthLib, { TwoFactorMethod } from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 import models from '../models';
 
-const { Unauthorized, ValidationFailed, TooManyRequests } = errors;
+const { Unauthorized, TooManyRequests } = errors;
 
 const { User } = models;
 
@@ -99,9 +98,18 @@ export const signin = async (req, res, next) => {
       }
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-      if (twoFactorAuthenticationEnabled && user.twoFactorAuthToken !== null) {
+      if (twoFactorAuthenticationEnabled && twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)) {
         // Send 2FA token, can only be used to get a long term token
-        const token = user.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
+        const token = user.jwt(
+          {
+            scope: 'twofactorauth',
+            supported2FAMethods: [
+              TwoFactorMethod.RECOVERY_CODE,
+              ...twoFactorAuthLib.twoFactorMethodsSupportedByUser(user),
+            ],
+          },
+          auth.TOKEN_EXPIRATION_2FA,
+        );
         return res.send({ token });
       } else {
         // All good, no 2FA, send token
@@ -185,8 +193,17 @@ export const exchangeLoginToken = async (req, res, next) => {
   }
 
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-  if (twoFactorAuthenticationEnabled && req.remoteUser.twoFactorAuthToken !== null) {
-    const token = req.remoteUser.jwt({ scope: 'twofactorauth' }, auth.TOKEN_EXPIRATION_2FA);
+  if (twoFactorAuthenticationEnabled && twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
+    const token = req.remoteUser.jwt(
+      {
+        scope: 'twofactorauth',
+        supported2FAMethods: [
+          TwoFactorMethod.RECOVERY_CODE,
+          ...twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser),
+        ],
+      },
+      auth.TOKEN_EXPIRATION_2FA,
+    );
     res.send({ token });
   } else {
     const token = await req.remoteUser.generateSessionToken({ sessionId: req.jwtPayload?.sessionId });
@@ -241,7 +258,7 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return next(new BadRequest(errorMessage));
   }
 
-  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode } = req.body;
+  const { twoFactorAuthenticatorCode, twoFactorAuthenticationRecoveryCode, twoFactorAuthenticationType } = req.body;
 
   const userId = Number(req.jwtPayload.sub);
   const sessionId = req.jwtPayload.sessionId;
@@ -264,28 +281,21 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
     return;
   }
 
-  if (twoFactorAuthenticatorCode) {
-    // if there is a 2FA code, we need to verify it before returning the token
-    const verified = validateTOTPToken(user.twoFactorAuthToken, twoFactorAuthenticatorCode);
-    if (!verified) {
-      return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
-    }
-  } else if (twoFactorAuthenticationRecoveryCode) {
-    // or if there is a recovery code try to verify it
-    if (typeof twoFactorAuthenticationRecoveryCode !== 'string') {
-      return fail(new ValidationFailed('2FA recovery code must be a string'));
-    }
-    const verified = verifyTwoFactorAuthenticationRecoveryCode(
-      user.twoFactorAuthRecoveryCodes,
-      twoFactorAuthenticationRecoveryCode,
-    );
-    if (!verified) {
-      return fail(new Unauthorized('Two-factor authentication recovery code failed. Please try again'));
-    }
+  const code = twoFactorAuthenticatorCode || twoFactorAuthenticationRecoveryCode;
+  const type =
+    twoFactorAuthenticationType ?? (twoFactorAuthenticatorCode ? TwoFactorMethod.TOTP : TwoFactorMethod.RECOVERY_CODE);
 
-    await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null });
-  } else {
+  if (!code) {
     return fail(new BadRequest('This endpoint requires you to provide a 2FA code or a recovery code'));
+  }
+
+  try {
+    await twoFactorAuthLib.validateToken(user, {
+      code: code,
+      type: type,
+    });
+  } catch (e) {
+    return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }
 
   const token = await user.generateSessionToken({ sessionId });
