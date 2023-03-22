@@ -127,17 +127,21 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
     });
   });
 
-export const generateExpensesSecurityCheckLoader = req => {
+export const generateExpensesSecurityCheckLoader = ({ loaders }) => {
   return new DataLoader(
     async (expenses: Expense[]) => {
-      await populateModelAssociations(req, expenses, [
-        { fkField: 'CollectiveId', as: 'collective', modelName: 'Collective' },
-        { fkField: 'FromCollectiveId', as: 'fromCollective', modelName: 'Collective' },
-        { fkField: 'UserId', modelName: 'User' },
-        { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
-      ]);
+      await populateModelAssociations(
+        expenses,
+        [
+          { fkField: 'CollectiveId', as: 'collective', modelName: 'Collective' },
+          { fkField: 'FromCollectiveId', as: 'fromCollective', modelName: 'Collective' },
+          { fkField: 'UserId', modelName: 'User' },
+          { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
+        ],
+        { loaders },
+      );
 
-      return checkExpensesBatch(req, expenses);
+      return checkExpensesBatch(expenses, { loaders });
     },
     {
       cacheKeyFn: (expense: Expense) => expense.id,

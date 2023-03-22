@@ -69,9 +69,9 @@ export const generateCountAdminMembersOfCollective = () => {
   });
 };
 
-export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
+export const generateRemoteUserIsAdminOfHostedAccountLoader = ({ remoteUser }) => {
   return new DataLoader(async (hostIds: number[]): Promise<boolean[]> => {
-    if (!req.remoteUser) {
+    if (!remoteUser) {
       return hostIds.map(() => false);
     }
 
@@ -81,7 +81,7 @@ export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
       raw: true,
       where: {
         role: MemberRoles.ADMIN,
-        MemberCollectiveId: req.remoteUser.CollectiveId,
+        MemberCollectiveId: remoteUser.CollectiveId,
       },
       include: {
         association: 'collective',

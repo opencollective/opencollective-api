@@ -35,24 +35,25 @@ import updatesLoader from './updates';
 import { generateUserByCollectiveIdLoader } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
-export const loaders = req => {
-  const cache = {};
+export const loaders = ({ remoteUser = null } = {}) => {
   const context = createContext(sequelize);
 
   // Custom helpers
-  context.loaders.CurrencyExchangeRate.convert = generateConvertToCurrencyLoader(req, cache);
-  context.loaders.CurrencyExchangeRate.fxRate = generateFxRateLoader(req, cache);
+  context.loaders.CurrencyExchangeRate.convert = generateConvertToCurrencyLoader();
+  context.loaders.CurrencyExchangeRate.fxRate = generateFxRateLoader();
 
   // Comment
-  context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);
+  context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId();
 
   // Comment Reactions
-  context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId(req, cache);
-  context.loaders.Comment.remoteUserReactionsByCommentId = commentsLoader.remoteUserReactionsByCommentId(req, cache);
+  context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId();
+  context.loaders.Comment.remoteUserReactionsByCommentId = commentsLoader.remoteUserReactionsByCommentId({
+    remoteUser,
+  });
 
   // Update Reactions
-  context.loaders.Update.reactionsByUpdateId = updatesLoader.reactionsByUpdateId(req, cache);
-  context.loaders.Update.remoteUserReactionsByUpdateId = updatesLoader.remoteUserReactionsByUpdateId(req, cache);
+  context.loaders.Update.reactionsByUpdateId = updatesLoader.reactionsByUpdateId();
+  context.loaders.Update.remoteUserReactionsByUpdateId = updatesLoader.remoteUserReactionsByUpdateId({ remoteUser });
 
   // Uploaded files
   context.loaders.UploadedFile.byUrl = new DataLoader(async urls => {
@@ -61,43 +62,40 @@ export const loaders = req => {
   });
 
   // Conversation
-  context.loaders.Conversation.followers = conversationLoaders.followers(req, cache);
-  context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount(req, cache);
+  context.loaders.Conversation.followers = conversationLoaders.followers();
+  context.loaders.Conversation.commentsCount = conversationLoaders.commentsCount();
 
   // Contributors
   context.loaders.Contributors = {
-    forCollectiveId: contributorsLoaders.forCollectiveId(req, cache),
+    forCollectiveId: contributorsLoaders.forCollectiveId(),
   };
 
   // Expense
-  context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader(req, cache);
-  context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles(req, cache);
-  context.loaders.Expense.items = expenseLoaders.generateExpenseItemsLoader(req, cache);
-  context.loaders.Expense.userTaxFormRequiredBeforePayment = expenseLoaders.userTaxFormRequiredBeforePayment(
-    req,
-    cache,
-  );
-  context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments(req, cache);
+  context.loaders.Expense.activities = expenseLoaders.generateExpenseActivitiesLoader();
+  context.loaders.Expense.attachedFiles = expenseLoaders.attachedFiles();
+  context.loaders.Expense.items = expenseLoaders.generateExpenseItemsLoader();
+  context.loaders.Expense.userTaxFormRequiredBeforePayment = expenseLoaders.userTaxFormRequiredBeforePayment();
+  context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments();
   context.loaders.Expense.expenseToHostTransactionFxRateLoader =
-    expenseLoaders.generateExpenseToHostTransactionFxRateLoader(req, cache);
-  context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader(req, cache);
+    expenseLoaders.generateExpenseToHostTransactionFxRateLoader();
+  context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader({ loaders });
 
   // Payout method
-  context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);
-  context.loaders.PayoutMethod.byCollectiveId = generateCollectivePayoutMethodsLoader(req, cache);
+  context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader();
+  context.loaders.PayoutMethod.byCollectiveId = generateCollectivePayoutMethodsLoader();
 
   // Virtual Card
-  context.loaders.VirtualCard.byCollectiveId = generateCollectiveVirtualCardLoader(req, cache);
-  context.loaders.VirtualCard.byHostCollectiveId = generateHostCollectiveVirtualCardLoader(req, cache);
+  context.loaders.VirtualCard.byCollectiveId = generateCollectiveVirtualCardLoader();
+  context.loaders.VirtualCard.byHostCollectiveId = generateHostCollectiveVirtualCardLoader();
 
   // User
-  context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
+  context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader();
 
   /** *** Collective *****/
 
   // Collective - by UserId
-  context.loaders.Collective.byUserId = collectiveLoaders.byUserId(req, cache);
-  context.loaders.Collective.mainProfileFromIncognito = collectiveLoaders.mainProfileFromIncognito(req, cache);
+  context.loaders.Collective.byUserId = collectiveLoaders.byUserId();
+  context.loaders.Collective.mainProfileFromIncognito = collectiveLoaders.mainProfileFromIncognito();
 
   // Collective - Host
   context.loaders.Collective.hostByCollectiveId = new DataLoader(ids =>
@@ -275,7 +273,7 @@ export const loaders = req => {
     }).then(results => sortResults(ids, results, 'CollectiveId', [])),
   );
 
-  context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo(req, cache);
+  context.loaders.Collective.canSeePrivateInfo = collectiveLoaders.canSeePrivateInfo({ remoteUser });
 
   context.loaders.Collective.yearlyBudget = new DataLoader(ids =>
     getYearlyBudgets(ids).then(results => sortResults(ids, Object.values(results), 'CollectiveId')),
@@ -700,7 +698,9 @@ export const loaders = req => {
   );
 
   context.loaders.Member.adminUserEmailsForCollective = generateAdminUsersEmailsForCollectiveLoader();
-  context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader(req);
+  context.loaders.Member.remoteUserIdAdminOfHostedAccount = generateRemoteUserIsAdminOfHostedAccountLoader({
+    remoteUser,
+  });
   context.loaders.Member.countAdminMembersOfCollective = generateCountAdminMembersOfCollective();
 
   /** SocialLink */
@@ -807,8 +807,3 @@ export const loaders = req => {
 
   return context.loaders;
 };
-
-export function loadersMiddleware(req, res, next) {
-  req.loaders = loaders(req);
-  next();
-}

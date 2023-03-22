@@ -13,8 +13,6 @@ import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import redis from 'redis';
 
-import { loadersMiddleware } from '../graphql/loaders';
-
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 
@@ -27,10 +25,6 @@ export default async function (app) {
       contentSecurityPolicy: false,
     }),
   );
-
-  // Loaders are attached to the request to batch DB queries per request
-  // It also creates in-memory caching (based on request auth);
-  app.use(loadersMiddleware);
 
   // Body parser.
   app.use(
