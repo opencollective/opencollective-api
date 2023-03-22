@@ -349,6 +349,7 @@ export async function listPayPalTransactions(
     currentPage = 1,
     fetchSize = 500,
     transactionStatus = 'S', // The transaction successfully completed without a denial and after any pending statuses.
+    transactionId = null,
     fields = 'all', // See transactions-get-query-parameters
   } = {},
 ): Promise<ListPaypalTransactionsResult> {
@@ -356,9 +357,16 @@ export async function listPayPalTransactions(
   urlParams.append('fields', fields);
   urlParams.append('page_size', `${fetchSize}`);
   urlParams.append('page', `${currentPage}`);
-  urlParams.append('transaction_status', transactionStatus);
   urlParams.append('start_date', fromDate.toISOString());
   urlParams.append('end_date', toDate.toISOString());
+
+  if (transactionStatus) {
+    urlParams.append('transaction_status', transactionStatus);
+  }
+  if (transactionId) {
+    urlParams.append('transaction_id', transactionId);
+  }
+
   const apiUrl = `reporting/transactions?${urlParams.toString()}`;
   const response = (await paypalRequest(apiUrl, null, host, 'GET')) as PaypalTransactionSearchResult;
   const totalPages = response.total_pages || 1;
