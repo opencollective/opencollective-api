@@ -317,7 +317,9 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { entries, defaultDependencies } = require(recipe);
-  const hash = md5(JSON.stringify({ entries, defaultDependencies }));
+  const date = new Date().toISOString().substring(0, 10);
+  const hash = md5(JSON.stringify({ entries, defaultDependencies, date })).slice(0, 5);
+  const filename = `${date}.${hash}`;
   let docs = [];
   console.time('>>> Dump');
   for (const entry of entries) {
@@ -331,61 +333,69 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
   docs = uniqBy(docs, r => `${r.model}.${r.id}`);
 
   console.log('\n>>> Dumping JSON...');
-  writeJsonSync(`dbdumps/${hash}.json`, docs, { spaces: 2 });
+  writeJsonSync(`dbdumps/${filename}.json`, docs, { spaces: 2 });
 
-  console.log(`\n>>> Done! Dumped to dbdumps/${hash}.json`);
+  console.log('\n>>> Dumping Schema...');
+  exec(`pg_dump -csOx $PG_URL > dbdumps/${filename}.schema.sql`);
+
+  console.log(`\n>>> Done! Dumped to dbdumps/${filename}.json`);
   sequelize.close();
 });
 
 program.command('restore <file>').action(async file => {
-  if (sequelize.config.database !== 'opencollective_prod_snapshot') {
-    console.error('Target database must be opencollective_prod_snapshot!');
+  const database = process.env.PG_DATABASE;
+  if (!database) {
+    console.error('PG_DATABASE is not set!');
+    process.exit(1);
+  } else if (sequelize.config.database !== database) {
+    console.error(`Sequelize is not connected to target ${database}!`);
     process.exit(1);
   }
+
+  console.log('\n>>> Recreating DB...');
+  exec(`dropdb ${database}`);
+  exec(`createdb ${database}`);
+  exec(`psql -h localhost -U opencollective ${database} < ${file.replace('.json', '.schema.sql')}`);
+
+  await sequelize.sync().catch(nop);
 
   console.log(`\n>>> Reading file ${file}`);
   const docs = readJsonSync(file);
 
-  console.log('\n>>> Recreating DB...');
-  exec('dropdb opencollective_prod_snapshot');
-  exec('createdb opencollective_prod_snapshot');
-  await sequelize.sync().catch(nop);
-
   console.log('\n>>> Inserting Data...');
-  for (const doc of docs) {
-    const { model, ...data } = doc;
-    await sequelize.models[model]
-      .create(data, { validate: false, hooks: false, silent: true, logging: false })
-      .catch(e => {
-        console.error(e);
-      });
+  const modelsArray: any[] = Object.values(models);
+  for (const model of modelsArray) {
+    const rows = docs.filter(d => d.model === model.name);
+    if (rows.length > 0) {
+      console.log(`\t${model.name} (${rows.length} rows)`);
+      await sequelize
+        .transaction(async transaction => {
+          const tablename = model.getTableName();
+          await sequelize.query(`ALTER TABLE "${tablename}" DISABLE TRIGGER ALL;`, { transaction });
+          for (const row of rows) {
+            await model
+              .create(row, {
+                transaction,
+                validate: false,
+                hooks: false,
+                silent: true,
+                logging: false,
+                raw: false,
+                ignoreDuplicates: true,
+              })
+              .catch(console.error);
+          }
+          await sequelize.query(`ALTER TABLE "${tablename}" ENABLE TRIGGER ALL;`, { transaction });
+        })
+        .catch(e => {
+          console.error(e);
+        });
+    }
   }
 
-  // Ideally we would just run the migrations, but it doesn´t work because we're already creating the DB in an advanced state to make sure it is empty.
-  console.log('\n>>> Creating Materaliazed Views...');
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20220510083429-create-collective-transaction-stats-materialized-view.js'",
-  );
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20220510083429-create-collective-transaction-stats-materialized-view.js'",
-  );
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20220623121235-transaction-balances.js'",
-  );
-  exec("PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20221126080358-fast-balance.js'");
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20221213000000-update-collective-transaction-stats-materialized-view.js'",
-  );
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20230104225718-transaction-balances-order-by-create-date.js'",
-  );
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20230125141843-create-collective-tag-stats-materialized-view.js'",
-  );
-  exec("PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20230213080003-fast-balance-update.js'");
-  exec(
-    "PG_DATABASE=opencollective_prod_snapshot npm run db:migrate -- --name '20230213094215-update-collective-transaction-stats-materialized-view.js'",
-  );
+  console.log('\n>>> Refreshing Materialized Views...');
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
 
   console.log('\n>>> Done!');
   sequelize.close();
@@ -397,7 +407,7 @@ program.addHelpText(
 
 Example call:
   $ npm run script scripts/smart-dump.ts dump prod
-  $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore 8f8de6ce2df1f567b6ba5ea1cdbd8250.json
+  $ PG_DATABASE=opencollective_prod_snapshot npm run script scripts/smart-dump.ts restore dbdumps/2023-03-21.c5292.json
 `,
 );
 

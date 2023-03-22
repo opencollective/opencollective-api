@@ -19,6 +19,7 @@ const entries = [
             model: 'Order',
             limit: 50,
             order: [['id', 'DESC']],
+            where: { data: { isGuest: null } },
           },
           {
             model: 'Expense',
@@ -46,7 +47,7 @@ const entries = [
 ];
 
 const defaultDependencies = {
-  Collective: ['User', 'ConnectedAccount'],
+  Collective: ['ConnectedAccount', { model: 'User', from: 'CreatedByUserId' }],
   Expense: [
     'Transaction',
     'ExpenseItem',
