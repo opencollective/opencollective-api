@@ -6,6 +6,7 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 import { StructuredAddress } from '../types/Location';
 
 type GeoLocationLatLong = {
+  type: 'Point';
   coordinates: [number, number];
 };
 
