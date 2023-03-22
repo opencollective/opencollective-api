@@ -30,7 +30,9 @@ const updateCollective = async (collective, newInfo, transaction) => {
     await collective.setLocation(newInfo.location, transaction);
   }
 
-  return isEmpty(fieldsToUpdate) ? collective : collective.update(fieldsToUpdate, { transaction });
+  return isEmpty(fieldsToUpdate)
+    ? collective
+    : collective.update(fieldsToUpdate, { transaction, include: [{ association: 'location' }] });
 };
 
 type UserInfoInput = {
@@ -75,7 +77,10 @@ export const getOrCreateGuestProfile = async (
         { transaction },
       );
     } else if (user.CollectiveId) {
-      collective = await models.Collective.findByPk(user.CollectiveId, { transaction });
+      collective = await models.Collective.findByPk(user.CollectiveId, {
+        transaction,
+        include: [{ association: 'location' }],
+      });
       if (!user.confirmedAt) {
         const newLegalName = legalName || collective.legalName;
         const newValues = { name, location, legalName: newLegalName };
@@ -93,13 +98,10 @@ export const getOrCreateGuestProfile = async (
           legalName,
           data: { isGuest: true },
           CreatedByUserId: user.id,
+          location,
         },
-
-        { transaction },
+        { transaction, include: [{ association: 'location' }] },
       );
-      if (location) {
-        await collective.setLocation(location, transaction);
-      }
     }
 
     if (!user.CollectiveId) {
