@@ -4,8 +4,8 @@ exports[`scripts/ledger/update-transactions update hostFeePercent when it does n
 "
 | kind         | type   | amount | To                       | From                     | Host               |
 | ------------ | ------ | ------ | ------------------------ | ------------------------ | ------------------ |
-| HOST_FEE     | CREDIT | 100    | Test Host 9df55c86       | Test Collective 70363666 | Test Host 9df55c86 |
-| HOST_FEE     | DEBIT  | -100   | Test Collective 70363666 | Test Host 9df55c86       | Test Host 639f11a2 |
-| CONTRIBUTION | CREDIT | 500    | Test Collective 70363666 | Test Collective af486657 | NULL               |
-| CONTRIBUTION | DEBIT  | -500   | Test Collective af486657 | Test Collective 70363666 | Test Host 9df55c86 |"
+| HOST_FEE     | CREDIT | 100    | Test Host 9c2c453d       | Test Collective c3054e74 | Test Host 9c2c453d |
+| HOST_FEE     | DEBIT  | -100   | Test Collective c3054e74 | Test Host 9c2c453d       | Test Host 2d47d94e |
+| CONTRIBUTION | CREDIT | 500    | Test Collective c3054e74 | Test Collective 4602ade0 | NULL               |
+| CONTRIBUTION | DEBIT  | -500   | Test Collective 4602ade0 | Test Collective c3054e74 | Test Host 9c2c453d |"
 `;
