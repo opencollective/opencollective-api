@@ -177,7 +177,7 @@ describe('server/graphql/common/expenses', () => {
       await expense.update({ status: 'REJECTED' });
       expect(await canEditExpense(publicReq, expense)).to.be.false;
       expect(await canEditExpense(randomUserReq, expense)).to.be.false;
-      expect(await canEditExpense(collectiveAdminReq, expense)).to.be.true;
+      expect(await canEditExpense(collectiveAdminReq, expense)).to.be.false;
       expect(await canEditExpense(hostAdminReq, expense)).to.be.true;
       expect(await canEditExpense(collectiveAccountantReq, expense)).to.be.false;
       expect(await canEditExpense(hostAccountantReq, expense)).to.be.false;
