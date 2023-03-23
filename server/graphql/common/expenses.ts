@@ -23,6 +23,7 @@ import {
   sumBy,
   uniq,
 } from 'lodash';
+import moment from 'moment';
 
 import { activities, roles } from '../../constants';
 import ActivityTypes from '../../constants/activities';
@@ -42,6 +43,7 @@ import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
+import { listPayPalTransactions } from '../../lib/paypal';
 import { getPolicy } from '../../lib/policies';
 import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { notifyTeamAboutSpamExpense } from '../../lib/spam';
@@ -57,6 +59,7 @@ import { MigrationLogType } from '../../models/MigrationLog';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
+import paypalAdaptive from '../../paymentProviders/paypal/adaptiveGateway';
 import { Location } from '../../types/Location';
 import {
   Quote as WiseQuote,
@@ -1629,26 +1632,50 @@ async function payExpenseWithPayPalAdaptive(remoteUser, expense, host, paymentMe
     }
 
     // Warning senderFees can be null
-    let senderFees = createPaymentResponse.defaultFundingPlan.senderFees?.amount;
-    if (senderFees) {
-      senderFees = floatAmountToCents(parseFloat(senderFees));
-    } else {
-      // PayPal stopped providing senderFees in the response, we need to compute it ourselves
-      // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
-      const { fundingAmount } = createPaymentResponse.defaultFundingPlan;
-      const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
-      const amountReceivedByPayee = expense.amount;
-      senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
+    let senderFees = 0;
+    const { defaultFundingPlan } = createPaymentResponse;
+    if (defaultFundingPlan) {
+      const senderFeesAmountFromFundingPlan = defaultFundingPlan.senderFees?.amount;
+      if (senderFeesAmountFromFundingPlan) {
+        senderFees = floatAmountToCents(parseFloat(senderFeesAmountFromFundingPlan));
+      } else {
+        // PayPal stopped providing senderFees in the response, we need to compute it ourselves
+        // We don't have to check for feesPayer here because it is not supported for PayPal adaptive
+        const { fundingAmount } = defaultFundingPlan;
+        const amountPaidByTheHost = floatAmountToCents(parseFloat(fundingAmount.amount));
+        const amountReceivedByPayee = expense.amount;
+        senderFees = Math.round(amountPaidByTheHost - amountReceivedByPayee) || 0;
 
-      // No example yet, but we want to know if this ever happens
-      if (fundingAmount.code !== expense.currency) {
-        reportMessageToSentry(`PayPal adaptive got a funding amount with a different currency than the expense`, {
-          severity: 'error',
+        // No example yet, but we want to know if this ever happens
+        if (fundingAmount.code !== expense.currency) {
+          reportMessageToSentry(`PayPal adaptive got a funding amount with a different currency than the expense`, {
+            severity: 'error',
+          });
+        }
+      }
+    } else {
+      // PayPal randomly omits the defaultFundingPlan, even though the transaction has payment processor fees attached.
+      // We therefore need to fetch the information from the API
+      // See https://github.com/opencollective/opencollective/issues/6581
+      try {
+        const payKey = createPaymentResponse.payKey;
+        // Retrieve transaction ID
+        const paymentDetails = await paypalAdaptive.paymentDetails({ payKey });
+        const transactionId = paymentDetails.paymentInfoList.paymentInfo[0].transactionId;
+        const toDate = moment().add(1, 'day'); // The transaction normally happened a few seconds ago, hit the API with a 1 day buffer to make sure we won't miss it
+        const fromDate = moment(toDate).subtract(15, 'days');
+        const { transactions } = await listPayPalTransactions(host, fromDate, toDate, {
+          fields: 'transaction_info',
+          currentPage: 1,
+          transactionId,
         });
+        senderFees = Math.abs(parseFloat(transactions[0].transaction_info.fee_amount.value));
+      } catch (e) {
+        reportErrorToSentry(e, { extra: { paymentResponse }, feature: FEATURE.PAYPAL_PAYOUTS });
       }
     }
 
-    const currencyConversion = createPaymentResponse.defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
+    const currencyConversion = defaultFundingPlan.currencyConversion || { exchangeRate: 1 };
     const hostCurrencyFxRate = 1 / parseFloat(currencyConversion.exchangeRate); // paypal returns a float from host.currency to expense.currency
     fees['paymentProcessorFeeInHostCurrency'] = Math.round(hostCurrencyFxRate * senderFees);
 
