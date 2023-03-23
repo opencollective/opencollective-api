@@ -1,5 +1,4 @@
 import DataLoader from 'dataloader';
-import express from 'express';
 import { set } from 'lodash';
 
 import { ReactionEmoji } from '../../constants/reaction-emoji';

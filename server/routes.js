@@ -1,6 +1,7 @@
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
+import debug from 'debug';
 import expressLimiter from 'express-limiter';
 import { get, pick } from 'lodash';
 import multer from 'multer';
@@ -174,27 +175,39 @@ export default async app => {
   /**
    * GraphQL loaders
    */
-  let globalLoader;
-  app.use((req, res, next) => {
-    if (req.remoteUser) {
-      console.log('Custom loader for remoteUser');
-      req.loaders = loaders({ remoteUser: req.remoteUser });
-    } else {
-      if (!globalLoader) {
-        console.log('Initializing global loader');
-        globalLoader = loaders();
-        // Could be bad to delete it if a request is already using it
-        // Have to be smarter
-        setTimeout(() => {
-          console.log('Evicting global loader');
-          globalLoader = null;
-        }, 300 * 1000);
-      }
-      req.loaders = globalLoader;
-    }
+  const sharedLoaders = {};
 
+  const debugLoaders = debug('loaders');
+
+  // Middleware
+  app.use((req, res, next) => {
+    const requestId = req.get('X-Request-Id');
+    if (requestId && !req.remoteUser) {
+      if (!sharedLoaders[requestId]) {
+        debugLoaders('Creating shared loader');
+        sharedLoaders[requestId] = loaders();
+      } else {
+        debugLoaders('Reusing shared loader');
+      }
+      // Set or Extend ttl
+      sharedLoaders[requestId].ttl = new Date().getTime() + 30 * 1000;
+      // Attach loader
+      req.loaders = sharedLoaders[requestId];
+    } else {
+      debugLoaders('Using default loader');
+      req.loaders = loaders({ remoteUser: req.remoteUser });
+    }
     next();
   });
+
+  // Garbage collection
+  setInterval(() => {
+    for (const id of Object.keys(sharedLoaders)) {
+      if (sharedLoaders[id].ttl < new Date().getTime()) {
+        delete sharedLoaders[id];
+      }
+    }
+  }, 1000);
 
   /**
    * GraphQL scope
