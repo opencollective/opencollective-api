@@ -482,16 +482,6 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
       });
 
-      it("doesn't ask if only admin of the collective, and 2FA is enforced on the host", async () => {
-        const host = await fakeHost({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
-        const collectiveAdminUser = await fakeUser();
-        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
-        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
-        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
-        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, collectiveAdminUser);
-        expect(result.errors).to.not.exist;
-      });
-
       it("doesn't ask for the payee, even if enforced by the host AND collective", async () => {
         const host = await fakeCollective({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
         const collective = await fakeCollective({

@@ -335,9 +335,9 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
 ) => {
   const nonEditableStatuses = ['PAID', 'PROCESSING', 'SCHEDULED_FOR_PAYMENT', 'CANCELED'];
 
-  // Host and Collective Admin can attach receipts to paid charge expenses
+  // Host and expense owner can attach receipts to paid charge expenses
   if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   } else if (expense.status === 'DRAFT') {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {
@@ -351,7 +351,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
   }
 };
 
