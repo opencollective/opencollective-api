@@ -51,7 +51,7 @@ const getOrderCancelationReason = (collective, order, orderHost) => {
  * performance constraints.
  */
 export async function run() {
-  const orphanOrders = await models.Order.findAll<OrderModelInterface & { Subscription?: typeof models.Subscription }>({
+  const orphanOrders = await models.Order.findAll<OrderModelInterface>({
     where: { status: OrderStatuses.CANCELLED },
     include: [
       {

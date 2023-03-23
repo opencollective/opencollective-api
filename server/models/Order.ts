@@ -63,23 +63,14 @@ export interface OrderModelInterface
   getTier: Promise<Tier>;
 
   quantity: number;
-
   currency: string;
-
   tags: string[];
-
   totalAmount: number;
-
   platformTipAmount: number;
-
   platformTipEligible?: boolean;
-
   taxAmount: number;
-
   description: string;
-
   publicMessage: string;
-
   privateMessage: string;
 
   SubscriptionId?: number;
@@ -94,17 +85,12 @@ export interface OrderModelInterface
   getTransactions: HasManyGetAssociationsMixin<typeof Transaction>;
 
   processedAt: Date;
-
   status: OrderStatus;
-
   interval?: string;
-
   data: any;
 
   createdAt: Date;
-
   updatedAt: Date;
-
   deletedAt: Date;
 
   info: any;
