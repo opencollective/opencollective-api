@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 
+import OrderStatuses from '../../../server/constants/order_status';
 import { isCollectiveDeletable } from '../../../server/lib/collectivelib';
 import {
   fakeCollective,
@@ -53,7 +54,7 @@ describe('server/lib/collectivelib', () => {
     });
 
     it('returns false if the collective has orders associated with a payment', async () => {
-      for (const status of ['ACTIVE', 'PAID', 'CANCELLED']) {
+      for (const status of [OrderStatuses.ACTIVE, OrderStatuses.PAID, OrderStatuses.CANCELLED]) {
         const collective = await fakeCollective();
         await fakeOrder({ CollectiveId: collective.id, status });
         expect(await isCollectiveDeletable(collective)).to.be.false;

@@ -16,8 +16,10 @@ import { v4 as uuid } from 'uuid';
 import { activities, channels, roles } from '../../server/constants';
 import { types as CollectiveType, types } from '../../server/constants/collectives';
 import OAuthScopes from '../../server/constants/oauth-scopes';
+import OrderStatuses from '../../server/constants/order_status';
 import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../../server/constants/paymentMethods';
 import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
+import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
 import models, {
@@ -26,7 +28,9 @@ import models, {
   ExpenseAttachedFile,
   Notification,
   PaypalProduct,
+  Subscription,
   Tier,
+  Transaction,
   Update,
   UploadedFile,
   VirtualCard,
@@ -34,6 +38,11 @@ import models, {
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
+import { LegalDocumentModelInterface } from '../../server/models/LegalDocument';
+import { MemberModelInterface } from '../../server/models/Member';
+import { MemberInvitationModelInterface } from '../../server/models/MemberInvitation';
+import { OrderModelInterface } from '../../server/models/Order';
+import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
@@ -140,7 +149,9 @@ export const fakeHostApplication = async data => {
  * Creates a fake collective. All params are optionals.
  */
 export const fakeCollective = async (
-  collectiveData: Partial<InferCreationAttributes<Collective>> & { admin?: User | { id: number } } = {},
+  collectiveData: Partial<InferCreationAttributes<Collective>> & {
+    admin?: User | { id: number; CreatedByUserId: number };
+  } = {},
   sequelizeParams: CreateOptions = {},
 ) => {
   const type = collectiveData.type || CollectiveType.COLLECTIVE;
@@ -186,7 +197,7 @@ export const fakeCollective = async (
   }
   if (collectiveData.admin) {
     try {
-      const admin = collectiveData.admin as Record<string, unknown>;
+      const admin = collectiveData.admin;
       const isUser = admin instanceof models.User;
       await models.Member.create(
         {
@@ -524,7 +535,7 @@ export const fakeTier = async (tierData: Partial<InferCreationAttributes<Tier>> 
  * Creates a fake order. All params are optionals.
  */
 export const fakeOrder = async (
-  orderData: Record<string, unknown> & { CollectiveId?: number } = {},
+  orderData: Partial<InferCreationAttributes<OrderModelInterface>> & { subscription?: any } = {},
   { withSubscription = false, withTransactions = false, withBackerMember = false, withTier = false } = {},
 ) => {
   const CreatedByUserId = orderData.CreatedByUserId || (await fakeUser()).id;
@@ -539,11 +550,14 @@ export const fakeOrder = async (
     ? await fakeTier()
     : null;
 
-  const order = await models.Order.create({
+  const order: OrderModelInterface & {
+    subscription?: typeof Subscription;
+    transactions?: (typeof Transaction)[];
+  } = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
     totalAmount: randAmount(100, 99999999),
-    status: withSubscription ? 'ACTIVE' : 'PAID',
+    status: withSubscription ? OrderStatuses.ACTIVE : OrderStatuses.PAID,
     ...orderData,
     TierId: tier?.id || null,
     CreatedByUserId,
@@ -562,7 +576,7 @@ export const fakeOrder = async (
       currency: order.currency,
       isActive: true,
       quantity: order.quantity,
-      ...(<Record<string, unknown> | null>orderData.subscription),
+      ...orderData.subscription,
     });
     await order.update({ SubscriptionId: subscription.id });
     order.Subscription = subscription;
@@ -595,7 +609,7 @@ export const fakeOrder = async (
       MemberCollectiveId: order.FromCollectiveId,
       CollectiveId: order.CollectiveId,
       CreatedByUserId: order.CreatedByUserId,
-      role: 'BACKER',
+      role: MemberRoles.BACKER,
       TierId: tier?.id || null,
     });
   }
@@ -721,9 +735,7 @@ export const fakeTransaction = async (
 /**
  * Creates a fake member. All params are optionals.
  */
-export const fakeMember = async (
-  data: Record<string, unknown> & { CollectiveId?: number; MemberCollectiveId?: number } = {},
-) => {
+export const fakeMember = async (data: Partial<InferCreationAttributes<MemberModelInterface>> = {}) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
     ? await models.Collective.findByPk(data.MemberCollectiveId)
@@ -746,7 +758,7 @@ export const fakeMember = async (
  * Creates a fake member invitation
  */
 export const fakeMemberInvitation = async (
-  data: Record<string, unknown> & { CollectiveId?: number; MemberCollectiveId?: number } = {},
+  data: Partial<InferCreationAttributes<MemberInvitationModelInterface>> = {},
 ) => {
   const collective = data.CollectiveId ? await models.Collective.findByPk(data.CollectiveId) : await fakeCollective();
   const memberCollective = data.MemberCollectiveId
@@ -777,7 +789,7 @@ const fakePaymentMethodToken = (service, type) => {
 /**
  * Creates a fake Payment Method. All params are optionals.
  */
-export const fakePaymentMethod = async (data: Record<string, unknown>) => {
+export const fakePaymentMethod = async (data: Partial<InferCreationAttributes<PaymentMethodModelInterface>>) => {
   const service = data.service || sample(PAYMENT_METHOD_SERVICES);
   const type = data.type || sample(PAYMENT_METHOD_TYPES);
   const token = data.token || fakePaymentMethodToken(service, type);
@@ -791,7 +803,7 @@ export const fakePaymentMethod = async (data: Record<string, unknown>) => {
   });
 };
 
-export const fakeLegalDocument = async (data: Record<string, unknown> = {}) => {
+export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<LegalDocumentModelInterface>> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',

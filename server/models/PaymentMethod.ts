@@ -1,10 +1,16 @@
-import Promise from 'bluebird';
+import BluebirdPromise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
+import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
 import { maxInteger } from '../constants/math';
-import { PAYMENT_METHOD_SERVICES, PAYMENT_METHOD_TYPES } from '../constants/paymentMethods';
+import {
+  PAYMENT_METHOD_SERVICE,
+  PAYMENT_METHOD_SERVICES,
+  PAYMENT_METHOD_TYPE,
+  PAYMENT_METHOD_TYPES,
+} from '../constants/paymentMethods';
 import { TransactionTypes } from '../constants/transactions';
 import { getFxRate } from '../lib/currency';
 import { sumTransactions } from '../lib/hostlib';
@@ -15,13 +21,51 @@ import { isTestToken } from '../lib/stripe';
 import { sanitizeTags } from '../lib/tags';
 import { formatArrayToString, formatCurrency } from '../lib/utils';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
 
 const debug = debugLib('models:PaymentMethod');
 
 const { models } = sequelize;
 
-const PaymentMethod = sequelize.define(
+interface PaymentMethodStaticInterface {
+  payoutMethods: PAYMENT_METHOD_SERVICE[];
+  getOrCreate(user, paymentMethod): Promise<PaymentMethodModelInterface>;
+}
+
+export interface PaymentMethodModelInterface
+  extends Model<InferAttributes<PaymentMethodModelInterface>, InferCreationAttributes<PaymentMethodModelInterface>> {
+  id: number;
+  uuid: string;
+  CreatedByUserId: number;
+  CollectiveId: number;
+  name: string;
+  description: string;
+  customerId: string;
+  token: string;
+  primary: boolean;
+  monthlyLimitPerMember: number;
+  currency: string;
+  service: PAYMENT_METHOD_SERVICE;
+  type: PAYMENT_METHOD_TYPE;
+  data: any;
+  createdAt: Date;
+  updatedAt: Date;
+  confirmedAt: Date;
+  archivedAt: Date;
+  expiryDate: Date;
+  initialBalance: number;
+  limitedToTags: string[];
+  batch: string;
+  limitedToHostCollectiveIds: number[];
+  SourcePaymentMethodId: number;
+  saved: boolean;
+
+  getCollective(): Promise<Collective>;
+  Collective?: Collective;
+}
+
+const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodStaticInterface = sequelize.define(
   'PaymentMethod',
   {
     id: {
@@ -284,7 +328,7 @@ PaymentMethod.prototype.canBeUsedForOrder = async function (order, user) {
   if (this.limitedToHostCollectiveIds) {
     const collective = order.collective || (await order.getCollective());
     if (!this.limitedToHostCollectiveIds.includes(collective.HostCollectiveId)) {
-      const hostCollectives = await Promise.map(this.limitedToHostCollectiveIds, fetchCollectiveName);
+      const hostCollectives = await BluebirdPromise.map(this.limitedToHostCollectiveIds, fetchCollectiveName);
       throw new Error(
         `This payment method can only be used for collectives hosted by ${formatArrayToString(hostCollectives)}`,
       );
@@ -414,7 +458,7 @@ PaymentMethod.prototype.getBalanceForUser = async function (user) {
   }
 
   let limit = Infinity; // no no, no no no no, no no no no limit!
-  const query = {
+  const query: any = {
     where: { type: TransactionTypes.DEBIT },
     include: [
       {
@@ -480,7 +524,7 @@ PaymentMethod.getOrCreate = async (user, paymentMethod) => {
       CollectiveId: paymentMethod.CollectiveId, // might be null if the user decided not to save the credit card on file
     };
     debug('PaymentMethod.create', paymentMethodData);
-    return models.PaymentMethod.create(paymentMethodData);
+    return PaymentMethod.create(paymentMethodData);
   } else {
     return PaymentMethod.findOne({
       where: { uuid: paymentMethod.uuid },

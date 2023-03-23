@@ -3,6 +3,7 @@ import gqlV2 from 'fake-tag';
 import nock from 'nock';
 import { createSandbox } from 'sinon';
 
+import MemberRoles from '../../../../../server/constants/roles';
 import { TransactionTypes } from '../../../../../server/constants/transactions';
 import * as TransactionMutationHelpers from '../../../../../server/graphql/common/transactions';
 import emailLib from '../../../../../server/lib/email';
@@ -117,7 +118,7 @@ describe('server/graphql/v2/mutation/TransactionMutations', () => {
     await models.Member.create({
       CollectiveId: collective.id,
       MemberCollectiveId: randomUser.id,
-      role: 'BACKER',
+      role: MemberRoles.BACKER,
       CreatedByUserId: randomUser.id,
     });
   });

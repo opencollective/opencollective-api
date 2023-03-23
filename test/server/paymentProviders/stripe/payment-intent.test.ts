@@ -26,11 +26,14 @@ describe('stripe/payment-intent', () => {
       afterEach(sandbox.restore);
 
       beforeEach(async () => {
-        const paymentMethod = await fakePaymentMethod({ type: 'paymentintent', service: 'stripe' });
+        const paymentMethod = await fakePaymentMethod({
+          type: PAYMENT_METHOD_TYPE.PAYMENT_INTENT,
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+        });
         order = await fakeOrder({
           PaymentMethodId: paymentMethod.id,
           FromCollectiveId: paymentMethod.CollectiveId,
-          status: 'NEW',
+          status: OrderStatuses.NEW,
           totalAmount: 100e2,
           description: 'Do you even donate, brah?!',
 

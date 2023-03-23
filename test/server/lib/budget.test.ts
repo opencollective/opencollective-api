@@ -3,6 +3,7 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense_status';
+import OrderStatuses from '../../../server/constants/order_status';
 import {
   getBalances,
   getCurrentCollectiveBalances,
@@ -67,7 +68,7 @@ describe('server/lib/budget', () => {
 
       // Cancelled subscriptions (count as one-time): $10 x 3 = $30
       const cancelledOrder = await fakeOrder(
-        { totalAmount: 1000, interval: 'month', status: 'CANCELLED' },
+        { totalAmount: 1000, interval: 'month', status: OrderStatuses.CANCELLED },
         { withSubscription: true },
       );
       await cancelledOrder.Subscription.deactivate();
