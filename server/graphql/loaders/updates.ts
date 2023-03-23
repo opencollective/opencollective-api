@@ -1,6 +1,5 @@
 import { ReactionEmoji } from 'aws-sdk/clients/codecommit';
 import DataLoader from 'dataloader';
-import express from 'express';
 import { set } from 'lodash';
 
 import models, { Op, sequelize } from '../../models';
