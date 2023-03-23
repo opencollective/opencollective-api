@@ -73,13 +73,6 @@ export function getGraphqlCacheKey(req) {
       }
       return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
     case 'BudgetSection':
-      if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
-        return;
-      }
-      if (req.body.variables.limit !== 3) {
-        return;
-      }
-      return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
     case 'BudgetSectionWithHost':
       if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
         return;
@@ -167,5 +160,17 @@ export function getGraphqlCacheKey(req) {
         return;
       }
       return `${req.body.operationName}_${queryHash}_${req.body.variables.role[0]}_${req.body.variables.accountType[0]}_${req.body.variables.slug}`;
+
+    case 'BudgetSectionExpenseQuery':
+    case 'BudgetSectionContributionsQuery':
+      if (!checkSupportedVariables(req, ['slug', 'from', 'to'])) {
+        return;
+      }
+
+      if (req.body.variables.from || req.body.variables.to) {
+        return;
+      }
+
+      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
   }
 }
