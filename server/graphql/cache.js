@@ -3,23 +3,6 @@ import { difference, isEqual } from 'lodash';
 import { TransactionKind } from '../constants/transaction-kind';
 import { md5 } from '../lib/utils';
 
-export const purgeCacheForCollectiveOperationNames = [
-  'CollectivePage',
-  'ContributePage',
-  'BudgetSection',
-  'BudgetSectionWithHost',
-  'UpdatesSection',
-  'TransactionsSection',
-  'TransactionsPage',
-  'ExpensesPage',
-  'CollectiveBannerIframe',
-  'CollectiveCover',
-  'RecurringContributions',
-  'ContributionsSectionStatic',
-  'Members_Users',
-  'Members_Organizations',
-];
-
 export function checkSupportedVariables(req, variableNames) {
   if (!req.body.variables) {
     return false;
@@ -71,7 +54,7 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.nbContributorsPerContributeCard !== 4) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return [`${req.body.operationName}_${queryHash}_${req.body.variables.slug}`, req.body.variables.slug];
     case 'BudgetSection':
     case 'BudgetSectionWithHost':
       if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
@@ -80,7 +63,7 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.limit !== 3) {
         return;
       }
-      return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
+      return [getCacheKeyForBudgetOrTransactionsSections(req, queryHash), req.body.variables.slug];
     case 'UpdatesSection':
       if (!checkSupportedVariables(req, ['slug', 'onlyPublishedUpdates'])) {
         return;
@@ -88,7 +71,7 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.onlyPublishedUpdates !== true) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return [`${req.body.operationName}_${queryHash}_${req.body.variables.slug}`, req.body.variables.slug];
     case 'TransactionsSection':
       if (!checkSupportedVariables(req, ['slug', 'limit', 'kind'])) {
         return;
@@ -96,7 +79,7 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.limit !== 10) {
         return;
       }
-      return getCacheKeyForBudgetOrTransactionsSections(req, queryHash);
+      return [getCacheKeyForBudgetOrTransactionsSections(req, queryHash), req.body.variables.slug];
     case 'TransactionsPage':
       if (!checkSupportedVariables(req, ['slug', 'offset', 'limit'])) {
         return;
@@ -104,7 +87,7 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.offset !== 0 || req.body.variables.limit !== 15) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return [`${req.body.operationName}_${queryHash}_${req.body.variables.slug}`, req.body.variables.slug];
     case 'ExpensesPage':
       if (!checkSupportedVariables(req, ['collectiveSlug', 'offset', 'limit'])) {
         return;
@@ -112,19 +95,25 @@ export function getGraphqlCacheKey(req) {
       if (req.body.variables.offset !== 0 || req.body.variables.limit !== 10) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.collectiveSlug}`;
+      return [
+        `${req.body.operationName}_${queryHash}_${req.body.variables.collectiveSlug}`,
+        req.body.variables.collectiveSlug,
+      ];
     case 'CollectiveBannerIframe':
       if (!checkSupportedVariables(req, ['collectiveSlug'])) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.collectiveSlug}`;
+      return [
+        `${req.body.operationName}_${queryHash}_${req.body.variables.collectiveSlug}`,
+        req.body.variables.collectiveSlug,
+      ];
     case 'CollectiveCover':
     case 'RecurringContributions':
     case 'ContributionsSectionStatic':
       if (!checkSupportedVariables(req, ['slug'])) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return [`${req.body.operationName}_${queryHash}_${req.body.variables.slug}`, req.body.variables.slug];
     case 'Members':
       if (!checkSupportedVariables(req, ['collectiveSlug', 'offset', 'limit', 'type', 'role', 'orderBy'])) {
         return;
@@ -136,9 +125,15 @@ export function getGraphqlCacheKey(req) {
         return;
       }
       if (req.body.variables.type === 'ORGANIZATION,COLLECTIVE') {
-        return `${req.body.operationName}_${queryHash}_Organizations_${req.body.variables.collectiveSlug}`;
+        return [
+          `${req.body.operationName}_${queryHash}_Organizations_${req.body.variables.collectiveSlug}`,
+          req.body.variables.collectiveSlug,
+        ];
       } else if (req.body.variables.type === 'USER') {
-        return `${req.body.operationName}_${queryHash}_Users_${req.body.variables.collectiveSlug}`;
+        return [
+          `${req.body.operationName}_${queryHash}_Users_${req.body.variables.collectiveSlug}`,
+          req.body.variables.collectiveSlug,
+        ];
       } else {
         return;
       }
@@ -159,8 +154,11 @@ export function getGraphqlCacheKey(req) {
       if (!req.body.variables.accountType || req.body.variables.accountType.length !== 1) {
         return;
       }
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.role[0]}_${req.body.variables.accountType[0]}_${req.body.variables.slug}`;
 
+      return [
+        `${req.body.operationName}_${queryHash}_${req.body.variables.role[0]}_${req.body.variables.accountType[0]}_${req.body.variables.slug}`,
+        req.body.variables.slug,
+      ];
     case 'BudgetSectionExpenseQuery':
     case 'BudgetSectionContributionsQuery':
       if (!checkSupportedVariables(req, ['slug', 'from', 'to'])) {
@@ -171,6 +169,6 @@ export function getGraphqlCacheKey(req) {
         return;
       }
 
-      return `${req.body.operationName}_${queryHash}_${req.body.variables.slug}`;
+      return [`${req.body.operationName}_${queryHash}_${req.body.variables.slug}`, req.body.variables.slug];
   }
 }
