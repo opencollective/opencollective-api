@@ -29,6 +29,7 @@ const addFakeDataToAccount = async (account): Promise<void> => {
     // TODO Faker.fakeHostApplication({ HostCollectiveId: account.id, CollectiveId: randomCollective.id }),
     // TODO Faker.fakeHostApplication({ CollectiveId: account.id, HostCollectiveId: randomCollective.id }),
     Faker.fakeLegalDocument({ CollectiveId: account.id, year: 2020, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM }),
+    Faker.fakeLocation({ CollectiveId: account.id }),
     // TODO Faker.fakeMemberInvitation({ MemberCollectiveId: account.id }),
     Faker.fakeMember({ MemberCollectiveId: account.id, CollectiveId: randomCollective.id }),
     Faker.fakeNotification({ CollectiveId: account.id, UserId: user.id }),
@@ -97,11 +98,7 @@ const generateTestData = async () => {
   await addFakeDataToAccount(fromUser.collective);
   await addFakeDataToAccount(toUser.collective);
 
-  const fromOrganization = await Faker.fakeCollective({
-    slug: 'from-org',
-    countryISO: 'FR',
-    location: { country: 'FR', address: 'ABC Street 123' },
-  });
+  const fromOrganization = await Faker.fakeCollective({ slug: 'from-org', countryISO: 'FR' });
   const toOrganization = await Faker.fakeCollective({ slug: 'to-org', countryISO: null });
   await addFakeDataToAccount(fromOrganization);
   await addFakeDataToAccount(toOrganization);
@@ -129,8 +126,8 @@ describe('server/lib/merge-accounts', () => {
     // Load accounts
     fromCollective = await models.Collective.findBySlug('from-collective');
     toCollective = await models.Collective.findBySlug('to-collective');
-    fromOrganization = await models.Collective.findBySlug('from-org', { include: [{ association: 'location' }] });
-    toOrganization = await models.Collective.findBySlug('to-org', { include: [{ association: 'location' }] });
+    fromOrganization = await models.Collective.findBySlug('from-org');
+    toOrganization = await models.Collective.findBySlug('to-org');
 
     // Load users
     const fromUserCollective = await models.Collective.findBySlug('from-user');
@@ -175,14 +172,12 @@ describe('server/lib/merge-accounts', () => {
       await mergeAccounts(fromOrganization, toOrganization);
 
       // Profile info
-      await fromOrganization.reload({ paranoid: false, include: [{ association: 'location' }] });
-      await toOrganization.reload({ include: [{ association: 'location' }] });
+      await fromOrganization.reload({ paranoid: false });
+      await toOrganization.reload();
       expect(fromOrganization.deletedAt).to.not.be.null;
       expect(fromOrganization.slug).to.eq('from-org-merged');
       expect(fromOrganization.data.mergedIntoCollectiveId).to.eq(toOrganization.id);
       expect(toOrganization.countryISO).to.eq('FR');
-      expect(toOrganization.location?.country).to.eq('FR');
-      expect(toOrganization.location?.address).to.eq('ABC Street 123');
 
       // Associated data
       const postMoveFromItemsCounts = await getMovableItemsCounts(fromOrganization);

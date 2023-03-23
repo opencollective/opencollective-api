@@ -185,7 +185,6 @@ const userFieldsConfig = {
   expenseAttachedFiles: { model: models.ExpenseAttachedFile, field: 'CreatedByUserId' },
   expenseItems: { model: models.ExpenseItem, field: 'CreatedByUserId' },
   expenses: { model: models.Expense, field: 'UserId' },
-  location: { model: models.Location, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'CreatedByUserId' },
   members: { model: models.Member, field: 'CreatedByUserId' },
   migrationLogs: { model: models.MigrationLog, field: 'CreatedByUserId' },
@@ -236,6 +235,26 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
       idsToIgnore = await entityConfig.getIdsToIgnore(from, into, transaction);
       if (idsToIgnore.length) {
         updateWhere.id = { [Op.not]: idsToIgnore };
+      }
+    }
+
+    // Special case for location, if a location exists for both the new and old collective, soft-delete the older one
+    if (entity === 'location') {
+      const intoLocation = await models.Location.findOne({
+        where: { CollectiveId: into.id },
+        attributes: ['updatedAt', 'id'],
+        transaction,
+      });
+      const fromLocation = await models.Location.findOne({
+        where: { CollectiveId: from.id },
+        attributes: ['updatedAt', 'id'],
+        transaction,
+      });
+
+      // If both exist, soft-delete the oldest one
+      if (intoLocation && fromLocation) {
+        const oldestLocation = fromLocation.updatedAt > intoLocation.updatedAt ? intoLocation : fromLocation;
+        await oldestLocation.destroy({ transaction });
       }
     }
 

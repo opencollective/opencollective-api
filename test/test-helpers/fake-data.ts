@@ -24,6 +24,7 @@ import models, {
   Collective,
   ConnectedAccount,
   ExpenseAttachedFile,
+  Location,
   Notification,
   PaypalProduct,
   Tier,
@@ -795,6 +796,24 @@ export const fakeLegalDocument = async (data: Record<string, unknown> = {}) => {
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
+    ...data,
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
+  });
+};
+
+export const fakeLocation = async (data: Partial<InferCreationAttributes<Location>> = {}) => {
+  const countries = ['US', 'SE', 'FR', 'BE'];
+
+  return models.Location.create({
+    country: sample(countries),
+    address: randStr('Formatted Address '),
+    structured: {
+      address1: randStr('Address1 '),
+      address2: randStr('Address2 '),
+      city: randStr('City '),
+      postalCode: randNumber(10000, 99999).toString(),
+      zone: randStr('Zone '),
+    },
     ...data,
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });
