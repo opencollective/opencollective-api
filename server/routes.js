@@ -268,7 +268,7 @@ export default async app => {
       req.res.set('Execution-Time', executionTime);
 
       // This will never happen for logged-in users as cacheKey is not set
-      if (req.cacheKey && !response?.errors && executionTime > config.graphql.cache.minExecutionTimeToCache) {
+      if (req.cacheKey && !response?.errors && executionTime > parseInt(config.graphql.cache.minExecutionTimeToCache)) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
       }
 

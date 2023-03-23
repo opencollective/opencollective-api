@@ -178,7 +178,7 @@
     "cache": {
       "enabled": false,
       "ttl": 300,
-      "minExecutionTimeToCache": 750
+      "minExecutionTimeToCache": 200
     }
   },
   "pdfService": {
