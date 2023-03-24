@@ -57,6 +57,7 @@ export const getCollectiveAvatarUrl = (
 };
 
 export const COLLECTIVE_SETTINGS_KEYS_LIST = [
+  'allowCollectiveAdminsToEditPrivateExpenseData',
   'apply',
   'applyMessage',
   'disablePublicExpenseSubmission',

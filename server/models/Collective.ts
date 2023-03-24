@@ -112,6 +112,7 @@ type Goal = {
 
 type Settings = {
   goals?: Array<Goal>;
+  allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
   features?: {
     contactForm?: boolean;
   };
