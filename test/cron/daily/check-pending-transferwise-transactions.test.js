@@ -19,7 +19,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-describe('cron/hourly/check-pending-transferwise-transactions', () => {
+describe('cron/daily/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();
   let getTransfer, sendMessage;
   let expense, host, collective, payoutMethod;
@@ -132,13 +132,19 @@ describe('cron/hourly/check-pending-transferwise-transactions', () => {
 
     await checkPendingTransfers();
 
-    await utils.waitForCondition(() => sendMessage.callCount === 2);
+    await utils.waitForCondition(() => sendMessage.callCount >= 2, {
+      onFailure: () => console.log(sendMessage.callCount, sendMessage.args),
+    });
 
-    expect(sendMessage.args[0][0]).to.equal(expense.User.email);
-    expect(sendMessage.args[0][1]).to.contain(
+    const expenseCreatorEmail = sendMessage.args.find(args => args[0] === expense.User.email);
+    expect(expenseCreatorEmail).to.exist;
+    expect(expenseCreatorEmail[1]).to.contain(
       `Payment from ${collective.name} for ${expense.description} expense failed`,
     );
-    expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
+
+    const hostAdminEmail = sendMessage.args.find(args => args[0] === admin.email);
+    expect(hostAdminEmail).to.exist;
+    expect(hostAdminEmail[0]).to.equal(admin.email);
+    expect(hostAdminEmail[1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
   });
 });

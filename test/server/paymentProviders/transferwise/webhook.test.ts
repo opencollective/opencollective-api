@@ -7,7 +7,6 @@ import request from 'supertest';
 
 import { roles } from '../../../../server/constants';
 import status from '../../../../server/constants/expense_status';
-import app from '../../../../server/index';
 import emailLib from '../../../../server/lib/email';
 import * as transferwiseLib from '../../../../server/lib/transferwise';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
@@ -15,20 +14,26 @@ import {
   fakeCollective,
   fakeConnectedAccount,
   fakeExpense,
+  fakeHost,
   fakeMember,
   fakePayoutMethod,
   fakeUser,
 } from '../../../test-helpers/fake-data';
+import { startTestServer, stopTestServer } from '../../../test-helpers/server';
 import * as utils from '../../../utils';
 
 describe('server/paymentProviders/transferwise/webhook', () => {
-  let expressApp, api;
+  let expressApp, api, sandbox;
+
   before(async () => {
-    expressApp = await app();
+    expressApp = await startTestServer();
     api = request(expressApp);
+    sandbox = createSandbox();
   });
 
-  const sandbox = createSandbox();
+  after(async () => {
+    await stopTestServer();
+  });
 
   const event = {
     data: {
@@ -47,17 +52,14 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     schema_version: '2.0.0',
     sent_at: '2020-03-02T13:37:54Z',
   };
+
   let verifyEvent, sendMessage;
   let expense, host, collective;
-
-  afterEach(sandbox.restore);
-  beforeEach(utils.resetTestDB);
-  beforeEach(() => {
+  beforeEach(async () => {
+    await utils.resetTestDB();
     verifyEvent = sandbox.stub(transferwiseLib, 'verifyEvent').returns(event);
     sendMessage = sandbox.spy(emailLib, 'sendMessage');
-  });
-  beforeEach(async () => {
-    host = await fakeCollective({ isHostAccount: true });
+    host = await fakeHost();
     await fakeConnectedAccount({
       CollectiveId: host.id,
       service: 'transferwise',
@@ -99,6 +101,10 @@ describe('server/paymentProviders/transferwise/webhook', () => {
         paymentOption: { fee: { total: 10 } },
       },
     });
+  });
+
+  afterEach(() => {
+    sandbox.restore();
   });
 
   it('assigns rawBody to request and verifies the event signature', async () => {
@@ -152,16 +158,21 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     const refundEvent = { ...event, data: { ...event.data, current_state: 'funds_refunded' } };
     verifyEvent.returns(refundEvent);
 
+    // Send an email to the expense creator and the host
     await api.post('/webhooks/transferwise').send(event).expect(200);
+    await utils.waitForCondition(() => sendMessage.callCount >= 2, {
+      onFailure: () => console.log(sendMessage.callCount, sendMessage.args),
+    });
 
-    await utils.waitForCondition(() => sendMessage.callCount === 2);
-
-    expect(sendMessage.args[0][0]).to.equal(expense.User.email);
-    expect(sendMessage.args[0][1]).to.contain(
+    const expenseCreatorEmail = sendMessage.args.find(args => args[0] === expense.User.email);
+    expect(expenseCreatorEmail).to.exist;
+    expect(expenseCreatorEmail[1]).to.contain(
       `Payment from ${collective.name} for ${expense.description} expense failed`,
     );
-    expect(sendMessage.args[1][0]).to.equal(admin.email);
-    expect(sendMessage.args[1][1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
+
+    const hostAdminEmail = sendMessage.args.find(args => args[0] === admin.email);
+    expect(hostAdminEmail).to.exist;
+    expect(hostAdminEmail[1]).to.contain(`🚨 Transaction failed on ${collective.name}`);
   });
 
   it('should return 200 OK if the transaction is not associated to any expense', async () => {

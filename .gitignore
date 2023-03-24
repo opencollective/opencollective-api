@@ -12,6 +12,7 @@ node_modules
 coverage
 dbdumps/*
 !test/dbdumps/snapshots
+test/dbdumps/snapshots/resettestdb.pgdump
 test-results.xml
 dist
 yarn.lock
