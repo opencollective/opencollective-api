@@ -11,6 +11,7 @@ import { graphql } from 'graphql';
 import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -27,6 +28,7 @@ import models, { sequelize } from '../server/models';
 
 /* Test data */
 import jsonData from './mocks/data';
+import { getOrCreateDBSnapshot } from './test-helpers/data-snapshot';
 import { randStr } from './test-helpers/fake-data';
 
 jsonData.application = {
@@ -44,14 +46,37 @@ export const data = path => {
 export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
+  console.log('resetTestDB');
+  console.log('called from:', new Error().stack.toString());
+
   const resetFn = async () => {
-    await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
-    await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
-    await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+    // Kill all pending queries (they can lock, preventing truncate to run)
+    await sequelize.query(`
+      SELECT pg_cancel_backend(pid)
+      FROM pg_stat_activity
+      WHERE state = 'active'
+      AND pid <> pg_backend_pid();
+    `);
+
+    await getOrCreateDBSnapshot(
+      'resetTestDB',
+      async () => {
+        console.warn('TRUNCATING DB!!!');
+        await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
+        await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
+        await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+      },
+      {
+        shouldMigrate: false, // Test DB must be migrated by developers / CI job before running tests
+        allowInitializeOnCI: true,
+      },
+    );
   };
 
   try {
+    console.time('resetTestDB');
     await resetFn();
+    console.timeEnd('resetTestDB');
   } catch (e) {
     console.error(e);
     process.exit(1);
@@ -107,16 +132,16 @@ export const sleep = async (timeout = 200) =>
  * @param {*} options: { timeout, delay }
  * @returns {Promise}
  */
-export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
+export const waitForCondition = (cond, options = { timeout: 10000, delay: 0, onFailure: null }) =>
   new Promise(resolve => {
     let hasConditionBeenMet = false;
     setTimeout(() => {
       if (hasConditionBeenMet) {
         return;
       }
-      console.log('>>> waitForCondition Timeout Error');
-      console.trace();
-      throw new Error('Timeout waiting for condition', cond);
+
+      options.onFailure?.();
+      assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
     }, options.timeout || 10000);
     const isConditionMet = () => {
       hasConditionBeenMet = Boolean(cond());

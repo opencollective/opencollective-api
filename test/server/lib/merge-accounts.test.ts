@@ -125,7 +125,7 @@ describe('server/lib/merge-accounts', () => {
   let fromUser, toUser, fromOrganization, toOrganization, fromCollective, toCollective;
 
   before(async function () {
-    await getOrCreateDBSnapshot(this, 'merge-accounts', generateTestData);
+    await getOrCreateDBSnapshot('merge-accounts', generateTestData, { testContext: this });
 
     // Load accounts
     fromCollective = await models.Collective.findBySlug('from-collective');

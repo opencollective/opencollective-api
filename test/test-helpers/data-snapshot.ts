@@ -31,7 +31,7 @@ const snapshotCurrentDB = (filePath: string) => {
 
 const restoreDBSnapshot = (filePath: string) => {
   const { database, username, password, host, port } = getDBConf('database');
-  const cmd = `pg_restore --clean --exit-on-error --schema public -d "postgres://${username}:${password}@${host}:${port}/${database}" "${filePath}"`;
+  const cmd = `pg_restore --clean --exit-on-error --no-owner --schema public -d "postgres://${username}:${password}@${host}:${port}/${database}" "${filePath}"`;
   execSync(cmd, { stdio: 'inherit' });
 };
 
@@ -83,34 +83,52 @@ const runMigrations = (snapshotPath, { warnIfTooSlow = false } = {}) => {
  * @param initializer A function that will be called to initialize the snapshot if it doesn't exist.
  */
 export const getOrCreateDBSnapshot = async (
-  testContext: Context,
   snapshotName: string,
   initializer: () => Promise<void>,
+  {
+    testContext,
+    shouldMigrate = true,
+    allowInitializeOnCI = false,
+  }: { shouldMigrate?: boolean; testContext?: Context; allowInitializeOnCI?: boolean } = {},
 ) => {
-  const snapshotPath = path.join(__dirname, `../dbdumps/snapshots/${slugify(snapshotName)}.pgdump`);
+  const projectRoot = path.join(__dirname, '../..');
+  const snapshotPath = path.join(projectRoot, `test/dbdumps/snapshots/${slugify(snapshotName)}.pgdump`);
   const forceSnapshotUpdate = parseToBoolean(process.env.UPDATE_DB_SNAPSHOTS);
   if (forceSnapshotUpdate || !existsSync(snapshotPath)) {
-    if (config.env === 'ci') {
+    if (config.env === 'ci' && !allowInitializeOnCI) {
       throw new Error(
         `[TEST] Snapshot ${snapshotPath} does not exists. Please run 'npm run test:update-db-snapshots' on your local machine to generate it.`,
       );
     }
 
+    console.log('[TEST] Snapshot does not exists, creating it...');
     const start = Date.now();
-    const previousTimeout = testContext.timeout();
-    testContext.timeout(120000); // Allow 2 minutes for initializing the DB
-    runMigrations(snapshotPath); // Run migrations to make sure test DB is up to date
-    await initializer(); // Run custom initializer to prepare the data
+    const previousTimeout = testContext?.timeout();
+    testContext?.timeout(120000); // Allow 2 minutes for initializing the DB
+    if (shouldMigrate) {
+      runMigrations(snapshotPath); // Run migrations to make sure test DB is up to date
+    }
+    if (initializer) {
+      console.time('initializer');
+      await initializer(); // Run custom initializer to prepare the data
+      console.timeEnd('initializer');
+    }
+    console.time('snapshotCurrentDB');
     snapshotCurrentDB(snapshotPath); // Create snapshot
+    console.timeEnd('snapshotCurrentDB');
     const end = Date.now();
     const duration = end - start;
-    testContext.timeout(previousTimeout + duration); // Restore previous timeout but add the time we already spend, otherwise it will expire right after setting the value
+    testContext?.timeout(previousTimeout + duration); // Restore previous timeout but add the time we already spend, otherwise it will expire right after setting the value
   } else {
-    logger.info(`[TEST] Creating snapshot at ${snapshotPath}`);
+    logger.info(`[TEST] Restoring snapshot from ${snapshotPath}`);
+    console.time('restoreDBSnapshot');
     restoreDBSnapshot(snapshotPath);
-    const numberOfPendingMigrations = await getNumberOfPendingMigrations();
-    if (numberOfPendingMigrations > 0) {
-      runMigrations(snapshotPath, { warnIfTooSlow: true });
+    console.timeEnd('restoreDBSnapshot');
+    if (shouldMigrate) {
+      const numberOfPendingMigrations = await getNumberOfPendingMigrations();
+      if (numberOfPendingMigrations > 0) {
+        runMigrations(snapshotPath, { warnIfTooSlow: true });
+      }
     }
   }
 };

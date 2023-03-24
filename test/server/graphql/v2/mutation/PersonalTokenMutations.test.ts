@@ -78,6 +78,7 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
       const user = await fakeUser();
       const result = await graphqlQueryV2(CREATE_PERSONAL_TOKEN_MUTATION, { personalToken: VALID_TOKEN_PARAMS }, user);
       const personalToken = result.data.createPersonalToken;
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(personalToken.name).to.equal(VALID_TOKEN_PARAMS.name);
       expect(personalToken.scope).to.deep.equal(VALID_TOKEN_PARAMS.scope);
@@ -102,6 +103,7 @@ describe('server/graphql/v2/mutation/PersonalTokenMutations', () => {
           [TwoFactorAuthenticationHeader]: `totp ${twoFactorAuthenticatorCode}`,
         },
       );
+      result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       const personalToken = result.data.createPersonalToken;
       expect(personalToken.name).to.equal(VALID_TOKEN_PARAMS.name);

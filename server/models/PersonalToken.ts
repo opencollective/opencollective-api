@@ -71,6 +71,16 @@ PersonalToken.init(
     scope: {
       type: DataTypes.ARRAY(DataTypes.ENUM(...Object.values(oAuthScopes))),
       allowNull: true,
+      // See https://github.com/sequelize/sequelize/issues/14329
+      // Scope is sometimes returned as a "{string,string,string,...}" and sometimes as a [string,string,string,...]
+      get(this) {
+        const scope = this.getDataValue('scope');
+        if (Array.isArray(scope)) {
+          return scope;
+        } else if (typeof scope === 'string') {
+          return (<string>scope).slice(1, -1).split(',');
+        }
+      },
     },
     data: {
       type: DataTypes.JSONB,
