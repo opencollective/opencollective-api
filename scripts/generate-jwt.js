@@ -1,6 +1,7 @@
 import '../server/env';
 
 import { ArgumentParser } from 'argparse';
+import config from 'config';
 import moment from 'moment';
 
 import models from '../server/models';
@@ -24,10 +25,10 @@ async function main(args) {
   }
 
   const user = await models.User.findByPk(args.user_id);
-  const lastLoginAt = user.lastLoginAt ? user.lastLoginAt.getTime() : null;
 
-  const jwt = user.jwt({ scope: 'login', lastLoginAt, traceless: true }, JWT_TOKEN_EXPIRATION);
-  console.log(jwt);
+  const jwt = await user.generateSessionToken({ createActivity: false });
+
+  console.log(`${config.host.website}/signin/${jwt}`);
 }
 
 /** Return the options passed by the user to run the script */
