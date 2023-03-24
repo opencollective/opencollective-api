@@ -289,7 +289,7 @@ const Expense = new GraphQLObjectType({
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return ExpenseLib.getExpenseItems(expense.id, req);
+          return req.loaders.Expense.items.load(expense.id);
         },
       },
       privateMessage: {
