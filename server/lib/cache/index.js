@@ -2,7 +2,6 @@ import config from 'config';
 import debug from 'debug';
 import { get } from 'lodash';
 
-import { purgeCacheForCollectiveOperationNames } from '../../graphql/cache';
 import models from '../../models';
 import { purgeCacheForPage } from '../cloudflare';
 import { invalidateContributorsCache } from '../contributors';
@@ -144,6 +143,7 @@ export function memoize(func, { key, maxAge = 0, serialize, unserialize }) {
 export async function purgeGraphqlCacheForCollective(slug) {
   return cache.get(`graphqlCacheKeys_${slug}`).then(keys => {
     if (keys) {
+      cache.delete(`graphqlCacheKeys_${slug}`);
       for (const key of keys) {
         cache.delete(key);
       }
