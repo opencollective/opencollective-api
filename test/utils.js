@@ -45,13 +45,23 @@ export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
   const resetFn = async () => {
+    // Kill all pending queries (they can lock, preventing truncate to run)
+    await sequelize.query(`
+      SELECT pg_cancel_backend(pid)
+      FROM pg_stat_activity
+      WHERE state = 'active'
+      AND pid <> pg_backend_pid();
+    `);
     await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
   };
 
   try {
+    const start = Date.now();
     await resetFn();
+    const end = Date.now();
+    console.log(`>>> resetTestDB (in MS): ${end - start}`);
   } catch (e) {
     console.error(e);
     process.exit(1);
