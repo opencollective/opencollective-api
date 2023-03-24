@@ -14836,6 +14836,11 @@ input ExpenseInviteDraftInput {
   longDescription: String
 
   """
+  Currency that should be used for the payout. Defaults to the account currency
+  """
+  currency: Currency
+
+  """
   Tags associated to the expense (ie. Food, Engineering...)
   """
   tags: [String]
@@ -14851,14 +14856,14 @@ input ExpenseInviteDraftInput {
   privateMessage: String
 
   """
-  Tax ID, VAT number...etc This information will be printed on your invoice.
+  Custom information to print on the invoice
   """
   invoiceInfo: String
 
   """
-  Note to be sent to the invited user through email.
+  The payout method that will be used to reimburse the expense
   """
-  recipientNote: String
+  payoutMethod: PayoutMethodInput
 
   """
   The list of items for this expense. Total amount will be computed from them.
@@ -14881,9 +14886,19 @@ input ExpenseInviteDraftInput {
   payeeLocation: LocationInput
 
   """
-  The payout method that will be used to reimburse the expense
+  The list of taxes that should be applied to the expense (VAT, GST, etc...)
   """
-  payoutMethod: PayoutMethodInput
+  tax: [ExpenseTaxInput]
+
+  """
+  Custom data to be stored in the expense
+  """
+  customData: JSON
+
+  """
+  Note to be sent to the invited user through email.
+  """
+  recipientNote: String
 }
 
 input ExpenseInvitee {

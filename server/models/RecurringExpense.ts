@@ -90,13 +90,16 @@ export class RecurringExpense extends Model<RecurringExpenseAttributes, Recurrin
       CollectiveId: this.CollectiveId,
       lastEditedById: expense.UserId,
       incurredAt,
-      amount: expense.items?.reduce((total, item) => total + item.amount, 0) || expense.amount || 1,
+      amount: expense.amount,
+      currency: expense.currency,
       data: {
         items: expense.items?.map(item => ({ ...pick(item, ['amount', 'description', 'url']), incurredAt })),
         payee: { id: expense.FromCollectiveId },
         invitedByCollectiveId: this.FromCollectiveId,
         draftKey,
         payeeLocation: expense.payeeLocation,
+        customData: expense.data?.customData,
+        taxes: expense.data?.taxes,
       },
       status: expenseStatus.DRAFT,
     };

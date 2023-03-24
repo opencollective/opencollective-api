@@ -893,7 +893,10 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
 };
 
 /** Compute the total amount of expense from expense items */
-const computeTotalAmountForExpense = (items: (ExpenseItem | Record<string, unknown>)[], taxes: TaxDefinition[]) => {
+export const computeTotalAmountForExpense = (
+  items: (ExpenseItem | Record<string, unknown>)[],
+  taxes: TaxDefinition[],
+) => {
   return Math.round(
     sumBy(items, item => {
       const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
