@@ -287,12 +287,16 @@ export const Host = new GraphQLObjectType({
           });
 
           if (transferwiseAccount) {
-            return TransferwiseLib.getAccountBalances(transferwiseAccount).then(balances => {
-              return balances.map(balance => ({
-                value: Math.round(balance.amount.value * 100),
-                currency: balance.amount.currency,
-              }));
-            });
+            return TransferwiseLib.getAccountBalances(transferwiseAccount)
+              .then(balances => {
+                return balances.map(balance => ({
+                  value: Math.round(balance.amount.value * 100),
+                  currency: balance.amount.currency,
+                }));
+              })
+              .catch(() => {
+                return null;
+              });
           }
         },
       },
