@@ -30,7 +30,6 @@ import ActivityTypes from '../../constants/activities';
 import { types as collectiveTypes } from '../../constants/collectives';
 import statuses from '../../constants/expense_status';
 import EXPENSE_TYPE from '../../constants/expense_type';
-import ExpenseTypes from '../../constants/expense_type';
 import { ExpenseFeesPayer } from '../../constants/expense-fees-payer';
 import FEATURE from '../../constants/feature';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
@@ -185,38 +184,6 @@ const isAdminOrAccountantOfHostWhoPaidExpense = async (req: express.Request, exp
   return expense.HostCollectiveId && req.remoteUser.isAdmin(expense.HostCollectiveId);
 };
 
-const isAdminOfCollectiveWithEditPrivateExpenseDataPermissions = async (
-  req: express.Request,
-  expense: Expense,
-): Promise<boolean> => {
-  if (!req.remoteUser) {
-    return false;
-  } else if (!(await isCollectiveAdmin(req, expense))) {
-    return false;
-  }
-
-  // Collective already loaded by `isCollectiveAdmin`, we need to load the host
-  if (expense.collective && !expense.collective.host) {
-    expense.collective.host = await req.loaders.Collective.byId.load(expense.collective.HostCollectiveId);
-  }
-
-  // Host must have a special `settings.allowCollectiveAdminsToEditPrivateExpenseData` flag
-  return Boolean(expense.collective?.host?.settings?.allowCollectiveAdminsToEditPrivateExpenseData);
-};
-
-const isAdminOfCollectiveAndExpenseIsAVirtualCard = async (
-  req: express.Request,
-  expense: Expense,
-): Promise<boolean> => {
-  if (!req.remoteUser) {
-    return false;
-  } else if (expense.type !== ExpenseTypes.CHARGE) {
-    return false;
-  } else {
-    return isCollectiveAdmin(req, expense);
-  }
-};
-
 export type ExpensePermissionEvaluator = (
   req: express.Request,
   expense: Expense,
@@ -278,8 +245,7 @@ export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req,
     isHostAdmin,
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
-    isAdminOfCollectiveWithEditPrivateExpenseDataPermissions, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
-    isAdminOfCollectiveAndExpenseIsAVirtualCard, // Virtual cards are created by the collective admins
+    isCollectiveAdmin, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
   ]);
 };
 
@@ -363,17 +329,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(
-      req,
-      expense,
-      [
-        isOwner,
-        isHostAdmin,
-        isAdminOfCollectiveAndExpenseIsAVirtualCard,
-        isAdminOfCollectiveWithEditPrivateExpenseDataPermissions,
-      ],
-      options,
-    );
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
 };
 
