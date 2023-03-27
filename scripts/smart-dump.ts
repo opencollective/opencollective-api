@@ -365,6 +365,8 @@ program.command('restore <file>').action(async file => {
   console.log('\n>>> Refreshing Materialized Views...');
   await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
   await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTransactionStats"`);
+  await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveTagStats"`);
 
   console.log('\n>>> Done!');
   sequelize.close();
