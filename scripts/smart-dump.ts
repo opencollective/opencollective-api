@@ -312,7 +312,7 @@ program.command('dump [recipe] [env]').action(async (recipe, env) => {
 
   if (!recipe || (recipe && !env)) {
     console.log('Using default recipe...');
-    recipe = './defaultRecipe.js';
+    recipe = './smart-dump/defaultRecipe.js';
   }
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
