@@ -6,7 +6,6 @@ import { requiredLegalDocuments, userTaxFormRequiredBeforePayment } from '../../
 import models from '../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
 import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
 
 const US_TAX_FORM_THRESHOLD = 600e2;
 
@@ -26,7 +25,6 @@ describe('server/graphql/loaders/expense', () => {
   let otherPayoutMethod;
 
   before(async () => {
-    await resetTestDB();
     otherPayoutMethod = await fakePayoutMethod({ type: 'OTHER' });
   });
 

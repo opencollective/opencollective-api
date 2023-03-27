@@ -5,13 +5,11 @@ import { buildLoaderForAssociation } from '../../../../server/graphql/loaders/he
 import models from '../../../../server/models';
 import Collective from '../../../../server/models/Collective';
 import { fakeCollective, fakeHost } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
 
 describe('server/graphql/loaders/helpers', () => {
   let sandbox;
 
-  before(async () => {
-    await resetTestDB();
+  before(() => {
     sandbox = createSandbox();
   });
 

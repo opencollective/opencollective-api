@@ -18,7 +18,6 @@ import {
   fakeUser,
   randStr,
 } from '../../test-helpers/fake-data';
-import { resetTestDB } from '../../utils';
 
 const fakePayPalSubscriptionOrder = async collective => {
   const paypalSubscriptionId = randStr();
@@ -48,7 +47,6 @@ describe('cron/hourly/70-cancel-subscriptions-for-cancelled-orders', () => {
   let sandbox, host;
 
   beforeEach(async () => {
-    await resetTestDB();
     host = await fakeHost();
     await fakeConnectedAccount({ service: 'paypal', clientId: randStr(), token: randStr(), CollectiveId: host.id });
     sandbox = createSandbox();

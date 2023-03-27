@@ -13,7 +13,7 @@ describe('cron/hourly/10-pay-paypal-scheduled-expenses-payouts', () => {
   let payExpensesBatch;
 
   afterEach(sandbox.restore);
-  beforeEach(utils.resetTestDB);
+  beforeEach(utils.resetTestDB); // We have to do it every time because it's relying on the transactions IDs
   beforeEach(() => {
     payExpensesBatch = sandbox.stub(paypal, 'payExpensesBatch').resolves();
   });

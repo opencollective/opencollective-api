@@ -5,7 +5,7 @@ import { resetTestDB, snapshotLedger } from '../../utils';
 const SNAPSHOT_COLUMNS = ['kind', 'type', 'amount', 'CollectiveId', 'FromCollectiveId', 'HostCollectiveId'];
 
 describe('scripts/ledger/update-transactions', () => {
-  before('reset test database', () => resetTestDB());
+  before('reset test database', () => resetTestDB()); // We're making a full snapshot of the ledger, so we need to reset the DB
 
   it('update hostFeePercent when it does not exists yet', async () => {
     const transaction = await fakeTransaction({ amount: 500, kind: 'CONTRIBUTION' }, { createDoubleEntry: true });

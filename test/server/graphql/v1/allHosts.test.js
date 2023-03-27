@@ -8,7 +8,7 @@ import * as utils from '../../../utils';
 describe('server/graphql/v1/allHosts', () => {
   let hostAdmin, publicHost, privateHost, collective1, collective2, user1;
 
-  before('reset test db', () => utils.resetTestDB());
+  before('reset test db', () => utils.resetTestDB()); // Needed because we count on the number of hosts
   before('build up db content', async () => {
     hostAdmin = await models.User.createUserWithCollective({
       email: 'admin@host.com',

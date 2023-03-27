@@ -4,13 +4,8 @@ import { types } from '../../../../server/constants/collectives';
 import MemberRoles from '../../../../server/constants/roles';
 import CollectiveLoaders from '../../../../server/graphql/loaders/collective';
 import { fakeCollective, fakeMember, fakeUser } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
 
 describe('server/graphql/loaders/collective', () => {
-  before(async () => {
-    await resetTestDB();
-  });
-
   describe('canSeePrivateInfo', () => {
     describe('User info', () => {
       let userWithPrivateInfo, randomUser, collectiveAdmin, hostAdmin;

@@ -21,7 +21,7 @@ describe('cron/monthly/host-settlement', () => {
 
   let gbpHost, expense;
   before(async () => {
-    await utils.resetTestDB();
+    await utils.resetTestDB(); // We're relying on IDs
     const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
     const oc = await fakeHost({ id: 8686, slug: 'opencollective', CreatedByUserId: user.id });
 
@@ -149,11 +149,6 @@ describe('cron/monthly/host-settlement', () => {
     expense = (await gbpHost.getExpenses())[0];
     expect(expense).to.exist;
     expense.items = await expense.getItems();
-  });
-
-  // Resync DB to make sure we're not touching other tests
-  after(async () => {
-    await utils.resetTestDB();
   });
 
   it('should invoice the host in its own currency', () => {
