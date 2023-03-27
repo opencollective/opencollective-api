@@ -1,3 +1,4 @@
+import { Promise } from 'bluebird';
 import { expect } from 'chai';
 import { cloneDeep } from 'lodash';
 import moment from 'moment';
@@ -56,13 +57,17 @@ describe('server/graphql/common/expenses', () => {
     },
   };
 
+  /**
+   * Use this object to store different test contexts.
+   * `runForAllContexts` will pick this to make sure test assertions check all contexts.
+   */
   const contexts = {
     normal: cloneDeep(contextShape),
+    selfHosted: cloneDeep(contextShape),
     virtualCard: cloneDeep(contextShape),
-    hostWithSpecialExpensePermissions: cloneDeep(contextShape),
   };
 
-  const prepareContext = async () => {
+  const prepareContext = async ({ host = undefined, collective = undefined } = {}) => {
     const randomUser = await fakeUser();
     const collectiveAdmin = await fakeUser();
     const collectiveAccountant = await fakeUser();
@@ -71,7 +76,7 @@ describe('server/graphql/common/expenses', () => {
     const limitedHostAdmin = await fakeUser();
     const expenseOwner = await fakeUser();
     const payoutMethod = await fakePayoutMethod({ type: PayoutMethodTypes.OTHER });
-    const collective = await fakeCollective();
+    collective = collective || (await fakeCollective({ HostCollectiveId: host?.id }));
     const expense = await fakeExpense({
       CollectiveId: collective.id,
       FromCollectiveId: expenseOwner.CollectiveId,
@@ -101,6 +106,7 @@ describe('server/graphql/common/expenses', () => {
       collective,
       host: collective.host,
       collectiveAdmin,
+      isSelfHosted: collective.host.id === collective.id,
       req: {
         public: makeRequest(),
         randomUser: makeRequest(randomUser),
@@ -115,93 +121,91 @@ describe('server/graphql/common/expenses', () => {
   };
 
   before(async () => {
+    // The most common pattern: a collective + fiscal host
     contexts.normal = await prepareContext();
 
+    // Virtual card
     contexts.virtualCard = await prepareContext();
     await contexts.virtualCard.expense.update({ type: 'CHARGE' });
 
-    contexts.hostWithSpecialExpensePermissions = await prepareContext();
-    const updatedHostSettings = { allowCollectiveAdminsToEditPrivateExpenseData: true };
-    const updatedHost = await contexts.hostWithSpecialExpensePermissions.host.update({ settings: updatedHostSettings });
-    contexts.hostWithSpecialExpensePermissions.collective.host = updatedHost;
-    contexts.hostWithSpecialExpensePermissions.expense.collective.host = updatedHost;
+    // A self-hosted collective
+    const selfHostedCollective = await fakeCollective({ isHostAccount: true, isActive: true, HostCollectiveId: null });
+    await selfHostedCollective.update({ HostCollectiveId: selfHostedCollective.id });
+    selfHostedCollective.host = selfHostedCollective;
+    contexts.selfHosted = await prepareContext({ host: selfHostedCollective, collective: selfHostedCollective });
   });
 
   /** A helper to run the same test on all contexts, to make sure they behave the same way */
   const runForAllContexts = async (fn, options = {}) => {
     for (const key in contexts) {
       if (contexts[key] !== options.except) {
-        await fn(contexts[key]);
+        try {
+          await fn(contexts[key]);
+        } catch (e) {
+          // Add context information to error message
+          e.message = `Error in context ${key}: ${e.message}`;
+          throw e;
+        }
       }
     }
+  };
+
+  const checkAllPermissions = async (fn, context) => {
+    const { req, expense } = context;
+    const promises = {};
+    for (const key in req) {
+      promises[key] = fn(req[key], expense);
+    }
+    return Promise.props(promises);
   };
 
   describe('canSeeExpenseAttachments', () => {
     it('can see only with the allowed roles or host admin', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
-        expect(await canSeeExpenseAttachments(req.public, expense)).to.be.false;
-        expect(await canSeeExpenseAttachments(req.randomUser, expense)).to.be.false;
-        expect(await canSeeExpenseAttachments(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canSeeExpenseAttachments(req.collectiveAccountant, expense)).to.be.true;
-        expect(await canSeeExpenseAttachments(req.hostAdmin, expense)).to.be.true;
-        expect(await canSeeExpenseAttachments(req.hostAccountant, expense)).to.be.true;
-        expect(await canSeeExpenseAttachments(req.expenseOwner, expense)).to.be.true;
-        expect(await canSeeExpenseAttachments(req.limitedHostAdmin, expense)).to.be.false;
+        expect(await checkAllPermissions(canSeeExpenseAttachments, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: true,
+          hostAdmin: true,
+          hostAccountant: true,
+          limitedHostAdmin: false,
+          expenseOwner: true,
+        });
       });
     });
   });
 
   describe('canSeeExpensePayoutMethod', () => {
     it('can see only with the allowed roles', async () => {
-      const { expense, req } = contexts.normal;
-      expect(await canSeeExpensePayoutMethod(req.public, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.randomUser, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.collectiveAdmin, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.hostAdmin, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.hostAccountant, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.expenseOwner, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.limitedHostAdmin, expense)).to.be.false;
-    });
-
-    it('collective admins can see the payout method for virtual cards', async () => {
-      const { expense, req } = contexts.virtualCard;
-      expect(await canSeeExpensePayoutMethod(req.public, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.randomUser, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.collectiveAdmin, expense)).to.be.true; // <-- Here
-      expect(await canSeeExpensePayoutMethod(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.hostAdmin, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.hostAccountant, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.expenseOwner, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.limitedHostAdmin, expense)).to.be.false;
-    });
-
-    it('can see the payout method for hosts that allow admins to edit private expense data', async () => {
-      const { expense, req } = contexts.hostWithSpecialExpensePermissions;
-      expect(await canSeeExpensePayoutMethod(req.public, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.randomUser, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.collectiveAdmin, expense)).to.be.true; // <-- Here
-      expect(await canSeeExpensePayoutMethod(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canSeeExpensePayoutMethod(req.hostAdmin, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.hostAccountant, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.expenseOwner, expense)).to.be.true;
-      expect(await canSeeExpensePayoutMethod(req.limitedHostAdmin, expense)).to.be.false;
+      await runForAllContexts(async context => {
+        expect(await checkAllPermissions(canSeeExpensePayoutMethod, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: context.isSelfHosted ? true : false,
+          hostAdmin: true,
+          hostAccountant: true,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
     });
   });
 
   describe('canSeeExpenseInvoiceInfo', () => {
     it('can see only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
-        expect(await canSeeExpenseInvoiceInfo(req.public, expense)).to.be.false;
-        expect(await canSeeExpenseInvoiceInfo(req.randomUser, expense)).to.be.false;
-        expect(await canSeeExpenseInvoiceInfo(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canSeeExpenseInvoiceInfo(req.collectiveAccountant, expense)).to.be.true;
-        expect(await canSeeExpenseInvoiceInfo(req.hostAdmin, expense)).to.be.true;
-        expect(await canSeeExpenseInvoiceInfo(req.hostAccountant, expense)).to.be.true;
-        expect(await canSeeExpenseInvoiceInfo(req.expenseOwner, expense)).to.be.true;
-        expect(await canSeeExpenseInvoiceInfo(req.limitedHostAdmin, expense)).to.be.false;
+        expect(await checkAllPermissions(canSeeExpenseInvoiceInfo, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: true,
+          hostAdmin: true,
+          hostAccountant: true,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
   });
@@ -209,179 +213,185 @@ describe('server/graphql/common/expenses', () => {
   describe('canSeeExpensePayeeLocation', () => {
     it('can see only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
-        expect(await canSeeExpensePayeeLocation(req.public, expense)).to.be.false;
-        expect(await canSeeExpensePayeeLocation(req.randomUser, expense)).to.be.false;
-        expect(await canSeeExpensePayeeLocation(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canSeeExpensePayeeLocation(req.collectiveAccountant, expense)).to.be.true;
-        expect(await canSeeExpensePayeeLocation(req.hostAdmin, expense)).to.be.true;
-        expect(await canSeeExpensePayeeLocation(req.hostAccountant, expense)).to.be.true;
-        expect(await canSeeExpensePayeeLocation(req.expenseOwner, expense)).to.be.true;
-        expect(await canSeeExpensePayeeLocation(req.limitedHostAdmin, expense)).to.be.false;
+        expect(await checkAllPermissions(canSeeExpensePayeeLocation, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: true,
+          hostAdmin: true,
+          hostAccountant: true,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
   });
 
   describe('canEditExpense', () => {
     it('only if not processing, paid or scheduled for payment', async () => {
-      const { expense, req } = contexts.normal;
-      await expense.update({ status: 'PENDING' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'APPROVED' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'ERROR' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'REJECTED' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'PROCESSING' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'PAID' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'DRAFT' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+        const isVirtualCard = expense.type === 'CHARGE';
+        await expense.update({ status: 'PENDING' });
+        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'ERROR' });
+        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'PROCESSING' });
+
+        // Can still edit processing/paid expenses if it's a virtual card
+        if (isVirtualCard) {
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+          await expense.update({ status: 'PAID' });
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        } else {
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+          await expense.update({ status: 'PAID' });
+          expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+        }
+
+        await expense.update({ status: 'DRAFT' });
+        expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+        expect(await canEditExpense(req.hostAdmin, expense)).to.be.false;
+      });
     });
 
     it('can edit expense if user is the draft payee', async () => {
-      const { expense } = contexts.normal;
-      const expensePayee = await fakeUser();
-      await expensePayee.populateRoles();
-      await expense.update({ status: 'DRAFT', data: { payee: { id: expensePayee.collective.id } } });
-      expect(await canEditExpense(makeRequest(expensePayee), expense)).to.be.true;
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        const expensePayee = await fakeUser();
+        await expensePayee.populateRoles();
+        await expense.update({ status: 'DRAFT', data: { payee: { id: expensePayee.collective.id } } });
+        expect(await canEditExpense(makeRequest(expensePayee), expense)).to.be.true;
+      });
     });
 
     it('only with the allowed roles', async () => {
-      const { expense, req } = contexts.normal;
-      await expense.update({ status: 'REJECTED' });
-      expect(await canEditExpense(req.public, expense)).to.be.false;
-      expect(await canEditExpense(req.randomUser, expense)).to.be.false;
-      expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.false;
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      expect(await canEditExpense(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canEditExpense(req.hostAccountant, expense)).to.be.false;
-      expect(await canEditExpense(req.expenseOwner, expense)).to.be.true;
-      expect(await canEditExpense(req.limitedHostAdmin, expense)).to.be.false;
-    });
-
-    it('can edit expense if collective admin and expense is a virtual card', async () => {
-      const { expense, req } = contexts.virtualCard;
-      await expense.update({ status: 'PENDING' });
-      expect(await canEditExpense(req.public, expense)).to.be.false;
-      expect(await canEditExpense(req.randomUser, expense)).to.be.false;
-      expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.true; // <-- Here
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      expect(await canEditExpense(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canEditExpense(req.hostAccountant, expense)).to.be.false;
-      expect(await canEditExpense(req.expenseOwner, expense)).to.be.true;
-      expect(await canEditExpense(req.limitedHostAdmin, expense)).to.be.false;
-    });
-
-    it('can edit expense if host has special permission flag', async () => {
-      const { expense, req } = contexts.hostWithSpecialExpensePermissions;
-      await expense.update({ status: 'PENDING' });
-      expect(await canEditExpense(req.public, expense)).to.be.false;
-      expect(await canEditExpense(req.randomUser, expense)).to.be.false;
-      expect(await canEditExpense(req.collectiveAdmin, expense)).to.be.true; // <-- Here
-      expect(await canEditExpense(req.hostAdmin, expense)).to.be.true;
-      expect(await canEditExpense(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canEditExpense(req.hostAccountant, expense)).to.be.false;
-      expect(await canEditExpense(req.expenseOwner, expense)).to.be.true;
-      expect(await canEditExpense(req.limitedHostAdmin, expense)).to.be.false;
+      await runForAllContexts(async context => {
+        await context.expense.update({ status: 'REJECTED' });
+        expect(await checkAllPermissions(canEditExpense, contexts.normal)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
     });
   });
 
   describe('canEditExpenseTags', () => {
     it('only if not processing, paid, draft or scheduled for payment', async () => {
-      const { expense, req } = contexts.normal;
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
 
-      // Can always edit tags if collective admin
-      for (const status of Object.values(expenseStatus)) {
-        await expense.update({ status });
-        expect(await canEditExpenseTags(req.hostAdmin, expense)).to.be.true;
-      }
+        // Can always edit tags if collective admin
+        for (const status of Object.values(expenseStatus)) {
+          await expense.update({ status });
+          expect(await canEditExpenseTags(req.hostAdmin, expense)).to.be.true;
+        }
 
-      // But owner can't update them if it's paid
-      await expense.update({ status: 'PAID' });
-      expect(await canEditExpenseTags(req.expenseOwner, expense)).to.be.false;
+        // But owner can't update them if it's paid
+        await expense.update({ status: 'PAID' });
+        expect(await canEditExpenseTags(req.expenseOwner, expense)).to.be.false;
+      });
     });
 
     it('only with the allowed roles', async () => {
-      const { expense, req } = contexts.normal;
-      await expense.update({ status: 'PENDING' });
-      expect(await canEditExpenseTags(req.public, expense)).to.be.false;
-      expect(await canEditExpenseTags(req.randomUser, expense)).to.be.false;
-      expect(await canEditExpenseTags(req.collectiveAdmin, expense)).to.be.true;
-      expect(await canEditExpenseTags(req.hostAdmin, expense)).to.be.true;
-      expect(await canEditExpenseTags(req.collectiveAccountant, expense)).to.be.false;
-      expect(await canEditExpenseTags(req.hostAccountant, expense)).to.be.false;
-      expect(await canEditExpenseTags(req.expenseOwner, expense)).to.be.true;
-      expect(await canEditExpenseTags(req.limitedHostAdmin, expense)).to.be.false;
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PENDING' });
+        expect(await checkAllPermissions(canEditExpenseTags, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
     });
   });
 
   describe('canDeleteExpense', () => {
     it('only if rejected', async () => {
-      const { expense, req } = contexts.normal;
-      await expense.update({ status: 'PENDING' });
-      expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'APPROVED' });
-      expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'PROCESSING' });
-      expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'ERROR' });
-      expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'PAID' });
-      expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'REJECTED' });
-      expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.true;
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+        await expense.update({ status: 'PENDING' });
+        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'ERROR' });
+        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'PAID' });
+        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.true;
+      });
     });
 
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'REJECTED' });
-        expect(await canDeleteExpense(req.public, expense)).to.be.false;
-        expect(await canDeleteExpense(req.randomUser, expense)).to.be.false;
-        expect(await canDeleteExpense(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canDeleteExpense(req.hostAdmin, expense)).to.be.true;
-        expect(await canDeleteExpense(req.expenseOwner, expense)).to.be.true;
-        expect(await canDeleteExpense(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canDeleteExpense(req.collectiveAccountant, expense)).to.be.false;
-        expect(await canDeleteExpense(req.hostAccountant, expense)).to.be.false;
+        expect(await checkAllPermissions(canDeleteExpense, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: false,
+          hostAdmin: true,
+          hostAccountant: false,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
       });
     });
   });
 
   describe('canPayExpense', () => {
     it('only if approved or error', async () => {
-      const { expense, req } = contexts.normal;
-      await expense.update({ status: 'PENDING' });
-      expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'APPROVED' });
-      expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'PROCESSING' });
-      expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'ERROR' });
-      expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
-      await expense.update({ status: 'PAID' });
-      expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
-      await expense.update({ status: 'REJECTED' });
-      expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+      await runForAllContexts(async context => {
+        const { expense, req } = context;
+        await expense.update({ status: 'PENDING' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'APPROVED' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'PROCESSING' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'ERROR' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
+        await expense.update({ status: 'PAID' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+        await expense.update({ status: 'REJECTED' });
+        expect(await canPayExpense(req.hostAdmin, expense)).to.be.false;
+      });
     });
 
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'APPROVED' });
-        expect(await canPayExpense(req.public, expense)).to.be.false;
-        expect(await canPayExpense(req.randomUser, expense)).to.be.false;
-        expect(await canPayExpense(req.collectiveAdmin, expense)).to.be.false;
-        expect(await canPayExpense(req.hostAdmin, expense)).to.be.true;
-        expect(await canPayExpense(req.expenseOwner, expense)).to.be.false;
-        expect(await canPayExpense(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canPayExpense(req.collectiveAccountant, expense)).to.be.false;
-        expect(await canPayExpense(req.hostAccountant, expense)).to.be.false;
+        expect(await checkAllPermissions(canPayExpense, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted ? true : false,
+          hostAdmin: true,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+        });
       });
     });
   });
@@ -404,16 +414,18 @@ describe('server/graphql/common/expenses', () => {
     });
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'PENDING' });
-        expect(await canApprove(req.public, expense)).to.be.false;
-        expect(await canApprove(req.randomUser, expense)).to.be.false;
-        expect(await canApprove(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canApprove(req.hostAdmin, expense)).to.be.true;
-        expect(await canApprove(req.expenseOwner, expense)).to.be.false;
-        expect(await canApprove(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canApprove(req.collectiveAccountant, expense)).to.be.false;
-        expect(await canApprove(req.hostAccountant, expense)).to.be.false;
+        expect(await checkAllPermissions(canApprove, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          hostAdmin: true,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+        });
       });
     });
 
@@ -553,16 +565,18 @@ describe('server/graphql/common/expenses', () => {
 
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'PENDING' });
-        expect(await canReject(req.public, expense)).to.be.false;
-        expect(await canReject(req.randomUser, expense)).to.be.false;
-        expect(await canReject(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canReject(req.hostAdmin, expense)).to.be.true;
-        expect(await canReject(req.expenseOwner, expense)).to.be.false;
-        expect(await canReject(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canReject(req.collectiveAccountant, expense)).to.be.false;
-        expect(await canReject(req.hostAccountant, expense)).to.be.false;
+        expect(await checkAllPermissions(canReject, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          hostAdmin: true,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+        });
       });
     });
   });
@@ -586,16 +600,18 @@ describe('server/graphql/common/expenses', () => {
 
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'APPROVED' });
-        expect(await canUnapprove(req.public, expense)).to.be.false;
-        expect(await canUnapprove(req.randomUser, expense)).to.be.false;
-        expect(await canUnapprove(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canUnapprove(req.hostAdmin, expense)).to.be.true;
-        expect(await canUnapprove(req.expenseOwner, expense)).to.be.false;
-        expect(await canUnapprove(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canUnapprove(req.collectiveAccountant, expense)).to.be.false;
-        expect(await canUnapprove(req.hostAccountant, expense)).to.be.false;
+        expect(await checkAllPermissions(canUnapprove, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          hostAdmin: true,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+        });
       });
     });
   });
@@ -618,21 +634,21 @@ describe('server/graphql/common/expenses', () => {
     });
 
     it('only with the allowed roles', async () => {
-      await runForAllContexts(
-        async context => {
-          const { expense, req } = context;
-          await expense.update({ status: 'PAID' });
-          expect(await canMarkAsUnpaid(req.public, expense)).to.be.false;
-          expect(await canMarkAsUnpaid(req.randomUser, expense)).to.be.false;
-          expect(await canMarkAsUnpaid(req.collectiveAdmin, expense)).to.be.false;
-          expect(await canMarkAsUnpaid(req.hostAdmin, expense)).to.be.true;
-          expect(await canMarkAsUnpaid(req.expenseOwner, expense)).to.be.false;
-          expect(await canMarkAsUnpaid(req.limitedHostAdmin, expense)).to.be.false;
-          expect(await canMarkAsUnpaid(req.collectiveAccountant, expense)).to.be.false;
-          expect(await canMarkAsUnpaid(req.hostAccountant, expense)).to.be.false;
-        },
-        { except: contexts.virtualCard },
-      );
+      await runForAllContexts(async context => {
+        const { expense } = context;
+        await expense.update({ status: 'PAID' });
+        const isVirtualCard = expense.type === 'CHARGE';
+        expect(await checkAllPermissions(canMarkAsUnpaid, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: isVirtualCard ? false : context.isSelfHosted,
+          hostAdmin: isVirtualCard ? false : true,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+        });
+      });
     });
 
     it('not if the expense is a virtual card', async () => {
@@ -647,16 +663,18 @@ describe('server/graphql/common/expenses', () => {
   describe('canComment', () => {
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'PAID' });
-        expect(await canComment(req.public, expense)).to.be.false;
-        expect(await canComment(req.randomUser, expense)).to.be.false;
-        expect(await canComment(req.collectiveAdmin, expense)).to.be.true;
-        expect(await canComment(req.hostAdmin, expense)).to.be.true;
-        expect(await canComment(req.expenseOwner, expense)).to.be.true;
-        expect(await canComment(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canComment(req.collectiveAccountant, expense)).to.be.true;
-        expect(await canComment(req.hostAccountant, expense)).to.be.true;
+        expect(await checkAllPermissions(canComment, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          hostAdmin: true,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+          collectiveAccountant: true,
+          hostAccountant: true,
+        });
       });
     });
   });
@@ -682,16 +700,18 @@ describe('server/graphql/common/expenses', () => {
 
     it('only with the allowed roles', async () => {
       await runForAllContexts(async context => {
-        const { expense, req } = context;
+        const { expense } = context;
         await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
-        expect(await canUnschedulePayment(req.public, expense)).to.be.false;
-        expect(await canUnschedulePayment(req.randomUser, expense)).to.be.false;
-        expect(await canUnschedulePayment(req.collectiveAdmin, expense)).to.be.false;
-        expect(await canUnschedulePayment(req.hostAdmin, expense)).to.be.true;
-        expect(await canUnschedulePayment(req.expenseOwner, expense)).to.be.false;
-        expect(await canUnschedulePayment(req.limitedHostAdmin, expense)).to.be.false;
-        expect(await canUnschedulePayment(req.collectiveAccountant, expense)).to.be.false;
-        expect(await canUnschedulePayment(req.hostAccountant, expense)).to.be.false;
+        expect(await checkAllPermissions(canUnschedulePayment, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: context.isSelfHosted,
+          hostAdmin: true,
+          expenseOwner: false,
+          limitedHostAdmin: false,
+          collectiveAccountant: false,
+          hostAccountant: false,
+        });
       });
     });
 
