@@ -11,6 +11,8 @@ import models, { Op, sequelize } from '../server/models';
 import { IDENTIFIABLE_DATA_FIELDS } from '../server/models/PayoutMethod';
 import { randEmail, randStr } from '../test/test-helpers/fake-data';
 
+import { testStripeAccounts } from './sanitize-db';
+
 const program = new Command();
 const nop = () => undefined;
 const exec = cmd => {
@@ -147,43 +149,10 @@ const buildDependencyTree = models => {
 // }
 const tree = buildDependencyTree(models);
 
-const TEST_STRIPE_ACCOUNTS = {
-  // Open Source Collective 501c6
-  11004: {
-    service: 'stripe',
-    username: 'acct_18KWlTLzdXg9xKNS',
-    token: 'sk_test_iDWQubtz4ixk0FQg1csgCi6p',
-    data: {
-      publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC',
-    },
-  },
-  9805: {
-    // legacy for opencollective_dvl.pgsql
-    service: 'stripe',
-    username: 'acct_18KWlTLzdXg9xKNS',
-    token: 'sk_test_iDWQubtz4ixk0FQg1csgCi6p',
-    data: {
-      publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC',
-    },
-  },
-  // Open Collective Inc. host for meetups
-  8674: {
-    service: 'stripe',
-    username: 'acct_18KWlTLzdXg9xKNS',
-    token: 'sk_test_iDWQubtz4ixk0FQg1csgCi6p',
-    data: {
-      publishableKey: 'pk_test_l7H1cDlh2AekeETfq742VJbC',
-    },
-  },
-  9802: {
-    service: 'stripe',
-    username: 'acct_198T7jD8MNtzsDcg',
-    token: 'sk_test_Hcsz2JJdMzEsU28c6I8TyYYK',
-    data: {
-      publishableKey: 'pk_test_OSQ8IaRSyLe9FVHMivgRjQng',
-    },
-  },
-};
+const TEST_STRIPE_ACCOUNTS = Object.values(testStripeAccounts).reduce(
+  (obj, account) => ({ ...obj, [account.CollectiveId]: account }),
+  {},
+);
 
 const Sanitizers = {
   ConnectedAccount: values =>
