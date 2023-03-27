@@ -6,7 +6,7 @@ import config from 'config';
 import channels from '../server/constants/channels';
 import models, { Op, sequelize } from '../server/models';
 
-const testStripeAccounts = {
+export const testStripeAccounts = {
   // Open Source Collective 501c6
   opensource: {
     service: 'stripe',
