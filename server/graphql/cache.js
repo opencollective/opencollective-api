@@ -23,7 +23,11 @@ export function getGraphqlCacheProperties(req) {
   }
 
   // We only want to cache queries with an Account slug
-  const slug = req.body.variables.slug || req.body.variables.collectiveSlug || req.body.variables.CollectiveSlug;
+  const slug =
+    req.body.variables.slug ||
+    req.body.variables.accountSlug ||
+    req.body.variables.collectiveSlug ||
+    req.body.variables.CollectiveSlug;
   if (!slug) {
     return;
   }
