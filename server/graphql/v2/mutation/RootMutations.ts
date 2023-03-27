@@ -2,7 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { isNil, uniqBy } from 'lodash';
 
-import { purgeAllCachesForAccount, purgeGQLCacheForCollective } from '../../../lib/cache';
+import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
@@ -127,7 +127,7 @@ export default {
         asyncActions.push(purgeCacheForPage(`/${account.slug}`));
       }
       if (args.type.includes('GRAPHQL_QUERIES')) {
-        asyncActions.push(purgeGQLCacheForCollective(account.slug));
+        asyncActions.push(purgeGraphqlCacheForCollective(account.slug));
       }
       if (args.type.includes('CONTRIBUTORS')) {
         asyncActions.push(invalidateContributorsCache(account.id));
