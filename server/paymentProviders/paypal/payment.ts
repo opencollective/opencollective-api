@@ -1,4 +1,4 @@
-import { get, isUndefined, pickBy, truncate } from 'lodash';
+import { get, isUndefined, omit, pickBy, truncate } from 'lodash';
 
 import FEATURE from '../../constants/feature';
 import * as constants from '../../constants/transactions';
@@ -12,7 +12,7 @@ import {
   isPlatformTipEligible,
 } from '../../lib/payments';
 import { paypalAmountToCents } from '../../lib/paypal';
-import { reportMessageToSentry } from '../../lib/sentry';
+import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import { OrderModelInterface } from '../../models/Order';
@@ -235,7 +235,13 @@ export const refundPaypalCapture = async (
       user,
     );
   } catch (error) {
-    const newData = delete transaction.data.isRefundedFromOurSystem;
+    reportErrorToSentry(error, {
+      feature: FEATURE.PAYPAL_DONATIONS,
+      user: user,
+      extra: { transactionId: transaction.id, captureId, reason },
+    });
+
+    const newData = omit(transaction.data, ['isRefundedFromOurSystem']);
     await transaction.update({ data: newData });
     throw error;
   }
