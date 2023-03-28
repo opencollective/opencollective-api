@@ -16,13 +16,14 @@ import activities from '../../../constants/activities';
 import { types as COLLECTIVE_TYPE } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
-import TwoFactorAuthLib from '../../../lib/two-factor-authentication';
-import { validateTOTPToken } from '../../../lib/two-factor-authentication/totp';
+import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
+import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
 import models, { sequelize } from '../../../models';
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import { AccountTypeToModelMapping } from '../enum/AccountType';
+import { TwoFactorMethodEnum } from '../enum/TwoFactorMethodEnum';
 import { idDecode } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AccountUpdateInput } from '../input/AccountUpdateInput';
@@ -262,6 +263,9 @@ const accountMutations = {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Individual that will have 2FA added to it',
       },
+      type: {
+        type: TwoFactorMethodEnum,
+      },
       token: {
         type: new GraphQLNonNull(GraphQLString),
         description: 'The generated secret to save to the Individual',
@@ -282,32 +286,57 @@ const accountMutations = {
         throw new NotFound('Account not found.');
       }
 
-      if (user.twoFactorAuthToken !== null) {
-        throw new Unauthorized('This account already has 2FA enabled.');
+      const type = (args.type as TwoFactorMethod) || TwoFactorMethod.TOTP;
+      const userEnabledMethods = TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
+
+      if (userEnabledMethods.includes(type)) {
+        throw new Unauthorized('This account already has this 2FA method enabled.');
       }
 
-      /*
-      check that base32 secret is only capital letters, numbers (2-7), 103 chars long;
-      Our secret is 64 ascii characters which is encoded into 104 base32 characters
-      (base32 should be divisible by 8). But the last character is an = to pad, and
-      speakeasy library cuts out any = padding
-      **/
-      const verifyToken = args.token.match(/([A-Z2-7]){103}/);
-      if (!verifyToken) {
-        throw new ValidationFailed('Invalid 2FA token');
+      switch (type) {
+        case TwoFactorMethod.TOTP: {
+          /*
+          check that base32 secret is only capital letters, numbers (2-7), 103 chars long;
+          Our secret is 64 ascii characters which is encoded into 104 base32 characters
+          (base32 should be divisible by 8). But the last character is an = to pad, and
+          speakeasy library cuts out any = padding
+          **/
+          const verifyToken = args.token.match(/([A-Z2-7]){103}/);
+          if (!verifyToken) {
+            throw new ValidationFailed('Invalid 2FA token');
+          }
+
+          const encryptedText = crypto.encrypt(args.token);
+          await user.update({ twoFactorAuthToken: encryptedText });
+          break;
+        }
+        case TwoFactorMethod.YUBIKEY_OTP: {
+          const validYubikeyOTP = await validateYubikeyOTP(args.token);
+
+          if (!validYubikeyOTP) {
+            throw new ValidationFailed('Invalid 2FA token');
+          }
+
+          await user.update({ yubikeyDeviceId: (args.token as string).substring(0, 12) });
+
+          break;
+        }
+        default: {
+          throw new ValidationFailed('Unsupported 2FA method');
+        }
       }
 
-      const encryptedText = crypto.encrypt(args.token);
-
-      /** Generate recovery codes, hash and store them in the table, and return them to the user to write down */
-      const recoveryCodesArray = Array.from({ length: 6 }, () =>
-        cryptoRandomString({ length: 16, type: 'distinguishable' }),
-      );
-      const hashedRecoveryCodesArray = recoveryCodesArray.map(code => {
-        return crypto.hash(code);
-      });
-
-      await user.update({ twoFactorAuthToken: encryptedText, twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+      let recoveryCodesArray;
+      if (userEnabledMethods.length === 0) {
+        /** Generate recovery codes, hash and store them in the table, and return them to the user to write down */
+        recoveryCodesArray = Array.from({ length: 6 }, () =>
+          cryptoRandomString({ length: 16, type: 'distinguishable' }),
+        );
+        const hashedRecoveryCodesArray = recoveryCodesArray.map(code => {
+          return crypto.hash(code);
+        });
+        await user.update({ twoFactorAuthRecoveryCodes: hashedRecoveryCodesArray });
+      }
 
       await models.Activity.create({
         type: activities.TWO_FACTOR_CODE_ADDED,
@@ -327,8 +356,11 @@ const accountMutations = {
         type: new GraphQLNonNull(AccountReferenceInput),
         description: 'Account that will have 2FA removed from it',
       },
+      type: {
+        type: TwoFactorMethodEnum,
+      },
       code: {
-        type: new GraphQLNonNull(GraphQLString),
+        type: GraphQLString,
         description: 'The 6-digit 2FA code',
       },
     },
@@ -347,17 +379,32 @@ const accountMutations = {
         throw new NotFound('Account not found.');
       }
 
-      if (!user.twoFactorAuthToken) {
+      if (TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user).length === 0) {
         throw new Unauthorized('This account already has 2FA disabled.');
       }
 
-      const verified = validateTOTPToken(user.twoFactorAuthToken, args.code);
+      await TwoFactorAuthLib.validateRequest(req, {
+        requireTwoFactorAuthEnabled: true,
+        alwaysAskForToken: true,
+      });
 
-      if (!verified) {
-        throw new Unauthorized('Two-factor authentication code failed. Please try again');
+      switch (args.type as TwoFactorMethod) {
+        case TwoFactorMethod.TOTP: {
+          await user.update({ twoFactorAuthToken: null });
+          break;
+        }
+        case TwoFactorMethod.YUBIKEY_OTP: {
+          await user.update({ yubikeyDeviceId: null });
+          break;
+        }
+        default: {
+          await user.update({ twoFactorAuthToken: null, yubikeyDeviceId: null });
+        }
       }
 
-      await user.update({ twoFactorAuthToken: null, twoFactorAuthRecoveryCodes: null });
+      if (TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user).length === 0) {
+        await user.update({ twoFactorAuthRecoveryCodes: null });
+      }
 
       await models.Activity.create({
         type: activities.TWO_FACTOR_CODE_DELETED,

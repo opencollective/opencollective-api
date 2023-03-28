@@ -28,7 +28,7 @@ export default {
   },
 };
 
-async function validateYubikeyOTP(otp: string): Promise<boolean> {
+export async function validateYubikeyOTP(otp: string): Promise<boolean> {
   const response = await fetch(
     `https://api2.yubico.com/wsapi/2.0/verify?${new URLSearchParams({
       otp,

@@ -22,6 +22,7 @@ import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
 import Collective from './Collective';
@@ -456,7 +457,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   }
 
   get hasTwoFactorAuthentication(): NonAttribute<boolean> {
-    return this.twoFactorAuthToken !== null;
+    return twoFactorAuthLib.userHasTwoFactorAuthEnabled(this);
   }
 
   // @deprecated
