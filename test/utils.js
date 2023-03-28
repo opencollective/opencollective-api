@@ -45,7 +45,10 @@ export const resetCaches = () => cache.clear();
 
 export const resetTestDB = async () => {
   const resetFn = async () => {
-    await sequelize.truncate({ cascade: true, force: true, restartIdentity: true });
+    // Using a manual query rather than `await sequelize.truncate({ cascade: true,  restartIdentity: true });`
+    // for performance reasons: https://github.com/sequelize/sequelize/issues/15865
+    const tableNames = values(sequelize.models).map(m => `"${m.tableName}"`);
+    await sequelize.query(`TRUNCATE TABLE ${tableNames.join(', ')} RESTART IDENTITY CASCADE`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "TransactionBalances"`);
     await sequelize.query(`REFRESH MATERIALIZED VIEW "CollectiveBalanceCheckpoint"`);
   };
