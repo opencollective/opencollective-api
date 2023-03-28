@@ -5,6 +5,7 @@ import { times } from 'lodash';
 import MemberRoles from '../../../../../server/constants/roles';
 import {
   fakeCollective,
+  fakeEmojiReaction,
   fakeHost,
   fakeMember,
   fakeOrganization,
@@ -20,6 +21,8 @@ const updateQuery = gqlV2/* GraphQL */ `
       id
       publishedAt
       userCanSeeUpdate
+      reactions
+      userReactions
       audienceStats(audience: $audience) {
         total
         individuals
@@ -160,6 +163,36 @@ describe('server/graphql/v2/query/UpdateQuery', () => {
       expect(audienceStats.coreContributors).to.eq(1);
       expect(audienceStats.individuals).to.eq(hostBackers.length);
       expect(audienceStats.hosted).to.eq(0);
+    });
+  });
+
+  describe('reactions', () => {
+    it('provides the number of reactions per emoji', async () => {
+      const update = await fakeUpdate();
+      await fakeEmojiReaction({ UpdateId: update.id, emoji: '👍️' });
+      await fakeEmojiReaction({ UpdateId: update.id, emoji: '👍️' });
+      await fakeEmojiReaction({ UpdateId: update.id, emoji: '🎉' });
+      const response = await graphqlQueryV2(updateQuery, { accountSlug: update.collective.slug, slug: update.slug });
+      expect(response.data.update.reactions).to.deep.eq({
+        '👍️': 2,
+        '🎉': 1,
+      });
+    });
+  });
+
+  describe('userReactions', () => {
+    it('provides the user reactions', async () => {
+      const update = await fakeUpdate();
+      const user = await fakeUser();
+      await fakeEmojiReaction({ UpdateId: update.id, emoji: '👍️', UserId: user.id });
+      await fakeEmojiReaction({ UpdateId: update.id, emoji: '👍️' });
+      await fakeEmojiReaction({ UpdateId: update.id, emoji: '🎉' });
+      const response = await graphqlQueryV2(
+        updateQuery,
+        { accountSlug: update.collective.slug, slug: update.slug },
+        user,
+      );
+      expect(response.data.update.userReactions).to.deep.eq(['👍️']);
     });
   });
 

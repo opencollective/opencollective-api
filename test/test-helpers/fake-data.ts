@@ -25,6 +25,7 @@ import { crypto } from '../../server/lib/encryption';
 import models, {
   Collective,
   ConnectedAccount,
+  EmojiReaction,
   ExpenseAttachedFile,
   Notification,
   PaypalProduct,
@@ -461,7 +462,7 @@ export const fakeComment = async (
  * Creates a fake comment reaction. All params are optionals.
  */
 export const fakeEmojiReaction = async (
-  reactionData: { FromCollectiveId?: number; UserId?: number; CommentId?: number; UpdateId?: number } = {},
+  reactionData: Partial<InferCreationAttributes<EmojiReaction>> = {},
   opts: Record<string, unknown> = {},
 ) => {
   const UserId = <number>reactionData.UserId || (await fakeUser()).id;
@@ -475,15 +476,16 @@ export const fakeEmojiReaction = async (
       FromCollectiveId,
       CommentId,
       emoji: sample(REACTION_EMOJI),
+      ...reactionData,
     });
   } else {
-    const CollectiveId = (await fakeCollective()).id;
-    const UpdateId = (reactionData.UpdateId as number) || (await fakeUpdate({ CollectiveId })).id;
+    const UpdateId = reactionData.UpdateId || (await fakeUpdate()).id;
     return models.EmojiReaction.create({
       UserId,
       FromCollectiveId,
       UpdateId,
       emoji: sample(REACTION_EMOJI),
+      ...reactionData,
     });
   }
 };
