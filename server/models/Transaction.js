@@ -1199,7 +1199,16 @@ Transaction.updateCurrency = async function (currency, transaction) {
   return transaction;
 };
 
-Transaction.validate = async (transaction, { validateOppositeTransaction = true } = {}) => {
+/**
+ * To validate that the different amounts are correct.
+ *
+ * @param {Transaction} transaction
+ * @param {Object} options
+ * @param {Boolean} options.validateOppositeTransaction
+ * @param {Transaction} options.oppositeTransaction the opposite transaction to validate. Will be fetched if not provided and validateOppositeTransaction is true.
+ * @returns
+ */
+Transaction.validate = async (transaction, { validateOppositeTransaction = true, oppositeTransaction = null } = {}) => {
   // Skip as there is a known bug there
   // https://github.com/opencollective/opencollective/issues/3935
   if (transaction.kind === TransactionKind.PLATFORM_TIP) {
@@ -1258,7 +1267,7 @@ Transaction.validate = async (transaction, { validateOppositeTransaction = true 
     return;
   }
 
-  const oppositeTransaction = await transaction.getOppositeTransaction();
+  oppositeTransaction = oppositeTransaction || (await transaction.getOppositeTransaction());
   assert(oppositeTransaction, 'oppositeTransaction should be existing');
 
   // Ideally, but we should not enforce it at this point
