@@ -11,6 +11,7 @@ import { graphql } from 'graphql';
 import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -110,15 +111,15 @@ export const sleep = async (timeout = 200) =>
  * @param {*} options: { timeout, delay }
  * @returns {Promise}
  */
-export const waitForCondition = (cond, options = { timeout: 10000, delay: 0 }) =>
+export const waitForCondition = (cond, options = { timeout: 10000, delay: 0, onFailure: null }) =>
   new Promise(resolve => {
     let hasConditionBeenMet = false;
     setTimeout(() => {
       if (hasConditionBeenMet) {
         return;
       }
-      console.log('>>> waitForCondition Timeout Error');
-      console.trace();
+      options.onFailure?.();
+      assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
       throw new Error('Timeout waiting for condition', cond);
     }, options.timeout || 10000);
     const isConditionMet = () => {
