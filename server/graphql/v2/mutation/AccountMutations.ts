@@ -265,6 +265,7 @@ const accountMutations = {
       },
       type: {
         type: TwoFactorMethodEnum,
+        description: 'The two factor method to add, defaults to TOTP',
       },
       token: {
         type: new GraphQLNonNull(GraphQLString),
@@ -358,9 +359,11 @@ const accountMutations = {
       },
       type: {
         type: TwoFactorMethodEnum,
+        description: 'The two factor method to remove. Removes all if empty',
       },
       code: {
         type: GraphQLString,
+        deprecationReason: '2FA code to validate this action must be set via 2FA header',
         description: 'The 6-digit 2FA code',
       },
     },
