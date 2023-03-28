@@ -9705,6 +9705,7 @@ type Query {
     Limit the search to collectives belonging to these countries
     """
     country: [CountryISO]
+    currency: String
 
     """
     Filter hosts by tags (multiple = OR)
