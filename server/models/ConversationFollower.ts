@@ -1,6 +1,8 @@
-import { InferAttributes, InferCreationAttributes, ModelStatic } from 'sequelize';
+import { InferAttributes, InferCreationAttributes, ModelStatic, NonAttribute } from 'sequelize';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+import User from './User';
 
 interface ConversationFollowerStaticInterface {
   isFollowing(UserId: number, ConversationId: number): Promise<boolean>;
@@ -15,6 +17,8 @@ export interface ConversationFollowerModelInterface
   > {
   id: number;
   UserId: number;
+  user?: NonAttribute<User>;
+
   ConversationId: number;
   isActive: boolean;
 
