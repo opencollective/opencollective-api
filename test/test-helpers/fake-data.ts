@@ -28,6 +28,7 @@ import models, {
   EmojiReaction,
   ExpenseAttachedFile,
   Notification,
+  OAuthAuthorizationCode,
   PaypalProduct,
   Subscription,
   Tier,
@@ -36,6 +37,7 @@ import models, {
   UploadedFile,
   VirtualCard,
 } from '../../server/models';
+import { ApplicationModelInterface } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
@@ -53,7 +55,7 @@ import {
   SUPPORTED_FILE_TYPES,
 } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
-import { TokenType } from '../../server/models/UserToken';
+import UserToken, { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail };
@@ -881,7 +883,7 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   }
 
   const application = await models.Application.create({
-    type: sample(['apiKey', 'oAuth']),
+    type: sample(['apiKey', 'oAuth']) as 'apiKey' | 'oAuth',
     apiKey: randStr('ApiKey-'),
     clientId: randStrOfLength(20),
     clientSecret: randStrOfLength(40),
@@ -920,7 +922,7 @@ export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
   return personalToken.reload({ include: [{ association: 'user' }, { association: 'collective' }] });
 };
 
-export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
+export const fakeUserToken = async (data: Partial<InferCreationAttributes<UserToken>> & { user?: User } = {}) => {
   const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
@@ -937,7 +939,12 @@ export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
   return userToken.reload();
 };
 
-export const fakeOAuthAuthorizationCode = async (data: Record<string, unknown> = {}) => {
+export const fakeOAuthAuthorizationCode = async (
+  data: Partial<InferCreationAttributes<OAuthAuthorizationCode>> & {
+    user?: User;
+    application?: ApplicationModelInterface;
+  } = {},
+) => {
   const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const application =
     data.application ||

@@ -4,6 +4,7 @@ import { isNil, merge } from 'lodash';
 import {
   CreationAttributes,
   DataTypes,
+  HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -14,6 +15,9 @@ import {
 import { crypto } from '../lib/encryption';
 import sequelize from '../lib/sequelize';
 
+import Collective from './Collective';
+import User from './User';
+
 interface ApplicationModelStaticInterface {
   create(props: CreationAttributes<ApplicationModelInterface>): Promise<ApplicationModelInterface>;
 }
@@ -22,7 +26,12 @@ export interface ApplicationModelInterface
   extends Model<InferAttributes<ApplicationModelInterface>, InferCreationAttributes<ApplicationModelInterface>> {
   id: number;
   CollectiveId: number;
+  collective?: NonAttribute<Collective>;
+
   CreatedByUserId: number;
+  createdByUser?: NonAttribute<User>;
+  getCreatedByUser: HasOneGetAssociationMixin<User>;
+
   type: 'apiKey' | 'oAuth';
   apiKey: string;
   clientId: string;

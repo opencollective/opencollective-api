@@ -20,6 +20,7 @@ import debugLib from 'debug';
 
 import activities from '../../constants/activities';
 import models from '../../models';
+import { ApplicationModelInterface } from '../../models/Application';
 import type OAuthAuthorizationCode from '../../models/OAuthAuthorizationCode';
 import User from '../../models/User';
 import UserToken, { TokenType } from '../../models/UserToken';
@@ -32,7 +33,7 @@ interface OauthModel extends AuthorizationCodeModel, RefreshTokenModel {}
 
 // Helpers to convert data from/to our model types to OAuth2Server types.
 
-export const dbApplicationToClient = (application: typeof models.Application): OAuth2Server.Client => ({
+export const dbApplicationToClient = (application: ApplicationModelInterface): OAuth2Server.Client => ({
   id: application.clientId,
   redirectUris: [application.callbackUrl],
   grants: ['authorization_code'],
@@ -85,8 +86,8 @@ const model: OauthModel = {
         scope: Array.isArray(token.scope) ? token.scope : token.scope?.split(','),
       });
       oauthToken.user = user;
-      oauthToken.client = client;
-      return <Token>oauthToken;
+      oauthToken.client = client as any;
+      return oauthToken as any;
     } catch (e) {
       debug(e);
       // TODO: what should be thrown so it's properly catched on the library side?
@@ -113,7 +114,7 @@ const model: OauthModel = {
       throw new InvalidTokenError('Invalid token');
     }
 
-    return <Token>token;
+    return token as any;
   },
 
   async getRefreshToken(refreshToken): Promise<RefreshToken> {
@@ -123,7 +124,7 @@ const model: OauthModel = {
       throw new InvalidTokenError('Invalid refresh token');
     }
 
-    return <RefreshToken>token;
+    return token as any;
   },
 
   // -- Authorization code --

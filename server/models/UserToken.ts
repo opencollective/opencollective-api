@@ -3,8 +3,8 @@ import type { CreationOptional, ForeignKey, InferAttributes, InferCreationAttrib
 import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
+import { ApplicationModelInterface } from './Application';
 import User from './User';
-import models from '.';
 
 export enum TokenType {
   OAUTH = 'OAUTH',
@@ -27,7 +27,7 @@ class UserToken extends Model<InferAttributes<UserToken>, InferCreationAttribute
   public declare lastUsedAt: CreationOptional<Date>;
 
   public declare user?: NonAttribute<User>;
-  public declare client?: NonAttribute<typeof models.Application>;
+  public declare client?: NonAttribute<ApplicationModelInterface>;
 
   hasScope(scope): boolean {
     return Boolean(this.scope && this.scope.includes(scope));
