@@ -10,7 +10,7 @@ export const TwoFactorMethodEnum = new GraphQLEnumType({
     .reduce((acc, key) => {
       return {
         ...acc,
-        [TwoFactorMethod[key]]: {
+        [key]: {
           value: TwoFactorMethod[key],
         },
       };
