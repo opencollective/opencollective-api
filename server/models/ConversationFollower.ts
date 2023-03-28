@@ -1,54 +1,78 @@
-import sequelize, { DataTypes } from '../lib/sequelize';
+import { InferAttributes, InferCreationAttributes, ModelStatic } from 'sequelize';
 
-const ConversationFollower = sequelize.define(
-  'ConversationFollower',
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
-    UserId: {
-      type: DataTypes.INTEGER,
-      references: { key: 'id', model: 'Users' },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE',
-      allowNull: false,
-    },
-    ConversationId: {
-      type: DataTypes.INTEGER,
-      references: { key: 'id', model: 'Conversations' },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE',
-      allowNull: false,
-    },
-    // Using a dedicated column rather than deleting the follower in case the user is following
-    // all the conversations for a Collective and wants to opt-out from one of them.
-    isActive: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true,
-      allowNull: false,
-    },
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
-    },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-      allowNull: false,
-    },
-  },
-  {
-    indexes: [
-      {
-        fields: ['UserId', 'ConversationId'],
-        unique: true,
+import sequelize, { DataTypes, Model } from '../lib/sequelize';
+
+interface ConversationFollowerStaticInterface {
+  isFollowing(UserId: number, ConversationId: number): Promise<boolean>;
+  follow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
+  unfollow(UserId: number, ConversationId: number): Promise<ConversationFollowerModelInterface>;
+}
+
+export interface ConversationFollowerModelInterface
+  extends Model<
+    InferAttributes<ConversationFollowerModelInterface>,
+    InferCreationAttributes<ConversationFollowerModelInterface>
+  > {
+  id: number;
+  UserId: number;
+  ConversationId: number;
+  isActive: boolean;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+}
+
+const ConversationFollower: ModelStatic<ConversationFollowerModelInterface> & ConversationFollowerStaticInterface =
+  sequelize.define(
+    'ConversationFollower',
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
       },
-    ],
-  },
-);
+      UserId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Users' },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+        allowNull: false,
+      },
+      ConversationId: {
+        type: DataTypes.INTEGER,
+        references: { key: 'id', model: 'Conversations' },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+        allowNull: false,
+      },
+      // Using a dedicated column rather than deleting the follower in case the user is following
+      // all the conversations for a Collective and wants to opt-out from one of them.
+      isActive: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
+        allowNull: false,
+      },
+      createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: false,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+        allowNull: false,
+      },
+    },
+    {
+      indexes: [
+        {
+          fields: ['UserId', 'ConversationId'],
+          unique: true,
+        },
+      ],
+    },
+  );
 
 // ---- Static methods ----
 
@@ -56,10 +80,10 @@ const ConversationFollower = sequelize.define(
  * @returns true if user follows the conversation
  */
 ConversationFollower.isFollowing = async (UserId, ConversationId) => {
-  const following = await ConversationFollower.findOne(
-    { where: { UserId, ConversationId, isActive: true } },
-    { mapToModel: false },
-  );
+  const following = await ConversationFollower.findOne({
+    where: { UserId, ConversationId, isActive: true },
+    mapToModel: false,
+  });
 
   return Boolean(following);
 };
@@ -71,7 +95,7 @@ ConversationFollower.isFollowing = async (UserId, ConversationId) => {
  */
 ConversationFollower.follow = async (UserId, ConversationId) => {
   return sequelize.transaction(async transaction => {
-    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId } }, { transaction });
+    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
     if (!following) {
       return ConversationFollower.create({ UserId, ConversationId, isActive: true }, { transaction });
     } else if (!following.isActive) {
@@ -89,7 +113,7 @@ ConversationFollower.follow = async (UserId, ConversationId) => {
  */
 ConversationFollower.unfollow = async (UserId, ConversationId) => {
   return sequelize.transaction(async transaction => {
-    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId } }, { transaction });
+    const following = await ConversationFollower.findOne({ where: { UserId, ConversationId }, transaction });
     if (!following) {
       return ConversationFollower.create({ UserId, ConversationId, isActive: false }, { transaction });
     } else if (following.isActive) {
