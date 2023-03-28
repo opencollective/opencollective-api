@@ -7,6 +7,7 @@ import { createSandbox } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import { expenseStatus, expenseTypes } from '../../../../../server/constants';
+import ExpenseTypes from '../../../../../server/constants/expense_type';
 import { TransactionKind } from '../../../../../server/constants/transaction-kind';
 import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
@@ -482,6 +483,19 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         expect(result.errors[0].message).to.equal('Two factor authentication must be configured');
       });
 
+      it("doesn't ask if only admin of the collective, and 2FA is enforced on the host", async () => {
+        const host = await fakeHost({
+          data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } },
+          settings: { allowCollectiveAdminsToEditPrivateExpenseData: true },
+        });
+        const collectiveAdminUser = await fakeUser();
+        const collective = await fakeCollective({ admin: collectiveAdminUser, HostCollectiveId: host.id });
+        const expense = await fakeExpense({ status: 'PENDING', CollectiveId: collective.id });
+        const newExpenseData = { id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE), description: randStr() };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, collectiveAdminUser);
+        expect(result.errors).to.not.exist;
+      });
+
       it("doesn't ask for the payee, even if enforced by the host AND collective", async () => {
         const host = await fakeCollective({ data: { policies: { REQUIRE_2FA_FOR_ADMINS: true } } });
         const collective = await fakeCollective({
@@ -655,7 +669,18 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     });
 
     it('lets another user edit and submit a draft if the right key is provided', async () => {
-      const expense = await fakeExpense({ data: { draftKey: 'fake-key' }, status: expenseStatus.DRAFT });
+      const collective = await fakeCollective({ currency: 'EUR', settings: { VAT: { type: 'OWN' } } });
+      const expense = await fakeExpense({
+        status: expenseStatus.DRAFT,
+        type: ExpenseTypes.INVOICE,
+        currency: 'USD',
+        CollectiveId: collective.id,
+        data: {
+          draftKey: 'fake-key',
+          customData: { customField: 'customValue' },
+          taxes: [{ type: 'VAT', rate: 0.055 }],
+        },
+      });
       const anotherUser = await fakeUser();
 
       const updatedExpenseData = {
@@ -682,6 +707,8 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.editExpense.description).to.equal(updatedExpenseData.description);
       expect(result.data.editExpense.payee.legacyId).to.equal(anotherUser.id);
+      expect(result.data.editExpense.customData).to.deep.equal(expense.data.customData);
+      expect(result.data.editExpense.taxes).to.deep.equal([{ id: 'VAT', type: 'VAT', rate: 0.055 }]);
     });
 
     it('creates new user and organization if draft payee does not exist', async () => {
@@ -2512,6 +2539,9 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
         },
       ],
       payeeLocation: { address: '123 Potatoes street', country: 'BE' },
+      currency: 'EUR',
+      customData: { customField: 'customValue' },
+      tax: [{ type: 'VAT', rate: 0.21 }],
     };
 
     after(() => sandbox.restore());
@@ -2539,11 +2569,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
     it('should create a new DRAFT expense with a draftKey', async () => {
       expect(expense.status).to.eq(expenseStatus.DRAFT);
-      expect(expense.amount).to.eq(4200);
+      expect(expense.amount).to.eq(5082); // 4200 + 0.21 * 4200 = 5082
       expect(expense.data.payeeLocation).to.deep.equal(invoice.payeeLocation);
       expect(expense.data.payee).to.deep.equal(invoice.payee);
       expect(expense.data.recipientNote).to.equal(invoice.recipientNote);
       expect(expense.data.draftKey).to.exist;
+      expect(expense.data.customData).to.deep.equal(invoice.customData);
+      expect(expense.data.taxes).to.deep.equal(invoice.tax);
+      expect(expense.currency).to.equal(invoice.currency);
     });
 
     it('should send an email notifying the invited user to submit the expense', async () => {
@@ -2559,7 +2592,7 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       );
       expect(body).to.include('<td>Hey pal, could you please submit this</td>');
       expect(body).to.include('<td>Goosebemps</td>');
-      expect(body).to.include('<td>$42.00</td>');
+      expect(body).to.include('<td>42,00 €</td>');
     });
 
     it('should resend the invite email', async () => {

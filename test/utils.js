@@ -68,7 +68,13 @@ export const stringify = json => {
     .replace(/\n|>>>>+/g, '');
 };
 
-export const makeRequest = (remoteUser, query, jwtPayload, headers = {}, userToken) => {
+export const makeRequest = (
+  remoteUser = undefined,
+  query = undefined,
+  jwtPayload = undefined,
+  headers = {},
+  userToken = undefined,
+) => {
   return {
     remoteUser,
     jwtPayload,

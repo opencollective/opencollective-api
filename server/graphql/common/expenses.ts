@@ -222,12 +222,15 @@ const remoteUserMeetsOneCondition = async (
   return false;
 };
 
+// ---- Permissions ----
+// Read permissions
+
 /** Checks if the user can see expense's attachments (items URLs, attached files) */
 export const canSeeExpenseAttachments: ExpensePermissionEvaluator = async (req, expense) => {
   return remoteUserMeetsOneCondition(req, expense, [
     isOwner,
     isOwnerAccountant,
-    isCollectiveAdmin,
+    isCollectiveAdmin, // Collective admins need to be able to check that the receipt is for something legit to approve the expense; and they need to be able to upload documentation for virtual cards
     isCollectiveOrHostAccountant,
     isHostAdmin,
     isAdminOrAccountantOfHostWhoPaidExpense,
@@ -242,10 +245,11 @@ export const canSeeExpensePayoutMethod: ExpensePermissionEvaluator = async (req,
     isHostAdmin,
     isHostAccountant,
     isAdminOrAccountantOfHostWhoPaidExpense,
+    isCollectiveAdmin, // Some fiscal hosts rely on the collective admins to do some verifications on the payout method
   ]);
 };
 
-/** Checks if the user can see expense's payout method */
+/** Checks if the user can see expense's invoice information (the generated PDF) */
 export const canSeeExpenseInvoiceInfo: ExpensePermissionEvaluator = async (
   req,
   expense,
@@ -297,33 +301,7 @@ export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, exp
   return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
 };
 
-/**
- * Returns the list of items for this expense.
- */
-export const getExpenseItems = async (expenseId: number, req: express.Request): Promise<ExpenseItem[]> => {
-  return req.loaders.Expense.items.load(expenseId);
-};
-
-/**
- * Only admin of expense.collective or of expense.collective.host can approve/reject expenses
- * @deprecated: Please use more specific helpers like `canEdit`, `canDelete`, etc.
- */
-export const canUpdateExpenseStatus: ExpensePermissionEvaluator = async (req, expense) => {
-  const { remoteUser } = req;
-  if (!remoteUser) {
-    return false;
-  } else if (!canUseFeature(req.remoteUser, FEATURE.USE_EXPENSES)) {
-    return false;
-  } else if (remoteUser.hasRole([roles.ADMIN], expense.CollectiveId)) {
-    return true;
-  } else {
-    if (!expense.collective) {
-      expense.collective = await req.loaders.Collective.byId.load(expense.CollectiveId);
-    }
-
-    return remoteUser.isAdmin(expense.collective.HostCollectiveId);
-  }
-};
+// Write permissions
 
 /**
  * Only the author or an admin of the collective or collective.host can edit an expense when it hasn't been paid yet
@@ -351,7 +329,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
     }
     return false;
   } else {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   }
 };
 
@@ -893,7 +871,10 @@ export const unscheduleExpensePayment = async (req: express.Request, expense: Ex
 };
 
 /** Compute the total amount of expense from expense items */
-const computeTotalAmountForExpense = (items: (ExpenseItem | Record<string, unknown>)[], taxes: TaxDefinition[]) => {
+export const computeTotalAmountForExpense = (
+  items: (ExpenseItem | Record<string, unknown>)[],
+  taxes: TaxDefinition[],
+) => {
   return Math.round(
     sumBy(items, item => {
       const totalTaxes = sumBy(taxes, tax => <number>item['amount'] * tax.rate);
