@@ -106,7 +106,7 @@ export const getOrCreateDBSnapshot = async (
     const duration = end - start;
     testContext.timeout(previousTimeout + duration); // Restore previous timeout but add the time we already spend, otherwise it will expire right after setting the value
   } else {
-    logger.info(`[TEST] Creating snapshot at ${snapshotPath}`);
+    logger.info(`[TEST] Re-using snapshot from ${snapshotPath}`);
     restoreDBSnapshot(snapshotPath);
     const numberOfPendingMigrations = await getNumberOfPendingMigrations();
     if (numberOfPendingMigrations > 0) {
