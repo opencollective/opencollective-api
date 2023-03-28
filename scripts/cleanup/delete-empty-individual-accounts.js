@@ -1,3 +1,5 @@
+import '../../server/env';
+
 import { sequelize } from '../../server/models';
 
 async function run() {
