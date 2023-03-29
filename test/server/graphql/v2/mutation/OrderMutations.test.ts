@@ -865,7 +865,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves an Added Fund to a different User profile', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'opencollective', type: 'host' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
@@ -925,7 +928,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('try to move an Added Fund to a different Collective profile under different host', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'opencollective', type: 'host' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
 
