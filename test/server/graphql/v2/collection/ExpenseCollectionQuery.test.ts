@@ -8,6 +8,7 @@ import * as libcurrency from '../../../../../server/lib/currency';
 import models from '../../../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../../server/models/LegalDocument';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
+import { TransactionType } from '../../../../../server/models/Transaction';
 import {
   fakeCollective,
   fakeExpense,
@@ -159,7 +160,7 @@ describe('server/graphql/v2/collection/ExpenseCollection', () => {
         .resolves({ USD: 1 });
 
       // Add balance to the collective
-      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 1000000 });
+      await fakeTransaction({ type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 1000000 });
 
       // Create expenses
       expensesReadyToPay = await Promise.all([

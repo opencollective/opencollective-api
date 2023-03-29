@@ -32,7 +32,6 @@ import models, {
   PaypalProduct,
   Subscription,
   Tier,
-  Transaction,
   Update,
   UploadedFile,
   VirtualCard,
@@ -49,6 +48,7 @@ import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
+import { TransactionModelInterface, TransactionType } from '../../server/models/Transaction';
 import {
   SUPPORTED_FILE_EXTENSIONS,
   SUPPORTED_FILE_KINDS,
@@ -557,7 +557,7 @@ export const fakeOrder = async (
 
   const order: OrderModelInterface & {
     subscription?: typeof Subscription;
-    transactions?: (typeof Transaction)[];
+    transactions?: TransactionModelInterface[];
   } = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
@@ -591,8 +591,8 @@ export const fakeOrder = async (
     order.transactions = await Promise.all([
       fakeTransaction({
         OrderId: order.id,
-        type: 'CREDIT',
-        kind: 'CONTRIBUTION',
+        type: TransactionType.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         HostCollectiveId: collective.HostCollectiveId,
@@ -601,8 +601,8 @@ export const fakeOrder = async (
       }),
       fakeTransaction({
         OrderId: order.id,
-        type: 'DEBIT',
-        kind: 'CONTRIBUTION',
+        type: TransactionType.DEBIT,
+        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: order.FromCollectiveId,
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,
@@ -695,7 +695,7 @@ export const fakeConnectedAccount = async (
  * Creates a fake transaction. All params are optionals.
  */
 export const fakeTransaction = async (
-  transactionData: Record<string, unknown> = {},
+  transactionData: Partial<InferCreationAttributes<TransactionModelInterface>> = {},
   { settlementStatus = undefined, createDoubleEntry = false } = {},
 ) => {
   const amount = (transactionData.amount as number) || randAmount(10, 100) * 100;
@@ -705,7 +705,7 @@ export const fakeTransaction = async (
   const createMethod = createDoubleEntry ? 'createDoubleEntry' : 'create';
   const transaction = await models.Transaction[createMethod](
     {
-      type: amount < 0 ? 'DEBIT' : 'CREDIT',
+      type: amount < 0 ? TransactionType.DEBIT : TransactionType.CREDIT,
       currency: transactionData.currency || 'USD',
       hostCurrency: transactionData.hostCurrency || 'USD',
       hostCurrencyFxRate: 1,

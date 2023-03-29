@@ -10,6 +10,7 @@ import VirtualCardProviders from '../../../../../server/constants/virtual_card_p
 import { ProcessHostApplicationAction } from '../../../../../server/graphql/v2/enum';
 import emailLib from '../../../../../server/lib/email';
 import models from '../../../../../server/models';
+import { TransactionType } from '../../../../../server/models/Transaction';
 import * as stripeVirtualCardService from '../../../../../server/paymentProviders/stripe/virtual-cards';
 import { randEmail } from '../../../../stores';
 import {
@@ -474,19 +475,14 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       const host = await fakeHost();
       const collective = await fakeCollective({ HostCollectiveId: host.id });
 
-      const transactionProps = {
-        type: 'CREDIT',
+      await fakeTransaction({
+        type: TransactionType.CREDIT,
         kind: TransactionKind.CONTRIBUTION,
         CollectiveId: collective.id,
         currency: 'USD',
         hostCurrency: 'USD',
         HostCollectiveId: host.id,
-        createdAt: moment.utc(),
-      };
-
-      await fakeTransaction({
-        ...transactionProps,
-        kind: TransactionKind.CONTRIBUTION,
+        createdAt: moment.utc().toDate(),
         amount: 3000,
         amountInHostCurrency: 3000,
         hostFeeInHostCurrency: -600,

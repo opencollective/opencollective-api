@@ -5,6 +5,7 @@ import debugLib from 'debug';
 import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
 import {
+  HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -32,13 +33,14 @@ import { exportToCSV } from '../lib/utils';
 import Activity from './Activity';
 import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { OrderModelInterface } from './Order';
 import { PaymentMethodModelInterface } from './PaymentMethod';
 import { TransactionSettlementStatus } from './TransactionSettlement';
 import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
 
-enum TransactionType {
+export enum TransactionType {
   CREDIT = 'CREDIT',
   DEBIT = 'DEBIT',
 }
@@ -138,12 +140,16 @@ export interface TransactionModelInterface
 
   CollectiveId: number;
   collective?: NonAttribute<Collective>;
+  getCollective: HasOneGetAssociationMixin<Collective>;
 
   HostCollectiveId: number;
   host?: NonAttribute<Collective>;
+  getHostCollective: HasOneGetAssociationMixin<Collective>;
 
   UsingGiftCardFromCollectiveId: number;
   OrderId: number;
+  Order?: NonAttribute<OrderModelInterface>;
+
   ExpenseId: number;
 
   RefundTransactionId: number;
@@ -175,7 +181,9 @@ export interface TransactionModelInterface
 
   info: NonAttribute<any>;
 
-  getOppositeTransaction(): Promise<TransactionModelInterface | null>;
+  getOppositeTransaction(): Promise<TransactionModelInterface>;
+  getPlatformTipTransaction(): Promise<TransactionModelInterface>;
+  hasPlatformTip(): boolean;
 }
 
 const Transaction: ModelStatic<TransactionModelInterface> & TransactionModelStaticInterface = sequelize.define(

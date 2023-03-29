@@ -15,6 +15,7 @@ import { validateWebhookEvent } from '../../lib/paypal';
 import { sendThankYouEmail } from '../../lib/recurring-contributions';
 import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op } from '../../models';
+import { TransactionModelInterface } from '../../models/Transaction';
 import { PayoutWebhookRequest } from '../../types/paypal';
 
 import { paypalRequestV2 } from './api';
@@ -195,7 +196,7 @@ async function handleCaptureCompleted(req: Request): Promise<void> {
   await order.getOrCreateMembers();
 }
 
-async function handleCaptureRefunded(req: Request): Promise<void> {
+async function handleCaptureRefunded(req: Request): Promise<void | TransactionModelInterface> {
   if (!req.params.hostId) {
     // Received on legacy webhook
     logger.warn('Please update PayPal webhooks to latest version using scripts/paypal/update-hosts-webhooks.ts');
@@ -310,7 +311,7 @@ async function handleSubscriptionActivated(req: Request): Promise<void> {
  * `server/lib/paypal.ts` > `WATCHED_EVENT_TYPES` and run `scripts/update-hosts-paypal-webhooks.ts`
  * to update all existing webhooks.
  */
-async function webhook(req: Request): Promise<void> {
+async function webhook(req: Request): Promise<void | TransactionModelInterface> {
   debug('new event', req.body);
   const eventType = get(req, 'body.event_type');
   switch (eventType) {

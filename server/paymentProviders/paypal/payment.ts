@@ -16,6 +16,7 @@ import { reportErrorToSentry, reportMessageToSentry } from '../../lib/sentry';
 import { formatCurrency } from '../../lib/utils';
 import models from '../../models';
 import { OrderModelInterface } from '../../models/Order';
+import { TransactionModelInterface } from '../../models/Transaction';
 import User from '../../models/User';
 import { PaypalCapture, PaypalSale, PaypalTransaction } from '../../types/paypal';
 
@@ -28,7 +29,7 @@ const recordTransaction = async (
   currency,
   paypalFee,
   { data = undefined, createdAt = undefined } = {},
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   order.collective = order.collective || (await order.getCollective());
   const host = await order.collective.getHostCollective();
   if (!host) {
@@ -81,7 +82,7 @@ const recordTransaction = async (
     transactionData['createdAt'] = createdAt;
   }
 
-  return models.Transaction.createFromContributionPayload(transactionData);
+  return models.Transaction.createFromContributionPayload(transactionData as any);
 };
 
 // Unfortunately, PayPal has 3 different transaction types: sale, capture and transaction. Though they all
@@ -91,7 +92,7 @@ const recordTransaction = async (
 export function recordPaypalSale(
   order: OrderModelInterface,
   paypalSale: PaypalSale,
-): Promise<typeof models.Transaction> {
+): Promise<TransactionModelInterface> {
   const currency = paypalSale.amount.currency;
   const amount = paypalAmountToCents(paypalSale.amount.total);
   const fee = paypalAmountToCents(get(paypalSale, 'transaction_fee.value', '0.0'));
@@ -104,7 +105,7 @@ export function recordPaypalTransaction(
   order: OrderModelInterface,
   paypalTransaction: PaypalTransaction,
   { data = undefined, createdAt = undefined } = {},
-): Promise<typeof models.Transaction> {
+): Promise<TransactionModelInterface> {
   const currency = paypalTransaction.amount_with_breakdown.gross_amount.currency_code;
   const amount = floatAmountToCents(parseFloat(paypalTransaction.amount_with_breakdown.gross_amount.value));
   const fee = parseFloat(get(paypalTransaction.amount_with_breakdown, 'fee_amount.value', '0.0'));
@@ -118,7 +119,7 @@ export const recordPaypalCapture = async (
   order: OrderModelInterface,
   capture: PaypalCapture,
   { data = undefined, createdAt = undefined } = {},
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   const currency = capture.amount.currency_code;
   const amount = paypalAmountToCents(capture.amount.value);
   const fee = paypalAmountToCents(get(capture, 'seller_receivable_breakdown.paypal_fee.value', '0.0'));
@@ -144,7 +145,7 @@ export async function findTransactionByPaypalId(
   });
 }
 
-const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.Transaction | undefined> => {
+const processPaypalOrder = async (order, paypalOrderId): Promise<TransactionModelInterface | undefined> => {
   const hostCollective = await order.collective.getHostCollective();
   const paypalOrderUrl = `checkout/orders/${paypalOrderId}`;
 
@@ -208,11 +209,11 @@ const processPaypalOrder = async (order, paypalOrderId): Promise<typeof models.T
 };
 
 export const refundPaypalCapture = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionModelInterface,
   captureId: string,
   user: User,
   reason: string,
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   const host = await transaction.getHostCollective();
   if (!host) {
     throw new Error(`PayPal: Can't find host for transaction #${transaction.id}`);
@@ -248,7 +249,7 @@ export const refundPaypalCapture = async (
 };
 
 /** Process order in paypal and create transactions in our db */
-export async function processOrder(order: OrderModelInterface): Promise<typeof models.Transaction | undefined> {
+export async function processOrder(order: OrderModelInterface): Promise<TransactionModelInterface | undefined> {
   if (order.paymentMethod.data.orderId) {
     return processPaypalOrder(order, order.paymentMethod.data.orderId);
   } else {
@@ -268,10 +269,10 @@ export const getCaptureIdFromPaypalTransaction = transaction => {
 };
 
 const refundPaypalPaymentTransaction = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionModelInterface,
   user: User,
   reason: string,
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   const captureId = getCaptureIdFromPaypalTransaction(transaction);
   if (!captureId) {
     throw new Error(`PayPal Payment capture not found for transaction #${transaction.id}`);

@@ -18,16 +18,17 @@ import stripe, { convertFromStripeAmount, extractFees, retrieveChargeWithRefund 
 import models, { Collective } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import PaymentMethod, { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import { TransactionModelInterface } from '../../models/Transaction';
 import User from '../../models/User';
 
 export const APPLICATION_FEE_INCOMPATIBLE_CURRENCIES = ['BRL'];
 
 /** Refund a given transaction */
 export const refundTransaction = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionModelInterface,
   user: User,
   options?: { checkRefundStatus: boolean },
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   /* What's going to be refunded */
   const chargeId: string = result(transaction.data, 'charge.id');
   if (transaction.data?.refund?.status === 'pending') {
@@ -77,9 +78,9 @@ export const refundTransaction = async (
  * in stripe but not in our database
  */
 export const refundTransactionOnlyInDatabase = async (
-  transaction: typeof models.Transaction,
+  transaction: TransactionModelInterface,
   user: User,
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   /* What's going to be refunded */
   const chargeId = result(transaction.data, 'charge.id');
 
@@ -185,7 +186,7 @@ export const createChargeTransactions = async (charge, { order }) => {
     data,
   };
 
-  return models.Transaction.createFromContributionPayload(transactionPayload, {
+  return models.Transaction.createFromContributionPayload(transactionPayload as any, {
     isPlatformRevenueDirectlyCollected,
   });
 };

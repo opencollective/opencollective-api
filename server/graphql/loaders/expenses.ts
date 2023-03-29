@@ -9,6 +9,7 @@ import { Activity } from '../../models/Activity';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
+import { TransactionModelInterface } from '../../models/Transaction';
 
 import { sortResultsArray } from './helpers';
 
@@ -104,18 +105,20 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
   { rate: number; currency: string }
 > =>
   new DataLoader(async (expenseIds: number[]) => {
-    const transactions = await models.Transaction.findAll({
-      raw: true,
-      attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
-      where: {
-        ExpenseId: expenseIds,
-        kind: TransactionKind.EXPENSE,
-        type: 'CREDIT',
-        isRefund: false,
-        RefundTransactionId: null,
-        data: { expenseToHostFxRate: { [Op.ne]: null } },
-      },
-    });
+    const transactions = <(TransactionModelInterface & { expenseToHostFxRate?: string })[]>(
+      await models.Transaction.findAll({
+        raw: true,
+        attributes: ['ExpenseId', 'currency', [sequelize.json('data.expenseToHostFxRate'), 'expenseToHostFxRate']],
+        where: {
+          ExpenseId: expenseIds,
+          kind: TransactionKind.EXPENSE,
+          type: 'CREDIT',
+          isRefund: false,
+          RefundTransactionId: null,
+          data: { expenseToHostFxRate: { [Op.ne]: null } },
+        },
+      })
+    );
 
     const groupedTransactions = groupBy(transactions, 'ExpenseId');
     return expenseIds.map(expenseId => {

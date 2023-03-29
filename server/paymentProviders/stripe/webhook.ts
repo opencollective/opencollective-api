@@ -26,6 +26,7 @@ import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
 import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
+import { TransactionType } from '../../models/Transaction';
 
 import { getVirtualCardForTransaction } from './../utils';
 import { createChargeTransactions, createPaymentMethod } from './common';
@@ -442,7 +443,7 @@ export const chargeDisputeClosed = async (event: Stripe.Event) => {
       const hostCurrencyAmount = Math.round(toNegative(amount) * hostCurrencyFxRate);
 
       await models.Transaction.create({
-        type: 'DEBIT',
+        type: TransactionType.DEBIT,
         HostCollectiveId: fiscalHost.id,
         CollectiveId: fiscalHost.id,
         FromCollectiveId: fiscalHost.id,

@@ -622,7 +622,10 @@ const main = async () => {
   // Commands
   program.command('refunds').action(findRefundedContributions);
   program.command('invalid-orders').option('--fix').action(findOrdersWithErroneousStatus);
-  program.command('transactions').option('--fix').action(findMissingPaypalTransactions);
+  program
+    .command('transactions')
+    .option('--fix')
+    .action(findMissingPaypalTransactions as any);
   program.command('orphan-subscriptions').option('--fix').action(findOrphanSubscriptions);
   program.command('subscription-details <subscriptionId>').action(showSubscriptionDetails);
   program.command('subscription <subscriptionId>').option('--fix').action(reconcileSubscription);

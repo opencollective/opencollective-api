@@ -4,6 +4,7 @@ import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense_status';
 import OrderStatuses from '../../../server/constants/order_status';
+import { TransactionKind } from '../../../server/constants/transaction-kind';
 import {
   getBalances,
   getCurrentCollectiveBalances,
@@ -13,6 +14,7 @@ import {
 } from '../../../server/lib/budget';
 import * as libcurrency from '../../../server/lib/currency';
 import { sequelize } from '../../../server/models';
+import { TransactionType } from '../../../server/models/Transaction';
 import { fakeCollective, fakeExpense, fakeOrder, fakeTransaction } from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -31,13 +33,13 @@ describe('server/lib/budget', () => {
 
       // Deleted transactions should be ignored
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective.id, amount: 10e2, deletedAt: new Date() },
+        { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 10e2, deletedAt: new Date() },
         { createDoubleEntry: true },
       );
 
       // One-time transactions older than 12 months should be ignored
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective.id, amount: 10e2, createdAt: new Date('2020-01-01') },
+        { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 10e2, createdAt: new Date('2020-01-01') },
         { createDoubleEntry: true },
       );
 
@@ -74,8 +76,8 @@ describe('server/lib/budget', () => {
       );
       await cancelledOrder.Subscription.deactivate();
       const cancelledOrderTransactionValues = {
-        type: 'CREDIT',
-        kind: 'CONTRIBUTION',
+        type: TransactionType.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: collective.id,
         OrderId: cancelledOrder.id,
         amount: cancelledOrder.totalAmount,
@@ -98,9 +100,15 @@ describe('server/lib/budget', () => {
     it('sums correctly', async () => {
       const collective = await fakeCollective();
 
-      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 }, { createDoubleEntry: true });
+      await fakeTransaction(
+        { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 20e2 },
+        { createDoubleEntry: true },
+      );
 
-      await fakeTransaction({ type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 }, { createDoubleEntry: true });
+      await fakeTransaction(
+        { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 30e2 },
+        { createDoubleEntry: true },
+      );
 
       const txs = await sumCollectivesTransactions([collective.id], {
         column: 'netAmountInHostCurrency',
@@ -118,17 +126,17 @@ describe('server/lib/budget', () => {
           const collective = await fakeCollective();
 
           await fakeTransaction(
-            { type: 'CREDIT', CollectiveId: collective.id, amount: 20e2 },
+            { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 20e2 },
             { createDoubleEntry: true },
           );
 
           await fakeTransaction(
-            { type: 'CREDIT', CollectiveId: collective.id, amount: 30e2 },
+            { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 30e2 },
             { createDoubleEntry: true },
           );
 
           await fakeTransaction(
-            { type: 'CREDIT', CollectiveId: collective.id, amount: 40e2, isDisputed: true },
+            { type: TransactionType.CREDIT, CollectiveId: collective.id, amount: 40e2, isDisputed: true },
             { createDoubleEntry: true },
           );
 
@@ -156,11 +164,11 @@ describe('server/lib/budget', () => {
       const host = await fakeCollective();
       const collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective.id, HostCollectiveId: host.id, amount: 20e2 },
+        { type: TransactionType.CREDIT, CollectiveId: collective.id, HostCollectiveId: host.id, amount: 20e2 },
         { createDoubleEntry: true },
       );
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective.id, HostCollectiveId: host.id, amount: 30e2 },
+        { type: TransactionType.CREDIT, CollectiveId: collective.id, HostCollectiveId: host.id, amount: 30e2 },
         { createDoubleEntry: true },
       );
       const totalMoneyManaged = await getTotalMoneyManagedAmount(host);
@@ -172,15 +180,15 @@ describe('server/lib/budget', () => {
       const collective1 = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
       const collective2 = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective1.id, HostCollectiveId: host.id, amount: 20e2 },
+        { type: TransactionType.CREDIT, CollectiveId: collective1.id, HostCollectiveId: host.id, amount: 20e2 },
         { createDoubleEntry: true },
       );
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective1.id, HostCollectiveId: host.id, amount: 30e2 },
+        { type: TransactionType.CREDIT, CollectiveId: collective1.id, HostCollectiveId: host.id, amount: 30e2 },
         { createDoubleEntry: true },
       );
       await fakeTransaction(
-        { type: 'CREDIT', CollectiveId: collective2.id, HostCollectiveId: host.id, amount: 70e2 },
+        { type: TransactionType.CREDIT, CollectiveId: collective2.id, HostCollectiveId: host.id, amount: 70e2 },
         { createDoubleEntry: true },
       );
       const totalMoneyManaged = await getTotalMoneyManagedAmount(host);
@@ -219,7 +227,7 @@ describe('server/lib/budget', () => {
     async function createBalanceData(refreshView) {
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: collective.id,
           HostCollectiveId: collective.host.id,
           amount: 20e2,
@@ -229,7 +237,7 @@ describe('server/lib/budget', () => {
       );
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: collective.id,
           HostCollectiveId: collective.host.id,
           amount: 30e2,
@@ -240,7 +248,7 @@ describe('server/lib/budget', () => {
 
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: otherCollective.id,
           HostCollectiveId: otherCollective.host.id,
           amount: 50e2,
@@ -250,7 +258,7 @@ describe('server/lib/budget', () => {
       );
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: otherCollective.id,
           HostCollectiveId: otherCollective.host.id,
           amount: 60e2,
@@ -266,7 +274,7 @@ describe('server/lib/budget', () => {
 
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: collective.id,
           HostCollectiveId: collective.host.id,
           amount: 40e2,
@@ -276,7 +284,7 @@ describe('server/lib/budget', () => {
       );
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: collective.id,
           HostCollectiveId: collective.host.id,
           amount: 50e2,
@@ -288,7 +296,7 @@ describe('server/lib/budget', () => {
 
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: otherCollective.id,
           HostCollectiveId: otherCollective.host.id,
           amount: 10e2,
@@ -298,7 +306,7 @@ describe('server/lib/budget', () => {
       );
       await fakeTransaction(
         {
-          type: 'CREDIT',
+          type: TransactionType.CREDIT,
           CollectiveId: otherCollective.id,
           HostCollectiveId: otherCollective.host.id,
           amount: 10e2,
