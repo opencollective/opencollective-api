@@ -394,6 +394,11 @@ export const loaders = req => {
     ),
   };
 
+  // Collective - Location
+  context.loaders.Collective.location = buildLoaderForAssociation(models.Collective, 'location', {
+    loader: locationIds => context.loaders.Location.byId.loadMany(locationIds),
+  });
+
   /** *** Tier *****/
   // Tier - availableQuantity
   context.loaders.Tier.availableQuantity = new DataLoader(tierIds =>

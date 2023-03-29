@@ -391,7 +391,7 @@ const accountFieldsDefinition = () => ({
   },
   location: {
     type: Location,
-    description: 'The address associated to this account. This field is always public for collectives and events.',
+    description: 'The address associated to this account. This field is always public except for Users.',
     async resolve(collective, _, req) {
       const canSeeLocation =
         collective.type !== CollectiveTypes.USER ||
@@ -409,11 +409,11 @@ const accountFieldsDefinition = () => ({
         }
         const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
         if (mainProfile) {
-          return mainProfile.getLocation();
+          return req.loaders.Collective.location.load(mainProfile);
         }
       }
 
-      return collective.getLocation();
+      return req.loaders.Collective.location.load(collective);
     },
   },
   categories: {
