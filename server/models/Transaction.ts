@@ -1,9 +1,17 @@
 import assert from 'assert';
 
-import Promise from 'bluebird';
+import BluebirdPromise from 'bluebird';
 import debugLib from 'debug';
 import { get, isNil, isNull, isUndefined, omit, pick } from 'lodash';
 import moment from 'moment';
+import {
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  ModelStatic,
+  NonAttribute,
+  Transaction as SequelizeTransaction,
+} from 'sequelize';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../constants/activities';
@@ -21,23 +29,163 @@ import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Op } from '../lib/sequelize';
 import { exportToCSV } from '../lib/utils';
 
+import Activity from './Activity';
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { PaymentMethodModelInterface } from './PaymentMethod';
 import { TransactionSettlementStatus } from './TransactionSettlement';
+import User from './User';
 
 const { CREDIT, DEBIT } = TransactionTypes;
+
+enum TransactionType {
+  CREDIT = 'CREDIT',
+  DEBIT = 'DEBIT',
+}
 
 const debug = debugLib('models:Transaction');
 
 const { models } = sequelize;
 
-const Transaction = sequelize.define(
+interface TransactionModelStaticInterface {
+  calculateNetAmountInHostCurrency(transaction: TransactionModelInterface): number;
+  calculateNetAmountInCollectiveCurrency(transaction: TransactionModelInterface): number;
+  createActivity(
+    transaction: TransactionModelInterface,
+    options?: { transaction?: SequelizeTransaction },
+  ): Promise<void | Activity>;
+  updateCurrency(currency: string, transaction: TransactionModelInterface): Promise<TransactionModelInterface>;
+  createMany(
+    transactions: InferCreationAttributes<TransactionModelInterface>[],
+    defaultValues: InferCreationAttributes<TransactionModelInterface>,
+  ): Promise<void | TransactionModelInterface[]>;
+  createManyDoubleEntry(
+    transactions: InferCreationAttributes<TransactionModelInterface>[],
+    defaultValues: InferCreationAttributes<TransactionModelInterface>,
+  ): Promise<void | TransactionModelInterface[]>;
+  createDoubleEntry(
+    transaction: Partial<InferAttributes<TransactionModelInterface>>,
+  ): Promise<TransactionModelInterface>;
+  getFxRate(
+    currency: string,
+    hostCurrency: string,
+    transaction: Partial<InferAttributes<TransactionModelInterface>>,
+  ): Promise<number>;
+  exportCSV(transactions: TransactionModelInterface[], collectivesById: { [id: number]: Collective }): string;
+  createPlatformTipDebtTransactions(
+    { platformTipTransaction }: { platformTipTransaction: TransactionModelInterface },
+    host: Collective,
+  ): Promise<TransactionModelInterface>;
+  createPlatformTipTransactions(
+    transactionData: TransactionModelInterface,
+    host: Collective,
+    isDirectlyCollected?,
+  ): Promise<{
+    transaction: TransactionModelInterface;
+    platformTipTransaction: TransactionModelInterface;
+    platformTipDebtTransaction: TransactionModelInterface;
+  }>;
+  validateContributionPayload(payload);
+  createHostFeeTransactions(
+    transaction: TransactionModelInterface,
+    host: Collective,
+    data?: any,
+  ): Promise<{ transaction: TransactionModelInterface; hostFeeTransaction: TransactionModelInterface }>;
+  createHostFeeShareDebtTransactions({
+    hostFeeShareTransaction,
+  }: {
+    hostFeeShareTransaction: TransactionModelInterface;
+  }): Promise<TransactionModelInterface>;
+  createFromContributionPayload(
+    transaction: TransactionModelInterface,
+    { isPlatformRevenueDirectlyCollected }?: { isPlatformRevenueDirectlyCollected?: boolean },
+  ): Promise<TransactionModelInterface>;
+  assertAmountsStrictlyEqual(actual: number, expected: number, message: string);
+  assertAmountsLooselyEqual(actual: number, expected: number, message: string);
+  createHostFeeShareTransactions(
+    {
+      transaction,
+      hostFeeTransaction,
+    }: { transaction: TransactionModelInterface; hostFeeTransaction: TransactionModelInterface },
+    host: Collective,
+    isDirectlyCollected?: boolean,
+  ): Promise<{
+    hostFeeShareTransaction: TransactionModelInterface;
+    hostFeeShareDebtTransaction: TransactionModelInterface;
+  }>;
+  validate(
+    transaction: TransactionModelInterface,
+    { validateOppositeTransaction }?: { validateOppositeTransaction?: boolean },
+  );
+}
+
+export interface TransactionModelInterface
+  extends Model<InferAttributes<TransactionModelInterface>, InferCreationAttributes<TransactionModelInterface>> {
+  id: string;
+
+  type: TransactionType;
+  kind: TransactionKind;
+  uuid: string;
+  description: string;
+  amount: number;
+  currency: string;
+
+  CreatedByUserId: number;
+  createdByUser?: NonAttribute<User>;
+
+  FromCollectiveId: number;
+  fromCollective?: NonAttribute<Collective>;
+
+  CollectiveId: number;
+  collective?: NonAttribute<Collective>;
+
+  HostCollectiveId: number;
+  host?: NonAttribute<Collective>;
+
+  UsingGiftCardFromCollectiveId: number;
+  OrderId: number;
+  ExpenseId: number;
+
+  RefundTransactionId: number;
+  PaymentMethodId: number;
+  PaymentMethod?: NonAttribute<PaymentMethodModelInterface>;
+  PayoutMethodId: number;
+
+  hostCurrency: string;
+  hostCurrencyFxRate: number;
+
+  amountInHostCurrency: number;
+  platformFeeInHostCurrency: number;
+  hostFeeInHostCurrency: number;
+  paymentProcessorFeeInHostCurrency: number;
+  taxAmount: number;
+  netAmountInCollectiveCurrency: number;
+  data: any;
+  TransactionGroup: string;
+
+  isRefund: boolean;
+  isDebt: boolean;
+  isDisputed: boolean;
+  isInReview: boolean;
+  isInternal: boolean;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+
+  info: NonAttribute<any>;
+
+  getOppositeTransaction(): Promise<TransactionModelInterface | null>;
+}
+
+const Transaction: ModelStatic<TransactionModelInterface> & TransactionModelStaticInterface = sequelize.define(
   'Transaction',
   {
     type: DataTypes.STRING, // DEBIT or CREDIT
 
     kind: {
       allowNull: true,
-      type: DataTypes.ENUM(Object.values(TransactionKind)),
+      type: DataTypes.ENUM(Object.values(TransactionKind) as any),
     },
 
     uuid: {
@@ -295,7 +443,7 @@ const Transaction = sequelize.define(
     hooks: {
       afterCreate: transaction => {
         Transaction.createActivity(transaction);
-        // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-promise-was-created-in-a-handler-but-was-not-returned-from-it)
+        // intentionally returns null, needs to be async (https://github.com/petkaantonov/bluebird/blob/master/docs/docs/warning-explanations.md#warning-a-BluebirdPromise-was-created-in-a-handler-but-was-not-returned-from-it)
         return null;
       },
     },
@@ -411,7 +559,7 @@ Transaction.prototype.setCurrency = async function (currency) {
  * Class Methods
  */
 Transaction.createMany = (transactions, defaultValues) => {
-  return Promise.map(transactions, transaction => {
+  return BluebirdPromise.map(transactions, transaction => {
     for (const attr in defaultValues) {
       transaction[attr] = defaultValues[attr];
     }
@@ -423,7 +571,7 @@ Transaction.createMany = (transactions, defaultValues) => {
 };
 
 Transaction.createManyDoubleEntry = (transactions, defaultValues) => {
-  return Promise.map(transactions, transaction => {
+  return BluebirdPromise.map(transactions, transaction => {
     for (const attr in defaultValues) {
       transaction[attr] = defaultValues[attr];
     }
@@ -532,15 +680,15 @@ Transaction.exportCSV = (transactions, collectivesById) => {
  * and we should move paymentProcessorFee, platformFee, hostFee to the Order model
  *
  */
-Transaction.createDoubleEntry = async (transaction, opts) => {
-  transaction.type = transaction.amount > 0 ? TransactionTypes.CREDIT : TransactionTypes.DEBIT;
+Transaction.createDoubleEntry = async transaction => {
+  transaction.type = transaction.amount > 0 ? TransactionType.CREDIT : TransactionType.DEBIT;
   transaction.netAmountInCollectiveCurrency = transaction.netAmountInCollectiveCurrency || transaction.amount;
   transaction.TransactionGroup = transaction.TransactionGroup || uuid();
   transaction.hostCurrencyFxRate = transaction.hostCurrencyFxRate || 1;
 
   // If FromCollectiveId = CollectiveId, we only create one transaction (DEBIT or CREDIT)
   if (transaction.FromCollectiveId === transaction.CollectiveId) {
-    return Transaction.create(transaction, opts);
+    return Transaction.create(transaction);
   }
 
   if (!isUndefined(transaction.amountInHostCurrency)) {
@@ -642,7 +790,7 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
     transactions.push(transaction);
   }
 
-  return Promise.mapSeries(transactions, t => Transaction.create(t, opts)).then(results => results[index]);
+  return BluebirdPromise.mapSeries(transactions, t => Transaction.create(t)).then(results => results[index]);
 };
 
 /**
@@ -666,7 +814,7 @@ Transaction.createPlatformTipDebtTransactions = async ({ platformTipTransaction 
       'hostCurrency',
       'hostCurrencyFxRate',
     ]),
-    type: DEBIT,
+    type: TransactionType.DEBIT,
     kind: TransactionKind.PLATFORM_TIP_DEBT,
     isDebt: true,
     description: 'Platform Tip collected for Open Collective',
@@ -728,7 +876,7 @@ Transaction.createPlatformTipTransactions = async (transactionData, host, isDire
       'PaymentMethodId',
       'UsingGiftCardFromCollectiveId',
     ]),
-    type: CREDIT,
+    type: TransactionType.CREDIT,
     kind: TransactionKind.PLATFORM_TIP,
     description: 'Financial contribution to Open Collective',
     CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
@@ -755,10 +903,7 @@ Transaction.createPlatformTipTransactions = async (transactionData, host, isDire
   const platformTipTransaction = await Transaction.createDoubleEntry(platformTipTransactionData);
   let platformTipDebtTransaction;
   if (!isDirectlyCollected) {
-    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions(
-      { transaction: transactionData, platformTipTransaction },
-      host,
-    );
+    platformTipDebtTransaction = await Transaction.createPlatformTipDebtTransactions({ platformTipTransaction }, host);
   }
 
   // If we have platformTipInHostCurrency available, we trust it, otherwise we compute it
@@ -812,7 +957,7 @@ Transaction.createHostFeeTransactions = async (transaction, host, data) => {
   const currency = transaction.currency;
 
   const hostFeeTransactionData = {
-    type: CREDIT,
+    type: TransactionType.CREDIT,
     kind: TransactionKind.HOST_FEE,
     description: 'Host Fee',
     TransactionGroup: transaction.TransactionGroup,
@@ -881,7 +1026,7 @@ Transaction.createHostFeeShareTransactions = async (
   const amountInHostCurrency = Math.round(amount * hostCurrencyFxRate);
 
   const hostFeeShareTransactionData = {
-    type: CREDIT,
+    type: TransactionType.CREDIT,
     kind: TransactionKind.HOST_FEE_SHARE,
     description: 'Host Fee Share',
     TransactionGroup: hostFeeTransaction.TransactionGroup,
@@ -908,8 +1053,7 @@ Transaction.createHostFeeShareTransactions = async (
   let hostFeeShareDebtTransaction;
   if (!isDirectlyCollected) {
     hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
-      { transaction, hostFeeTransaction, hostFeeShareTransaction },
-      host,
+      { hostFeeShareTransaction },
     );
   }
 
@@ -935,7 +1079,7 @@ Transaction.createHostFeeShareDebtTransactions = async ({ hostFeeShareTransactio
       'hostCurrency',
       'hostCurrencyFxRate',
     ]),
-    type: DEBIT,
+    type: TransactionType.DEBIT,
     kind: TransactionKind.HOST_FEE_SHARE_DEBT,
     isDebt: true,
     description: 'Host Fee Share owed to Open Collective',
@@ -982,7 +1126,7 @@ Transaction.createFromContributionPayload = async (
 
   // Compute these values, they will eventually be checked again by createDoubleEntry
   transaction.TransactionGroup = uuid();
-  transaction.type = TransactionTypes.CREDIT;
+  transaction.type = TransactionType.CREDIT;
   transaction.kind = transaction.kind || TransactionKind.CONTRIBUTION;
 
   // Some test may skip amountInHostCurrency and hostCurrency
@@ -1036,7 +1180,7 @@ Transaction.createFromContributionPayload = async (
 
 Transaction.createActivity = (transaction, options) => {
   if (transaction.deletedAt) {
-    return Promise.resolve();
+    return BluebirdPromise.resolve();
   }
   return (
     Transaction.findByPk(transaction.id, {
@@ -1058,9 +1202,9 @@ Transaction.createActivity = (transaction, options) => {
           FromCollectiveId: transaction.FromCollectiveId,
           HostCollectiveId: transaction.HostCollectiveId,
           OrderId: transaction.OrderId,
-          data: {
+          data: <any>{
             transaction: transaction.info,
-            user: transaction.User && transaction.User.minimal,
+            user: (transaction as any).User && (transaction as any).User.minimal,
             fromCollective: transaction.fromCollective && transaction.fromCollective.minimal,
             collective: transaction.collective && transaction.collective.minimal,
           },
@@ -1215,12 +1359,6 @@ Transaction.validate = async (transaction, { validateOppositeTransaction = true,
   // Skip as there is a known bug there
   // https://github.com/opencollective/opencollective/issues/3935
   if (transaction.kind === TransactionKind.PLATFORM_TIP) {
-    return;
-  }
-
-  // Skip as there is a known bug there
-  // https://github.com/opencollective/opencollective/issues/3934
-  if (transaction.kind === TransactionKind.PLATFORM_TIP && transaction.taxAmount) {
     return;
   }
 
