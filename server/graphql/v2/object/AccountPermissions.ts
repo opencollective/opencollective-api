@@ -16,7 +16,7 @@ const AccountPermissions = new GraphQLObjectType({
     },
     addFunds: {
       type: new GraphQLNonNull(Permission),
-      description: 'Whether the current user can mark this order as expired',
+      description: 'Whether the current has teh permission to add funds to the account',
       resolve(collective, _, req: express.Request): PermissionFields {
         return { allowed: (checkScope(req, 'host') && req.remoteUser?.isAdmin(collective.HostCollectiveId)) || false };
       },

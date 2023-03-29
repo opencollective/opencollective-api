@@ -896,6 +896,7 @@ class Collective extends Model<
     if (!this.isHostAccount) {
       const updatedValues = {
         isHostAccount: true,
+        HostCollectiveId: this.id,
         plan: 'start-plan-2021',
         hostFeePercent: undefined,
         platformFeePercent: undefined,
