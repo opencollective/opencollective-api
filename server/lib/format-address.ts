@@ -2,6 +2,8 @@ import AddressFormatter, { formatAddress as shopifyFormatAddress } from '@shopif
 
 import { Location } from '../types/Location';
 
+import { reportErrorToSentry } from './sentry';
+
 type Options = {
   includeCountry?: boolean;
   lineDivider?: 'comma' | 'newline';
@@ -42,7 +44,7 @@ export async function formatAddress(
       formattingCountry,
     );
   } catch (error) {
-    console.log('Error formatting address using @shopify/address:', error.message);
+    reportErrorToSentry(error);
 
     // Use fallback formatting (US format)
     addressLines = [address1, address2, [city, zone, postalCode].filter(Boolean).join(' ')];
