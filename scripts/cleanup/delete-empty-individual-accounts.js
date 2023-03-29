@@ -77,6 +77,7 @@ FROM "Collectives" c
     `UPDATE "Collectives"
      SET "deletedAt" = NOW()
      WHERE "type" = 'USER'
+     AND "isIncognito" IS FALSE
      AND "deletedAt" IS NULL
      AND NOT EXISTS (SELECT "id" FROM "Users" WHERE "CollectiveId" = "Collectives"."id" AND "deletedAt" IS NULL)`,
   );
