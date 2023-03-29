@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { pick } from 'lodash';
 
 import { Service } from '../../../../server/constants/connected_account';
-import { checkExpense } from '../../../../server/lib/security/expense';
+import { checkExpense, checkExpensesBatch } from '../../../../server/lib/security/expense';
 import { PayoutMethodTypes } from '../../../../server/models/PayoutMethod';
 import {
   fakeConnectedAccount,
@@ -11,7 +11,7 @@ import {
   fakeUser,
   multiple,
 } from '../../../test-helpers/fake-data';
-import { resetTestDB } from '../../../utils';
+import { makeRequest, resetTestDB } from '../../../utils';
 
 const snapshotChecks = checks => checks.map(c => pick(c, ['scope', 'level', 'message']));
 
@@ -22,8 +22,9 @@ describe('lib/security/expense', () => {
     await multiple(fakeExpense, 10, {});
   });
 
-  describe('checkExpense()', () => {
-    it('returns potential threats related to the expense payment', async () => {
+  describe('checkExpense() and checkExpenses()', () => {
+    let expense;
+    before(async () => {
       const ip = '192.168.0.27';
       const [user] = await multiple(fakeUser, 2, { data: { lastSignInRequest: { ip } }, updatedAt: new Date() });
 
@@ -49,9 +50,29 @@ describe('lib/security/expense', () => {
         CollectiveId: user.collective.id,
       });
 
-      const expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
+      expense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
+    });
+
+    it('returns potential threats related to the expense payment', async () => {
       const checks = await checkExpense(expense);
       expect(snapshotChecks(checks)).to.matchTableSnapshot();
+    });
+
+    it('returns potential threats related to the expense payment (batch)', async () => {
+      const user = await fakeUser();
+      const pm = await fakePayoutMethod({
+        CollectiveId: user.collective.id,
+        type: PayoutMethodTypes.PAYPAL,
+        data: {
+          email: 'nicolas@cage.com',
+        },
+      });
+      const otherExpense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
+
+      const [expenseCheck, otherExpenseCheck] = await checkExpensesBatch(makeRequest() as any, [expense, otherExpense]);
+      expect(await checkExpense(expense)).to.deep.equal(expenseCheck);
+      expect(snapshotChecks(expenseCheck)).to.matchTableSnapshot();
+      expect(snapshotChecks(otherExpenseCheck)).to.matchTableSnapshot();
     });
   });
 });

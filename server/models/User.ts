@@ -312,8 +312,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return count > 0;
   };
 
+  getLastKnownIp = function (): string {
+    return this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+  };
+
   findRelatedUsersByIp = async function ({ include = undefined, where = null } = {}) {
-    const ip = this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+    const ip = this.getLastKnownIp();
     return User.findAll({
       where: {
         ...where,
