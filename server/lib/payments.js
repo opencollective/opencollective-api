@@ -105,7 +105,7 @@ export async function processOrder(order, options) {
  *  associated to the refund transaction as who performed the refund.
  * @param {string} message a optional message to explain why the transaction is rejected
  */
-export async function refundTransaction(transaction, user, message) {
+export async function refundTransaction(transaction, user, message, opts = {}) {
   // Make sure to fetch PaymentMethod
   // Fetch PaymentMethod even if it's deleted
   if (!transaction.PaymentMethod && transaction.PaymentMethodId) {
@@ -127,7 +127,7 @@ export async function refundTransaction(transaction, user, message) {
   let result;
 
   try {
-    result = await paymentMethodProvider.refundTransaction(transaction, user, message);
+    result = await paymentMethodProvider.refundTransaction(transaction, user, message, opts);
   } catch (e) {
     if (
       (e.message.includes('has already been refunded') || e.message.includes('has been charged back')) &&
@@ -363,11 +363,11 @@ export async function createRefundTransaction(
     throw new Error('This transaction has already been refunded');
   }
 
-  const transactionGroup = uuid();
+  const transactionGroup = transactionGroupId || uuid();
   const buildRefund = transaction => {
     return {
       ...buildRefundForTransaction(transaction, user, data, refundedPaymentProcessorFee),
-      TransactionGroup: transactionGroupId || transactionGroup,
+      TransactionGroup: transactionGroup,
     };
   };
 
