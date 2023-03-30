@@ -3389,14 +3389,14 @@ Collective.init(
     description: {
       type: DataTypes.STRING,
       validate: {
-        len: [0,95]
+        len: [0, 255]
       },
      },
 
     longDescription: {
       type: DataTypes.TEXT,
       validate: {
-        len: [0,50000] // just to prevent people from putting a lot of text in there
+        len: [0, 30000] // just to prevent people from putting a lot of text in there
       },
       set(longDescription: string) {
         if (longDescription) {
@@ -3477,19 +3477,9 @@ Collective.init(
       },
     },
 
-    locationName: { 
-      type: DataTypes.STRING,
-      validate: {
-        len: [0,5000] // Just to prevent people typing too much in here.
-      },
-    },
+    locationName: DataTypes.STRING,
 
-    address: { 
-      type: DataTypes.STRING,
-      validate: {
-        len: [0,5000] // Just to prevent people typing too much in here.
-      },
-    },
+    address: DataTypes.STRING,
 
     countryISO: {
       type: DataTypes.STRING,
