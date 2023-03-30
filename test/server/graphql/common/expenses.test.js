@@ -260,6 +260,20 @@ describe('server/graphql/common/expenses', () => {
       });
     });
 
+    it('can edit virtual card charges', async () => {
+      await contexts.virtualCard.expense.update({ status: 'PROCESSING' });
+      expect(await checkAllPermissions(canEditExpense, contexts.virtualCard)).to.deep.equal({
+        public: false,
+        randomUser: false,
+        collectiveAdmin: true,
+        collectiveAccountant: false,
+        hostAdmin: true,
+        hostAccountant: false,
+        expenseOwner: true,
+        limitedHostAdmin: false,
+      });
+    });
+
     it('can edit expense if user is the draft payee', async () => {
       await runForAllContexts(async context => {
         const { expense } = context;
