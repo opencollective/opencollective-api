@@ -4,12 +4,11 @@ import { omit, pick } from 'lodash';
 import FEATURE_STATUS from '../../../constants/feature-status';
 import stripe from '../../../lib/stripe';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
-import models, { sequelize } from '../../../models';
+import models from '../../../models';
 import { setupCreditCard } from '../../../paymentProviders/stripe/creditcard';
 import { checkCanUsePaymentMethods } from '../../common/features';
 import { checkRemoteUserCanUseOrders } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
-import { deletePaymentMethod, updateExistingOrdersToNewPaymentMethod } from '../../v1/mutations/orders';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { CreditCardCreateInput } from '../input/CreditCardCreateInput';
 import { fetchPaymentMethodWithReference, PaymentMethodReferenceInput } from '../input/PaymentMethodReferenceInput';
@@ -66,7 +65,6 @@ const addCreditCard = {
     await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });
 
     const token = await stripe.tokens.retrieve(args.creditCardInfo.token);
-
     const newPaymentMethodData = {
       service: 'stripe',
       type: 'creditcard',
@@ -84,16 +82,7 @@ const addCreditCard = {
       },
     };
 
-    let pm;
-    await sequelize.transaction(async transaction => {
-      const oldPaymentMethod = await deletePaymentMethod(collective, token.card.fingerprint, transaction);
-
-      pm = await models.PaymentMethod.create(newPaymentMethodData, { transaction });
-
-      if (pm && oldPaymentMethod) {
-        await updateExistingOrdersToNewPaymentMethod(pm, oldPaymentMethod, transaction);
-      }
-    });
+    let pm = await models.PaymentMethod.create(newPaymentMethodData);
 
     try {
       pm = await setupCreditCard(pm, { collective, user: req.remoteUser });

@@ -41,7 +41,6 @@ export const extractFees = (balance, currency) => {
  */
 export const isTestToken = token => {
   return [
-    'tok_visa',
     'tok_bypassPending',
     'tok_chargeDeclined',
     'tok_chargeDeclinedExpiredCard',
