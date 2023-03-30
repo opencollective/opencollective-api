@@ -10,6 +10,8 @@ module.exports = {
       WHERE "isHostAccount" = true
       AND "type" = 'ORGANIZATION'
       AND "HostCollectiveId" IS NULL
+      AND "isActive" IS TRUE
+      AND "approvedAt" IS NOT NULL
     `);
   },
 
