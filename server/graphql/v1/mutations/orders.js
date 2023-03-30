@@ -55,7 +55,8 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
 const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
   const { totalAmount, fromAccountInfo, guestInfo } = order;
   const accountUpdatePayload = {};
-  const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
+  const existingLocation = await fromAccount.getLocation();
+  const location = fromAccountInfo?.location || guestInfo?.location || existingLocation;
   const isContributingFromSameHost = fromAccount.HostCollectiveId === order.collective.HostCollectiveId;
 
   // Only enforce profile checks for guests and USD contributions at the moment
@@ -80,7 +81,6 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   // (we don't want to let guests update the profile of an existing account that they may not own)
   const isVerifiedProfile = !fromAccount.data?.isGuest;
   if (!isGuest || !isVerifiedProfile) {
-    const existingLocation = await fromAccount.getLocation();
     if (mustUpdateLocation(existingLocation, location)) {
       await fromAccount.setLocation(location);
     }
