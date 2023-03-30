@@ -1007,7 +1007,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         const publicAddressesCollectiveTypes = [types.COLLECTIVE, types.EVENT, types.ORGANIZATION];
         if (publicAddressesCollectiveTypes.includes(collective.type)) {
-          return req.loaders.Collective.location.load(collective);
+          return req.loaders.Location.byCollectiveId.load(collective.id);
         } else if (!req.remoteUser) {
           return null;
         } else if (req.remoteUser.isAdminOfCollective(collective)) {
@@ -1015,13 +1015,13 @@ const CollectiveFields = () => {
           if (collective.isIncognito) {
             const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
             if (mainProfile) {
-              return req.loaders.Collective.location.load(mainProfile);
+              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
             }
           }
 
-          return req.loaders.Collective.location.load(collective);
+          return req.loaders.Location.byCollectiveId.load(collective.id);
         } else if (await req.loaders.Collective.canSeePrivateInfo.load(collective.id)) {
-          return req.loaders.Collective.location.load(collective);
+          return req.loaders.Location.byCollectiveId.load(collective.id);
         }
       },
     },

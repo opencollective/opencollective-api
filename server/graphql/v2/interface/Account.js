@@ -409,11 +409,11 @@ const accountFieldsDefinition = () => ({
         }
         const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(collective.id);
         if (mainProfile) {
-          return req.loaders.Collective.location.load(mainProfile);
+          return req.loaders.Location.byCollectiveId.load(mainProfile.id);
         }
       }
 
-      return req.loaders.Collective.location.load(collective);
+      return req.loaders.Location.byCollectiveId.load(collective.id);
     },
   },
   categories: {

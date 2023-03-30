@@ -24,6 +24,7 @@ import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
+import locationLoaders from './location';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
@@ -91,6 +92,9 @@ export const loaders = req => {
 
   // User
   context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
+
+  // Location
+  context.loaders.Location.byCollectiveId = locationLoaders.byCollectiveId(req, cache);
 
   /** *** Collective *****/
 
@@ -393,11 +397,6 @@ export const loaders = req => {
       }),
     ),
   };
-
-  // Collective - Location
-  context.loaders.Collective.location = buildLoaderForAssociation(models.Collective, 'location', {
-    loader: locationIds => context.loaders.Location.byId.loadMany(locationIds),
-  });
 
   /** *** Tier *****/
   // Tier - availableQuantity
