@@ -127,7 +127,7 @@ export default {
         const { account } = connectedAccount.data;
         const location = await collective.getLocation();
 
-        if (!location && account.legal_entity) {
+        if (!location?.structured && account.legal_entity) {
           const {
             address: { line1: address1, line2: address2, country, city, postal_code: postalCode },
           } = account.legal_entity;
