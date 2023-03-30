@@ -98,7 +98,7 @@ import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import { HostApplicationStatus } from './HostApplication';
-import LegalDocument from './LegalDocument';
+import { LegalDocumentModelInterface } from './LegalDocument';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
@@ -112,6 +112,7 @@ type Goal = {
 
 type Settings = {
   goals?: Array<Goal>;
+  allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
   features?: {
     contactForm?: boolean;
   };
@@ -248,7 +249,7 @@ class Collective extends Model<
   public declare members?: NonAttribute<Array<typeof models.Member>>;
   public declare getMembers: HasManyGetAssociationsMixin<typeof models.Member>;
 
-  public declare legalDocuments?: NonAttribute<LegalDocument[]>;
+  public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
 
@@ -886,6 +887,12 @@ class Collective extends Model<
   // run when attaching a Stripe Account to this user/organization collective
   // this Payment Method will be used for "Add Funds"
   becomeHost = async function () {
+    if (!['USER', 'ORGANIZATION', 'COLLECTIVE'].includes(this.type)) {
+      throw new Error('This account type cannot become a host');
+    } else if (this.HostCollectiveId && this.HostCollectiveId !== this.id) {
+      throw new Error('This account is already attached to another host, please remove host first');
+    }
+
     if (!this.isHostAccount) {
       const updatedValues = {
         isHostAccount: true,
@@ -1081,7 +1088,7 @@ class Collective extends Model<
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
   activateBudget = async function () {
-    if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type)) {
+    if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type) || this.HostCollectiveId !== this.id) {
       return;
     }
 
@@ -1745,7 +1752,7 @@ class Collective extends Model<
         memberCollectiveUser: memberCollectiveUser ? memberCollectiveUser.info : undefined,
       },
       order: order && {
-        ...order.activity,
+        ...order.info,
         tier: order.Tier && order.Tier.minimal,
         subscription: {
           interval: order.Subscription && order.Subscription.interval,
@@ -1839,15 +1846,7 @@ class Collective extends Model<
   getHostedCollectives = async function (queryParams = {}) {
     return models.Collective.findAll({
       ...queryParams,
-      where: { isActive: true, HostCollectiveId: this.id },
-      includes: [
-        {
-          attributes: [],
-          association: 'members',
-          required: true,
-          where: { MemberCollectiveId: this.id, role: roles.HOST },
-        },
-      ],
+      where: { isActive: true, HostCollectiveId: this.id, approvedAt: { [Op.not]: null } },
     });
   };
 
@@ -2050,6 +2049,8 @@ class Collective extends Model<
   addHost = async function (hostCollective, creatorUser, options = undefined) {
     if (this.HostCollectiveId) {
       throw new Error(`This collective already has a host (HostCollectiveId: ${this.HostCollectiveId})`);
+    } else if (this.isHostAccount) {
+      throw new Error(`This collective already is a host`);
     }
 
     const member = {
@@ -2845,7 +2846,11 @@ class Collective extends Model<
   };
 
   // get the host of the parent collective if any, or of this collective
-  getHostCollective = function () {
+  getHostCollective = async function ({ returnEvenIfNotApproved = false } = {}) {
+    if (!this.isActive && !returnEvenIfNotApproved) {
+      return null;
+    }
+
     if (this.HostCollectiveId) {
       return models.Collective.findByPk(this.HostCollectiveId);
     }
@@ -2861,7 +2866,11 @@ class Collective extends Model<
     });
   };
 
-  getHostCollectiveId = function () {
+  getHostCollectiveId = async function ({ returnEvenIfNotApproved = false } = {}) {
+    if (!this.isActive && !returnEvenIfNotApproved) {
+      return null;
+    }
+
     if (this.HostCollectiveId) {
       return Promise.resolve(this.HostCollectiveId);
     }
@@ -2973,7 +2982,12 @@ class Collective extends Model<
       return Promise.resolve(null);
     }
     return models.Collective.count({
-      where: { HostCollectiveId: this.id, type: types.COLLECTIVE, isActive: true },
+      where: {
+        HostCollectiveId: this.id,
+        type: [types.COLLECTIVE, types.FUND],
+        isActive: true,
+        approvedAt: { [Op.not]: null },
+      },
     });
   };
 

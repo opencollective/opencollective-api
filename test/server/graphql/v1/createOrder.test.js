@@ -112,7 +112,7 @@ describe('server/graphql/v1/createOrder', () => {
     // And the above collective's host has a stripe account
     await store.stripeConnectedAccount(fearlesscitiesbrussels.HostCollectiveId);
     // And given that the above collective is active
-    await fearlesscitiesbrussels.update({ isActive: true });
+    await fearlesscitiesbrussels.update({ isActive: true, approvedAt: new Date() });
     // And given that the endpoint for creating customers on Stripe
     // is patched
     utils.stubStripeCreate(sandbox, {
@@ -138,6 +138,7 @@ describe('server/graphql/v1/createOrder', () => {
       slug: 'test',
       name: 'test',
       isActive: false,
+      approvedAt: null,
       isPledged: true,
       website: 'https://github.com/opencollective/frontend',
     });
@@ -221,6 +222,7 @@ describe('server/graphql/v1/createOrder', () => {
       name: 'test',
       currency: 'USD',
       isActive: true,
+      approvedAt: new Date(),
     });
     const event = await models.Collective.create({
       slug: 'meetup-ev1',
@@ -228,6 +230,7 @@ describe('server/graphql/v1/createOrder', () => {
       type: 'EVENT',
       ParentCollectiveId: collective.id,
       isActive: true,
+      approvedAt: new Date(),
     });
     const tier = await models.Tier.create({
       slug: 'backer',
@@ -237,11 +240,8 @@ describe('server/graphql/v1/createOrder', () => {
       CollectiveId: event.id,
     });
     await collective.addHost(host, hostAdmin, { shouldAutomaticallyApprove: true });
-    await collective.update({ isActive: true });
+    await collective.update({ isActive: true, approvedAt: new Date() });
 
-    await utils.waitForCondition(() => emailSendMessageSpy.callCount === 1, {
-      tag: 'fearlesscitiesbrussels would love to be hosted ',
-    });
     emailSendMessageSpy.resetHistory();
 
     const thisOrder = cloneDeep(baseOrder);
@@ -795,9 +795,9 @@ describe('server/graphql/v1/createOrder', () => {
       await store.stripeConnectedAccount(hostCollective.id);
       // And given two collectives in that host
       const fromCollective = (await store.newCollectiveInHost('opensource', 'USD', hostCollective)).collective;
-      await fromCollective.update({ isActive: true });
+      await fromCollective.update({ isActive: true, approvedAt: new Date() });
       const { collective } = await store.newCollectiveInHost('apex', 'USD', hostCollective);
-      await collective.update({ isActive: true });
+      await collective.update({ isActive: true, approvedAt: new Date() });
       // And given a payment method for the host
       const paymentMethod = await models.PaymentMethod.create({
         service: 'opencollective',
@@ -844,9 +844,9 @@ describe('server/graphql/v1/createOrder', () => {
     const order = cloneDeep(baseOrder);
     const { hostCollective } = await store.newHost('Host Collective', 'USD', 10);
     const fromCollective = (await store.newCollectiveInHost('opensource', 'USD', hostCollective)).collective;
-    await fromCollective.update({ isActive: true });
+    await fromCollective.update({ isActive: true, approvedAt: new Date() });
     const collective = (await store.newCollectiveInHost('apex', 'USD', hostCollective)).collective;
-    await collective.update({ isActive: true });
+    await collective.update({ isActive: true, approvedAt: new Date() });
 
     await models.Member.create({
       CreatedByUserId: xdamman.id,

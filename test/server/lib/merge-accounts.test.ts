@@ -1,10 +1,12 @@
 import { expect } from 'chai';
 import { mergeWith } from 'lodash';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../server/constants/paymentMethods';
 import { getMovableItemsCounts, mergeAccounts, simulateMergeAccounts } from '../../../server/lib/merge-accounts';
 import models from '../../../server/models';
 import { LEGAL_DOCUMENT_TYPE } from '../../../server/models/LegalDocument';
 import { MigrationLogDataForMergeAccounts, MigrationLogType } from '../../../server/models/MigrationLog';
+import { getOrCreateDBSnapshot } from '../../test-helpers/data-snapshot';
 import * as Faker from '../../test-helpers/fake-data';
 import { resetTestDB } from '../../utils';
 
@@ -41,7 +43,11 @@ const addFakeDataToAccount = async (account): Promise<void> => {
       FromCollectiveId: randomCollective.id,
       CreatedByUserId: user.id,
     }),
-    Faker.fakePaymentMethod({ CollectiveId: account.id, service: 'stripe', type: 'creditcard' }),
+    Faker.fakePaymentMethod({
+      CollectiveId: account.id,
+      service: PAYMENT_METHOD_SERVICE.STRIPE,
+      type: PAYMENT_METHOD_TYPE.CREDITCARD,
+    }),
     Faker.fakePayoutMethod({ CollectiveId: account.id }),
     Faker.fakePaypalProduct({ CollectiveId: account.id }),
     // TODO Faker.fakeRequiredLegalDocument({ HostCollectiveId: account.id }),
@@ -75,6 +81,33 @@ const addFakeDataToAccount = async (account): Promise<void> => {
   }
 };
 
+/** Generate base data for the test. Remember to update the DB snapshot if you touch this function.  */
+const generateTestData = async () => {
+  // Make sure we're on a fresh DB
+  await resetTestDB();
+
+  // Create noise data to make sure merge tools don't affect others data
+  await addFakeDataToAccount(await Faker.fakeCollective({ slug: 'noise-collective' }));
+  await addFakeDataToAccount(await Faker.fakeOrganization({ slug: 'noise-organization' }));
+  await addFakeDataToAccount((await Faker.fakeUser({}, { slug: 'noise-user' })).collective);
+
+  // Create the accounts that will be merged
+  const fromCollective = await Faker.fakeCollective({ slug: 'from-collective' });
+  const toCollective = await Faker.fakeCollective({ slug: 'to-collective' });
+  await addFakeDataToAccount(fromCollective);
+  await addFakeDataToAccount(toCollective);
+
+  const fromUser = await Faker.fakeUser({}, { slug: 'from-user', countryISO: 'FR' });
+  const toUser = await Faker.fakeUser({}, { slug: 'to-user', countryISO: null });
+  await addFakeDataToAccount(fromUser.collective);
+  await addFakeDataToAccount(toUser.collective);
+
+  const fromOrganization = await Faker.fakeCollective({ slug: 'from-org', countryISO: 'FR' });
+  const toOrganization = await Faker.fakeCollective({ slug: 'to-org', countryISO: null });
+  await addFakeDataToAccount(fromOrganization);
+  await addFakeDataToAccount(toOrganization);
+};
+
 const sumCounts = (count1, count2) => {
   return {
     account: mergeWith(count1.account, count2.account, (objValue, srcValue) => {
@@ -92,31 +125,21 @@ describe('server/lib/merge-accounts', () => {
   let fromUser, toUser, fromOrganization, toOrganization, fromCollective, toCollective;
 
   before(async function () {
-    // This test can take some time to setup on local env
-    this.timeout(120000);
+    await getOrCreateDBSnapshot(this, 'merge-accounts', generateTestData);
 
-    await resetTestDB();
+    // Load accounts
+    fromCollective = await models.Collective.findBySlug('from-collective');
+    toCollective = await models.Collective.findBySlug('to-collective');
+    fromOrganization = await models.Collective.findBySlug('from-org');
+    toOrganization = await models.Collective.findBySlug('to-org');
 
-    // Create noise data to make sure merge tools don't affect others data
-    await addFakeDataToAccount(await Faker.fakeCollective({ slug: 'noise-collective' }));
-    await addFakeDataToAccount(await Faker.fakeOrganization({ slug: 'noise-organization' }));
-    await addFakeDataToAccount((await Faker.fakeUser({}, { slug: 'noise-user' })).collective);
-
-    // Create the accounts that will be merged
-    fromCollective = await Faker.fakeCollective({ slug: 'from-collective' });
-    toCollective = await Faker.fakeCollective({ slug: 'to-collective' });
-    await addFakeDataToAccount(fromCollective);
-    await addFakeDataToAccount(toCollective);
-
-    fromUser = await Faker.fakeUser({}, { slug: 'from-user', countryISO: 'FR' });
-    toUser = await Faker.fakeUser({}, { slug: 'to-user', countryISO: null });
-    await addFakeDataToAccount(fromUser.collective);
-    await addFakeDataToAccount(toUser.collective);
-
-    fromOrganization = await Faker.fakeCollective({ slug: 'from-org', countryISO: 'FR' });
-    toOrganization = await Faker.fakeCollective({ slug: 'to-org', countryISO: null });
-    await addFakeDataToAccount(fromOrganization);
-    await addFakeDataToAccount(toOrganization);
+    // Load users
+    const fromUserCollective = await models.Collective.findBySlug('from-user');
+    const toUserCollective = await models.Collective.findBySlug('to-user');
+    fromUser = await models.User.findOne({ where: { CollectiveId: fromUserCollective.id } });
+    toUser = await models.User.findOne({ where: { CollectiveId: toUserCollective.id } });
+    fromUser.collective = fromUserCollective;
+    toUser.collective = toUserCollective;
   });
 
   describe('simulateMergeAccounts', () => {

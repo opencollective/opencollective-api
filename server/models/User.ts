@@ -35,6 +35,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare emailWaitingForValidation: CreationOptional<string>;
   public declare emailConfirmationToken: CreationOptional<string>;
   public declare twoFactorAuthToken: CreationOptional<string>;
+  public declare yubikeyDeviceId: CreationOptional<string>;
   public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
   public declare CollectiveId: number;
   public declare newsletterOptIn: boolean;
@@ -84,15 +85,15 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       });
     }
 
-    return this.jwt({ sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    return this.jwt({ scope: 'session', sessionId }, auth.TOKEN_EXPIRATION_SESSION);
   };
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
     const lastLoginAt = this.lastLoginAt ? this.lastLoginAt.getTime() : null;
     const token = this.jwt({ scope: 'login', lastLoginAt }, auth.TOKEN_EXPIRATION_LOGIN);
     // if a different websiteUrl is passed
-    // we don't accept that in production to avoid fishing related issues
-    if (websiteUrl && config.env !== 'production') {
+    // we don't accept that in production or staging to avoid fishing related issues
+    if (websiteUrl && ['production', 'staging'].includes(config.env)) {
       return `${websiteUrl}/signin/${token}?next=${redirect}`;
     } else {
       return `${config.host.website}/signin/${token}?next=${redirect}`;
@@ -104,7 +105,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     const token = this.jwt({ scope: 'reset-password', passwordUpdatedAt }, auth.TOKEN_EXPIRATION_RESET_PASSWORD);
     // if a different websiteUrl is passed
     // we don't accept that in production to avoid fishing related issues
-    if (websiteUrl && config.env !== 'production') {
+    if (websiteUrl && ['production', 'staging'].includes(config.env)) {
       return `${websiteUrl}/reset-password/${token}`;
     } else {
       return `${config.host.website}/reset-password/${token}`;
@@ -651,6 +652,11 @@ User.init(
     },
 
     twoFactorAuthToken: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    yubikeyDeviceId: {
       type: DataTypes.STRING,
       allowNull: true,
     },

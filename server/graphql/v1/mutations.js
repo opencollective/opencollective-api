@@ -1,10 +1,12 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { isNil } from 'lodash';
 
+import FEATURE_STATUS from '../../constants/feature-status';
 import RateLimit, { ONE_HOUR_IN_SECONDS } from '../../lib/rate-limit';
 import twoFactorAuthLib from '../../lib/two-factor-authentication';
 import models from '../../models';
 import { bulkCreateGiftCards, createGiftCardsForEmails } from '../../paymentProviders/opencollective/giftcard';
+import { checkCanEmitGiftCards } from '../common/features';
 import { editPublicMessage } from '../common/members';
 import { createUser } from '../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized } from '../errors';
@@ -421,6 +423,8 @@ const mutations = {
         throw new Error('Collective does not exist');
       } else if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Error('User must be admin of collective');
+      } else if ((await checkCanEmitGiftCards(collective, req.remoteUser)) === FEATURE_STATUS.UNSUPPORTED) {
+        throw new Error('Cannot create gift cards from this account');
       }
 
       await twoFactorAuthLib.enforceForAccount(req, collective, { onlyAskOnLogin: true });

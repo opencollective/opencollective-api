@@ -1,6 +1,5 @@
 import { GraphQLFloat, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
@@ -42,6 +41,7 @@ const EXPENSE_DRAFT_PUBLIC_FIELDS = [
   'attachedFiles',
   'payoutMethod',
   'payeeLocation',
+  'taxes',
 ];
 
 const loadHostForExpense = async (expense, req) => {
@@ -289,7 +289,7 @@ const Expense = new GraphQLObjectType({
             allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_ATTACHMENTS_URL, expense.id);
           }
 
-          return ExpenseLib.getExpenseItems(expense.id, req);
+          return req.loaders.Expense.items.load(expense.id);
         },
       },
       privateMessage: {

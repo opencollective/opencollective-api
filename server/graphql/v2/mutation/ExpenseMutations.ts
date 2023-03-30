@@ -17,6 +17,7 @@ import {
   approveExpense,
   canDeleteExpense,
   canVerifyDraftExpense,
+  computeTotalAmountForExpense,
   createExpense,
   editExpense,
   markExpenseAsIncomplete,
@@ -411,9 +412,9 @@ const expenseMutations = {
         FromCollectiveId: fromCollective.id,
         lastEditedById: remoteUser.id,
         UserId: remoteUser.id,
-        currency: collective.currency,
+        currency: expenseData.currency || collective.currency,
         incurredAt: new Date(),
-        amount: expenseData.items?.reduce((total, item) => total + item.amount, 0) || expenseData.amount || 1,
+        amount: computeTotalAmountForExpense(expenseData.items, expenseData.tax),
         data: {
           items: expenseData.items,
           attachedFiles: expenseData.attachedFiles,
@@ -423,6 +424,8 @@ const expenseMutations = {
           recipientNote: expenseData.recipientNote,
           payoutMethod: expenseData.payoutMethod,
           payeeLocation: expenseData.payeeLocation,
+          customData: expenseData.customData,
+          taxes: expenseData.tax,
         },
         status: expenseStatus.DRAFT,
       });

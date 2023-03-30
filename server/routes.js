@@ -1,7 +1,7 @@
+import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
 import expressLimiter from 'express-limiter';
-// import gqlmin from 'gqlmin';
 import { get, pick } from 'lodash';
 import multer from 'multer';
 import redis from 'redis';
@@ -19,7 +19,7 @@ import {
   thegivingblockWebhook,
   transferwiseWebhook,
 } from './controllers/webhooks';
-import { getGraphqlCacheKey } from './graphql/cache';
+import { getGraphqlCacheProperties } from './graphql/cache';
 // import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -27,7 +27,7 @@ import cache from './lib/cache';
 import errors from './lib/errors';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
-import { reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
+import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -105,13 +105,16 @@ export default async app => {
   }
 
   /**
-   * User reset password or new token flow (no jwt verification) or 2FA
+   * Sign In related features
    */
   app.post('/users/signin', required('user'), users.signin);
   // check JWT and update token if no 2FA, but send back 2FA JWT if there is 2FA enabled
-  app.post('/users/update-token', authentication.mustBeLoggedIn, users.updateToken);
+  app.post('/users/update-token', authentication.mustBeLoggedIn, users.exchangeLoginToken); // deprecated
+  app.post('/users/exchange-login-token', authentication.mustBeLoggedIn, users.exchangeLoginToken);
+  // check JWT and send an extended JWT back
+  app.post('/users/refresh-token', authentication.mustBeLoggedIn, users.refreshToken);
   // check the 2FA code against the token in the db to let 2FA-enabled users log in
-  app.post('/users/two-factor-auth', authentication.checkTwoFactorAuthJWT, users.twoFactorAuthAndUpdateToken);
+  app.post('/users/two-factor-auth', authentication.mustBeLoggedIn, users.twoFactorAuthAndUpdateToken);
 
   /**
    * Moving forward, all requests will try to authenticate the user if there is a JWT token provided
@@ -146,7 +149,7 @@ export default async app => {
    */
   app.use('/graphql', async (req, res, next) => {
     req.startAt = req.startAt || new Date();
-    const cacheKey = getGraphqlCacheKey(req); // Returns null if not cacheable (e.g. if logged in)
+    const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
     const enabled = parseToBoolean(config.graphql.cache.enabled);
     if (cacheKey && enabled) {
       const fromCache = await cache.get(cacheKey);
@@ -155,11 +158,13 @@ export default async app => {
         req.endAt = req.endAt || new Date();
         const executionTime = req.endAt - req.startAt;
         res.set('Execution-Time', executionTime);
-        res.set('GraphQLCacheHit', true);
+        res.set('GraphQL-Cache', 'HIT');
         res.send(fromCache);
         return;
       }
+      res.set('GraphQL-Cache', 'MISS');
       req.cacheKey = cacheKey;
+      req.cacheSlug = cacheSlug;
     }
     next();
   });
@@ -178,15 +183,69 @@ export default async app => {
         return next(new errors.Unauthorized(errorMessage));
       }
     }
+
+    if (req.personalToken) {
+      logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
+    }
     next();
   });
 
+  /* GraphQL server protection rules */
+  const logRejection = (ctx, err) => {
+    logger.warn(`Query complexity is too high: ${err.message}`);
+    if (ctx._ast) {
+      const operation = ctx._ast.definitions?.find(d => d.kind === 'OperationDefinition');
+      reportMessageToSentry('Query complexity is too high', {
+        handler: HandlerType.GQL,
+        severity: 'warning',
+        transactionName: `GraphQL complexity too high: ${operation?.name?.value}`,
+        extra: {
+          query: ctx._ast.loc?.source?.body || '',
+          message: err.message,
+        },
+      });
+    }
+  };
+
+  const apolloArmor = new ApolloArmor({
+    // Depth is the number of nested fields in a query
+    maxDepth: {
+      onReject: [logRejection],
+      propagateOnRejection: false,
+      n: 15, // Currently identified max: 13 in contribution flow
+    },
+    // Cost is computed by the complexity plugin, it's a mix of the number of fields and the complexity of each field
+    costLimit: {
+      onReject: [logRejection],
+      ignoreIntrospection: true,
+      propagateOnRejection: false,
+      maxCost: 10000, // Currently identified max: around 7500 on expense form
+    },
+    // Tokens are the number of fields in a query
+    maxTokens: {
+      onReject: [logRejection],
+      propagateOnRejection: false,
+      n: 1000, // Currently identified max: 805 in the expense flow
+    },
+    maxAliases: { enabled: false }, // Not clear what value this adds
+    maxDirectives: { enabled: false }, // Not clear what value this adds
+    blockFieldSuggestion: { enabled: false }, // Our schema is public, no need to hide fields
+  });
+
+  const graphqlProtection = apolloArmor.protect();
+  const graphqlPlugins = [...graphqlProtection.plugins];
+
   /* GraphQL server generic options */
+  if (config.sentry?.dsn) {
+    graphqlPlugins.push(SentryGraphQLPlugin);
+  }
 
   const graphqlServerOptions = {
     introspection: true,
     playground: isDevelopment,
-    plugins: config.sentry?.dsn ? [SentryGraphQLPlugin] : undefined,
+    ...graphqlProtection,
+    debug: !['production', 'staging'].includes(config.env), // Keep stracktraces in dev & CI
+    plugins: graphqlPlugins,
     // Align with behavior from express-graphql
     context: ({ req }) => {
       return req;
@@ -211,8 +270,14 @@ export default async app => {
       req.res.set('Execution-Time', executionTime);
 
       // This will never happen for logged-in users as cacheKey is not set
-      if (req.cacheKey && !response?.errors && executionTime > config.graphql.cache.minExecutionTimeToCache) {
+      if (req.cacheKey && !response?.errors && executionTime > parseInt(config.graphql.cache.minExecutionTimeToCache)) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+        // Index key
+        cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
+          keys = keys || [];
+          keys.push(req.cacheKey);
+          cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys);
+        });
       }
 
       return response;
@@ -289,12 +354,7 @@ export default async app => {
     noCache,
     authentication.authenticateService,
   );
-  app.get(
-    '/connected-accounts/:service/verify',
-    noCache,
-    authentication.parseJwtNoExpiryCheck,
-    connectedAccounts.verify,
-  );
+  app.get('/connected-accounts/:service/verify', noCache, connectedAccounts.verify);
 
   /* TransferWise OTT Request Endpoint */
   app.post('/services/transferwise/pay-batch', noCache, transferwise.payBatch);

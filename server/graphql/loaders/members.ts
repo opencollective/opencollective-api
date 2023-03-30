@@ -65,7 +65,7 @@ export const generateCountAdminMembersOfCollective = () => {
       },
     });
     const result = _.keyBy(adminsByCollective, 'CollectiveId');
-    return collectiveIds.map(collectiveId => result[collectiveId]?.dataValues?.adminCount || 0);
+    return collectiveIds.map(collectiveId => (result[collectiveId]?.dataValues as any)?.adminCount || 0);
   });
 };
 
@@ -95,6 +95,6 @@ export const generateRemoteUserIsAdminOfHostedAccountLoader = req => {
     });
 
     const groupedResults = groupBy(results, 'HostCollectiveId');
-    return hostIds.map(id => Boolean(groupedResults[id] && groupedResults[id][0].MembersCount > 0));
+    return hostIds.map(id => Boolean(groupedResults[id] && (groupedResults[id][0] as any).MembersCount > 0));
   });
 };

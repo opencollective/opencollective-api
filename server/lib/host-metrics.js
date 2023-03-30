@@ -273,7 +273,7 @@ export async function getTotalMoneyManagedTimeSeries(
   { startDate = null, endDate = null, collectiveIds = null, timeUnit } = {},
 ) {
   if (!collectiveIds) {
-    const collectives = await host.getHostedCollectives({ attributes: ['id'] });
+    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
     collectiveIds = collectives.map(result => result.id);
     collectiveIds.push(host.id);
   }

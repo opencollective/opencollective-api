@@ -20,6 +20,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { TransactionTypes } from '../../../constants/transactions';
 import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
+import sequelize from '../../../lib/sequelize';
 import models, { Op } from '../../../models';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
@@ -96,8 +97,15 @@ export const Host = new GraphQLObjectType({
       },
       totalHostedCollectives: {
         type: GraphQLInt,
-        resolve(collective) {
-          return collective.getHostedCollectivesCount();
+        deprecationReason: '2023-03-20: Renamed to totalHostedAccounts',
+        resolve(host, _, req) {
+          return req.loaders.Collective.hostedCollectivesCount.load(host.id);
+        },
+      },
+      totalHostedAccounts: {
+        type: GraphQLInt,
+        resolve(host, _, req) {
+          return req.loaders.Collective.hostedCollectivesCount.load(host.id);
         },
       },
       isOpenToApplications: {
@@ -279,12 +287,16 @@ export const Host = new GraphQLObjectType({
           });
 
           if (transferwiseAccount) {
-            return TransferwiseLib.getAccountBalances(transferwiseAccount).then(balances => {
-              return balances.map(balance => ({
-                value: Math.round(balance.amount.value * 100),
-                currency: balance.amount.currency,
-              }));
-            });
+            return TransferwiseLib.getAccountBalances(transferwiseAccount)
+              .then(balances => {
+                return balances.map(balance => ({
+                  value: Math.round(balance.amount.value * 100),
+                  currency: balance.amount.currency,
+                }));
+              })
+              .catch(() => {
+                return null;
+              });
           }
         },
       },
@@ -535,7 +547,7 @@ export const Host = new GraphQLObjectType({
           }
           const where = {
             HostCollectiveId: host.id,
-            kind: TransactionKind.CONTRIBUTION,
+            kind: [TransactionKind.CONTRIBUTION, TransactionKind.ADDED_FUNDS],
             type: TransactionTypes.CREDIT,
             isRefund: false,
             RefundTransactionId: null,
@@ -555,27 +567,41 @@ export const Host = new GraphQLObjectType({
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
-          const distinct = { distinct: true, col: 'OrderId' };
+          const contributionsCountPromise = models.Transaction.findAll({
+            attributes: [
+              [
+                sequelize.literal(`CASE WHEN "Order"."interval" IS NOT NULL THEN 'recurring' ELSE 'one-time' END`),
+                'label',
+              ],
+              [sequelize.literal(`COUNT(*)`), 'count'],
+              [sequelize.literal(`COUNT(DISTINCT "Order"."id")`), 'countDistinct'],
+              [sequelize.literal(`SUM("Transaction"."amountInHostCurrency")`), 'sumAmount'],
+            ],
+            where,
+            include: [{ model: models.Order, attributes: [] }],
+            group: ['label'],
+            raw: true,
+          });
 
           return {
-            contributionsCount: () =>
-              models.Transaction.count({
-                where,
-              }),
-            oneTimeContributionsCount: () =>
-              models.Transaction.count({
-                where,
-                include: [{ model: models.Order, where: { interval: null } }],
-                ...distinct,
-              }),
-            recurringContributionsCount: () =>
-              models.Transaction.count({
-                where,
-                include: [{ model: models.Order, where: { interval: { [Op.ne]: null } } }],
-                ...distinct,
-              }),
+            contributionsCount: contributionsCountPromise.then(results =>
+              results.reduce((total, result) => total + result.count, 0),
+            ),
+            oneTimeContributionsCount: contributionsCountPromise.then(results =>
+              results
+                .filter(result => result.label === 'one-time')
+                .reduce((total, result) => total + result.countDistinct, 0),
+            ),
+            recurringContributionsCount: contributionsCountPromise.then(results =>
+              results
+                .filter(result => result.label === 'recurring')
+                .reduce((total, result) => total + result.countDistinct, 0),
+            ),
             dailyAverageIncomeAmount: async () => {
-              const contributionsAmountSum = await models.Transaction.sum('amount', { where });
+              const contributionsAmountSum = await contributionsCountPromise.then(results =>
+                results.reduce((total, result) => total + result.sumAmount, 0),
+              );
+
               const dailyAverageIncomeAmount = contributionsAmountSum / numberOfDays;
               return {
                 value: dailyAverageIncomeAmount || 0,
@@ -612,7 +638,13 @@ export const Host = new GraphQLObjectType({
               'You need to be logged in as an admin or an accountant of the host to see the expense stats.',
             );
           }
-          const where = { HostCollectiveId: host.id, kind: 'EXPENSE', type: TransactionTypes.DEBIT };
+          const where = {
+            HostCollectiveId: host.id,
+            kind: 'EXPENSE',
+            type: TransactionTypes.DEBIT,
+            isRefund: false,
+            RefundTransactionId: null,
+          };
           const numberOfDays = getNumberOfDays(args.dateFrom, args.dateTo, host) || 1;
           const dateRange = getFilterDateRange(args.dateFrom, args.dateTo);
           if (dateRange) {
@@ -625,37 +657,44 @@ export const Host = new GraphQLObjectType({
             where.CollectiveId = { [Op.in]: collectiveIds };
           }
 
-          const distinct = { distinct: true, col: 'ExpenseId' };
+          const expensesCountPromise = models.Transaction.findAll({
+            attributes: [
+              [sequelize.literal(`"Expense"."type"`), 'type'],
+              [sequelize.literal(`COUNT(DISTINCT "Expense"."id")`), 'countDistinct'],
+              [sequelize.literal(`COUNT(*)`), 'count'],
+              [sequelize.literal(`SUM("Transaction"."amountInHostCurrency")`), 'sumAmount'],
+            ],
+            where,
+            include: [{ model: models.Expense, attributes: [] }],
+            group: ['Expense.type'],
+            raw: true,
+          });
 
           return {
-            expensesCount: () =>
-              models.Transaction.count({
-                where,
-                ...distinct,
-              }),
-            invoicesCount: models.Transaction.count({
-              where,
-              include: [{ model: models.Expense, where: { type: expenseType.INVOICE } }],
-              ...distinct,
-            }),
-            reimbursementsCount: models.Transaction.count({
-              where,
-              include: [{ model: models.Expense, where: { type: expenseType.RECEIPT } }],
-              ...distinct,
-            }),
-            grantsCount: () =>
-              models.Transaction.count({
-                where,
-                include: [
-                  {
-                    model: models.Expense,
-                    where: { type: { [Op.in]: [expenseType.FUNDING_REQUEST, expenseType.GRANT] } },
-                  },
-                ],
-                ...distinct,
-              }),
+            expensesCount: expensesCountPromise.then(results =>
+              results.reduce((total, result) => total + result.countDistinct, 0),
+            ),
+            invoicesCount: expensesCountPromise.then(results =>
+              results
+                .filter(result => result.type === expenseType.INVOICE)
+                .reduce((total, result) => total + result.countDistinct, 0),
+            ),
+            reimbursementsCount: expensesCountPromise.then(results =>
+              results
+                .filter(result => result.type === expenseType.RECEIPT)
+                .reduce((total, result) => total + result.countDistinct, 0),
+            ),
+            grantsCount: expensesCountPromise.then(results =>
+              results
+                .filter(result => [expenseType.FUNDING_REQUEST, expenseType.GRANT].includes(result.type))
+                .reduce((total, result) => total + result.countDistinct, 0),
+            ),
+            // NOTE: not supported here UNCLASSIFIED, SETTLEMENT, CHARGE
             dailyAverageAmount: async () => {
-              const expensesAmountSum = await models.Transaction.sum('amount', { where });
+              const expensesAmountSum = await expensesCountPromise.then(results =>
+                results.reduce((total, result) => total + result.sumAmount, 0),
+              );
+
               const dailyAverageAmount = Math.abs(expensesAmountSum) / numberOfDays;
               return {
                 value: dailyAverageAmount || 0,

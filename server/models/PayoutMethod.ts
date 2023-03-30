@@ -31,7 +31,7 @@ export enum PayoutMethodTypes {
   CREDIT_CARD = 'CREDIT_CARD',
 }
 
-const IDENTIFIABLE_DATA_FIELDS = [
+export const IDENTIFIABLE_DATA_FIELDS = [
   'abartn',
   'accountNumber',
   'bankCode',

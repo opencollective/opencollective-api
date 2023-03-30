@@ -1,6 +1,14 @@
-import Promise from 'bluebird';
+import BluebirdPromise from 'bluebird';
 import debugLib from 'debug';
 import { get } from 'lodash';
+import {
+  HasManyGetAssociationsMixin,
+  HasOneGetAssociationMixin,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  ModelStatic,
+} from 'sequelize';
 import Temporal from 'sequelize-temporal';
 
 import { roles } from '../constants';
@@ -12,13 +20,87 @@ import sequelize, { DataTypes, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { capitalize } from '../lib/utils';
 
+import Collective from './Collective';
 import CustomDataTypes from './DataTypes';
+import { MemberModelInterface } from './Member';
+import PaymentMethod, { PaymentMethodModelInterface } from './PaymentMethod';
+import Subscription from './Subscription';
+import Tier from './Tier';
+import Transaction from './Transaction';
+import User from './User';
 
 const { models } = sequelize;
 
 const debug = debugLib('models:Order');
 
-const Order = sequelize.define(
+interface OrderModelStaticInterface {
+  generateDescription(collective, amount, interval, tier): string;
+  cancelActiveOrdersByCollective(collectiveId: number): Promise<[affectedCount: number]>;
+  cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
+  cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]>;
+}
+
+export interface OrderModelInterface
+  extends Model<
+    InferAttributes<OrderModelInterface, { omit: 'info' }>,
+    InferCreationAttributes<OrderModelInterface, { omit: 'info' }>
+  > {
+  id: number;
+
+  CreatedByUserId: number;
+  createdByUser?: User;
+
+  FromCollectiveId: number;
+  fromCollective?: Collective;
+  getFromCollective: HasOneGetAssociationMixin<Collective>;
+
+  CollectiveId: number;
+  collective?: Collective;
+  getCollective: HasOneGetAssociationMixin<Collective>;
+
+  TierId: number;
+  tier?: Tier;
+  getTier: Promise<Tier>;
+
+  quantity: number;
+  currency: string;
+  tags: string[];
+  totalAmount: number;
+  platformTipAmount: number;
+  platformTipEligible?: boolean;
+  taxAmount: number;
+  description: string;
+  publicMessage: string;
+  privateMessage: string;
+
+  SubscriptionId?: number;
+  Subscription?: typeof Subscription;
+  getSubscription: HasOneGetAssociationMixin<typeof Subscription>;
+
+  PaymentMethodId: number;
+  paymentMethod?: PaymentMethodModelInterface;
+  getPaymentMethod: HasOneGetAssociationMixin<PaymentMethodModelInterface>;
+
+  Transactions?: (typeof Transaction)[];
+  getTransactions: HasManyGetAssociationsMixin<typeof Transaction>;
+
+  processedAt: Date;
+  status: OrderStatus;
+  interval?: string;
+  data: any;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+
+  info: any;
+
+  getOrCreateMembers(): Promise<[MemberModelInterface, MemberModelInterface]>;
+  getUser(): Promise<User>;
+  setPaymentMethod(paymentMethodData);
+}
+
+const Order: ModelStatic<OrderModelInterface> & OrderModelStaticInterface = sequelize.define(
   'Order',
   {
     id: {
@@ -206,7 +288,10 @@ const Order = sequelize.define(
           quantity: this.quantity,
           interval: this.interval,
           totalAmount: this.totalAmount,
+          // introducing 3 new values to clarify
+          netAmount: this.totalAmount - this.platformTipAmount,
           platformTipAmount: this.platformTipAmount,
+          chargeAmount: this.totalAmount,
           description: this.description,
           privateMessage: this.privateMessage,
           publicMessage: this.publicMessage,
@@ -214,26 +299,6 @@ const Order = sequelize.define(
           createdAt: this.createdAt,
           updatedAt: this.updatedAt,
           processedAt: this.processedAt,
-          isGuest: Boolean(this.data?.isGuest),
-          tags: this.tags,
-        };
-      },
-
-      activity() {
-        return {
-          id: this.id,
-          // totalAmount should not be changed, it's confusing
-          totalAmount: this.totalAmount - this.platformTipAmount,
-          // introducing 3 new values to clarify
-          netAmount: this.totalAmount - this.platformTipAmount,
-          platformTipAmount: this.platformTipAmount,
-          chargeAmount: this.totalAmount,
-          currency: this.currency,
-          description: this.description,
-          publicMessage: this.publicMessage,
-          interval: this.interval,
-          quantity: this.quantity,
-          createdAt: this.createdAt,
           isGuest: Boolean(this.data?.isGuest),
           tags: this.tags,
         };
@@ -280,7 +345,7 @@ Order.prototype.getTotalTransactions = function () {
 Order.prototype.setPaymentMethod = function (paymentMethodData) {
   debug('setPaymentMethod', paymentMethodData);
   return this.getUser() // remote user (logged in user) that created the order
-    .then(user => models.PaymentMethod.getOrCreate(user, paymentMethodData))
+    .then(user => PaymentMethod.getOrCreate(user, paymentMethodData))
     .then(pm => this.validatePaymentMethod(pm))
     .then(pm => {
       this.paymentMethod = pm;
@@ -400,7 +465,7 @@ Order.prototype.getUserForActivity = async function () {
 Order.prototype.populate = function (
   foreignKeys = ['FromCollectiveId', 'CollectiveId', 'CreatedByUserId', 'TierId', 'PaymentMethodId'],
 ) {
-  return Promise.map(foreignKeys, fk => {
+  return BluebirdPromise.map(foreignKeys, fk => {
     const attribute = (fk.substr(0, 1).toLowerCase() + fk.substr(1)).replace(/Id$/, '');
     const model = fk.replace(/(from|to|createdby)/i, '').replace(/Id$/, '');
     const promise = () => {
@@ -453,7 +518,7 @@ Order.cancelActiveOrdersByCollective = function (collectiveId) {
 /**
  * Cancels all subscription orders in the given tier
  */
-Order.cancelActiveOrdersByTierId = function (tierId) {
+Order.cancelActiveOrdersByTierId = function (tierId: number) {
   return Order.update(
     { status: OrderStatus.CANCELLED },
     {
@@ -471,7 +536,7 @@ Order.cancelActiveOrdersByTierId = function (tierId) {
 /**
  * Cancels all orders with subscriptions that cannot be transferred when changing hosts (i.e. PayPal)
  */
-Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId) {
+Order.cancelNonTransferableActiveOrdersByCollectiveId = function (collectiveId: number) {
   return sequelize.query(
     `
         UPDATE public."Orders" SET status = 'CANCELLED'

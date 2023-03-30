@@ -24,8 +24,8 @@ import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency } from '../../../lib/utils';
-import models, { Op } from '../../../models';
+import { formatCurrency, parseToBoolean } from '../../../lib/utils';
+import models, { Op, sequelize } from '../../../models';
 import {
   BadRequest,
   FeatureNotAllowedForUser,
@@ -190,6 +190,41 @@ const hasPaymentMethod = order => {
   }
 };
 
+export const deletePaymentMethod = async (collective, fingerprint, transaction) => {
+  // Check if the credit card is already saved
+  const oldPaymentMethod = await models.PaymentMethod.findOne({
+    where: {
+      CollectiveId: collective.id,
+      service: 'stripe',
+      saved: true,
+      data: {
+        fingerprint: fingerprint,
+      },
+    },
+    transaction,
+  });
+
+  if (oldPaymentMethod) {
+    await oldPaymentMethod.destroy({ transaction });
+  }
+
+  return oldPaymentMethod;
+};
+
+export const updateExistingOrdersToNewPaymentMethod = async (paymentMethod, oldPaymentMethod, transaction) => {
+  // Update all existing orders with the new payment method
+  await models.Order.update(
+    { PaymentMethodId: paymentMethod.id },
+    {
+      where: {
+        PaymentMethodId: oldPaymentMethod.id,
+        status: { [Op.notIn]: ['PAID', 'CANCELLED', 'EXPIRED', 'DISPUTED', 'REFUNDED'] },
+      },
+      transaction,
+    },
+  );
+};
+
 export async function createOrder(order, req) {
   debug('Beginning creation of order', order);
   const { loaders, ip: reqIp, mask: reqMask } = req;
@@ -283,6 +318,9 @@ export async function createOrder(order, req) {
     }
 
     const host = await collective.getHostCollective();
+    if (!host && !collective.isPledged) {
+      throw new Error('This collective has no host and cannot accept financial contributions at this time.');
+    }
     if (order.hostFeePercent) {
       if (!remoteUser?.isAdmin(host.id)) {
         throw new Error('Only an admin of the host can change the hostFeePercent');
@@ -542,6 +580,22 @@ export async function createOrder(order, req) {
         }
 
         await orderCreated.setPaymentMethod(order.paymentMethod);
+
+        // Update all existing orders with the new payment method
+        if (get(order, 'paymentMethod.service') === 'stripe' && order.paymentMethod.data?.fingerprint) {
+          // Check if the payment method is already saved
+          await sequelize.transaction(async transaction => {
+            const oldPaymentMethod = await deletePaymentMethod(
+              fromCollective,
+              order.paymentMethod.data.fingerprint,
+              transaction,
+            );
+
+            if (orderCreated.paymentMethod && oldPaymentMethod) {
+              await updateExistingOrdersToNewPaymentMethod(orderCreated.paymentMethod, oldPaymentMethod, transaction);
+            }
+          });
+        }
       }
       // also adds the user as a BACKER of collective
       await libPayments.executeOrder(remoteUser, orderCreated);

@@ -419,12 +419,15 @@ export async function getSumCollectivesAmountReceived(
   return { ...fastResults, ...results };
 }
 
-export async function getTotalMoneyManagedAmount(host, { startDate, endDate, collectiveIds, currency, version } = {}) {
+export async function getTotalMoneyManagedAmount(
+  host,
+  { endDate, collectiveIds, currency, version, loaders = null } = {},
+) {
   version = version || host.settings?.budget?.version || DEFAULT_BUDGET_VERSION;
   currency = currency || host.currency;
 
   if (!collectiveIds) {
-    const collectives = await host.getHostedCollectives({ attributes: ['id'] });
+    const collectives = await host.getHostedCollectives({ attributes: ['id'], raw: true });
     collectiveIds = collectives.map(result => result.id);
     collectiveIds.push(host.id);
   }
@@ -433,8 +436,23 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
     return { value: 0, currency };
   }
 
-  const results = await sumCollectivesTransactions(collectiveIds, {
-    startDate,
+  const fastResults =
+    version === DEFAULT_BUDGET_VERSION && !endDate
+      ? await getCurrentCollectiveBalances(collectiveIds, {
+          loaders,
+        })
+      : {};
+
+  const missingCollectiveIds = difference(collectiveIds.map(Number), Object.keys(fastResults).map(Number));
+
+  if (missingCollectiveIds.length === 0) {
+    // Sum and convert to final currency
+    const value = await sumTransactionsInCurrency(fastResults, currency);
+
+    return { value, currency };
+  }
+
+  const results = await sumCollectivesTransactions(missingCollectiveIds, {
     endDate,
     excludeRefunds: false,
     column: ['v0', 'v1'].includes(version) ? 'netAmountInCollectiveCurrency' : 'netAmountInHostCurrency',
@@ -442,7 +460,7 @@ export async function getTotalMoneyManagedAmount(host, { startDate, endDate, col
   });
 
   // Sum and convert to final currency
-  const value = await sumTransactionsInCurrency(results, currency);
+  const value = await sumTransactionsInCurrency({ ...fastResults, ...results }, currency);
 
   return { value, currency };
 }

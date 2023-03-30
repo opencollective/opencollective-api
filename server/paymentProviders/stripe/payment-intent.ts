@@ -8,10 +8,11 @@ import { getApplicationFee } from '../../lib/payments';
 import { reportMessageToSentry } from '../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../lib/stripe';
 import models from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 
 import { APPLICATION_FEE_INCOMPATIBLE_CURRENCIES, refundTransaction, refundTransactionOnlyInDatabase } from './common';
 
-const processOrder = async (order: typeof models.Order): Promise<void> => {
+const processOrder = async (order: OrderModelInterface): Promise<void> => {
   if (order.SubscriptionId) {
     return processRecurringOrder(order);
   }
@@ -19,7 +20,7 @@ const processOrder = async (order: typeof models.Order): Promise<void> => {
   return processNewOrder(order);
 };
 
-async function processNewOrder(order: typeof models.Order) {
+async function processNewOrder(order: OrderModelInterface) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))
@@ -86,7 +87,7 @@ async function processNewOrder(order: typeof models.Order) {
   }
 }
 
-async function processRecurringOrder(order: typeof models.Order) {
+async function processRecurringOrder(order: OrderModelInterface) {
   const hostStripeAccount = await order.collective.getHostStripeAccount();
   const host = await order.collective.getHostCollective();
   const isPlatformRevenueDirectlyCollected = APPLICATION_FEE_INCOMPATIBLE_CURRENCIES.includes(toUpper(host.currency))

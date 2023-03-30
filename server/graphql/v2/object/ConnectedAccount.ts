@@ -1,6 +1,5 @@
 import { GraphQLInt, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { ConnectedAccountService } from '../enum/ConnectedAccountService';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';

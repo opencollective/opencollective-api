@@ -69,6 +69,8 @@
     "searchEmailPerHour": 150,
     "searchEmailPerHourPerIp": 50,
     "userSigninAttemptsPerHourPerIp": 50,
+    "userExchangeLoginTokenPerHourPerIp": 50,
+    "userRefreshTokenPerHourPerIp": 50,
     "collectiveEmailMessagePerHour": 5,
     "maxCoreContributorsPerAccount": 60
   },
@@ -176,7 +178,7 @@
     "cache": {
       "enabled": false,
       "ttl": 300,
-      "minExecutionTimeToCache": 750
+      "minExecutionTimeToCache": 200
     }
   },
   "pdfService": {

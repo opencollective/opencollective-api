@@ -11,7 +11,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { Kind } from 'graphql/language';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLJSON } from 'graphql-scalars';
 import { omit, pick } from 'lodash';
 import moment from 'moment';
 
@@ -27,7 +27,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
 import { canSeeUpdate } from '../common/update';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -247,8 +247,11 @@ export const UserType = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: new GraphQLNonNull(GraphQLBoolean),
-        async resolve(user) {
+        type: GraphQLBoolean,
+        async resolve(user, args, req) {
+          if (req.remoteUser?.id !== user.id) {
+            return null;
+          }
           return hasSeenLatestChangelogEntry(user);
         },
       },
@@ -885,7 +888,7 @@ export const ExpenseType = new GraphQLObjectType({
         type: new GraphQLList(ExpenseItemType),
         async resolve(expense, _, req) {
           const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
-          return (await getExpenseItems(expense.id, req)).map(async item => {
+          return (await req.loaders.Expense.items.load(expense.id)).map(async item => {
             if (canSeeAttachments) {
               return item;
             } else {

@@ -1,6 +1,5 @@
 import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';
 import { getIdEncodeResolver } from '../identifiers';

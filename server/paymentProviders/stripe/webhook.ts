@@ -24,6 +24,8 @@ import {
 } from '../../lib/payments';
 import stripe from '../../lib/stripe';
 import models, { sequelize } from '../../models';
+import { OrderModelInterface } from '../../models/Order';
+import { PaymentMethodModelInterface } from '../../models/PaymentMethod';
 
 import { getVirtualCardForTransaction } from './../utils';
 import { createChargeTransactions, createPaymentMethod } from './common';
@@ -32,10 +34,10 @@ import * as virtualcard from './virtual-cards';
 const debug = debugLib('stripe');
 
 async function createOrUpdateOrderStripePaymentMethod(
-  order: typeof models.Order,
+  order: OrderModelInterface,
   stripeAccount: string,
   paymentIntent: Stripe.PaymentIntent,
-): typeof models.PaymentMethod {
+): Promise<PaymentMethodModelInterface> {
   const stripePaymentMethodId =
     typeof paymentIntent.payment_method === 'string' ? paymentIntent.payment_method : paymentIntent.payment_method?.id;
 

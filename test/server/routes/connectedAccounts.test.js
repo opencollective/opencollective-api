@@ -18,15 +18,15 @@ describe('server/routes/connectedAccounts', () => {
 
   beforeEach(() => utils.resetTestDB());
 
-  describe('WHEN calling /connected-accounts/github', () => {
+  describe('WHEN calling /connected-accounts/github/oauthUrl', () => {
     beforeEach(done => {
-      req = request(expressApp).get('/connected-accounts/github');
+      req = request(expressApp).get('/connected-accounts/github/oauthUrl');
       done();
     });
 
     describe('WHEN calling /connected-accounts/github with API key', () => {
       beforeEach(done => {
-        req = request(expressApp).get('/connected-accounts/github').send({ api_key: application.api_key }); // eslint-disable-line camelcase
+        req = request(expressApp).get('/connected-accounts/github/oauthUrl').send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });
 
@@ -112,7 +112,7 @@ describe('server/routes/connectedAccounts', () => {
     describe('WHEN providing API key and token but no username', () => {
       beforeEach(done => {
         req = req
-          .set('Authorization', `Bearer ${user.jwt({ scope: 'github' })}`)
+          .set('Authorization', `Bearer ${user.jwt({ scope: 'connected-account' })}`)
           .send({ api_key: application.api_key }); // eslint-disable-line camelcase
         done();
       });

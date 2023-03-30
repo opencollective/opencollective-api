@@ -191,7 +191,7 @@ class Tier extends Model<InferAttributes<Tier>, InferCreationAttributes<Tier>> {
     }).then(memberships => {
       const membershipsForBackerCollective = {};
       memberships.map(m => {
-        membershipsForBackerCollective[m.MemberCollectiveId] = m.Tier;
+        membershipsForBackerCollective[m.MemberCollectiveId] = (m as any).Tier;
       });
       return backerCollectives.map(backerCollective => {
         backerCollective.tier = membershipsForBackerCollective[backerCollective.id];

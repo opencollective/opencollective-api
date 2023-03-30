@@ -15,8 +15,10 @@ import '../../server/env';
 import { Command } from 'commander';
 import { flatten, get, uniq } from 'lodash';
 
+import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
-import models, { Op } from '../../server/models';
+import models, { Op, Subscription } from '../../server/models';
+import { OrderModelInterface } from '../../server/models/Order';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { getCaptureIdFromPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
 import {
@@ -62,7 +64,9 @@ const main = async () => {
     throw new Error(`Collective ${collectiveSlug} not found`);
   }
 
-  const orders = await models.Order.findAll({
+  const orders = await models.Order.findAll<
+    OrderModelInterface & { Transaction?: typeof models.Transaction; Subscription?: typeof Subscription }
+  >({
     order: [['createdAt', 'DESC']],
     where: {
       CollectiveId: collective.id,
@@ -93,7 +97,7 @@ const main = async () => {
   }
 
   // Collective has changed host, so we must find the previous host
-  const allTransactions = <(typeof models.Transaction)[]>flatten(orders.map(o => o.Transactions));
+  const allTransactions = flatten(orders.map(o => o.Transactions));
   const allHostIds = uniq(allTransactions.map(t => t.HostCollectiveId));
   if (allHostIds.length !== 1) {
     throw new Error(`Collective ${collectiveSlug} has multiple hosts, or some transactions are missing`);
@@ -159,7 +163,7 @@ const main = async () => {
 
     // Cancel in DB
     if (options['fix']) {
-      await order.update({ status: 'CANCELLED' });
+      await order.update({ status: OrderStatuses.CANCELLED });
       await order.Subscription.update({ isActive: false, deactivatedAt: new Date() });
     }
   }

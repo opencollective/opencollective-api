@@ -1,6 +1,5 @@
 import { GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLDateTime } from 'graphql-scalars';
-import { GraphQLJSON } from 'graphql-type-json';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { HostApplicationStatus } from '../enum/HostApplicationStatus';
 import { idEncode, IDENTIFIER_TYPES } from '../identifiers';

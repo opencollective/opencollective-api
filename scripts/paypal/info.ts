@@ -5,10 +5,14 @@
 
 import '../../server/env';
 
-import { get } from 'lodash';
+import { get, reverse } from 'lodash';
+import moment from 'moment';
 
+import logger from '../../server/lib/logger';
+import { listPayPalTransactions } from '../../server/lib/paypal';
 import models, { Op, sequelize } from '../../server/models';
-import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
+import paypalAdaptive from '../../server/paymentProviders/paypal/adaptiveGateway';
+import { paypalRequest, paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { PaypalCapture } from '../../server/types/paypal';
 
 const checkOrder = async orderId => {
@@ -88,6 +92,73 @@ const showCaptureInfo = async (hostSlug, paypalTransactionId) => {
   dbTransactions.forEach(t => console.log(`${t.id} - ${t.type} - ${t.amount} ${t.currency}`));
 };
 
+const showPayPalOrderInfo = async (hostSlug, paypalOrderId) => {
+  const host = await models.Collective.findBySlug(hostSlug);
+  const orderUrl = `checkout/orders/${paypalOrderId}`;
+  const orderDetails = await paypalRequest(orderUrl, null, host, 'GET');
+  console.log('==== Order details ====');
+  console.dir(orderDetails, { depth: 10 });
+};
+
+/**
+ * Split a given period in chunks of `nbOfDays` days
+ */
+const getDateChunks = (fromDate: moment.Moment, toDate: moment.Moment, nbOfDays = 30) => {
+  const dateChunks = [];
+  let chunkFromDate = fromDate.clone();
+  while (chunkFromDate.isBefore(toDate)) {
+    dateChunks.push({ fromDate: chunkFromDate.clone(), toDate: chunkFromDate.clone().add(nbOfDays, 'days') });
+    chunkFromDate = chunkFromDate.add(nbOfDays, 'days');
+  }
+
+  // Make sure end date for last chunk is not after `toDate`
+  dateChunks[dateChunks.length - 1].toDate = toDate;
+
+  return dateChunks;
+};
+
+const showPayPalTransactionInfo = async (hostSlug, transactionId) => {
+  const host = await models.Collective.findBySlug(hostSlug);
+
+  // PayPal doesn't let you fetch date ranges greater than 31 days, so we're splitting the date range in chunks
+  for (const { fromDate, toDate } of reverse(getDateChunks(moment().subtract(1, 'year'), moment().add(1, 'day')))) {
+    let currentPage = 1;
+    let totalPages;
+    let transactions;
+
+    logger.info(`Fetching transactions between ${fromDate.format('YYYY-MM-DD')} and ${toDate.format('YYYY-MM-DD')}...`);
+    do {
+      // Fetch all (paginated) transactions from PayPal for this date range
+      ({ transactions, currentPage, totalPages } = await listPayPalTransactions(host, fromDate, toDate, {
+        fields: 'all',
+        currentPage,
+        transactionId,
+      }));
+
+      // Make sure all transactions exist in the ledger
+      if (transactions.length > 0) {
+        console.log('==== Capture details ====');
+        console.dir(transactions, { depth: 10 });
+        return;
+      }
+    } while (currentPage++ < totalPages);
+  }
+};
+
+const showAuthorizationInfo = async (hostSlug, authorizationId) => {
+  const host = await models.Collective.findBySlug(hostSlug);
+  const authorizationUrl = `payments/authorizations/${authorizationId}`;
+  const authorizationDetails = await paypalRequestV2(authorizationUrl, host, 'GET');
+  console.log('==== Authorization details ====');
+  console.dir(authorizationDetails, { depth: 10 });
+};
+
+const showPaymentInfo = async paymentId => {
+  const paymentDetails = await paypalAdaptive.paymentDetails({ payKey: paymentId });
+  console.log('==== Payment details ====');
+  console.dir(paymentDetails, { depth: 10 });
+};
+
 const main = async (): Promise<void> => {
   const command = process.argv[2];
   switch (command) {
@@ -107,6 +178,14 @@ const main = async (): Promise<void> => {
       return printAllHostsWithPaypalAccounts();
     case 'capture':
       return showCaptureInfo(process.argv[3], process.argv[4]);
+    case 'paypal-order':
+      return showPayPalOrderInfo(process.argv[3], process.argv[4]);
+    case 'paypal-transaction':
+      return showPayPalTransactionInfo(process.argv[3], process.argv[4]);
+    case 'authorization':
+      return showAuthorizationInfo(process.argv[3], process.argv[4]);
+    case 'payment':
+      return showPaymentInfo(process.argv[3]);
     default:
       throw new Error(`Unknown command: ${command}`);
   }

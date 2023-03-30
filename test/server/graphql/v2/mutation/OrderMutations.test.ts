@@ -5,6 +5,8 @@ import moment from 'moment';
 import { createSandbox, useFakeTimers } from 'sinon';
 
 import { roles } from '../../../../../server/constants';
+import OrderStatuses from '../../../../../server/constants/order_status';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../../server/constants/paymentMethods';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import * as payments from '../../../../../server/lib/payments';
 import stripe from '../../../../../server/lib/stripe';
@@ -444,7 +446,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
       it('If the account already exists, cannot use an existing payment method', async () => {
         const user = await fakeUser({ confirmedAt: new Date() });
-        const paymentMethodData = { CollectiveId: user.CollectiveId, service: 'opencollective', type: 'prepaid' };
+        const paymentMethodData = {
+          CollectiveId: user.CollectiveId,
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.PREPAID,
+        };
         const paymentMethod = await fakePaymentMethod(paymentMethodData);
         const orderData = {
           ...validOrderParams,
@@ -515,6 +521,21 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         config.captcha.enabled = captchaDefaultValue;
       });
     });
+
+    describe('Common checks', () => {
+      it('collective must be approved by fiscal host', async () => {
+        const host = await fakeHost();
+        const collective = await fakeCollective({ HostCollectiveId: host.id, isActive: false, approvedAt: null });
+        const fromUser = await fakeUser();
+        const orderData = { ...validOrderParams, toAccount: { legacyId: collective.id } };
+
+        const result = await callCreateOrder({ order: orderData }, fromUser);
+        expect(result.errors).to.exist;
+        expect(result.errors[0].message).to.equal(
+          'This collective has no host and cannot accept financial contributions at this time.',
+        );
+      });
+    });
   });
 
   describe('moveOrders', () => {
@@ -563,7 +584,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     describe('prevents moving order if payment methods can be moved because...', () => {
       it('if another order with the same payment method depends on it', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.STRIPE,
+          type: PAYMENT_METHOD_TYPE.CREDITCARD,
+        });
         const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
         const order1 = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
         const order2 = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
@@ -578,7 +602,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       });
 
       it('if the payment method is not supported (account balance)', async () => {
-        const paymentMethod = await fakePaymentMethod({ service: 'opencollective', type: 'collective' });
+        const paymentMethod = await fakePaymentMethod({
+          service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+          type: PAYMENT_METHOD_TYPE.COLLECTIVE,
+        });
         const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
         const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
         const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
@@ -594,7 +621,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves all data to another profile and summarize the changes in MigrationLogs', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
@@ -654,7 +684,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves all to the incognito profile data and summarize the changes in MigrationLogs', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const backerMember = await models.Member.findOne({
@@ -719,7 +752,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves the contribution to the custom tier', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const backerMember = await models.Member.findOne({
@@ -763,7 +799,10 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
 
     it('moves both the fromAccount and the contribution to a different tier', async () => {
       // Init data
-      const paymentMethod = await fakePaymentMethod({ service: 'stripe', type: 'creditcard' });
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
+      });
       const fakeOrderOptions = { withTransactions: true, withBackerMember: true, withTier: true };
       const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
       const newTier = await fakeTier({ CollectiveId: order.CollectiveId });
@@ -859,7 +898,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'ACTIVE',
+          status: OrderStatuses.ACTIVE,
         },
         {
           withSubscription: true,
@@ -870,15 +909,15 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'ACTIVE',
+          status: OrderStatuses.ACTIVE,
         },
         {
           withSubscription: true,
         },
       );
       paymentMethod = await fakePaymentMethod({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         data: {
           expMonth: 11,
           expYear: 2025,
@@ -887,8 +926,8 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         token: 'tok_5B5j8xDjPFcHOcTm3ogdnq0K',
       });
       paymentMethod2 = await fakePaymentMethod({
-        service: 'stripe',
-        type: 'creditcard',
+        service: PAYMENT_METHOD_SERVICE.STRIPE,
+        type: PAYMENT_METHOD_TYPE.CREDITCARD,
         data: {
           expMonth: 11,
           expYear: 2025,
@@ -1101,7 +1140,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
             CreatedByUserId: user.id,
             FromCollectiveId: user.CollectiveId,
             CollectiveId: collective.id,
-            status: 'ACTIVE',
+            status: OrderStatuses.ACTIVE,
             totalAmount: 1300,
             taxAmount: 200,
             platformTipAmount: 100,
@@ -1151,7 +1190,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1192,7 +1231,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1233,7 +1272,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
               CreatedByUserId: user.id,
               FromCollectiveId: user.CollectiveId,
               CollectiveId: collective.id,
-              status: 'ACTIVE',
+              status: OrderStatuses.ACTIVE,
             },
             { withSubscription: true },
           );
@@ -1271,11 +1310,11 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
           CreatedByUserId: user.id,
           FromCollectiveId: user.CollectiveId,
           CollectiveId: collective.id,
-          status: 'PENDING',
+          status: OrderStatuses.PENDING,
           frequency: 'ONETIME',
           totalAmount: 10000,
           currency: 'USD',
-        });
+        } as any);
       });
 
       it('should mark as expired', async () => {
@@ -1350,12 +1389,12 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
         CreatedByUserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: collective.id,
-        status: 'PENDING',
+        status: OrderStatuses.PENDING,
         frequency: 'ONETIME',
         totalAmount: 10100,
         currency: 'USD',
         platformTipAmount: 100,
-      });
+      } as any);
 
       const result = await graphqlQueryV2(
         processPendingOrderMutation,
