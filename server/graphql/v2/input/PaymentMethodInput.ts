@@ -71,7 +71,7 @@ export const PaymentMethodInput = new GraphQLInputObjectType({
  */
 export const getLegacyPaymentMethodFromPaymentMethodInput = async (
   pm: Record<string, any>,
-): Promise<Record<string, unknown>> => {
+): Promise<Record<string, unknown> | { service: string; type: PAYMENT_METHOD_TYPE }> => {
   if (!pm) {
     return null;
   } else if (pm.id) {

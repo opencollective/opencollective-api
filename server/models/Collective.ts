@@ -102,7 +102,7 @@ import { Location as LocationType } from '../types/Location';
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import { HostApplicationStatus } from './HostApplication';
-import LegalDocument from './LegalDocument';
+import { LegalDocumentModelInterface } from './LegalDocument';
 import Location from './Location';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
@@ -117,6 +117,7 @@ type Goal = {
 
 type Settings = {
   goals?: Array<Goal>;
+  allowCollectiveAdminsToEditPrivateExpenseData?: boolean;
   features?: {
     contactForm?: boolean;
   };
@@ -246,7 +247,7 @@ class Collective extends Model<
   public declare members?: NonAttribute<Array<typeof models.Member>>;
   public declare getMembers: HasManyGetAssociationsMixin<typeof models.Member>;
 
-  public declare legalDocuments?: NonAttribute<LegalDocument[]>;
+  public declare legalDocuments?: NonAttribute<LegalDocumentModelInterface[]>;
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
 

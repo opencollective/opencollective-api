@@ -19,7 +19,7 @@ import {
   thegivingblockWebhook,
   transferwiseWebhook,
 } from './controllers/webhooks';
-import { getGraphqlCacheKey } from './graphql/cache';
+import { getGraphqlCacheProperties } from './graphql/cache';
 // import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
@@ -149,7 +149,7 @@ export default async app => {
    */
   app.use('/graphql', async (req, res, next) => {
     req.startAt = req.startAt || new Date();
-    const cacheKey = getGraphqlCacheKey(req); // Returns null if not cacheable (e.g. if logged in)
+    const { cacheKey, cacheSlug } = getGraphqlCacheProperties(req) || {}; // Returns null if not cacheable (e.g. if logged in)
     const enabled = parseToBoolean(config.graphql.cache.enabled);
     if (cacheKey && enabled) {
       const fromCache = await cache.get(cacheKey);
@@ -158,11 +158,13 @@ export default async app => {
         req.endAt = req.endAt || new Date();
         const executionTime = req.endAt - req.startAt;
         res.set('Execution-Time', executionTime);
-        res.set('GraphQLCacheHit', true);
+        res.set('GraphQL-Cache', 'HIT');
         res.send(fromCache);
         return;
       }
+      res.set('GraphQL-Cache', 'MISS');
       req.cacheKey = cacheKey;
+      req.cacheSlug = cacheSlug;
     }
     next();
   });
@@ -270,6 +272,12 @@ export default async app => {
       // This will never happen for logged-in users as cacheKey is not set
       if (req.cacheKey && !response?.errors && executionTime > parseInt(config.graphql.cache.minExecutionTimeToCache)) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
+        // Index key
+        cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
+          keys = keys || [];
+          keys.push(req.cacheKey);
+          cache.set(`graphqlCacheKeys_${req.cacheSlug}`, keys);
+        });
       }
 
       return response;

@@ -1,10 +1,16 @@
 import { pick } from 'lodash';
+import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
 
 import { types as CollectiveType } from '../constants/collectives';
 import roles from '../constants/roles';
+import MemberRoles from '../constants/roles';
 import { invalidateContributorsCache } from '../lib/contributors';
 import sequelize, { DataTypes } from '../lib/sequelize';
 import { days } from '../lib/utils';
+
+import Collective from './Collective';
+import Tier from './Tier';
+import User from './User';
 
 const invalidateContributorsCacheUsingInstance = instance => {
   if (instance.role !== roles.FOLLOWER) {
@@ -13,7 +19,36 @@ const invalidateContributorsCacheUsingInstance = instance => {
   return null;
 };
 
-const Member = sequelize.define(
+interface MemberModelStaticInterface {
+  isActive(member: { tier?: Tier; lastDonation?: Date }): boolean;
+  connectCollectives(
+    childCollective: Collective,
+    parentCollective: Collective,
+    user: User,
+    memberInfo: any,
+  ): Promise<MemberModelInterface>;
+}
+
+export interface MemberModelInterface
+  extends Model<InferAttributes<MemberModelInterface>, InferCreationAttributes<MemberModelInterface>> {
+  id: number;
+  CreatedByUserId: number;
+  MemberCollectiveId: number;
+  CollectiveId: number;
+  TierId: number;
+  role: MemberRoles;
+  description: string;
+  publicMessage: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+
+  tier?: Tier;
+  memberCollective?: Collective;
+  collective?: Collective;
+}
+
+const Member: ModelStatic<MemberModelInterface> & MemberModelStaticInterface = sequelize.define(
   'Member',
   {
     id: {
@@ -174,7 +209,7 @@ Member.connectCollectives = (childCollective, parentCollective, user, memberInfo
   };
 
   return sequelize.transaction(async transaction => {
-    const existingMember = await Member.findOne({ where: uniqueMemberAttributes }, { transaction });
+    const existingMember = await Member.findOne({ where: uniqueMemberAttributes, transaction });
     if (existingMember) {
       return existingMember;
     } else {

@@ -26,7 +26,7 @@ export const addFundsMutation = {
     hostFeePercent: { type: GraphQLFloat },
     invoiceTemplate: { type: GraphQLString },
   },
-  resolve: async (_, args, req: express.Request): Promise<Record<string, unknown>> => {
+  resolve: async (_, args, req: express.Request) => {
     checkRemoteUserCanUseHost(req);
 
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });

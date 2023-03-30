@@ -1,4 +1,6 @@
-import sequelize, { DataTypes } from '../lib/sequelize';
+import { DataTypes, InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+
+import sequelize from '../lib/sequelize';
 
 export const LEGAL_DOCUMENT_TYPE = {
   US_TAX_FORM: 'US_TAX_FORM',
@@ -11,7 +13,37 @@ export const LEGAL_DOCUMENT_REQUEST_STATUS = {
   ERROR: 'ERROR',
 };
 
-const LegalDocument = sequelize.define(
+interface LegalDocumentModelStaticInterface {
+  requestStatus: typeof LEGAL_DOCUMENT_REQUEST_STATUS;
+
+  findByTypeYearCollective({ documentType, year, collective }): Promise<LegalDocumentModelInterface>;
+}
+
+export interface LegalDocumentModelInterface
+  extends Model<InferAttributes<LegalDocumentModelInterface>, InferCreationAttributes<LegalDocumentModelInterface>> {
+  id: number;
+  year: number;
+  documentType: string;
+  documentLink: string;
+  requestStatus: keyof typeof LEGAL_DOCUMENT_REQUEST_STATUS;
+
+  CreatedByUserId: number;
+  MemberCollectiveId: number;
+  CollectiveId: number;
+  TierId: number;
+  description: string;
+  publicMessage: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
+
+  data: any;
+
+  shouldBeRequested(): boolean;
+}
+
+const LegalDocument: ModelStatic<LegalDocumentModelInterface> & LegalDocumentModelStaticInterface = sequelize.define(
   'LegalDocument',
   {
     id: {

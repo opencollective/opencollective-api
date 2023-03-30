@@ -27,7 +27,7 @@ import { reportMessageToSentry } from '../../lib/sentry';
 import models, { Op, sequelize } from '../../models';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import * as commonComment from '../common/comment';
-import { canSeeExpenseAttachments, canSeeExpensePayoutMethod, getExpenseItems } from '../common/expenses';
+import { canSeeExpenseAttachments, canSeeExpensePayoutMethod } from '../common/expenses';
 import { canSeeUpdate } from '../common/update';
 import { hasSeenLatestChangelogEntry } from '../common/user';
 import { idEncode, IDENTIFIER_TYPES } from '../v2/identifiers';
@@ -885,7 +885,7 @@ export const ExpenseType = new GraphQLObjectType({
         type: new GraphQLList(ExpenseItemType),
         async resolve(expense, _, req) {
           const canSeeAttachments = await canSeeExpenseAttachments(req, expense);
-          return (await getExpenseItems(expense.id, req)).map(async item => {
+          return (await req.loaders.Expense.items.load(expense.id)).map(async item => {
             if (canSeeAttachments) {
               return item;
             } else {

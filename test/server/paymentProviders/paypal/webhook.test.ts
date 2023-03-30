@@ -4,9 +4,11 @@ import { expect } from 'chai';
 import { Request } from 'express';
 import { createSandbox } from 'sinon';
 
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../../server/constants/paymentMethods';
 import * as PaypalLib from '../../../../server/lib/paypal';
 import * as Sentry from '../../../../server/lib/sentry';
 import models from '../../../../server/models';
+import { OrderModelInterface } from '../../../../server/models/Order';
 import paypalWebhook from '../../../../server/paymentProviders/paypal/webhook';
 import {
   fakeCollective,
@@ -17,8 +19,11 @@ import {
 } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
 
-const createOrderWithSubscription = async (params = {}): Promise<typeof models.PaymentMethod> => {
-  const paymentMethod = await fakePaymentMethod({ service: 'paypal', type: 'subscription' });
+const createOrderWithSubscription = async (params = {}): Promise<OrderModelInterface> => {
+  const paymentMethod = await fakePaymentMethod({
+    service: PAYMENT_METHOD_SERVICE.PAYPAL,
+    type: PAYMENT_METHOD_TYPE.SUBSCRIPTION,
+  });
   return fakeOrder(
     {
       PaymentMethodId: paymentMethod.id,

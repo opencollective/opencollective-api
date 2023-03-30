@@ -3,9 +3,11 @@ import moment from 'moment';
 import { createSandbox } from 'sinon';
 
 import ExpenseStatuses from '../../../server/constants/expense_status';
+import OrderStatuses from '../../../server/constants/order_status';
 import {
   getBalances,
   getCurrentCollectiveBalances,
+  getTotalMoneyManagedAmount,
   getYearlyBudgets,
   sumCollectivesTransactions,
 } from '../../../server/lib/budget';
@@ -67,7 +69,7 @@ describe('server/lib/budget', () => {
 
       // Cancelled subscriptions (count as one-time): $10 x 3 = $30
       const cancelledOrder = await fakeOrder(
-        { totalAmount: 1000, interval: 'month', status: 'CANCELLED' },
+        { totalAmount: 1000, interval: 'month', status: OrderStatuses.CANCELLED },
         { withSubscription: true },
       );
       await cancelledOrder.Subscription.deactivate();
@@ -140,6 +142,49 @@ describe('server/lib/budget', () => {
           expect(sum.value).to.eq(50e2);
         });
       });
+    });
+  });
+
+  describe('getTotalMoneyManaged', () => {
+    it('returns 0 for collective without transactions', async () => {
+      const host = await fakeCollective();
+      const totalMoneyManaged = await getTotalMoneyManagedAmount(host);
+      expect(totalMoneyManaged.value).to.equal(0);
+    });
+
+    it('returns the sum of all transactions for one collective', async () => {
+      const host = await fakeCollective();
+      const collective = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, HostCollectiveId: host.id, amount: 20e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective.id, HostCollectiveId: host.id, amount: 30e2 },
+        { createDoubleEntry: true },
+      );
+      const totalMoneyManaged = await getTotalMoneyManagedAmount(host);
+      expect(totalMoneyManaged.value).to.equal(50e2);
+    });
+
+    it('returns the sum of all transactions for multiple collectives', async () => {
+      const host = await fakeCollective();
+      const collective1 = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      const collective2 = await fakeCollective({ HostCollectiveId: host.id, approvedAt: new Date() });
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective1.id, HostCollectiveId: host.id, amount: 20e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective1.id, HostCollectiveId: host.id, amount: 30e2 },
+        { createDoubleEntry: true },
+      );
+      await fakeTransaction(
+        { type: 'CREDIT', CollectiveId: collective2.id, HostCollectiveId: host.id, amount: 70e2 },
+        { createDoubleEntry: true },
+      );
+      const totalMoneyManaged = await getTotalMoneyManagedAmount(host);
+      expect(totalMoneyManaged.value).to.equal(120e2);
     });
   });
 

@@ -104,7 +104,7 @@ const getLegalDocumentsToIgnore = async (from, into, transaction): Promise<numbe
     having: sequelize.where(sequelize.fn('COUNT', sequelize.col('id')), { [Op.gt]: 1 }),
   });
 
-  return flatten(results.map(({ ids }) => ids));
+  return flatten((results as unknown as { ids: number[] }[]).map(({ ids }) => ids));
 };
 
 // Defines the collective field names used in the DB. Useful to prevent typos in the config below

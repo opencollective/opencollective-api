@@ -1,5 +1,6 @@
 import config from 'config';
 import { pick } from 'lodash';
+import { InferAttributes, InferCreationAttributes, Model, ModelStatic, Transaction } from 'sequelize';
 
 import ActivityTypes from '../constants/activities';
 import { types } from '../constants/collectives';
@@ -7,97 +8,130 @@ import roles, { MemberRoleLabels } from '../constants/roles';
 import { purgeCacheForCollective } from '../lib/cache';
 import sequelize, { DataTypes } from '../lib/sequelize';
 
+import Collective from './Collective';
+
 const { models } = sequelize;
 
 export const MEMBER_INVITATION_SUPPORTED_ROLES = [roles.ACCOUNTANT, roles.ADMIN, roles.MEMBER];
 
-const MemberInvitation = sequelize.define(
-  'MemberInvitation',
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true,
-    },
+interface MemberInvitationModelStaticInterface {
+  invite(
+    collective,
+    memberParams,
+    { transaction, skipDefaultAdmin }?: { transaction?: Transaction; skipDefaultAdmin?: boolean },
+  ): Promise<MemberInvitationModelInterface>;
+}
 
-    CreatedByUserId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Users',
-        key: 'id',
+export interface MemberInvitationModelInterface
+  extends Model<
+    InferAttributes<MemberInvitationModelInterface>,
+    InferCreationAttributes<MemberInvitationModelInterface>
+  > {
+  id: number;
+  CreatedByUserId: number;
+  MemberCollectiveId: number;
+  CollectiveId: number;
+  TierId: number;
+  role: roles.ACCOUNTANT | roles.ADMIN | roles.MEMBER;
+  description: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
+  since: Date | string;
+
+  collective?: Collective;
+  memberCollective?: Collective;
+}
+
+const MemberInvitation: ModelStatic<MemberInvitationModelInterface> & MemberInvitationModelStaticInterface =
+  sequelize.define(
+    'MemberInvitation',
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-    },
 
-    MemberCollectiveId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Collectives',
-        key: 'id',
+      CreatedByUserId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Users',
+          key: 'id',
+        },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
       },
-      onDelete: 'CASCADE',
-      onUpdate: 'CASCADE',
-      allowNull: false,
-    },
 
-    CollectiveId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Collectives',
-        key: 'id',
+      MemberCollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+        onDelete: 'CASCADE',
+        onUpdate: 'CASCADE',
+        allowNull: false,
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-      allowNull: false,
-    },
 
-    TierId: {
-      type: DataTypes.INTEGER,
-      references: {
-        model: 'Tiers',
-        key: 'id',
+      CollectiveId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Collectives',
+          key: 'id',
+        },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+        allowNull: false,
       },
-      onDelete: 'SET NULL',
-      onUpdate: 'CASCADE',
-    },
 
-    role: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: 'member',
-      validate: {
-        isIn: {
-          args: [MEMBER_INVITATION_SUPPORTED_ROLES],
+      TierId: {
+        type: DataTypes.INTEGER,
+        references: {
+          model: 'Tiers',
+          key: 'id',
+        },
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE',
+      },
+
+      role: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: 'member',
+        validate: {
+          isIn: {
+            args: [MEMBER_INVITATION_SUPPORTED_ROLES],
+          },
         },
       },
-    },
 
-    description: {
-      type: DataTypes.STRING,
-    },
+      description: {
+        type: DataTypes.STRING,
+      },
 
-    // Dates.
-    createdAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+      // Dates.
+      createdAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      deletedAt: {
+        type: DataTypes.DATE,
+      },
+      since: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
-    updatedAt: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
+    {
+      paranoid: true,
     },
-    deletedAt: {
-      type: DataTypes.DATE,
-    },
-    since: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW,
-    },
-  },
-  {
-    paranoid: true,
-  },
-);
+  );
 
 // ---- Instance methods ----
 
@@ -217,7 +251,11 @@ MemberInvitation.prototype.sendEmail = async function (remoteUser, skipDefaultAd
 
 // ---- Static methods ----
 
-MemberInvitation.invite = async function (collective, memberParams, { transaction, skipDefaultAdmin } = {}) {
+MemberInvitation.invite = async function (
+  collective,
+  memberParams,
+  { transaction, skipDefaultAdmin }: { transaction?: Transaction; skipDefaultAdmin?: boolean } = {},
+) {
   const sequelizeParams = transaction ? { transaction } : undefined;
 
   // Check params

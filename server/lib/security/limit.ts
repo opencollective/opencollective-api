@@ -4,7 +4,7 @@ import { get } from 'lodash';
 import validator from 'validator';
 
 import { BadRequest } from '../../graphql/errors';
-import models from '../../models';
+import { OrderModelInterface } from '../../models/Order';
 import cache from '../cache';
 import { md5, sleep } from '../utils';
 
@@ -12,7 +12,7 @@ const debug = debugLib('security/limit');
 
 const ONE_HOUR_IN_SECONDS = 60 * 60;
 
-const getOrdersLimit = (order: typeof models.Order, reqIp: string, reqMask: string) => {
+const getOrdersLimit = (order: OrderModelInterface, reqIp: string, reqMask: string) => {
   const limits = [];
 
   const ordersLimits = config.limits.ordersPerHour;
