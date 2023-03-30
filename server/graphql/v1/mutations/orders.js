@@ -24,7 +24,7 @@ import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency, parseToBoolean } from '../../../lib/utils';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Op, sequelize } from '../../../models';
 import {
   BadRequest,
