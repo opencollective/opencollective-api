@@ -1854,7 +1854,7 @@ class Collective extends Model<
   setLocation = async function (locationInput: LocationType, transaction?: any) {
     const sequelizeParams = transaction ? { transaction } : undefined;
 
-    const location = await this.getLocation();
+    const location = await this.getLocation(sequelizeParams);
 
     if (!mustUpdateLocation(location, locationInput)) {
       return;
