@@ -1871,8 +1871,7 @@ class Collective extends Model<
       let { address } = locationInput;
 
       // Set Collective.countryISO
-      this.countryISO = country;
-      this.save();
+      await this.update({ countryISO }, sequelizeParams)
 
       // Set formatted address
       if (!address) {
