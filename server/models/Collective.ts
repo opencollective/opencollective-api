@@ -1856,7 +1856,11 @@ class Collective extends Model<
 
     const location = await this.getLocation(sequelizeParams);
 
-    if (!mustUpdateLocation(location, locationInput)) {
+    /* Avoid unnecessary updates
+     * If there is a locationInput, skip updating if it's the same as the current location
+     * But if locationInput is null, we still want to delete the current location
+     */
+    if (locationInput && !mustUpdateLocation(location, locationInput)) {
       return;
     }
 
@@ -1871,7 +1875,7 @@ class Collective extends Model<
       let { address } = locationInput;
 
       // Set Collective.countryISO
-      await this.update({ countryISO }, sequelizeParams)
+      await this.update({ countryISO: country }, sequelizeParams);
 
       // Set formatted address
       if (!address) {
