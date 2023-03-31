@@ -4292,7 +4292,7 @@ type AccountPermissions {
   id: String!
 
   """
-  Whether the current has teh permission to add funds to the account
+  Whether the current user can mark this order as expired
   """
   addFunds: Permission!
 }

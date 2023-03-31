@@ -2,9 +2,9 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
 
-import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { types as collectiveTypes } from '../../../constants/collectives';
 import roles from '../../../constants/roles';
+import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
 import { mergeAccounts, simulateMergeAccounts } from '../../../lib/merge-accounts';
