@@ -17,7 +17,7 @@ async function run() {
     )
     UPDATE "PaymentMethods"
     SET "saved" = FALSE, "updatedAt" = NOW()
-    FROM "DeletedPaymentMethods"
+    FROM "DuplicatePaymentMethods"
     WHERE "DuplicatePaymentMethods"."fingerprint" = "PaymentMethods"."data"->'fingerprint'::text
     AND "PaymentMethods"."id" != "DuplicatePaymentMethods"."latestId"
     AND "PaymentMethods"."CollectiveId" = "DuplicatePaymentMethods"."CollectiveId"
