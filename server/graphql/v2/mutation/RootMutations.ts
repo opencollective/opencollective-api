@@ -122,6 +122,10 @@ export default {
 
       if (account.isHostAccount) {
         throw new Error('Cannot change type of host account');
+      } else if (account.type !== collectiveTypes.USER) {
+        throw new Error('editAccountType only works on individual profiles');
+      } else if (account.data.isGuest) {
+        throw new Error('editAccountType does not work on guest profiles');
       }
 
       const collectiveData = omit(cloneDeep(account.dataValues), ['id']);
@@ -150,8 +154,7 @@ export default {
           role: roles.ADMIN,
         });
       }
-
-      return collective;
+      return account;
     },
   },
   clearCacheForAccount: {

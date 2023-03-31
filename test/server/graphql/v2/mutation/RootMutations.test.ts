@@ -29,6 +29,15 @@ const MOVE_EXPENSES_MUTATION = gqlV2/* GraphQL */ `
   }
 `;
 
+const EDIT_ACCOUNT_TYPE_MUTATION = gqlV2/* GraphQL */ `
+  mutation EditAccountTypeMutation($account: AccountReferenceInput!) {
+    editAccountType(account: $account) {
+      id
+      type
+    }
+  }
+`;
+
 describe('server/graphql/v2/mutation/RootMutations', () => {
   let rootUser;
 
@@ -253,6 +262,46 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
       expect(result.data.moveExpenses.length).to.equal(1);
       await recurringExpense.reload();
       expect(recurringExpense.CollectiveId).to.eq(collective.id);
+    });
+  });
+
+  describe('editAccountType', () => {
+    const callEditAccountTypeMutation = async (variables, user, useValid2FA = true) => {
+      const headers = {};
+      if (useValid2FA) {
+        headers[TwoFactorAuthenticationHeader] = generateValid2FAHeader(rootUser);
+      }
+
+      return graphqlQueryV2(EDIT_ACCOUNT_TYPE_MUTATION, variables, user, undefined, headers);
+    };
+
+    it('correctly converts a user profile to a org', async () => {
+      const user = await fakeUser();
+      const result = await callEditAccountTypeMutation({ account: { legacyId: user.id } }, rootUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.editAccountType.type).to.equal('ORGANIZATION');
+    });
+
+    it('prevents converting host accounts (even if they are USER type)', async () => {
+      const host = await fakeUser(undefined, { isHostAccount: true });
+      const result = await callEditAccountTypeMutation({ account: { legacyId: host.collective.id } }, rootUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('Cannot change type of host account');
+    });
+
+    it('prevents converting any other type of profile such as an collective', async () => {
+      const collective = await fakeCollective();
+      const result = await callEditAccountTypeMutation({ account: { legacyId: collective.id } }, rootUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('editAccountType only works on individual profiles');
+    });
+
+    it('prevents converting guest profiles to org', async () => {
+      const user = await fakeUser(undefined, { data: { isGuest: true } });
+      const result = await callEditAccountTypeMutation({ account: { legacyId: user.collective.id } }, rootUser);
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal('editAccountType does not work on guest profiles');
     });
   });
 });
