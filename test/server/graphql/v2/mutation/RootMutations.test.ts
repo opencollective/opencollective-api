@@ -277,7 +277,7 @@ describe('server/graphql/v2/mutation/RootMutations', () => {
 
     it('correctly converts a user profile to a org', async () => {
       const user = await fakeUser();
-      const result = await callEditAccountTypeMutation({ account: { legacyId: user.id } }, rootUser);
+      const result = await callEditAccountTypeMutation({ account: { legacyId: user.collective.id } }, rootUser);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.editAccountType.type).to.equal('ORGANIZATION');
