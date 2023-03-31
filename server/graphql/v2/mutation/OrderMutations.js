@@ -381,10 +381,14 @@ const orderMutations = {
 
       let order = await fetchOrderWithReference(args.order);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
+      if (toAccount.deactivatedAt) {
+        throw new ValidationFailed(`${toAccount.name} has been archived`);
+      }
+
       const host = await toAccount.getHostCollective();
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
-        throw new Unauthorized('Only host admins can process orders');
+        throw new Unauthorized('Only host admins can process pending contributions');
       }
 
       // Enforce 2FA
@@ -392,7 +396,9 @@ const orderMutations = {
 
       if (args.action === 'MARK_AS_PAID') {
         if (!(await canMarkAsPaid(req, order))) {
-          throw new ValidationFailed(`Only pending/expired orders can be marked as paid, this one is ${order.status}`);
+          throw new ValidationFailed(
+            `Only pending/expired contributions can be marked as paid, this one is ${order.status}`,
+          );
         }
 
         const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
@@ -460,7 +466,9 @@ const orderMutations = {
         return order;
       } else if (args.action === 'MARK_AS_EXPIRED') {
         if (!(await canMarkAsExpired(req, order))) {
-          throw new ValidationFailed(`Only pending orders can be marked as expired, this one is ${order.status}`);
+          throw new ValidationFailed(
+            `Only pending contributions can be marked as expired, this one is ${order.status}`,
+          );
         }
 
         return order.markAsExpired();
@@ -788,7 +796,7 @@ const orderMutations = {
       const host = await toAccount.getHostCollective();
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
-        throw new Unauthorized('Only host admins can process orders');
+        throw new Unauthorized('Only host admins can create pending orders');
       }
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
 
@@ -862,7 +870,7 @@ const orderMutations = {
 
       const host = await order.collective.getHostCollective();
       if (!req.remoteUser?.isAdminOfCollective(host)) {
-        throw new Unauthorized('Only host admins can process orders');
+        throw new Unauthorized('Only host admins can edit pending orders');
       }
 
       if (!(await canEdit(req, order))) {
