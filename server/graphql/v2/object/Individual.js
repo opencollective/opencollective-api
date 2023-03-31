@@ -125,9 +125,12 @@ export const Individual = new GraphQLObjectType({
         },
       },
       hasSeenLatestChangelogEntry: {
-        type: new GraphQLNonNull(GraphQLBoolean),
+        type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
+          if (req.remoteUser?.id !== user.id) {
+            return null;
+          }
           return hasSeenLatestChangelogEntry(user);
         },
       },
