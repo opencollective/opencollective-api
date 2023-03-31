@@ -602,6 +602,7 @@ export const fakeOrder = async (
         CollectiveId: order.CollectiveId,
         HostCollectiveId: collective.HostCollectiveId,
         amount: order.totalAmount,
+        PaymentMethodId: order.PaymentMethodId,
       }),
       fakeTransaction({
         OrderId: order.id,
@@ -610,6 +611,7 @@ export const fakeOrder = async (
         CollectiveId: order.FromCollectiveId,
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,
+        PaymentMethodId: order.PaymentMethodId,
       }),
     ]);
   }
