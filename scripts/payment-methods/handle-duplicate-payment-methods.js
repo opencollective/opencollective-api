@@ -38,17 +38,18 @@ async function run() {
       AND o."deletedAt" IS NULL
       AND o."status" = 'ACTIVE'
       GROUP BY pm."CollectiveId", pm."CreatedByUserId", pm."data"->'fingerprint'
-      HAVING COUNT(DISTINCT pm."id") > 1	
+      HAVING COUNT(DISTINCT pm."id") > 1
     )
     UPDATE "Orders"
     SET "PaymentMethodId" = dpm."latestId"
     FROM "PaymentMethods" pm, "DuplicatePaymentMethods" dpm
-    WHERE dpm."fingerprint" = pm."data"->'paymentMethod'->'fingerprint'::text
-    AND pm."PaymentMethodId" != dpm."latestId"
+    WHERE dpm."fingerprint" = pm."data"->'fingerprint'::text
+    AND pm.id != dpm."latestId"
     AND pm."CollectiveId" = dpm."CollectiveId"
     AND pm."CreatedByUserId" = dpm."CreatedByUserId"
     AND pm."deletedAt" IS NULL
-    AND "Orders"."PaymentMethodId" = pm."id"`,
+    AND "Orders"."PaymentMethodId" = pm."id"
+    AND "Orders"."status" = 'ACTIVE'`,
   );
 }
 
