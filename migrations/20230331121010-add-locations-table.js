@@ -53,6 +53,11 @@ module.exports = {
       },
     });
 
+    await queryInterface.addIndex('Locations', ['CollectiveId'], {
+      concurrently: true,
+      where: { deletedAt: null },
+    });
+
     await queryInterface.sequelize.query(`
       INSERT INTO "Locations" ("name", "address", "country", "CollectiveId", "geoLocationLatLong", "structured")
       SELECT 
