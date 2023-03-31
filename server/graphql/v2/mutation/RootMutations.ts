@@ -1,6 +1,5 @@
 import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { GraphQLNonEmptyString } from 'graphql-scalars';
 import { isNil, uniqBy } from 'lodash';
 
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
@@ -30,6 +29,7 @@ import { ExpenseReferenceInput, fetchExpensesWithReferences } from '../input/Exp
 import { Account } from '../interface/Account';
 import { Expense } from '../object/Expense';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
+import URL from '../scalar/URL';
 
 const BanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
@@ -257,7 +257,7 @@ export default {
     type: new GraphQLObjectType({
       name: 'SetTaxFormResult',
       fields: {
-        success: { type: GraphQLBoolean },
+        success: { type: new GraphQLNonNull(GraphQLBoolean) },
       },
     }),
     description: '[Root only] A mutation to set the tax from for an account.',
@@ -267,7 +267,7 @@ export default {
         description: 'Reference to the Account the tax form should be set.',
       },
       taxFormLink: {
-        type: new GraphQLNonNull(GraphQLNonEmptyString),
+        type: new GraphQLNonNull(URL),
         description: 'The tax from link.',
       },
       year: {
@@ -282,9 +282,7 @@ export default {
 
       const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
 
-      await setTaxForm(account, args.taxFormLink, args.year);
-
-      return { success: true };
+      return { success: setTaxForm(account, args.taxFormLink, args.year) };
     },
   },
 };
