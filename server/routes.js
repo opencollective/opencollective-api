@@ -1,7 +1,6 @@
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
-import debug from 'debug';
 import expressLimiter from 'express-limiter';
 import { get, pick } from 'lodash';
 import multer from 'multer';
@@ -22,8 +21,6 @@ import {
   transferwiseWebhook,
 } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
-import { loaders } from './graphql/loaders';
-// import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
@@ -173,43 +170,6 @@ export default async app => {
   });
 
   /**
-   * GraphQL loaders
-   */
-  const sharedLoaders = {};
-
-  const debugLoaders = debug('loaders');
-
-  // Middleware
-  app.use((req, res, next) => {
-    const requestId = req.get('X-Request-Id');
-    if (requestId && !req.remoteUser) {
-      if (!sharedLoaders[requestId]) {
-        debugLoaders('Creating shared loader');
-        sharedLoaders[requestId] = loaders();
-      } else {
-        debugLoaders('Reusing shared loader');
-      }
-      // Set or Extend ttl
-      sharedLoaders[requestId].ttl = new Date().getTime() + 30 * 1000;
-      // Attach loader
-      req.loaders = sharedLoaders[requestId];
-    } else {
-      debugLoaders('Using default loader');
-      req.loaders = loaders({ remoteUser: req.remoteUser });
-    }
-    next();
-  });
-
-  // Garbage collection
-  setInterval(() => {
-    for (const id of Object.keys(sharedLoaders)) {
-      if (sharedLoaders[id].ttl < new Date().getTime()) {
-        delete sharedLoaders[id];
-      }
-    }
-  }, 1000);
-
-  /**
    * GraphQL scope
    */
   app.use('/graphql/v1', async (req, res, next) => {
@@ -227,7 +187,6 @@ export default async app => {
     if (req.personalToken) {
       logger.warn(`Personal Token using GraphQL v1: ${req.personalToken.id}`);
     }
-
     next();
   });
 

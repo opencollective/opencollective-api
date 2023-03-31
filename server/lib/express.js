@@ -13,6 +13,8 @@ import { Strategy as GitHubStrategy } from 'passport-github';
 import { Strategy as TwitterStrategy } from 'passport-twitter';
 import redis from 'redis';
 
+import { loaders } from '../graphql/loaders';
+
 import hyperwatch from './hyperwatch';
 import logger from './logger';
 
@@ -25,6 +27,12 @@ export default async function (app) {
       contentSecurityPolicy: false,
     }),
   );
+
+  // GraphQL Loaders
+  app.use((req, res, next) => {
+    req.loaders = loaders({ remoteUser: req.remoteUser });
+    next();
+  });
 
   // Body parser.
   app.use(
