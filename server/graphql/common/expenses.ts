@@ -315,7 +315,7 @@ export const canEditExpense: ExpensePermissionEvaluator = async (
 
   // Host and expense owner can attach receipts to paid charge expenses
   if (expense.type === EXPENSE_TYPE.CHARGE && ['PAID', 'PROCESSING'].includes(expense.status)) {
-    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin], options);
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isCollectiveAdmin], options);
   } else if (expense.status === 'DRAFT') {
     return remoteUserMeetsOneCondition(req, expense, [isOwner, isHostAdmin, isDraftPayee], options);
   } else if (nonEditableStatuses.includes(expense.status)) {

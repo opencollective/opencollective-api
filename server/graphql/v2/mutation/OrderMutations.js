@@ -21,7 +21,7 @@ import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import { Service } from '../../../constants/connected_account';
 import OrderStatuses from '../../../constants/order_status';
-import { PAYMENT_METHOD_SERVICE } from '../../../constants/paymentMethods';
+import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
 import logger from '../../../lib/logger';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
@@ -525,17 +525,36 @@ const orderMutations = {
         include: [
           { association: 'paymentMethod' },
           { association: 'fromCollective', attributes: ['id', 'slug'] },
-          { association: 'collective', attributes: ['id', 'slug'] },
+          { association: 'collective', attributes: ['id', 'slug', 'HostCollectiveId'] },
         ],
       });
 
       // -- Some sanity checks to prevent issues --
-      const paymentMethodIds = uniq(orders.map(order => order.PaymentMethodId).filter(Boolean));
+      const isAddedFund = order =>
+        order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE &&
+        order.paymentMethod.type === PAYMENT_METHOD_TYPE.HOST;
+      const paymentMethodIds = uniq(
+        orders
+          .filter(order => !isAddedFund(order))
+          .map(order => order.PaymentMethodId)
+          .filter(Boolean),
+      );
       const ordersIds = orders.map(order => order.id);
+
       for (const order of orders) {
+        if (fromAccount) {
+          if (isAddedFund(order)) {
+            if (get(order, 'fromCollective.HostCollectiveId', null) !== get(fromAccount, 'HostCollectiveId', null)) {
+              throw new ValidationFailed(
+                `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
+              );
+            }
+          }
+        }
+
         const isUpdatingPaymentMethod = Boolean(fromAccount);
 
-        if (isUpdatingPaymentMethod) {
+        if (isUpdatingPaymentMethod && !isAddedFund(order)) {
           // Payment method can't be ACCOUNT_BALANCE - we're not ready to transfer these
           if (order.paymentMethod?.service === PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE) {
             throw new ValidationFailed(
@@ -648,6 +667,7 @@ const orderMutations = {
         if (tier) {
           descriptionDetails.push(tier === 'custom' ? 'custom tier' : `tier #${tier.id}`);
         }
+
         await models.MigrationLog.create(
           {
             type: MigrationLogType.MOVE_ORDERS,
