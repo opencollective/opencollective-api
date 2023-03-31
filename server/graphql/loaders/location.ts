@@ -10,18 +10,7 @@ export default {
    */
   byCollectiveId: (): DataLoader<number, Collective> => {
     return new DataLoader(async collectiveIds => {
-      const locations = await sequelize.query(
-        ` SELECT      l.*
-          FROM        "Locations" l
-          WHERE       l."CollectiveId" in (:collectiveIds)
-          AND         l."deletedAt" IS NULL`,
-        {
-          type: sequelize.QueryTypes.SELECT,
-          model: models.Location,
-          mapToModel: true,
-          replacements: { collectiveIds },
-        },
-      );
+      const locations = await models.Location.findAll({ where: { CollectiveId: collectiveIds } });
 
       return sortResultsSimple(collectiveIds, locations, result => result.dataValues['CollectiveId']);
     });
