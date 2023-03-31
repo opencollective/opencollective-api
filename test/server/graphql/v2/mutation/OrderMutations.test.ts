@@ -862,6 +862,88 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(backerMember.TierId).to.eq(newTier.id);
       expect(backerMember.CollectiveId).to.eq(order.CollectiveId); // Should stay the same
     });
+
+    it('moves an Added Fund to a different User profile', async () => {
+      // Init data
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+      });
+      const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
+      const newProfile = (await fakeUser({}, { name: 'New profile' })).collective;
+      const backerMember = await models.Member.findOne({
+        where: {
+          MemberCollectiveId: order.FromCollectiveId,
+          CollectiveId: order.CollectiveId,
+          role: 'BACKER',
+        },
+      });
+
+      // Move order
+      const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+      const resultOrder = result.data.moveOrders[0];
+
+      // Check migration logs
+      const migrationLog = await models.MigrationLog.findOne({
+        where: { type: 'MOVE_ORDERS', CreatedByUserId: rootUser.id },
+      });
+
+      expect(migrationLog).to.exist;
+      expect(migrationLog.data['fromAccount']).to.eq(newProfile.id);
+      expect(migrationLog.data['previousOrdersValues'][order.id]).to.deep.eq({
+        CollectiveId: order.CollectiveId,
+        FromCollectiveId: order.FromCollectiveId,
+        TierId: order.TierId,
+      });
+
+      // Check order
+      expect(migrationLog.data['orders']).to.deep.eq([order.id]);
+      expect(resultOrder.fromAccount.legacyId).to.eq(newProfile.id);
+      expect(resultOrder.toAccount.legacyId).to.eq(order.CollectiveId); // Should stay the same
+
+      // Check transactions
+      const allOrderTransactions = await models.Transaction.findAll({ where: { OrderId: order.id } });
+      expect(migrationLog.data['transactions']).to.deep.eq(allOrderTransactions.map(t => t.id));
+
+      const creditTransaction = resultOrder.transactions.find(t => t.type === 'CREDIT');
+      expect(creditTransaction.oppositeAccount.legacyId).to.eq(newProfile.id);
+      expect(creditTransaction.account.legacyId).to.eq(order.CollectiveId);
+
+      const debitTransaction = resultOrder.transactions.find(t => t.type === 'DEBIT');
+      expect(debitTransaction.oppositeAccount.legacyId).to.eq(order.CollectiveId);
+      expect(debitTransaction.account.legacyId).to.eq(newProfile.id);
+
+      // Check payment methods ids in transactions and order
+      expect(order.PaymentMethodId).to.eq(paymentMethod.id);
+      expect(allOrderTransactions.filter(t => t.type === 'CREDIT')[0].PaymentMethodId).to.eq(paymentMethod.id);
+      expect(allOrderTransactions.filter(t => t.type === 'DEBIT')[0].PaymentMethodId).to.eq(paymentMethod.id);
+
+      // Check member
+      await backerMember.reload();
+      expect(migrationLog.data['members']).to.deep.eq([backerMember.id]);
+      expect(backerMember.MemberCollectiveId).to.eq(newProfile.id);
+      expect(backerMember.CollectiveId).to.eq(order.CollectiveId); // Should stay the same
+    });
+
+    it('try to move an Added Fund to a different Collective profile under different host', async () => {
+      // Init data
+      const paymentMethod = await fakePaymentMethod({
+        service: PAYMENT_METHOD_SERVICE.OPENCOLLECTIVE,
+        type: PAYMENT_METHOD_TYPE.HOST,
+      });
+      const fakeOrderOptions = { withTransactions: true, withBackerMember: true };
+      const order = await fakeOrder({ PaymentMethodId: paymentMethod.id }, fakeOrderOptions);
+
+      const newProfile = await fakeCollective({ name: 'New profile' });
+
+      // Try to move order
+      const result = await callMoveOrders([order], rootUser, { fromAccount: newProfile });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.equal(
+        `Moving Added Funds when the current source Account has a different Fiscal Host than the new source Account is not supported.`,
+      );
+    });
   });
 
   describe('Other mutations', () => {
