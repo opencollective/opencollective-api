@@ -14,6 +14,7 @@ const addFundsMutation = gqlV2/* GraphQL */ `
     $description: String!
     $hostFeePercent: Float!
     $tier: TierReferenceInput
+    $tax: TaxInput
   ) {
     addFunds(
       account: $account
@@ -22,8 +23,13 @@ const addFundsMutation = gqlV2/* GraphQL */ `
       description: $description
       hostFeePercent: $hostFeePercent
       tier: $tier
+      tax: $tax
     ) {
       id
+      taxAmount {
+        valueInCents
+        currency
+      }
       amount {
         valueInCents
         currency
@@ -34,6 +40,15 @@ const addFundsMutation = gqlV2/* GraphQL */ `
           balance {
             valueInCents
           }
+        }
+      }
+      transactions {
+        id
+        kind
+        type
+        amount {
+          valueInCents
+          currency
         }
       }
       tier {
@@ -150,6 +165,49 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
       expect(result.errors).to.not.exist;
       expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
       expect(result.data.addFunds.amount.currency).to.equal('USD');
+    });
+
+    describe('taxes', () => {
+      it('add funds with taxes', async () => {
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            tax: { type: 'GST', rate: 0.15 },
+          },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+        expect(result.data.addFunds.taxAmount.valueInCents).to.equal(261); // (2000 - 261) x 1.15 = 2000
+        expect(result.data.addFunds.amount.currency).to.equal('USD');
+      });
+
+      it('host fee is computed with tax amount excluded', async () => {
+        const result = await graphqlQueryV2(
+          addFundsMutation,
+          {
+            ...validMutationVariables,
+            account: { legacyId: collective.id },
+            fromAccount: { legacyId: randomUser.CollectiveId },
+            tax: { type: 'GST', rate: 0.15 },
+          },
+          hostAdmin,
+        );
+        result.errors && console.error(result.errors);
+        expect(result.errors).to.not.exist;
+        expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
+        expect(result.data.addFunds.taxAmount.valueInCents).to.equal(261); // (2000 - 261) x 1.15 = 2000
+        expect(result.data.addFunds.amount.currency).to.equal('USD');
+
+        const transactions = result.data.addFunds.transactions;
+        expect(transactions.length).to.equal(4); // 2 for the ADDED_FUNDS, 2 for the HOST_FEE
+        const hostFeeCredit = transactions.find(t => t.type === 'CREDIT' && t.kind === 'HOST_FEE');
+        expect(hostFeeCredit.amount.valueInCents).to.equal(104); // 6% of 2000 - 261 (tax)
+      });
     });
 
     describe('add funds from a collective', () => {

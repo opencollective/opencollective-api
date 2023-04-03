@@ -74,8 +74,8 @@ export async function addFunds(order: AddFundsInput, remoteUser: User) {
     orderData['processedAt'] = order.processedAt;
   }
 
-  if (order.tax) {
-    orderData.taxAmount = Math.round(orderData.totalAmount * order.tax.rate);
+  if (order.tax?.rate) {
+    orderData.taxAmount = Math.round(orderData.totalAmount - orderData.totalAmount / (1 + order.tax.rate));
     orderData.data.tax = {
       id: order.tax.type,
       percentage: Math.round(order.tax.rate * 100),
