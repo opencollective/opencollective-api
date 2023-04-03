@@ -164,7 +164,7 @@ const model: OauthModel = {
     // Look if extra scope are requested
     let extraScope;
     if (userToken) {
-      extraScope = Array.from(scope).filter(x => !Array.from(userToken.scope).includes(x)).length !== 0;
+      extraScope = scope && Array.from(scope).filter(x => !Array.from(userToken.scope).includes(x)).length !== 0;
     }
 
     if (!userToken || extraScope) {
