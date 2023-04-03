@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 import moment from 'moment';
+import sinon from 'sinon';
 
 import { run as invoicePlatformFees } from '../../../cron/monthly/host-settlement';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
+import { refundTransaction } from '../../../server/lib/payments';
 import models, { sequelize } from '../../../server/models';
-import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -13,13 +14,14 @@ import {
   fakePayoutMethod,
   fakeTransaction,
   fakeUser,
+  fakeUUID,
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
 describe('cron/monthly/host-settlement', () => {
   const lastMonth = moment.utc().subtract(1, 'month');
 
-  let gbpHost, expense;
+  let gbpHost, expense, settledRefundedContribution, unsettledRefundedContribution;
   before(async () => {
     await utils.resetTestDB();
     const user = await fakeUser({ id: 30 }, { id: 20, slug: 'pia' });
@@ -27,6 +29,7 @@ describe('cron/monthly/host-settlement', () => {
 
     // Move Collectives ID auto increment pointer up, so we don't collide with the manually created id:1
     await sequelize.query(`ALTER SEQUENCE "Groups_id_seq" RESTART WITH 1453`);
+    await sequelize.query(`ALTER SEQUENCE "Users_id_seq" RESTART WITH 31`);
     const payoutProto = {
       data: {
         details: {},
@@ -66,23 +69,44 @@ describe('cron/monthly/host-settlement', () => {
       kind: TransactionKind.CONTRIBUTION,
       amount: 3000,
       hostFeeInHostCurrency: -600,
+      TransactionGroup: fakeUUID('00000001'),
     });
     const contribution2 = await fakeTransaction({
       ...transactionProps,
       kind: TransactionKind.CONTRIBUTION,
       amount: 3000,
       hostFeeInHostCurrency: -400,
+      TransactionGroup: fakeUUID('00000002'),
     });
     const contribution3 = await fakeTransaction({
       ...transactionProps,
       kind: TransactionKind.CONTRIBUTION,
       amount: 3000,
       hostFeeInHostCurrency: -600,
+      TransactionGroup: fakeUUID('00000003'),
     });
+
+    // Refunds
+    unsettledRefundedContribution = await fakeTransaction({
+      ...transactionProps,
+      kind: TransactionKind.CONTRIBUTION,
+      amount: 3000,
+      hostFeeInHostCurrency: -600,
+      TransactionGroup: fakeUUID('00000004'),
+    });
+    settledRefundedContribution = await fakeTransaction({
+      ...transactionProps,
+      kind: TransactionKind.CONTRIBUTION,
+      amount: 4200,
+      hostFeeInHostCurrency: -420,
+      createdAt: lastMonth.subtract(1, 'month'),
+      TransactionGroup: fakeUUID('00000005'),
+    });
+
     // Create host fee share
     const hostFeeResults = await Promise.all(
-      [contribution1, contribution2, contribution3].map(transaction =>
-        models.Transaction.createHostFeeTransactions(transaction, gbpHost),
+      [contribution1, contribution2, contribution3, unsettledRefundedContribution, settledRefundedContribution].map(
+        transaction => models.Transaction.createHostFeeTransactions(transaction, gbpHost),
       ),
     );
 
@@ -97,7 +121,10 @@ describe('cron/monthly/host-settlement', () => {
     );
 
     // Add Platform Tips
-    const t = await fakeTransaction(transactionProps);
+    const contributionWithTipToSettle = await fakeTransaction({
+      ...transactionProps,
+      TransactionGroup: fakeUUID('00000006'),
+    });
     await fakeTransaction({
       type: 'CREDIT',
       CollectiveId: oc.id,
@@ -105,7 +132,7 @@ describe('cron/monthly/host-settlement', () => {
       amount: 1000,
       currency: 'USD',
       data: { hostToPlatformFxRate: 1.23 },
-      TransactionGroup: t.TransactionGroup,
+      TransactionGroup: contributionWithTipToSettle.TransactionGroup,
       kind: TransactionKind.PLATFORM_TIP,
       createdAt: lastMonth,
     });
@@ -119,7 +146,7 @@ describe('cron/monthly/host-settlement', () => {
       currency: 'GBP',
       hostCurrency: 'GBP',
       data: { hostToPlatformFxRate: 1.23 },
-      TransactionGroup: t.TransactionGroup,
+      TransactionGroup: contributionWithTipToSettle.TransactionGroup,
       kind: TransactionKind.PLATFORM_TIP_DEBT,
       createdAt: lastMonth,
       isDebt: true,
@@ -127,7 +154,10 @@ describe('cron/monthly/host-settlement', () => {
     await models.TransactionSettlement.createForTransaction(firstTipDebtCredit);
 
     // Collected Platform Tip with pending Payment Processor Fee. No debt here, it's collected directly via Stripe
-    const t2 = await fakeTransaction(transactionProps);
+    const contributionWithTipDirectlySettled = await fakeTransaction({
+      ...transactionProps,
+      TransactionGroup: fakeUUID('00000007'),
+    });
     const paymentMethod = await fakePaymentMethod({ service: 'stripe', token: 'tok_bypassPending' });
     await fakeTransaction({
       type: 'CREDIT',
@@ -137,12 +167,24 @@ describe('cron/monthly/host-settlement', () => {
       amountInHostCurrency: 813,
       hostCurrency: 'GBP',
       data: { hostToPlatformFxRate: 1.23 },
-      TransactionGroup: t2.TransactionGroup,
+      TransactionGroup: contributionWithTipDirectlySettled.TransactionGroup,
       kind: TransactionKind.PLATFORM_TIP,
       paymentProcessorFeeInHostCurrency: -100,
       PaymentMethodId: paymentMethod.id,
       createdAt: lastMonth,
     });
+
+    // Mark settledRefundedContribution as already settled, which suppose we'll have to INVOICE the opposite settlement
+    await models.TransactionSettlement.update(
+      { status: 'SETTLED' },
+      { where: { TransactionGroup: settledRefundedContribution.TransactionGroup } },
+    );
+
+    // Refund contributions that must be
+    const clock = sinon.useFakeTimers(lastMonth.add(1, 'day').toDate());
+    await refundTransaction(unsettledRefundedContribution, user, null, { TransactionGroup: fakeUUID('00000008') });
+    await refundTransaction(settledRefundedContribution, user, null, { TransactionGroup: fakeUUID('00000009') });
+    clock.restore();
 
     await invoicePlatformFees();
 
@@ -173,7 +215,9 @@ describe('cron/monthly/host-settlement', () => {
 
   it('should invoice pending shared host revenue', async () => {
     const sharedRevenueItem = expense.items.find(p => p.description === 'Shared Revenue');
-    expect(sharedRevenueItem).to.have.property('amount', Math.round(1600 * 0.15));
+    const expectedRevenue = Math.round(1600 * 0.15);
+    const expectedRefund = Math.round(420 * 0.15);
+    expect(sharedRevenueItem).to.have.property('amount', expectedRevenue - expectedRefund);
   });
 
   it('should attach detailed list of transactions in the expense', async () => {
@@ -186,11 +230,17 @@ describe('cron/monthly/host-settlement', () => {
     expect(reimburseItem).to.have.property('amount', 100);
   });
 
-  it('should update settlementStatus to INVOICED', async () => {
-    const settlements = await models.TransactionSettlement.findAll();
-    expect(settlements.length).to.eq(4); // 1 Platform tip + 3 host fee share
-    settlements.forEach(settlement => {
-      expect(settlement.status).to.eq(TransactionSettlementStatus.INVOICED);
+  it('should update all settlement status', async () => {
+    const countSettlements = status => models.TransactionSettlement.count({ where: { status } });
+    await utils.snapshotLedger(['TransactionGroup', 'kind', 'type', 'amount', 'isRefund', 'settlementStatus'], {
+      where: { isDebt: true },
+      order: [
+        ['TransactionGroup', 'ASC'],
+        ['id', 'ASC'],
+      ],
     });
+
+    expect(await countSettlements('INVOICED')).to.eq(5); // 1 Platform tip + 3 host fee share + 1 host fee share refund
+    expect(await countSettlements('SETTLED')).to.eq(3); // (Host fee share + Host fee share refund) for unsettledRefundedContribution + host fee share for settledRefundedContribution
   });
 });
