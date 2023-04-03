@@ -242,6 +242,10 @@ export const searchCollectivesInDB = async (
     dynamicConditions += `AND (c."data" ->> 'isGuest')::boolean IS NOT TRUE `;
   }
 
+  if (args.currency) {
+    dynamicConditions += `AND (c."currency" = :currency)`;
+  }
+
   if (typeof hasCustomContributionsEnabled === 'boolean') {
     if (hasCustomContributionsEnabled) {
       dynamicConditions += `AND (c."settings"->>'disableCustomContributions')::boolean IS NOT TRUE `;
@@ -303,6 +307,7 @@ export const searchCollectivesInDB = async (
         hostCollectiveIds,
         parentCollectiveIds,
         isHost,
+        currency: args.currency,
       },
     },
   );
