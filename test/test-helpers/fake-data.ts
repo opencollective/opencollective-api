@@ -165,7 +165,8 @@ export const fakeCollective = async (
     collectiveData.HostCollectiveId = (await fakeHost()).id;
   }
 
-  const collectiveSequelizeParams = sequelizeParams;
+  const collectiveSequelizeParams = Object.assign({}, sequelizeParams);
+
   if (collectiveData?.location) {
     collectiveSequelizeParams.include = [{ association: 'location' }];
   }
