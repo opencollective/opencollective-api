@@ -121,25 +121,25 @@ describe('server/graphql/v2/query/AccountQuery', () => {
     it('is public for host accounts', async () => {
       const hostAdminUser = await fakeUser();
       const randomUser = await fakeUser();
-      const host = await fakeHost({ location: { address: 'PRIVATE!' }, admin: hostAdminUser });
+      const host = await fakeHost({ location: { address: 'PUBLIC!' }, admin: hostAdminUser });
       const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
       const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
       const resultHostAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, hostAdminUser);
-      expect(resultUnauthenticated.data.account.location?.address).to.eq('PRIVATE!');
-      expect(resultRandomUser.data.account.location?.address).to.eq('PRIVATE!');
-      expect(resultHostAdmin.data.account.location?.address).to.eq('PRIVATE!');
+      expect(resultUnauthenticated.data.account.location?.address).to.eq('PUBLIC!');
+      expect(resultRandomUser.data.account.location?.address).to.eq('PUBLIC!');
+      expect(resultHostAdmin.data.account.location?.address).to.eq('PUBLIC!');
     });
 
-    it('is private for organization accounts', async () => {
+    it('is public for organization accounts', async () => {
       const adminUser = await fakeUser();
       const randomUser = await fakeUser();
-      const host = await fakeOrganization({ location: { address: 'PRIVATE!' }, admin: adminUser.collective });
+      const host = await fakeOrganization({ location: { address: 'PUBLIC!' }, admin: adminUser.collective });
       const resultUnauthenticated = await graphqlQueryV2(accountQuery, { slug: host.slug });
       const resultRandomUser = await graphqlQueryV2(accountQuery, { slug: host.slug }, randomUser);
       const resultAdmin = await graphqlQueryV2(accountQuery, { slug: host.slug }, adminUser);
-      expect(resultUnauthenticated.data.account.location.address).to.be.null;
-      expect(resultRandomUser.data.account.location.address).to.be.null;
-      expect(resultAdmin.data.account.location?.address).to.eq('PRIVATE!');
+      expect(resultUnauthenticated.data.account.location.address).to.eq('PUBLIC!');
+      expect(resultRandomUser.data.account.location.address).to.eq('PUBLIC!');
+      expect(resultAdmin.data.account.location?.address).to.eq('PUBLIC!');
     });
 
     it('is private for user accounts', async () => {
