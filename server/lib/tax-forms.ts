@@ -120,11 +120,11 @@ export const setTaxForm = async (account, taxFormLink, year) => {
     await legalDocument.update({
       documentLink: taxFormLink,
       year,
-      requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.RECEIVED,
+      requestStatus: 'RECEIVED',
     });
     return true;
   } else {
-    return false;
+    throw new Error('No legal document found');
   }
 };
 
