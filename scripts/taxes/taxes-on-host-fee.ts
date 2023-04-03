@@ -25,7 +25,8 @@ type BaseDataQueryResult = {
 };
 
 const baseDataQuery = `
-  SELECT
+  WITH all_results AS (
+    SELECT
     host.id AS "hostId",
     host.slug AS "hostSlug",
     host."currency" AS "hostCurrency",
@@ -58,15 +59,19 @@ const baseDataQuery = `
     AND host_fee."kind" = 'HOST_FEE' AND host_fee.type = t.type
     AND host_fee."deletedAt" IS NULL
     AND host_fee."RefundTransactionId" IS NULL
-  WHERE t."RefundTransactionId" IS NULL
+  WHERE host.slug IN ('europe', 'allforclimate', 'ocnz')
+  AND t."RefundTransactionId" IS NULL
   AND t."taxAmount" < 0
   AND t.kind = 'CONTRIBUTION'
   AND t."type" = 'CREDIT'
   AND t."deletedAt" IS NULL
-  AND host.slug != 'paris' -- Ignore Paris as it has been archived
   AND t."HostCollectiveId" = collective."HostCollectiveId" -- Make sure the collective is still hosted by the same host (we have no cases like that, but just in case)
   AND collective."isActive" IS TRUE -- Ignore archived/unhosted collectives. This will affect two profiles for a total of €2.30: https://opencollective.com/the-digital-circle/events/mapathon-mapping-hackathon-2021-88a863b4 and https://opencollective.com/pistil
   ORDER BY host.slug, t.id DESC
+  ) SELECT *
+    FROM all_results
+    WHERE "exceptedHostFeeInHostCurrency" != "hostFeeInHostCurrency"
+    ORDER BY "hostSlug", "transactionId" DESC;
 `;
 
 program
@@ -166,7 +171,6 @@ program
         host.slug AS "hostSlug",
         host.currency AS "hostCurrency",
         collective.slug AS "collectiveSlug",
-        collective."isActive" AS "collectiveIsActive",
         SUM(t."amountInHostCurrency") AS "hostFeeInHostCurrency",
         SUM((t."data" -> 'fixHostFeeWithTaxes' -> 'previousValues' ->> 'amountInHostCurrency')::numeric) AS "previousHostFeeInHostCurrency"
       FROM "Transactions" t
@@ -202,13 +206,7 @@ program
         const totalTaxes = sumBy(collectiveResults, 'hostFeeInHostCurrency');
         const previousTotalTaxes = sumBy(collectiveResults, 'previousHostFeeInHostCurrency');
         const totalRefunded = Math.abs(previousTotalTaxes - totalTaxes);
-        const collective = await models.Collective.findBySlug(collectiveSlug);
-        const balance = await collective.getBalance();
-        logger.info(
-          `  - ${collectiveSlug}: ${formatCurrency(totalRefunded, collectiveResults[0].hostCurrency)} (${
-            collectiveResults[0].collectiveIsActive ? 'Active' : 'Inactive'
-          }). Current balance: ${formatCurrency(balance, collective.currency)}`,
-        );
+        logger.info(`  - ${collectiveSlug}: ${formatCurrency(totalRefunded, collectiveResults[0].hostCurrency)}`);
       }
     }
   });
