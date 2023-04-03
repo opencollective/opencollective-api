@@ -7,7 +7,6 @@ import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { refundTransaction } from '../../../server/lib/payments';
 import { getTaxesSummary } from '../../../server/lib/transactions';
 import models, { sequelize } from '../../../server/models';
-import { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
   fakeCollective,
   fakeConnectedAccount,
@@ -282,42 +281,7 @@ describe('cron/monthly/host-settlement', () => {
     expect(reimburseItem).to.have.property('amount', 100);
   });
 
-  it('should update all settlement status', async () => {
-    const countSettlements = status => models.TransactionSettlement.count({ where: { status } });
-
-    // GBP host
-    await utils.snapshotLedger(['TransactionGroup', 'kind', 'type', 'amount', 'isRefund', 'settlementStatus'], {
-      where: { isDebt: true, HostCollectiveId: gbpHost.id },
-      order: [
-        ['TransactionGroup', 'ASC'],
-        ['id', 'ASC'],
-      ],
-    });
-
-    const gbpHostTransactions = await models.Transaction.findAll({
-      where: { HostCollectiveId: gbpHost.id },
-      attributes: ['TransactionGroup'],
-      group: ['TransactionGroup'],
-      raw: true,
-    });
-
-    const gbpSettlements = await models.TransactionSettlement.findAll({
-      where: { TransactionGroup: gbpHostTransactions.map(t => t.TransactionGroup) },
-    });
-    expect(gbpSettlements.length).to.eq(4); // 1 Platform tip + 3 host fee share
-    gbpSettlements.forEach(settlement => {
-      expect(settlement.status).to.eq(TransactionSettlementStatus.INVOICED);
-    });
-
-    // EUR host
-    await utils.snapshotLedger(['TransactionGroup', 'kind', 'type', 'amount', 'isRefund', 'settlementStatus'], {
-      where: { isDebt: true, HostCollectiveId: eurHost.id },
-      order: [
-        ['TransactionGroup', 'ASC'],
-        ['id', 'ASC'],
-      ],
-    });
-
+  it('should update all settlement status for EU host', async () => {
     const eurHostTransactions = await models.Transaction.findAll({
       where: { HostCollectiveId: eurHost.id },
       attributes: ['TransactionGroup'],
@@ -325,12 +289,39 @@ describe('cron/monthly/host-settlement', () => {
       raw: true,
     });
 
-    const eurSettlements = await models.TransactionSettlement.findAll({
-      where: { TransactionGroup: eurHostTransactions.map(t => t.TransactionGroup) },
+    const countSettlements = status =>
+      models.TransactionSettlement.count({
+        where: { status, TransactionGroup: eurHostTransactions.map(t => t.TransactionGroup) },
+      });
+
+    await utils.snapshotLedger(['kind', 'type', 'amount', 'isRefund', 'settlementStatus'], {
+      where: { isDebt: true, HostCollectiveId: eurHost.id },
+      order: [['id', 'ASC']],
     });
-    expect(eurSettlements.length).to.eq(2); // Only 1 contribution, but it has platform tip + host fee share
-    eurSettlements.forEach(settlement => {
-      expect(settlement.status).to.eq(TransactionSettlementStatus.INVOICED);
+
+    expect(await countSettlements('INVOICED')).to.eq(2); // Only 1 contribution, but it has platform tip + host fee share
+    expect(await countSettlements('SETTLED')).to.eq(0);
+  });
+
+  it('should update all settlement status for GBP host', async () => {
+    const gbpHostTransactions = await models.Transaction.findAll({
+      where: { HostCollectiveId: gbpHost.id },
+      attributes: ['TransactionGroup'],
+      group: ['TransactionGroup'],
+      raw: true,
+    });
+
+    const countSettlements = status =>
+      models.TransactionSettlement.count({
+        where: { status, TransactionGroup: gbpHostTransactions.map(t => t.TransactionGroup) },
+      });
+
+    await utils.snapshotLedger(['TransactionGroup', 'kind', 'type', 'amount', 'isRefund', 'settlementStatus'], {
+      where: { isDebt: true, HostCollectiveId: gbpHost.id },
+      order: [
+        ['TransactionGroup', 'ASC'],
+        ['id', 'ASC'],
+      ],
     });
 
     expect(await countSettlements('INVOICED')).to.eq(5); // 1 Platform tip + 3 host fee share + 1 host fee share refund

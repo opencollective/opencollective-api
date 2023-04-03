@@ -59,7 +59,7 @@ const baseDataQuery = `
     AND host_fee."kind" = 'HOST_FEE' AND host_fee.type = t.type
     AND host_fee."deletedAt" IS NULL
     AND host_fee."RefundTransactionId" IS NULL
-  WHERE host.slug IN ('europe', 'allforclimate', 'ocnz')
+  WHERE host.slug IN ('europe', 'ocnz') -- Skipping AllForClimate since there's only 3cents to refund
   AND t."RefundTransactionId" IS NULL
   AND t."taxAmount" < 0
   AND t.kind = 'CONTRIBUTION'
