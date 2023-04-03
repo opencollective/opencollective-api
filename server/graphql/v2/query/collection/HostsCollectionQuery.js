@@ -11,6 +11,9 @@ const HostsCollectionQuery = {
   args: {
     ...CollectionArgs,
     ...CommonAccountsCollectionQueryArgs,
+    currency: {
+      type: GraphQLString,
+    },
     tags: {
       type: new GraphQLList(GraphQLString),
       description: 'Filter hosts by tags (multiple = OR)',
@@ -28,6 +31,7 @@ const HostsCollectionQuery = {
       tags: args.tag ?? args.tags,
       tagSearchOperator: args.tagSearchOperator,
       includeArchived: args.includeArchived,
+      currency: args.currency,
     };
 
     const cleanTerm = args.searchTerm?.trim();
