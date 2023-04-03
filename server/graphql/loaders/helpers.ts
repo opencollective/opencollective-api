@@ -151,7 +151,7 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
       if (associationsIdsToLoad.length > 0) {
         let loadedAssociations: Model[];
         if (options.loader) {
-          // If a loader is provided, use it to load the associations using the IDs we've collective
+          // If a loader is provided, use it to load the associations using the IDs we've collected
           loadedAssociations = await options.loader(associationsIdsToLoad);
         } else {
           // Otherwise fallback on making a query using the model + foreign key
