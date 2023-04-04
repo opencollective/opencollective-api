@@ -227,7 +227,7 @@
       "ALL_TIME": 5000
     }
   },
-  "githbook": {
+  "gitbook": {
     "apiUrl": "https://api.gitbook.com",
     "apiKey": "UNDEFINED_GITBOOK_API_KEY"
   }
