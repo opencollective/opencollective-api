@@ -117,7 +117,10 @@ interface TransactionModelStaticInterface {
   }>;
   validate(
     transaction: TransactionModelInterface,
-    { validateOppositeTransaction }?: { validateOppositeTransaction?: boolean },
+    {
+      validateOppositeTransaction,
+      oppositeTransaction,
+    }?: { validateOppositeTransaction?: boolean; oppositeTransaction?: TransactionModelInterface },
   );
 }
 
@@ -1060,9 +1063,7 @@ Transaction.createHostFeeShareTransactions = async (
 
   let hostFeeShareDebtTransaction;
   if (!isDirectlyCollected) {
-    hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions(
-      { hostFeeShareTransaction },
-    );
+    hostFeeShareDebtTransaction = await Transaction.createHostFeeShareDebtTransactions({ hostFeeShareTransaction });
   }
 
   return { hostFeeShareTransaction, hostFeeShareDebtTransaction };
