@@ -959,10 +959,11 @@ export const getPlatformFeePercent = async () => {
 
 export const getHostFee = async (order, host = null) => {
   const platformTip = getPlatformTip(order);
+  const taxAmount = order.taxAmount || 0;
 
   const hostFeePercent = await getHostFeePercent(order, host);
 
-  return calcFee(order.totalAmount - platformTip - (order.taxAmount || 0), hostFeePercent);
+  return calcFee(order.totalAmount - platformTip - taxAmount, hostFeePercent);
 };
 
 export const isPlatformTipEligible = async (order, host = null) => {
