@@ -328,6 +328,11 @@ export default async app => {
     authentication.authenticateServiceDisconnect,
   );
 
+  /**
+   * Contact Form
+   */
+  app.post('/contact/send-message', email.messageSupport);
+
   app.use(sanitizer()); // note: this break /webhooks/mailgun /graphiql
 
   /**

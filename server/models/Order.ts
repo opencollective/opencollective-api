@@ -1,3 +1,4 @@
+import { TaxType } from '@opencollective/taxes';
 import BluebirdPromise from 'bluebird';
 import debugLib from 'debug';
 import { get } from 'lodash';
@@ -39,6 +40,13 @@ interface OrderModelStaticInterface {
   cancelActiveOrdersByTierId(tierId: number): Promise<[affectedCount: number]>;
   cancelNonTransferableActiveOrdersByCollectiveId(collectiveId: number): Promise<[affectedCount: number]>;
 }
+
+export type OrderTax = {
+  id: TaxType;
+  percentage: number;
+  taxedCountry: string;
+  taxerCountry: string;
+};
 
 export interface OrderModelInterface
   extends Model<
@@ -87,7 +95,13 @@ export interface OrderModelInterface
   processedAt: Date;
   status: OrderStatus;
   interval?: string;
-  data: any;
+  data:
+    | {
+        hostFeePercent?: number;
+        memo?: string;
+        tax?: OrderTax;
+      }
+    | any; // TODO: Remove `any` once we have a proper type for this
 
   createdAt: Date;
   updatedAt: Date;

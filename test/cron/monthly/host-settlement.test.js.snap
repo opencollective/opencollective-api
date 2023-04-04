@@ -1,22 +1,23 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`cron/monthly/host-settlement should update all settlement status 1`] = `
+exports[`cron/monthly/host-settlement should update all settlement status for EU host 1`] = `
+"
+| kind                | type   | amount | isRefund | Settlement |
+| ------------------- | ------ | ------ | -------- | ---------- |
+| PLATFORM_TIP_DEBT   | CREDIT | 30000  | false    | INVOICED   |
+| HOST_FEE_SHARE_DEBT | CREDIT | 5000   | false    | INVOICED   |"
+`;
+
+exports[`cron/monthly/host-settlement should update all settlement status for GBP host 1`] = `
 "
 | Group     | kind                | type   | amount | isRefund | Settlement |
 | --------- | ------------------- | ------ | ------ | -------- | ---------- |
-| #00000001 | HOST_FEE_SHARE_DEBT | DEBIT  | -90    | false    | INVOICED   |
 | #00000001 | HOST_FEE_SHARE_DEBT | CREDIT | 90     | false    | INVOICED   |
-| #00000002 | HOST_FEE_SHARE_DEBT | DEBIT  | -60    | false    | INVOICED   |
 | #00000002 | HOST_FEE_SHARE_DEBT | CREDIT | 60     | false    | INVOICED   |
-| #00000003 | HOST_FEE_SHARE_DEBT | DEBIT  | -90    | false    | INVOICED   |
 | #00000003 | HOST_FEE_SHARE_DEBT | CREDIT | 90     | false    | INVOICED   |
-| #00000004 | HOST_FEE_SHARE_DEBT | DEBIT  | -90    | false    | SETTLED    |
 | #00000004 | HOST_FEE_SHARE_DEBT | CREDIT | 90     | false    | SETTLED    |
-| #00000005 | HOST_FEE_SHARE_DEBT | DEBIT  | -63    | false    | SETTLED    |
 | #00000005 | HOST_FEE_SHARE_DEBT | CREDIT | 63     | false    | SETTLED    |
 | #00000006 | PLATFORM_TIP_DEBT   | CREDIT | 813    | false    | INVOICED   |
 | #00000008 | HOST_FEE_SHARE_DEBT | DEBIT  | -90    | true     | SETTLED    |
-| #00000008 | HOST_FEE_SHARE_DEBT | CREDIT | 90     | true     | SETTLED    |
-| #00000009 | HOST_FEE_SHARE_DEBT | DEBIT  | -63    | true     | INVOICED   |
-| #00000009 | HOST_FEE_SHARE_DEBT | CREDIT | 63     | true     | INVOICED   |"
+| #00000009 | HOST_FEE_SHARE_DEBT | DEBIT  | -63    | true     | INVOICED   |"
 `;

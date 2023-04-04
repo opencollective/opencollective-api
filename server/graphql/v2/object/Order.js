@@ -91,6 +91,15 @@ export const Order = new GraphQLObjectType({
           return { value, currency: order.currency };
         },
       },
+      taxAmount: {
+        type: Amount,
+        description: 'Tax amount',
+        resolve(order) {
+          if (order.taxAmount) {
+            return { value: order.taxAmount, currency: order.currency };
+          }
+        },
+      },
       totalAmount: {
         type: new GraphQLNonNull(Amount),
         description: 'Total order amount, including all taxes and platform tip',

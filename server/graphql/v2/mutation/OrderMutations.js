@@ -526,7 +526,11 @@ const orderMutations = {
       }
 
       if (args.tier) {
-        tier = await fetchTierWithReference(args.tier, { throwIfMissing: true, allowCustomTier: true });
+        if (args.tier.isCustom) {
+          tier = 'custom';
+        } else {
+          tier = await fetchTierWithReference(args.tier, { throwIfMissing: true });
+        }
       }
 
       const orders = await fetchOrdersWithReferences(args.orders, {
