@@ -7,6 +7,7 @@ import multer from 'multer';
 import redis from 'redis';
 
 import * as connectedAccounts from './controllers/connectedAccounts';
+import * as gitbook from './controllers/gitbook';
 import helloworks from './controllers/helloworks';
 import uploadImage from './controllers/images';
 import * as email from './controllers/services/email';
@@ -373,6 +374,11 @@ export default async app => {
    * Hello Works API - Helloworks hits this endpoint when a document has been completed.
    */
   app.post('/helloworks/callback', helloworks.callback);
+
+  /**
+   * Gitbook Search API
+   */
+  app.get('/docs/search', gitbook.search);
 
   /**
    * An endpoint to easily test Sentry integration
