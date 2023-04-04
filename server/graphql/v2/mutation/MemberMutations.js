@@ -1,6 +1,6 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { pick } from 'lodash';
+import { compact, pick } from 'lodash';
 import { Op } from 'sequelize';
 
 import ActivityTypes from '../../../constants/activities';
@@ -239,7 +239,10 @@ const memberMutations = {
         const host = await account.getHostCollective();
         if (host) {
           const adminCount = await models.Member.count({
-            where: { CollectiveId: { [Op.or]: [account.id, account.ParentCollectiveId] }, role: MemberRoles.ADMIN },
+            where: {
+              CollectiveId: { [Op.or]: compact([account.id, account.ParentCollectiveId]) },
+              role: MemberRoles.ADMIN,
+            },
           });
 
           const policy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
