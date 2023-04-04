@@ -1,27 +1,23 @@
-import Axios from 'axios';
 import config from 'config';
 import { get } from 'lodash';
+import fetch from 'node-fetch';
 
 const GITBOOK_API_URL = get(config, 'gitbook.apiUrl');
 const GITBOOK_API_KEY = get(config, 'gitbook.apiKey');
-
-const axios = Axios.create({
-  baseURL: GITBOOK_API_URL,
-  headers: {
-    Authorization: `Bearer ${GITBOOK_API_KEY}`,
-  },
-});
 
 export async function search(req, res) {
   const { query } = req.query;
 
   try {
-    const { data } = axios.get(`/v1/spaces/-LWSZizTt4ZC1UNDV89f/search?query=${query}`);
-    res.status(200).send(data);
+    const response = await fetch(`${GITBOOK_API_URL}/v1/spaces/-LWSZizTt4ZC1UNDV89f/search?query=${query}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${GITBOOK_API_KEY}`,
+      },
+    });
+    const data = await response.json();
+    res.status(response.status).send(data);
   } catch (error) {
-    if (error.response) {
-      return res.status(error.response.status).send(error.response.data);
-    }
     res.sendStatus(500);
   }
 }
