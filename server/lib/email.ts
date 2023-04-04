@@ -309,7 +309,7 @@ const generateEmailFromTemplate = (
   }
 
   if (template === 'collective.apply') {
-    if(hostSlug === 'foundation') {
+    if (hostSlug === 'foundation') {
       template = `${template}.${hostSlug}`;
     }
   }
