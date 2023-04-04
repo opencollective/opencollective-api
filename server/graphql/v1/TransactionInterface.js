@@ -283,10 +283,7 @@ const TransactionFields = () => {
     },
     usingGiftCardFromCollective: {
       type: CollectiveInterfaceType,
-      resolve(transaction, args, req) {
-        if (transaction && transaction.UsingGiftCardFromCollectiveId) {
-          return req.loaders.Collective.byId.load(transaction.UsingGiftCardFromCollectiveId);
-        }
+      resolve() {
         return null;
       },
     },

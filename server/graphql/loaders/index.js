@@ -747,18 +747,10 @@ export const loaders = req => {
     ),
     totalAmountDonatedFromTo: new DataLoader(keys =>
       models.Transaction.findAll({
-        attributes: [
-          'FromCollectiveId',
-          'UsingGiftCardFromCollectiveId',
-          'CollectiveId',
-          [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount'],
-        ],
+        attributes: ['FromCollectiveId', 'CollectiveId', [sequelize.fn('SUM', sequelize.col('amount')), 'totalAmount']],
         where: {
           [Op.or]: {
             FromCollectiveId: {
-              [Op.in]: keys.map(k => k.FromCollectiveId),
-            },
-            UsingGiftCardFromCollectiveId: {
               [Op.in]: keys.map(k => k.FromCollectiveId),
             },
           },
@@ -767,16 +759,10 @@ export const loaders = req => {
           kind: { [Op.notIn]: ['HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT'] },
           RefundTransactionId: null,
         },
-        group: ['FromCollectiveId', 'UsingGiftCardFromCollectiveId', 'CollectiveId'],
+        group: ['FromCollectiveId', 'CollectiveId'],
       }).then(results => {
         const resultsByKey = {};
-        results.forEach(({ CollectiveId, FromCollectiveId, UsingGiftCardFromCollectiveId, dataValues }) => {
-          // Credit collective that emitted the gift card (if any)
-          if (UsingGiftCardFromCollectiveId) {
-            const key = `${UsingGiftCardFromCollectiveId}-${CollectiveId}`;
-            const donated = resultsByKey[key] || 0;
-            resultsByKey[key] = donated + dataValues.totalAmount;
-          }
+        results.forEach(({ CollectiveId, FromCollectiveId, dataValues }) => {
           // Credit collective who actually made the transaction
           const key = `${FromCollectiveId}-${CollectiveId}`;
           const donated = resultsByKey[key] || 0;

@@ -740,7 +740,6 @@ export const InvoiceType = new GraphQLObjectType({
           const where = {
             [Op.or]: {
               FromCollectiveId: invoice.FromCollectiveId,
-              UsingGiftCardFromCollectiveId: invoice.FromCollectiveId,
             },
             type: 'CREDIT',
             createdAt: { [Op.gte]: invoice.dateFrom, [Op.lt]: invoice.dateTo },

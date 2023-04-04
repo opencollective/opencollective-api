@@ -23,10 +23,7 @@ const getPayee = async (req, transaction) => {
 
 const getPayer = async (req, transaction) => {
   let column;
-  if (transaction.UsingGiftCardFromCollectiveId) {
-    // If Transaction was paid with Gift Card, only the card issuer has access to it
-    column = 'UsingGiftCardFromCollectiveId';
-  } else if (transaction.type === 'CREDIT') {
+  if (transaction.type === 'CREDIT') {
     column = !transaction.isRefund ? 'FromCollectiveId' : 'CollectiveId';
   } else {
     column = !transaction.isRefund ? 'CollectiveId' : 'FromCollectiveId';

@@ -507,10 +507,8 @@ export const TransactionFields = () => {
     giftCardEmitterAccount: {
       type: Account,
       description: 'Account that emitted the gift card used for this transaction (if any)',
-      async resolve(transaction, _, req) {
-        return transaction.UsingGiftCardFromCollectiveId
-          ? await req.loaders.Collective.byId.load(transaction.UsingGiftCardFromCollectiveId)
-          : null;
+      async resolve() {
+        return null;
       },
     },
     isOrderRejected: {

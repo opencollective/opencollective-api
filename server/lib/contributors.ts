@@ -107,7 +107,7 @@ const contributorsQuery = `
     ON m."MemberCollectiveId" = c.id
   LEFT JOIN "Transactions" transactions
     ON transactions."CollectiveId" = :collectiveId
-    AND (transactions."FromCollectiveId" = c.id OR transactions."UsingGiftCardFromCollectiveId" = c.id)
+    AND (transactions."FromCollectiveId" = c.id)
     AND transactions."type" = 'CREDIT'
     AND transactions."kind" NOT IN ('HOST_FEE', 'HOST_FEE_SHARE', 'HOST_FEE_SHARE_DEBT', 'PLATFORM_TIP_DEBT')
     AND transactions."deletedAt" IS NULL

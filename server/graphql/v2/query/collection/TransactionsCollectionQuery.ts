@@ -166,7 +166,6 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     if (args.includeGiftCardTransactions) {
       where.push({
         [Op.or]: [
-          { UsingGiftCardFromCollectiveId: fromAccount.id, type: 'CREDIT' },
           // prettier, please keep line break for readability please
           { FromCollectiveId: fromAccountCondition },
         ],
@@ -211,7 +210,6 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     if (args.includeGiftCardTransactions) {
       where.push({
         [Op.or]: [
-          { UsingGiftCardFromCollectiveId: accounts.map(account => account.id), type: 'DEBIT' },
           // prettier, please keep line break for readability please
           { CollectiveId: accountCondition },
         ],

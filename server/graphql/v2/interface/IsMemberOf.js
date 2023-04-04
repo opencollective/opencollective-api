@@ -148,7 +148,6 @@ export const IsMemberOfFields = {
                         AND "collective->transactions"."type" = 'CREDIT'
                         AND (
                           "collective->transactions"."FromCollectiveId" = ${collective.id}
-                          OR "collective->transactions"."UsingGiftCardFromCollectiveId" = ${collective.id}
                         )
                 )`),
             'totalAmountDonated',

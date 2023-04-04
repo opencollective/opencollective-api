@@ -47,7 +47,7 @@ export const getConsolidatedInvoicesData = async fromCollective => {
   const where = {
     kind: ['CONTRIBUTION', 'PLATFORM_TIP'],
     createdAt: { [Op.lt]: moment().startOf('month') },
-    [Op.or]: [{ FromCollectiveId: fromAccountCondition }, { UsingGiftCardFromCollectiveId: fromCollective.id }],
+    [Op.or]: [{ FromCollectiveId: fromAccountCondition }],
   };
 
   // If collective is a Host account, we'll ignore receipts that were fulfilled by the same host

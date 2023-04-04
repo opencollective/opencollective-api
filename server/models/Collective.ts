@@ -2681,11 +2681,11 @@ class Collective extends Model<
     const debitTransactionOrQuery = includeUsedGiftCardsEmittedByOthers
       ? // Include all transactions made by this collective or using one of its
         // gift cards
-        { CollectiveId: this.id, UsingGiftCardFromCollectiveId: this.id }
+        { CollectiveId: this.id }
       : // Either Collective made the transaction without using a gift card,
         // or a transaction was made using one of its gift cards - but don't
         // include gift cards used emitted by other collectives
-        [{ CollectiveId: this.id, UsingGiftCardFromCollectiveId: null }, { UsingGiftCardFromCollectiveId: this.id }];
+        [{ CollectiveId: this.id }];
 
     return {
       [Op.or]: [

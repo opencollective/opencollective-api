@@ -662,9 +662,6 @@ const getMembersWithTotalDonations = (where, options = {}) => {
     WITH
       DirectStats AS (
         ${buildTransactionsStatsQuery('FromCollectiveId')}
-      ),
-      IndirectStats AS (
-        ${buildTransactionsStatsQuery('UsingGiftCardFromCollectiveId')}
       )
     SELECT
       ${selector},
@@ -690,7 +687,6 @@ const getMembersWithTotalDonations = (where, options = {}) => {
       GREATEST(Max(dstats."lastDonation"), Max(istats."lastDonation")) AS "lastDonation"
     FROM "Collectives" c
     LEFT JOIN DirectStats dstats ON c.id = dstats."FromCollectiveId"
-    LEFT JOIN IndirectStats istats ON c.id = istats."UsingGiftCardFromCollectiveId"
     LEFT JOIN "Members" member ON c.id = member."${groupBy}"
     LEFT JOIN "Users" u ON c.id = u."CollectiveId"
     WHERE member."${memberCondAttribute}" IN (:collectiveids)
