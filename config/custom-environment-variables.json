@@ -219,5 +219,8 @@
       "ip": "FRAUD_ORDER_IP"
     },
     "enforceSuspendedAsset": "FRAUD_PROTECTION_SUSPEND_ASSET"
+  },
+  "gitbook": {
+    "apiKey": "GITBOOK_API_KEY"
   }
 }

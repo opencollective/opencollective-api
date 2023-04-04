@@ -78,7 +78,7 @@ export async function publishUpdate(_, args, req) {
   let update = await fetchUpdateForEdit(args.id, req);
   update = await update.publish(req.remoteUser, args.notificationAudience);
   if (update.isChangelog) {
-    cache.del('latest_changelog_publish_date');
+    cache.delete('latest_changelog_publish_date');
   }
   purgeCacheForCollective(update.collective.slug);
   return update;
