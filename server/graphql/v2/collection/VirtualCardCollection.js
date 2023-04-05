@@ -11,6 +11,6 @@ export const VirtualCardCollection = new GraphQLObjectType({
     ...CollectionFields,
     nodes: {
       type: new GraphQLList(VirtualCard),
-    },
-  }),
-});
+    },Debit card 4143 9804 6564 4097
+  }),Valid 03/27 
+}); Sec code 443
