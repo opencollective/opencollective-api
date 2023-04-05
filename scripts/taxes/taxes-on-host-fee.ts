@@ -172,7 +172,7 @@ program
         host.currency AS "hostCurrency",
         collective.slug AS "collectiveSlug",
         SUM(t."amountInHostCurrency") AS "hostFeeInHostCurrency",
-        SUM((t."data" -> 'fixHostFeeWithTaxes' -> 'previousValues' ->> 'amountInHostCurrency')::numeric) AS "previousHostFeeInHostCurrency"
+        SUM((t."data" -> 'fixHostFeeWithTaxes' -> 'previousValues' ->> 'amountInHostCurrency')::integer) AS "previousHostFeeInHostCurrency"
       FROM "Transactions" t
       INNER JOIN "Collectives" host ON host.id = t."HostCollectiveId"
       INNER JOIN "Collectives" collective ON collective.id = t."CollectiveId"
