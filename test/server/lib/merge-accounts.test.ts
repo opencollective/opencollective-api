@@ -111,8 +111,13 @@ const generateTestData = async () => {
 
 const sumCounts = (count1, count2) => {
   return {
-    account: mergeWith(count1.account, count2.account, (objValue, srcValue) => {
-      return (objValue || 0) + (srcValue || 0);
+    account: mergeWith(count1.account, count2.account, (objValue, srcValue, key) => {
+      const sum = (objValue || 0) + (srcValue || 0);
+      // Locations are merged in a different way to only keep the most recent one
+      if (key === 'location') {
+        return Math.min(1, sum);
+      }
+      return sum;
     }),
     user: !count1.user
       ? null

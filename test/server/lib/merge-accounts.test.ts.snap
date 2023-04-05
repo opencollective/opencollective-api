@@ -20,7 +20,7 @@ Object {
   "hostApplicationsCreated": 0,
   "hostedCollectives": 0,
   "legalDocuments": 1,
-  "location": 0,
+  "location": 1,
   "memberInvitations": 0,
   "members": 1,
   "membershipInvitations": 0,
@@ -62,7 +62,7 @@ Object {
   "hostApplicationsCreated": 0,
   "hostedCollectives": 0,
   "legalDocuments": 1,
-  "location": 0,
+  "location": 1,
   "memberInvitations": 0,
   "members": 1,
   "membershipInvitations": 0,
@@ -96,7 +96,6 @@ Object {
   "expenseAttachedFiles": 0,
   "expenseItems": 0,
   "expenses": 2,
-  "location": 0,
   "memberInvitations": 0,
   "members": 0,
   "migrationLogs": 0,
@@ -125,7 +124,6 @@ Object {
   "expenseAttachedFiles": 0,
   "expenseItems": 0,
   "expenses": 2,
-  "location": 0,
   "memberInvitations": 0,
   "members": 0,
   "migrationLogs": 0,
@@ -162,7 +160,7 @@ Object {
   "hostApplicationsCreated": 0,
   "hostedCollectives": 0,
   "legalDocuments": 1,
-  "location": 0,
+  "location": 1,
   "memberInvitations": 0,
   "members": 2,
   "membershipInvitations": 0,
@@ -288,6 +286,7 @@ Object {
   "hostApplicationsCreated": 0,
   "hostedCollectives": 2,
   "legalDocuments": 1,
+  "location": 1,
   "memberInvitations": 0,
   "members": 4,
   "membershipInvitations": 0,
@@ -329,6 +328,7 @@ The following items will be moved to @to-collective:
   - giftCardTransactions: 1
   - hostedCollectives: 1
   - legalDocuments: 1
+  - location: 1
   - members: 2
   - memberships: 2
   - notifications: 1
@@ -402,6 +402,7 @@ The following items will be moved to @to-user:
   - expensesCreated: 1
   - giftCardTransactions: 1
   - legalDocuments: 1
+  - location: 1
   - members: 1
   - notifications: 1
   - ordersCreated: 1
