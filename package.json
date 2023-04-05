@@ -82,7 +82,7 @@
     "get-urls": "10.0.1",
     "gqlmin": "0.1.1",
     "graphql": "16.6.0",
-    "graphql-scalars": "1.20.4",
+    "graphql-scalars": "1.21.3",
     "handlebars": "4.7.7",
     "hashids": "2.2.11",
     "hcaptcha": "0.1.1",
