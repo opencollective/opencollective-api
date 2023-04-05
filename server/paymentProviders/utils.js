@@ -61,7 +61,8 @@ export const persistTransaction = async (virtualCard, transaction) => {
   const description = `Virtual Card charge: ${vendor.name}`;
 
   // Case when expense is already created after the stripe authorization request event
-  if (transaction.fromAuthorizationId) {
+  // Double check if transaction is a refund because sometimes the refund event is sent before the charge event
+  if (transaction.fromAuthorizationId && !transaction.isRefund) {
     const processingExpense = await models.Expense.findOne({
       where: {
         status: ExpenseStatus.PROCESSING,
