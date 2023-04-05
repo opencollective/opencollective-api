@@ -125,7 +125,7 @@ export const fakeUser = async (
 };
 
 /** Create a fake host */
-export const fakeHost = async (hostData = {}) => {
+export const fakeHost = async (hostData: Parameters<typeof fakeCollective>[0] = {}) => {
   return fakeCollective({
     type: CollectiveType.ORGANIZATION,
     name: randStr('Test Host '),

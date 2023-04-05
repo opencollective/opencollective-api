@@ -3,11 +3,9 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import * as hcaptcha from 'hcaptcha';
 import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
-import CAPTCHA_PROVIDERS from '../../../constants/captcha-providers';
 import { types } from '../../../constants/collectives';
 import FEATURE from '../../../constants/feature';
 import status from '../../../constants/order_status';
@@ -15,19 +13,19 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/
 import roles from '../../../constants/roles';
 import { VAT_OPTIONS } from '../../../constants/vat';
 import { purgeCacheForCollective } from '../../../lib/cache';
+import { checkCaptcha } from '../../../lib/check-captcha';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
 import { mustUpdateLocation } from '../../../lib/location';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
-import recaptcha from '../../../lib/recaptcha';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
 import { checkGuestContribution, checkOrdersLimit, cleanOrdersLimit } from '../../../lib/security/limit';
 import { orderFraudProtection } from '../../../lib/security/order';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { canUseFeature } from '../../../lib/user-permissions';
-import { formatCurrency, parseToBoolean } from '../../../lib/utils';
+import { formatCurrency } from '../../../lib/utils';
 import models, { Op } from '../../../models';
 import {
   BadRequest,
@@ -93,45 +91,6 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
     }
   }
 };
-
-async function checkCaptcha(order, remoteUser, reqIp) {
-  const requestedProvider = order.guestInfo?.captcha?.provider;
-  const isCaptchaEnabled = parseToBoolean(config.captcha?.enabled);
-  const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
-
-  // We're just enforcing Captcha if it's enabled and if the order is using Credit Card
-  if (!isCaptchaEnabled || !isCreditCardOrder) {
-    return;
-  }
-
-  if (!order.guestInfo?.captcha?.token) {
-    throw new BadRequest('You need to inform a valid captcha token');
-  }
-  let response;
-  if (requestedProvider === CAPTCHA_PROVIDERS.HCAPTCHA && config.hcaptcha?.secret) {
-    response = await hcaptcha.verify(
-      config.hcaptcha.secret,
-      order.guestInfo.captcha.token,
-      reqIp,
-      config.hcaptcha.sitekey,
-    );
-  } else if (
-    requestedProvider === CAPTCHA_PROVIDERS.RECAPTCHA &&
-    config.recaptcha &&
-    parseToBoolean(config.recaptcha.enable)
-  ) {
-    response = await recaptcha.verify(order.guestInfo.captcha.token, reqIp);
-  } else {
-    throw new BadRequest('Could not find requested Captcha provider', undefined, order.guestInfo?.captcha);
-  }
-
-  if (response.success !== true) {
-    logger.warn('Captcha verification failed:', response);
-    throw new BadRequest('Captcha verification failed');
-  }
-
-  return response;
-}
 
 /**
  * Check the taxes for order, returns the tax info
@@ -410,7 +369,16 @@ export async function createOrder(order, req) {
       } else {
         // Create or retrieve guest profile from GUEST_TOKEN
         const creationRequest = { ip: reqIp, userAgent, mask: reqMask };
-        captchaResponse = await checkCaptcha(order, remoteUser, reqIp);
+
+        // We're just enforcing Captcha if the order is using Credit Card
+        const isCreditCardOrder = order.paymentMethod?.type === PAYMENT_METHOD_TYPE.CREDITCARD;
+        if (isCreditCardOrder) {
+          try {
+            captchaResponse = await checkCaptcha(order.guestInfo?.captcha, reqIp);
+          } catch (err) {
+            throw new BadRequest(err.message, undefined, order.guestInfo?.captcha);
+          }
+        }
         const guestProfile = await getOrCreateGuestProfile(order.guestInfo, creationRequest);
         if (!canUseFeature(guestProfile.user, FEATURE.ORDER)) {
           throw new FeatureNotAllowedForUser();

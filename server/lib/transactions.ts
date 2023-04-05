@@ -1,13 +1,13 @@
 import assert from 'assert';
 
-import { round, set, sumBy, truncate } from 'lodash';
+import { groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
 import { TransactionKind } from '../constants/transaction-kind';
 import { TransactionTypes } from '../constants/transactions';
 import { toNegative } from '../lib/math';
-import { exportToCSV } from '../lib/utils';
+import { exportToCSV, sumByWhen } from '../lib/utils';
 import models, { Op } from '../models';
 import Tier from '../models/Tier';
 
@@ -434,3 +434,23 @@ export async function generateDescription(transaction, { req = null, full = fals
 
   return `${baseString}${debtString}${fromString}${toString}${tierString}${extraString}`;
 }
+
+/**
+ * From a list of transactions, generates an object like:
+ * {
+ *   [TaxId]: { totalCollected: number, totalPaid: number }
+ * }
+ */
+export const getTaxesSummary = (allTransactions: typeof models.Transaction) => {
+  const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
+  if (!transactionsWithTaxes.length) {
+    return null;
+  }
+
+  const groupedTransactions = groupBy(transactionsWithTaxes, 'data.tax.id');
+  const getTaxAmountInHostCurrency = transaction => transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
+  return mapValues(groupedTransactions, transactions => ({
+    collected: Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')),
+    paid: sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'DEBIT'),
+  }));
+};

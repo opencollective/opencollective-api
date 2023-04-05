@@ -1074,7 +1074,11 @@ class Collective extends Model<
    * Activate Budget (so the "Host Organization" can receive financial contributions and manage expenses)
    */
   activateBudget = async function () {
-    if (!this.isHostAccount || ![types.ORGANIZATION].includes(this.type) || this.HostCollectiveId !== this.id) {
+    if (
+      !this.isHostAccount ||
+      ![types.ORGANIZATION].includes(this.type) ||
+      (this.HostCollectiveId && this.HostCollectiveId !== this.id)
+    ) {
       return;
     }
 
@@ -3421,10 +3425,18 @@ Collective.init(
       },
     },
 
-    description: DataTypes.STRING, // max 95 characters
+    description: {
+      type: DataTypes.STRING,
+      validate: {
+        len: [0, 255],
+      },
+    },
 
     longDescription: {
       type: DataTypes.TEXT,
+      validate: {
+        len: [0, 30000], // just to prevent people from putting a lot of text in there
+      },
       set(longDescription: string) {
         if (longDescription) {
           this.setDataValue('longDescription', sanitizeHTML(longDescription, longDescriptionSanitizerOptions));

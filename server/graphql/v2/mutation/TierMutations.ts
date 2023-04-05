@@ -154,10 +154,6 @@ const tierMutations = {
       checkRemoteUserCanUseAccount(req);
 
       const tier = await fetchTierWithReference(args.tier, { throwIfMissing: true });
-      if (tier === 'custom') {
-        throw new Error('Cannot delete custom tier. Set settings.disableCustomContributions to true instead.');
-      }
-
       const collective = await req.loaders.Collective.byId.load(tier.CollectiveId);
       if (!req.remoteUser.isAdminOfCollective(collective)) {
         throw new Unauthorized();

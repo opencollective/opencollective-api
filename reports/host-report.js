@@ -1,7 +1,7 @@
 import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
-import { groupBy, keyBy, mapValues, pick, sumBy } from 'lodash';
+import { groupBy, keyBy, pick, sumBy } from 'lodash';
 import moment from 'moment';
 
 import MemberRoles from '../server/constants/roles.ts';
@@ -11,7 +11,7 @@ import emailLib from '../server/lib/email';
 import { getBackersStats, getHostedCollectives, sumTransactions } from '../server/lib/hostlib';
 import { stripHTML } from '../server/lib/sanitize-html';
 import { reportErrorToSentry, reportMessageToSentry } from '../server/lib/sentry';
-import { getTransactions } from '../server/lib/transactions';
+import { getTaxesSummary, getTransactions } from '../server/lib/transactions';
 import { exportToPDF, sumByWhen } from '../server/lib/utils';
 import models, { Op, sequelize } from '../server/models';
 
@@ -47,26 +47,6 @@ const enrichTransactionsWithHostFee = async transactions => {
     }
   });
   return transactions;
-};
-
-/**
- * From a list of transactions, generates an object like:
- * {
- *   [TaxId]: { totalCollected: number, totalPaid: number }
- * }
- */
-const getTaxesSummary = allTransactions => {
-  const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
-  if (!transactionsWithTaxes.length) {
-    return null;
-  }
-
-  const groupedTransactions = groupBy(transactionsWithTaxes, 'data.tax.id');
-  const getTaxAmountInHostCurrency = transaction => transaction.taxAmount * (transaction.hostCurrencyRate || 1) || 0;
-  return mapValues(groupedTransactions, transactions => ({
-    collected: Math.abs(sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'CREDIT')),
-    paid: sumByWhen(transactions, getTaxAmountInHostCurrency, t => t.type === 'DEBIT'),
-  }));
 };
 
 async function HostReport(year, month, hostId) {

@@ -490,8 +490,8 @@ export const snapshotTransactions = (transactions, params = {}) => {
 /**
  * Makes a full snapshot of the ledger
  */
-export const snapshotLedger = async columns => {
-  const transactions = await models.Transaction.findAll({ order: [['id', 'DESC']] });
+export const snapshotLedger = async (columns, { where = null, order = [['id', 'DESC']] } = {}) => {
+  const transactions = await models.Transaction.findAll({ where, order });
   await preloadAssociationsForTransactions(transactions, columns);
   if (columns.includes('settlementStatus')) {
     await models.TransactionSettlement.attachStatusesToTransactions(transactions);

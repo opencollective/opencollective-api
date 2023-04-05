@@ -29,8 +29,8 @@ export const TierReferenceInput = new GraphQLInputObjectType({
  */
 export const fetchTierWithReference = async (
   input,
-  { loaders = null, throwIfMissing = false, allowCustomTier = false } = {},
-): Promise<Tier | 'custom' | null> => {
+  { loaders = null, throwIfMissing = false } = {},
+): Promise<Tier | null> => {
   const loadTier = id => (loaders ? loaders.Tier.byId.load(id) : Tier.findByPk(id));
   let tier;
   if (input.id) {
@@ -38,8 +38,6 @@ export const fetchTierWithReference = async (
     tier = await loadTier(id);
   } else if (input.legacyId) {
     tier = await loadTier(input.legacyId);
-  } else if (allowCustomTier && input.isCustom) {
-    return 'custom';
   } else {
     throw new Error('Please provide an id');
   }

@@ -59,9 +59,13 @@ const parsePaypalError = async (
   }
 
   // Known errors
-  if (error?.name === 'UNPROCESSABLE_ENTITY') {
-    if (error.details?.[0]?.issue === 'INSTRUMENT_DECLINED') {
+  if (error?.name === 'UNPROCESSABLE_ENTITY' && error.details?.[0]) {
+    const errorDetails = error.details[0];
+    if (errorDetails.issue === 'INSTRUMENT_DECLINED') {
       message = 'The payment method was declined by PayPal. Please try with a different payment method.';
+    } else if (errorDetails.issue === 'REFUND_FAILED_INSUFFICIENT_FUNDS') {
+      message =
+        'Capture could not be refunded due to insufficient funds. Please check to see if you have sufficient funds in your PayPal account or if the bank account linked to your PayPal account is verified and has sufficient funds.';
     }
   }
 
