@@ -168,20 +168,28 @@ program
     const results = await sequelize.query(
       `
       SELECT
+        t."TransactionGroup",
         host.slug AS "hostSlug",
         host.currency AS "hostCurrency",
         collective.slug AS "collectiveSlug",
-        SUM(t."amountInHostCurrency") AS "hostFeeInHostCurrency",
-        SUM((t."data" -> 'fixHostFeeWithTaxes' -> 'previousValues' ->> 'amountInHostCurrency')::integer) AS "previousHostFeeInHostCurrency"
+        t."amountInHostCurrency" AS "hostFeeInHostCurrency",
+        (t."data" -> 'fixHostFeeWithTaxes' -> 'previousValues' ->> 'amountInHostCurrency')::integer AS "previousHostFeeInHostCurrency",
+        COALESCE(host_fee_share."amount", 0) AS "hostFeeShareInHostCurrency",
+        CASE WHEN
+          host_fee_share."amount" IS NULL THEN 0
+          WHEN host.slug = 'europe' THEN CASE WHEN t."createdAt" < '2022-06-01' THEN 0.15 ELSE 0.395 END
+          WHEN host.slug = 'ocnz' THEN 0.15
+        END AS "hostFeeSharePercent"
       FROM "Transactions" t
       INNER JOIN "Collectives" host ON host.id = t."HostCollectiveId"
       INNER JOIN "Collectives" collective ON collective.id = t."CollectiveId"
+      LEFT JOIN "Transactions" host_fee_share ON host_fee_share."TransactionGroup" = t."TransactionGroup" AND host_fee_share."type" = 'DEBIT' AND host_fee_share."kind" = 'HOST_FEE_SHARE' AND host_fee_share."deletedAt" IS NULL
       WHERE t."data"->>'fixHostFeeWithTaxes' IS NOT NULL
       AND t."kind" = 'HOST_FEE'
       AND t."deletedAt" IS NULL
       AND t."type" = 'DEBIT' -- To make sure we get the collective with 'CollectiveId'
-      GROUP BY host.id, collective.id
-      ORDER BY host.slug, collective.slug
+      GROUP BY t.id, host_fee_share.id, host.id, collective.id
+      ORDER BY t.id
     `,
       {
         type: sequelize.QueryTypes.SELECT,
@@ -199,7 +207,19 @@ program
       const totalTaxes = sumBy(hostResults, 'hostFeeInHostCurrency');
       const previousTotalTaxes = sumBy(hostResults, 'previousHostFeeInHostCurrency');
       const totalRefunded = Math.abs(previousTotalTaxes - totalTaxes);
+      const totalHostFeeShare = sumBy(hostResults, 'hostFeeShareInHostCurrency');
+      const totalHostFeeShareExpected = sumBy(hostResults, result => {
+        const rate = parseFloat(result.hostFeeSharePercent);
+        return !rate ? 0 : Math.round(result.hostFeeInHostCurrency * rate);
+      });
+
       logger.info(`Total amount refunded by script: ${formatCurrency(totalRefunded, hostResults[0].hostCurrency)}`);
+      logger.info(
+        `Total host fee share to refund from OC Inc to host: ${formatCurrency(
+          totalHostFeeShare - totalHostFeeShareExpected,
+          hostResults[0].hostCurrency,
+        )}`,
+      );
 
       const groupedByCollective = groupBy(hostResults, 'collectiveSlug');
       for (const [collectiveSlug, collectiveResults] of Object.entries(groupedByCollective)) {
