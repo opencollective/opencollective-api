@@ -34,15 +34,23 @@ import { TaxInfo } from './TaxInfo';
 import { VirtualCard } from './VirtualCard';
 
 const EXPENSE_DRAFT_PUBLIC_FIELDS = [
-  'items',
-  'payee',
-  'recipientNote',
+  'taxes',
   'invitedByCollectiveId',
+  'payee.name',
+  'payee.slug',
+  'payee.id',
+  'payee.organization',
+];
+const EXPENSE_DRAFT_PRIVATE_FIELDS = [
+  'recipientNote',
   'attachedFiles',
   'payoutMethod',
   'payeeLocation',
-  'taxes',
+  'payee.email',
+  'payee.legalName',
 ];
+const EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS = ['id', 'amount', 'incurredAt', 'description'];
+const EXPENSE_DRAFT_ITEMS_PRIVATE_FIELDS = ['url'];
 
 const loadHostForExpense = async (expense, req) => {
   return expense.HostCollectiveId
@@ -349,9 +357,21 @@ const Expense = new GraphQLObjectType({
       draft: {
         type: GraphQLJSON,
         description: 'Drafted field values that were still not persisted',
-        async resolve(expense) {
+        async resolve(expense, _, req) {
           if (expense.status === expenseStatus.DRAFT) {
-            return pick(expense.data, EXPENSE_DRAFT_PUBLIC_FIELDS);
+            let draftFields = EXPENSE_DRAFT_PUBLIC_FIELDS;
+            let itemsFields = EXPENSE_DRAFT_ITEMS_PUBLIC_FIELDS;
+            if (await ExpenseLib.canSeeExpenseDraftPrivateDetails(req, expense)) {
+              draftFields = [...draftFields, ...EXPENSE_DRAFT_PRIVATE_FIELDS];
+              itemsFields = [...itemsFields, ...EXPENSE_DRAFT_ITEMS_PRIVATE_FIELDS];
+            }
+
+            const draftData = pick(expense.data, draftFields);
+            if (expense.data?.items) {
+              draftData.items = expense.data.items.map(item => pick(item, itemsFields));
+            }
+
+            return draftData;
           }
         },
       },

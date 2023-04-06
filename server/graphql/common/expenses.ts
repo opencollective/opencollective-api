@@ -78,6 +78,7 @@ import {
 } from '../errors';
 import { CurrencyExchangeRateSourceTypeEnum } from '../v2/enum/CurrencyExchangeRateSourceType';
 
+import { getContextPermission, PERMISSION_TYPE } from './context-permissions';
 import { checkRemoteUserCanRoot } from './scope-check';
 
 const debug = debugLib('expenses');
@@ -296,6 +297,23 @@ export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, e
     isHostAdmin,
     isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
+};
+
+export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
+  // We allow a context permission for unauthenticated users who provide the correct draft key
+  if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {
+    return true;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [
+      isCollectiveAdmin,
+      isHostAdmin,
+      isCollectiveOrHostAccountant,
+      isAdminOrAccountantOfHostWhoPaidExpense,
+      isDraftPayee,
+      isOwner,
+      isOwnerAccountant,
+    ]);
+  }
 };
 
 /** Checks if the user can verify or resend a draft */

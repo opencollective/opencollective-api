@@ -200,6 +200,7 @@ export const collectiveSlugReservedList = [
   'conversations',
   'create',
   'create-account',
+  'dashboard',
   'delete',
   'deleteCollective',
   'discover',
