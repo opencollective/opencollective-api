@@ -867,7 +867,7 @@ Transaction.createHostFeeShareTransactions = async (
   }
 
   // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
-  const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent); // TODO without taxes
+  const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
   const currency = hostFeeTransaction.hostCurrency;
 
   // Skip if the amount is zero (e.g.: 15% * 0.03 = 0.0045 and rounded to 0)
