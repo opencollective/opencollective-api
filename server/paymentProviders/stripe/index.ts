@@ -129,7 +129,7 @@ export default {
 
         if (!location?.structured && account.legal_entity) {
           const {
-            address: { line1: address1, line2: address2, country, city, postal_code: postalCode },
+            address: { line1: address1, line2: address2, country, state: zone, city, postal_code: postalCode },
           } = account.legal_entity;
 
           await collective.setLocation({
@@ -138,6 +138,7 @@ export default {
               address1,
               address2,
               city,
+              zone,
               postalCode,
             },
           });
