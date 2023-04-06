@@ -15,9 +15,11 @@ import {
   differenceWith,
   get,
   includes,
+  isNil,
   isNull,
   isUndefined,
   omit,
+  omitBy,
   pick,
   round,
   set,
@@ -1876,8 +1878,11 @@ class Collective extends Model<
     }
 
     if (locationInput) {
-      const { name, country, lat, long, structured } = locationInput;
+      const { name, country, lat, long } = locationInput;
+      let { structured } = locationInput;
       let { address } = locationInput;
+
+      structured = omitBy(structured, isNil);
 
       // Set Collective.countryISO
       await this.update({ countryISO: country }, sequelizeParams);
