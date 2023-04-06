@@ -74,6 +74,7 @@ paymentMethodProvider.processOrder = async (order, options) => {
     kind: TransactionKind.ADDED_FUNDS,
     OrderId: order.id,
     amount,
+    taxAmount: order.taxAmount,
     currency,
     hostCurrency,
     hostCurrencyFxRate,
