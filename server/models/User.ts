@@ -29,6 +29,11 @@ import models from '.';
 
 const debug = debugLib('models:User');
 
+type UserData = {
+  creationRequest?: { ip: string };
+  lastSignInRequest?: { ip: string };
+};
+
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare readonly id: CreationOptional<number>;
   public declare email: string;
@@ -39,7 +44,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
   public declare CollectiveId: number;
   public declare newsletterOptIn: boolean;
-  public declare data: CreationOptional<Record<string, unknown>>;
+  public declare data: CreationOptional<Record<string, unknown> & UserData>;
   public declare createdAt: CreationOptional<Date>;
   public declare changelogViewDate: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
