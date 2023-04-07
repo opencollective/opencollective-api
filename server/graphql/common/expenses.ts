@@ -2214,7 +2214,7 @@ export async function markExpenseAsUnpaid(
 ): Promise<Expense> {
   const { remoteUser } = req;
 
-  const updatedExpense = await lockExpense(expenseId, async () => {
+  const { expense, transaction } = await lockExpense(expenseId, async () => {
     if (!remoteUser) {
       throw new Unauthorized('You need to be logged in to unpay an expense');
     } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -2256,11 +2256,12 @@ export async function markExpenseAsUnpaid(
       : 0;
     await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
 
-    return expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+    await expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+    return { expense, transaction };
   });
 
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser);
-  return updatedExpense;
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser, { transaction });
+  return expense;
 }
 
 export async function quoteExpense(expense_, { req }) {
