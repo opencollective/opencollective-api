@@ -1,5 +1,4 @@
 import DataLoader from 'dataloader';
-import type { Request } from 'express';
 import { groupBy } from 'lodash';
 
 import ACTIVITY from '../../constants/activities';
@@ -13,7 +12,7 @@ import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
-import { sortResultsArray } from './helpers';
+import { populateModelAssociations, sortResultsArray } from './helpers';
 
 /**
  * Loader for expense's items.
@@ -128,31 +127,12 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
     });
   });
 
-export const populateAssociations = async <M>(
-  req: Request,
-  objects: M[],
-  associations: Array<{ fkField: string; toProperty?: string; modelName: keyof typeof models }>,
-): Promise<M[]> => {
-  const promises = associations.map(async ({ fkField, toProperty, modelName }) => {
-    const ids = objects.map(obj => obj[fkField]).filter(id => id);
-    const foreignObjects = await req.loaders[modelName].byId.loadMany(ids);
-    objects.forEach(obj => {
-      const subObject = foreignObjects.find(s => s.id === obj[fkField]);
-      if (subObject) {
-        obj[toProperty || modelName] = subObject;
-      }
-    });
-  });
-  await Promise.all(promises);
-  return objects;
-};
-
 export const generateExpensesSecurityCheckLoader = req => {
   return new DataLoader(
     async (expenses: Expense[]) => {
-      await populateAssociations(req, expenses, [
-        { fkField: 'CollectiveId', toProperty: 'collective', modelName: 'Collective' },
-        { fkField: 'FromCollectiveId', toProperty: 'fromCollective', modelName: 'Collective' },
+      await populateModelAssociations(req, expenses, [
+        { fkField: 'CollectiveId', as: 'collective', modelName: 'Collective' },
+        { fkField: 'FromCollectiveId', as: 'fromCollective', modelName: 'Collective' },
         { fkField: 'UserId', modelName: 'User' },
         { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
       ]);

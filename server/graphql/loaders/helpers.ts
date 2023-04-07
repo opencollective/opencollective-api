@@ -1,6 +1,9 @@
 import DataLoader from 'dataloader';
+import type { Request } from 'express';
 import { get } from 'lodash';
 import { Model, ModelStatic } from 'sequelize';
+
+import models from '../../models';
 
 /** A default getter that returns item's id */
 const defaultKeyGetter = (item): number | string => item.id;
@@ -188,3 +191,22 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
     },
   );
 }
+
+export const populateModelAssociations = async <M>(
+  req: Request,
+  objects: M[],
+  associations: Array<{ fkField: string; as?: string; modelName: keyof typeof models }>,
+): Promise<M[]> => {
+  const promises = associations.map(async ({ fkField, as: propertyKey, modelName }) => {
+    const ids = objects.map(obj => obj[fkField]).filter(id => id);
+    const foreignObjects = await req.loaders[modelName].byId.loadMany(ids);
+    objects.forEach(obj => {
+      const subObject = foreignObjects.find(s => s.id === obj[fkField]);
+      if (subObject) {
+        obj[propertyKey || modelName] = subObject;
+      }
+    });
+  });
+  await Promise.all(promises);
+  return objects;
+};
