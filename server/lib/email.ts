@@ -308,6 +308,12 @@ const generateEmailFromTemplate = (
     }
   }
 
+  if (template === 'collective.apply') {
+    if (hostSlug === 'foundation') {
+      template = `${template}.${hostSlug}`;
+    }
+  }
+
   if (template === 'collective.created') {
     if (['opensource', 'the-social-change-nest'].includes(hostSlug)) {
       template = `${template}.${hostSlug}`;

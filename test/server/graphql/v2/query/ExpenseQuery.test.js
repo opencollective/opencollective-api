@@ -14,12 +14,20 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
   before(resetTestDB);
 
   describe('Permissions', () => {
-    let expense, ownerUser, collectiveAdminUser, hostAdminUser, hostAccountantUser, randomUser, payoutMethod;
+    let expense,
+      draftExpense,
+      ownerUser,
+      collectiveAdminUser,
+      hostAdminUser,
+      hostAccountantUser,
+      randomUser,
+      payoutMethod;
 
     const expenseQuery = gqlV2/* GraphQL */ `
-      query Expense($id: Int!) {
-        expense(expense: { legacyId: $id }) {
+      query Expense($id: Int!, $draftKey: String) {
+        expense(expense: { legacyId: $id }, draftKey: $draftKey) {
           id
+          draft
           payee {
             id
             name
@@ -61,6 +69,35 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         FromCollectiveId: ownerUser.collective.id,
         CollectiveId: collective.id,
         PayoutMethodId: payoutMethod.id,
+      });
+      draftExpense = await fakeExpense({
+        FromCollectiveId: ownerUser.collective.id,
+        CollectiveId: collective.id,
+        PayoutMethodId: payoutMethod.id,
+        status: 'DRAFT',
+        data: {
+          draftKey: 'a-valid-draft-key',
+          // Draft data
+          description: 'A description',
+          payeeLocation: { country: 'FR' },
+          items: [
+            {
+              url: 'https://opencollective.com',
+              amount: 1000,
+              description: 'A description',
+            },
+          ],
+          payee: {
+            name: 'A name',
+            slug: 'a-slug',
+            id: 4242,
+            legalName: 'A legal name',
+            email: 'test@opencollective.com',
+            organization: {
+              name: 'An organization name',
+            },
+          },
+        },
       });
     });
 
@@ -162,6 +199,54 @@ describe('server/graphql/v2/query/ExpenseQuery', () => {
         allowed: false,
         reason: 'MINIMAL_CONDITION_NOT_MET',
       });
+    });
+
+    it('cannot see private details if not allowed', async () => {
+      const queryParams = { id: draftExpense.id };
+      const resultUnauthenticated = await graphqlQueryV2(expenseQuery, queryParams);
+      const resultAsRandomUser = await graphqlQueryV2(expenseQuery, queryParams, randomUser);
+      const expectedData = {
+        items: [{ amount: 1000, description: 'A description' }],
+        payee: {
+          id: 4242,
+          name: 'A name',
+          organization: { name: 'An organization name' },
+          slug: 'a-slug',
+        },
+      };
+
+      expect(resultUnauthenticated.data.expense.draft).to.deep.eq(expectedData);
+      expect(resultAsRandomUser.data.expense.draft).to.deep.eq(expectedData);
+    });
+
+    it('can see private details if allowed', async () => {
+      // Query
+      const queryParams = { id: draftExpense.id };
+      const resultAsOwner = await graphqlQueryV2(expenseQuery, queryParams, ownerUser);
+      const resultAsCollectiveAdmin = await graphqlQueryV2(expenseQuery, queryParams, collectiveAdminUser);
+      const resultAsHostAdmin = await graphqlQueryV2(expenseQuery, queryParams, hostAdminUser);
+      const resultAsHostAccountant = await graphqlQueryV2(expenseQuery, queryParams, hostAccountantUser);
+      const resultWithDraftKey = await graphqlQueryV2(expenseQuery, { ...queryParams, draftKey: 'a-valid-draft-key' });
+
+      // Check results
+      const expectedData = {
+        items: [{ amount: 1000, description: 'A description', url: 'https://opencollective.com' }],
+        payeeLocation: { country: 'FR' },
+        payee: {
+          id: 4242,
+          email: 'test@opencollective.com',
+          legalName: 'A legal name',
+          name: 'A name',
+          organization: { name: 'An organization name' },
+          slug: 'a-slug',
+        },
+      };
+
+      expect(resultWithDraftKey.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsCollectiveAdmin.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsOwner.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsHostAdmin.data.expense.draft).to.deep.equal(expectedData);
+      expect(resultAsHostAccountant.data.expense.draft).to.deep.equal(expectedData);
     });
   });
 

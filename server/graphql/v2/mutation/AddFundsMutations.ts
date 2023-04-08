@@ -1,32 +1,76 @@
 import express from 'express';
 import { GraphQLFloat, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
-import { isNil } from 'lodash';
 
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import { addFunds } from '../../common/orders';
 import { checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { ValidationFailed } from '../../errors';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
-import { AmountInput, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { AmountInput, AmountInputType, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { GraphQLTaxInput, TaxInput } from '../input/TaxInput';
 import { fetchTierWithReference, TierReferenceInput } from '../input/TierReferenceInput';
 import { Order } from '../object/Order';
+
+type AddFundsMutationArgs = {
+  fromAccount: Record<string, unknown>;
+  account: Record<string, unknown>;
+  tier: Record<string, unknown>;
+  amount: AmountInputType;
+  description: string;
+  memo: string;
+  processedAt: Date;
+  hostFeePercent: number;
+  invoiceTemplate: string;
+  tax: TaxInput;
+};
 
 export const addFundsMutation = {
   type: new GraphQLNonNull(Order),
   description: 'Add funds to the given account. Scope: "host".',
   args: {
-    fromAccount: { type: new GraphQLNonNull(AccountReferenceInput) },
-    account: { type: new GraphQLNonNull(AccountReferenceInput) },
-    tier: { type: TierReferenceInput },
-    amount: { type: new GraphQLNonNull(AmountInput) },
-    description: { type: new GraphQLNonNull(GraphQLString) },
-    memo: { type: GraphQLString },
-    processedAt: { type: GraphQLDateTime },
-    hostFeePercent: { type: GraphQLFloat },
-    invoiceTemplate: { type: GraphQLString },
+    fromAccount: {
+      type: new GraphQLNonNull(AccountReferenceInput),
+      description: 'The account that will be used as the source of the funds',
+    },
+    account: {
+      type: new GraphQLNonNull(AccountReferenceInput),
+      description: 'The account that will receive the funds',
+    },
+    tier: {
+      type: TierReferenceInput,
+      description: 'The tier to which the funds will be added',
+    },
+    amount: {
+      type: new GraphQLNonNull(AmountInput),
+      description: 'The total amount of the order, including taxes',
+    },
+    hostFeePercent: {
+      type: GraphQLFloat,
+      description: 'The host fee percent to apply to the order, as a float between 0 and 100',
+    },
+    description: {
+      type: new GraphQLNonNull(GraphQLString),
+      description: 'A short description of the contribution',
+    },
+    memo: {
+      type: GraphQLString,
+      description: 'A private note for the host',
+    },
+    processedAt: {
+      type: GraphQLDateTime,
+      description: 'The date at which the order was processed',
+    },
+    invoiceTemplate: {
+      type: GraphQLString,
+      description: 'The invoice template to use for this order',
+    },
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
+    },
   },
-  resolve: async (_, args, req: express.Request) => {
+  resolve: async (_, args: AddFundsMutationArgs, req: express.Request) => {
     checkRemoteUserCanUseHost(req);
 
     const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
@@ -55,20 +99,22 @@ export const addFundsMutation = {
       }
     }
 
-    if (!isNil(args.hostFeePercent)) {
-      if (args.hostFeePercent < 0 || args.hostFeePercent > 100) {
-        throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
-      }
+    if (args.hostFeePercent < 0 || args.hostFeePercent > 100) {
+      throw new ValidationFailed('hostFeePercent should be a value between 0 and 100.');
+    } else if (args.tax && (args.tax.rate < 0 || args.tax.rate > 1)) {
+      throw new ValidationFailed('Tax rate must be between 0 and 1');
     }
 
     const host = await account.getHostCollective();
+    if (!host) {
+      throw new ValidationFailed('Adding funds is only possible for account with a host or independent.');
+    }
     if (!req.remoteUser.isAdmin(host.id) && !req.remoteUser.isRoot()) {
       throw new Error('Only an site admin or collective host admin can add fund');
     }
 
     // Enforce 2FA
     await twoFactorAuthLib.enforceForAccount(req, host, { onlyAskOnLogin: true });
-
     return addFunds(
       {
         totalAmount: getValueInCentsFromAmountInput(args.amount, { expectedCurrency: account.currency }),
@@ -81,6 +127,7 @@ export const addFundsMutation = {
         hostFeePercent: args.hostFeePercent,
         tier,
         invoiceTemplate: args.invoiceTemplate,
+        tax: args.tax,
       },
       req.remoteUser,
     );

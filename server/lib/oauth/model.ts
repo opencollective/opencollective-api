@@ -161,13 +161,16 @@ const model: OauthModel = {
       where: { ApplicationId: application.id, UserId: user.id },
     });
 
-    // Look if extra scope are requested
-    let extraScope;
+    // Look if it's a new authorization, by default yes
+    let newAuthorization = true;
+    // Unless a token was already existing
     if (userToken) {
-      extraScope = Array.from(scope).filter(x => !Array.from(userToken.scope).includes(x)).length !== 0;
+      // And there more scopes being asked than what there is in token scope
+      newAuthorization =
+        Array.from(scope || []).filter(x => !Array.from(userToken.scope || []).includes(x)).length !== 0;
     }
 
-    if (!userToken || extraScope) {
+    if (newAuthorization) {
       await models.Activity.create({
         type: activities.OAUTH_APPLICATION_AUTHORIZED,
         UserId: user.id,

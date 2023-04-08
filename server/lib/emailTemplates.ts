@@ -12,6 +12,7 @@ export const templateNames = [
   'order.canceled.archived.collective',
   'github.signup',
   'collective.apply',
+  'collective.apply.foundation',
   'collective.apply.for.host',
   'collective.approved',
   'collective.approved.foundation',
