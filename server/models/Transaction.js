@@ -612,8 +612,11 @@ Transaction.createDoubleEntry = async (transaction, opts) => {
       const collectiveHost = await collective.getHostCollective();
       if (collectiveHost.id !== fromCollectiveHost.id) {
         const hostFeePercent = fromCollective.isHostAccount ? 0 : fromCollective.hostFeePercent;
+        const taxAmountInHostCurrency = Math.round((transaction.taxAmount || 0) * hostCurrencyFxRate);
         oppositeTransaction.hostFeeInHostCurrency = calcFee(
-          oppositeTransaction.amountInHostCurrency + oppositeTransaction.paymentProcessorFeeInHostCurrency,
+          oppositeTransaction.amountInHostCurrency +
+            oppositeTransaction.paymentProcessorFeeInHostCurrency +
+            taxAmountInHostCurrency,
           hostFeePercent,
         );
         if (oppositeTransaction.hostFeeInHostCurrency) {
@@ -864,7 +867,7 @@ Transaction.createHostFeeShareTransactions = async (
   }
 
   // We use the Host Fee amountInHostCurrency/hostCurrency as a basis
-  const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent); // TODO without taxes
+  const amount = calcFee(hostFeeTransaction.amountInHostCurrency, hostFeeSharePercent);
   const currency = hostFeeTransaction.hostCurrency;
 
   // Skip if the amount is zero (e.g.: 15% * 0.03 = 0.0045 and rounded to 0)

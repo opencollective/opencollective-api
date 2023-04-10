@@ -15,8 +15,9 @@ const application = utils.data('application');
 describe('server/routes/images', () => {
   let user, expressApp;
 
-  before(async () => {
+  before(async function () {
     if (!config.aws.s3.key) {
+      console.warn('Skipping images tests because AWS credentials are not set');
       this.skip();
     }
 

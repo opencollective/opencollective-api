@@ -6,6 +6,7 @@ import moment from 'moment';
 import { expenseStatus } from '../../../../server/constants';
 import { EXPENSE_PERMISSION_ERROR_CODES } from '../../../../server/constants/permissions';
 import POLICIES from '../../../../server/constants/policies';
+import { allowContextPermission, PERMISSION_TYPE } from '../../../../server/graphql/common/context-permissions';
 import {
   canApprove,
   canComment,
@@ -16,6 +17,7 @@ import {
   canPayExpense,
   canReject,
   canSeeExpenseAttachments,
+  canSeeExpenseDraftPrivateDetails,
   canSeeExpenseInvoiceInfo,
   canSeeExpensePayeeLocation,
   canSeeExpensePayoutMethod,
@@ -224,6 +226,31 @@ describe('server/graphql/common/expenses', () => {
           limitedHostAdmin: false,
         });
       });
+    });
+  });
+
+  describe('canSeeExpenseDraftPrivateDetails', () => {
+    it('can see only with the allowed roles', async () => {
+      await runForAllContexts(async context => {
+        expect(await checkAllPermissions(canSeeExpensePayeeLocation, context)).to.deep.equal({
+          public: false,
+          randomUser: false,
+          collectiveAdmin: true,
+          collectiveAccountant: true,
+          hostAdmin: true,
+          hostAccountant: true,
+          expenseOwner: true,
+          limitedHostAdmin: false,
+        });
+      });
+    });
+
+    it('can see if context permission is set (in case user provided the correct draft key', async () => {
+      // Using a new context to make sure we don't pollute another request's context
+      const context = await prepareContext();
+      const { req, expense } = context;
+      allowContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id);
+      expect(await canSeeExpenseDraftPrivateDetails(req, expense)).to.be.true;
     });
   });
 

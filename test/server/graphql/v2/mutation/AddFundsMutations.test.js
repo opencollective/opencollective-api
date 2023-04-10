@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import gqlV2 from 'fake-tag';
+import { groupBy } from 'lodash';
 
 import { roles } from '../../../../../server/constants';
 import { fakeCollective, fakeProject, fakeTier, fakeUser, fakeUserToken } from '../../../../test-helpers/fake-data';
@@ -47,6 +48,10 @@ const addFundsMutation = gqlV2/* GraphQL */ `
         kind
         type
         amount {
+          valueInCents
+          currency
+        }
+        taxAmount {
           valueInCents
           currency
         }
@@ -184,6 +189,22 @@ describe('server/graphql/v2/mutation/AddFundsMutations', () => {
         expect(result.data.addFunds.amount.valueInCents).to.equal(2000);
         expect(result.data.addFunds.taxAmount.valueInCents).to.equal(261); // (2000 - 261) x 1.15 = 2000
         expect(result.data.addFunds.amount.currency).to.equal('USD');
+
+        const transactions = result.data.addFunds.transactions;
+        const groupedTransactions = groupBy(transactions, 'kind');
+
+        // Taxes should be added on CONTRIBUTION transactions
+        const addFundsCredit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'CREDIT');
+        const addFundsDebit = groupedTransactions['ADDED_FUNDS'].find(t => t.type === 'DEBIT');
+        expect(addFundsCredit.taxAmount.valueInCents).to.equal(-261);
+        expect(addFundsCredit.taxAmount.valueInCents).to.equal(-261);
+        expect(addFundsDebit.taxAmount.valueInCents).to.equal(-261);
+
+        // Taxes should not be added on HOST_FEE transactions
+        const hostFeeCredit = groupedTransactions['HOST_FEE'].find(t => t.type === 'CREDIT');
+        const hostFeeDebit = groupedTransactions['HOST_FEE'].find(t => t.type === 'DEBIT');
+        expect(hostFeeCredit.taxAmount.valueInCents).to.be.null;
+        expect(hostFeeDebit.taxAmount.valueInCents).to.be.null;
       });
 
       it('host fee is computed with tax amount excluded', async () => {
