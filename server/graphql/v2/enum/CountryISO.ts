@@ -247,6 +247,7 @@ const COUNTRY_CODES = {
   VI: 'US Virgin Islands',
   WF: 'Wallis and Futuna',
   EH: 'Western Sahara',
+  EU: 'European Union',
 };
 
 // Build GraphQL values map
