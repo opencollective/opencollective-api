@@ -13,7 +13,7 @@ export default {
     }
 
     // reset user 2fa after use.
-    await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null });
+    await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null, yubikeyDeviceId: null });
   },
 };
 
