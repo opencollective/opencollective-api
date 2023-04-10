@@ -1858,7 +1858,7 @@ export const getExpenseFees = async (
     collectiveToHostFxRate * (<number>resultFees['paymentProcessorFeeInCollectiveCurrency'] || 0),
   );
   feesInHostCurrency.hostFeeInHostCurrency = Math.round(
-    collectiveToHostFxRate * (<number>fees['hostFeeInCollectiveCurrency'] || 0),
+    collectiveToHostFxRate * (<number>resultFees['hostFeeInCollectiveCurrency'] || 0),
   );
   feesInHostCurrency.platformFeeInHostCurrency = Math.round(
     collectiveToHostFxRate * (<number>resultFees['platformFeeInCollectiveCurrency'] || 0),
