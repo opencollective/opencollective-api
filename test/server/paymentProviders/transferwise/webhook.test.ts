@@ -90,13 +90,13 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       type: 'INVOICE',
       description: 'January Invoice',
       data: {
-        transfer: { id: event.data.resource.id, sourceValue: 100 },
+        transfer: { id: event.data.resource.id },
         quote: { fee: 1, rate: 1 },
         feesInHostCurrency: {
           hostFeeInHostCurrency: 1,
           platformFeeInHostCurrency: 1,
         },
-        paymentOption: { fee: { total: 10 } },
+        paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
   });
