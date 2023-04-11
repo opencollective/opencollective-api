@@ -347,8 +347,14 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
   );
 }
 
-async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
+  const connectedAccounts = await models.ConnectedAccount.findAll({
+    where: { service: providerName, CollectiveId: host.id },
+  });
+  const connectedAccount = remoteUser
+    ? find(connectedAccounts, { CreatedByUserId: remoteUser?.id }) || connectedAccounts[0]
+    : connectedAccounts[0];
+  assert(connectedAccount, `No connected account found for host ${host?.id} and user ${remoteUser?.id}`);
 
   const profileId = connectedAccount.data.id;
   const token = await transferwise.getToken(connectedAccount);
