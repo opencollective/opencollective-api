@@ -42,10 +42,6 @@ export default class UserTwoFactorMethod<
   declare updatedAt: CreationOptional<Date>;
   declare deletedAt: CreationOptional<Date>;
 
-  getMethodData<M extends Exclude<TwoFactorMethod, TwoFactorMethod.RECOVERY_CODE>>(): UserTwoFactorMethodData[M] {
-    return null;
-  }
-
   static async userMethods(userId: number): Promise<TwoFactorMethod[]> {
     const result = await UserTwoFactorMethod.findAll({
       attributes: ['method'],

@@ -105,7 +105,7 @@ export const signin = async (req, res, next) => {
             scope: 'twofactorauth',
             supported2FAMethods: [
               TwoFactorMethod.RECOVERY_CODE,
-              ...twoFactorAuthLib.twoFactorMethodsSupportedByUser(user),
+              ...(await twoFactorAuthLib.twoFactorMethodsSupportedByUser(user)),
             ],
           },
           auth.TOKEN_EXPIRATION_2FA,
@@ -193,13 +193,13 @@ export const exchangeLoginToken = async (req, res, next) => {
   }
 
   const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-  if (twoFactorAuthenticationEnabled && twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
+  if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
     const token = req.remoteUser.jwt(
       {
         scope: 'twofactorauth',
         supported2FAMethods: [
           TwoFactorMethod.RECOVERY_CODE,
-          ...twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser),
+          ...(await twoFactorAuthLib.twoFactorMethodsSupportedByUser(req.remoteUser)),
         ],
       },
       auth.TOKEN_EXPIRATION_2FA,

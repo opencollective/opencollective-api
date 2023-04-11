@@ -143,7 +143,7 @@ async function validateRequest(
 
   const remoteUser = req.remoteUser;
 
-  const userHasTwoFactorAuth = userHasTwoFactorAuthEnabled(remoteUser);
+  const userHasTwoFactorAuth = await userHasTwoFactorAuthEnabled(remoteUser);
   if (options.requireTwoFactorAuthEnabled && !userHasTwoFactorAuth) {
     throw new ApolloError('Two factor authentication must be configured', '2FA_REQUIRED');
   }
@@ -161,7 +161,7 @@ async function validateRequest(
   const token = getTwoFactorAuthTokenFromRequest(req);
   if (!token) {
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
-      supportedMethods: twoFactorMethodsSupportedByUser(req.remoteUser),
+      supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
     });
   }
 
@@ -205,7 +205,7 @@ async function enforceForAccount(
   }
 
   // See if we need to enforce 2FA for admins of this account
-  if (userHasTwoFactorAuthEnabled(req.remoteUser) || (await shouldEnforceForAccount(req, account))) {
+  if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(req, account))) {
     return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true });
   }
 }

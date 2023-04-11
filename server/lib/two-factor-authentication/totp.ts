@@ -9,19 +9,19 @@ import { Token, TwoFactorMethod } from './lib';
 
 export default {
   async validateToken(user: User, token: Token): Promise<void> {
-    const userTotpMethods = await UserTwoFactorMethod.findAll({
+    const userTotpMethods = await UserTwoFactorMethod.findAll<UserTwoFactorMethod<TwoFactorMethod.TOTP>>({
       where: {
         UserId: user.id,
         method: TwoFactorMethod.TOTP,
       },
     });
 
-    if (!userTotpMethods) {
+    if (!userTotpMethods || userTotpMethods.length === 0) {
       throw new Error('User is not configured with TOPT 2FA');
     }
 
     for (const totpMethod of userTotpMethods) {
-      const valid = validateTOTPToken(totpMethod.getMethodData<TwoFactorMethod.TOTP>().secret, token.code);
+      const valid = validateTOTPToken(totpMethod.data.secret, token.code);
       if (valid) {
         return;
       }
