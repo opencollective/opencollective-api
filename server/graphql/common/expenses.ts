@@ -2260,7 +2260,9 @@ export async function markExpenseAsUnpaid(
     return { expense, transaction };
   });
 
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser, { transaction });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser, {
+    ledgerTransaction: transaction,
+  });
   return expense;
 }
 

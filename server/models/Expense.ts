@@ -114,7 +114,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
     const payoutMethod = await this.getPayoutMethod();
     const items = this.items || this.data?.items || (await this.getItems());
     const transaction =
-      data?.transaction ||
+      data?.ledgerTransaction ||
       (this.status === ExpenseStatus.PAID &&
         (await models.Transaction.findOne({ where: { type: 'DEBIT', ExpenseId: this.id } })));
     return models.Activity.create({
