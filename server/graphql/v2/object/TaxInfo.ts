@@ -21,7 +21,7 @@ export const TaxInfo = new GraphQLObjectType({
     },
     rate: {
       type: new GraphQLNonNull(GraphQLFloat),
-      description: 'Percentage applied, between 0-100',
+      description: 'Percentage applied, between 0-1',
     },
     idNumber: {
       type: GraphQLString,

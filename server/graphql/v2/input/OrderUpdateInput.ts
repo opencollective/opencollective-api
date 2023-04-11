@@ -2,6 +2,7 @@ import { GraphQLFloat, GraphQLInputObjectType, GraphQLInt, GraphQLString } from 
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { AmountInput } from './AmountInput';
+import { GraphQLTaxInput } from './TaxInput';
 
 export const OrderUpdateInput = new GraphQLInputObjectType({
   name: 'OrderUpdateInput',
@@ -16,7 +17,11 @@ export const OrderUpdateInput = new GraphQLInputObjectType({
     },
     amount: {
       type: AmountInput,
-      description: 'Amount received by collective, excluding any tips or fees',
+      description: 'Amount received by collective, excluding any tips, taxes or fees',
+    },
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
     },
     paymentProcessorFee: {
       type: AmountInput,
