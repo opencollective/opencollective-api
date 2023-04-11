@@ -98,7 +98,7 @@ export const signin = async (req, res, next) => {
       }
 
       const twoFactorAuthenticationEnabled = parseToBoolean(config.twoFactorAuthentication.enabled);
-      if (twoFactorAuthenticationEnabled && twoFactorAuthLib.userHasTwoFactorAuthEnabled(user)) {
+      if (twoFactorAuthenticationEnabled && (await twoFactorAuthLib.userHasTwoFactorAuthEnabled(user))) {
         // Send 2FA token, can only be used to get a long term token
         const token = user.jwt(
           {
