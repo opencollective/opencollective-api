@@ -1,6 +1,5 @@
 import DataLoader from 'dataloader';
 
-import models from '../models';
 import PersonalToken from '../models/PersonalToken';
 import User from '../models/User';
 import UserToken from '../models/UserToken';
@@ -25,7 +24,7 @@ declare global {
       };
       userToken?: UserToken;
       personalToken?: PersonalToken;
-      loaders: Record<keyof typeof models, DataLoader>;
+      loaders: Record<string, DataLoader>;
       rawBody?: string;
     }
   }
