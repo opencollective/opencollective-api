@@ -14,7 +14,7 @@ export default {
     }
 
     const tokenDeviceId = token.code.substring(0, 12);
-    const userYubikeyOTPMethods = await UserTwoFactorMethod.findAll({
+    const userYubikeyOTPMethods = await UserTwoFactorMethod.findAll<UserTwoFactorMethod<TwoFactorMethod.YUBIKEY_OTP>>({
       where: {
         UserId: user.id,
         method: TwoFactorMethod.YUBIKEY_OTP,
@@ -24,7 +24,7 @@ export default {
       },
     });
 
-    if (!userYubikeyOTPMethods) {
+    if (!userYubikeyOTPMethods || userYubikeyOTPMethods.length === 0) {
       throw new Error('User is not configured with YubiKey OTP 2FA');
     }
 
