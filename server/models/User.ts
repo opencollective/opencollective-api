@@ -465,7 +465,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     });
   }
 
-  get hasTwoFactorAuthentication(): NonAttribute<boolean> {
+  hasTwoFactorAuthentication(): NonAttribute<Promise<boolean>> {
     return twoFactorAuthLib.userHasTwoFactorAuthEnabled(this);
   }
 

@@ -3,22 +3,29 @@ import crypto from 'crypto';
 import { ApolloError } from 'apollo-server-express';
 
 import User from '../../models/User';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 
-import { Token } from './lib';
+import { Token, TwoFactorMethod } from './lib';
 
 export default {
   async validateToken(user: User, token: Token): Promise<void> {
-    if (!user.yubikeyDeviceId) {
-      throw new Error('User is not configured with YubiKey OTP 2FA');
-    }
-
     if (token.code.length !== 44) {
       throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
     }
 
     const tokenDeviceId = token.code.substring(0, 12);
-    if (tokenDeviceId !== user.yubikeyDeviceId) {
-      throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
+    const userYubikeyOTPMethods = await UserTwoFactorMethod.findAll({
+      where: {
+        UserId: user.id,
+        method: TwoFactorMethod.YUBIKEY_OTP,
+        data: {
+          yubikeyDeviceId: tokenDeviceId,
+        },
+      },
+    });
+
+    if (!userYubikeyOTPMethods) {
+      throw new Error('User is not configured with YubiKey OTP 2FA');
     }
 
     const valid = validateYubikeyOTP(token.code);

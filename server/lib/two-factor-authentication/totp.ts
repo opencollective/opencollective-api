@@ -2,20 +2,32 @@ import { ApolloError } from 'apollo-server-express';
 import speakeasy from 'speakeasy';
 
 import User from '../../models/User';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import { crypto } from '../encryption';
 
-import { Token } from './lib';
+import { Token, TwoFactorMethod } from './lib';
 
 export default {
   async validateToken(user: User, token: Token): Promise<void> {
-    if (!user.twoFactorAuthToken) {
+    const userTotpMethods = await UserTwoFactorMethod.findAll({
+      where: {
+        UserId: user.id,
+        method: TwoFactorMethod.TOTP,
+      },
+    });
+
+    if (!userTotpMethods) {
       throw new Error('User is not configured with TOPT 2FA');
     }
 
-    const valid = validateTOTPToken(user.twoFactorAuthToken, token.code);
-    if (!valid) {
-      throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
+    for (const totpMethod of userTotpMethods) {
+      const valid = validateTOTPToken(totpMethod.getMethodData<TwoFactorMethod.TOTP>().secret, token.code);
+      if (valid) {
+        return;
+      }
     }
+
+    throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
   },
 };
 

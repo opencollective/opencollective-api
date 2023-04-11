@@ -19,6 +19,7 @@ import { crypto } from '../../../lib/encryption';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
 import models, { sequelize } from '../../../models';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { sendMessage } from '../../common/collective';
 import { checkRemoteUserCanUseAccount, checkRemoteUserCanUseHost } from '../../common/scope-check';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -288,7 +289,7 @@ const accountMutations = {
       }
 
       const type = (args.type as TwoFactorMethod) || TwoFactorMethod.TOTP;
-      const userEnabledMethods = TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
+      const userEnabledMethods = await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
 
       if (userEnabledMethods.includes(type)) {
         throw new Unauthorized('This account already has this 2FA method enabled.');
@@ -308,7 +309,13 @@ const accountMutations = {
           }
 
           const encryptedText = crypto.encrypt(args.token);
-          await user.update({ twoFactorAuthToken: encryptedText });
+          await UserTwoFactorMethod.create({
+            UserId: user.id,
+            method: TwoFactorMethod.TOTP,
+            data: {
+              secret: encryptedText,
+            },
+          });
           break;
         }
         case TwoFactorMethod.YUBIKEY_OTP: {
@@ -318,7 +325,13 @@ const accountMutations = {
             throw new ValidationFailed('Invalid 2FA token');
           }
 
-          await user.update({ yubikeyDeviceId: (args.token as string).substring(0, 12) });
+          await UserTwoFactorMethod.create({
+            UserId: user.id,
+            method: TwoFactorMethod.YUBIKEY_OTP,
+            data: {
+              yubikeyDeviceId: (args.token as string).substring(0, 12),
+            },
+          });
 
           break;
         }
@@ -382,7 +395,7 @@ const accountMutations = {
         throw new NotFound('Account not found.');
       }
 
-      if (TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user).length === 0) {
+      if ((await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user)).length === 0) {
         throw new Unauthorized('This account already has 2FA disabled.');
       }
 
@@ -391,21 +404,14 @@ const accountMutations = {
         alwaysAskForToken: true,
       });
 
-      switch (args.type as TwoFactorMethod) {
-        case TwoFactorMethod.TOTP: {
-          await user.update({ twoFactorAuthToken: null });
-          break;
-        }
-        case TwoFactorMethod.YUBIKEY_OTP: {
-          await user.update({ yubikeyDeviceId: null });
-          break;
-        }
-        default: {
-          await user.update({ twoFactorAuthToken: null, yubikeyDeviceId: null });
-        }
-      }
+      await UserTwoFactorMethod.destroy({
+        where: {
+          UserId: user.id,
+          ...(args.type ? { method: args.type as TwoFactorMethod } : {}),
+        },
+      });
 
-      if (TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user).length === 0) {
+      if ((await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user)).length === 0) {
         await user.update({ twoFactorAuthRecoveryCodes: null });
       }
 

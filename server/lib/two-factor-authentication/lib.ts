@@ -6,6 +6,7 @@ import POLICIES from '../../constants/policies';
 import { Unauthorized } from '../../graphql/errors';
 import { Collective } from '../../models';
 import User from '../../models/User';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
 
@@ -171,21 +172,13 @@ async function validateRequest(
   return true;
 }
 
-function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
-  const methods = [];
-  if (remoteUser.twoFactorAuthToken) {
-    methods.push(TwoFactorMethod.TOTP);
-  }
-
-  if (remoteUser.yubikeyDeviceId) {
-    methods.push(TwoFactorMethod.YUBIKEY_OTP);
-  }
-
-  return methods;
+async function twoFactorMethodsSupportedByUser(remoteUser: User): Promise<TwoFactorMethod[]> {
+  return await UserTwoFactorMethod.userMethods(remoteUser.id);
 }
 
-function userHasTwoFactorAuthEnabled(user: User) {
-  return Boolean(user.twoFactorAuthToken) || Boolean(user.yubikeyDeviceId);
+async function userHasTwoFactorAuthEnabled(user: User) {
+  const methods = await UserTwoFactorMethod.userMethods(user.id);
+  return methods.length !== 0;
 }
 /**
  * Returns true if this request / account should enforce 2FA.

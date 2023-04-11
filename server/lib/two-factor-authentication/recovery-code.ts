@@ -1,5 +1,6 @@
 import { ApolloError } from '../../graphql/errors';
 import User from '../../models/User';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import { crypto } from '../encryption';
 
 import { Token } from './lib';
@@ -13,7 +14,11 @@ export default {
     }
 
     // reset user 2fa after use.
-    await user.update({ twoFactorAuthRecoveryCodes: null, twoFactorAuthToken: null, yubikeyDeviceId: null });
+    await UserTwoFactorMethod.destroy({
+      where: {
+        UserId: user.id,
+      },
+    });
   },
 };
 
