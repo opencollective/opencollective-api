@@ -214,7 +214,6 @@ export const checkExpensesBatch = async (
         details: compact(details).join(' '),
       });
 
-
       // Author Security Check: Checks if the author of the expense has 2FA enabled or not.
       addBooleanCheck(
         checks,
