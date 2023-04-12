@@ -388,7 +388,7 @@ export async function sendThankYouEmail(order, transaction, isFirstPayment = fal
 
   const data = {
     order: order.info,
-    transaction: transaction ? transaction.info : null,
+    transaction: transaction ? transaction.info : { createdAt: new Date() },
     user: user.info,
     firstPayment: isFirstPayment,
     collective: order.collective.info,
