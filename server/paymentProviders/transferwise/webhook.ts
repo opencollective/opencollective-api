@@ -11,7 +11,7 @@ import * as libPayments from '../../lib/payments';
 import { createTransactionsFromPaidExpense } from '../../lib/transactions';
 import { verifyEvent } from '../../lib/transferwise';
 import models from '../../models';
-import { QuoteV2, QuoteV2PaymentOption, Transfer, TransferStateChangeEvent } from '../../types/transferwise';
+import { QuoteV2PaymentOption, TransferStateChangeEvent } from '../../types/transferwise';
 
 export async function handleTransferStateChange(event: TransferStateChangeEvent): Promise<void> {
   const expense = await models.Expense.findOne({
@@ -48,7 +48,7 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (expense.status === expenseStatus.PROCESSING && event.data.current_state === 'outgoing_payment_sent') {
     logger.info(`Wise: Transfer sent, marking expense as paid and creating transactions.`, event);
-    const feesInHostCurrency = expense.data.feesInHostCurrency as {
+    const feesInHostCurrency = (expense.data.feesInHostCurrency || {}) as {
       paymentProcessorFeeInHostCurrency: number;
       hostFeeInHostCurrency: number;
       platformFeeInHostCurrency: number;
@@ -64,11 +64,9 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       );
     }
 
-    const hostAmount =
-      (expense.data?.transfer as Transfer)?.sourceValue ||
-      (expense.data?.quote as QuoteV2)?.sourceAmount -
-        ((expense.data?.paymentOption as QuoteV2PaymentOption)?.fee?.total || 0);
-    assert(hostAmount, 'Expense is missing transfer and quote information');
+    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption;
+    const hostAmount = paymentOption.sourceAmount - paymentOption.fee.total;
+    assert(hostAmount, 'Expense is missing paymentOption information');
     const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
     const user = await models.User.findByPk(expense.lastEditedById);
@@ -79,6 +77,8 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       expenseToHostRate,
       pick(expense.data, ['fund', 'transfer']),
     );
+
+    await expense.update({ data: { ...expense.data, feesInHostCurrency } });
     await expense.setPaid(expense.lastEditedById);
     await expense.createActivity(activities.COLLECTIVE_EXPENSE_PAID, user);
   } else if (
