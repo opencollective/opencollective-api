@@ -26,7 +26,8 @@ const ExpenseInvitee = new GraphQLInputObjectType({
   name: 'ExpenseInvitee',
   fields: () => ({
     // TODO: This field is not matching the standard with have in other objects (id (string) + legacyId (number)) which forces us to use advanced conditions in the frontend
-    id: { type: GraphQLInt },
+    id: { type: GraphQLInt, deprecationReason: '2023-04-12: Please use legacyId' },
+    legacyId: { type: GraphQLInt },
     slug: { type: GraphQLString },
     name: { type: GraphQLString },
     email: { type: GraphQLString },

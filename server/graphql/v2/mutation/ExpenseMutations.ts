@@ -403,8 +403,9 @@ const expenseMutations = {
       const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
       const fromCollective = await remoteUser.getCollective();
-      const payee = expenseData.payee?.id
-        ? (await fetchAccountWithReference({ id: expenseData.payee.id }, { throwIfMissing: true }))?.minimal
+      const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
+      const payee = payeeLegacyId
+        ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
       const expense = await models.Expense.create({
         ...pick(expenseData, expenseFields),
