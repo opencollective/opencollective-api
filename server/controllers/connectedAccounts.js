@@ -118,16 +118,14 @@ export const disconnect = async (req, res) => {
       throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
     }
 
-    if (service === 'transferwise') {
-      const collective = await models.Collective.findByPk(CollectiveId);
+    const collective = await models.Collective.findByPk(CollectiveId);
+    if (service === 'transferwise' && collective.settings?.transferwise?.isolateUsers) {
       const connectedAccounts = await models.ConnectedAccount.findAll({
         where: { service, CollectiveId },
       });
-      if (collective.settings?.transferwise?.isolateUsers) {
-        const account = connectedAccounts.find(ca => ca.CreatedByUserId === remoteUser.id);
-        assert(account, 'No connected account found for this user');
-        await account.destroy();
-      }
+      const account = connectedAccounts.find(ca => ca.CreatedByUserId === remoteUser.id);
+      assert(account, 'No connected account found for this user');
+      await account.destroy();
     } else {
       const account = await models.ConnectedAccount.findOne({
         where: { service, CollectiveId },
