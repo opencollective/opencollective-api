@@ -315,8 +315,12 @@ export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = asyn
 };
 
 /** Checks if the user can verify or resend a draft */
-export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense): Promise<boolean> => {
+  if (!['DRAFT', 'UNVERIFIED'].includes(expense.status)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  }
 };
 
 // Write permissions

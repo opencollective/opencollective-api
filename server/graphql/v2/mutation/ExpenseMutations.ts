@@ -477,7 +477,7 @@ const expenseMutations = {
       } else if (expense.status !== expenseStatus.DRAFT) {
         throw new Unauthorized('Expense was already submitted.');
       } else if (!(await canVerifyDraftExpense(req, expense))) {
-        throw new Unauthorized("You don't have the permission to edit this expense.");
+        throw new Unauthorized("You don't have the permission resend a draft for this expense.");
       }
 
       const draftKey = expense.data.draftKey;
@@ -510,7 +510,7 @@ const expenseMutations = {
       if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');
       } else if (!(await canVerifyDraftExpense(req, expense))) {
-        throw new Unauthorized("You don't have the permission to edit this expense.");
+        throw new Unauthorized("You don't have the permission to verify this expense.");
       }
       await expense.update({ status: expenseStatus.PENDING });
 
