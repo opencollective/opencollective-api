@@ -23,6 +23,7 @@ import {
   canSeeExpensePayoutMethod,
   canUnapprove,
   canUnschedulePayment,
+  canVerifyDraftExpense,
   checkHasBalanceToPayExpense,
   getExpenseAmountInDifferentCurrency,
   isAccountHolderNameAndLegalNameMatch,
@@ -769,6 +770,50 @@ describe('server/graphql/common/expenses', () => {
       expect(isAccountHolderNameAndLegalNameMatch('Sudharaka Palamakumbura', 'Sudharaka Palamakumbura')).to.be.true;
       expect(isAccountHolderNameAndLegalNameMatch('JHipster Inc.', 'JHipster Inc. 501(c)(3)')).to.be.true;
       expect(isAccountHolderNameAndLegalNameMatch('JHipster Inc. 501(c)(3)', 'JHipster Inc.')).to.be.true;
+    });
+  });
+
+  describe('canVerifyDraftExpense', () => {
+    it('only if DRAFT/UNVERIFIED', async () => {
+      const { expense, req } = contexts.normal;
+      await expense.update({ status: 'DRAFT' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.true;
+      await expense.update({ status: 'UNVERIFIED' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.true;
+      await expense.update({ status: 'APPROVED' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.false;
+      await expense.update({ status: 'PROCESSING' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.false;
+      await expense.update({ status: 'ERROR' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.false;
+      await expense.update({ status: 'PAID' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.false;
+      await expense.update({ status: 'REJECTED' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.false;
+      await expense.update({ status: 'SCHEDULED_FOR_PAYMENT' });
+      expect(await canVerifyDraftExpense(req.hostAdmin, expense)).to.be.false;
+    });
+
+    it('only with the allowed roles', async () => {
+      await runForAllContexts(
+        async context => {
+          const { expense } = context;
+          await expense.update({ status: 'DRAFT' });
+          expect(await checkAllPermissions(canVerifyDraftExpense, context)).to.deep.equal({
+            public: false,
+            randomUser: false,
+            collectiveAdmin: true,
+            hostAdmin: true,
+            expenseOwner: true,
+            limitedHostAdmin: false,
+            collectiveAccountant: false,
+            hostAccountant: false,
+          });
+        },
+        {
+          except: contexts.virtualCard,
+        },
+      );
     });
   });
 

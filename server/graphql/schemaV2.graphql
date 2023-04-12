@@ -4922,6 +4922,11 @@ type ExpensePermissions {
   Whether the current user can unschedule this expense payment
   """
   canUnschedulePayment: Boolean!
+
+  """
+  Whether the current user can verify this draft expense
+  """
+  canVerifyDraftExpense: Boolean!
   edit: Permission!
   editTags: Permission!
   delete: Permission!
@@ -4934,6 +4939,7 @@ type ExpensePermissions {
   markAsUnpaid: Permission!
   comment: Permission!
   unschedulePayment: Permission!
+  verifyDraftExpense: Permission!
 }
 
 """
@@ -14996,7 +15002,8 @@ input ExpenseInviteDraftInput {
 }
 
 input ExpenseInvitee {
-  id: Int
+  id: Int @deprecated(reason: "2023-04-12: Please use legacyId")
+  legacyId: Int
   slug: String
   name: String
   email: String

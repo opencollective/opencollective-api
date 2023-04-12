@@ -106,6 +106,13 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canUnschedulePayment(req, expense);
       },
     },
+    canVerifyDraftExpense: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      description: 'Whether the current user can verify this draft expense',
+      async resolve(expense, _, req: express.Request): Promise<boolean> {
+        return ExpenseLib.canVerifyDraftExpense(req, expense);
+      },
+    },
     // Extended permissions
     edit: {
       type: new GraphQLNonNull(Permission),
@@ -154,6 +161,10 @@ const ExpensePermissions = new GraphQLObjectType({
     unschedulePayment: {
       type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canUnschedulePayment),
+    },
+    verifyDraftExpense: {
+      type: new GraphQLNonNull(Permission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canVerifyDraftExpense),
     },
   }),
 });
