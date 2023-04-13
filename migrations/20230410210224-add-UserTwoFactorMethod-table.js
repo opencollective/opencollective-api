@@ -41,7 +41,7 @@ module.exports = {
       },
     });
 
-    await queryInterface.addIndex('UserTwoFactorMethods', ['UserId', 'method']);
+    await queryInterface.addIndex('UserTwoFactorMethods', ['UserId']);
 
     await queryInterface.sequelize.query(`
       INSERT INTO "UserTwoFactorMethods"("UserId", method, data)
