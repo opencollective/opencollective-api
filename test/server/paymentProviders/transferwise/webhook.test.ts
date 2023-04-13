@@ -164,4 +164,18 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
     await api.post('/webhooks/transferwise').send(event).expect(200);
   });
+
+  it('works with Expenses with feesPayer = PAYEE', async () => {
+    await expense.update({ feesPayer: 'PAYEE' });
+    await api.post('/webhooks/transferwise').send(event).expect(200);
+
+    await expense.reload();
+    expect(expense).to.have.property('status', status.PAID);
+    const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
+    expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
+    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10000);
+    expect(debitTransaction).to.be.have.property('amountInHostCurrency', -11000);
+    expect(debitTransaction).to.be.have.property('amount', -11000);
+    expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
+  });
 });
