@@ -297,6 +297,14 @@ const approveApplication = async (host, collective, req) => {
 
     // Approve the collective
     await collective.update(newAccountData, { transaction });
+
+    // Mark application as approved
+    await models.HostApplication.updatePendingApplications(
+      host,
+      collective,
+      HostApplicationStatus.APPROVED,
+      transaction,
+    );
   });
 
   // Send a notification to collective admins
@@ -323,7 +331,7 @@ const approveApplication = async (host, collective, req) => {
 
   // Purge cache and change the status of the application
   purgeCacheForCollective(collective.slug);
-  await models.HostApplication.updatePendingApplications(host, collective, HostApplicationStatus.APPROVED);
+
   return collective;
 };
 

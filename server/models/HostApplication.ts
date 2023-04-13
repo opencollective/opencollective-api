@@ -1,5 +1,5 @@
 import { pick } from 'lodash';
-import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes } from 'sequelize';
+import { CreationOptional, ForeignKey, InferAttributes, InferCreationAttributes, Transaction } from 'sequelize';
 
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
@@ -69,6 +69,7 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
     host: Collective,
     collective: Collective,
     status: HostApplicationStatus,
+    dbTransaction?: Transaction,
   ): Promise<void> {
     await this.update(
       { status },
@@ -78,6 +79,7 @@ export class HostApplication extends Model<InferAttributes<HostApplication>, Inf
           CollectiveId: collective.id,
           status: HostApplicationStatus.PENDING,
         },
+        transaction: dbTransaction,
       },
     );
   }
