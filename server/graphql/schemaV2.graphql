@@ -13896,6 +13896,26 @@ type Mutation {
   ): [Expense]!
 
   """
+  [Root only] A mutation to set the tax from for an account.
+  """
+  setTaxForm(
+    """
+    Reference to the Account the tax form should be set.
+    """
+    account: AccountReferenceInput!
+
+    """
+    The tax from link.
+    """
+    taxFormLink: URL!
+
+    """
+    The tax form year.
+    """
+    year: Int!
+  ): SetTaxFormResult
+
+  """
   Add platform tips to a transaction. Scope: "transactions".
   """
   addPlatformTipToTransaction(
@@ -15611,6 +15631,10 @@ type BanAccountResponse {
   The accounts impacted by the mutation
   """
   accounts: [Account!]!
+}
+
+type SetTaxFormResult {
+  success: Boolean!
 }
 
 input TransactionReferenceInput {
