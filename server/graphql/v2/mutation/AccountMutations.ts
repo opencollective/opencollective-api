@@ -273,7 +273,11 @@ const accountMutations = {
         description: 'The generated secret to save to the Individual',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+    async resolve(
+      _: void,
+      args: { account: Record<string, unknown>; type?: TwoFactorMethod; token: string },
+      req: express.Request,
+    ): Promise<Record<string, unknown>> {
       checkRemoteUserCanUseAccount(req);
 
       const account = await fetchAccountWithReference(args.account);
@@ -329,7 +333,7 @@ const accountMutations = {
             UserId: user.id,
             method: TwoFactorMethod.YUBIKEY_OTP,
             data: {
-              yubikeyDeviceId: (args.token as string).substring(0, 12),
+              yubikeyDeviceId: args.token.substring(0, 12),
             },
           });
 
