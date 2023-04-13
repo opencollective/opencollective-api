@@ -344,6 +344,8 @@ export type TransactionRequiredFieldsGroup = {
   type: string;
   required: boolean;
   example: string;
+  minLength: number;
+  maxLength: number;
   validationRegexp: null | string;
   refreshRequirementsOnChange: boolean;
   valuesAllowed?: Array<{

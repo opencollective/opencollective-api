@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { capitalize, compact, filter, find, first, flatten, max, startCase, uniq } from 'lodash';
+import { capitalize, compact, filter, find, first, flatten, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
@@ -193,10 +193,13 @@ export const checkExpensesBatch = async (
       await expense.User.populateRoles();
 
       // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.
-      const relatedUsersByIp = filter(usersByIp, u => {
-        const ip = expense.User.getLastKnownIp();
-        return ip && (u.data?.creationRequest?.ip === ip || u.data?.lastSignInRequest?.ip === ip);
-      });
+      const relatedUsersByIp = uniqBy(
+        filter(usersByIp, u => {
+          const ip = expense.User.getLastKnownIp();
+          return ip && (u.data?.creationRequest?.ip === ip || u.data?.lastSignInRequest?.ip === ip);
+        }),
+        'id',
+      );
       const relatedUsersByConnectedAccounts = await expense.User.findRelatedUsersByConnectedAccounts();
       const details = [];
       if (relatedUsersByIp.length > 0) {
