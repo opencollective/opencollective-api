@@ -206,8 +206,8 @@ export async function createTransactionsFromPaidExpense(
 
   // If the payee is assuming the fees, we adapt the amounts
   if (expense.feesPayer === 'PAYEE') {
-    transaction.amount += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
-    transaction.amountInHostCurrency += processedAmounts.paymentProcessorFee.inHostCurrency;
+    transaction.amount -= processedAmounts.paymentProcessorFee.inCollectiveCurrency;
+    transaction.amountInHostCurrency -= processedAmounts.paymentProcessorFee.inHostCurrency;
     transaction.netAmountInCollectiveCurrency += processedAmounts.paymentProcessorFee.inCollectiveCurrency;
     transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
   }
