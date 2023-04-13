@@ -18,16 +18,25 @@ describe('server/models/UserTwoFactorMethod', () => {
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
       UserId: user.id,
+      data: {
+        secret: 'secret',
+      },
     });
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
       UserId: user.id,
+      data: {
+        secret: 'secret',
+      },
     });
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.YUBIKEY_OTP,
       UserId: user.id,
+      data: {
+        yubikeyDeviceId: 'yubikeyDeviceId',
+      },
     });
 
     const userMethods = await UserTwoFactorMethod.userMethods(user.id);
@@ -41,16 +50,25 @@ describe('server/models/UserTwoFactorMethod', () => {
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
       UserId: user.id,
+      data: {
+        secret: 'secret',
+      },
     });
 
     await UserTwoFactorMethod.create({
       method: TwoFactorMethod.TOTP,
       UserId: user.id,
+      data: {
+        secret: 'secret',
+      },
     });
 
     const toDelete = await UserTwoFactorMethod.create({
       method: TwoFactorMethod.YUBIKEY_OTP,
       UserId: user.id,
+      data: {
+        yubikeyDeviceId: 'yubikeyDeviceId',
+      },
     });
 
     await toDelete.destroy();
@@ -58,5 +76,53 @@ describe('server/models/UserTwoFactorMethod', () => {
     const userMethods = await UserTwoFactorMethod.userMethods(user.id);
     expect(userMethods).to.have.length(1);
     expect(userMethods).to.have.members([TwoFactorMethod.TOTP]);
+  });
+
+  it('validates data schema', async () => {
+    const user = await fakeUser();
+
+    await expect(
+      UserTwoFactorMethod.create({
+        method: TwoFactorMethod.TOTP,
+        UserId: user.id,
+      }),
+    ).to.eventually.be.rejectedWith('Validation error');
+
+    await expect(
+      UserTwoFactorMethod.create({
+        method: TwoFactorMethod.TOTP,
+        UserId: user.id,
+        data: {
+          yubikeyDeviceId: '22',
+        },
+      }),
+    ).to.eventually.be.rejectedWith('Validation error');
+
+    await expect(
+      UserTwoFactorMethod.create({
+        method: TwoFactorMethod.TOTP,
+        UserId: user.id,
+        data: {
+          secret: 11,
+        } as unknown,
+      }),
+    ).to.eventually.be.rejectedWith('Validation error');
+
+    await expect(
+      UserTwoFactorMethod.create({
+        method: TwoFactorMethod.YUBIKEY_OTP,
+        UserId: user.id,
+        data: {
+          secret: 'secret',
+        },
+      }),
+    ).to.eventually.be.rejectedWith('Validation error');
+
+    await expect(
+      UserTwoFactorMethod.create({
+        method: TwoFactorMethod.YUBIKEY_OTP,
+        UserId: user.id,
+      }),
+    ).to.eventually.be.rejectedWith('Validation error');
   });
 });

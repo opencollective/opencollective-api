@@ -7,19 +7,24 @@ import {
   InferCreationAttributes,
   Model,
 } from 'sequelize';
+import * as z from 'zod';
 
 import sequelize from '../lib/sequelize';
 import { TwoFactorMethod } from '../lib/two-factor-authentication/two-factor-methods';
 
 import User from './User';
 
-export type UserTwoFactorMethodTOTPData = {
-  secret: string;
-};
+const TOTPDataSchema = z.object({
+  secret: z.string(),
+});
 
-export type UseTwoFactorMethodYubikeyOTPData = {
-  yubikeyDeviceId: string;
-};
+export type UserTwoFactorMethodTOTPData = z.infer<typeof TOTPDataSchema>;
+
+const YubikeyOTPSchema = z.object({
+  yubikeyDeviceId: z.string(),
+});
+
+export type UseTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
 
 export type UserTwoFactorMethodData = {
   [TwoFactorMethod.TOTP]: UserTwoFactorMethodTOTPData;
@@ -73,6 +78,23 @@ UserTwoFactorMethod.init(
     data: {
       type: DataTypes.JSONB,
       allowNull: true,
+      validate: {
+        schema(this: UserTwoFactorMethod<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP>, value: unknown) {
+          switch (this.method) {
+            case TwoFactorMethod.TOTP: {
+              TOTPDataSchema.parse(value);
+              break;
+            }
+            case TwoFactorMethod.YUBIKEY_OTP: {
+              YubikeyOTPSchema.parse(value);
+              break;
+            }
+            default: {
+              throw new Error('unknown method data');
+            }
+          }
+        },
+      },
     },
     UserId: {
       type: DataTypes.INTEGER,
