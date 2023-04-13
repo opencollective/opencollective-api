@@ -9,7 +9,7 @@ import {
 } from 'sequelize';
 
 import sequelize from '../lib/sequelize';
-import { TwoFactorMethod } from '../lib/two-factor-authentication';
+import { TwoFactorMethod } from '../lib/two-factor-authentication/two-factor-methods';
 
 import User from './User';
 
@@ -66,6 +66,9 @@ UserTwoFactorMethod.init(
     method: {
       type: DataTypes.STRING,
       allowNull: false,
+      validate: {
+        isIn: [Object.values(TwoFactorMethod)],
+      },
     },
     data: {
       type: DataTypes.JSONB,

@@ -12,7 +12,10 @@ import { hasPolicy } from '../policies';
 
 import recoveryCode from './recovery-code';
 import totp from './totp';
+import { TwoFactorMethod } from './two-factor-methods';
 import yubikeyOTP from './yubikey-otp';
+
+export { TwoFactorMethod };
 
 const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
@@ -28,12 +31,6 @@ type ValidateRequestOptions = {
   // identifier for the session, defaults to use the JWT token's session key
   sessionKey?: (() => string) | string;
 };
-
-export enum TwoFactorMethod {
-  TOTP = 'totp',
-  YUBIKEY_OTP = 'yubikey_otp',
-  RECOVERY_CODE = 'recovery_code',
-}
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
