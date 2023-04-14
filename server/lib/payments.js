@@ -676,7 +676,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     // normal order
     const data = {
       order: order.info,
-      transaction: transaction ? transaction.info : null,
+      transaction: transaction ? transaction.info : { createdAt: new Date() },
       user: user.info,
       collective: collective.info,
       host: host ? host.info : {},
