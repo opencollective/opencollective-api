@@ -179,15 +179,16 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     expect(expense).to.have.property('status', status.PAID);
     const [debit, credit] = await expense.getTransactions();
 
-    expect(debit).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    expect(debit).to.be.have.property('netAmountInCollectiveCurrency', -10000);
-    expect(debit).to.be.have.property('amountInHostCurrency', -9000);
-    expect(debit).to.be.have.property('amount', -9000);
-    expect(debit).to.be.have.nested.property('data.transfer.id', 1234);
+    expect(debit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
+    expect(debit).to.have.property('netAmountInCollectiveCurrency', -10000);
+    expect(debit).to.have.property('amountInHostCurrency', -9000);
+    expect(debit).to.have.property('amount', -9000);
+    expect(debit).to.have.nested.property('data.expenseToHostFxRate', 1);
+    expect(debit).to.have.nested.property('data.transfer.id', 1234);
 
-    expect(credit).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    expect(credit).to.be.have.property('netAmountInCollectiveCurrency', 9000);
-    expect(credit).to.be.have.property('amountInHostCurrency', 10000);
-    expect(credit).to.be.have.property('amount', 10000);
+    expect(credit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
+    expect(credit).to.have.property('netAmountInCollectiveCurrency', 9000);
+    expect(credit).to.have.property('amountInHostCurrency', 10000);
+    expect(credit).to.have.property('amount', 10000);
   });
 });
