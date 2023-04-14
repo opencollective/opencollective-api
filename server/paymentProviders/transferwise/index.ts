@@ -94,6 +94,7 @@ async function quoteExpense(
   await populateProfileId(connectedAccount);
 
   const isExistingQuoteValid =
+    expense.feesPayer !== 'PAYEE' &&
     expense.data?.quote &&
     expense.data.quote['paymentOption'] &&
     !expense.data.transfer && // We can not reuse quotes if a Transfer was already created
