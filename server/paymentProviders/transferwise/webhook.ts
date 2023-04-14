@@ -1,7 +1,7 @@
 import assert from 'assert';
 
 import { Request } from 'express';
-import { get, pick, toString } from 'lodash';
+import { pick, toString } from 'lodash';
 
 import activities from '../../constants/activities';
 import expenseStatus from '../../constants/expense_status';
@@ -54,18 +54,17 @@ export async function handleTransferStateChange(event: TransferStateChangeEvent)
       platformFeeInHostCurrency: number;
     };
 
+    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption;
     if (expense.host?.settings?.transferwise?.ignorePaymentProcessorFees) {
       // TODO: We should not just ignore fees, they should be recorded as a transaction from the host to the collective
       // See https://github.com/opencollective/opencollective/issues/5113
       feesInHostCurrency.paymentProcessorFeeInHostCurrency = 0;
-    } else if (get(expense.data, 'paymentOption.fee.total')) {
-      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(
-        expense.data.paymentOption['fee']['total'] * 100,
-      );
+    } else {
+      feesInHostCurrency.paymentProcessorFeeInHostCurrency = Math.round(paymentOption.fee.total * 100);
     }
 
-    const paymentOption = expense.data.paymentOption as QuoteV2PaymentOption;
-    const hostAmount = paymentOption.sourceAmount - paymentOption.fee.total;
+    const hostAmount =
+      expense.feesPayer === 'PAYEE' ? paymentOption.sourceAmount : paymentOption.sourceAmount - paymentOption.fee.total;
     assert(hostAmount, 'Expense is missing paymentOption information');
     const expenseToHostRate = hostAmount ? (hostAmount * 100) / expense.amount : 'auto';
 
