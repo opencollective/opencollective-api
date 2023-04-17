@@ -64,6 +64,34 @@ export const Individual = new GraphQLObjectType({
           }
         },
       },
+      location: {
+        ...AccountFields.location,
+        description: `
+          Address. This field is public for hosts, otherwise:
+            - Users can see their own address
+            - Hosts can see the address of users submitting expenses to their collectives
+        `,
+        async resolve(individual, _, req) {
+          const isHost = await individual.isHost();
+          const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope(req, 'account'));
+          if (!canSeeLocation) {
+            return null;
+          }
+
+          // For incognito profiles, we retrieve the location from the main user profile
+          if (individual.isIncognito) {
+            if (!checkScope(req, 'incognito')) {
+              return null;
+            }
+            const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
+            if (mainProfile) {
+              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
+            }
+          }
+
+          return req.loaders.Location.byCollectiveId.load(individual.id);
+        },
+      },
       hasTwoFactorAuth: {
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
