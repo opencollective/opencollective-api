@@ -28,14 +28,15 @@ import models, {
   EmojiReaction,
   ExpenseAttachedFile,
   Notification,
+  OAuthAuthorizationCode,
   PaypalProduct,
   Subscription,
   Tier,
-  Transaction,
   Update,
   UploadedFile,
   VirtualCard,
 } from '../../server/models';
+import { ApplicationModelInterface } from '../../server/models/Application';
 import Comment from '../../server/models/Comment';
 import Conversation from '../../server/models/Conversation';
 import { HostApplicationStatus } from '../../server/models/HostApplication';
@@ -47,13 +48,14 @@ import { PaymentMethodModelInterface } from '../../server/models/PaymentMethod';
 import PayoutMethod, { PayoutMethodTypes } from '../../server/models/PayoutMethod';
 import RecurringExpense, { RecurringExpenseIntervals } from '../../server/models/RecurringExpense';
 import { AssetType } from '../../server/models/SuspendedAsset';
+import { TransactionModelInterface, TransactionType } from '../../server/models/Transaction';
 import {
   SUPPORTED_FILE_EXTENSIONS,
   SUPPORTED_FILE_KINDS,
   SUPPORTED_FILE_TYPES,
 } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
-import { TokenType } from '../../server/models/UserToken';
+import UserToken, { TokenType } from '../../server/models/UserToken';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail };
@@ -555,7 +557,7 @@ export const fakeOrder = async (
 
   const order: OrderModelInterface & {
     subscription?: typeof Subscription;
-    transactions?: (typeof Transaction)[];
+    transactions?: TransactionModelInterface[];
   } = await models.Order.create({
     quantity: 1,
     currency: collective.currency,
@@ -589,8 +591,8 @@ export const fakeOrder = async (
     order.transactions = await Promise.all([
       fakeTransaction({
         OrderId: order.id,
-        type: 'CREDIT',
-        kind: 'CONTRIBUTION',
+        type: TransactionType.CREDIT,
+        kind: TransactionKind.CONTRIBUTION,
         FromCollectiveId: order.FromCollectiveId,
         CollectiveId: order.CollectiveId,
         HostCollectiveId: collective.HostCollectiveId,
@@ -599,8 +601,8 @@ export const fakeOrder = async (
       }),
       fakeTransaction({
         OrderId: order.id,
-        type: 'DEBIT',
-        kind: 'CONTRIBUTION',
+        type: TransactionType.DEBIT,
+        kind: TransactionKind.CONTRIBUTION,
         CollectiveId: order.FromCollectiveId,
         FromCollectiveId: order.CollectiveId,
         amount: -order.totalAmount,
@@ -693,7 +695,7 @@ export const fakeConnectedAccount = async (
  * Creates a fake transaction. All params are optionals.
  */
 export const fakeTransaction = async (
-  transactionData: Record<string, unknown> = {},
+  transactionData: Partial<InferCreationAttributes<TransactionModelInterface>> = {},
   { settlementStatus = undefined, createDoubleEntry = false } = {},
 ) => {
   const amount = (transactionData.amount as number) || randAmount(10, 100) * 100;
@@ -703,7 +705,7 @@ export const fakeTransaction = async (
   const createMethod = createDoubleEntry ? 'createDoubleEntry' : 'create';
   const transaction = await models.Transaction[createMethod](
     {
-      type: amount < 0 ? 'DEBIT' : 'CREDIT',
+      type: amount < 0 ? TransactionType.DEBIT : TransactionType.CREDIT,
       currency: transactionData.currency || 'USD',
       hostCurrency: transactionData.hostCurrency || 'USD',
       hostCurrencyFxRate: 1,
@@ -881,7 +883,7 @@ export const fakeApplication = async (data: Record<string, unknown> = {}) => {
   }
 
   const application = await models.Application.create({
-    type: sample(['apiKey', 'oAuth']),
+    type: sample(['apiKey', 'oAuth']) as 'apiKey' | 'oAuth',
     apiKey: randStr('ApiKey-'),
     clientId: randStrOfLength(20),
     clientSecret: randStrOfLength(40),
@@ -920,7 +922,7 @@ export const fakePersonalToken = async (data: Record<string, unknown> = {}) => {
   return personalToken.reload({ include: [{ association: 'user' }, { association: 'collective' }] });
 };
 
-export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
+export const fakeUserToken = async (data: Partial<InferCreationAttributes<UserToken>> & { user?: User } = {}) => {
   const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const userToken = await models.UserToken.create({
     type: TokenType.OAUTH,
@@ -937,7 +939,12 @@ export const fakeUserToken = async (data: Record<string, unknown> = {}) => {
   return userToken.reload();
 };
 
-export const fakeOAuthAuthorizationCode = async (data: Record<string, unknown> = {}) => {
+export const fakeOAuthAuthorizationCode = async (
+  data: Partial<InferCreationAttributes<OAuthAuthorizationCode>> & {
+    user?: User;
+    application?: ApplicationModelInterface;
+  } = {},
+) => {
   const user = <User>data.user || (data.UserId ? await models.User.findByPk(<number>data.UserId) : await fakeUser());
   const application =
     data.application ||

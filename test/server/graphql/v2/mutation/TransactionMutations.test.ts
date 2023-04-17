@@ -355,7 +355,7 @@ describe('refundTransaction legacy tests', () => {
       description: order.description,
       data: { charge, balanceTransaction },
     };
-    const transaction = await models.Transaction.createFromContributionPayload(transactionPayload);
+    const transaction = await models.Transaction.createFromContributionPayload(transactionPayload as any);
     return { user, host, collective, tier, paymentMethod, order, transaction };
   }
 

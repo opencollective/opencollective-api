@@ -1,6 +1,7 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
 
 import models from '../../../models';
+import { TransactionModelInterface } from '../../../models/Transaction';
 import { NotFound } from '../../errors';
 
 const TransactionReferenceInput = new GraphQLInputObjectType({
@@ -23,14 +24,14 @@ const TransactionReferenceInput = new GraphQLInputObjectType({
 const fetchTransactionWithReference = async (
   input: Record<string, unknown>,
   { loaders = null, throwIfMissing = false } = {},
-): Promise<typeof models.Transaction> => {
+): Promise<TransactionModelInterface> => {
   let transaction = null;
   if (input.id) {
     transaction = await models.Transaction.findOne({ where: { uuid: input.id } });
   } else if (input.legacyId) {
     transaction = await (loaders
       ? loaders.Transaction.byId.load(input.legacyId)
-      : models.Transaction.findByPk(input.legacyId));
+      : models.Transaction.findByPk(input.legacyId as any));
   }
 
   if (!transaction && throwIfMissing) {

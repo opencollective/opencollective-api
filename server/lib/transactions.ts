@@ -1,6 +1,7 @@
 import assert from 'assert';
 
 import { groupBy, mapValues, round, set, sumBy, truncate } from 'lodash';
+import { Order } from 'sequelize';
 
 import ExpenseType from '../constants/expense_type';
 import TierType from '../constants/tiers';
@@ -10,6 +11,7 @@ import { toNegative } from '../lib/math';
 import { exportToCSV, sumByWhen } from '../lib/utils';
 import models, { Op } from '../models';
 import Tier from '../models/Tier';
+import { TransactionModelInterface } from '../models/Transaction';
 
 import { getFxRate } from './currency';
 
@@ -56,7 +58,7 @@ export function getTransactions(collectiveids, startDate = new Date('2015-01-01'
       CollectiveId: { [Op.in]: collectiveids },
       createdAt: { [Op.gte]: startDate, [Op.lt]: endDate },
     },
-    order: [['createdAt', 'DESC']],
+    order: <Order>[['createdAt', 'DESC']],
   };
   if (options.limit) {
     query['limit'] = options.limit;
@@ -212,7 +214,7 @@ export async function createTransactionsFromPaidExpense(
     transaction.data = set(transaction.data || {}, 'feesPayer', 'PAYEE');
   }
 
-  return models.Transaction.createDoubleEntry(transaction);
+  return models.Transaction.createDoubleEntry(transaction as any);
 }
 
 export async function createTransactionsForManuallyPaidExpense(
@@ -289,7 +291,7 @@ export async function createTransactionsForManuallyPaidExpense(
     },
   };
 
-  return models.Transaction.createDoubleEntry(transaction);
+  return models.Transaction.createDoubleEntry(transaction as any);
 }
 
 const computeExpenseTaxes = (expense): number | null => {
@@ -441,7 +443,7 @@ export async function generateDescription(transaction, { req = null, full = fals
  *   [TaxId]: { totalCollected: number, totalPaid: number }
  * }
  */
-export const getTaxesSummary = (allTransactions: typeof models.Transaction) => {
+export const getTaxesSummary = (allTransactions: TransactionModelInterface[]) => {
   const transactionsWithTaxes = allTransactions.filter(t => t.taxAmount);
   if (!transactionsWithTaxes.length) {
     return null;

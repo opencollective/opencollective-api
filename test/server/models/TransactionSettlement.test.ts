@@ -4,6 +4,7 @@ import { times } from 'lodash';
 import { TransactionKind } from '../../../server/constants/transaction-kind';
 import { PLATFORM_TIP_TRANSACTION_PROPERTIES } from '../../../server/constants/transactions';
 import models, { Op } from '../../../server/models';
+import { TransactionType } from '../../../server/models/Transaction';
 import TransactionSettlement, { TransactionSettlementStatus } from '../../../server/models/TransactionSettlement';
 import {
   fakeCollective,
@@ -26,7 +27,7 @@ const fakeContribution = (fromCollective, collective, transactionGroup) => {
       CollectiveId: collective.id,
       FromCollectiveId: fromCollective.id,
       amount: 1000,
-      type: 'CREDIT',
+      type: TransactionType.CREDIT,
       description: 'A simple contribution **without** platform tip',
     },
     {
@@ -58,7 +59,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
   await fakeTransaction({
     TransactionGroup: transaction.TransactionGroup,
     kind: TransactionKind.PLATFORM_TIP,
-    type: 'DEBIT',
+    type: TransactionType.DEBIT,
     amount: -200,
     CollectiveId: transaction.FromCollectiveId,
     FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
@@ -70,7 +71,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
   await fakeTransaction({
     TransactionGroup: transaction.TransactionGroup,
     kind: TransactionKind.PLATFORM_TIP,
-    type: 'CREDIT',
+    type: TransactionType.CREDIT,
     amount: 200,
     FromCollectiveId: transaction.FromCollectiveId,
     CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
@@ -82,7 +83,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
   await fakeTransaction({
     kind: TransactionKind.PLATFORM_TIP_DEBT,
     TransactionGroup: transaction.TransactionGroup,
-    type: 'DEBIT',
+    type: TransactionType.DEBIT,
     amount: -200,
     FromCollectiveId: transaction.HostCollectiveId,
     CollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,
@@ -94,7 +95,7 @@ const fakeContributionWithPlatformTipNewFormat = async (fromCollective, collecti
   // [Debt] CREDIT Tip debt transaction (host -> OC)
   const tipDebtCreditTransaction = await fakeTransaction({
     kind: TransactionKind.PLATFORM_TIP_DEBT,
-    type: 'CREDIT',
+    type: TransactionType.CREDIT,
     TransactionGroup: transaction.TransactionGroup,
     amount: 200,
     FromCollectiveId: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId,

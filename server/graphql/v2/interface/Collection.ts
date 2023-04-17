@@ -1,5 +1,7 @@
 import { GraphQLInt, GraphQLInterfaceType, GraphQLNonNull } from 'graphql';
 
+import { TransactionKind } from '../../../constants/transaction-kind';
+
 /** All the fields Collection interface implementers have to implemented. */
 const CollectionFields = {
   offset: {
@@ -59,7 +61,7 @@ export interface TransactionsCollectionReturnType {
   totalCount: number;
   limit: number;
   offset: number;
-  kinds?: string[] | (() => string[]);
+  kinds?: string[] | (() => string[]) | (() => Promise<TransactionKind[]>);
 }
 
 export { Collection, CollectionFields, CollectionArgs };

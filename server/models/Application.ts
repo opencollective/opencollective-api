@@ -1,12 +1,55 @@
 import { randomBytes } from 'crypto';
 
 import { isNil, merge } from 'lodash';
-import { DataTypes } from 'sequelize';
+import {
+  CreationAttributes,
+  DataTypes,
+  HasOneGetAssociationMixin,
+  InferAttributes,
+  InferCreationAttributes,
+  Model,
+  ModelStatic,
+  NonAttribute,
+} from 'sequelize';
 
 import { crypto } from '../lib/encryption';
 import sequelize from '../lib/sequelize';
 
-const Application = sequelize.define(
+import Collective from './Collective';
+import User from './User';
+
+interface ApplicationModelStaticInterface {
+  create(props: CreationAttributes<ApplicationModelInterface>): Promise<ApplicationModelInterface>;
+}
+
+export interface ApplicationModelInterface
+  extends Model<InferAttributes<ApplicationModelInterface>, InferCreationAttributes<ApplicationModelInterface>> {
+  id: number;
+  CollectiveId: number;
+  collective?: NonAttribute<Collective>;
+
+  CreatedByUserId: number;
+  createdByUser?: NonAttribute<User>;
+  getCreatedByUser: HasOneGetAssociationMixin<User>;
+
+  type: 'apiKey' | 'oAuth';
+  apiKey: string;
+  clientId: string;
+  clientSecret: string;
+  callbackUrl: string;
+  name: string;
+  description: string;
+  disabled: boolean;
+  data: any;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+
+  info: NonAttribute<any>;
+  publicInfo: NonAttribute<any>;
+}
+
+const Application: ModelStatic<ApplicationModelInterface> & ApplicationModelStaticInterface = sequelize.define(
   'Application',
   {
     id: {
@@ -111,7 +154,7 @@ const Application = sequelize.define(
   },
 );
 
-Application.create = props => {
+Application.create = function (props): any {
   if (props.type === 'apiKey') {
     props = merge(props, {
       apiKey: randomBytes(20).toString('hex'),

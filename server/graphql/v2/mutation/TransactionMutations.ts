@@ -7,6 +7,7 @@ import { TransactionKind } from '../../../constants/transaction-kind';
 import { purgeCacheForCollective } from '../../../lib/cache';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import { TransactionModelInterface } from '../../../models/Transaction';
 import { checkRemoteUserCanUseTransactions } from '../../common/scope-check';
 import { canReject, refundTransaction } from '../../common/transactions';
 import { Forbidden, NotFound, Unauthorized, ValidationFailed } from '../../errors';
@@ -29,7 +30,7 @@ const transactionMutations = {
         description: 'Amount of the platform tip',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<TransactionModelInterface> {
       checkRemoteUserCanUseTransactions(req);
 
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
@@ -53,7 +54,7 @@ const transactionMutations = {
 
       // We fake a transactionData object to pass to createPlatformTipTransactions
       // It's not ideal but it's how it is
-      const transactionData = {
+      const transactionData = <TransactionModelInterface>{
         ...transaction.dataValues,
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: transaction.HostCollectiveId,
@@ -83,7 +84,7 @@ const transactionMutations = {
         description: 'Reference of the transaction to refund',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<TransactionModelInterface> {
       checkRemoteUserCanUseTransactions(req);
       const transaction = await fetchTransactionWithReference(args.transaction, { throwIfMissing: true });
       return refundTransaction(transaction, req);
@@ -103,7 +104,7 @@ const transactionMutations = {
         description: 'Message to send to the contributor whose contribution has been rejected',
       },
     },
-    async resolve(_: void, args, req: express.Request): Promise<typeof Transaction> {
+    async resolve(_: void, args, req: express.Request): Promise<TransactionModelInterface> {
       checkRemoteUserCanUseTransactions(req);
 
       // get transaction info

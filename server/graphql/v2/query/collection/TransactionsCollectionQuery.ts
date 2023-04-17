@@ -2,6 +2,7 @@ import express from 'express';
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLString } from 'graphql';
 import { GraphQLDateTime } from 'graphql-scalars';
 import { cloneDeep, flatten, isNil, pick, uniq } from 'lodash';
+import { Order } from 'sequelize';
 
 import { buildSearchConditions } from '../../../../lib/search';
 import models, { Op, sequelize } from '../../../../models';
@@ -287,7 +288,7 @@ export const TransactionsCollectionResolver = async (args, req: express.Request)
     }
   }
 
-  const order = [
+  const order: Order = [
     [args.orderBy.field, args.orderBy.direction],
     // Add additional sort for consistent sorting
     // (transactions in the same TransactionGroup usually have the exact same datetime)

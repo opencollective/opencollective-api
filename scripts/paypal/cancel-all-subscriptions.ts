@@ -19,6 +19,7 @@ import OrderStatuses from '../../server/constants/order_status';
 import logger from '../../server/lib/logger';
 import models, { Op, Subscription } from '../../server/models';
 import { OrderModelInterface } from '../../server/models/Order';
+import { TransactionModelInterface } from '../../server/models/Transaction';
 import { paypalRequestV2 } from '../../server/paymentProviders/paypal/api';
 import { getCaptureIdFromPaypalTransaction } from '../../server/paymentProviders/paypal/payment';
 import {
@@ -65,7 +66,7 @@ const main = async () => {
   }
 
   const orders = await models.Order.findAll<
-    OrderModelInterface & { Transaction?: typeof models.Transaction; Subscription?: typeof Subscription }
+    OrderModelInterface & { Transaction?: TransactionModelInterface; Subscription?: typeof Subscription }
   >({
     order: [['createdAt', 'DESC']],
     where: {

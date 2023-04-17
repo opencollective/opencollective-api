@@ -2,7 +2,7 @@ import BluebirdPromise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, intersection } from 'lodash';
-import { InferAttributes, InferCreationAttributes, Model, ModelStatic } from 'sequelize';
+import { InferAttributes, InferCreationAttributes, Model, ModelStatic, NonAttribute } from 'sequelize';
 
 import { maxInteger } from '../constants/math';
 import {
@@ -62,7 +62,9 @@ export interface PaymentMethodModelInterface
   saved: boolean;
 
   getCollective(): Promise<Collective>;
-  Collective?: Collective;
+  Collective?: NonAttribute<Collective>;
+
+  info: NonAttribute<any>;
 }
 
 const PaymentMethod: ModelStatic<PaymentMethodModelInterface> & PaymentMethodStaticInterface = sequelize.define(

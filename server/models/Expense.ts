@@ -29,6 +29,7 @@ import { ExpenseAttachedFile } from './ExpenseAttachedFile';
 import { ExpenseItem } from './ExpenseItem';
 import PayoutMethod, { PayoutMethodTypes } from './PayoutMethod';
 import { RecurringExpense } from './RecurringExpense';
+import { TransactionModelInterface } from './Transaction';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
@@ -72,7 +73,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
 
-  public declare Transactions?: (typeof models.Transaction)[];
+  public declare Transactions?: TransactionModelInterface[];
   public declare collective?: Collective;
   public declare fromCollective?: Collective;
   public declare host?: Collective;
@@ -87,7 +88,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   declare getItems: HasManyGetAssociationsMixin<ExpenseItem>;
   declare getPayoutMethod: BelongsToGetAssociationMixin<PayoutMethod>;
   declare getRecurringExpense: BelongsToGetAssociationMixin<RecurringExpense>;
-  declare getTransactions: BelongsToGetAssociationMixin<typeof models.Transaction>;
+  declare getTransactions: BelongsToGetAssociationMixin<TransactionModelInterface[]>;
   declare getVirtualCard: BelongsToGetAssociationMixin<typeof models.VirtualCard>;
 
   /**
