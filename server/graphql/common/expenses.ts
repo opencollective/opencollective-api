@@ -315,8 +315,12 @@ export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = asyn
 };
 
 /** Checks if the user can verify or resend a draft */
-export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense) => {
-  return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+export const canVerifyDraftExpense: ExpensePermissionEvaluator = async (req, expense): Promise<boolean> => {
+  if (!['DRAFT', 'UNVERIFIED'].includes(expense.status)) {
+    return false;
+  } else {
+    return remoteUserMeetsOneCondition(req, expense, [isOwner, isCollectiveAdmin, isHostAdmin]);
+  }
 };
 
 // Write permissions
@@ -801,7 +805,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
   }
 }
 
-const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
+export const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
   if (!value) {
     return;
   }
@@ -845,6 +849,7 @@ export const scheduleExpenseForPayment = async (
     }
   }
 
+  // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
   const { feesPayer } = options;
   if (feesPayer && feesPayer !== expense.feesPayer) {
     await expense.update({ feesPayer: feesPayer });
@@ -1858,7 +1863,7 @@ export const getExpenseFees = async (
     collectiveToHostFxRate * (<number>resultFees['paymentProcessorFeeInCollectiveCurrency'] || 0),
   );
   feesInHostCurrency.hostFeeInHostCurrency = Math.round(
-    collectiveToHostFxRate * (<number>fees['hostFeeInCollectiveCurrency'] || 0),
+    collectiveToHostFxRate * (<number>resultFees['hostFeeInCollectiveCurrency'] || 0),
   );
   feesInHostCurrency.platformFeeInHostCurrency = Math.round(
     collectiveToHostFxRate * (<number>resultFees['platformFeeInCollectiveCurrency'] || 0),
@@ -2073,6 +2078,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       throw new Error('"In kind" donations are not supported anymore');
     }
 
+    // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
     if (args.feesPayer && args.feesPayer !== expense.feesPayer) {
       await expense.update({ feesPayer: args.feesPayer });
     }
@@ -2214,7 +2220,7 @@ export async function markExpenseAsUnpaid(
 ): Promise<Expense> {
   const { remoteUser } = req;
 
-  const updatedExpense = await lockExpense(expenseId, async () => {
+  const { expense, transaction } = await lockExpense(expenseId, async () => {
     if (!remoteUser) {
       throw new Unauthorized('You need to be logged in to unpay an expense');
     } else if (!canUseFeature(remoteUser, FEATURE.USE_EXPENSES)) {
@@ -2256,11 +2262,14 @@ export async function markExpenseAsUnpaid(
       : 0;
     await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
 
-    return expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+    await expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+    return { expense, transaction };
   });
 
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser);
-  return updatedExpense;
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser, {
+    ledgerTransaction: transaction,
+  });
+  return expense;
 }
 
 export async function quoteExpense(expense_, { req }) {

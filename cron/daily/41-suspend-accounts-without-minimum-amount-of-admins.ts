@@ -10,6 +10,10 @@ import models, { sequelize } from '../../server/models';
 
 const run = async () => {
   const collectives = await models.Collective.findAll({
+    where: {
+      // Since children automatically inherit the policies, features and admins of their parent, we only need to check the parent collectives
+      ParentCollectiveId: null,
+    },
     include: [
       { model: models.Member, as: 'members', where: { role: roles.ADMIN } },
       {

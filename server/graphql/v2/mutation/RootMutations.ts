@@ -1,5 +1,5 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
 
 import { types as collectiveTypes } from '../../../constants/collectives';
@@ -15,6 +15,7 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import { setTaxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
 import { moveExpenses } from '../../common/expenses';
@@ -31,6 +32,7 @@ import { ExpenseReferenceInput, fetchExpensesWithReferences } from '../input/Exp
 import { Account } from '../interface/Account';
 import { Expense } from '../object/Expense';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
+import URL from '../scalar/URL';
 
 const BanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
@@ -306,6 +308,38 @@ export default {
       });
 
       return moveExpenses(req, expenses, destinationAccount);
+    },
+  },
+  setTaxForm: {
+    type: new GraphQLObjectType({
+      name: 'SetTaxFormResult',
+      fields: {
+        success: { type: new GraphQLNonNull(GraphQLBoolean) },
+      },
+    }),
+    description: '[Root only] A mutation to set the tax from for an account.',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Reference to the Account the tax form should be set.',
+      },
+      taxFormLink: {
+        type: new GraphQLNonNull(URL),
+        description: 'The tax from link.',
+      },
+      year: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'The tax form year.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanRoot(req);
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+
+      return { success: setTaxForm(account, args.taxFormLink, args.year) };
     },
   },
 };

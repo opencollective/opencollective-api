@@ -1,3 +1,5 @@
+import assert from 'assert';
+
 import config from 'config';
 import { get } from 'lodash';
 
@@ -116,12 +118,22 @@ export const disconnect = async (req, res) => {
       throw new errors.Unauthorized('You are either logged out or not authorized to disconnect this account');
     }
 
-    const account = await models.ConnectedAccount.findOne({
-      where: { service, CollectiveId },
-    });
-
-    if (account) {
+    const collective = await models.Collective.findByPk(CollectiveId);
+    if (service === 'transferwise' && collective.settings?.transferwise?.isolateUsers) {
+      const connectedAccounts = await models.ConnectedAccount.findAll({
+        where: { service, CollectiveId },
+      });
+      const account = connectedAccounts.find(ca => ca.CreatedByUserId === remoteUser.id);
+      assert(account, 'No connected account found for this user');
       await account.destroy();
+    } else {
+      const account = await models.ConnectedAccount.findOne({
+        where: { service, CollectiveId },
+      });
+
+      if (account) {
+        await account.destroy();
+      }
     }
 
     res.send({

@@ -403,8 +403,9 @@ const expenseMutations = {
       const expenseFields = ['description', 'longDescription', 'tags', 'type', 'privateMessage', 'invoiceInfo'];
 
       const fromCollective = await remoteUser.getCollective();
-      const payee = expenseData.payee?.id
-        ? (await fetchAccountWithReference({ id: expenseData.payee.id }, { throwIfMissing: true }))?.minimal
+      const payeeLegacyId = expenseData.payee?.legacyId || expenseData.payee?.id;
+      const payee = payeeLegacyId
+        ? (await fetchAccountWithReference({ legacyId: payeeLegacyId }, { throwIfMissing: true }))?.minimal
         : expenseData.payee;
       const expense = await models.Expense.create({
         ...pick(expenseData, expenseFields),
@@ -477,7 +478,7 @@ const expenseMutations = {
       } else if (expense.status !== expenseStatus.DRAFT) {
         throw new Unauthorized('Expense was already submitted.');
       } else if (!(await canVerifyDraftExpense(req, expense))) {
-        throw new Unauthorized("You don't have the permission to edit this expense.");
+        throw new Unauthorized("You don't have the permission resend a draft for this expense.");
       }
 
       const draftKey = expense.data.draftKey;
@@ -510,7 +511,7 @@ const expenseMutations = {
       if (expense.status !== expenseStatus.UNVERIFIED) {
         throw new Unauthorized('Expense can not be verified.');
       } else if (!(await canVerifyDraftExpense(req, expense))) {
-        throw new Unauthorized("You don't have the permission to edit this expense.");
+        throw new Unauthorized("You don't have the permission to verify this expense.");
       }
       await expense.update({ status: expenseStatus.PENDING });
 

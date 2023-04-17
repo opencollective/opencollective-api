@@ -1,6 +1,5 @@
 # Open Collective API
 
-[![Dependency Status](https://david-dm.org/opencollective/opencollective-api.svg)](https://david-dm.org/opencollective/opencollective-api)
 ![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
 ![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
 

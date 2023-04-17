@@ -4922,6 +4922,11 @@ type ExpensePermissions {
   Whether the current user can unschedule this expense payment
   """
   canUnschedulePayment: Boolean!
+
+  """
+  Whether the current user can verify this draft expense
+  """
+  canVerifyDraftExpense: Boolean!
   edit: Permission!
   editTags: Permission!
   delete: Permission!
@@ -4934,6 +4939,7 @@ type ExpensePermissions {
   markAsUnpaid: Permission!
   comment: Permission!
   unschedulePayment: Permission!
+  verifyDraftExpense: Permission!
 }
 
 """
@@ -9622,6 +9628,11 @@ type Query {
     Whether to include expenses from children of the account (Events and Projects)
     """
     includeChildrenExpenses: Boolean! = false
+
+    """
+    Only return expenses that contains this custom data. Requires being an admin of the collective, payee or host.
+    """
+    customData: JSON
   ): ExpenseCollection!
   fund(
     """
@@ -13890,6 +13901,26 @@ type Mutation {
   ): [Expense]!
 
   """
+  [Root only] A mutation to set the tax from for an account.
+  """
+  setTaxForm(
+    """
+    Reference to the Account the tax form should be set.
+    """
+    account: AccountReferenceInput!
+
+    """
+    The tax from link.
+    """
+    taxFormLink: URL!
+
+    """
+    The tax form year.
+    """
+    year: Int!
+  ): SetTaxFormResult
+
+  """
   Add platform tips to a transaction. Scope: "transactions".
   """
   addPlatformTipToTransaction(
@@ -14996,7 +15027,8 @@ input ExpenseInviteDraftInput {
 }
 
 input ExpenseInvitee {
-  id: Int
+  id: Int @deprecated(reason: "2023-04-12: Please use legacyId")
+  legacyId: Int
   slug: String
   name: String
   email: String
@@ -15604,6 +15636,10 @@ type BanAccountResponse {
   The accounts impacted by the mutation
   """
   accounts: [Account!]!
+}
+
+type SetTaxFormResult {
+  success: Boolean!
 }
 
 input TransactionReferenceInput {
