@@ -1,6 +1,7 @@
 import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { types as collectiveTypes } from '../../../constants/collectives';
+import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
 import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
@@ -96,11 +97,7 @@ export const Individual = new GraphQLObjectType({
         type: GraphQLBoolean,
         async resolve(collective, args, req) {
           const user = await req.loaders.User.byCollectiveId.load(collective.id);
-          if (user.twoFactorAuthToken) {
-            return true;
-          } else {
-            return false;
-          }
+          return twoFactorAuthLib.userHasTwoFactorAuthEnabled(user);
         },
       },
       newsletterOptIn: {

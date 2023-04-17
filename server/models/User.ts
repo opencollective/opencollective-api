@@ -22,12 +22,18 @@ import * as auth from '../lib/auth';
 import emailLib from '../lib/email';
 import logger from '../lib/logger';
 import sequelize, { DataTypes, Model, Op } from '../lib/sequelize';
+import twoFactorAuthLib from '../lib/two-factor-authentication';
 import { isValidEmail, parseToBoolean } from '../lib/utils';
 
 import Collective from './Collective';
 import models from '.';
 
 const debug = debugLib('models:User');
+
+type UserData = {
+  creationRequest?: { ip: string };
+  lastSignInRequest?: { ip: string };
+};
 
 class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare readonly id: CreationOptional<number>;
@@ -39,7 +45,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
   public declare CollectiveId: number;
   public declare newsletterOptIn: boolean;
-  public declare data: CreationOptional<Record<string, unknown>>;
+  public declare data: CreationOptional<Record<string, unknown> & UserData>;
   public declare createdAt: CreationOptional<Date>;
   public declare changelogViewDate: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
@@ -312,8 +318,12 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return count > 0;
   };
 
+  getLastKnownIp = function (): string {
+    return this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+  };
+
   findRelatedUsersByIp = async function ({ include = undefined, where = null } = {}) {
-    const ip = this.data?.lastSignInRequest?.ip || this.data?.creationRequest?.ip;
+    const ip = this.getLastKnownIp();
     return User.findAll({
       where: {
         ...where,
@@ -458,7 +468,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   }
 
   get hasTwoFactorAuthentication(): NonAttribute<boolean> {
-    return this.twoFactorAuthToken !== null;
+    return twoFactorAuthLib.userHasTwoFactorAuthEnabled(this);
   }
 
   // @deprecated

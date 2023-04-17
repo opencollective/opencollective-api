@@ -94,6 +94,7 @@ async function quoteExpense(
   await populateProfileId(connectedAccount);
 
   const isExistingQuoteValid =
+    expense.feesPayer !== 'PAYEE' &&
     expense.data?.quote &&
     expense.data.quote['paymentOption'] &&
     !expense.data.transfer && // We can not reuse quotes if a Transfer was already created
@@ -347,8 +348,14 @@ async function unscheduleExpenseForPayment(expense: Expense): Promise<void> {
   );
 }
 
-async function payExpensesBatchGroup(host, expenses, x2faApproval?: string) {
-  const connectedAccount = await host.getAccountForPaymentProvider(providerName);
+async function payExpensesBatchGroup(host, expenses, x2faApproval?: string, remoteUser?) {
+  const connectedAccounts = await models.ConnectedAccount.findAll({
+    where: { service: providerName, CollectiveId: host.id },
+  });
+  const connectedAccount = remoteUser
+    ? find(connectedAccounts, { CreatedByUserId: remoteUser?.id }) || connectedAccounts[0]
+    : connectedAccounts[0];
+  assert(connectedAccount, `No connected account found for host ${host?.id} and user ${remoteUser?.id}`);
 
   const profileId = connectedAccount.data.id;
   const token = await transferwise.getToken(connectedAccount);
@@ -528,7 +535,7 @@ const oauth = {
   ): Promise<string> {
     const hash = hashObject({ CollectiveId, userId: user.id });
     const cacheKey = `transferwise_oauth_${hash}`;
-    await cache.set(cacheKey, { CollectiveId, redirect: query.redirect }, 60 * 10);
+    await cache.set(cacheKey, { CollectiveId, redirect: query.redirect, UserId: user.id }, 60 * 10);
     return transferwise.getOAuthUrl(hash);
   },
 
@@ -547,7 +554,7 @@ const oauth = {
       return;
     }
 
-    const { redirect, CollectiveId } = originalRequest;
+    const { redirect, CollectiveId, UserId } = originalRequest;
     const redirectUrl = new URL(redirect);
     try {
       const { code, profileId } = req.query;
@@ -558,9 +565,14 @@ const oauth = {
       const accessToken = await transferwise.getOrRefreshToken({ code: code?.toString() });
       const { access_token: token, refresh_token: refreshToken, ...data } = accessToken;
 
-      const existingConnectedAccount = await models.ConnectedAccount.findOne({
+      const connectedAccounts = await models.ConnectedAccount.findAll({
         where: { service: 'transferwise', CollectiveId },
       });
+
+      const existingConnectedAccount =
+        collective?.settings?.transferwise?.isolateUsers === true
+          ? connectedAccounts.find(ca => ca.CreatedByUserId === UserId)
+          : connectedAccounts[0];
 
       if (existingConnectedAccount) {
         await existingConnectedAccount.update({
@@ -571,6 +583,7 @@ const oauth = {
       } else {
         const connectedAccount = await models.ConnectedAccount.create({
           CollectiveId,
+          CreatedByUserId: UserId,
           service: 'transferwise',
           token,
           refreshToken,
@@ -582,7 +595,7 @@ const oauth = {
       // Automatically set OTT flag on for European contries and Australia.
       if (
         collective.countryISO &&
-        (isMemberOfTheEuropeanUnion(collective.countryISO) || collective.countryISO === 'AU')
+        (isMemberOfTheEuropeanUnion(collective.countryISO) || ['AU', 'UK'].includes(collective.countryISO))
       ) {
         const settings = collective.settings ? cloneDeep(collective.settings) : {};
         set(settings, 'transferwise.ott', true);

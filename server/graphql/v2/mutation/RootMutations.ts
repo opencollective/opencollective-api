@@ -1,7 +1,9 @@
 import express from 'express';
-import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
-import { isNil, uniqBy } from 'lodash';
+import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { cloneDeep, isNil, omit, uniqBy } from 'lodash';
 
+import { types as collectiveTypes } from '../../../constants/collectives';
+import roles from '../../../constants/roles';
 import { purgeAllCachesForAccount, purgeGraphqlCacheForCollective } from '../../../lib/cache';
 import { purgeCacheForPage } from '../../../lib/cloudflare';
 import { invalidateContributorsCache } from '../../../lib/contributors';
@@ -13,7 +15,9 @@ import {
   stringifyBanResult,
   stringifyBanSummary,
 } from '../../../lib/moderation';
+import { setTaxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import models, { sequelize } from '../../../models';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
@@ -28,6 +32,7 @@ import { ExpenseReferenceInput, fetchExpensesWithReferences } from '../input/Exp
 import { Account } from '../interface/Account';
 import { Expense } from '../object/Expense';
 import { MergeAccountsResponse } from '../object/MergeAccountsResponse';
+import URL from '../scalar/URL';
 
 const BanAccountResponse = new GraphQLObjectType({
   name: 'BanAccountResponse',
@@ -95,6 +100,60 @@ export default {
         await user.update({
           twoFactorAuthToken: null,
           twoFactorAuthRecoveryCodes: null,
+        });
+      }
+      return account;
+    },
+  },
+  editAccountType: {
+    type: new GraphQLNonNull(Account),
+    description: '[Root only] Edits account type from User to Organization',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account to change the type for',
+      },
+    },
+    async resolve(_: void, args, req: express.Request): Promise<Record<string, unknown>> {
+      checkRemoteUserCanRoot(req);
+
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true, paranoid: false });
+
+      if (account.isHostAccount) {
+        throw new Error('Cannot change type of host account');
+      } else if (account.type !== collectiveTypes.USER) {
+        throw new Error('editAccountType only works on individual profiles');
+      } else if (account.data.isGuest) {
+        throw new Error('editAccountType does not work on guest profiles');
+      }
+
+      const collectiveData = omit(cloneDeep(account.dataValues), ['id']);
+      collectiveData.slug = `${collectiveData.slug}-user`;
+      collectiveData.createdAt = new Date();
+      let collective;
+
+      await sequelize.transaction(async transaction => {
+        // Create new USER account in the Collectives table
+        collective = await models.Collective.create(collectiveData, { transaction });
+
+        // Update the corresponding CollectiveId in Users to this new profile
+        const user = await models.User.findOne({ where: { CollectiveId: account.id }, transaction });
+        await user.update({ CollectiveId: collective.id }, { transaction });
+
+        // Change the type of the original USER account to Organization
+        await account.update({ type: collectiveTypes.ORGANIZATION }, { transaction });
+      });
+
+      // Add admin user for the new Organization
+      if (collective) {
+        await models.Member.create({
+          CreatedByUserId: req.remoteUser.id,
+          CollectiveId: account.id,
+          MemberCollectiveId: collective.id,
+          role: roles.ADMIN,
         });
       }
       return account;
@@ -249,6 +308,38 @@ export default {
       });
 
       return moveExpenses(req, expenses, destinationAccount);
+    },
+  },
+  setTaxForm: {
+    type: new GraphQLObjectType({
+      name: 'SetTaxFormResult',
+      fields: {
+        success: { type: new GraphQLNonNull(GraphQLBoolean) },
+      },
+    }),
+    description: '[Root only] A mutation to set the tax from for an account.',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Reference to the Account the tax form should be set.',
+      },
+      taxFormLink: {
+        type: new GraphQLNonNull(URL),
+        description: 'The tax from link.',
+      },
+      year: {
+        type: new GraphQLNonNull(GraphQLInt),
+        description: 'The tax form year.',
+      },
+    },
+    async resolve(_, args, req) {
+      checkRemoteUserCanRoot(req);
+      // Always enforce 2FA for root actions
+      await twoFactorAuthLib.validateRequest(req, { requireTwoFactorAuthEnabled: true });
+
+      const account = await fetchAccountWithReference(args.account, { throwIfMissing: true });
+
+      return { success: setTaxForm(account, args.taxFormLink, args.year) };
     },
   },
 };

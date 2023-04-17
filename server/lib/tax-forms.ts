@@ -111,6 +111,23 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
   });
 };
 
+export const setTaxForm = async (account, taxFormLink, year) => {
+  const legalDocument = await models.LegalDocument.findOne({
+    where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
+  });
+
+  if (legalDocument) {
+    await legalDocument.update({
+      documentLink: taxFormLink,
+      year,
+      requestStatus: 'RECEIVED',
+    });
+    return true;
+  } else {
+    throw new Error('No legal document found');
+  }
+};
+
 export async function sendHelloWorksUsTaxForm(
   client: HelloWorks,
   account: Collective,

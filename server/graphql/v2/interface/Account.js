@@ -958,7 +958,13 @@ export const AccountFields = {
         return null;
       }
 
-      return req.loaders.Collective.connectedAccounts.load(collective.id);
+      const connectedAccounts = await req.loaders.Collective.connectedAccounts.load(collective.id);
+      if (collective?.settings?.transferwise?.isolateUsers === true) {
+        return connectedAccounts.filter(
+          ca => ca.service !== 'transferwise' || ca.CreatedByUserId === req.remoteUser.id,
+        );
+      }
+      return connectedAccounts;
     },
   },
   categories: {

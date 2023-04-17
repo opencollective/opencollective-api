@@ -553,6 +553,9 @@ export const notifyByEmail = async (activity: Activity) => {
         await notify.collective(activity, {
           collectiveId: activity.data.payee.id,
         });
+      } else if (activity.data.payee.slug) {
+        const collective = await models.Collective.findBySlug(activity.data.payee.slug);
+        await notify.collective(activity, { collective });
       }
       break;
 

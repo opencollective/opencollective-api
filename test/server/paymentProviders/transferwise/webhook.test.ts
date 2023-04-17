@@ -90,13 +90,9 @@ describe('server/paymentProviders/transferwise/webhook', () => {
       type: 'INVOICE',
       description: 'January Invoice',
       data: {
-        transfer: { id: event.data.resource.id, sourceValue: 100 },
-        quote: { fee: 1, rate: 1 },
-        feesInHostCurrency: {
-          hostFeeInHostCurrency: 1,
-          platformFeeInHostCurrency: 1,
-        },
-        paymentOption: { fee: { total: 10 } },
+        transfer: { id: event.data.resource.id },
+        quote: { fee: 10, rate: 1 },
+        paymentOption: { fee: { total: 10 }, sourceAmount: 110 },
       },
     });
   });
@@ -115,10 +111,8 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     await expense.reload();
     expect(expense).to.have.property('status', status.PAID);
     const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
-    expect(debitTransaction).to.be.have.property('platformFeeInHostCurrency', -1);
     expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', -1000);
-    expect(debitTransaction).to.be.have.property('hostFeeInHostCurrency', -1);
-    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11002);
+    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -11000);
     expect(debitTransaction).to.be.have.nested.property('data.transfer.id', 1234);
   });
 
@@ -133,7 +127,7 @@ describe('server/paymentProviders/transferwise/webhook', () => {
 
     const [debitTransaction] = await expense.getTransactions({ where: { type: 'DEBIT' } });
     expect(debitTransaction).to.be.have.property('paymentProcessorFeeInHostCurrency', 0);
-    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10002);
+    expect(debitTransaction).to.be.have.property('netAmountInCollectiveCurrency', -10000);
   });
 
   it('should set expense as error when funds are refunded', async () => {
@@ -169,5 +163,32 @@ describe('server/paymentProviders/transferwise/webhook', () => {
     verifyEvent.returns(refundEvent);
 
     await api.post('/webhooks/transferwise').send(event).expect(200);
+  });
+
+  it('works with Expenses with feesPayer = PAYEE', async () => {
+    await expense.update({
+      feesPayer: 'PAYEE',
+      data: {
+        ...expense.data,
+        paymentOption: { fee: { total: 10 }, sourceAmount: 100 },
+      },
+    });
+    await api.post('/webhooks/transferwise').send(event).expect(200);
+
+    await expense.reload();
+    expect(expense).to.have.property('status', status.PAID);
+    const [debit, credit] = await expense.getTransactions();
+
+    expect(debit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
+    expect(debit).to.have.property('netAmountInCollectiveCurrency', -10000);
+    expect(debit).to.have.property('amountInHostCurrency', -9000);
+    expect(debit).to.have.property('amount', -9000);
+    expect(debit).to.have.nested.property('data.expenseToHostFxRate', 1);
+    expect(debit).to.have.nested.property('data.transfer.id', 1234);
+
+    expect(credit).to.have.property('paymentProcessorFeeInHostCurrency', -1000);
+    expect(credit).to.have.property('netAmountInCollectiveCurrency', 9000);
+    expect(credit).to.have.property('amountInHostCurrency', 10000);
+    expect(credit).to.have.property('amount', 10000);
   });
 });

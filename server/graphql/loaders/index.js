@@ -81,6 +81,7 @@ export const loaders = req => {
   context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments(req, cache);
   context.loaders.Expense.expenseToHostTransactionFxRateLoader =
     expenseLoaders.generateExpenseToHostTransactionFxRateLoader(req, cache);
+  context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader(req, cache);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);

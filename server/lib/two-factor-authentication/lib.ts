@@ -185,9 +185,8 @@ function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
 }
 
 function userHasTwoFactorAuthEnabled(user: User) {
-  return Boolean(user.twoFactorAuthToken);
+  return Boolean(user.twoFactorAuthToken) || Boolean(user.yubikeyDeviceId);
 }
-
 /**
  * Returns true if this request / account should enforce 2FA.
  * The parent account, if any, is always the source of truth

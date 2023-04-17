@@ -498,6 +498,15 @@ data['collective.member.created'] = {
     },
   },
 };
+data['collective.apply.foundation'] = {
+  collective: {
+    name: 'TheCollective',
+  },
+  host: {
+    slug: 'foundation',
+    name: 'foundation',
+  },
+};
 
 const defaultData = {
   config: {

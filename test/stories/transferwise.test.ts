@@ -122,7 +122,7 @@ describe('/test/stories/transferwise.test.ts', () => {
     } as any);
     await expense.reload();
     const fee = round(expense.data.paymentOption.fee.total * 100);
-    const amountInHostCurrency = expense.data.transfer.sourceValue * 100;
+    const amountInHostCurrency = expense.data.paymentOption.sourceAmount * 100 - fee;
 
     expect(expense.status).to.eq(ExpenseStatuses.PAID);
     const [debit] = await expense.getTransactions({ where: { type: 'DEBIT' } });

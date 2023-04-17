@@ -92,7 +92,7 @@ export const OrdersCollectionArgs = {
   },
   dateTo: {
     type: GraphQLDateTime,
-    description: 'Only return orders that were created after this date',
+    description: 'Only return orders that were created before this date',
   },
   searchTerm: {
     type: GraphQLString,

@@ -4,13 +4,15 @@ import { groupBy } from 'lodash';
 import ACTIVITY from '../../constants/activities';
 import { TransactionKind } from '../../constants/transaction-kind';
 import queries from '../../lib/queries';
+import { checkExpensesBatch } from '../../lib/security/expense';
 import models, { Op, sequelize } from '../../models';
 import { Activity } from '../../models/Activity';
+import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
 import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
-import { sortResultsArray } from './helpers';
+import { populateModelAssociations, sortResultsArray } from './helpers';
 
 /**
  * Loader for expense's items.
@@ -124,3 +126,21 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
       return isNaN(rate) ? null : { rate, currency: transactionData?.currency };
     });
   });
+
+export const generateExpensesSecurityCheckLoader = req => {
+  return new DataLoader(
+    async (expenses: Expense[]) => {
+      await populateModelAssociations(req, expenses, [
+        { fkField: 'CollectiveId', as: 'collective', modelName: 'Collective' },
+        { fkField: 'FromCollectiveId', as: 'fromCollective', modelName: 'Collective' },
+        { fkField: 'UserId', modelName: 'User' },
+        { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
+      ]);
+
+      return checkExpensesBatch(req, expenses);
+    },
+    {
+      cacheKeyFn: (expense: Expense) => expense.id,
+    },
+  );
+};
