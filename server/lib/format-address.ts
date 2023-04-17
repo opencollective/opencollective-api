@@ -12,7 +12,7 @@ type Options = {
 
 export async function formatAddress(
   { country, structured }: Location,
-  { includeCountry = false, lineDivider = 'comma', locale = 'en' }: Options = {},
+  { includeCountry = false, lineDivider = ',', locale = 'en' }: Options = {},
 ): Promise<string> {
   if (!structured) {
     return null;
