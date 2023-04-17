@@ -805,7 +805,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
   }
 }
 
-const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
+export const validateExpenseCustomData = (value: Record<string, unknown> | null): void => {
   if (!value) {
     return;
   }
@@ -849,6 +849,7 @@ export const scheduleExpenseForPayment = async (
     }
   }
 
+  // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
   const { feesPayer } = options;
   if (feesPayer && feesPayer !== expense.feesPayer) {
     await expense.update({ feesPayer: feesPayer });
@@ -2077,6 +2078,7 @@ export async function payExpense(req: express.Request, args: PayExpenseArgs): Pr
       throw new Error('"In kind" donations are not supported anymore');
     }
 
+    // Update the feesPayer right away because the rest of the process (i.e create transactions) depends on this
     if (args.feesPayer && args.feesPayer !== expense.feesPayer) {
       await expense.update({ feesPayer: args.feesPayer });
     }
