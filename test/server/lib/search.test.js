@@ -295,7 +295,7 @@ describe('server/lib/search', () => {
 
         const [collectives] = await searchCollectivesInDB('', 0, 10, {
           isHost: true,
-          orderBy: { field: 'HOSTED_COLLECTIVES_COUNT', direction: 'DESC' },
+          orderBy: { field: 'HOST_RANK', direction: 'DESC' },
         });
         expect(collectives).to.have.length(5);
         expect(collectives[0].id).to.equal(firstPartyHost.id);

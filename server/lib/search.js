@@ -154,9 +154,16 @@ const getSortSubQuery = (searchTermConditions, orderBy = null) => {
 
     CREATED_AT: `c."createdAt"`,
     HOSTED_COLLECTIVES_COUNT: `
+      SELECT COUNT(1) FROM "Collectives" hosted
+      WHERE hosted."HostCollectiveId" = c.id
+      AND hosted."deletedAt" IS NULL
+      AND hosted."isActive" = TRUE
+      AND hosted."type" IN ('COLLECTIVE', 'FUND')
+    `,
+    HOST_RANK: `
         SELECT
           ARRAY [
-            -- is host is trusted or first party
+            -- is host trusted or first party
             (
               CASE
                 WHEN ((c.data#>'{isFirstPartyHost}')::boolean) THEN 2
