@@ -464,7 +464,7 @@ interface Account {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -2483,7 +2483,7 @@ type Host implements Account & AccountWithContributions {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -3400,7 +3400,7 @@ type PaymentMethod {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -5609,7 +5609,7 @@ type Bot implements Account {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -6127,7 +6127,7 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -6974,7 +6974,7 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -7697,7 +7697,7 @@ type Individual implements Account {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -7788,9 +7788,7 @@ type Individual implements Account {
     offset: Int! = 0
   ): OAuthApplicationCollection
 
-  """
-  The address associated to this account. This field is always public for collectives and events.
-  """
+  "\n          Address. This field is public for hosts, otherwise:\n            - Users can see their own address\n            - Hosts can see the address of users submitting expenses to their collectives\n        "
   location: Location
   categories: [String]!
   stats: AccountStats
@@ -8392,7 +8390,7 @@ type Organization implements Account & AccountWithContributions {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -9025,7 +9023,7 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -9844,7 +9842,7 @@ type Query {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -11875,7 +11873,7 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
@@ -12488,7 +12486,7 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
     dateFrom: DateTime
 
     """
-    Only return orders that were created after this date
+    Only return orders that were created before this date
     """
     dateTo: DateTime
 
