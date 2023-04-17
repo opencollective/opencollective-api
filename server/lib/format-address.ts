@@ -6,13 +6,13 @@ import { reportErrorToSentry } from './sentry';
 
 type Options = {
   includeCountry?: boolean;
-  lineDivider?: 'comma' | 'newline';
+  lineDivider?: ', ' | '\n';
   locale?: string;
 };
 
 export async function formatAddress(
   { country, structured }: Location,
-  { includeCountry = false, lineDivider = 'comma', locale = 'en' }: Options = {},
+  { includeCountry = false, lineDivider = ', ', locale = 'en' }: Options = {},
 ): Promise<string> {
   if (!structured) {
     return null;
@@ -50,5 +50,5 @@ export async function formatAddress(
     addressLines = [address1, address2, [city, zone, postalCode].filter(Boolean).join(' ')];
   }
 
-  return addressLines.filter(Boolean).join(lineDivider === 'comma' ? ', ' : '\n');
+  return addressLines.filter(Boolean).join(lineDivider);
 }

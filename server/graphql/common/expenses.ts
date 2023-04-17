@@ -1161,8 +1161,7 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
 
     // Create formatted address if it does not exist
     const address =
-      expenseData.payeeLocation?.address ||
-      (await formatAddress(expenseData.payeeLocation, { lineDivider: 'newline' }));
+      expenseData.payeeLocation?.address || (await formatAddress(expenseData.payeeLocation, { lineDivider: '\n' }));
 
     expenseData.payeeLocation = {
       address,
