@@ -6,12 +6,16 @@ import POLICIES from '../../constants/policies';
 import { Unauthorized } from '../../graphql/errors';
 import { Collective } from '../../models';
 import User from '../../models/User';
+import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import cache from '../cache';
 import { hasPolicy } from '../policies';
 
 import recoveryCode from './recovery-code';
 import totp from './totp';
+import { TwoFactorMethod } from './two-factor-methods';
 import yubikeyOTP from './yubikey-otp';
+
+export { TwoFactorMethod };
 
 const DEFAULT_TWO_FACTOR_AUTH_SESSION_DURATION = 24 * 60 * 60; // 24 hour
 
@@ -27,12 +31,6 @@ type ValidateRequestOptions = {
   // identifier for the session, defaults to use the JWT token's session key
   sessionKey?: (() => string) | string;
 };
-
-export enum TwoFactorMethod {
-  TOTP = 'totp',
-  YUBIKEY_OTP = 'yubikey_otp',
-  RECOVERY_CODE = 'recovery_code',
-}
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
 
@@ -142,7 +140,7 @@ async function validateRequest(
 
   const remoteUser = req.remoteUser;
 
-  const userHasTwoFactorAuth = userHasTwoFactorAuthEnabled(remoteUser);
+  const userHasTwoFactorAuth = await userHasTwoFactorAuthEnabled(remoteUser);
   if (options.requireTwoFactorAuthEnabled && !userHasTwoFactorAuth) {
     throw new ApolloError('Two factor authentication must be configured', '2FA_REQUIRED');
   }
@@ -160,7 +158,7 @@ async function validateRequest(
   const token = getTwoFactorAuthTokenFromRequest(req);
   if (!token) {
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
-      supportedMethods: twoFactorMethodsSupportedByUser(req.remoteUser),
+      supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
     });
   }
 
@@ -171,21 +169,13 @@ async function validateRequest(
   return true;
 }
 
-function twoFactorMethodsSupportedByUser(remoteUser: User): TwoFactorMethod[] {
-  const methods = [];
-  if (remoteUser.twoFactorAuthToken) {
-    methods.push(TwoFactorMethod.TOTP);
-  }
-
-  if (remoteUser.yubikeyDeviceId) {
-    methods.push(TwoFactorMethod.YUBIKEY_OTP);
-  }
-
-  return methods;
+async function twoFactorMethodsSupportedByUser(remoteUser: User): Promise<TwoFactorMethod[]> {
+  return await UserTwoFactorMethod.userMethods(remoteUser.id);
 }
 
-function userHasTwoFactorAuthEnabled(user: User) {
-  return Boolean(user.twoFactorAuthToken) || Boolean(user.yubikeyDeviceId);
+async function userHasTwoFactorAuthEnabled(user: User) {
+  const methods = await UserTwoFactorMethod.userMethods(user.id);
+  return methods.length !== 0;
 }
 /**
  * Returns true if this request / account should enforce 2FA.
@@ -212,7 +202,7 @@ async function enforceForAccount(
   }
 
   // See if we need to enforce 2FA for admins of this account
-  if (userHasTwoFactorAuthEnabled(req.remoteUser) || (await shouldEnforceForAccount(req, account))) {
+  if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(req, account))) {
     return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true });
   }
 }

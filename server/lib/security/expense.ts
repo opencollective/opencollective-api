@@ -220,7 +220,7 @@ export const checkExpensesBatch = async (
       // Author Security Check: Checks if the author of the expense has 2FA enabled or not.
       addBooleanCheck(
         checks,
-        expense.User.hasTwoFactorAuthentication,
+        await expense.User.hasTwoFactorAuthentication(),
         {
           scope: Scope.USER,
           level: Level.PASS,
