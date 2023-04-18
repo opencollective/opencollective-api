@@ -24,11 +24,11 @@ const YubikeyOTPSchema = z.object({
   yubikeyDeviceId: z.string(),
 });
 
-export type UseTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
+export type UserTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
 
 export type UserTwoFactorMethodData = {
   [TwoFactorMethod.TOTP]: UserTwoFactorMethodTOTPData;
-  [TwoFactorMethod.YUBIKEY_OTP]: UseTwoFactorMethodYubikeyOTPData;
+  [TwoFactorMethod.YUBIKEY_OTP]: UserTwoFactorMethodYubikeyOTPData;
 };
 
 export default class UserTwoFactorMethod<
