@@ -262,7 +262,7 @@ describe('server/lib/search', () => {
         expect(collectives[0].id).to.equal(openHost.id);
       });
 
-      it('Orders by hosted collectives', async () => {
+      it('Orders by host flags and hosted collectives count', async () => {
         const zeroCollectives = await fakeHost({
           name: 'New Host 1',
         });
@@ -279,14 +279,30 @@ describe('server/lib/search', () => {
 
         await fakeCollective({ HostCollectiveId: oneCollective.id });
 
+        const firstPartyHost = await fakeHost({
+          name: 'First party Host',
+          data: {
+            isFirstPartyHost: true,
+          },
+        });
+
+        const trustedHost = await fakeHost({
+          name: 'Trusted Host',
+          data: {
+            isTrustedHost: true,
+          },
+        });
+
         const [collectives] = await searchCollectivesInDB('', 0, 10, {
           isHost: true,
-          orderBy: { field: 'HOSTED_COLLECTIVES_COUNT', direction: 'DESC' },
+          orderBy: { field: 'HOST_RANK', direction: 'DESC' },
         });
-        expect(collectives).to.have.length(3);
-        expect(collectives[0].id).to.equal(threeCollectives.id);
-        expect(collectives[1].id).to.equal(oneCollective.id);
-        expect(collectives[2].id).to.equal(zeroCollectives.id);
+        expect(collectives).to.have.length(5);
+        expect(collectives[0].id).to.equal(firstPartyHost.id);
+        expect(collectives[1].id).to.equal(trustedHost.id);
+        expect(collectives[2].id).to.equal(threeCollectives.id);
+        expect(collectives[3].id).to.equal(oneCollective.id);
+        expect(collectives[4].id).to.equal(zeroCollectives.id);
       });
     });
   });
