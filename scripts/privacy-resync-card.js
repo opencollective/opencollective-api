@@ -37,7 +37,7 @@ const run = async cardId => {
       } else {
         console.log(`Charge ${pt.token} from ${pt.created} not synced`);
         console.log(pt);
-        await privacy.processTransaction(pt);
+        await privacy.processTransaction(pt, undefined, { card });
       }
     }
   }

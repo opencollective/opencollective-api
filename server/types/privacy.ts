@@ -73,7 +73,8 @@ export type Merchant = {
 export type Transaction = {
   // Absolute value in USD cents
   amount: number;
-  card: Card;
+  card?: Card;
+  card_token: string;
   // ISOString
   created: string;
   events: any[];

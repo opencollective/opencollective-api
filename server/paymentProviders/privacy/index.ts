@@ -14,11 +14,16 @@ import { getVirtualCardForTransaction, persistTransaction } from '../utils';
 
 const providerName = 'privacy';
 
-const processTransaction = async (privacyTransaction: Transaction, privacyEvent: any): Promise<Expense | undefined> => {
-  const virtualCard = await getVirtualCardForTransaction(privacyTransaction.card.token);
+const processTransaction = async (
+  privacyTransaction: Transaction,
+  privacyEvent: any,
+  options: { card?: VirtualCardModel } = {},
+): Promise<Expense | undefined> => {
+  const cardToken = privacyTransaction.card_token || privacyTransaction.card.token;
+  const virtualCard = options?.card || (await getVirtualCardForTransaction(cardToken));
 
   if (!virtualCard) {
-    logger.error(`Privacy: could not find virtual card ${privacyTransaction.card.token}`, privacyEvent);
+    logger.error(`Privacy: could not find virtual card ${cardToken}`, privacyEvent);
     reportMessageToSentry('Privacy: could not find virtual card', { extra: { privacyEvent, privacyTransaction } });
     return;
   }
