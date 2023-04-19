@@ -1,22 +1,38 @@
-import { assert } from 'chai';
+import { assert, expect } from 'chai';
 
 import { exportToPDF, redactSensitiveFields } from '../../../server/lib/utils';
 
 describe('server/lib/utils', () => {
   it('redacts sensitive fields', () => {
-    assert.equal(
+    expect(
       redactSensitiveFields({
         password: 'password',
         newPassword: 'newPassword',
         currentPassword: 'currentPassword',
+        authorization: 'Authorization',
+        Authorization: 'Authorization',
+        AUTHORIZATION: 'Authorization',
+        'Personal-Token': 'Authorization',
         variables: {
           password: 'password',
           newPassword: 'newPassword',
           currentPassword: 'currentPassword',
         },
       }),
-      '{"password":"[REDACTED]","newPassword":"[REDACTED]","currentPassword":"[REDACTED]","variables":{"password":"[REDACTED]","newPassword":"[REDACTED]","currentPassword":"[REDACTED]"}}',
-    );
+    ).to.deep.equal({
+      currentPassword: '[REDACTED]',
+      newPassword: '[REDACTED]',
+      password: '[REDACTED]',
+      authorization: '[REDACTED]',
+      Authorization: '[REDACTED]',
+      AUTHORIZATION: '[REDACTED]',
+      'Personal-Token': '[REDACTED]',
+      variables: {
+        currentPassword: '[REDACTED]',
+        newPassword: '[REDACTED]',
+        password: '[REDACTED]',
+      },
+    });
   });
 
   it('exports PDF', done => {

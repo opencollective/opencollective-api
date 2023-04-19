@@ -32,11 +32,17 @@ const getIntegrations = (expressApp = null): Integration[] => {
 export const initSentry = (expressApp = null) => {
   Sentry.init({
     beforeSend(event) {
+      // Redact from payload
       try {
         const reqBody = JSON.parse(event.request.data);
-        event.request.data = utils.redactSensitiveFields(reqBody);
+        event.request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
       } catch (e) {
         // request data is not a json
+      }
+
+      // Redact from headers
+      if (event.request?.headers) {
+        event.request.headers = utils.redactSensitiveFields(event.request.headers);
       }
 
       return event;
@@ -44,7 +50,7 @@ export const initSentry = (expressApp = null) => {
     beforeSendTransaction(event) {
       try {
         const reqBody = JSON.parse(event.request.data);
-        event.request.data = utils.redactSensitiveFields(reqBody);
+        event.request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
       } catch (e) {
         // request data is not a json
       }
@@ -248,6 +254,7 @@ export const SentryGraphQLPlugin = {
     const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
     let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
     if (transaction) {
+      // Re-use any existing transaction (Sentry pricing is based on the transactions count)
       transaction.setName(transactionName);
     } else {
       transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
@@ -308,7 +315,9 @@ export const SentryGraphQLPlugin = {
         }
       },
       willSendResponse(): void {
-        transaction.finish();
+        if (transaction.op === 'graphql') {
+          transaction.finish();
+        }
       },
     };
   },

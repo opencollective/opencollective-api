@@ -70,7 +70,6 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(GraphQLInt),
         description: 'Legacy ID as returned by API V1. Avoid relying on this field as it may be removed in the future.',
         resolve(expense) {
-          throw new Error('Nope');
           return expense.id;
         },
       },
