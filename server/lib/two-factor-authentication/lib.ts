@@ -13,6 +13,7 @@ import { hasPolicy } from '../policies';
 import recoveryCode from './recovery-code';
 import totp from './totp';
 import { TwoFactorMethod } from './two-factor-methods';
+import webauthn from './webauthn';
 import yubikeyOTP from './yubikey-otp';
 
 export { TwoFactorMethod };
@@ -42,6 +43,7 @@ export const SupportedTwoFactorMethods = [
   TwoFactorMethod.TOTP,
   TwoFactorMethod.YUBIKEY_OTP,
   TwoFactorMethod.RECOVERY_CODE,
+  TwoFactorMethod.WEBAUTHN,
 ];
 
 export type Token = {
@@ -50,13 +52,15 @@ export type Token = {
 };
 
 export interface TwoFactorAuthProvider {
-  validateToken(user: User, token: Token): Promise<void>;
+  validateToken(user: User, token: Token, req?): Promise<void>;
+  authenticationOptions?(user: User, req): Promise<unknown>;
 }
 
 export const providers: { [method in TwoFactorMethod]: TwoFactorAuthProvider } = {
   [TwoFactorMethod.TOTP]: totp,
   [TwoFactorMethod.YUBIKEY_OTP]: yubikeyOTP,
   [TwoFactorMethod.RECOVERY_CODE]: recoveryCode,
+  [TwoFactorMethod.WEBAUTHN]: webauthn,
 };
 
 function getTwoFactorAuthTokenFromRequest(req: Request): Token {
@@ -79,12 +83,12 @@ function getTwoFactorAuthTokenFromRequest(req: Request): Token {
   };
 }
 
-async function validateToken(user: User, token: Token): Promise<void> {
+async function validateToken(user: User, token: Token, req): Promise<void> {
   if (!SupportedTwoFactorMethods.includes(token.type)) {
     throw new Error(`Unsupported 2FA type ${token.type}`);
   }
 
-  return providers[token.type].validateToken(user, token);
+  return providers[token.type].validateToken(user, token, req);
 }
 
 const DefaultValidateRequestOptions: ValidateRequestOptions = {
@@ -184,12 +188,21 @@ async function validateRequest(
       },
     });
 
+    const supportedMethods = await twoFactorMethodsSupportedByUser(remoteUser);
+    const authenticationOptions: Partial<Record<TwoFactorMethod, unknown>> = {};
+    for (const method of supportedMethods) {
+      if (typeof providers[method].authenticationOptions === 'function') {
+        authenticationOptions[method] = await providers[method].authenticationOptions(remoteUser, req);
+      }
+    }
+
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
-      supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
+      supportedMethods,
+      authenticationOptions,
     });
   }
 
-  await validateToken(remoteUser, token);
+  await validateToken(remoteUser, token, req);
 
   await storeTwoFactorSession(req, options);
 
