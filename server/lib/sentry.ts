@@ -224,9 +224,12 @@ const isIgnoredGQLError = (err): boolean => {
 
 export const SentryGraphQLPlugin = {
   requestDidStart({ request }): Record<string, unknown> {
-    const transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
-    if (request.operationName && transaction) {
-      transaction.setName(`GraphQL: ${request.operationName}`);
+    const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
+    let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
+    if (transaction) {
+      transaction.setName(transactionName);
+    } else {
+      transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
     }
 
     return {
@@ -238,8 +241,12 @@ export const SentryGraphQLPlugin = {
               op: 'resolver',
               description: `${info.parentType.name}.${info.fieldName}`,
             });
-            return () => {
+            return error => {
               // this will execute once the resolver is finished
+              if (error) {
+                span.setData('error', error.message || error.toString());
+                span.setStatus('internal_error');
+              }
               span.finish();
             };
           },
@@ -278,6 +285,9 @@ export const SentryGraphQLPlugin = {
             ],
           });
         }
+      },
+      willSendResponse(): void {
+        transaction.finish();
       },
     };
   },
