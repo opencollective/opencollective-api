@@ -78,7 +78,7 @@ export const loaders = ({ remoteUser = null } = {}) => {
   context.loaders.Expense.requiredLegalDocuments = expenseLoaders.requiredLegalDocuments();
   context.loaders.Expense.expenseToHostTransactionFxRateLoader =
     expenseLoaders.generateExpenseToHostTransactionFxRateLoader();
-  context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader({ loaders });
+  context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader(context);
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader();

@@ -193,9 +193,9 @@ export function buildLoaderForAssociation<AssociatedModel extends Model>(
 }
 
 export const populateModelAssociations = async <M>(
-  { loaders },
   objects: M[],
   associations: Array<{ fkField: string; as?: string; modelName: keyof typeof models }>,
+  { loaders },
 ): Promise<M[]> => {
   const promises = associations.map(async ({ fkField, as: propertyKey, modelName }) => {
     const ids = objects.map(obj => obj[fkField]).filter(id => id);

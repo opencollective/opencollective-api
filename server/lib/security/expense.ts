@@ -139,10 +139,7 @@ const getGroupedExpensesStats = <T extends { [key: string]: number }>(whereCondi
   }) as unknown as Promise<Array<ExpenseStats & T>>;
 };
 
-export const checkExpensesBatch = async (
-  expenses: Array<Expense>,
-  { loaders },
-): Promise<Array<Array<SecurityCheck>>> => {
+export const checkExpensesBatch = async (expenses: Array<Expense>, context): Promise<Array<Array<SecurityCheck>>> => {
   const expensesStatsConditions = flatten(
     expenses.map(expense => {
       const fields: Array<{ [key: string]: number }> = [{ UserId: expense.UserId }];
@@ -187,7 +184,9 @@ export const checkExpensesBatch = async (
 
       expense.User &&
         !expense.User.collective &&
-        (await loaders.Collective.byId.load(expense.User.CollectiveId).then(setProperty(expense.User, 'collective')));
+        (await context.loaders.Collective.byId
+          .load(expense.User.CollectiveId)
+          .then(setProperty(expense.User, 'collective')));
       await expense.User.populateRoles();
 
       // Sock puppet detection: checks related users by correlating recently used IP address when logging in and creating new accounts.

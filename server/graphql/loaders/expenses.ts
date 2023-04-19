@@ -127,7 +127,7 @@ export const generateExpenseToHostTransactionFxRateLoader = (): DataLoader<
     });
   });
 
-export const generateExpensesSecurityCheckLoader = ({ loaders }) => {
+export const generateExpensesSecurityCheckLoader = context => {
   return new DataLoader(
     async (expenses: Expense[]) => {
       await populateModelAssociations(
@@ -138,10 +138,10 @@ export const generateExpensesSecurityCheckLoader = ({ loaders }) => {
           { fkField: 'UserId', modelName: 'User' },
           { fkField: 'PayoutMethodId', modelName: 'PayoutMethod' },
         ],
-        { loaders },
+        context,
       );
 
-      return checkExpensesBatch(expenses, { loaders });
+      return checkExpensesBatch(expenses, context);
     },
     {
       cacheKeyFn: (expense: Expense) => expense.id,
