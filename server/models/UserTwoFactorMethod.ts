@@ -26,9 +26,22 @@ const YubikeyOTPSchema = z.object({
 
 export type UserTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
 
+const WebAuthnSchema = z.object({
+  credentialPublicKey: z.string(),
+  credentialId: z.string(),
+  counter: z.number(),
+  credentialDeviceType: z.string(),
+  credentialType: z.string(),
+  fmt: z.string(),
+  attestationObject: z.string(),
+});
+
+export type UserTwoFactorMethodWebAuthnData = z.infer<typeof WebAuthnSchema>;
+
 export type UserTwoFactorMethodData = {
   [TwoFactorMethod.TOTP]: UserTwoFactorMethodTOTPData;
   [TwoFactorMethod.YUBIKEY_OTP]: UserTwoFactorMethodYubikeyOTPData;
+  [TwoFactorMethod.WEBAUTHN]: UserTwoFactorMethodWebAuthnData;
 };
 
 export default class UserTwoFactorMethod<
@@ -79,7 +92,10 @@ UserTwoFactorMethod.init(
       type: DataTypes.JSONB,
       allowNull: true,
       validate: {
-        schema(this: UserTwoFactorMethod<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP>, value: unknown) {
+        schema(
+          this: UserTwoFactorMethod<TwoFactorMethod.TOTP | TwoFactorMethod.YUBIKEY_OTP | TwoFactorMethod.WEBAUTHN>,
+          value: unknown,
+        ) {
           switch (this.method) {
             case TwoFactorMethod.TOTP: {
               TOTPDataSchema.parse(value);
@@ -87,6 +103,10 @@ UserTwoFactorMethod.init(
             }
             case TwoFactorMethod.YUBIKEY_OTP: {
               YubikeyOTPSchema.parse(value);
+              break;
+            }
+            case TwoFactorMethod.WEBAUTHN: {
+              WebAuthnSchema.parse(value);
               break;
             }
             default: {
