@@ -2,6 +2,7 @@ import { TaxType } from '@opencollective/taxes';
 import { GraphQLFloat, GraphQLInputFieldConfig, GraphQLInputObjectType, GraphQLNonNull, GraphQLString } from 'graphql';
 
 import { CountryISO } from '../enum';
+import { COUNTRY_CODES } from '../enum/CountryISO';
 import { TaxType as GraphQLTaxType } from '../enum/TaxType';
 
 import { AmountInput, AmountInputType } from './AmountInput';
@@ -10,7 +11,7 @@ export type TaxInput = {
   type: TaxType;
   rate: number;
   idNumber?: string;
-  country?: string;
+  country?: keyof typeof COUNTRY_CODES;
   amount: AmountInputType;
 };
 

@@ -337,8 +337,7 @@ export const Order = new GraphQLObjectType({
           const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
           if (
             req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective) ||
-            req.remoteUser?.isAdminOfCollectiveOrHost(collective) ||
-            req.remoteUser?.id === order.CreatedByUserId
+            req.remoteUser?.isAdminOfCollectiveOrHost(collective)
           ) {
             return pick(order.data, pendingContributionFields);
           }
