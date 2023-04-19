@@ -65,6 +65,12 @@ const editAccountFeeStructureMutation = gqlV2/* GraphQL */ `
   }
 `;
 
+const createWebAuthnRegistrationOptionsMutation = gqlV2`
+mutation AddTwoFactorAuthToIndividual($account: AccountReferenceInput!) {
+  createWebAuthnRegistrationOptions(account: $account)
+}
+`;
+
 describe('server/graphql/v2/mutation/AccountMutations', () => {
   let adminUser, randomUser, hostAdminUser, backerUser, collective;
 
@@ -867,6 +873,66 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       );
       expect(result.errors).to.have.length(1);
       expect(result.errors[0].message).to.equal('Message is too short');
+    });
+  });
+
+  describe('createWebAuthnRegistrationOptions', () => {
+    it('must be authenticated', async () => {
+      const result = await graphqlQueryV2(createWebAuthnRegistrationOptionsMutation, {
+        account: { id: idEncode(adminUser.collective.id, 'account') },
+      });
+      expect(result.errors).to.exist;
+      expect(result.errors[0].extensions.code).to.equal('Unauthorized');
+    });
+
+    it('must be admin', async () => {
+      const result = await graphqlQueryV2(
+        createWebAuthnRegistrationOptionsMutation,
+        {
+          account: { id: idEncode(adminUser.collective.id, 'account') },
+        },
+        randomUser,
+      );
+      expect(result.errors).to.exist;
+      expect(result.errors[0].message).to.match(/You are authenticated but forbidden to perform this action/);
+    });
+
+    it('creates a public key request options', async () => {
+      const result = await graphqlQueryV2(
+        createWebAuthnRegistrationOptionsMutation,
+        {
+          account: { id: idEncode(adminUser.collective.id, 'account') },
+        },
+        adminUser,
+      );
+
+      expect(result.errors).to.not.exist;
+      expect(result.data.createWebAuthnRegistrationOptions).to.containSubset({
+        attestation: 'direct',
+        excludeCredentials: [],
+        pubKeyCredParams: [
+          {
+            alg: -7,
+            type: 'public-key',
+          },
+          {
+            alg: -8,
+            type: 'public-key',
+          },
+          {
+            alg: -257,
+            type: 'public-key',
+          },
+        ],
+        rp: {
+          id: 'localhost',
+          name: '[Test] Open Collective',
+        },
+        user: {
+          displayName: 'Admin Name',
+          name: adminUser.collective.slug,
+        },
+      });
     });
   });
 });

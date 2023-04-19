@@ -17,6 +17,7 @@ import { CollectiveType } from '../../../constants/collectives';
 import * as collectivelib from '../../../lib/collectivelib';
 import { crypto } from '../../../lib/encryption';
 import TwoFactorAuthLib, { TwoFactorMethod } from '../../../lib/two-factor-authentication';
+import * as webauthn from '../../../lib/two-factor-authentication/webauthn';
 import { validateYubikeyOTP } from '../../../lib/two-factor-authentication/yubikey-otp';
 import models, { sequelize } from '../../../models';
 import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
@@ -260,6 +261,34 @@ const accountMutations = {
       return account.reload();
     },
   },
+  createWebAuthnRegistrationOptions: {
+    type: new GraphQLNonNull(GraphQLJSON),
+    description: 'Create WebAuthn public key registration request options',
+    args: {
+      account: {
+        type: new GraphQLNonNull(AccountReferenceInput),
+        description: 'Account that will create a WebAuthn registration',
+      },
+    },
+    async resolve(_: void, args, req: express.Request) {
+      checkRemoteUserCanUseAccount(req);
+
+      const account = await fetchAccountWithReference(args.account);
+
+      if (!req.remoteUser.isAdminOfCollective(account)) {
+        throw new Forbidden();
+      }
+
+      const user = await models.User.findOne({ where: { CollectiveId: account.id } });
+
+      if (!user) {
+        throw new NotFound('Account not found.');
+      }
+
+      const options = await webauthn.generateRegistrationOptions(user, req);
+      return options;
+    },
+  },
   addTwoFactorAuthTokenToIndividual: {
     type: new GraphQLNonNull(GraphQLAddTwoFactorAuthTokenToIndividualResponse),
     description: 'Add 2FA to the Individual if it does not have it. Scope: "account".',
@@ -338,6 +367,34 @@ const accountMutations = {
             method: TwoFactorMethod.YUBIKEY_OTP,
             data: {
               yubikeyDeviceId: args.token.substring(0, 12),
+            },
+          });
+
+          break;
+        }
+        case TwoFactorMethod.WEBAUTHN: {
+          const registrationResult = JSON.parse(Buffer.from(args.token, 'base64').toString('utf8'));
+          const registrationResponse = await webauthn.verifyRegistrationResponse(user, req, registrationResult);
+
+          if (!registrationResponse.verified) {
+            throw new Error('Invalid registration result.');
+          }
+
+          await UserTwoFactorMethod.create({
+            UserId: user.id,
+            method: TwoFactorMethod.WEBAUTHN,
+            data: {
+              credentialPublicKey: Buffer.from(registrationResponse.registrationInfo.credentialPublicKey).toString(
+                'base64url',
+              ),
+              credentialId: Buffer.from(registrationResponse.registrationInfo.credentialID).toString('base64url'),
+              counter: registrationResponse.registrationInfo.counter,
+              credentialDeviceType: registrationResponse.registrationInfo.credentialDeviceType,
+              credentialType: registrationResponse.registrationInfo.credentialType,
+              fmt: registrationResponse.registrationInfo.fmt,
+              attestationObject: Buffer.from(registrationResponse.registrationInfo.attestationObject).toString(
+                'base64url',
+              ),
             },
           });
 

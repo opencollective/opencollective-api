@@ -13663,6 +13663,16 @@ type Mutation {
   ): Account!
 
   """
+  Create WebAuthn public key registration request options
+  """
+  createWebAuthnRegistrationOptions(
+    """
+    Account that will create a WebAuthn registration
+    """
+    account: AccountReferenceInput!
+  ): JSON!
+
+  """
   Add 2FA to the Individual if it does not have it. Scope: "account".
   """
   addTwoFactorAuthTokenToIndividual(
@@ -15116,6 +15126,7 @@ A two factor authentication method
 enum TwoFactorMethod {
   TOTP
   YUBIKEY_OTP
+  WEBAUTHN
 }
 
 input AccountUpdateInput {
