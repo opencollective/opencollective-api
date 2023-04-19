@@ -66,5 +66,10 @@
   "statsd": {
     "enabled": true,
     "url": "statsd.hostedgraphite.com"
+  },
+  "webauthn": {
+    "rpName": "Open Collective",
+    "rpId": "opencollective.com",
+    "expectedOrigins": ["https://opencollective.com"]
   }
 }

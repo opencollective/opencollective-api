@@ -56,5 +56,10 @@
       "perEmailForCollective": 300,
       "perIp": 300
     }
+  },
+  "webauthn": {
+    "rpName": "[Staging] Open Collective",
+    "rpId": "staging.opencollective.com",
+    "expectedOrigins": ["https://staging.opencollective.com"]
   }
 }
