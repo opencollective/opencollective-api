@@ -85,7 +85,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  generateSessionToken = async function ({ sessionId = null, createActivity = true } = {}) {
+  generateSessionToken = async function ({ sessionId = null, createActivity = true, expiration = null } = {}) {
     if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({
         type: activities.USER_SIGNIN,
@@ -96,7 +96,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       });
     }
 
-    return this.jwt({ scope: 'session', sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    return this.jwt({ scope: 'session', sessionId }, expiration || auth.TOKEN_EXPIRATION_SESSION);
   };
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
