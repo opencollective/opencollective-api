@@ -1,6 +1,6 @@
 import { GraphQLEnumType } from 'graphql';
 
-const COUNTRY_CODES = {
+export const COUNTRY_CODES = {
   AF: 'Afghanistan',
   AX: 'Åland Islands',
   AL: 'Albania',

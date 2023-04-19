@@ -8,7 +8,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick } from 'lodash';
+import { pick, round } from 'lodash';
 
 import roles from '../../../constants/roles';
 import { getHostFeePercent } from '../../../lib/payments';
@@ -25,6 +25,7 @@ import { Tier } from '../object/Tier';
 import { MemberOf } from './Member';
 import OrderPermissions from './OrderPermissions';
 import { OrderTax } from './OrderTax';
+import { TaxInfo } from './TaxInfo';
 
 const PendingOrderFromAccountInfo = new GraphQLObjectType({
   name: 'PendingOrderFromAccountInfo',
@@ -222,8 +223,23 @@ export const Order = new GraphQLObjectType({
           return order.tags || [];
         },
       },
+      tax: {
+        type: TaxInfo,
+        resolve(order) {
+          if (order.data?.tax) {
+            return {
+              id: order.data.tax.id,
+              type: order.data.tax.id,
+              percentage: order.data.tax.percentage,
+              rate: round(order.data.tax.percentage / 100, 2),
+              idNumber: order.data.tax.idNumber,
+            };
+          }
+        },
+      },
       taxes: {
         type: new GraphQLNonNull(new GraphQLList(OrderTax)),
+        deprecationReason: '2023-04-13: Please use `tax` instead.',
         resolve(order) {
           if (order.data?.tax) {
             return [
@@ -315,12 +331,13 @@ export const Order = new GraphQLObjectType({
       pendingContributionData: {
         type: PendingOrderData,
         description: 'Data about the pending contribution',
-        async resolve(order, _, { remoteUser }) {
+        async resolve(order, _, req) {
           const pendingContributionFields = ['expectedAt', 'paymentMethod', 'ponumber', 'fromAccountInfo', 'memo'];
+          const fromCollective = await req.loaders.Collective.byId.load(order.FromCollectiveId);
+          const collective = await req.loaders.Collective.byId.load(order.CollectiveId);
           if (
-            remoteUser?.isAdmin(order.CollectiveId) ||
-            remoteUser?.isAdmin(order.FromCollectiveId) ||
-            remoteUser?.id === order.CreatedByUserId
+            req.remoteUser?.isAdminOfCollectiveOrHost(fromCollective) ||
+            req.remoteUser?.isAdminOfCollectiveOrHost(collective)
           ) {
             return pick(order.data, pendingContributionFields);
           }

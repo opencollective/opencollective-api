@@ -296,7 +296,20 @@ const mutations = {
       const amount =
         (args.order.totalAmount - (args.order.taxAmount || 0) - (args.order.platformFee || 0)) /
         (args.order.quantity || 1);
-      const { order } = await createOrder({ ...args.order, amount }, req);
+
+      // We're not supposed to call this mutation with taxes; but keeping it backward-compatible for tests
+      let tax;
+      if (args.order.taxAmount || args.order.taxIDNumber) {
+        tax = {
+          country: args.order.countryISO,
+          amount: args.order.taxAmount || 0,
+          rate: Math.round((args.order.taxAmount || 0) / args.order.totalAmount),
+          idNumber: args.order.taxIDNumber,
+          type: null,
+        };
+      }
+
+      const { order } = await createOrder({ ...args.order, amount, tax }, req);
       return order;
     },
   },

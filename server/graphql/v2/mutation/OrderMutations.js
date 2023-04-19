@@ -36,7 +36,11 @@ import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
 import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
-import { confirmOrder as confirmOrderLegacy, createOrder as createOrderLegacy } from '../../v1/mutations/orders';
+import {
+  confirmOrder as confirmOrderLegacy,
+  createOrder as createOrderLegacy,
+  getOrderTaxInfoFromTaxInput,
+} from '../../v1/mutations/orders';
 import { getIntervalFromContributionFrequency } from '../enum/ContributionFrequency';
 import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
@@ -73,6 +77,42 @@ const OrderWithPayment = new GraphQLObjectType({
   }),
 });
 
+/**
+ * Computes the total amount from an `OrderCreateInput` or `OrderUpdateInput`
+ */
+const getOrderTotalAmount = order => {
+  const { amount, platformTipAmount, taxes, tax, quantity } = order;
+  let totalAmount = getValueInCentsFromAmountInput(amount) * (quantity || 1);
+
+  // Legacy tax format
+  if (taxes) {
+    totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
+  } else if (tax) {
+    totalAmount += Math.round(tax.rate * totalAmount);
+  }
+
+  totalAmount += platformTipAmount ? getValueInCentsFromAmountInput(platformTipAmount) : 0;
+  return totalAmount;
+};
+
+/**
+ * A wrapper around `getOrderTaxInfoFromTaxInput` that will throw if the tax amount doesn't match the tax percentage.
+ */
+const getOrderTaxInfo = (taxInput, quantity, orderAmount, fromAccount, toAccount, host) => {
+  let taxInfo, taxAmount;
+  if (taxInput) {
+    const grossAmount = quantity * getValueInCentsFromAmountInput(orderAmount);
+    taxInfo = getOrderTaxInfoFromTaxInput(taxInput, fromAccount, toAccount, host);
+    taxAmount = Math.round(grossAmount * (taxInfo.percentage / 100));
+    const taxAmountFromInput = taxInput.amount && getValueInCentsFromAmountInput(taxInput.amount);
+    if (taxInfo?.percentage && taxAmountFromInput && taxAmountFromInput !== taxAmount) {
+      throw new Error(`Tax amount doesn't match tax percentage. Expected ${taxAmount}, got ${taxAmountFromInput}`);
+    }
+  }
+
+  return { taxInfo, taxAmount };
+};
+
 const orderMutations = {
   createOrder: {
     type: new GraphQLNonNull(OrderWithPayment),
@@ -92,15 +132,8 @@ const orderMutations = {
         throw new Error('Attaching multiple taxes is not supported yet');
       }
 
-      const getOrderTotalAmount = ({ platformTipAmount, taxes, quantity }) => {
-        let totalAmount = getValueInCentsFromAmountInput(order.amount) * quantity;
-        totalAmount += platformTipAmount ? getValueInCentsFromAmountInput(platformTipAmount) : 0;
-        totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
-        return totalAmount;
-      };
-
       const { order } = args;
-      const tax = order.taxes?.[0];
+      const tax = order.tax || order.taxes?.[0];
       const platformTip = order.platformTipAmount;
       const platformTipAmount = platformTip ? getValueInCentsFromAmountInput(platformTip) : 0;
       const loadersParams = { loaders: req.loaders, throwIfMissing: true };
@@ -128,15 +161,13 @@ const orderMutations = {
         currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
-        taxType: tax?.type,
-        countryISO: tax?.country,
-        taxIDNumber: tax?.idNumber,
+        tax: tax,
         paymentMethod,
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
         totalAmount: getOrderTotalAmount(order),
-        data: order.data,
+        data: order.data, // We're filtering data before saving it (see `ORDER_PUBLIC_DATA_FIELDS`)
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
         tier: tier && { id: tier.id },
@@ -380,6 +411,7 @@ const orderMutations = {
       checkRemoteUserCanUseOrders(req);
 
       let order = await fetchOrderWithReference(args.order);
+      const fromAccount = await req.loaders.Collective.byId.load(order.FromCollectiveId);
       const toAccount = await req.loaders.Collective.byId.load(order.CollectiveId);
       if (toAccount.deactivatedAt) {
         throw new ValidationFailed(`${toAccount.name} has been archived`);
@@ -401,14 +433,14 @@ const orderMutations = {
           );
         }
 
-        const hasAmounts = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
-        if (hasAmounts) {
-          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt } = args.order;
+        const hasChanges = !isEmpty(difference(keys(args.order), ['id', 'legacyId']));
+        if (hasChanges) {
+          const { amount, paymentProcessorFee, platformTip, hostFeePercent, processedAt, tax } = args.order;
 
           // Ensure amounts are provided with the right currency
-          ['amount', 'paymentProcessorFee', 'platformTip'].forEach(field => {
-            if (!isNil(args.order[field])) {
-              assertAmountInputCurrency(args.order[field], order.currency, { name: field });
+          ['amount', 'paymentProcessorFee', 'platformTip', 'tax.amount'].forEach(field => {
+            if (!isNil(get(args.order, field))) {
+              assertAmountInputCurrency(get(args.order, field), order.currency, { name: field });
             }
           });
 
@@ -425,6 +457,19 @@ const orderMutations = {
 
             const paymentProcessorFeeInCents = getValueInCentsFromAmountInput(paymentProcessorFee);
             order.set('data.paymentProcessorFee', paymentProcessorFeeInCents);
+          }
+          if (!isNil(tax)) {
+            const quantity = 1; // Not supported yet by OrderUpdateInput
+            const { taxInfo, taxAmount } = getOrderTaxInfo(
+              args.order.tax,
+              quantity,
+              args.order.amount,
+              fromAccount,
+              toAccount,
+              host,
+            );
+            order.set('taxAmount', taxAmount);
+            order.set('data.tax', taxInfo);
           }
           if (!isNil(platformTip)) {
             const platformTipInCents = getValueInCentsFromAmountInput(platformTip);
@@ -444,7 +489,6 @@ const orderMutations = {
 
         if (order.data.isPendingContribution) {
           const tier = order.TierId && (await req.loaders.Tier.byId.load(order.TierId));
-          const fromAccount = await req.loaders.Collective.byId.load(order.FromCollectiveId);
           await models.Activity.create({
             type: activities.ORDER_PENDING_RECEIVED,
             UserId: req.remoteUser.id,
@@ -816,22 +860,44 @@ const orderMutations = {
         throw new Unauthorized('The User Token is not allowed for operations in scope "orders".');
       }
 
+      const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
       const toAccount = await fetchAccountWithReference(args.order.toAccount, { throwIfMissing: true });
       const host = await toAccount.getHostCollective();
+      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
 
       if (!req.remoteUser?.isAdminOfCollective(host)) {
         throw new Unauthorized('Only host admins can create pending orders');
       }
-      const fromAccount = await fetchAccountWithReference(args.order.fromAccount, { throwIfMissing: true });
+
+      // Ensure amounts are provided with the right currency
+      const expectedCurrency = tier?.currency || toAccount?.currency;
+      ['amount', 'tax.amount'].forEach(field => {
+        const amount = get(args.order, field);
+        if (amount) {
+          assertAmountInputCurrency(amount, expectedCurrency, { name: field });
+        }
+      });
+
+      // Get tax info
+      const quantity = 1; // Not supported yet by PendingOrderCreateInput
+      const { taxInfo, taxAmount } = getOrderTaxInfo(
+        args.order.tax,
+        quantity,
+        args.order.amount,
+        fromAccount,
+        toAccount,
+        host,
+      );
 
       const orderProps = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
-        quantity: 1,
-        totalAmount: getValueInCentsFromAmountInput(args.order.amount),
+        quantity,
+        totalAmount: getOrderTotalAmount(args.order),
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
+        taxAmount,
         data: {
           fromAccountInfo: args.order.fromAccountInfo,
           expectedAt: args.order.expectedAt,
@@ -840,11 +906,11 @@ const orderMutations = {
           paymentMethod: args.order.paymentMethod,
           isPendingContribution: true,
           hostFeePercent: args.order?.hostFeePercent,
+          tax: taxInfo,
         },
         status: OrderStatuses.PENDING,
       };
 
-      const tier = args.order.tier && (await fetchTierWithReference(args.order.tier, { throwIfMissing: true }));
       if (tier) {
         if (!args.order.description) {
           orderProps.description = models.Order.generateDescription(toAccount, undefined, undefined, tier);
@@ -889,8 +955,15 @@ const orderMutations = {
 
       const order = await fetchOrderWithReference(args.order, {
         throwIfMissing: true,
-        include: [{ model: models.Collective, as: 'collective' }],
+        include: [
+          { model: models.Collective, as: 'collective', required: true },
+          { model: models.Tier, required: false },
+        ],
       });
+
+      if (!order) {
+        throw new NotFound('Contribution not found');
+      }
 
       const host = await order.collective.getHostCollective();
       if (!req.remoteUser?.isAdminOfCollective(host)) {
@@ -901,15 +974,42 @@ const orderMutations = {
         throw new ValidationFailed(`Only pending orders can be edited, this one is ${order.status}`);
       }
 
+      // Load data
       const fromAccount = await fetchAccountWithReference(args.order.fromAccount);
+      const tier = args.order.tier
+        ? await fetchTierWithReference(args.order.tier, { throwIfMissing: true })
+        : order.tier;
+
+      // Ensure amounts are provided with the right currency
+      const expectedCurrency = tier?.currency || order.collective.currency;
+      ['amount', 'tax.amount'].forEach(field => {
+        const amount = get(args.order, field);
+        if (amount) {
+          assertAmountInputCurrency(amount, expectedCurrency, { name: field });
+        }
+      });
+
+      // Get tax info
+      const quantity = 1; // Not supported yet by PendingOrderCreateInput
+      const { taxInfo, taxAmount } = getOrderTaxInfo(
+        args.order.tax,
+        quantity,
+        args.order.amount,
+        fromAccount,
+        order.collective,
+        host,
+      );
 
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
+        TierId: tier?.id || undefined,
         totalAmount: getValueInCentsFromAmountInput(args.order.amount),
         currency: args.order.amount.currency,
         description: args.order.description,
+        taxAmount: taxAmount || null,
         data: {
           ...order.data,
+          tax: taxInfo || null,
           ...omitBy(
             {
               ponumber: args.order.ponumber,
