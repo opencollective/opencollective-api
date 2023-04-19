@@ -54,7 +54,7 @@ describe('lib/security/expense', () => {
     });
 
     it('returns potential threats related to the expense payment', async () => {
-      const checks = await checkExpense(expense);
+      const checks = await checkExpense(expense, { req: makeRequest() as any });
       expect(snapshotChecks(checks)).to.matchTableSnapshot();
     });
 
@@ -70,7 +70,7 @@ describe('lib/security/expense', () => {
       const otherExpense = await fakeExpense({ UserId: user.id, PayoutMethodId: pm.id });
 
       const [expenseCheck, otherExpenseCheck] = await checkExpensesBatch(makeRequest() as any, [expense, otherExpense]);
-      expect(await checkExpense(expense)).to.deep.equal(expenseCheck);
+      expect(await checkExpense(expense, { req: makeRequest() as any })).to.deep.equal(expenseCheck);
       expect(snapshotChecks(expenseCheck)).to.matchTableSnapshot();
       expect(snapshotChecks(otherExpenseCheck)).to.matchTableSnapshot();
     });
