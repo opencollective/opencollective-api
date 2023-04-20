@@ -184,6 +184,9 @@ const doFormatMessage = (activity, format) => {
         return `New member ${member} joined ${collective}`;
       }
 
+    case activities.VIRTUAL_CARD_PURCHASE:
+      return `New virtual card purchase: A virtual card purchase of amount ${currency} ${amount} for ${description} was submitted!`;
+
     default:
       return '';
   }
