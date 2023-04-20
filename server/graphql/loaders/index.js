@@ -32,7 +32,7 @@ import {
 import { generateCollectivePayoutMethodsLoader, generateCollectivePaypalPayoutMethodsLoader } from './payout-method';
 import * as transactionLoaders from './transactions';
 import updatesLoader from './updates';
-import { generateUserByCollectiveIdLoader } from './user';
+import { generateUserByCollectiveIdLoader, userHasTwoFactorAuthEnabled } from './user';
 import { generateCollectiveVirtualCardLoader, generateHostCollectiveVirtualCardLoader } from './virtual-card';
 
 export const loaders = req => {
@@ -92,6 +92,8 @@ export const loaders = req => {
 
   // User
   context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
+
+  context.loaders.userHasTwoFactorAuthEnabled = userHasTwoFactorAuthEnabled;
 
   /** *** Collective *****/
 
