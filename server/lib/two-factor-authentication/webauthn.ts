@@ -12,12 +12,13 @@ import { ApolloError } from '../../graphql/errors';
 import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import User from '../../models/User';
 import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
+import { TOKEN_EXPIRATION_2FA } from '../auth';
 import cache from '../cache';
 
 import { Token } from './lib';
 import { TwoFactorMethod } from './two-factor-methods';
 
-const WebAuthnTimeoutSeconds = 120;
+const WebAuthnTimeoutSeconds = TOKEN_EXPIRATION_2FA;
 const SupportedPublicKeyAlgorithmIDs = [
   -7, // ES256
   -8, // EdDSA
