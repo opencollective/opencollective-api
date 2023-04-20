@@ -36,6 +36,7 @@ const APPLY_TO_HOST_MUTATION = gqlV2/* GraphQL */ `
     applyToHost(collective: $collective, host: $host, message: $message, inviteMembers: $inviteMembers) {
       id
       isActive
+      currency
       ... on AccountWithHost {
         isApproved
         host {
@@ -58,6 +59,7 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
       account {
         id
         isActive
+        currency
         ... on AccountWithHost {
           approvedAt
           host {
@@ -68,6 +70,7 @@ const PROCESS_HOST_APPLICATION_MUTATION = gqlV2/* GraphQL */ `
         childrenAccounts {
           nodes {
             id
+            currency
             ... on AccountWithHost {
               approvedAt
               host {
@@ -132,16 +135,17 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
       sendEmailSpy = sandbox.spy(emailLib, 'sendMessage');
       hostAdmin = await fakeUser();
       collectiveAdmin = await fakeUser();
-      host = await fakeHost({ admin: hostAdmin });
+      host = await fakeHost({ admin: hostAdmin, currency: 'USD' });
       collective = await fakeCollective({
         HostCollectiveId: host.id,
         admin: collectiveAdmin,
         isActive: false,
         approvedAt: null,
+        currency: 'ZWL',
       });
       children = await Promise.all([
-        fakeProject({ ParentCollectiveId: collective.id }),
-        fakeEvent({ ParentCollectiveId: collective.id }),
+        fakeProject({ ParentCollectiveId: collective.id, currency: 'ZWL' }),
+        fakeEvent({ ParentCollectiveId: collective.id, currency: 'ZWL' }),
       ]);
       application = await fakeHostApplication({
         CollectiveId: collective.id,
@@ -222,10 +226,12 @@ describe('server/graphql/v2/mutation/HostApplicationMutations', () => {
         // Check that the collective & its children are now active
         const resultData = result.data.processHostApplication;
         expect(resultData.account.isActive).to.be.true;
+        expect(resultData.account.currency).to.eq(host.currency); // Updated to host's currency
         expect(resultData.account.host.slug).to.eq(host.slug);
         expect(resultData.account.childrenAccounts.nodes).to.have.length(children.length);
         for (const child of resultData.account.childrenAccounts.nodes) {
           expect(child.host.slug).to.eq(host.slug);
+          expect(child.currency).to.eq(host.currency);
         }
 
         // Ensure application gets updated

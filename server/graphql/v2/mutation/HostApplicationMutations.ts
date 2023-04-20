@@ -268,14 +268,15 @@ const HostApplicationMutations = {
 };
 
 const approveApplication = async (host, collective, req) => {
-  const where = {
+  // Check minimum number of admins
+  const countAdminsWhere = {
     CollectiveId: collective.id,
     role: MemberRoles.ADMIN,
   };
 
   const [adminCount, adminInvitationCount] = await Promise.all([
-    models.Member.count({ where }),
-    models.MemberInvitation.count({ where }),
+    models.Member.count({ where: countAdminsWhere }),
+    models.MemberInvitation.count({ where: countAdminsWhere }),
   ]);
 
   const minAdminsPolicy = await getPolicy(host, POLICIES.COLLECTIVE_MINIMUM_ADMINS);
@@ -286,7 +287,12 @@ const approveApplication = async (host, collective, req) => {
   }
   // Run updates in a transaction to make sure we don't end up approving half accounts if something goes wrong
   await sequelize.transaction(async transaction => {
-    const newAccountData = { isActive: true, approvedAt: new Date(), HostCollectiveId: host.id };
+    const newAccountData = {
+      isActive: true,
+      approvedAt: new Date(),
+      HostCollectiveId: host.id,
+      currency: host.currency,
+    };
 
     // Approve all events and projects created by this collective
     await models.Collective.update(newAccountData, {
