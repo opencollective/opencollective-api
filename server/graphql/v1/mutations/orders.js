@@ -152,9 +152,9 @@ const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
     return {
       id: LibTaxes.TaxType.VAT,
       taxerCountry: taxFromCountry,
-      taxedCountry: order.tax.country,
+      taxedCountry: order.tax?.country,
       percentage: taxPercent,
-      taxIDNumber: order.tax.idNumber,
+      taxIDNumber: order.tax?.idNumber,
       taxIDNumberFrom: vatSettings.number,
     };
   } else if (taxes.some(({ type }) => type === LibTaxes.TaxType.GST)) {
@@ -166,9 +166,9 @@ const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
     return {
       id: LibTaxes.TaxType.GST,
       taxerCountry: host.countryISO,
-      taxedCountry: order.tax.country,
+      taxedCountry: order.tax?.country,
       percentage: LibTaxes.GST_RATE_PERCENT,
-      taxIDNumber: order.tax.idNumber,
+      taxIDNumber: order.tax?.idNumber,
       taxIDNumberFrom: hostGSTNumber,
     };
   }
