@@ -42,13 +42,13 @@
     "@octokit/rest": "19.0.7",
     "@opencollective/taxes": "4.0.2",
     "@paypal/payouts-sdk": "^1.1.0",
-    "@sentry/node": "7.48.0",
-    "@sentry/tracing": "7.48.0",
-    "@sentry/types": "7.48.0",
+    "@sentry/node": "7.45.0",
+    "@sentry/tracing": "7.45.0",
+    "@sentry/types": "7.45.0",
     "apollo-server-errors": "3.3.1",
     "apollo-server-express": "3.9.0",
     "argparse": "2.0.1",
-    "aws-sdk": "2.1360.0",
+    "aws-sdk": "2.1361.0",
     "axios": "0.27.2",
     "babel-plugin-add-module-exports": "1.0.4",
     "babel-plugin-lodash": "3.3.4",
@@ -131,7 +131,8 @@
     "twitter": "1.7.1",
     "uuid": "9.0.0",
     "validator": "13.9.0",
-    "winston": "3.8.2"
+    "winston": "3.8.2",
+    "zod": "3.21.4"
   },
   "devDependencies": {
     "@babel/cli": "^7.16.0",

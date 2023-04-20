@@ -103,7 +103,7 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
 /**
  * Check the taxes for order, returns the tax info
  */
-const getTaxInfo = async (order, collective, host, tier, loaders) => {
+const getOrderTaxInfo = async (order, collective, host, tier, loaders) => {
   // Load optional data
   if (collective.ParentCollectiveId && !collective.parentCollective) {
     collective.parentCollective = await loaders.Collective.byId.load(collective.ParentCollectiveId);
@@ -136,23 +136,25 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
 
       // Adapt tax based on country / tax ID number
       if (taxFromCountry) {
-        if (!order.countryISO) {
+        if (!order.tax) {
+          throw Error('This contribution should have a tax attached');
+        } else if (!order.tax.country) {
           throw Error('This order has a tax attached, you must set a country');
-        } else if (order.taxIDNumber && !LibTaxes.checkVATNumberFormat(order.taxIDNumber).isValid) {
+        } else if (order.tax.idNumber && !LibTaxes.checkVATNumberFormat(order.tax.idNumber).isValid) {
           throw Error('Invalid VAT number');
         }
 
-        const hasVatNumber = Boolean(order.taxIDNumber);
-        taxPercent = LibTaxes.getVatPercentage(tier.type, taxFromCountry, order.countryISO, hasVatNumber);
+        const hasVatNumber = Boolean(order.tax.idNumber);
+        taxPercent = LibTaxes.getVatPercentage(tier.type, taxFromCountry, order.tax.country, hasVatNumber);
       }
     }
 
     return {
       id: LibTaxes.TaxType.VAT,
       taxerCountry: taxFromCountry,
-      taxedCountry: order.countryISO,
+      taxedCountry: order.tax.country,
       percentage: taxPercent,
-      taxIDNumber: order.taxIDNumber,
+      taxIDNumber: order.tax.idNumber,
       taxIDNumberFrom: vatSettings.number,
     };
   } else if (taxes.some(({ type }) => type === LibTaxes.TaxType.GST)) {
@@ -164,9 +166,9 @@ const getTaxInfo = async (order, collective, host, tier, loaders) => {
     return {
       id: LibTaxes.TaxType.GST,
       taxerCountry: host.countryISO,
-      taxedCountry: order.countryISO,
+      taxedCountry: order.tax.country,
       percentage: LibTaxes.GST_RATE_PERCENT,
-      taxIDNumber: order.taxIDNumber,
+      taxIDNumber: order.tax.idNumber,
       taxIDNumberFrom: hostGSTNumber,
     };
   }
@@ -188,6 +190,16 @@ const hasPaymentMethod = order => {
         (paymentMethod.service === PAYMENT_METHOD_SERVICE.STRIPE && paymentMethod.data.stripePaymentMethodId),
     );
   }
+};
+
+export const getOrderTaxInfoFromTaxInput = (tax, fromCollective, collective, host) => {
+  return {
+    id: tax.type,
+    percentage: Math.round(tax.rate * 100),
+    idNumber: tax.idNumber,
+    taxedCountry: tax.country || fromCollective.countryISO,
+    taxerCountry: (collective.type === 'EVENT' && collective.countryISO) || host.countryISO,
+  };
 };
 
 export async function createOrder(order, req) {
@@ -409,7 +421,7 @@ export async function createOrder(order, req) {
     }
 
     // ---- Taxes ----
-    const taxInfo = await getTaxInfo(order, collective, host, tier, loaders);
+    const taxInfo = await getOrderTaxInfo(order, collective, host, tier, loaders);
     const taxPercent = taxInfo?.percentage || 0;
 
     // Ensure tax amount is not out-of-bound

@@ -7,9 +7,8 @@ import {
   GraphQLNonNull,
   GraphQLString,
 } from 'graphql';
-import { GraphQLJSON } from 'graphql-scalars';
+import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
-import { DateString } from '../../v1/types';
 import { ContributionFrequency } from '../enum';
 
 import { AccountReferenceInput } from './AccountReferenceInput';
@@ -18,6 +17,7 @@ import { GuestInfoInput } from './GuestInfoInput';
 import { LocationInput } from './LocationInput';
 import { OrderTaxInput } from './OrderTaxInput';
 import { PaymentMethodInput } from './PaymentMethodInput';
+import { GraphQLTaxInput } from './TaxInput';
 import { TierReferenceInput } from './TierReferenceInput';
 
 const OrderContextInput = new GraphQLInputObjectType({
@@ -91,9 +91,14 @@ export const OrderCreateInput = new GraphQLInputObjectType({
       type: AmountInput,
       description: 'Platform tip attached to this order',
     },
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
+    },
     taxes: {
       type: new GraphQLList(OrderTaxInput),
       description: 'Use this field to set the taxes associated to this order',
+      deprecationReason: '2023-04-11: Please use `tax` instead',
     },
     tier: {
       type: TierReferenceInput,
@@ -142,13 +147,9 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       type: new GraphQLNonNull(AccountReferenceInput),
       description: 'The collective you want to contribute to',
     },
-    platformTipAmount: {
-      type: AmountInput,
-      description: 'Platform tip attached to this order',
-    },
-    taxes: {
-      type: new GraphQLList(OrderTaxInput),
-      description: 'Use this field to set the taxes associated to this order',
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
     },
     tier: {
       type: TierReferenceInput,
@@ -167,16 +168,16 @@ export const PendingOrderCreateInput = new GraphQLInputObjectType({
       description: 'External identifier for the order',
     },
     paymentMethod: {
-      type: GraphQLString,
+      type: GraphQLString, // TODO: Should be a GraphQLEnum. Also maybe rename to `paymentMethodType`?
       description: 'Payment method expected for this order',
     },
     expectedAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'When is the money expected?',
     },
     hostFeePercent: {
       type: GraphQLFloat,
-      decription: 'Custom Host fee percent for this order',
+      description: 'Custom Host fee percent for this order',
     },
   }),
 });
@@ -205,13 +206,9 @@ export const PendingOrderEditInput = new GraphQLInputObjectType({
       type: OrderFromAccountInfo,
       description: 'Additional information about the contributing profile',
     },
-    platformTipAmount: {
-      type: AmountInput,
-      description: 'Platform tip attached to this order',
-    },
-    taxes: {
-      type: new GraphQLList(OrderTaxInput),
-      description: 'Use this field to set the taxes associated to this order',
+    tax: {
+      type: GraphQLTaxInput,
+      description: 'The tax to apply to the order',
     },
     tier: {
       type: TierReferenceInput,
@@ -230,16 +227,16 @@ export const PendingOrderEditInput = new GraphQLInputObjectType({
       description: 'External identifier for the order',
     },
     paymentMethod: {
-      type: GraphQLString,
+      type: GraphQLString, // TODO: Should be a GraphQLEnum. Also maybe rename to `paymentMethodType`?
       description: 'Payment method expected for this order',
     },
     expectedAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'When is the money expected?',
     },
     hostFeePercent: {
       type: GraphQLFloat,
-      decription: 'Custom Host fee percent for this order',
+      description: 'Custom Host fee percent for this order',
     },
   }),
 });

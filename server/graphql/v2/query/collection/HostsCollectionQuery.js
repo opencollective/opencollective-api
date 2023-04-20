@@ -22,7 +22,7 @@ const HostsCollectionQuery = {
   },
   async resolve(_, args) {
     const searchParams = {
-      orderBy: { field: 'HOSTED_COLLECTIVES_COUNT', direction: 'DESC' },
+      orderBy: { field: 'HOST_RANK', direction: 'DESC' },
       isHost: true,
       onlyOpenHosts: true,
       onlyActive: args.isActive ? true : null,

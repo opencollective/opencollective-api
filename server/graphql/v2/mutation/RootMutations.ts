@@ -18,6 +18,7 @@ import {
 import { setTaxForm } from '../../../lib/tax-forms';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models, { sequelize } from '../../../models';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { moveExpenses } from '../../common/expenses';
 import { checkRemoteUserCanRoot } from '../../common/scope-check';
 import { Forbidden } from '../../errors';
@@ -97,9 +98,10 @@ export default {
 
       if (args.isTwoFactorAuthEnabled === false) {
         const user = await account.getUser();
-        await user.update({
-          twoFactorAuthToken: null,
-          twoFactorAuthRecoveryCodes: null,
+        await UserTwoFactorMethod.destroy({
+          where: {
+            UserId: user.id,
+          },
         });
       }
       return account;

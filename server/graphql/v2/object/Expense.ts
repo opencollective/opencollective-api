@@ -1,6 +1,6 @@
 import { GraphQLFloat, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
-import { pick } from 'lodash';
+import { pick, round } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
 import models, { Op } from '../../../models';
@@ -132,7 +132,7 @@ const Expense = new GraphQLObjectType({
           } else {
             return expense.data.taxes.map(({ type, rate, idNumber }) => ({
               id: type,
-              percentage: rate,
+              percentage: round(rate * 100, 2),
               type,
               rate,
               idNumber: async () => {
