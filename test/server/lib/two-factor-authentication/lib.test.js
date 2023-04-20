@@ -163,7 +163,7 @@ describe('lib/two-factor-authentication', () => {
         await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
         fail('expected validateRequest to throw exception');
       } catch (e) {
-        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
+        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'], authenticationOptions: {} });
 
         // The activity is created asynchronously, so we need to wait for it to be created
         let activity;
@@ -219,7 +219,7 @@ describe('lib/two-factor-authentication', () => {
         await twoFactorAuthLib.validateRequest(req, { sessionKey: 'valid-session', alwaysAskForToken: true });
         fail('expected validateRequest to throw exception');
       } catch (e) {
-        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
+        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'], authenticationOptions: {} });
 
         // The activity is created asynchronously, so we need to wait for it to be created
         let activity;
@@ -243,7 +243,7 @@ describe('lib/two-factor-authentication', () => {
         await twoFactorAuthLib.validateRequest(req, { sessionKey: 'new-session' });
         fail('expected validateRequest to throw exception');
       } catch (e) {
-        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
+        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'], authenticationOptions: {} });
       }
     });
 
@@ -285,7 +285,7 @@ describe('lib/two-factor-authentication', () => {
         await twoFactorAuthLib.validateRequest(req, { sessionDuration: 2000, sessionKey: 'session' });
         fail('expected validateRequest to throw exception');
       } catch (e) {
-        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
+        expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'], authenticationOptions: {} });
       }
     });
 
