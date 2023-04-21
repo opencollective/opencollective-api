@@ -47,6 +47,8 @@ module.exports = {
                   AND ROUND(-100 * (e."data" #>> '{paymentOption,sourceAmount}')::FLOAT) > e.amount
               )
           )
+          -- Ignore transactions related to OCNZ settlements being addressed in another issue
+          AND t."TransactionGroup" not in ('825dc07a-6881-4ec8-9607-d9a8e41a900e', '7cc93f5a-79a8-48c6-a010-ad214376236b')
         GROUP BY
           t.id
         ORDER BY
