@@ -122,10 +122,15 @@ export const setTaxForm = async (account, taxFormLink, year) => {
       year,
       requestStatus: 'RECEIVED',
     });
-    return true;
   } else {
-    throw new Error('No legal document found');
+    await models.LegalDocument.create({
+      requestStatus: 'RECEIVED',
+      documentLink: taxFormLink,
+      year,
+      CollectiveId: account.id,
+    });
   }
+  return true;
 };
 
 export async function sendHelloWorksUsTaxForm(
