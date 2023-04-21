@@ -250,7 +250,7 @@ const isIgnoredGQLError = (err): boolean => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart({ request }): Record<string, unknown> {
+  requestDidStart({ request }) {
     const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
     let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
     if (transaction) {
@@ -269,7 +269,7 @@ export const SentryGraphQLPlugin = {
               op: 'resolver',
               description: `${info.parentType.name}.${info.fieldName}`,
             });
-            return error => {
+            return (error = null) => {
               // this will execute once the resolver is finished
               if (error) {
                 span.setData('error', error.message || error.toString());
