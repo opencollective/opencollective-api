@@ -65,6 +65,7 @@ module.exports = {
         AND "deletedAt" IS NULL
       );
 
+      -- Update Debits
       UPDATE "Transactions" SET
         "amountInHostCurrency" = ROUND(((e.data#>>'{paymentOption,sourceAmount}')::FLOAT - (e.data #>> '{paymentOption,fee,total}')::FLOAT) * -100.0),
         "amount" = ROUND(ROUND(((e.data #>> '{paymentOption,sourceAmount}')::FLOAT - (e.data #>> '{paymentOption,fee,total}')::FLOAT) * -100.0) / t."hostCurrencyFxRate"),
@@ -88,6 +89,7 @@ module.exports = {
       WHERE
         "Transactions"."id" = t."id" AND t.type = 'DEBIT'; 
 
+      -- Update Credits
       UPDATE "Transactions" SET
         "amount" = ROUND((e.data #>> '{paymentOption,sourceAmount}')::FLOAT * 100 / t."hostCurrencyFxRate"),
         "amountInHostCurrency" = ROUND(ROUND((e.data #>> '{paymentOption,sourceAmount}')::FLOAT * 100 * COALESCE(t."hostCurrencyFxRate", 1))),
