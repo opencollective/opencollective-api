@@ -13,7 +13,7 @@ import { hasPolicy } from '../policies';
 import recoveryCode from './recovery-code';
 import totp from './totp';
 import { TwoFactorMethod } from './two-factor-methods';
-import webauthn from './webauthn';
+import * as webauthn from './webauthn';
 import yubikeyOTP from './yubikey-otp';
 
 export { TwoFactorMethod };

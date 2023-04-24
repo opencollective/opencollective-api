@@ -32,32 +32,31 @@ const SupportedPublicKeyAlgorithmIDs = [
   -257, // RS256
 ];
 
-export default {
-  async validateToken(user: User, token: Token, req): Promise<void> {
-    const authenticationResponse: AuthenticationResponseJSON = JSON.parse(
-      Buffer.from(token.code, 'base64').toString('utf-8'),
-    );
+export async function validateToken(user: User, token: Token, req): Promise<void> {
+  const authenticationResponse: AuthenticationResponseJSON = JSON.parse(
+    Buffer.from(token.code, 'base64').toString('utf-8'),
+  );
 
-    const method = await UserTwoFactorMethod.findOne<UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN>>({
-      where: {
-        UserId: user.id,
-        method: TwoFactorMethod.WEBAUTHN,
-        data: {
-          credentialId: authenticationResponse.id,
-        },
+  const method = await UserTwoFactorMethod.findOne<UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN>>({
+    where: {
+      UserId: user.id,
+      method: TwoFactorMethod.WEBAUTHN,
+      data: {
+        credentialId: authenticationResponse.id,
       },
-    });
+    },
+  });
 
-    if (!method) {
-      throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
-    }
+  if (!method) {
+    throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
+  }
 
-    await verifyAuthenticationResponse(user, authenticationResponse, req);
-  },
-  async authenticationOptions(user: User, req) {
-    return generateAuthenticationOptions(user, req);
-  },
-};
+  await verifyAuthenticationResponse(user, authenticationResponse, req);
+}
+
+export async function authenticationOptions(user: User, req) {
+  return generateAuthenticationOptions(user, req);
+}
 
 export async function generateRegistrationOptions(user: User, req): Promise<PublicKeyCredentialCreationOptionsJSON> {
   const collective = user?.collective || (await user.getCollective());
