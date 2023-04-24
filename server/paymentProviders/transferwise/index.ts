@@ -189,6 +189,9 @@ async function createTransfer(
       accountId: recipient.id,
       quoteUuid: quote.id,
       customerTransactionId: uuid(),
+      details: {
+        reference: 'OC',
+      },
     };
     // Append reference to currencies that require it.
     if (
