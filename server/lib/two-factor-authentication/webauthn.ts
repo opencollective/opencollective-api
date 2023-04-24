@@ -1,4 +1,10 @@
+import crypto from 'crypto';
+
+import { AsnParser, OctetString } from '@peculiar/asn1-schema';
+import { Certificate } from '@peculiar/asn1-x509';
 import * as simplewebauthn from '@simplewebauthn/server';
+// eslint-disable-next-line import/no-unresolved, node/no-missing-import
+import { decodeAttestationObject } from '@simplewebauthn/server/helpers';
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
@@ -11,10 +17,11 @@ import config from 'config';
 import { ApolloError } from '../../graphql/errors';
 import { idEncode, IDENTIFIER_TYPES } from '../../graphql/v2/identifiers';
 import User from '../../models/User';
-import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
+import UserTwoFactorMethod, { UserTwoFactorMethodWebAuthnData } from '../../models/UserTwoFactorMethod';
 import { TOKEN_EXPIRATION_2FA } from '../auth';
 import cache from '../cache';
 
+import { getFidoMetadata, MetadataEntry } from './fido-metadata';
 import { Token } from './lib';
 import { TwoFactorMethod } from './two-factor-methods';
 
@@ -101,7 +108,7 @@ export async function verifyRegistrationResponse(
   response: RegistrationResponseJSON,
 ): Promise<simplewebauthn.VerifiedRegistrationResponse> {
   const expectedChallenge = await cache.get(`webauth-registration-challenge:${user.id}:${req.jwtPayload?.sessionId}`);
-  return await simplewebauthn.verifyRegistrationResponse({
+  const verifyResponse = await simplewebauthn.verifyRegistrationResponse({
     response,
     expectedChallenge,
     expectedOrigin: config.webauthn.expectedOrigins,
@@ -109,6 +116,20 @@ export async function verifyRegistrationResponse(
     requireUserVerification: false,
     supportedAlgorithmIDs: SupportedPublicKeyAlgorithmIDs,
   });
+
+  if (!verifyResponse.verified) {
+    throw new Error('Invalid registration result.');
+  }
+
+  const metadata = await getAuthenticatorMetadata(verifyResponse);
+
+  for (const report of metadata?.statusReports ?? []) {
+    if (report.status === 'REVOKED') {
+      throw new Error('Authenticator not supported.');
+    }
+  }
+
+  return verifyResponse;
 }
 
 export async function generateAuthenticationOptions(user: User, req) {
@@ -134,11 +155,13 @@ export async function generateAuthenticationOptions(user: User, req) {
     timeout: WebAuthnTimeoutSeconds * 1000,
   });
 
-  await cache.set(
-    `webauth-authentication-challenge:${user.id}:${req.jwtPayload?.sessionId}`,
-    options.challenge,
-    WebAuthnTimeoutSeconds,
-  );
+  if (req.jwtPayload) {
+    await cache.set(
+      `webauth-authentication-challenge:${user.id}:${req.jwtPayload?.sessionId}`,
+      options.challenge,
+      WebAuthnTimeoutSeconds,
+    );
+  }
 
   return options;
 }
@@ -158,7 +181,12 @@ export async function verifyAuthenticationResponse(user: User, response: Authent
     throw new ApolloError('Two-factor authentication code is invalid', 'INVALID_2FA_CODE');
   }
 
-  const expectedChallenge = await cache.get(`webauth-authentication-challenge:${user.id}:${req.jwtPayload?.sessionId}`);
+  let expectedChallenge;
+  if (req.jwtPayload.scope === 'twofactorauth') {
+    expectedChallenge = req.jwtPayload?.authenticationOptions?.webauthn?.challenge;
+  } else {
+    expectedChallenge = await cache.get(`webauth-authentication-challenge:${user.id}:${req.jwtPayload?.sessionId}`);
+  }
 
   const verificationResponse = await simplewebauthn.verifyAuthenticationResponse({
     authenticator: {
@@ -186,4 +214,70 @@ export async function verifyAuthenticationResponse(user: User, response: Authent
       counter: verificationResponse.authenticationInfo.newCounter,
     },
   });
+}
+
+async function getAuthenticatorMetadata(
+  registrationResponse: simplewebauthn.VerifiedRegistrationResponse,
+): Promise<MetadataEntry | null> {
+  if (
+    registrationResponse.registrationInfo?.aaguid &&
+    registrationResponse.registrationInfo?.aaguid !== '00000000-0000-0000-0000-000000000000'
+  ) {
+    return await getFidoMetadata(registrationResponse.registrationInfo.aaguid);
+  }
+
+  if (!registrationResponse.registrationInfo?.attestationObject) {
+    return null;
+  }
+
+  const attestationObject = decodeAttestationObject(
+    Buffer.from(registrationResponse.registrationInfo?.attestationObject),
+  );
+  const attestationStatement = attestationObject.get('attStmt');
+  if (!attestationStatement) {
+    return null;
+  }
+
+  const certs = attestationStatement.get('x5c');
+  if (certs.length === 0) {
+    return null;
+  }
+
+  const pemCert = new crypto.X509Certificate(certs[0]);
+  const cert = AsnParser.parse(pemCert.raw, Certificate);
+  const extension = cert.tbsCertificate.extensions.find(ext => ext.extnID === '1.3.6.1.4.1.45724.1.1.4');
+  if (!extension) {
+    return null;
+  }
+
+  const aaguidValue = AsnParser.parse(extension.extnValue.buffer, OctetString).buffer;
+
+  const aauigHex = Buffer.from(aaguidValue).toString('hex');
+  const aaguid = `${aauigHex.slice(0, 8)}-${aauigHex.slice(8, 12)}-${aauigHex.slice(12, 16)}-${aauigHex.slice(
+    16,
+    20,
+  )}-${aauigHex.slice(20)}`;
+
+  registrationResponse.registrationInfo.aaguid = aaguid;
+
+  return await getFidoMetadata(aaguid);
+}
+
+export async function getWebauthDeviceData(
+  registrationResponse: simplewebauthn.VerifiedRegistrationResponse,
+): Promise<UserTwoFactorMethodWebAuthnData> {
+  const metadata = await getAuthenticatorMetadata(registrationResponse);
+
+  return {
+    aaguid: registrationResponse.registrationInfo.aaguid,
+    description: metadata?.metadataStatement?.description,
+    icon: metadata?.metadataStatement?.icon,
+    credentialPublicKey: Buffer.from(registrationResponse.registrationInfo.credentialPublicKey).toString('base64url'),
+    credentialId: Buffer.from(registrationResponse.registrationInfo.credentialID).toString('base64url'),
+    counter: registrationResponse.registrationInfo.counter,
+    credentialDeviceType: registrationResponse.registrationInfo.credentialDeviceType,
+    credentialType: registrationResponse.registrationInfo.credentialType,
+    fmt: registrationResponse.registrationInfo.fmt,
+    attestationObject: Buffer.from(registrationResponse.registrationInfo.attestationObject).toString('base64url'),
+  };
 }

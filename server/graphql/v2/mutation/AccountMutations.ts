@@ -328,8 +328,8 @@ const accountMutations = {
       const type = (args.type as TwoFactorMethod) || TwoFactorMethod.TOTP;
       const userEnabledMethods = await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
 
-      if (userEnabledMethods.includes(type)) {
-        throw new Unauthorized('This account already has this 2FA method enabled.');
+      if (userEnabledMethods.length > 0) {
+        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })
       }
 
       switch (type) {
@@ -376,26 +376,12 @@ const accountMutations = {
           const registrationResult = JSON.parse(Buffer.from(args.token, 'base64').toString('utf8'));
           const registrationResponse = await webauthn.verifyRegistrationResponse(user, req, registrationResult);
 
-          if (!registrationResponse.verified) {
-            throw new Error('Invalid registration result.');
-          }
+          const data = await webauthn.getWebauthDeviceData(registrationResponse);
 
           await UserTwoFactorMethod.create({
             UserId: user.id,
             method: TwoFactorMethod.WEBAUTHN,
-            data: {
-              credentialPublicKey: Buffer.from(registrationResponse.registrationInfo.credentialPublicKey).toString(
-                'base64url',
-              ),
-              credentialId: Buffer.from(registrationResponse.registrationInfo.credentialID).toString('base64url'),
-              counter: registrationResponse.registrationInfo.counter,
-              credentialDeviceType: registrationResponse.registrationInfo.credentialDeviceType,
-              credentialType: registrationResponse.registrationInfo.credentialType,
-              fmt: registrationResponse.registrationInfo.fmt,
-              attestationObject: Buffer.from(registrationResponse.registrationInfo.attestationObject).toString(
-                'base64url',
-              ),
-            },
+            data,
           });
 
           break;
