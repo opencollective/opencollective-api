@@ -27,6 +27,9 @@ const YubikeyOTPSchema = z.object({
 export type UserTwoFactorMethodYubikeyOTPData = z.infer<typeof YubikeyOTPSchema>;
 
 const WebAuthnSchema = z.object({
+  aaguid: z.string(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
   credentialPublicKey: z.string(),
   credentialId: z.string(),
   counter: z.number(),
@@ -70,6 +73,10 @@ export default class UserTwoFactorMethod<
     });
 
     return result.map(r => r.method);
+  }
+
+  isWebAuthn(): this is UserTwoFactorMethod<TwoFactorMethod.WEBAUTHN> {
+    return this.method === TwoFactorMethod.WEBAUTHN;
   }
 }
 
