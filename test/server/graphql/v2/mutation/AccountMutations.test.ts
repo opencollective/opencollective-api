@@ -295,7 +295,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(activity.CollectiveId).to.equal(adminUser.collective.id);
     });
 
-    it('fails if user already enabled 2FA', async () => {
+    it('asks for 2FA if user already has 2FA', async () => {
       const result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,
         {
@@ -305,11 +305,12 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
         adminUser,
       );
       expect(result.errors).to.exist;
-      expect(result.errors[0].message).to.match(/This account already has this 2FA method enabled/);
+      expect(result.errors[0].message).to.match(/Two-factor authentication required/);
     });
 
     it('Adds multiple methods', async () => {
       sandbox.stub(yubikeyOtp, 'validateYubikeyOTP').resolves(true);
+      sandbox.stub(yubikeyOtp.default, 'validateToken').resolves(true);
       const user = await fakeUser();
       let result = await graphqlQueryV2(
         addTwoFactorAuthTokenMutation,
@@ -333,6 +334,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           type: 'TOTP',
         },
         user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: 'yubikey_otp 1234',
+        },
       );
 
       expect(result.errors).to.not.exist;
@@ -374,6 +379,10 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
           type: 'TOTP',
         },
         user,
+        null,
+        {
+          [TwoFactorAuthenticationHeader]: `yubikey_otp 1234`,
+        },
       );
 
       expect(result.errors).to.not.exist;
