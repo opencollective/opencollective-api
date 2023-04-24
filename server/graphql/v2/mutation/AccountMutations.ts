@@ -329,7 +329,7 @@ const accountMutations = {
       const userEnabledMethods = await TwoFactorAuthLib.twoFactorMethodsSupportedByUser(user);
 
       if (userEnabledMethods.length > 0) {
-        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true })
+        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true });
       }
 
       switch (type) {
