@@ -8350,6 +8350,11 @@ type Individual implements Account {
   Has the account a password set? For authenticated user: scope: "account".
   """
   hasPassword: Boolean
+
+  """
+  User two factor methods
+  """
+  twoFactorMethods: [UserTwoFactorMethod]
 }
 
 """
@@ -8415,6 +8420,26 @@ type PersonalToken {
   The date on which the personal token was last updated
   """
   updatedAt: DateTime
+}
+
+"""
+User two factor method
+"""
+type UserTwoFactorMethod {
+  id: String!
+  method: TwoFactorMethod!
+  createdAt: DateTime!
+  description: String
+  icon: String
+}
+
+"""
+A two factor authentication method
+"""
+enum TwoFactorMethod {
+  TOTP
+  YUBIKEY_OTP
+  WEBAUTHN
 }
 
 """
@@ -15118,15 +15143,6 @@ type AddTwoFactorAuthTokenToIndividualResponse {
   The recovery codes for the Individual to write down
   """
   recoveryCodes: [String]
-}
-
-"""
-A two factor authentication method
-"""
-enum TwoFactorMethod {
-  TOTP
-  YUBIKEY_OTP
-  WEBAUTHN
 }
 
 input AccountUpdateInput {
