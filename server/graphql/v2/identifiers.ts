@@ -40,6 +40,7 @@ export const IDENTIFIER_TYPES = {
   PERSONAL_TOKEN: 'personal-token',
   UPLOADED_FILE: 'uploaded-file',
   USER: 'user',
+  USER_TWO_FACTOR_METHOD: 'user-two-factor-method',
   VIRTUAL_CARD_REQUEST: 'virtual-card-request',
 } as const;
 

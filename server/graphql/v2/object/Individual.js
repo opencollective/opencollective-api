@@ -1,8 +1,9 @@
-import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLBoolean, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 
 import { CollectiveType } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import UserTwoFactorMethod from '../../../models/UserTwoFactorMethod';
 import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
@@ -11,6 +12,7 @@ import { GraphQLPersonalTokenCollection } from '../collection/PersonalTokenColle
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountFields, GraphQLAccount } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
+import { UserTwoFactorMethod as UserTwoFactorMethodObject } from '../object/UserTwoFactorMethod';
 
 import { GraphQLHost } from './Host';
 
@@ -210,6 +212,23 @@ export const GraphQLIndividual = new GraphQLObjectType({
           }
 
           return req.remoteUser.passwordHash ? true : false;
+        },
+      },
+      twoFactorMethods: {
+        type: new GraphQLList(UserTwoFactorMethodObject),
+        description: 'User two factor methods',
+        async resolve(collective, _, req) {
+          if (!req.remoteUser?.isAdminOfCollective(collective) || !checkScope(req, 'account')) {
+            return null;
+          }
+
+          const user = await req.loaders.User.byCollectiveId.load(collective.id);
+
+          return UserTwoFactorMethod.findAll({
+            where: {
+              UserId: user.id,
+            },
+          });
         },
       },
     };
