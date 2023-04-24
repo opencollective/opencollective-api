@@ -321,10 +321,14 @@ export const twoFactorAuthAndUpdateToken = async (req, res, next) => {
   }
 
   try {
-    await twoFactorAuthLib.validateToken(user, {
-      code: code,
-      type: type,
-    });
+    await twoFactorAuthLib.validateToken(
+      user,
+      {
+        code: code,
+        type: type,
+      },
+      req,
+    );
   } catch (e) {
     return fail(new Unauthorized('Two-factor authentication code failed. Please try again'));
   }
