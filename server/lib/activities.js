@@ -175,7 +175,11 @@ const doFormatMessage = (activity, format) => {
       return `New ${update} published on ${collective}`;
 
     case activities.COLLECTIVE_MEMBER_CREATED:
-      return `New member ${member} joined ${collective}`;
+      if (amount) {
+        return `${member} just joined ${collective} and contributed with ${formatCurrency(currency, amount)}`;
+      } else {
+        return `New member ${member} joined ${collective}`;
+      }
 
     default:
       return '';
