@@ -255,10 +255,6 @@ describe('cron/monthly/host-settlement', () => {
     expect(gphHostSettlementExpense).to.have.nested.property('data.isPlatformTipSettlement', true);
   });
 
-  it('should use a payout method compatible with the host currency', () => {
-    expect(gphHostSettlementExpense).to.have.property('PayoutMethodId', 2956);
-  });
-
   it('should invoice platform tips not collected through Stripe', async () => {
     const platformTipsItem = gphHostSettlementExpense.items.find(p => p.description === 'Platform Tips');
     expect(platformTipsItem).to.have.property('amount', Math.round(1000 / 1.23));

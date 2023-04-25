@@ -347,32 +347,39 @@ export const fakeUploadedFile = async (fileData: Partial<InferCreationAttributes
 /**
  * Fake a Payout Method (defaults to PayPal)
  */
-export const fakePayoutMethod = async (data: Partial<InferCreationAttributes<PayoutMethod>> = {}) => {
+export const fakePayoutMethod = async ({
+  data,
+  type,
+  CollectiveId,
+  CreatedByUserId,
+  ...props
+}: Partial<InferCreationAttributes<PayoutMethod>> = {}) => {
   const generateData = type => {
     if (type === PayoutMethodTypes.PAYPAL) {
-      return { email: randEmail() };
+      return { email: randEmail(), ...data };
     } else if (type === PayoutMethodTypes.OTHER) {
-      return { content: randStr() };
+      return { content: randStr(), ...data };
     } else if (type === PayoutMethodTypes.BANK_ACCOUNT) {
       return {
         accountHolderName: 'Jesse Pinkman',
         currency: 'EUR',
         type: 'iban',
         details: { iban: 'DE1237812738192OK' },
+        ...data,
       };
     } else {
       return {};
     }
   };
 
-  const type = (data && data.type) || PayoutMethodTypes.PAYPAL;
+  type = type || PayoutMethodTypes.PAYPAL;
   return models.PayoutMethod.create({
     name: randStr('Fake Payout Method '),
     data: generateData(type),
-    ...data,
+    ...props,
     type: type as PayoutMethodTypes,
-    CollectiveId: data.CollectiveId || (await fakeCollective()).id,
-    CreatedByUserId: <number>data.CreatedByUserId || (await fakeUser()).id,
+    CollectiveId: CollectiveId || (await fakeCollective()).id,
+    CreatedByUserId: <number>CreatedByUserId || (await fakeUser()).id,
   });
 };
 
