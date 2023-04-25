@@ -5,6 +5,7 @@ module.exports = {
   async up(queryInterface) {
     await queryInterface.sequelize.query(`
       BEGIN;
+      DROP TABLE IF EXISTS "tmp_impacted_debits", "tmp_impacted_transactions";
       CREATE TEMP TABLE tmp_impacted_debits AS (
         SELECT
           t."TransactionGroup"
