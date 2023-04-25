@@ -5,7 +5,7 @@ import { truncate } from 'lodash';
 
 import { activities } from '../constants';
 import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
-import models, { Collective, Op } from '../models';
+import models, { Collective, Op, sequelize } from '../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_TYPE,
@@ -112,24 +112,36 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
 };
 
 export const setTaxForm = async (account, taxFormLink, year) => {
-  const legalDocument = await models.LegalDocument.findOne({
-    where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
-  });
+  await sequelize.transaction(async sqlTransaction => {
+    const legalDocument = await models.LegalDocument.findOne(
+      {
+        where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
+        lock: true,
+        transaction: sqlTransaction,
+      },
+    );
 
-  if (legalDocument) {
-    await legalDocument.update({
-      documentLink: taxFormLink,
-      year,
-      requestStatus: 'RECEIVED',
-    });
-  } else {
-    await models.LegalDocument.create({
-      requestStatus: 'RECEIVED',
-      documentLink: taxFormLink,
-      year,
-      CollectiveId: account.id,
-    });
-  }
+    if (legalDocument) {
+      await legalDocument.update(
+        {
+          documentLink: taxFormLink,
+          year,
+          requestStatus: 'RECEIVED',
+        },
+        { transaction: sqlTransaction },
+      );
+    } else {
+      await models.LegalDocument.create(
+        {
+          requestStatus: 'RECEIVED',
+          documentLink: taxFormLink,
+          year,
+          CollectiveId: account.id,
+        },
+        { transaction: sqlTransaction },
+      );
+    }
+  });
   return true;
 };
 
