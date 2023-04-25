@@ -13,9 +13,13 @@ import { payExpense } from '../../../../../server/graphql/common/expenses';
 import { idEncode, IDENTIFIER_TYPES } from '../../../../../server/graphql/v2/identifiers';
 import { getFxRate } from '../../../../../server/lib/currency';
 import emailLib from '../../../../../server/lib/email';
-import { TwoFactorAuthenticationHeader } from '../../../../../server/lib/two-factor-authentication/lib';
+import {
+  TwoFactorAuthenticationHeader,
+  TwoFactorMethod,
+} from '../../../../../server/lib/two-factor-authentication/lib';
 import models from '../../../../../server/models';
 import { PayoutMethodTypes } from '../../../../../server/models/PayoutMethod';
+import UserTwoFactorMethod from '../../../../../server/models/UserTwoFactorMethod';
 import paymentProviders from '../../../../../server/paymentProviders';
 import paypalAdaptive from '../../../../../server/paymentProviders/paypal/adaptiveGateway';
 import { randEmail, randUrl } from '../../../../stores';
@@ -2378,7 +2382,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
     it('Pays multiple expenses - 2FA is asked for the first time and after the limit is exceeded', async () => {
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      await hostAdmin.update({ twoFactorAuthToken: encryptedToken });
+      await UserTwoFactorMethod.create({
+        UserId: hostAdmin.id,
+        method: TwoFactorMethod.TOTP,
+        data: {
+          secret: encryptedToken,
+        },
+      });
+
       const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
         encoding: 'base32',
@@ -2444,7 +2455,14 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
 
       const secret = speakeasy.generateSecret({ length: 64 });
       const encryptedToken = crypto[CIPHER].encrypt(secret.base32, SECRET_KEY).toString();
-      await hostAdmin.update({ twoFactorAuthToken: encryptedToken });
+      await UserTwoFactorMethod.create({
+        UserId: hostAdmin.id,
+        method: TwoFactorMethod.TOTP,
+        data: {
+          secret: encryptedToken,
+        },
+      });
+
       const twoFactorAuthenticatorCode = speakeasy.totp({
         algorithm: 'SHA1',
         encoding: 'base32',

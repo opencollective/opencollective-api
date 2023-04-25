@@ -54,7 +54,9 @@ async function reconcileConnectedAccount(connectedAccount) {
           logger.debug(JSON.stringify(transactions, null, 2));
         } else {
           logger.info(`Syncing ${transactions.length} pending transactions...`);
-          await Promise.all(transactions.map(transaction => privacy.processTransaction(transaction)));
+          await Promise.all(
+            transactions.map(transaction => privacy.processTransaction(transaction, undefined, { card })),
+          );
 
           logger.info(`Refreshing card details'...`);
           const [privacyCard] = await privacyLib.listCards(connectedAccount.token, card.id);

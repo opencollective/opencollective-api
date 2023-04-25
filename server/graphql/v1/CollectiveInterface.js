@@ -1183,13 +1183,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         if (req.remoteUser?.isAdmin(collective.id) || req.remoteUser?.isRoot()) {
           if (collective.type === types.USER) {
-            const user = await models.User.findOne({
-              attributes: ['id', 'twoFactorAuthToken'],
-              where: { CollectiveId: collective.id },
-            });
-            if (user.twoFactorAuthToken) {
-              return true;
-            }
+            return await req.remoteUser.hasTwoFactorAuthentication();
           }
           return false;
         } else {

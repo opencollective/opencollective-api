@@ -5,6 +5,7 @@ import { URL } from 'url';
 
 import Promise from 'bluebird';
 import config from 'config';
+import fastRedact from 'fast-redact';
 import pdf from 'html-pdf';
 import { filter, get, isEqual, padStart, sumBy } from 'lodash';
 
@@ -552,3 +553,22 @@ export const computeDatesAsISOStrings = (startDate, endDate) => {
  * @returns string
  */
 export const ifStr = (condition, expression) => (condition ? expression : '');
+
+export const redactSensitiveFields = fastRedact({
+  serialize: false,
+  paths: [
+    'authorization',
+    'Authorization',
+    'AUTHORIZATION',
+    'token',
+    'accessToken',
+    'refreshToken',
+    '["Personal-Token"]',
+    'password',
+    'newPassword',
+    'currentPassword',
+    'variables.password',
+    'variables.newPassword',
+    'variables.currentPassword',
+  ],
+});

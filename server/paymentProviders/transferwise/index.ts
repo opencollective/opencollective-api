@@ -96,8 +96,12 @@ async function quoteExpense(
   const isExistingQuoteValid =
     expense.feesPayer !== 'PAYEE' &&
     expense.data?.quote &&
+    // We want a paymentOption to be there
     expense.data.quote['paymentOption'] &&
-    !expense.data.transfer && // We can not reuse quotes if a Transfer was already created
+    // We cannot use quotes that don't have a valid paymentOption
+    expense.data.quote['paymentOption'].disabled === false &&
+    // We can not reuse quotes if a Transfer was already created
+    !expense.data.transfer &&
     moment.utc().subtract(60, 'seconds').isBefore(expense.data.quote['expirationTime']);
   if (isExistingQuoteValid) {
     logger.debug(`quoteExpense(): reusing existing quote...`);
@@ -185,6 +189,9 @@ async function createTransfer(
       accountId: recipient.id,
       quoteUuid: quote.id,
       customerTransactionId: uuid(),
+      details: {
+        reference: 'OC',
+      },
     };
     // Append reference to currencies that require it.
     if (

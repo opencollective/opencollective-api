@@ -22,6 +22,7 @@ import { REACTION_EMOJI } from '../../server/constants/reaction-emoji';
 import MemberRoles from '../../server/constants/roles';
 import { TransactionKind } from '../../server/constants/transaction-kind';
 import { crypto } from '../../server/lib/encryption';
+import { TwoFactorMethod } from '../../server/lib/two-factor-authentication';
 import models, {
   Collective,
   ConnectedAccount,
@@ -55,6 +56,7 @@ import {
 } from '../../server/models/UploadedFile';
 import User from '../../server/models/User';
 import { TokenType } from '../../server/models/UserToken';
+import UserTwoFactorMethod from '../../server/models/UserTwoFactorMethod';
 import { randEmail, randUrl } from '../stores';
 
 export { randEmail };
@@ -107,6 +109,14 @@ export const fakeUser = async (
     twoFactorAuthToken: enable2FA ? generate2FAAuthToken() : null,
     ...userData,
   });
+
+  if (user.twoFactorAuthToken) {
+    await UserTwoFactorMethod.create({
+      UserId: user.id,
+      method: TwoFactorMethod.TOTP,
+      data: { secret: user.twoFactorAuthToken },
+    });
+  }
 
   const userCollective = await fakeCollective({
     type: types.USER,

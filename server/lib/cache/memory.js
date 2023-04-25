@@ -1,13 +1,13 @@
-import LRU from 'lru-cache';
+import { LRUCache } from 'lru-cache';
 
 const makeMemoryProvider = opts => {
-  const lruCache = new LRU(opts);
+  const cache = new LRUCache(opts);
   return {
-    clear: async () => lruCache.reset(),
-    delete: async key => lruCache.delete(key),
-    get: async key => lruCache.get(key),
-    has: async key => lruCache.has(key),
-    set: async (key, value, expirationInSeconds) => lruCache.set(key, value, { ttl: expirationInSeconds * 1000 }),
+    clear: async () => cache.clear(),
+    delete: async key => cache.delete(key),
+    get: async key => cache.get(key),
+    has: async key => cache.has(key),
+    set: async (key, value, expirationInSeconds) => cache.set(key, value, { ttl: expirationInSeconds * 1000 }),
   };
 };
 

@@ -19,6 +19,7 @@ import { User } from '../models';
 
 import logger from './logger';
 import { safeJsonStringify, sanitizeObjectForJSON } from './safe-json-stringify';
+import * as utils from './utils';
 
 const getIntegrations = (expressApp = null): Integration[] => {
   const integrations: Integration[] = [new Sentry.Integrations.Http({ tracing: true })];
@@ -30,6 +31,32 @@ const getIntegrations = (expressApp = null): Integration[] => {
 
 export const initSentry = (expressApp = null) => {
   Sentry.init({
+    beforeSend(event) {
+      // Redact from payload
+      try {
+        const reqBody = JSON.parse(event.request.data);
+        event.request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
+      } catch (e) {
+        // request data is not a json
+      }
+
+      // Redact from headers
+      if (event.request?.headers) {
+        event.request.headers = utils.redactSensitiveFields(event.request.headers);
+      }
+
+      return event;
+    },
+    beforeSendTransaction(event) {
+      try {
+        const reqBody = JSON.parse(event.request.data);
+        event.request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
+      } catch (e) {
+        // request data is not a json
+      }
+
+      return event;
+    },
     dsn: config.sentry.dsn,
     environment: config.env,
     attachStacktrace: true,
@@ -223,10 +250,14 @@ const isIgnoredGQLError = (err): boolean => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart({ request }): Record<string, unknown> {
-    const transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
-    if (request.operationName && transaction) {
-      transaction.setName(`GraphQL: ${request.operationName}`);
+  requestDidStart({ request }) {
+    const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
+    let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
+    if (transaction) {
+      // Re-use any existing transaction (Sentry pricing is based on the transactions count)
+      transaction.setName(transactionName);
+    } else {
+      transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
     }
 
     return {
@@ -238,8 +269,12 @@ export const SentryGraphQLPlugin = {
               op: 'resolver',
               description: `${info.parentType.name}.${info.fieldName}`,
             });
-            return () => {
+            return (error = null) => {
               // this will execute once the resolver is finished
+              if (error) {
+                span.setData('error', error.message || error.toString());
+                span.setStatus('internal_error');
+              }
               span.finish();
             };
           },
@@ -277,6 +312,11 @@ export const SentryGraphQLPlugin = {
               },
             ],
           });
+        }
+      },
+      willSendResponse(): void {
+        if (transaction.op === 'graphql') {
+          transaction.finish();
         }
       },
     };

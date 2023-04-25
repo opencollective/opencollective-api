@@ -788,7 +788,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     isNil(currentPaidExpenseAmountCache) ||
     currentPaidExpenseAmount + expense.amount > hostPayoutTwoFactorAuthenticationRollingLimit;
 
-  if (!twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser)) {
+  if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
     throw new Error('Host has two-factor authentication enabled for large payouts.');
   }
 

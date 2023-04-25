@@ -2447,7 +2447,8 @@
     "body": {
       "targetAccount": 148749926,
       "quoteUuid": "4fc16717-9c4d-41b6-b5c0-832e52ee6cae",
-      "customerTransactionId": "81647d18-7dfc-4411-9477-f388342c8612"
+      "customerTransactionId": "81647d18-7dfc-4411-9477-f388342c8612",
+      "details": { "reference": "OC" }
     },
     "status": 200,
     "response": {
@@ -5320,7 +5321,8 @@
     "body": {
       "targetAccount": 148750444,
       "quoteUuid": "d6c849be-1572-44a8-a62b-945c024a36b7",
-      "customerTransactionId": "80ce9835-aee0-4fed-89d0-8fefa5e7d05b"
+      "customerTransactionId": "80ce9835-aee0-4fed-89d0-8fefa5e7d05b",
+      "details": { "reference": "OC" }
     },
     "status": 200,
     "response": {
@@ -8115,7 +8117,8 @@
     "body": {
       "targetAccount": 148750444,
       "quoteUuid": "bf4f9771-0959-4c32-a4cb-70ab39ac5a9f",
-      "customerTransactionId": "6c5a3df7-1e0c-41a5-ae48-2834257da1ea"
+      "customerTransactionId": "6c5a3df7-1e0c-41a5-ae48-2834257da1ea",
+      "details": { "reference": "OC" }
     },
     "status": 200,
     "response": {
@@ -10968,7 +10971,8 @@
     "body": {
       "targetAccount": 148750444,
       "quoteUuid": "1f0be83b-d717-4413-a881-8d72faa0c087",
-      "customerTransactionId": "737b2a15-e90d-4edb-8579-b1da5e1c9bf9"
+      "customerTransactionId": "737b2a15-e90d-4edb-8579-b1da5e1c9bf9",
+      "details": { "reference": "OC" }
     },
     "status": 200,
     "response": {
@@ -13822,7 +13826,8 @@
     "body": {
       "targetAccount": 148750435,
       "quoteUuid": "a88fbc98-3ee7-4ec7-9be6-0fc639afcf13",
-      "customerTransactionId": "26de5ab5-9d08-4ec0-8836-166d5d55aa91"
+      "customerTransactionId": "26de5ab5-9d08-4ec0-8836-166d5d55aa91",
+      "details": { "reference": "OC" }
     },
     "status": 200,
     "response": {
@@ -16678,7 +16683,8 @@
     "body": {
       "targetAccount": 148749926,
       "quoteUuid": "d5933ea8-139f-4d79-8016-8dcd440cb67a",
-      "customerTransactionId": "75736180-1a8a-4614-9832-20f25b07d5af"
+      "customerTransactionId": "75736180-1a8a-4614-9832-20f25b07d5af",
+      "details": { "reference": "OC" }
     },
     "status": 200,
     "response": {

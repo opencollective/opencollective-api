@@ -10,6 +10,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.removeIndex('Members', ['PayoutMethodId']);
+    await queryInterface.removeIndex('Expenses', ['PayoutMethodId']);
   },
 };

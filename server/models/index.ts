@@ -38,6 +38,7 @@ import Update from './Update';
 import UploadedFile from './UploadedFile';
 import User from './User';
 import UserToken from './UserToken';
+import UserTwoFactorMethod from './UserTwoFactorMethod';
 import VirtualCard from './VirtualCard';
 
 /**
@@ -402,6 +403,9 @@ models.SocialLink.belongsTo(models.Collective, {
   as: 'collective',
 });
 models.Collective.hasMany(models.SocialLink, { foreignKey: 'CollectiveId', as: 'socialLinks' });
+
+UserTwoFactorMethod.belongsTo(User);
+User.hasMany(UserTwoFactorMethod);
 
 export default models;
 

@@ -40,7 +40,13 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
   public declare email: string;
   public declare emailWaitingForValidation: CreationOptional<string>;
   public declare emailConfirmationToken: CreationOptional<string>;
+  /**
+   * @deprecated use `UserTwoFactorAuthMethod`
+   */
   public declare twoFactorAuthToken: CreationOptional<string>;
+  /**
+   * @deprecated use `UserTwoFactorAuthMethod`
+   */
   public declare yubikeyDeviceId: CreationOptional<string>;
   public declare twoFactorAuthRecoveryCodes: CreationOptional<string[]>;
   public declare CollectiveId: number;
@@ -467,7 +473,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     });
   }
 
-  get hasTwoFactorAuthentication(): NonAttribute<boolean> {
+  hasTwoFactorAuthentication(): NonAttribute<Promise<boolean>> {
     return twoFactorAuthLib.userHasTwoFactorAuthEnabled(this);
   }
 
