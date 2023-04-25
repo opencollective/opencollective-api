@@ -113,13 +113,11 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
 
 export const setTaxForm = async (account, taxFormLink, year) => {
   await sequelize.transaction(async sqlTransaction => {
-    const legalDocument = await models.LegalDocument.findOne(
-      {
-        where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
-        lock: true,
-        transaction: sqlTransaction,
-      },
-    );
+    const legalDocument = await models.LegalDocument.findOne({
+      where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
+      lock: true,
+      transaction: sqlTransaction,
+    });
 
     if (legalDocument) {
       await legalDocument.update(
