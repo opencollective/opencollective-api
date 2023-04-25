@@ -20,6 +20,7 @@ import {
   computeTotalAmountForExpense,
   createExpense,
   editExpense,
+  editExpenseDraft,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
@@ -30,7 +31,6 @@ import {
   unscheduleExpensePayment,
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
-import { createUser } from '../../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { FeesPayer } from '../enum/FeesPayer';
@@ -161,54 +161,7 @@ const expenseMutations = {
       };
 
       if (args.draftKey) {
-        // It is a submit on behalf being completed
-        const expenseId = getDatabaseIdFromExpenseReference(args.expense);
-        let existingExpense = await models.Expense.findByPk(expenseId, {
-          include: [{ model: models.Collective, as: 'collective' }],
-        });
-        if (!existingExpense) {
-          throw new NotFound('Expense not found.');
-        }
-        if (existingExpense.status !== expenseStatus.DRAFT) {
-          throw new Unauthorized('Expense can not be edited.');
-        }
-        if (existingExpense.data.draftKey !== args.draftKey) {
-          throw new Unauthorized('You need to submit the right draft key to edit this expense');
-        }
-
-        const options = { overrideRemoteUser: undefined, skipPermissionCheck: true };
-        if (!payeeExists) {
-          const { organization: organizationData, ...payee } = expense.payee;
-          const { user, organization } = await createUser(
-            {
-              ...pick(payee, ['email', 'name', 'legalName', 'newsletterOptIn']),
-              location: expenseData.payeeLocation,
-            },
-            {
-              organizationData,
-              throwIfExists: true,
-              sendSignInLink: true,
-              redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}`,
-              creationRequest: {
-                ip: req.ip,
-                userAgent: req.header?.['user-agent'],
-              },
-            },
-          );
-          expenseData.fromCollective = organization || user.collective;
-          options.overrideRemoteUser = user;
-          options.skipPermissionCheck = true;
-        }
-
-        existingExpense = await editExpense(req, expenseData, options);
-
-        await existingExpense.update({
-          status: options.overrideRemoteUser?.id ? expenseStatus.UNVERIFIED : undefined,
-          lastEditedById: options.overrideRemoteUser?.id || req.remoteUser?.id,
-          UserId: options.overrideRemoteUser?.id || req.remoteUser?.id,
-        });
-
-        return existingExpense;
+        return editExpenseDraft(req, expenseData, { args });
       }
 
       return editExpense(req, expenseData);
