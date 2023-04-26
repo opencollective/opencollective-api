@@ -157,7 +157,7 @@ const memberInvitationMutations = {
           const host = await collective.getHostCollective();
           const adminCount = await models.Member.count({
             where: {
-              CollectiveId: collective.id,
+              CollectiveId: collective.ParentCollectiveId || collective.id,
               role: MemberRoles.ADMIN,
             },
           });

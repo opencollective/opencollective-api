@@ -2106,7 +2106,7 @@ class Collective extends Model<
     if (shouldAutomaticallyApprove) {
       const adminCount = await models.Member.count({
         where: {
-          CollectiveId: this.id,
+          CollectiveId: this.ParentCollectiveId || this.id,
           role: roles.ADMIN,
         },
       });
