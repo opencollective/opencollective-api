@@ -1241,7 +1241,7 @@ export const changesRequireStatusUpdate = (
   expense: Expense,
   newExpenseData: ExpenseData,
   hasItemsChanges: boolean,
-  hasPayoutChanges: boolean,
+  hasPayoutChanges = false,
 ): boolean => {
   const updatedValues = { ...expense.dataValues, ...newExpenseData };
   const hasAmountChanges = typeof updatedValues.amount !== 'undefined' && updatedValues.amount !== expense.amount;
@@ -1463,6 +1463,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
 
   let payoutMethod = await expense.getPayoutMethod();
   let feesPayer = expense.feesPayer;
+  const previousStatus = expense.status;
 
   // Validate bank account payout method
   if (payoutMethod?.type === PayoutMethodTypes.BANK_ACCOUNT) {
@@ -1473,6 +1474,7 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
       logger.warn('The legal name should match the bank account holder name (${accountHolderName} ≠ ${legalName})');
     }
   }
+
   const updatedExpense = await sequelize.transaction(async transaction => {
     // Update payout method if we get new data from one of the param for it
     if (
@@ -1539,10 +1541,11 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     }
 
     let status = expense.status;
-    if (shouldUpdateStatus) {
+    if (status === 'INCOMPLETE') {
+      // When dealing with expenses marked as INCOMPLETE, only return to PENDING if the expense change requires Collective review
+      status = changesRequireStatusUpdate(expense, expenseData, hasItemChanges) ? 'PENDING' : 'APPROVED';
+    } else if (shouldUpdateStatus) {
       status = 'PENDING';
-    } else if (status === 'INCOMPLETE') {
-      status = 'APPROVED';
     }
 
     const updatedExpenseProps = {
@@ -1590,7 +1593,8 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
     }
   }
 
-  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser);
+  const notifyCollective = previousStatus === 'INCOMPLETE' && updatedExpense.status === 'PENDING';
+  await updatedExpense.createActivity(activities.COLLECTIVE_EXPENSE_UPDATED, remoteUser, { notifyCollective });
   return updatedExpense;
 }
 
