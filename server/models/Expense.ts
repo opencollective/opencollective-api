@@ -32,6 +32,8 @@ import { RecurringExpense } from './RecurringExpense';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
+export { ExpenseStatus, ExpenseType };
+
 // Options for sanitizing private messages
 const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
   basicTextFormatting: true,
