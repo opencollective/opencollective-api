@@ -13,6 +13,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import ExpenseModel from '../../../models/Expense';
+import { createComment } from '../../common/comment';
 import {
   approveExpense,
   canDeleteExpense,
@@ -307,7 +308,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+      let expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       const collective = await expense.getCollective();
       const host = await collective.getHostCollective();
 
@@ -319,38 +320,57 @@ const expenseMutations = {
 
       switch (args.action) {
         case 'APPROVE':
-          return approveExpense(req, expense);
+          expense = await approveExpense(req, expense);
+          break;
         case 'UNAPPROVE':
-          return unapproveExpense(req, expense);
+          expense = await unapproveExpense(req, expense);
+          break;
         case 'MARK_AS_INCOMPLETE':
-          return markExpenseAsIncomplete(req, expense, args.message);
+          expense = await markExpenseAsIncomplete(req, expense);
+          break;
         case 'REJECT':
-          return rejectExpense(req, expense);
+          expense = await rejectExpense(req, expense);
+          break;
         case 'MARK_AS_SPAM':
-          return markExpenseAsSpam(req, expense);
+          expense = await markExpenseAsSpam(req, expense);
+          break;
         case 'MARK_AS_UNPAID':
-          return markExpenseAsUnpaid(
+          expense = await markExpenseAsUnpaid(
             req,
             expense.id,
             args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
           );
+          break;
         case 'SCHEDULE_FOR_PAYMENT':
-          return scheduleExpenseForPayment(req, expense, {
+          expense = await scheduleExpenseForPayment(req, expense, {
             feesPayer: args.paymentParams?.feesPayer,
           });
+          break;
         case 'UNSCHEDULE_PAYMENT':
-          return unscheduleExpensePayment(req, expense);
+          expense = await unscheduleExpensePayment(req, expense);
+          break;
         case 'PAY':
-          return payExpense(req, {
+          expense = await payExpense(req, {
             id: expense.id,
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
           });
-        default:
-          return expense;
+          break;
       }
+
+      if (args.message) {
+        await createComment(
+          {
+            ExpenseId: expense.id,
+            html: args.message,
+          },
+          req,
+        );
+      }
+
+      return expense;
     },
   },
   draftExpenseAndInviteUser: {

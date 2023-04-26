@@ -709,11 +709,7 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
   return updatedExpense;
 };
 
-export const markExpenseAsIncomplete = async (
-  req: express.Request,
-  expense: Expense,
-  message?: string,
-): Promise<Expense> => {
+export const markExpenseAsIncomplete = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (expense.status === 'INCOMPLETE') {
     return expense;
   } else if (!(await canMarkAsIncomplete(req, expense))) {
@@ -721,7 +717,7 @@ export const markExpenseAsIncomplete = async (
   }
 
   const updatedExpense = await expense.update({ status: 'INCOMPLETE', lastEditedById: req.remoteUser.id });
-  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser, { message });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   return updatedExpense;
 };
 
