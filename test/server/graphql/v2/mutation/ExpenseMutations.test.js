@@ -462,6 +462,31 @@ describe('server/graphql/v2/mutation/ExpenseMutations', () => {
       });
     });
 
+    describe('INCOMPLETE side effects', () => {
+      it('goes back to APPROVED if only Payout changes', async () => {
+        const expense2 = await fakeExpense({ status: 'INCOMPLETE', legacyPayoutMethod: 'other' });
+        const newPayoutMethod = await fakePayoutMethod({ CollectiveId: expense2.User.CollectiveId });
+        const newExpense2Data = {
+          id: idEncode(expense2.id, IDENTIFIER_TYPES.EXPENSE),
+          payoutMethod: { id: idEncode(newPayoutMethod.id, IDENTIFIER_TYPES.PAYOUT_METHOD) },
+        };
+        const result2 = await graphqlQueryV2(editExpenseMutation, { expense: newExpense2Data }, expense2.User);
+        expect(result2.errors).to.not.exist;
+        expect(result2.data.editExpense.status).to.equal('APPROVED');
+      });
+
+      it('goes back to PENDING if Item(s) are updated', async () => {
+        const expense = await fakeExpense({ status: 'INCOMPLETE' });
+        const newExpenseData = {
+          id: idEncode(expense.id, IDENTIFIER_TYPES.EXPENSE),
+          items: { url: randUrl(), amount: 2000, description: randStr() },
+        };
+        const result = await graphqlQueryV2(editExpenseMutation, { expense: newExpenseData }, expense.User);
+        expect(result.errors).to.not.exist;
+        expect(result.data.editExpense.status).to.equal('PENDING');
+      });
+    });
+
     describe('2FA', () => {
       it('fails if required by the collective and not provided', async () => {
         const collectiveAdminUser = await fakeUser();
