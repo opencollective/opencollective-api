@@ -168,7 +168,7 @@ export class PayoutMethod extends Model<InferAttributes<PayoutMethod>, InferCrea
       const email = (<PaypalPayoutMethodData>payoutMethod.data)?.email;
       return !email ? 'PayPal' : `PayPal (${email})`;
     } else if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
-      return 'Wire Transfer';
+      return 'Bank Transfer';
     } else {
       return 'Other';
     }
