@@ -577,7 +577,13 @@ export const notifyByEmail = async (activity: Activity) => {
       break;
 
     case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_SUSPENDED:
-    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED:
+    case ActivityTypes.COLLECTIVE_VIRTUAL_CARD_DELETED: {
+      const collective = await models.Collective.findByPk(activity.CollectiveId);
+      const HostCollectiveId = await collective.getHostCollectiveId();
+      if (HostCollectiveId) {
+        const hostCollective = await models.Collective.findByPk(HostCollectiveId);
+        activity.data.hostCollective = hostCollective.info;
+      }
       await notify.collective(activity, {
         collectiveId: activity.data.collective.id,
       });
@@ -585,7 +591,7 @@ export const notifyByEmail = async (activity: Activity) => {
         collectiveId: activity.data.host.id,
       });
       break;
-
+    }
     case ActivityTypes.VIRTUAL_CARD_REQUESTED:
       await notify.collective(activity, {
         collectiveId: activity.data.host.id,
