@@ -49,7 +49,7 @@ UPDATE "Users" u
    "data" = (COALESCE(to_jsonb(u."data"), '{}' :: jsonb) || '{"isInactive": true}' :: jsonb)
 FROM "Collectives" c
   WHERE c."id" = u."CollectiveId"
-  AND GREATEST(c."updatedAt", u."updatedAt", u."lastLoginAt", u."passwordUpdatedAt", u."changelogViewDate") < '2022-03-29'
+  AND GREATEST(c."updatedAt", u."updatedAt", u."lastLoginAt", u."passwordUpdatedAt", u."changelogViewDate") < (NOW() - interval '1 year')
   AND u."deletedAt" IS NULL
   AND c."deletedAt" IS NULL
   AND c."deactivatedAt" IS NULL
