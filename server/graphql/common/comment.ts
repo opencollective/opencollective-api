@@ -148,6 +148,7 @@ async function createComment(commentData, req): Promise<Comment> {
     const expense = await req.loaders.Expense.byId.load(ExpenseId);
     if (remoteUser.isAdmin(expense.FromCollectiveId) && expense?.status === ExpenseStatus.INCOMPLETE) {
       await expense.update({ status: ExpenseStatus.APPROVED });
+      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
     }
   }
 
