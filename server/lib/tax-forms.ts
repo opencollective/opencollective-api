@@ -94,7 +94,7 @@ const generateParticipantName = (account, mainUser): string => {
   if (account.legalName) {
     // If a legal name is set, use it directly
     return truncate(account.legalName, { length: 64 });
-  } else if (account.id === mainUser.collective.id) {
+  } else if (account.id === mainUser.collective.id && account.name) {
     // If this is for a user, use the user name
     return truncate(account.name, { length: 64 });
   } else {
