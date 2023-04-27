@@ -5,7 +5,7 @@ import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
 import Comment from '../../models/Comment';
 import Conversation from '../../models/Conversation';
-import Expense from '../../models/Expense';
+import Expense, { ExpenseStatus } from '../../models/Expense';
 import Update from '../../models/Update';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
@@ -143,6 +143,14 @@ async function createComment(commentData, req): Promise<Comment> {
       ConversationId: comment.ConversationId,
     },
   });
+
+  if (ExpenseId) {
+    const expense = await req.loaders.Expense.byId.load(ExpenseId);
+    if (remoteUser.isAdmin(expense.FromCollectiveId) && expense?.status === ExpenseStatus.INCOMPLETE) {
+      await expense.update({ status: ExpenseStatus.APPROVED });
+      await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);
+    }
+  }
 
   if (ConversationId) {
     models.ConversationFollower.follow(remoteUser.id, ConversationId);

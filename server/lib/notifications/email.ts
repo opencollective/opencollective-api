@@ -155,6 +155,7 @@ export const notifyByEmail = async (activity: Activity) => {
     case ActivityTypes.ORDER_PENDING_CREATED:
       await notify.collective(activity);
       break;
+
     case ActivityTypes.COLLECTIVE_UNHOSTED:
       await notify.collective(activity, {
         replyTo: activity.data.host.data?.replyToEmail || 'support@opencollective.com',
@@ -378,6 +379,12 @@ export const notifyByEmail = async (activity: Activity) => {
           template: 'collective.expense.approved.for.host',
           collectiveId: activity.data.host.id,
         });
+      }
+      break;
+
+    case ActivityTypes.COLLECTIVE_EXPENSE_UPDATED:
+      if (activity.data.notifyCollective) {
+        await notify.collective(activity);
       }
       break;
 
