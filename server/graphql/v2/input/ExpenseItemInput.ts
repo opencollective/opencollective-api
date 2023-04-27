@@ -1,6 +1,6 @@
 import { GraphQLInputObjectType, GraphQLInt, GraphQLString } from 'graphql';
+import { GraphQLDateTime } from 'graphql-scalars';
 
-import { DateString } from '../../v1/types';
 import URL from '../scalar/URL';
 
 /**
@@ -26,7 +26,7 @@ export const ExpenseItemInput = new GraphQLInputObjectType({
       description: 'URL of the file linked to this item. Must be provided if the expense type is RECEIPT.',
     },
     incurredAt: {
-      type: DateString,
+      type: GraphQLDateTime,
       description: 'When was the money spent?',
     },
   }),
