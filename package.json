@@ -29,12 +29,12 @@
     }
   },
   "dependencies": {
-    "@babel/core": "7.21.4",
+    "@babel/core": "7.21.5",
     "@babel/node": "7.20.7",
     "@babel/plugin-proposal-class-properties": "7.18.6",
     "@babel/plugin-transform-async-to-generator": "7.20.7",
-    "@babel/preset-env": "7.21.4",
-    "@babel/preset-typescript": "7.21.4",
+    "@babel/preset-env": "7.21.5",
+    "@babel/preset-typescript": "7.21.5",
     "@escape.tech/graphql-armor": "^1.7.1",
     "@hyperwatch/hyperwatch": "3.9.4",
     "@node-oauth/oauth2-server": "4.3.0",
