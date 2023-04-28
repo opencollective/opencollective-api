@@ -837,9 +837,9 @@ export const scheduleExpenseForPayment = async (
     throw new Unauthorized('Multi-currency expenses are not enabled for this collective');
   }
 
-  const payoutMethod = await expense.getPayoutMethod();
-  await checkHasBalanceToPayExpense(host, expense, payoutMethod);
-  if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+  expense.PayoutMethod = await req.loaders.PayoutMethod.byId.load(expense.PayoutMethodId);
+  await checkHasBalanceToPayExpense(host, expense, expense.PayoutMethod);
+  if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
     const hostHasPayoutTwoFactorAuthenticationEnabled = get(host, 'settings.payoutsTwoFactorAuth.enabled', false);
 
     if (hostHasPayoutTwoFactorAuthenticationEnabled) {
@@ -855,11 +855,11 @@ export const scheduleExpenseForPayment = async (
   }
 
   // If Wise, add expense to a new batch group
-  if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+  if (expense.PayoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
     await paymentProviders.transferwise.scheduleExpenseForPayment(expense);
   }
   // If PayPal, check if host is connected to PayPal
-  else if (payoutMethod.type === PayoutMethodTypes.PAYPAL) {
+  else if (expense.PayoutMethod.type === PayoutMethodTypes.PAYPAL) {
     await host.getAccountForPaymentProvider('paypal');
   }
 

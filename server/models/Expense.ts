@@ -23,6 +23,7 @@ import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 import { computeDatesAsISOStrings } from '../lib/utils';
 import CustomDataTypes from '../models/DataTypes';
+import { BatchGroup, ExpenseDataQuoteV2 } from '../types/transferwise';
 
 import Collective from './Collective';
 import { ExpenseAttachedFile } from './ExpenseAttachedFile';
@@ -55,7 +56,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare RecurringExpenseId: ForeignKey<RecurringExpense['id']>;
 
   public declare payeeLocation: Record<string, unknown>; // TODO This can be typed
-  public declare data: Record<string, unknown>;
+  public declare data: Record<string, unknown> & { batchGroup?: BatchGroup; quote?: ExpenseDataQuoteV2 };
   public declare currency: string;
   public declare amount: number;
   public declare description: string;
