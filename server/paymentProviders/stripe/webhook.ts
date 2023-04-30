@@ -10,7 +10,7 @@ import { v4 as uuid } from 'uuid';
 import { Service } from '../../constants/connected_account';
 import FEATURE from '../../constants/feature';
 import OrderStatuses from '../../constants/order_status';
-import { PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
+import { PAYMENT_METHOD_TYPE, PAYMENT_METHOD_TYPES } from '../../constants/paymentMethods';
 import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import { getFxRate } from '../../lib/currency';
@@ -116,6 +116,10 @@ export const mandateUpdated = async (event: Stripe.Event) => {
       const stripePaymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId, {
         stripeAccount,
       });
+
+      if (!PAYMENT_METHOD_TYPES.includes(stripePaymentMethod.type as PAYMENT_METHOD_TYPE)) {
+        return;
+      }
 
       await createPaymentMethod(
         {
