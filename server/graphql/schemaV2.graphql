@@ -1291,6 +1291,11 @@ type Expense {
   Custom data for this expense
   """
   customData: JSON
+
+  """
+  Agreements between the Host and Collective or Host and Individual
+  """
+  agreements: [Agreement]!
 }
 
 """
@@ -2901,7 +2906,7 @@ type Host implements Account & AccountWithContributions {
   """
   Returns whether the host has any Stripe in review orders
   """
-  hasInReviewOrders: Boolean
+  hasInReviewOrders: Boolean!
 }
 
 """
@@ -4792,6 +4797,28 @@ type ExpenseStats {
   Number of grants
   """
   grantsCount: Int!
+}
+
+"""
+A collection of "Agreement"
+"""
+type AgreementCollection implements Collection {
+  offset: Int
+  limit: Int
+  totalCount: Int
+  nodes: [Agreement!]
+}
+
+"""
+An agreement
+"""
+type Agreement {
+  id: String
+  title: String!
+  createdBy: Account!
+  account: Account!
+  host: Host!
+  expiresAt: DateTime
 }
 
 """
@@ -13032,6 +13059,61 @@ type Mutation {
   ): Project
 
   """
+  Add an agreement for the given host account. Scope: "host".
+  """
+  addAgreement(
+    """
+    Agreement title.
+    """
+    title: NonEmptyString!
+
+    """
+    Optional date in which this agreement expires.
+    """
+    expiresAt: DateTime
+
+    """
+    Host where the agreement will be created.
+    """
+    host: AccountReferenceInput!
+
+    """
+    Account that is a party in this agreement
+    """
+    account: AccountReferenceInput!
+  ): Agreement!
+
+  """
+  Edit an agreement for the given host account. Scope: "host".
+  """
+  editAgreement(
+    """
+    Agreement to update.
+    """
+    agreement: AgreementReferenceInput!
+
+    """
+    Host where the agreement will be created.
+    """
+    title: NonEmptyString
+
+    """
+    Optional date in which this agreement expires.
+    """
+    expiresAt: DateTime
+  ): Agreement!
+
+  """
+  Delete an agreement for the given host account. Scope: "host".
+  """
+  deleteAgreement(
+    """
+    Agreement to delete.
+    """
+    agreement: AgreementReferenceInput!
+  ): Agreement!
+
+  """
   Edit the settings for the given account. Scope: "account" or "host".
   """
   editAccountSetting(
@@ -14415,6 +14497,23 @@ input ProjectCreateInput {
 }
 
 """
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
+
+input AgreementReferenceInput {
+  """
+  The public id identifying the agreement (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The internal id of the agreement (ie: 580)
+  """
+  legacyId: Int
+}
+
+"""
 Values that can be edited in Account's settings
 """
 scalar AccountSettingsKey
@@ -14477,11 +14576,6 @@ input PoliciesCollectiveMinimumAdminsInput {
 type SendMessageResult {
   success: Boolean
 }
-
-"""
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
 
 """
 Input type for Application
