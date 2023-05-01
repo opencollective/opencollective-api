@@ -1,3 +1,4 @@
+import express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -13,10 +14,13 @@ import { pick, round } from 'lodash';
 import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense_status';
 import models from '../../../models';
+import AgreementModel from '../../../models/Agreement';
 import { CommentType } from '../../../models/Comment';
+import ExpenseModel from '../../../models/Expense';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
+import { Unauthorized } from '../../errors';
 import { CommentCollection } from '../collection/CommentCollection';
 import { Currency } from '../enum';
 import { ExpenseCurrencySource } from '../enum/ExpenseCurrencySource';
@@ -30,6 +34,7 @@ import { Account } from '../interface/Account';
 import { CollectionArgs } from '../interface/Collection';
 
 import { Activity } from './Activity';
+import { Agreement } from './Agreement';
 import { Amount } from './Amount';
 import ExpenseAttachedFile from './ExpenseAttachedFile';
 import ExpenseItem from './ExpenseItem';
@@ -68,7 +73,7 @@ const loadHostForExpense = async (expense, req) => {
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
-const Expense = new GraphQLObjectType({
+const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
   name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
@@ -141,7 +146,7 @@ const Expense = new GraphQLObjectType({
           if (!expense.data?.taxes) {
             return [];
           } else {
-            return expense.data.taxes.map(({ type, rate, idNumber }) => ({
+            return (expense.data.taxes as any[]).map(({ type, rate, idNumber }) => ({
               id: type,
               percentage: round(rate * 100, 2),
               type,
@@ -401,7 +406,7 @@ const Expense = new GraphQLObjectType({
 
             const draftData = pick(expense.data, draftFields);
             if (expense.data?.items) {
-              draftData.items = expense.data.items.map(item => pick(item, itemsFields));
+              draftData.items = (expense.data.items as any[]).map(item => pick(item, itemsFields));
             }
 
             return draftData;
@@ -456,6 +461,17 @@ const Expense = new GraphQLObjectType({
           if (await ExpenseLib.canSeeExpenseCustomData(req, expense)) {
             return expense.data?.customData || null;
           }
+        },
+      },
+      agreements: {
+        type: new GraphQLNonNull(new GraphQLList(Agreement)),
+        description: 'Agreements between the Host and Collective or Host and Individual',
+        async resolve(expense, _, req): Promise<AgreementModel[]> {
+          if (!req.remoteUser?.isAdmin(expense.HostCollectiveId)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its agreements');
+          }
+
+          return req.loaders.Expense.expenseAgreements.load(expense.id);
         },
       },
     };
