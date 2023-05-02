@@ -2866,12 +2866,12 @@ type Host implements Account & AccountWithContributions {
   """
   Returns whether the host has any Stripe disputed orders
   """
-  hasDisputedOrders: Boolean!
+  hasDisputedOrders: Boolean
 
   """
   Returns whether the host has any Stripe in review orders
   """
-  hasInReviewOrders: Boolean!
+  hasInReviewOrders: Boolean
 }
 
 """
@@ -9919,6 +9919,16 @@ type Query {
     """
     throwIfMissing: Boolean! = true
   ): Tier
+
+  """
+  Fetch a single transaction
+  """
+  transaction(
+    """
+    The public id identifying the transaction (ie: rvelja97-pkzqbgq7-bbzyx6wd-50o8n4rm)
+    """
+    id: String
+  ): Transaction
   transactions(
     """
     Reference of the account(s) assigned to the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)
