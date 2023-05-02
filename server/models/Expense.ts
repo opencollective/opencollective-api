@@ -32,6 +32,8 @@ import { RecurringExpense } from './RecurringExpense';
 import User from './User';
 import VirtualCard from './VirtualCard';
 
+export { ExpenseStatus, ExpenseType };
+
 // Options for sanitizing private messages
 const PRIVATE_MESSAGE_SANITIZE_OPTS = buildSanitizerOptions({
   basicTextFormatting: true,
@@ -102,7 +104,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   createActivity = async function (
     type: ActivityTypes,
     user: User | { id: number } | null = null,
-    data: Record<string, unknown> | null = {},
+    data: ({ notifyCollective?: boolean } & Record<string, unknown>) | null = {},
   ) {
     const submittedByUser = await this.getSubmitterUser();
     const submittedByUserCollective = await models.Collective.findByPk(submittedByUser.CollectiveId);
@@ -136,6 +138,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
           'message',
           'event',
           'isSystem',
+          'notifyCollective',
         ]),
         host: get(host, 'minimal'),
         collective: { ...this.collective.minimal, isActive: this.collective.isActive },

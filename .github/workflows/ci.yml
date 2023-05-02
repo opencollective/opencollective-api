@@ -282,7 +282,7 @@ jobs:
       - run: npm run db:restore
       - run: npm run db:migrate
 
-      - run: npx nyc mocha --ignore "test/server/graphql/**"
+      - run: npm run test -- --ignore "test/server/graphql/**"
 
       - run: npm run test:coverage
 

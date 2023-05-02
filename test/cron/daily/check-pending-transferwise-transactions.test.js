@@ -19,7 +19,7 @@ import {
 } from '../../test-helpers/fake-data';
 import * as utils from '../../utils';
 
-describe('cron/hourly/check-pending-transferwise-transactions', () => {
+describe('cron/daily/check-pending-transferwise-transactions', () => {
   const sandbox = createSandbox();
   let getTransfer, sendMessage;
   let expense, host, collective, payoutMethod;

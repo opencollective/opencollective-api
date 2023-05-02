@@ -2,8 +2,7 @@ import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectT
 import { GraphQLDateTime } from 'graphql-scalars';
 
 import { getCollectiveAvatarUrl } from '../../../lib/collectivelib';
-import { ContributorRoleEnum } from '../../v1/types';
-import { ImageFormat } from '../enum';
+import { ImageFormat, MemberRole } from '../enum';
 
 export const Contributor = new GraphQLObjectType({
   name: 'Contributor',
@@ -22,7 +21,7 @@ export const Contributor = new GraphQLObjectType({
       description: 'Name of the contributor',
     },
     roles: {
-      type: new GraphQLList(ContributorRoleEnum),
+      type: new GraphQLList(MemberRole),
       description: 'All the roles for a given contributor',
     },
     isAdmin: {

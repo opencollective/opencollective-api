@@ -2962,7 +2962,7 @@ type Contributor {
   """
   All the roles for a given contributor
   """
-  roles: [ContributorRole]
+  roles: [MemberRole]
 
   """
   True if the contributor is a collective admin
@@ -3018,21 +3018,6 @@ type Contributor {
   A public message from contributors to describe their contributions
   """
   publicMessage: String
-}
-
-"""
-Possible roles for a contributor. Extends `Member.Role`.
-"""
-enum ContributorRole {
-  HOST
-  ADMIN
-  MEMBER
-  CONTRIBUTOR
-  BACKER
-  ATTENDEE
-  FOLLOWER
-  CONNECTED_COLLECTIVE
-  ACCOUNTANT
 }
 
 input AccountReferenceInput {
@@ -14688,10 +14673,8 @@ input ExpenseItemCreateInput {
   """
   When was the money spent?
   """
-  incurredAt: DateString
+  incurredAt: DateTime
 }
-
-scalar DateString
 
 input ExpenseAttachedFileInput {
   """
@@ -14848,7 +14831,7 @@ input ExpenseItemInput {
   """
   When was the money spent?
   """
-  incurredAt: DateString
+  incurredAt: DateTime
 }
 
 input NewAccountOrReferenceInput {
@@ -15681,13 +15664,11 @@ input UpdateCreateInput {
   title: String!
   isPrivate: Boolean
   isChangelog: Boolean
-  makePublicOn: IsoDateString
+  makePublicOn: DateTime
   html: String!
   fromAccount: AccountReferenceInput
   account: AccountReferenceInput!
 }
-
-scalar IsoDateString
 
 """
 Input type for UpdateType

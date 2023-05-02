@@ -76,6 +76,22 @@
         "@typescript-eslint/explicit-function-return-type": "off",
         "@typescript-eslint/explicit-module-boundary-types": "off"
       }
+    },
+    {
+      "files": ["server/graphql/v2/**/*.+(js|ts)"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["**/v1/types"],
+                "message": "GraphQL V1 types should not be used with V2."
+              }
+            ]
+          }
+        ]
+      }
     }
   ],
   "settings": {

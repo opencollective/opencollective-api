@@ -5,7 +5,7 @@ import { truncate } from 'lodash';
 
 import { activities } from '../constants';
 import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
-import models, { Collective, Op } from '../models';
+import models, { Collective, Op, sequelize } from '../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_TYPE,
@@ -94,7 +94,7 @@ const generateParticipantName = (account, mainUser): string => {
   if (account.legalName) {
     // If a legal name is set, use it directly
     return truncate(account.legalName, { length: 64 });
-  } else if (account.id === mainUser.collective.id) {
+  } else if (account.id === mainUser.collective.id && account.name) {
     // If this is for a user, use the user name
     return truncate(account.name, { length: 64 });
   } else {
@@ -112,20 +112,35 @@ const saveDocumentStatus = (account, year, requestStatus, data) => {
 };
 
 export const setTaxForm = async (account, taxFormLink, year) => {
-  const legalDocument = await models.LegalDocument.findOne({
-    where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
-  });
-
-  if (legalDocument) {
-    await legalDocument.update({
-      documentLink: taxFormLink,
-      year,
-      requestStatus: 'RECEIVED',
+  await sequelize.transaction(async sqlTransaction => {
+    const legalDocument = await models.LegalDocument.findOne({
+      where: { CollectiveId: account.id, requestStatus: LEGAL_DOCUMENT_REQUEST_STATUS.REQUESTED },
+      lock: true,
+      transaction: sqlTransaction,
     });
-    return true;
-  } else {
-    throw new Error('No legal document found');
-  }
+
+    if (legalDocument) {
+      await legalDocument.update(
+        {
+          documentLink: taxFormLink,
+          year,
+          requestStatus: 'RECEIVED',
+        },
+        { transaction: sqlTransaction },
+      );
+    } else {
+      await models.LegalDocument.create(
+        {
+          requestStatus: 'RECEIVED',
+          documentLink: taxFormLink,
+          year,
+          CollectiveId: account.id,
+        },
+        { transaction: sqlTransaction },
+      );
+    }
+  });
+  return true;
 };
 
 export async function sendHelloWorksUsTaxForm(

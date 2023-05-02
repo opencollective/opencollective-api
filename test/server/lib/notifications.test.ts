@@ -40,9 +40,7 @@ const generateCollectiveActivity = async (collective, activityType, fromCollecti
   );
 };
 
-describe('server/lib/notification', function () {
-  this.timeout(50000);
-
+describe('server/lib/notification', () => {
   let sandbox, axiosPostStub, slackPostActivityOnPublicChannelStub;
 
   before(async () => {

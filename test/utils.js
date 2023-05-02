@@ -11,6 +11,7 @@ import { graphql } from 'graphql';
 import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
+import { assert } from 'sinon';
 import speakeasy from 'speakeasy';
 
 import * as dbRestore from '../scripts/db_restore';
@@ -107,27 +108,27 @@ export const sleep = async (timeout = 200) =>
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
  * @param {*} cond
- * @param {*} options: { timeout, delay, step, tag }
+ * @param {*} options: { timeout, delay }
  * @returns {Promise}
  */
-export const waitForCondition = (cond, { timeout = 10000, delay = 0, step = 100, tag } = {}) =>
-  new Promise((resolve, reject) => {
+export const waitForCondition = (cond, options = { timeout: 10000, delay: 0, onFailure: null }) =>
+  new Promise(resolve => {
     let hasConditionBeenMet = false;
     setTimeout(() => {
       if (hasConditionBeenMet) {
         return;
       }
-      console.log('>>> waitForCondition Timeout Error');
-      console.trace();
-      reject(new Error('Timeout waiting for condition', cond));
-    }, timeout);
+      options.onFailure?.();
+      assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
+      throw new Error('Timeout waiting for condition', cond);
+    }, options.timeout || 10000);
     const isConditionMet = () => {
       hasConditionBeenMet = Boolean(cond());
-      debugWaitForCondition(tag, `Has condition been met?`, hasConditionBeenMet);
+      debugWaitForCondition(options.tag, `Has condition been met?`, hasConditionBeenMet);
       if (hasConditionBeenMet) {
-        return setTimeout(resolve, delay);
+        return setTimeout(resolve, options.delay || 0);
       } else {
-        return setTimeout(isConditionMet, step);
+        return setTimeout(isConditionMet, options.step || 100);
       }
     };
     isConditionMet();
