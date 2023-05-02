@@ -13,6 +13,7 @@ import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
 import ExpenseModel from '../../../models/Expense';
+import { createComment } from '../../common/comment';
 import {
   approveExpense,
   canDeleteExpense,
@@ -20,6 +21,7 @@ import {
   computeTotalAmountForExpense,
   createExpense,
   editExpense,
+  editExpenseDraft,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
@@ -30,7 +32,6 @@ import {
   unscheduleExpensePayment,
 } from '../../common/expenses';
 import { checkRemoteUserCanUseExpenses, enforceScope } from '../../common/scope-check';
-import { createUser } from '../../common/user';
 import { NotFound, RateLimitExceeded, Unauthorized, ValidationFailed } from '../../errors';
 import { ExpenseProcessAction } from '../enum/ExpenseProcessAction';
 import { FeesPayer } from '../enum/FeesPayer';
@@ -161,54 +162,7 @@ const expenseMutations = {
       };
 
       if (args.draftKey) {
-        // It is a submit on behalf being completed
-        const expenseId = getDatabaseIdFromExpenseReference(args.expense);
-        let existingExpense = await models.Expense.findByPk(expenseId, {
-          include: [{ model: models.Collective, as: 'collective' }],
-        });
-        if (!existingExpense) {
-          throw new NotFound('Expense not found.');
-        }
-        if (existingExpense.status !== expenseStatus.DRAFT) {
-          throw new Unauthorized('Expense can not be edited.');
-        }
-        if (existingExpense.data.draftKey !== args.draftKey) {
-          throw new Unauthorized('You need to submit the right draft key to edit this expense');
-        }
-
-        const options = { overrideRemoteUser: undefined, skipPermissionCheck: true };
-        if (!payeeExists) {
-          const { organization: organizationData, ...payee } = expense.payee;
-          const { user, organization } = await createUser(
-            {
-              ...pick(payee, ['email', 'name', 'legalName', 'newsletterOptIn']),
-              location: expenseData.payeeLocation,
-            },
-            {
-              organizationData,
-              throwIfExists: true,
-              sendSignInLink: true,
-              redirect: `/${existingExpense.collective.slug}/expenses/${expenseId}`,
-              creationRequest: {
-                ip: req.ip,
-                userAgent: req.header?.['user-agent'],
-              },
-            },
-          );
-          expenseData.fromCollective = organization || user.collective;
-          options.overrideRemoteUser = user;
-          options.skipPermissionCheck = true;
-        }
-
-        existingExpense = await editExpense(req, expenseData, options);
-
-        await existingExpense.update({
-          status: options.overrideRemoteUser?.id ? expenseStatus.UNVERIFIED : undefined,
-          lastEditedById: options.overrideRemoteUser?.id || req.remoteUser?.id,
-          UserId: options.overrideRemoteUser?.id || req.remoteUser?.id,
-        });
-
-        return existingExpense;
+        return editExpenseDraft(req, expenseData, { args });
       }
 
       return editExpense(req, expenseData);
@@ -307,7 +261,7 @@ const expenseMutations = {
     async resolve(_: void, args, req: express.Request): Promise<ExpenseModel> {
       checkRemoteUserCanUseExpenses(req);
 
-      const expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
+      let expense = await fetchExpenseWithReference(args.expense, { loaders: req.loaders, throwIfMissing: true });
       const collective = await expense.getCollective();
       const host = await collective.getHostCollective();
 
@@ -319,38 +273,57 @@ const expenseMutations = {
 
       switch (args.action) {
         case 'APPROVE':
-          return approveExpense(req, expense);
+          expense = await approveExpense(req, expense);
+          break;
         case 'UNAPPROVE':
-          return unapproveExpense(req, expense);
+          expense = await unapproveExpense(req, expense);
+          break;
         case 'MARK_AS_INCOMPLETE':
-          return markExpenseAsIncomplete(req, expense, args.message);
+          expense = await markExpenseAsIncomplete(req, expense);
+          break;
         case 'REJECT':
-          return rejectExpense(req, expense);
+          expense = await rejectExpense(req, expense);
+          break;
         case 'MARK_AS_SPAM':
-          return markExpenseAsSpam(req, expense);
+          expense = await markExpenseAsSpam(req, expense);
+          break;
         case 'MARK_AS_UNPAID':
-          return markExpenseAsUnpaid(
+          expense = await markExpenseAsUnpaid(
             req,
             expense.id,
             args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
           );
+          break;
         case 'SCHEDULE_FOR_PAYMENT':
-          return scheduleExpenseForPayment(req, expense, {
+          expense = await scheduleExpenseForPayment(req, expense, {
             feesPayer: args.paymentParams?.feesPayer,
           });
+          break;
         case 'UNSCHEDULE_PAYMENT':
-          return unscheduleExpensePayment(req, expense);
+          expense = await unscheduleExpensePayment(req, expense);
+          break;
         case 'PAY':
-          return payExpense(req, {
+          expense = await payExpense(req, {
             id: expense.id,
             forceManual: args.paymentParams?.forceManual,
             feesPayer: args.paymentParams?.feesPayer,
             paymentProcessorFeeInHostCurrency: args.paymentParams?.paymentProcessorFeeInHostCurrency,
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
           });
-        default:
-          return expense;
+          break;
       }
+
+      if (args.message) {
+        await createComment(
+          {
+            ExpenseId: expense.id,
+            html: args.message,
+          },
+          req,
+        );
+      }
+
+      return expense;
     },
   },
   draftExpenseAndInviteUser: {

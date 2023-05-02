@@ -710,9 +710,13 @@ export const Host = new GraphQLObjectType({
         resolve: account => get(account, 'data.isTrustedHost', false),
       },
       hasDisputedOrders: {
-        type: new GraphQLNonNull(GraphQLBoolean),
+        type: GraphQLBoolean,
         description: 'Returns whether the host has any Stripe disputed orders',
-        async resolve(host) {
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            return null;
+          }
+
           return Boolean(
             await models.Order.count({
               where: { status: OrderStatuses.DISPUTED },
@@ -728,9 +732,13 @@ export const Host = new GraphQLObjectType({
         },
       },
       hasInReviewOrders: {
-        type: new GraphQLNonNull(GraphQLBoolean),
+        type: GraphQLBoolean,
         description: 'Returns whether the host has any Stripe in review orders',
-        async resolve(host) {
+        async resolve(host, _, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            return null;
+          }
+
           return Boolean(
             await models.Order.count({
               where: { status: OrderStatuses.IN_REVIEW },
