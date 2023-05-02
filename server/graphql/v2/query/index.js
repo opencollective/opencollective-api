@@ -25,6 +25,7 @@ import PaypalPlanQuery from './PaypalPlanQuery';
 import PersonalTokenQuery from './PersonalTokenQuery';
 import ProjectQuery from './ProjectQuery';
 import TierQuery from './TierQuery';
+import TransactionQuery from './TransactionQuery';
 import UpdateQuery from './UpdateQuery';
 
 const query = {
@@ -48,6 +49,7 @@ const query = {
   project: ProjectQuery,
   tagStats: TagStatsCollectionQuery,
   tier: TierQuery,
+  transaction: TransactionQuery,
   transactions: TransactionsCollectionQuery,
   update: UpdateQuery,
   updates: UpdatesCollectionQuery,
