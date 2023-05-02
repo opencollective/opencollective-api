@@ -108,12 +108,19 @@ const computeExpenseAmounts = async (
   }
 
   // Compute the amounts in the proper currency
+  const taxAmount = computeExpenseTaxes(expense);
+  const grossExpenseAmount = expense.amount + (taxAmount || 0);
   return {
     fxRates,
     amount: {
-      inHostCurrency: Math.round(expense.amount * fxRates.expenseToHost),
-      inCollectiveCurrency: Math.round(expense.amount * fxRates.expenseToCollective),
-      inExpenseCurrency: expense.amount,
+      inHostCurrency: Math.round(grossExpenseAmount * fxRates.expenseToHost),
+      inCollectiveCurrency: Math.round(grossExpenseAmount * fxRates.expenseToCollective),
+      inExpenseCurrency: grossExpenseAmount,
+    },
+    tax: {
+      inExpenseCurrency: taxAmount,
+      inHostCurrency: Math.round(taxAmount * fxRates.expenseToHost),
+      inCollectiveCurrency: Math.round(taxAmount * fxRates.expenseToCollective),
     },
     paymentProcessorFee: {
       inHostCurrency: fees.paymentProcessorFeeInHostCurrency,
@@ -178,7 +185,7 @@ export async function createTransactionsFromPaidExpense(
       (processedAmounts.amount.inCollectiveCurrency +
         processedAmounts.paymentProcessorFee.inCollectiveCurrency +
         processedAmounts.hostFee.inCollectiveCurrency +
-        processedAmounts.platformFee.inCollectiveCurrency),
+        processedAmounts.platformFee.inCollectiveCurrency), // `processedAmounts.amount` is already the gross amount (with tax amount removed)
     amountInHostCurrency: -processedAmounts.amount.inHostCurrency,
     hostCurrency: host.currency,
     hostCurrencyFxRate: processedAmounts.fxRates.collectiveToHost,
@@ -197,7 +204,7 @@ export async function createTransactionsFromPaidExpense(
     HostCollectiveId: host.id,
     PaymentMethodId: paymentMethod ? paymentMethod.id : null,
     PayoutMethodId: expense.PayoutMethodId,
-    taxAmount: computeExpenseTaxes(expense),
+    taxAmount: processedAmounts.tax.inCollectiveCurrency,
     data: {
       ...(transactionData || {}),
       ...expenseDataForTransaction,

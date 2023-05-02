@@ -228,6 +228,11 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   // Re-compute the net amount
   refund.netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency(refund);
 
+  // If taxes exist on the original transaction, we want to make sure they're refunded as well and not deducted from the net amount
+  if (refund.taxAmount && refund.kind === 'EXPENSE') {
+    refund.netAmountInCollectiveCurrency -= refund.taxAmount;
+  }
+
   return refund;
 };
 
@@ -428,7 +433,7 @@ export async function createRefundTransaction(
   // Refund Host Fee
   await refundHostFee(transaction, user, refundedPaymentProcessorFee, transactionGroup);
 
-  // Refund contribution
+  // Refund main transaction
   const creditTransactionRefund = buildRefund(transaction);
   const refundTransaction = await models.Transaction.createDoubleEntry(creditTransactionRefund);
   return associateTransactionRefundId(transaction, refundTransaction, data);

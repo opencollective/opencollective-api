@@ -8,7 +8,7 @@ import { expect } from 'chai';
 import config from 'config';
 import debug from 'debug';
 import { graphql } from 'graphql';
-import { cloneDeep, get, groupBy, isArray, values } from 'lodash';
+import { cloneDeep, get, groupBy, isArray, omit, values } from 'lodash';
 import markdownTable from 'markdown-table';
 import nock from 'nock';
 import { assert } from 'sinon';
@@ -24,6 +24,7 @@ import logger from '../server/lib/logger';
 import * as libpayments from '../server/lib/payments';
 /* Server code being used */
 import stripe, { convertToStripeAmount } from '../server/lib/stripe';
+import { formatCurrency } from '../server/lib/utils';
 import models, { sequelize } from '../server/models';
 
 /* Test data */
@@ -336,7 +337,7 @@ export function traverse(obj, cb) {
   }
 }
 
-export const prettifyTransactionsData = (transactions, columns) => {
+export const prettifyTransactionsData = (transactions, columns, opts = null) => {
   // Alias some columns for a simpler output
   const TRANSACTION_KEY_ALIASES = {
     HostCollectiveId: 'Host',
@@ -352,6 +353,23 @@ export const prettifyTransactionsData = (transactions, columns) => {
   // Prettify values
   const aliasDBId = value => (value ? `#${value}` : 'NULL');
   const prettifyValue = (key, value, transaction) => {
+    if (opts?.prettyAmounts) {
+      if (['amount', 'taxAmount'].includes(key)) {
+        return formatCurrency(value, transaction.currency);
+      } else if (key === 'netAmountInCollectiveCurrency' && transaction.collective?.currency) {
+        return formatCurrency(value, transaction.collective.currency);
+      } else if (
+        [
+          'paymentProcessorFeeInHostCurrency',
+          'platformFeeInHostCurrency',
+          'hostFeeInHostCurrency',
+          'amountInHostCurrency',
+        ].includes(key)
+      ) {
+        return formatCurrency(value, transaction.hostCurrency);
+      }
+    }
+
     switch (key) {
       case 'HostCollectiveId':
         return transaction.host?.name || aliasDBId(value);
@@ -468,12 +486,22 @@ export const preloadAssociationsForTransactions = async (transactions, columns) 
   });
 };
 
-export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
-  const allTransactions = await models.Transaction.findAll();
-  await preloadAssociationsForTransactions(allTransactions, columns);
-  const prettyTransactions = prettifyTransactionsData(allTransactions, columns);
+/**
+ * An helper to display a list of transactions on the console in a pretty markdown table.
+ */
+export const printTransactions = async (transactions, columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
+  await preloadAssociationsForTransactions(transactions, columns);
+  const prettyTransactions = prettifyTransactionsData(transactions, columns, { prettyAmounts: true });
   const headers = Object.keys(prettyTransactions[0]);
   console.log(markdownTable([headers, ...prettyTransactions.map(Object.values)]));
+};
+
+/**
+ * An helper to display the ledger content on the console in a pretty markdown table.
+ */
+export const printLedger = async (columns = ['type', 'amount', 'CollectiveId', 'kind']) => {
+  const allTransactions = await models.Transaction.findAll();
+  await printTransactions(allTransactions, columns);
 };
 
 /**
@@ -485,7 +513,7 @@ export const snapshotTransactions = (transactions, params = {}) => {
     throw new Error('snapshotTransactions does not support empty arrays');
   }
 
-  expect(prettifyTransactionsData(transactions, params.columns)).to.matchTableSnapshot();
+  expect(prettifyTransactionsData(transactions, params.columns, omit(params, 'columns'))).to.matchTableSnapshot();
 };
 
 /**
