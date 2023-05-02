@@ -2,11 +2,11 @@ import { GraphQLString } from 'graphql';
 
 import models from '../../../models';
 import { NotFound } from '../../errors';
-import { idDecode } from '../identifiers';
 import { Transaction } from '../interface/Transaction';
 
 const TransactionQuery = {
   type: Transaction,
+  description: 'Fetch a single transaction',
   args: {
     id: {
       type: GraphQLString,
@@ -16,8 +16,7 @@ const TransactionQuery = {
   async resolve(_, args) {
     let transaction;
     if (args.id) {
-      const id = idDecode(args.id, 'transaction');
-      transaction = await models.Transaction.findByPk(id);
+      transaction = await models.Transaction.findOne({ where: { uuid: args.id } });
     } else {
       return new Error('Please provide an id');
     }
