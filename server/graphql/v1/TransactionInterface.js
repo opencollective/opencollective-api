@@ -44,7 +44,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           fetchHostFee: {
             type: GraphQLBoolean,
             defaultValue: false,
-            description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.',
+            description: 'Fetch HOST_FEE transaction and integrate in calculation for retro-compatibility.',
           },
         },
       },
@@ -58,7 +58,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
           fetchHostFee: {
             type: GraphQLBoolean,
             defaultValue: false,
-            description: 'Fetch HOST_FEE transaction for retro-compatiblity.',
+            description: 'Fetch HOST_FEE transaction for retro-compatibility.',
           },
         },
       },
@@ -78,6 +78,7 @@ export const TransactionInterfaceType = new GraphQLInterfaceType({
       createdAt: { type: DateString },
       updatedAt: { type: DateString },
       refundTransaction: { type: TransactionInterfaceType },
+      isRefund: { type: GraphQLBoolean },
       invoiceTemplate: { type: GraphQLString },
     };
   },
@@ -101,6 +102,12 @@ const TransactionFields = () => {
       type: TransactionInterfaceType,
       resolve(transaction) {
         return transaction.getRefundTransaction();
+      },
+    },
+    isRefund: {
+      type: GraphQLBoolean,
+      resolve(transaction) {
+        return transaction.isRefund;
       },
     },
     uuid: {

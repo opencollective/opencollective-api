@@ -3481,6 +3481,7 @@ type Expense implements Transaction {
   id: Int
   idV2: String
   refundTransaction: Transaction
+  isRefund: Boolean
   uuid: String
   type: String
   kind: String
@@ -3608,7 +3609,7 @@ interface Transaction {
   """
   netAmountInCollectiveCurrency(
     """
-    Fetch HOST_FEE transaction and integrate in calculation for retro-compatiblity.
+    Fetch HOST_FEE transaction and integrate in calculation for retro-compatibility.
     """
     fetchHostFee: Boolean = false
   ): Int
@@ -3619,7 +3620,7 @@ interface Transaction {
   """
   hostFeeInHostCurrency(
     """
-    Fetch HOST_FEE transaction for retro-compatiblity.
+    Fetch HOST_FEE transaction for retro-compatibility.
     """
     fetchHostFee: Boolean = false
   ): Int
@@ -3639,6 +3640,7 @@ interface Transaction {
   createdAt: DateString
   updatedAt: DateString
   refundTransaction: Transaction
+  isRefund: Boolean
   invoiceTemplate: String
 }
 
@@ -3649,6 +3651,7 @@ type Order implements Transaction {
   id: Int
   idV2: String
   refundTransaction: Transaction
+  isRefund: Boolean
   uuid: String
   type: String
   kind: String
