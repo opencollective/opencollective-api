@@ -1886,6 +1886,11 @@ class Collective extends Model<
 
       structured = omitBy(structured, isNil);
 
+      // If structured is empty, set it to null
+      if (Object.keys(structured).length === 0) {
+        structured = null;
+      }
+
       // Set Collective.countryISO
       await this.update({ countryISO: country }, sequelizeParams);
 
