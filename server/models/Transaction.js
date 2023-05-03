@@ -1218,12 +1218,6 @@ Transaction.validate = async (transaction, { validateOppositeTransaction = true,
     return;
   }
 
-  // Skip as there is a known bug there
-  // https://github.com/opencollective/opencollective/issues/3934
-  if (transaction.kind === TransactionKind.PLATFORM_TIP && transaction.taxAmount) {
-    return;
-  }
-
   for (const key of [
     'uuid',
     'TransactionGroup',
