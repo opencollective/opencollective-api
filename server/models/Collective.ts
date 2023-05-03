@@ -15,9 +15,11 @@ import {
   differenceWith,
   get,
   includes,
+  isNil,
   isNull,
   isUndefined,
   omit,
+  omitBy,
   pick,
   round,
   set,
@@ -33,6 +35,7 @@ import {
   CreationOptional,
   FindOptions,
   HasManyGetAssociationsMixin,
+  HasOneGetAssociationMixin,
   InferAttributes,
   InferCreationAttributes,
   Model,
@@ -74,6 +77,7 @@ import {
 import { invalidateContributorsCache } from '../lib/contributors';
 import { getFxRate } from '../lib/currency';
 import emailLib from '../lib/email';
+import { formatAddress } from '../lib/format-address';
 import { getGithubHandleFromUrl, getGithubUrlFromHandle } from '../lib/github';
 import {
   getHostFees,
@@ -83,6 +87,7 @@ import {
   getPlatformTips,
 } from '../lib/host-metrics';
 import { isValidUploadedImage } from '../lib/images';
+import { mustUpdateLocation } from '../lib/location';
 import logger from '../lib/logger';
 import { getPolicy } from '../lib/policies';
 import queries from '../lib/queries';
@@ -94,11 +99,13 @@ import { sanitizeTags, validateTags } from '../lib/tags';
 import { canUseFeature } from '../lib/user-permissions';
 import userlib from '../lib/userlib';
 import { capitalize, formatCurrency, getDomain, md5 } from '../lib/utils';
+import { Location as LocationType } from '../types/Location';
 
 import ConnectedAccount from './ConnectedAccount';
 import CustomDataTypes from './DataTypes';
 import { HostApplicationStatus } from './HostApplication';
 import { LegalDocumentModelInterface } from './LegalDocument';
+import Location from './Location';
 import Order from './Order';
 import { PayoutMethodTypes } from './PayoutMethod';
 import SocialLink, { SocialLinkType } from './SocialLink';
@@ -125,10 +132,6 @@ type Settings = {
     reminder?: boolean;
     autopause?: boolean;
   };
-};
-
-type GeoLocationLatLong = {
-  coordinates: [number, number];
 };
 
 const defaultTiers = currency => {
@@ -193,7 +196,7 @@ const { models } = sequelize;
 class Collective extends Model<
   InferAttributes<
     Collective,
-    { omit: 'info' | 'location' | 'previewImage' | 'cards' | 'invoice' | 'minimal' | 'activity' | 'searchIndex' }
+    { omit: 'info' | 'previewImage' | 'cards' | 'invoice' | 'minimal' | 'activity' | 'searchIndex' }
   >,
   InferCreationAttributes<Collective>
 > {
@@ -218,10 +221,7 @@ class Collective extends Model<
   public declare currency: string;
   public declare image: string;
   public declare backgroundImage: string;
-  public declare locationName: string;
-  public declare address: string;
   public declare countryISO: string;
-  public declare geoLocationLatLong: GeoLocationLatLong;
   public declare settings: Settings;
   public declare isPledged: boolean;
   public declare data: any;
@@ -255,6 +255,9 @@ class Collective extends Model<
 
   public declare getConnectedAccounts: HasManyGetAssociationsMixin<ConnectedAccount>;
 
+  public declare getLocation: HasOneGetAssociationMixin<Location>;
+  public declare location?: LocationType;
+
   public declare parent?: NonAttribute<Collective>;
   public declare children?: NonAttribute<Collective[]>;
 
@@ -276,13 +279,13 @@ class Collective extends Model<
     return collective;
   }
 
-  static createMany = (collectives, defaultValues) => {
-    return Promise.map(collectives, u => Collective.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(
-      error => {
-        logger.error(error);
-        reportErrorToSentry(error);
-      },
-    );
+  static createMany = (collectives, defaultValues, sequelizeParams) => {
+    return Promise.map(collectives, u => Collective.create(defaults({}, u, defaultValues), sequelizeParams), {
+      concurrency: 1,
+    }).catch(error => {
+      logger.error(error);
+      reportErrorToSentry(error);
+    });
   };
 
   static getTopBackers = async (since, until, tags, limit) => {
@@ -355,18 +358,6 @@ class Collective extends Model<
     });
   };
 
-  get location() {
-    return {
-      id: `location-collective-${this.id}`, // Used for GraphQL caching
-      name: this.locationName,
-      address: this.address,
-      country: this.countryISO,
-      structured: this.data?.address,
-      lat: this.geoLocationLatLong?.coordinates?.[0],
-      long: this.geoLocationLatLong?.coordinates?.[1],
-    };
-  }
-
   get previewImage() {
     if (!this.image) {
       return null;
@@ -395,9 +386,6 @@ class Collective extends Model<
       previewImage: this.previewImage,
       data: this.data,
       backgroundImage: this.backgroundImage,
-      locationName: this.locationName,
-      address: this.address,
-      geoLocationLatLong: this.geoLocationLatLong,
       startsAt: this.startsAt,
       endsAt: this.endsAt,
       timezone: this.timezone,
@@ -438,6 +426,7 @@ class Collective extends Model<
   }
 
   get invoice() {
+    // TODO: Not used?
     return {
       id: this.id,
       createdAt: this.createdAt,
@@ -446,8 +435,6 @@ class Collective extends Model<
       image: this.image,
       backgroundImage: this.backgroundImage,
       publicUrl: this.publicUrl,
-      locationName: this.locationName,
-      address: this.address,
       description: this.description,
       settings: this.settings,
       currency: this.currency,
@@ -487,6 +474,7 @@ class Collective extends Model<
   }
 
   get searchIndex() {
+    // TODO: Not used?
     return {
       id: this.id,
       name: this.name,
@@ -495,7 +483,6 @@ class Collective extends Model<
       slug: this.slug,
       type: this.type,
       tags: this.tags,
-      locationName: this.locationName,
       balance: (this as any).balance, // useful in ranking
       yearlyBudget: (this as any).yearlyBudget,
       backersCount: (this as any).backersCount,
@@ -679,7 +666,7 @@ class Collective extends Model<
       throw new Error('Can only generate ICS for collectives of type EVENT');
     }
     return new Promise(resolve => {
-      return this.getParentCollective().then(parentCollective => {
+      return this.getParentCollective().then(async parentCollective => {
         const url = `${config.host.website}/${parentCollective.slug}/events/${this.slug}`;
         const startDate = new Date(this.startsAt);
         const endDate = new Date(this.endsAt);
@@ -704,12 +691,13 @@ class Collective extends Model<
           descriptionParts.push(`Private instructions:\n${stripHTML(this.data.privateInstructions)}`);
         }
 
-        let location = this.location.name || '';
-        if (this.location.address) {
-          location += `, ${this.location.address}`;
+        const location = await this.getLocation();
+        let locationString = location?.name || '';
+        if (location?.address) {
+          locationString += `, ${location.address}`;
         }
-        if (this.location.country) {
-          location += `, ${this.location.country}`;
+        if (location?.country) {
+          locationString += `, ${location.country}`;
         }
         const alarms: Array<ics.Alarm> = [
           {
@@ -732,7 +720,7 @@ class Collective extends Model<
           description: descriptionParts.join('\n\n'),
           start,
           end,
-          location,
+          location: locationString,
           url,
           status: 'CONFIRMED',
           organizer: {
@@ -741,8 +729,8 @@ class Collective extends Model<
           },
           alarms,
         };
-        if (this.location.lat) {
-          event.geo = { lat: this.location.lat, lon: this.location.long };
+        if (location?.lat) {
+          event.geo = { lat: location.lat, lon: location.long };
         }
         ics.createEvent(event, (err, res) => {
           if (err) {
@@ -1870,6 +1858,58 @@ class Collective extends Model<
     });
 
     return models.User.findAll({ where: { CollectiveId: { [Op.in]: adminMembersIds } } });
+  };
+
+  setLocation = async function (locationInput: LocationType, transaction?: any) {
+    const sequelizeParams = transaction ? { transaction } : undefined;
+
+    const location = await this.getLocation(sequelizeParams);
+
+    /* Avoid unnecessary updates
+     * If there is a locationInput, skip updating if it's the same as the current location
+     * But if locationInput is null, we still want to delete the current location
+     */
+    if (locationInput && !mustUpdateLocation(location, locationInput)) {
+      return;
+    }
+
+    const promises = [];
+
+    if (location) {
+      promises.push(location.destroy(sequelizeParams));
+    }
+
+    if (locationInput) {
+      const { name, country, lat, long } = locationInput;
+      let { structured } = locationInput;
+      let { address } = locationInput;
+
+      structured = omitBy(structured, isNil);
+
+      // Set Collective.countryISO
+      await this.update({ countryISO: country }, sequelizeParams);
+
+      // Set formatted address
+      if (!address) {
+        address = await formatAddress({ structured, country });
+      }
+
+      promises.push(
+        models.Location.create(
+          {
+            CollectiveId: this.id,
+            name: name || null,
+            country: country || null,
+            geoLocationLatLong: lat || long ? { type: 'Point', coordinates: [lat, long] } : null,
+            address: address || null,
+            structured,
+          },
+          sequelizeParams,
+        ),
+      );
+    }
+
+    await Promise.all(promises);
   };
 
   updateHostFee = async function (hostFeePercent, remoteUser) {
@@ -3483,10 +3523,6 @@ Collective.init(
       },
     },
 
-    locationName: DataTypes.STRING,
-
-    address: DataTypes.STRING,
-
     countryISO: {
       type: DataTypes.STRING,
       validate: {
@@ -3494,21 +3530,6 @@ Collective.init(
         isCountryISO(value) {
           if (!(isNull(value) || validator.isISO31661Alpha2(value))) {
             throw new Error('Invalid Country ISO.');
-          }
-        },
-      },
-    },
-
-    geoLocationLatLong: {
-      type: DataTypes.JSONB,
-      validate: {
-        validate(data) {
-          if (!data) {
-            return;
-          } else if (data.type !== 'Point' || !data.coordinates || data.coordinates.length !== 2) {
-            throw new Error('Invalid GeoLocation');
-          } else if (typeof data.coordinates[0] !== 'number' || typeof data.coordinates[1] !== 'number') {
-            throw new Error('Invalid latitude/longitude');
           }
         },
       },
@@ -3749,7 +3770,6 @@ Collective.init(
       },
       afterCreate: async (instance, options) => {
         instance.findImage();
-
         if ([types.COLLECTIVE, types.FUND, types.EVENT, types.PROJECT].includes(instance.type)) {
           await models.PaymentMethod.create(
             {

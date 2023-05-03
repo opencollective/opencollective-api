@@ -136,8 +136,10 @@ data['ticket.confirmed'] = {
     startsAt: '2019-06-19 17:15:00+00',
     endsAt: '2019-06-19 21:15:00+00',
     timezone: 'America/Los_Angeles',
-    locationName: 'Github HQ',
-    address: '88 Colin P Kelly Jr Street, San Francisco, CA',
+    location: {
+      name: 'Github HQ',
+      address: '88 Colin P Kelly Jr Street, San Francisco, CA',
+    },
   },
   collective: {
     slug: 'sustainoss',

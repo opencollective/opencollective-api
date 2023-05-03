@@ -45,6 +45,7 @@
     "@sentry/node": "7.50.0",
     "@sentry/tracing": "7.50.0",
     "@sentry/types": "7.50.0",
+    "@shopify/address": "4.0.6",
     "apollo-server-errors": "3.3.1",
     "apollo-server-express": "3.9.0",
     "argparse": "2.0.1",

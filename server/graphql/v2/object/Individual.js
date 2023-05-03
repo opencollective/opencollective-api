@@ -75,20 +75,22 @@ export const Individual = new GraphQLObjectType({
         async resolve(individual, _, req) {
           const isHost = await individual.isHost();
           const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope(req, 'account'));
-          if (canSeeLocation) {
-            // For incognito profiles, we retrieve the location from the main user profile
-            if (individual.isIncognito) {
-              if (!checkScope(req, 'incognito')) {
-                return null;
-              }
-              const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
-              if (mainProfile) {
-                return mainProfile.location;
-              }
-            }
-
-            return individual.location;
+          if (!canSeeLocation) {
+            return null;
           }
+
+          // For incognito profiles, we retrieve the location from the main user profile
+          if (individual.isIncognito) {
+            if (!checkScope(req, 'incognito')) {
+              return null;
+            }
+            const mainProfile = await req.loaders.Collective.mainProfileFromIncognito.load(individual.id);
+            if (mainProfile) {
+              return req.loaders.Location.byCollectiveId.load(mainProfile.id);
+            }
+          }
+
+          return req.loaders.Location.byCollectiveId.load(individual.id);
         },
       },
       hasTwoFactorAuth: {

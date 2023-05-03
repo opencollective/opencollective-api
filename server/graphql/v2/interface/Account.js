@@ -392,6 +392,9 @@ const accountFieldsDefinition = () => ({
   location: {
     type: Location,
     description: 'The address associated to this account. This field is always public for collectives and events.',
+    async resolve(collective, _, req) {
+      return req.loaders.Location.byCollectiveId.load(collective.id);
+    },
   },
   categories: {
     type: new GraphQLNonNull(new GraphQLList(GraphQLString)),

@@ -28,6 +28,7 @@ import models, {
   ConnectedAccount,
   EmojiReaction,
   ExpenseAttachedFile,
+  Location,
   Notification,
   PaypalProduct,
   Subscription,
@@ -173,6 +174,13 @@ export const fakeCollective = async (
   if (collectiveData.HostCollectiveId === undefined) {
     collectiveData.HostCollectiveId = (await fakeHost()).id;
   }
+
+  const collectiveSequelizeParams = Object.assign({}, sequelizeParams);
+
+  if (collectiveData?.location) {
+    collectiveSequelizeParams.include = [{ association: 'location' }];
+  }
+
   const collective = await models.Collective.create(
     {
       type,
@@ -188,7 +196,7 @@ export const fakeCollective = async (
       approvedAt: collectiveData.HostCollectiveId ? new Date() : null,
       ...collectiveData,
     },
-    sequelizeParams,
+    collectiveSequelizeParams,
   );
 
   collective.host = collective.HostCollectiveId && (await models.Collective.findByPk(collective.HostCollectiveId));
@@ -822,6 +830,24 @@ export const fakeLegalDocument = async (data: Partial<InferCreationAttributes<Le
   return models.LegalDocument.create({
     year: new Date().getFullYear(),
     requestStatus: 'REQUESTED',
+    ...data,
+    CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
+  });
+};
+
+export const fakeLocation = async (data: Partial<InferCreationAttributes<Location>> = {}) => {
+  const countries = ['US', 'SE', 'FR', 'BE'];
+
+  return models.Location.create({
+    country: sample(countries),
+    address: randStr('Formatted Address '),
+    structured: {
+      address1: randStr('Address1 '),
+      address2: randStr('Address2 '),
+      city: randStr('City '),
+      postalCode: randNumber(10000, 99999).toString(),
+      zone: randStr('Zone '),
+    },
     ...data,
     CollectiveId: data.CollectiveId || (await fakeCollective().then(c => c.id)),
   });

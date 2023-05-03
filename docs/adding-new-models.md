@@ -106,7 +106,7 @@ MyTable.init(
 export default MyTable;
 ```
 
-3. Add the model to `models/index.js`
+3. Add the model to `models/index.ts`
 
 ```es6
 // Add the table to the map of models

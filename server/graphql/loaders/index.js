@@ -24,6 +24,7 @@ import conversationLoaders from './conversation';
 import { generateConvertToCurrencyLoader, generateFxRateLoader } from './currency-exchange-rate';
 import * as expenseLoaders from './expenses';
 import { buildLoaderForAssociation, sortResults, sortResultsArray, sortResultsSimple } from './helpers';
+import locationLoaders from './location';
 import {
   generateAdminUsersEmailsForCollectiveLoader,
   generateCountAdminMembersOfCollective,
@@ -92,8 +93,10 @@ export const loaders = req => {
 
   // User
   context.loaders.User.byCollectiveId = generateUserByCollectiveIdLoader(req, cache);
-
   context.loaders.userHasTwoFactorAuthEnabled = userHasTwoFactorAuthEnabled;
+
+  // Location
+  context.loaders.Location.byCollectiveId = locationLoaders.byCollectiveId(req, cache);
 
   /** *** Collective *****/
 

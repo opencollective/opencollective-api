@@ -28,16 +28,18 @@ export const Organization = new GraphQLObjectType({
         `,
         async resolve(organization, _, req) {
           const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
+          const location = await req.loaders.Location.byCollectiveId.load(organization.id);
+
           if (canSeeLocation) {
-            return organization.location;
+            return location;
           } else {
-            return { country: organization.location?.country };
+            return { country: location?.country };
           }
         },
       },
       host: {
         type: Host,
-        description: 'If the organization if a host account, this will return the matching Host object',
+        description: 'If the organization is a host account, this will return the matching Host object',
         resolve(collective) {
           if (collective.isHostAccount) {
             return collective;

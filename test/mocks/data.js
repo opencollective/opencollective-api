@@ -6,7 +6,7 @@ export default {
     description: 'engineer',
     longDescription: 'This is a long description with some *markdown* **style**',
     twitterHandle: 'wwcode',
-    address: 'Paradize street\nSan Francisco CA 94100\nUSA',
+    location: { address: 'Paradize street\nSan Francisco CA 94100\nUSA' },
     currency: 'USD',
     isHostAccount: true,
     settings: { apply: true },
@@ -33,7 +33,7 @@ export default {
   user3: {
     name: 'Xavier Damman',
     email: 'user3@opencollective.com',
-    address: 'Rue du paradis\n1000 Brussels\nBelgium',
+    location: { address: 'Rue du paradis\n1000 Brussels\nBelgium' },
   },
 
   user4: {
@@ -621,10 +621,12 @@ export default {
     startsAt: '2017-01-06 UTC+0300',
     timezone: 'America/New_York',
     endsAt: '2017-01-07 UTC+300',
-    locationName: 'Balanced NYC',
-    address: '547 Broadway, NY 10012',
+    location: {
+      name: 'Balanced NYC',
+      address: '547 Broadway, NY 10012',
+      geoLocationLatLong: { type: 'Point', coordinates: [39.807222, -76.984722] },
+    },
     backgroundImage: 'http://opencollective.com/backgroundimage.png',
-    geoLocationLatLong: { type: 'Point', coordinates: [39.807222, -76.984722] },
   },
 
   event2: {
@@ -634,8 +636,10 @@ export default {
     description: 'February monthly meetup',
     startsAt: '2017-02-06 UTC+0300',
     endsAt: '2017-02-07 UTC+300',
-    locationName: 'Puck Fair',
-    address: '505 Broadway, NY 10012',
+    location: {
+      name: 'Puck Fair',
+      address: '505 Broadway, NY 10012',
+    },
   },
 
   tier1: {

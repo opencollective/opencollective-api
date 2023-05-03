@@ -186,10 +186,14 @@ describe('server/graphql/v1/queries', () => {
     });
 
     beforeEach(() =>
-      models.Collective.createMany([utils.data('event1'), utils.data('event2')], {
-        CreatedByUserId: user1.id,
-        ParentCollectiveId: collective1.id,
-      }).then(events => {
+      models.Collective.createMany(
+        [utils.data('event1'), utils.data('event2')],
+        {
+          CreatedByUserId: user1.id,
+          ParentCollectiveId: collective1.id,
+        },
+        { include: [{ association: 'location' }] },
+      ).then(events => {
         event1 = events[0];
         event2 = events[1];
       }),
@@ -202,6 +206,7 @@ describe('server/graphql/v1/queries', () => {
           CreatedByUserId: user2.id,
           ParentCollectiveId: collective2.id,
         }),
+        { include: [{ association: 'location' }] },
       ),
     );
 

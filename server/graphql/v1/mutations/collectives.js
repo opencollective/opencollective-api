@@ -1,6 +1,6 @@
 import config from 'config';
 import slugify from 'limax';
-import { cloneDeep, get, isEqual, isNil, omit, pick, truncate, uniqWith } from 'lodash';
+import { cloneDeep, get, isEqual, isNil, isUndefined, omit, pick, truncate, uniqWith } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
 import activities from '../../../constants/activities';
@@ -50,18 +50,6 @@ export async function createCollective(_, args, req) {
     settings: { ...DEFAULT_COLLECTIVE_SETTINGS, ...args.collective.settings },
   };
 
-  const location = args.collective.location;
-  if (location) {
-    collectiveData.locationName = location.name;
-    collectiveData.address = location.address;
-    collectiveData.countryISO = location.country;
-    if (location.lat) {
-      collectiveData.geoLocationLatLong = {
-        type: 'Point',
-        coordinates: [location.lat, location.long],
-      };
-    }
-  }
   // Set private instructions
   if (args.collective.privateInstructions) {
     collectiveData.data = {
@@ -154,6 +142,10 @@ export async function createCollective(_, args, req) {
     );
   } else {
     promises.push(collective.addUserWithRole(req.remoteUser, roles.ADMIN, { CreatedByUserId: req.remoteUser.id }));
+  }
+
+  if (args.collective.location) {
+    promises.push(collective.setLocation(args.collective.location));
   }
 
   await Promise.all(promises);
@@ -328,38 +320,6 @@ export function editCollective(_, args, req) {
     throw new ValidationFailed('githubHandle must be a valid github handle');
   }
 
-  // Set location values
-  let location;
-  if (args.collective.location === null) {
-    location = {
-      name: null,
-      address: null,
-      lat: null,
-      long: null,
-      country: null,
-    };
-  } else {
-    location = args.collective.location || {};
-  }
-
-  if (location.lat) {
-    newCollectiveData.geoLocationLatLong = {
-      type: 'Point',
-      coordinates: [location.lat, location.long],
-    };
-  } else if (location.lat === null) {
-    newCollectiveData.geoLocationLatLong = null;
-  }
-  if (location.name !== undefined) {
-    newCollectiveData.locationName = location.name;
-  }
-  if (location.address !== undefined) {
-    newCollectiveData.address = location.address;
-  }
-  if (location.country !== undefined) {
-    newCollectiveData.countryISO = location.country;
-  }
-
   let originalCollective, collective, parentCollective;
 
   return (
@@ -431,6 +391,11 @@ export function editCollective(_, args, req) {
         // if we try to change the `currency`
         if (newCollectiveData.currency !== undefined && newCollectiveData.currency !== collective.currency) {
           return collective.updateCurrency(newCollectiveData.currency, req.remoteUser);
+        }
+      })
+      .then(() => {
+        if (!isUndefined(args.collective.location)) {
+          return collective.setLocation(args.collective.location);
         }
       })
       .then(() => {

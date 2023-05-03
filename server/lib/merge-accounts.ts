@@ -148,6 +148,7 @@ const collectiveFieldsConfig: CollectiveFieldsConfig = {
   hostApplicationsCreated: { model: models.HostApplication, field: 'CollectiveId' },
   hostedCollectives: { model: models.Collective, field: 'HostCollectiveId' },
   legalDocuments: { model: models.LegalDocument, field: 'CollectiveId', getIdsToIgnore: getLegalDocumentsToIgnore },
+  location: { model: models.Location, field: 'CollectiveId' },
   memberInvitations: { model: models.MemberInvitation, field: 'MemberCollectiveId' },
   members: { model: models.Member, field: 'MemberCollectiveId' },
   membershipInvitations: { model: models.MemberInvitation, field: 'CollectiveId' },
@@ -210,10 +211,6 @@ const mergeCollectiveFields = async (from, into, transaction) => {
     fieldsToUpdate['countryISO'] = from.countryISO;
   }
 
-  if (from.address && !into.address) {
-    fieldsToUpdate['address'] = from.address;
-  }
-
   if (isEmpty(fieldsToUpdate)) {
     return into;
   }
@@ -238,6 +235,26 @@ const moveCollectiveAssociations = async (from, into, transaction) => {
       idsToIgnore = await entityConfig.getIdsToIgnore(from, into, transaction);
       if (idsToIgnore.length) {
         updateWhere.id = { [Op.not]: idsToIgnore };
+      }
+    }
+
+    // Special case for location, if a location exists for both the new and old collective, soft-delete the older one
+    if (entity === 'location') {
+      const intoLocation = await models.Location.findOne({
+        where: { CollectiveId: into.id },
+        attributes: ['updatedAt', 'id'],
+        transaction,
+      });
+      const fromLocation = await models.Location.findOne({
+        where: { CollectiveId: from.id },
+        attributes: ['updatedAt', 'id'],
+        transaction,
+      });
+
+      // If both exist, soft-delete the oldest one
+      if (intoLocation && fromLocation) {
+        const oldestLocation = fromLocation.updatedAt > intoLocation.updatedAt ? intoLocation : fromLocation;
+        await oldestLocation.destroy({ transaction });
       }
     }
 

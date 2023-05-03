@@ -174,6 +174,11 @@ async function createCollective(_, args, req) {
         });
       }
 
+      // Add location
+      if (args.collective.location) {
+        await collective.setLocation(args.collective.location, transaction);
+      }
+
       return collective;
     })
     .then(async collective => {

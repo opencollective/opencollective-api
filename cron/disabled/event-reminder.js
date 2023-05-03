@@ -47,6 +47,7 @@ async function run() {
       type: 'EVENT',
       startsAt: { [Op.gte]: tomorrowStartsAt, [Op.lt]: tomorrowEndsAt },
     },
+    include: [{ association: 'location' }],
   });
   console.log(`>>> Processing ${tomorrowEvents.length} events`);
   await Promise.map(tomorrowEvents, event => processEvent(event, 'event.reminder.1d'));
@@ -61,6 +62,7 @@ async function run() {
       type: 'EVENT',
       startsAt: { [Op.gte]: nextWeekStartsAt, [Op.lt]: nextWeekEndsAt },
     },
+    include: [{ association: 'location' }],
   });
   return Promise.map(nextWeekEvents, event => processEvent(event, 'event.reminder.7d')).then(() => {
     console.log(`${totalEvents} events processed. All done.`);
@@ -87,7 +89,11 @@ async function processEvent(event, template) {
     event.path = await event.getUrlPath();
     const recipient = user.email;
     const data = {
-      collective: { ...event.info, path: event.path },
+      collective: {
+        ...event.info,
+        path: event.path,
+        location: event.location,
+      },
       recipient: { name: fromCollective.name },
       order: order.info,
     };

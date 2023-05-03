@@ -39,6 +39,7 @@ import cache from '../../lib/cache';
 import { getFxRate } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
+import { formatAddress } from '../../lib/format-address';
 import logger from '../../lib/logger';
 import { floatAmountToCents } from '../../lib/math';
 import * as libPayments from '../../lib/payments';
@@ -59,6 +60,7 @@ import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import User from '../../models/User';
 import paymentProviders from '../../paymentProviders';
 import paypalAdaptive from '../../paymentProviders/paypal/adaptiveGateway';
+import { Location } from '../../types/Location';
 import {
   Quote as WiseQuote,
   QuoteV2 as WiseQuoteV2,
@@ -1022,7 +1024,7 @@ type TaxDefinition = {
 type ExpenseData = {
   id?: number;
   payoutMethod?: Record<string, unknown>;
-  payeeLocation?: { address: string; country: string; structured: Record<string, unknown> };
+  payeeLocation?: Location;
   items?: Record<string, unknown>[];
   attachedFiles?: Record<string, unknown>[];
   collective?: Collective;
@@ -1150,18 +1152,23 @@ export async function createExpense(remoteUser: User | null, expenseData: Expens
   }
 
   // Update payee's location
-  if (!expenseData.payeeLocation?.address && fromCollective.location) {
-    expenseData.payeeLocation = pick(fromCollective.location, ['address', 'country', 'structured']);
+  const existingLocation = await fromCollective.getLocation();
+  if (!(expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) && existingLocation) {
+    expenseData.payeeLocation = pick(existingLocation, ['address', 'country', 'structured']);
   } else if (
-    expenseData.payeeLocation?.address &&
-    (!fromCollective.location.address || !fromCollective.location.structured)
+    (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
+    (!existingLocation?.address || !existingLocation?.structured)
   ) {
-    // Let's take the opportunity to update collective's location
-    await fromCollective.update({
-      address: expenseData.payeeLocation.address,
-      countryISO: expenseData.payeeLocation.country,
-      data: { ...fromCollective.data, address: expenseData.payeeLocation.structured },
-    });
+    await fromCollective.setLocation(expenseData.payeeLocation);
+
+    // Create formatted address if it does not exist
+    const address =
+      expenseData.payeeLocation?.address || (await formatAddress(expenseData.payeeLocation, { lineDivider: '\n' }));
+
+    expenseData.payeeLocation = {
+      address,
+      ...expenseData.payeeLocation,
+    };
   }
 
   // Get or create payout method
@@ -1440,11 +1447,12 @@ export async function editExpense(req: express.Request, expenseData: ExpenseData
   }
 
   // Let's take the opportunity to update collective's location
-  if (expenseData.payeeLocation?.address && !fromCollective.location.address) {
-    await fromCollective.update({
-      address: expenseData.payeeLocation.address,
-      countryISO: expenseData.payeeLocation.country,
-    });
+  const existingLocation = await fromCollective.getLocation();
+  if (
+    (expenseData.payeeLocation?.address || expenseData.payeeLocation?.structured) &&
+    (!existingLocation?.address || !existingLocation?.structured)
+  ) {
+    await fromCollective.setLocation(expenseData.payeeLocation);
   }
 
   const cleanExpenseData = <Pick<ExpenseData, ExpenseEditableFieldsUnion>>(

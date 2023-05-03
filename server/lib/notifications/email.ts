@@ -219,7 +219,9 @@ export const notifyByEmail = async (activity: Activity) => {
 
     case ActivityTypes.TICKET_CONFIRMED: {
       const user = await models.User.findByPk(activity.UserId);
-      const event = await models.Collective.findByPk(activity.data.EventCollectiveId);
+      const event = await models.Collective.findByPk(activity.data.EventCollectiveId, {
+        include: [{ association: 'location' }],
+      });
       const parentCollective = await event.getParentCollective();
       const ics = await event.getICS();
       const options = {
@@ -259,8 +261,8 @@ export const notifyByEmail = async (activity: Activity) => {
           }
         }
       }
-      activity.data.event = event.info;
-      activity.data.isOffline = activity.data.event.locationName !== 'Online';
+      activity.data.event = { ...event.info, location: event.location };
+      activity.data.isOffline = event.location?.name !== 'Online';
       activity.data.collective = parentCollective.info;
       await notify.user(activity, { ...options, userId: user.id });
       break;

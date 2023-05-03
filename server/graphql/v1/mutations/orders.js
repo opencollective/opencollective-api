@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import * as LibTaxes from '@opencollective/taxes';
 import config from 'config';
 import debugLib from 'debug';
-import { get, isEmpty, isEqual, isNil, omit, pick, set } from 'lodash';
+import { get, isEmpty, isNil, omit, pick, set } from 'lodash';
 
 import activities from '../../../constants/activities';
 import { types } from '../../../constants/collectives';
@@ -16,6 +16,7 @@ import { purgeCacheForCollective } from '../../../lib/cache';
 import { checkCaptcha } from '../../../lib/check-captcha';
 import * as github from '../../../lib/github';
 import { getOrCreateGuestProfile } from '../../../lib/guest-accounts';
+import { mustUpdateLocation } from '../../../lib/location';
 import logger from '../../../lib/logger';
 import * as libPayments from '../../../lib/payments';
 import { getChargeRetryCount, getNextChargeAndPeriodStartDates } from '../../../lib/recurring-contributions';
@@ -34,18 +35,11 @@ import {
   Unauthorized,
   ValidationFailed,
 } from '../../errors';
-
 const debug = debugLib('orders');
 
 export const ORDER_PUBLIC_DATA_FIELDS = {
   pledgeCurrency: 'thegivingblock.pledgeCurrency',
   pledgeAmount: 'thegivingblock.pledgeAmount',
-};
-
-const mustUpdateLocation = (existingLocation, newLocation) => {
-  const simpleFields = ['country', 'name', 'address'];
-  const hasUpdatedSimpleField = field => newLocation[field] && newLocation[field] !== existingLocation[field];
-  return simpleFields.some(hasUpdatedSimpleField) || !isEqual(existingLocation.structured, newLocation.structured);
 };
 
 const mustUpdateNames = (fromAccount, fromAccountInfo) => {
@@ -59,14 +53,15 @@ const mustUpdateNames = (fromAccount, fromAccountInfo) => {
 const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) => {
   const { totalAmount, fromAccountInfo, guestInfo } = order;
   const accountUpdatePayload = {};
-  const location = fromAccountInfo?.location || guestInfo?.location || fromAccount.location;
+  const existingLocation = await fromAccount.getLocation();
+  const location = fromAccountInfo?.location || guestInfo?.location || existingLocation;
   const isContributingFromSameHost = fromAccount.HostCollectiveId === order.collective.HostCollectiveId;
 
   // Only enforce profile checks for guests and USD contributions at the moment
   if (isGuest && currency === 'USD' && !isContributingFromSameHost) {
     // Contributions that are more than $5000 must have an address attached
     if (totalAmount > 5000e2) {
-      if (!location.structured && (!location.address || !location.country)) {
+      if (!location?.structured && (!location?.address || !location?.country)) {
         throw new BadRequest('Contributions that are more than $5000 must have an address attached');
       }
     }
@@ -84,11 +79,8 @@ const checkAndUpdateProfileInfo = async (order, fromAccount, isGuest, currency) 
   // (we don't want to let guests update the profile of an existing account that they may not own)
   const isVerifiedProfile = !fromAccount.data?.isGuest;
   if (!isGuest || !isVerifiedProfile) {
-    if (mustUpdateLocation(fromAccount.location, location)) {
-      accountUpdatePayload.data = { ...fromAccount.data, address: location.structured || fromAccount.data?.structured };
-      accountUpdatePayload.locationName = location.name || fromAccount.locationName;
-      accountUpdatePayload.address = location.address || fromAccount.address;
-      accountUpdatePayload.countryISO = location.country || fromAccount.countryISO;
+    if (mustUpdateLocation(existingLocation, location)) {
+      await fromAccount.setLocation(location);
     }
     if (mustUpdateNames(fromAccount, fromAccountInfo)) {
       accountUpdatePayload.name = fromAccountInfo.name || fromAccountInfo.name;

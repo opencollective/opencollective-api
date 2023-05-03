@@ -89,6 +89,12 @@ WITH requested_collectives AS (
   WHERE       u."CollectiveId" = deleted_profiles.id 
   OR          u."FromCollectiveId" = deleted_profiles.id 
   RETURNING   u.id
+), deleted_locations AS (
+  -- Delete locations
+  UPDATE ONLY "Locations" l SET "deletedAt" = NOW()
+  FROM        deleted_profiles 
+  WHERE       l."CollectiveId" = deleted_profiles.id
+  RETURNING   l.id
 ), deleted_payment_methods AS (
   -- Delete payment methods
   UPDATE ONLY "PaymentMethods" pm SET "deletedAt" = NOW()

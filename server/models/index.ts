@@ -14,6 +14,7 @@ import { ExpenseAttachedFile } from './ExpenseAttachedFile';
 import { ExpenseItem } from './ExpenseItem';
 import { HostApplication } from './HostApplication';
 import LegalDocument from './LegalDocument';
+import Location from './Location';
 import Member from './Member';
 import MemberInvitation from './MemberInvitation';
 import MigrationLog from './MigrationLog';
@@ -58,6 +59,7 @@ const models = {
   ExpenseItem: ExpenseItem,
   HostApplication: HostApplication,
   LegalDocument: LegalDocument,
+  Location: Location,
   Member: Member,
   MemberInvitation: MemberInvitation,
   MigrationLog: MigrationLog,
@@ -331,6 +333,10 @@ models.Tier.hasMany(models.Order);
 // Legal documents
 models.LegalDocument.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
 
+// Location
+models.Location.belongsTo(models.Collective, { foreignKey: 'CollectiveId', as: 'collective' });
+models.Collective.hasOne(models.Location, { foreignKey: 'CollectiveId', as: 'location' });
+
 // RequiredLegalDocument
 models.RequiredLegalDocument.belongsTo(models.Collective, { foreignKey: 'HostCollectiveId', as: 'hostCollective' });
 
@@ -420,6 +426,7 @@ export {
   ExpenseItem,
   HostApplication,
   LegalDocument,
+  Location,
   Member,
   MemberInvitation,
   MigrationLog,

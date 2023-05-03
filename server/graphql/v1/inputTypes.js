@@ -232,7 +232,7 @@ export const LocationInputType = new GraphQLInputObjectType({
   fields: () => ({
     name: {
       type: GraphQLString,
-      description: 'A short name for the location (eg. Google Headquarters)',
+      description: 'A short name for the location (eg. Open Collective Headquarters)',
     },
     address: {
       type: GraphQLString,
@@ -249,6 +249,10 @@ export const LocationInputType = new GraphQLInputObjectType({
     long: {
       type: GraphQLFloat,
       description: 'Longitude',
+    },
+    structured: {
+      type: GraphQLJSON,
+      description: 'Structured JSON address',
     },
   }),
 });

@@ -7,18 +7,13 @@ import { types as COLLECTIVE_TYPE } from '../constants/collectives';
 import { BadRequest, InvalidToken, NotFound } from '../graphql/errors';
 import models, { Collective, sequelize } from '../models';
 import User from '../models/User';
+import { Location } from '../types/Location';
 
 export const DEFAULT_GUEST_NAME = 'Guest';
 
 type GuestProfileDetails = {
   user: User;
   collective: Collective;
-};
-
-type Location = {
-  country?: string | null;
-  address?: string | null;
-  structured?: Record<string, string> | null;
 };
 
 /**
@@ -32,18 +27,12 @@ const updateCollective = async (collective, newInfo, transaction) => {
   }
 
   if (newInfo.location) {
-    if (newInfo.location.country && newInfo.location.country !== collective.countryISO) {
-      fieldsToUpdate['countryISO'] = newInfo.location.country;
-    }
-    if (newInfo.location.address && newInfo.location.address !== collective.address) {
-      fieldsToUpdate['address'] = newInfo.location.address;
-    }
-    if (newInfo.location.structured) {
-      fieldsToUpdate['data'] = { ...(collective.data || {}), address: newInfo.location.structured };
-    }
+    await collective.setLocation(newInfo.location, transaction);
   }
 
-  return isEmpty(fieldsToUpdate) ? collective : collective.update(fieldsToUpdate, { transaction });
+  return isEmpty(fieldsToUpdate)
+    ? collective
+    : collective.update(fieldsToUpdate, { transaction, include: [{ association: 'location' }] });
 };
 
 type UserInfoInput = {
@@ -88,7 +77,10 @@ export const getOrCreateGuestProfile = async (
         { transaction },
       );
     } else if (user.CollectiveId) {
-      collective = await models.Collective.findByPk(user.CollectiveId, { transaction });
+      collective = await models.Collective.findByPk(user.CollectiveId, {
+        transaction,
+        include: [{ association: 'location' }],
+      });
       if (!user.confirmedAt) {
         const newLegalName = legalName || collective.legalName;
         const newValues = { name, location, legalName: newLegalName };
@@ -104,12 +96,11 @@ export const getOrCreateGuestProfile = async (
           slug: `guest-${uuid().split('-')[0]}`,
           name: name || DEFAULT_GUEST_NAME,
           legalName,
-          data: { isGuest: true, address: location?.structured },
-          address: location?.address,
-          countryISO: location?.country,
+          data: { isGuest: true },
           CreatedByUserId: user.id,
+          location,
         },
-        { transaction },
+        { transaction, include: [{ association: 'location' }] },
       );
     }
 

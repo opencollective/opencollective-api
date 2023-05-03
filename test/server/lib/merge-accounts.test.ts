@@ -30,6 +30,7 @@ const addFakeDataToAccount = async (account): Promise<void> => {
     // TODO Faker.fakeHostApplication({ HostCollectiveId: account.id, CollectiveId: randomCollective.id }),
     // TODO Faker.fakeHostApplication({ CollectiveId: account.id, HostCollectiveId: randomCollective.id }),
     Faker.fakeLegalDocument({ CollectiveId: account.id, year: 2020, documentType: LEGAL_DOCUMENT_TYPE.US_TAX_FORM }),
+    Faker.fakeLocation({ CollectiveId: account.id }),
     // TODO Faker.fakeMemberInvitation({ MemberCollectiveId: account.id }),
     Faker.fakeMember({ MemberCollectiveId: account.id, CollectiveId: randomCollective.id }),
     Faker.fakeNotification({ CollectiveId: account.id, UserId: user.id }),
@@ -110,8 +111,13 @@ const generateTestData = async () => {
 
 const sumCounts = (count1, count2) => {
   return {
-    account: mergeWith(count1.account, count2.account, (objValue, srcValue) => {
-      return (objValue || 0) + (srcValue || 0);
+    account: mergeWith(count1.account, count2.account, (objValue, srcValue, key) => {
+      const sum = (objValue || 0) + (srcValue || 0);
+      // Locations are merged in a different way to only keep the most recent one
+      if (key === 'location') {
+        return Math.min(1, sum);
+      }
+      return sum;
     }),
     user: !count1.user
       ? null

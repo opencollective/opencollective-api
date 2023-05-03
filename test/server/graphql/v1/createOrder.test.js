@@ -359,19 +359,21 @@ describe('server/graphql/v1/createOrder', () => {
     const startsAt = d.setMonth(d.getMonth() + 1);
     const endsAt = new Date(startsAt);
     endsAt.setHours(endsAt.getHours() + 2);
-    const event = await models.Collective.create({
-      type: 'EVENT',
-      isActive: true,
-      ParentCollectiveId: fearlesscitiesbrussels.id,
-      name: 'Sustain OSS London 2019',
-      description: 'Short description',
-      longDescription: 'Longer description',
-      locationName: 'Github',
-      address: 'San Francisco',
-      slug: 'sustainoss-london',
-      startsAt,
-      endsAt,
-    });
+    const event = await models.Collective.create(
+      {
+        type: 'EVENT',
+        isActive: true,
+        ParentCollectiveId: fearlesscitiesbrussels.id,
+        name: 'Sustain OSS London 2019',
+        description: 'Short description',
+        longDescription: 'Longer description',
+        slug: 'sustainoss-london',
+        startsAt,
+        endsAt,
+        location: { name: 'Github', address: 'San Fransisco' },
+      },
+      { include: [{ association: 'location' }] },
+    );
     // Given an order request
     const user = (await store.newUser('John Appleseed')).user;
     const newOrder = cloneDeep(baseOrder);
