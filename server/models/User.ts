@@ -78,7 +78,6 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    * Generate a JWT for user.
    *
    * @param {object} `payload` - data to attach to the token
-   * @param {Boolean} `payload.traceless` - if token should update lastLoginAt information
    * @param {Number} `expiration` - expiration period in seconds
    */
   jwt = function (payload = undefined, expiration = undefined) {
@@ -86,8 +85,8 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
     return auth.createJwt(this.id, payload, expiration);
   };
 
-  generateSessionToken = async function ({ sessionId = null } = {}) {
-    if (!parseToBoolean(config.database.readOnly)) {
+  generateSessionToken = async function ({ sessionId = null, createActivity = true, expiration = null } = {}) {
+    if (createActivity && !parseToBoolean(config.database.readOnly)) {
       await models.Activity.create({
         type: activities.USER_SIGNIN,
         UserId: this.id,
@@ -97,7 +96,7 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
       });
     }
 
-    return this.jwt({ scope: 'session', sessionId }, auth.TOKEN_EXPIRATION_SESSION);
+    return this.jwt({ scope: 'session', sessionId }, expiration || auth.TOKEN_EXPIRATION_SESSION);
   };
 
   generateLoginLink = function (redirect = '/', websiteUrl) {
