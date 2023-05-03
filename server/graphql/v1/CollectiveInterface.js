@@ -10,7 +10,7 @@ import {
   GraphQLString,
 } from 'graphql';
 import { GraphQLJSON } from 'graphql-scalars';
-import { get, has, isNull, merge, omitBy, sortBy } from 'lodash';
+import { get, has, isNil, isNull, merge, omitBy, sortBy } from 'lodash';
 import moment from 'moment';
 import sequelize from 'sequelize';
 import SqlString from 'sequelize/lib/sql-string';
@@ -650,8 +650,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description:
           'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
         args: {
-          limit: { type: GraphQLInt },
-          offset: { type: GraphQLInt },
+          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
           type: {
             type: GraphQLString,
             description: 'Type of User: USER/ORGANIZATION',
@@ -1263,8 +1263,8 @@ const CollectiveFields = () => {
       description: 'Get all the members of this collective (admins, members, backers, followers)',
       type: new GraphQLList(MemberType),
       args: {
-        limit: { type: GraphQLInt },
-        offset: { type: GraphQLInt },
+        limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
+        offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
         type: { type: GraphQLString },
         role: { type: GraphQLString },
         TierId: { type: GraphQLInt },
@@ -1274,6 +1274,17 @@ const CollectiveFields = () => {
       resolve(collective, args, req) {
         if (collective.isIncognito && !req.remoteUser?.isAdmin(collective.id)) {
           return [];
+        }
+
+        // Check Pagination arguments
+        if (isNil(args.limit) || args.limit < 0) {
+          args.limit = 100;
+        }
+        if (isNil(args.offset) || args.offset < 0) {
+          args.offset = 0;
+        }
+        if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+          throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
         }
 
         const query = {
