@@ -1,5 +1,5 @@
 import { GraphQLBoolean, GraphQLInt, GraphQLList, GraphQLNonNull } from 'graphql';
-import { intersection } from 'lodash';
+import { intersection, isNil } from 'lodash';
 
 import { types as CollectiveTypes } from '../../../constants/collectives';
 import MemberRoles from '../../../constants/roles';
@@ -37,6 +37,17 @@ export const HasMembersFields = {
       },
     },
     async resolve(collective, args, req) {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
+      }
+
       // TODO: isn't it a better practice to return null?
       if (collective.isIncognito && (!req.remoteUser?.isAdmin(collective.id) || !checkScope(req, 'incognito'))) {
         return { offset: args.offset, limit: args.limit, totalCount: 0, nodes: [] };

@@ -60,6 +60,17 @@ export const IsMemberOfFields = {
       },
     },
     async resolve(collective, args, req) {
+      // Check Pagination arguments
+      if (isNil(args.limit) || args.limit < 0) {
+        args.limit = 100;
+      }
+      if (isNil(args.offset) || args.offset < 0) {
+        args.offset = 0;
+      }
+      if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+        throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
+      }
+
       const where = { MemberCollectiveId: collective.id, CollectiveId: { [Op.ne]: collective.id } };
       const collectiveConditions = {};
 
