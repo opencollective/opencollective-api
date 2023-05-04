@@ -527,8 +527,8 @@ export const getTokenFromRequestHeaders = req => {
   const parts = header.split(' ');
   const scheme = parts[0];
   const token = parts[1];
-  if (!/^Bearer$/i.test(scheme) || !token) {
-    throw new BadRequest('Format is Authorization: Bearer [token]');
+  if ((!/^Bearer$/i.test(scheme) && !/^Basic$/i.test(scheme)) || !token) {
+    throw new BadRequest('Format is Authorization: Bearer [token] or Basic [token]');
   }
 
   return token;
