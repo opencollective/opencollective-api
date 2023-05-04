@@ -1263,8 +1263,8 @@ const CollectiveFields = () => {
       description: 'Get all the members of this collective (admins, members, backers, followers)',
       type: new GraphQLList(MemberType),
       args: {
-        limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-        offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+        limit: { type: GraphQLInt, defaultValue: 100 },
+        offset: { type: GraphQLInt, defaultValue: 0 },
         type: { type: GraphQLString },
         role: { type: GraphQLString },
         TierId: { type: GraphQLInt },
@@ -1284,7 +1284,8 @@ const CollectiveFields = () => {
           args.offset = 0;
         }
         if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
-          throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
+          args.limit = 1000;
+          // throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
         }
 
         const query = {
