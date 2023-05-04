@@ -21,6 +21,7 @@ import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/pay
 import roles from '../../constants/roles';
 import { isCollectiveDeletable } from '../../lib/collectivelib';
 import { filterContributors } from '../../lib/contributors';
+import logger from '../../lib/logger';
 import queries from '../../lib/queries';
 import { canSeeLegalName } from '../../lib/user-permissions';
 import models, { Op } from '../../models';
@@ -650,8 +651,8 @@ export const CollectiveInterfaceType = new GraphQLInterfaceType({
         description:
           'List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)',
         args: {
-          limit: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 100 },
-          offset: { type: new GraphQLNonNull(GraphQLInt), defaultValue: 0 },
+          limit: { type: GraphQLInt, defaultValue: 100 },
+          offset: { type: GraphQLInt, defaultValue: 0 },
           type: {
             type: GraphQLString,
             description: 'Type of User: USER/ORGANIZATION',
@@ -1284,6 +1285,7 @@ const CollectiveFields = () => {
           args.offset = 0;
         }
         if (args.limit > 1000 && !req.remoteUser?.isRoot()) {
+          logger.warn('GraphQL v1: members limit over 1,000, using 1,000 as maximum limit');
           args.limit = 1000;
           // throw new Error('Cannot fetch more than 1,000 members at the same time, please adjust the limit');
         }
