@@ -213,7 +213,6 @@ export const checkEmail = async (email: string) => {
 export const orderFraudProtection = async (
   req: Express.Request,
   order: {
-    [key: string]: unknown;
     guestInfo?: { email?: string };
     paymentMethod?: {
       type: PAYMENT_METHOD_TYPE;

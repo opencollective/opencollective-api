@@ -20,10 +20,15 @@ import {
 import { roles } from '../../../constants';
 import activities from '../../../constants/activities';
 import { Service } from '../../../constants/connected_account';
+import FEATURE from '../../../constants/feature';
 import OrderStatuses from '../../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../../constants/paymentMethods';
 import { purgeAllCachesForAccount } from '../../../lib/cache';
+import { checkCaptcha } from '../../../lib/check-captcha';
 import logger from '../../../lib/logger';
+import { checkGuestContribution, checkOrdersLimit } from '../../../lib/security/limit';
+import { orderFraudProtection } from '../../../lib/security/order';
+import { reportErrorToSentry } from '../../../lib/sentry';
 import stripe, { convertToStripeAmount } from '../../../lib/stripe';
 import {
   updateOrderSubscription,
@@ -31,11 +36,12 @@ import {
   updateSubscriptionDetails,
 } from '../../../lib/subscriptions';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
+import { canUseFeature } from '../../../lib/user-permissions';
 import models, { Op, sequelize } from '../../../models';
 import { MigrationLogType } from '../../../models/MigrationLog';
 import { updateSubscriptionWithPaypal } from '../../../paymentProviders/paypal/subscription';
 import { checkRemoteUserCanRoot, checkRemoteUserCanUseOrders, checkScope } from '../../common/scope-check';
-import { BadRequest, NotFound, Unauthorized, ValidationFailed } from '../../errors';
+import { BadRequest, FeatureNotAllowedForUser, NotFound, Unauthorized, ValidationFailed } from '../../errors';
 import {
   confirmOrder as confirmOrderLegacy,
   createOrder as createOrderLegacy,
@@ -46,6 +52,7 @@ import { ProcessOrderAction } from '../enum/ProcessOrderAction';
 import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import { AccountReferenceInput, fetchAccountWithReference } from '../input/AccountReferenceInput';
 import { AmountInput, assertAmountInputCurrency, getValueInCentsFromAmountInput } from '../input/AmountInput';
+import { GuestInfoInput } from '../input/GuestInfoInput';
 import { OrderCreateInput, PendingOrderCreateInput, PendingOrderEditInput } from '../input/OrderCreateInput';
 import { fetchOrdersWithReferences, fetchOrderWithReference, OrderReferenceInput } from '../input/OrderReferenceInput';
 import { OrderUpdateInput } from '../input/OrderUpdateInput';
@@ -791,8 +798,15 @@ const orderMutations = {
       paymentIntent: {
         type: new GraphQLNonNull(PaymentIntentInput),
       },
+      guestInfo: {
+        type: GuestInfoInput,
+      },
     },
     async resolve(_, args, req) {
+      if (req.remoteUser && !canUseFeature(req.remoteUser, FEATURE.ORDER)) {
+        throw new FeatureNotAllowedForUser();
+      }
+
       const paymentIntentInput = args.paymentIntent;
 
       const toAccount = await fetchAccountWithReference(paymentIntentInput.toAccount, { throwIfMissing: true });
@@ -835,6 +849,46 @@ const orderMutations = {
         }
 
         stripeCustomerId = stripeCustomerAccount.username;
+      }
+
+      if (!req.remoteUser) {
+        await checkGuestContribution(
+          {
+            collective: toAccount,
+            fromCollective: fromAccount,
+            guestInfo: args.guestInfo,
+          },
+          req.loaders,
+        );
+      }
+
+      await checkOrdersLimit(
+        {
+          user: req.remoteUser,
+          collective: toAccount,
+          fromCollective: fromAccount,
+          guestInfo: args.guestInfo,
+        },
+        req.ip,
+        req.mask,
+      );
+      await orderFraudProtection(req, {
+        guestInfo: args.guestInfo,
+      }).catch(error => {
+        reportErrorToSentry(error, { transactionName: 'orderFraudProtection', user: req.remoteUser });
+        throw new ValidationFailed(
+          "There's something wrong with the payment, please contact support@opencollective.com.",
+          undefined,
+          { includeId: true },
+        );
+      });
+
+      if (!req.remoteUser) {
+        try {
+          await checkCaptcha(args.guestInfo?.captcha, req.ip);
+        } catch (err) {
+          throw new BadRequest(err.message, undefined, args.guestInfo?.captcha);
+        }
       }
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
