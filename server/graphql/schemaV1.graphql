@@ -98,8 +98,8 @@ interface CollectiveInterface {
   List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)
   """
   members(
-    limit: Int
-    offset: Int
+    limit: Int! = 100
+    offset: Int! = 0
 
     """
     Type of User: USER/ORGANIZATION
@@ -2300,7 +2300,15 @@ type Collective implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -2558,7 +2566,15 @@ type Event implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -2816,7 +2832,15 @@ type Fund implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -3074,7 +3098,15 @@ type Organization implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -3333,7 +3365,15 @@ type Project implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -3836,7 +3876,15 @@ type User implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -4096,7 +4144,15 @@ type Vendor implements CollectiveInterface {
   """
   Get all the members of this collective (admins, members, backers, followers)
   """
-  members(limit: Int, offset: Int, type: String, role: String, TierId: Int, tierSlug: String, roles: [String]): [Member]
+  members(
+    limit: Int! = 100
+    offset: Int! = 0
+    type: String
+    role: String
+    TierId: Int
+    tierSlug: String
+    roles: [String]
+  ): [Member]
 
   """
   Get all the collective this collective is a member of (as a member, backer, follower, etc.)
@@ -4258,7 +4314,7 @@ type Query {
     Slug of the transaction.
     """
     transactionUuid: String!
-  ): InvoiceType
+  ): InvoiceType @deprecated(reason: "2023-05-04: Please fetch transactions with GraphQL v2")
 
   "\n    Given a collective, returns all its transactions:\n    - Debit transactions made by collective without using a gift card\n    - Debit transactions made using a gift card from collective\n    - Credit transactions made to collective\n    "
   allTransactions(

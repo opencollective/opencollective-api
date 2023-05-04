@@ -114,6 +114,7 @@ const queries = {
    */
   TransactionInvoice: {
     type: InvoiceType,
+    deprecationReason: '2023-05-04: Please fetch transactions with GraphQL v2',
     args: {
       transactionUuid: {
         type: new GraphQLNonNull(GraphQLString),
