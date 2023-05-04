@@ -78,21 +78,37 @@ const OrderWithPayment = new GraphQLObjectType({
 });
 
 /**
- * Computes the total amount from an `OrderCreateInput` or `OrderUpdateInput`
+ * Computes the total amount for an order
+ * @param {number} baseAmount
+ * @param {number} platformTipAmount
+ * @param {OrderTaxInput | TaxInput | OrderTax} taxInput
+ * @param {number} quantity
  */
-const getOrderTotalAmount = order => {
-  const { amount, platformTipAmount, taxes, tax, quantity } = order;
-  let totalAmount = getValueInCentsFromAmountInput(amount) * (quantity || 1);
+const getTotalAmountForOrderInput = (baseAmount, platformTipAmount, tax, quantity) => {
+  let totalAmount = baseAmount * (quantity || 1);
 
-  // Legacy tax format
-  if (taxes) {
-    totalAmount += taxes?.[0].amount ? getValueInCentsFromAmountInput(taxes[0].amount) : 0;
-  } else if (tax) {
-    totalAmount += Math.round(tax.rate * totalAmount);
+  if (tax) {
+    if (tax.rate) {
+      totalAmount += Math.round(tax.rate * totalAmount);
+    } else {
+      if (tax.percentage) {
+        totalAmount += Math.round((tax.percentage / 100) * totalAmount);
+      } else if (tax.amount) {
+        // Legacy tax format, can remove after `taxes` param is removed
+        totalAmount += tax.amount ? getValueInCentsFromAmountInput(tax.amount) : 0;
+      }
+    }
   }
 
-  totalAmount += platformTipAmount ? getValueInCentsFromAmountInput(platformTipAmount) : 0;
+  if (platformTipAmount) {
+    totalAmount += platformTipAmount;
+  }
+
   return totalAmount;
+};
+
+const getOrderBaseAmount = order => {
+  return order.totalAmount - (order.taxAmount || 0) - (order.platformTipAmount || 0);
 };
 
 /**
@@ -155,9 +171,10 @@ const orderMutations = {
         }
       });
 
+      const amountInCents = getValueInCentsFromAmountInput(order.amount);
       const legacyOrderObj = {
         quantity: order.quantity,
-        amount: getValueInCentsFromAmountInput(order.amount),
+        amount: amountInCents,
         currency: expectedCurrency,
         interval: getIntervalFromContributionFrequency(order.frequency),
         taxAmount: tax && getValueInCentsFromAmountInput(tax.amount),
@@ -166,7 +183,7 @@ const orderMutations = {
         fromCollective: fromCollective && { id: fromCollective.id },
         fromAccountInfo: order.fromAccountInfo,
         collective: { id: collective.id },
-        totalAmount: getOrderTotalAmount(order),
+        totalAmount: getTotalAmountForOrderInput(amountInCents, platformTipAmount, tax, order.quantity),
         data: order.data, // We're filtering data before saving it (see `ORDER_PUBLIC_DATA_FIELDS`)
         customData: order.customData,
         isBalanceTransfer: order.isBalanceTransfer,
@@ -482,6 +499,16 @@ const orderMutations = {
           if (!isNil(processedAt)) {
             order.set('processedAt', processedAt);
           }
+
+          // Re-compute total amount
+          const baseAmount = !isNil(args.order.amount)
+            ? getValueInCentsFromAmountInput(args.order.amount)
+            : getOrderBaseAmount(order);
+          order.set(
+            'totalAmount',
+            getTotalAmountForOrderInput(baseAmount, order.platformTipAmount, order.data?.tax, order.quantity),
+          );
+
           await order.save();
         }
 
@@ -889,12 +916,13 @@ const orderMutations = {
         host,
       );
 
+      const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
       const orderProps = {
         CreatedByUserId: req.remoteUser.id,
         FromCollectiveId: fromAccount.id,
         CollectiveId: toAccount.id,
         quantity,
-        totalAmount: getOrderTotalAmount(args.order),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, args.order.tax, quantity),
         currency: args.order.amount.currency,
         description: args.order.description || models.Order.generateDescription(toAccount, undefined, undefined),
         taxAmount,
@@ -1000,10 +1028,12 @@ const orderMutations = {
         host,
       );
 
+      const baseAmountInCents = getValueInCentsFromAmountInput(args.order.amount);
+      const tax = !isUndefined(args.order.tax) ? args.order.tax : order.data?.tax;
       await order.update({
         FromCollectiveId: fromAccount?.id || undefined,
         TierId: tier?.id || undefined,
-        totalAmount: getValueInCentsFromAmountInput(args.order.amount),
+        totalAmount: getTotalAmountForOrderInput(baseAmountInCents, null, tax, quantity),
         currency: args.order.amount.currency,
         description: args.order.description,
         taxAmount: taxAmount || null,
