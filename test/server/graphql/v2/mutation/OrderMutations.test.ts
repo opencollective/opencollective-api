@@ -808,7 +808,7 @@ describe('server/graphql/v2/mutation/OrderMutations', () => {
       expect(result.errors).to.not.exist;
       const resultOrder = result.data.editPendingOrder;
       expect(resultOrder.status).to.equal('PENDING');
-      expect(resultOrder.amount.valueInCents).to.equal(150e2);
+      expect(resultOrder.amount.valueInCents).to.equal(18150); // $150 + $31.50 (21%) tax
       expect(resultOrder.amount.currency).to.equal('USD');
       expect(resultOrder.fromAccount.legacyId).to.equal(newFromUser.CollectiveId);
       expect(resultOrder.tier.legacyId).to.equal(tier.id);
