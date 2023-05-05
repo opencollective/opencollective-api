@@ -849,9 +849,7 @@ const orderMutations = {
         }
 
         stripeCustomerId = stripeCustomerAccount.username;
-      }
-
-      if (!req.remoteUser) {
+      } else {
         await checkGuestContribution(
           {
             collective: toAccount,
@@ -860,6 +858,12 @@ const orderMutations = {
           },
           req.loaders,
         );
+
+        try {
+          await checkCaptcha(args.guestInfo?.captcha, req.ip);
+        } catch (err) {
+          throw new BadRequest(err.message, undefined, args.guestInfo?.captcha);
+        }
       }
 
       await checkOrdersLimit(
@@ -882,14 +886,6 @@ const orderMutations = {
           { includeId: true },
         );
       });
-
-      if (!req.remoteUser) {
-        try {
-          await checkCaptcha(args.guestInfo?.captcha, req.ip);
-        } catch (err) {
-          throw new BadRequest(err.message, undefined, args.guestInfo?.captcha);
-        }
-      }
 
       const totalOrderAmount = getValueInCentsFromAmountInput(paymentIntentInput.amount);
 
