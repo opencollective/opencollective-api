@@ -98,8 +98,8 @@ interface CollectiveInterface {
   List of all collectives that are related to this collective with their membership relationship. Can filter by role (BACKER/MEMBER/ADMIN/HOST/FOLLOWER)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
 
     """
     Type of User: USER/ORGANIZATION
@@ -2301,8 +2301,8 @@ type Collective implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int
@@ -2567,8 +2567,8 @@ type Event implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int
@@ -2833,8 +2833,8 @@ type Fund implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int
@@ -3099,8 +3099,8 @@ type Organization implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int
@@ -3366,8 +3366,8 @@ type Project implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int
@@ -3877,8 +3877,8 @@ type User implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int
@@ -4145,8 +4145,8 @@ type Vendor implements CollectiveInterface {
   Get all the members of this collective (admins, members, backers, followers)
   """
   members(
-    limit: Int! = 100
-    offset: Int! = 0
+    limit: Int = 100
+    offset: Int = 0
     type: String
     role: String
     TierId: Int

@@ -795,6 +795,7 @@ export const loaders = req => {
     ),
     hostFeeAmountForTransaction: transactionLoaders.generateHostFeeAmountForTransactionLoader(),
     relatedTransactions: transactionLoaders.generateRelatedTransactionsLoader(),
+    oppositeTransaction: transactionLoaders.generateOppositeTransactionLoader(),
     balanceById: new DataLoader(async transactionIds => {
       const transactionBalances = await sequelize.query(
         ` SELECT      id, balance

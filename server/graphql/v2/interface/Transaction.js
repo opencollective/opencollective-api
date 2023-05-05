@@ -204,6 +204,10 @@ const transactionFieldsDefinition = () => ({
   refundTransaction: {
     type: Transaction,
   },
+  oppositeTransaction: {
+    type: Transaction,
+    description: 'The opposite transaction (CREDIT -> DEBIT, DEBIT -> CREDIT)',
+  },
   relatedTransactions: {
     type: new GraphQLNonNull(new GraphQLList(Transaction)),
     args: {
@@ -532,6 +536,13 @@ export const TransactionFields = () => {
         } else {
           return null;
         }
+      },
+    },
+    oppositeTransaction: {
+      type: Transaction,
+      description: 'The opposite transaction (CREDIT -> DEBIT, DEBIT -> CREDIT)',
+      resolve(transaction, _, req) {
+        return req.loaders.Transaction.oppositeTransaction.load(transaction);
       },
     },
     relatedTransactions: {
