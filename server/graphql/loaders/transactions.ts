@@ -69,26 +69,3 @@ export const generateRelatedTransactionsLoader = (): DataLoader<
       cacheKeyFn: transaction => transaction.id,
     },
   );
-
-export const generateOppositeTransactionLoader = (): DataLoader<typeof models.Transaction, typeof models.Transaction> =>
-  new DataLoader(
-    async (transactions: (typeof models.Transaction)[]) => {
-      const allConditions = transactions.map(transaction => ({
-        TransactionGroup: transaction.TransactionGroup,
-        type: transaction.type === 'CREDIT' ? 'DEBIT' : 'CREDIT',
-        kind: transaction.kind,
-        isDebt: transaction.isDebt,
-      }));
-
-      const oppositeTransactions = await models.Transaction.findAll({ where: { [Op.or]: allConditions } });
-      const getKey = t => `${t.TransactionGroup}-${t.type}-${t.kind}-${Boolean(t.isDebt)}`;
-      const groupedTransactions = groupBy(oppositeTransactions, getKey);
-      return allConditions.map(transactionConditions => {
-        const key = getKey(transactionConditions);
-        return groupedTransactions[key]?.[0] || null;
-      });
-    },
-    {
-      cacheKeyFn: transaction => transaction.id,
-    },
-  );

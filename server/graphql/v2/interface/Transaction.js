@@ -541,8 +541,11 @@ export const TransactionFields = () => {
     oppositeTransaction: {
       type: Transaction,
       description: 'The opposite transaction (CREDIT -> DEBIT, DEBIT -> CREDIT)',
-      resolve(transaction, _, req) {
-        return req.loaders.Transaction.oppositeTransaction.load(transaction);
+      async resolve(transaction, _, req) {
+        const relatedTransactions = await req.loaders.Transaction.relatedTransactions.load(transaction);
+        return relatedTransactions.find(
+          t => t.kind === transaction.kind && t.isDebt === transaction.isDebt && t.type !== transaction.type,
+        );
       },
     },
     relatedTransactions: {
