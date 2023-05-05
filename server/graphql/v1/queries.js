@@ -66,6 +66,7 @@ const queries = {
 
   Tier: {
     type: TierType,
+    deprecationReason: '2023-05-04: Please use GraphQL V2',
     args: {
       id: { type: new GraphQLNonNull(GraphQLInt) },
     },
@@ -114,6 +115,7 @@ const queries = {
    */
   TransactionInvoice: {
     type: InvoiceType,
+    deprecationReason: '2023-05-04: Please fetch transactions with GraphQL v2',
     args: {
       transactionUuid: {
         type: new GraphQLNonNull(GraphQLString),
@@ -565,6 +567,7 @@ const queries = {
    */
   allCollectiveTags: {
     type: new GraphQLList(GraphQLString),
+    deprecationReason: '2023-05-04: Please use `tagStats` on GraphQL V2 instead',
     resolve: rawQueries.getUniqueCollectiveTags,
   },
 
@@ -736,6 +739,7 @@ const queries = {
 
   memberInvitations: {
     type: new GraphQLList(MemberInvitationType),
+    deprecationReason: '2023-05-04: Please use GraphQL V2',
     description: '[AUTHENTICATED] Returns the pending invitations',
     args: {
       CollectiveId: { type: GraphQLInt },
@@ -779,6 +783,7 @@ const queries = {
    */
   allEvents: {
     type: new GraphQLList(CollectiveInterfaceType),
+    deprecationReason: '2023-05-04: Please use GraphQL V2',
     args: {
       slug: { type: GraphQLString, description: 'Slug of the parent collective' },
       limit: { type: GraphQLInt },
