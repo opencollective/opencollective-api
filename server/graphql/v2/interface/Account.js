@@ -88,7 +88,7 @@ const accountFieldsDefinition = () => ({
       }
       if (
         !canSeeLegalName(req.remoteUser, account) &&
-        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, account.id)
+        !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, account.id)
       ) {
         return null;
       } else if (account.isIncognito) {

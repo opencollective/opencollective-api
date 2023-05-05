@@ -1,5 +1,7 @@
 import { GraphQLObjectType, GraphQLString } from 'graphql';
 
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
+import { checkScope } from '../../common/scope-check';
 import { Account, AccountFields } from '../interface/Account';
 import { AccountWithContributions, AccountWithContributionsFields } from '../interface/AccountWithContributions';
 
@@ -27,8 +29,12 @@ export const Organization = new GraphQLObjectType({
             - Hosts can see the address of organizations submitting expenses to their collectives.
         `,
         async resolve(organization, _, req) {
-          const canSeeLocation = req.remoteUser?.isAdmin(organization.id) || (await organization.isHost());
           const location = await req.loaders.Location.byCollectiveId.load(organization.id);
+          const canSeeLocation =
+            (await organization.isHost()) ||
+            (checkScope(req, 'account') &&
+              (req.remoteUser?.isAdmin(organization.id) ||
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, organization.id)));
 
           if (canSeeLocation) {
             return location;

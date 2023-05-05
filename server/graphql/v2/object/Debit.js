@@ -17,7 +17,7 @@ export const Debit = new GraphQLObjectType({
         resolve(transaction, _, req) {
           if (transaction.CollectiveId) {
             if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
-              allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, transaction.CollectiveId);
+              allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.CollectiveId);
             }
 
             return req.loaders.Collective.byId.load(transaction.CollectiveId);

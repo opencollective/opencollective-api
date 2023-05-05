@@ -167,7 +167,7 @@ const queries = {
 
       // Check permissions
       if (req.remoteUser.isAdminOfCollective(host) || (await canDownloadInvoice(transaction, null, req))) {
-        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, fromCollectiveId);
+        allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, fromCollectiveId);
         allowContextPermission(req, PERMISSION_TYPE.SEE_PAYOUT_METHOD_DETAILS, fromCollectiveId);
       } else {
         throw new Forbidden('You are not allowed to download this receipt');

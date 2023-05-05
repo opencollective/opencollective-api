@@ -3,6 +3,7 @@ import { GraphQLBoolean, GraphQLNonNull, GraphQLObjectType, GraphQLString } from
 import { types as collectiveTypes } from '../../../constants/collectives';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication';
 import models from '../../../models';
+import { getContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { checkScope } from '../../common/scope-check';
 import { hasSeenLatestChangelogEntry } from '../../common/user';
 import { OAuthAuthorizationCollection } from '../collection/OAuthAuthorizationCollection';
@@ -73,8 +74,12 @@ export const Individual = new GraphQLObjectType({
             - Hosts can see the address of users submitting expenses to their collectives
         `,
         async resolve(individual, _, req) {
-          const isHost = await individual.isHost();
-          const canSeeLocation = isHost || (req.remoteUser?.isAdmin(individual.id) && checkScope(req, 'account'));
+          const canSeeLocation =
+            (await individual.isHost()) ||
+            (checkScope(req, 'account') &&
+              (req.remoteUser?.isAdmin(individual.id) ||
+                getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, individual.id)));
+
           if (!canSeeLocation) {
             return null;
           }
