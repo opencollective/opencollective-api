@@ -1875,11 +1875,18 @@ class Collective extends Model<
 
     const promises = [];
 
+    // Soft-delete current location
     if (location) {
       promises.push(location.destroy(sequelizeParams));
     }
 
-    if (locationInput) {
+    // Update Collective.countryISO
+    promises.push(this.update({ countryISO: locationInput?.country ?? null }, sequelizeParams));
+
+    // If locationInput has data, create a new location
+    const locationInputHasData = locationInput && Object.keys(omitBy(locationInput, isNil)).length > 0;
+
+    if (locationInputHasData) {
       const { name, country, lat, long } = locationInput;
       let { structured } = locationInput;
       let { address } = locationInput;
@@ -1890,9 +1897,6 @@ class Collective extends Model<
       if (Object.keys(structured).length === 0) {
         structured = null;
       }
-
-      // Set Collective.countryISO
-      await this.update({ countryISO: country }, sequelizeParams);
 
       // Set formatted address
       if (!address) {
