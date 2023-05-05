@@ -944,7 +944,7 @@ const CollectiveFields = () => {
       async resolve(collective, _, req) {
         if (
           !canSeeLegalName(req.remoteUser, collective) &&
-          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, collective.id)
+          !getContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, collective.id)
         ) {
           return null;
         } else if (collective.isIncognito) {

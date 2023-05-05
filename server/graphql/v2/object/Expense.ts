@@ -220,7 +220,7 @@ const Expense = new GraphQLObjectType({
         async resolve(expense, _, req) {
           // Allow users to see account's legal names if they can see expense invoice details
           if (await ExpenseLib.canSeeExpenseInvoiceInfo(req, expense)) {
-            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, expense.FromCollectiveId);
+            allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, expense.FromCollectiveId);
           }
 
           return req.loaders.Collective.byId.load(expense.FromCollectiveId);

@@ -427,7 +427,7 @@ export const TransactionFields = () => {
       description: 'The account on the main side of the transaction (CREDIT -> recipient, DEBIT -> sender)',
       resolve(transaction, _, req) {
         if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
-          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, transaction.CollectiveId);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.CollectiveId);
         }
 
         return req.loaders.Collective.byId.load(transaction.CollectiveId);
@@ -438,7 +438,7 @@ export const TransactionFields = () => {
       description: 'The account on the opposite side of the transaction (CREDIT -> sender, DEBIT -> recipient)',
       resolve(transaction, _, req) {
         if (req.remoteUser?.isAdmin(transaction.HostCollectiveId)) {
-          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_LEGAL_NAME, transaction.FromCollectiveId);
+          allowContextPermission(req, PERMISSION_TYPE.SEE_ACCOUNT_PRIVATE_PROFILE_INFO, transaction.FromCollectiveId);
         }
 
         return req.loaders.Collective.byId.load(transaction.FromCollectiveId);
