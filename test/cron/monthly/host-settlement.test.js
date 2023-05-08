@@ -260,6 +260,10 @@ describe('cron/monthly/host-settlement', () => {
     expect(platformTipsItem).to.have.property('amount', Math.round(1000 / 1.23));
   });
 
+  it('should use our preferred payout bank info despite host currency', () => {
+    expect(gphHostSettlementExpense).to.have.property('PayoutMethodId', 2955);
+  });
+
   it('should invoice pending shared host revenue', async () => {
     const sharedRevenueItem = gphHostSettlementExpense.items.find(p => p.description === 'Shared Revenue');
     const expectedRevenue = Math.round(1600 * 0.15);
