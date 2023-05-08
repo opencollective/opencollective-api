@@ -206,7 +206,13 @@ async function createTransfer(
       : await transferwise.createTransfer(connectedAccount, transferOptions);
 
     await expense.update({
-      data: { ...expense.data, quote: omit(quote, ['paymentOptions']), recipient, transfer, paymentOption },
+      data: {
+        ...expense.data,
+        quote: omit(quote, ['paymentOptions']) as ExpenseDataQuoteV2,
+        recipient,
+        transfer,
+        paymentOption,
+      },
     });
 
     return { quote, recipient, transfer, paymentOption };
@@ -310,12 +316,32 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
   if (collective.currency !== host.currency) {
     throw new Error('Can not batch an expense with a currency different from its host currency');
   }
+  if (!expense.PayoutMethod) {
+    expense.PayoutMethod = await expense.getPayoutMethod();
+  }
 
   const connectedAccount = await host.getAccountForPaymentProvider(providerName);
   const token = await transferwise.getToken(connectedAccount);
+  const [wiseBalances, quote] = await Promise.all([
+    getAccountBalances(connectedAccount),
+    quoteExpense(connectedAccount, expense.PayoutMethod, expense),
+  ]);
+  const balanceInSourceCurrency = wiseBalances.find(b => b.currency === quote.sourceCurrency);
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
+  let totalAmountToPay = quote.sourceAmount;
+  if (batchGroup.transferIds.length > 0) {
+    const batchedExpenses = await models.Expense.findAll({
+      where: { data: { batchGroup: { id: batchGroup.id } } },
+    });
+    totalAmountToPay += batchedExpenses.reduce((total, e) => total + e.data.quote.sourceAmount, 0);
+  }
+  assert(
+    balanceInSourceCurrency.amount.value > totalAmountToPay,
+    `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${totalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
+  );
+
   await createTransfer(connectedAccount, expense.PayoutMethod, expense, {
     batchGroupId: batchGroup.id,
     token,
