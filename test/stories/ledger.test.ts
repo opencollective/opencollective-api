@@ -93,6 +93,12 @@ const setupTestData = async (
   const contributorCollective = await fakeCollective({ name: 'Webpack', HostCollectiveId: host.id });
   const ocInc = await fakeHost({ name: 'OC Inc', id: PLATFORM_TIP_TRANSACTION_PROPERTIES.CollectiveId });
   await fakePayoutMethod({ type: PayoutMethodTypes.OTHER, CollectiveId: ocInc.id }); // For the settlement expense
+  await fakePayoutMethod({
+    type: PayoutMethodTypes.BANK_ACCOUNT,
+    CollectiveId: ocInc.id,
+    data: { currency: 'USD' },
+    isSaved: true,
+  }); // For the settlement expense
   await fakeUser({ id: SETTLEMENT_EXPENSE_PROPERTIES.UserId, name: 'Pia' });
   let FromCollectiveId;
   if (selfContribution) {

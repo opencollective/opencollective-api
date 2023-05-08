@@ -55,6 +55,9 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     }),
     'type',
   );
+  const settlementBankAccountPayoutMethod = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
+    pm => pm.data?.['currency'] === 'USD',
+  );
 
   const hosts = await sequelize.query(
     `
@@ -87,15 +90,17 @@ export async function run(baseDate: Date | moment.Moment = defaultDate): Promise
     let items = [];
 
     const transactions = await sequelize.query(
-      `SELECT t.*
-FROM "Transactions" as t
-INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
-WHERE t."CollectiveId" = :CollectiveId
-AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
-AND t."isDebt" IS TRUE
-AND t."deletedAt" IS NULL
-AND ts."status" = 'OWED'
-AND t."createdAt" < :endDate`,
+      `
+      SELECT t.*
+      FROM "Transactions" as t
+      INNER JOIN "TransactionSettlements" ts ON ts."TransactionGroup" = t."TransactionGroup" AND t.kind = ts.kind
+      WHERE t."CollectiveId" = :CollectiveId
+        AND t."kind" IN ('PLATFORM_TIP_DEBT', 'HOST_FEE_SHARE_DEBT')
+        AND t."isDebt" IS TRUE
+        AND t."deletedAt" IS NULL
+        AND ts."status" = 'OWED'
+        AND t."createdAt" < :endDate
+      `,
       {
         replacements: { CollectiveId: host.id, endDate: endDate },
         model: models.Transaction,
@@ -147,52 +152,47 @@ AND t."createdAt" < :endDate`,
       } (${host.currency})`,
     );
 
+    const connectedAccounts = await host.getConnectedAccounts({
+      where: { deletedAt: null },
+    });
+
+    let payoutMethod = payoutMethods[PayoutMethodTypes.OTHER]?.[0] || settlementBankAccountPayoutMethod;
+    if (connectedAccounts?.find(c => c.service === 'transferwise') && settlementBankAccountPayoutMethod) {
+      payoutMethod = settlementBankAccountPayoutMethod;
+    } else if (
+      connectedAccounts?.find(c => c.service === 'paypal') &&
+      !host.settings?.disablePaypalPayouts &&
+      payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
+    ) {
+      payoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
+    }
+
+    if (!payoutMethod) {
+      console.error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
+      reportMessageToSentry('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
+      process.exit();
+    }
+
+    const transactionIds = transactions.map(t => t.id);
+    const expenseData = {
+      ...SETTLEMENT_EXPENSE_PROPERTIES,
+      PayoutMethodId: payoutMethod.id,
+      amount: totalAmountCharged,
+      CollectiveId: host.id,
+      currency: host.currency,
+      description: `Platform settlement for ${momentDate.utc().format('MMMM')}`,
+      incurredAt: today.toDate(),
+      // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
+      data: { isPlatformTipSettlement: true, transactionIds },
+      type: expenseTypes.SETTLEMENT,
+      status: expenseStatus.PENDING,
+    };
     if (DRY) {
+      console.debug(`Expense:\n${JSON.stringify(expenseData, null, 2)}`);
       console.debug(`Items:\n${json2csv(items)}\n`);
     } else {
-      const connectedAccounts = await host.getConnectedAccounts({
-        where: { deletedAt: null },
-      });
-
-      let payoutMethod =
-        payoutMethods[PayoutMethodTypes.OTHER]?.[0] || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
-      if (
-        connectedAccounts?.find(c => c.service === 'transferwise') &&
-        payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0]
-      ) {
-        const currencyCompatibleAccount = payoutMethods[PayoutMethodTypes.BANK_ACCOUNT].find(
-          pm => pm.data?.['currency'] === host.currency,
-        );
-        payoutMethod = currencyCompatibleAccount || payoutMethods[PayoutMethodTypes.BANK_ACCOUNT]?.[0];
-      } else if (
-        connectedAccounts?.find(c => c.service === 'paypal') &&
-        !host.settings?.disablePaypalPayouts &&
-        payoutMethods[PayoutMethodTypes.PAYPAL]?.[0]
-      ) {
-        payoutMethod = payoutMethods[PayoutMethodTypes.PAYPAL]?.[0];
-      }
-
-      if (!payoutMethod) {
-        console.error('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
-        reportMessageToSentry('No Payout Method found, Open Collective Inc. needs to have at least one payout method.');
-        process.exit();
-      }
-
       // Create the Expense
-      const transactionIds = transactions.map(t => t.TransactionId);
-      const expense = await models.Expense.create({
-        ...SETTLEMENT_EXPENSE_PROPERTIES,
-        PayoutMethodId: payoutMethod.id,
-        amount: totalAmountCharged,
-        CollectiveId: host.id,
-        currency: host.currency,
-        description: `Platform settlement for ${momentDate.utc().format('MMMM')}`,
-        incurredAt: today.toDate(),
-        // isPlatformTipSettlement is deprecated but we keep it for now, we should rely on type=SETTLEMENT
-        data: { isPlatformTipSettlement: true, transactionIds },
-        type: expenseTypes.SETTLEMENT,
-        status: expenseStatus.PENDING,
-      });
+      const expense = await models.Expense.create(expenseData);
 
       // Create Expense Items
       items = items.map(i => ({
@@ -200,7 +200,6 @@ AND t."createdAt" < :endDate`,
         ExpenseId: expense.id,
         CreatedByUserId: SETTLEMENT_EXPENSE_PROPERTIES.UserId,
       }));
-
       await models.ExpenseItem.bulkCreate(items);
 
       // Attach CSV
