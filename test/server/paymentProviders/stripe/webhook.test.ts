@@ -835,5 +835,44 @@ describe('webhook', () => {
         payment_method: stripePaymentMethodId,
       });
     });
+
+    it('ignores unknown Stripe payment method type', async () => {
+      const stripePaymentMethodId = randStr('pm_');
+
+      sandbox.stub(stripe.paymentMethods, 'retrieve').resolves({
+        id: stripePaymentMethodId,
+        type: 'link',
+        link: {},
+      });
+
+      await webhook.mandateUpdated({
+        id: 'evt_id',
+        type: 'mandate.updated',
+        object: 'event',
+        api_version: '',
+        livemode: true,
+        request: null,
+        created: 0,
+        pending_webhooks: 0,
+        data: {
+          object: {
+            id: 'mandate_1234',
+            type: 'multi_use',
+            status: 'active',
+            payment_method: stripePaymentMethodId,
+          } as Stripe.Mandate,
+        },
+      });
+
+      const paymentMethod = await models.PaymentMethod.findOne({
+        where: {
+          data: {
+            stripePaymentMethodId,
+          },
+        },
+      });
+
+      expect(paymentMethod).to.not.exist;
+    });
   });
 });
