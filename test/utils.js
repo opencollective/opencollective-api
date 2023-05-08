@@ -157,9 +157,9 @@ export const graphqlQuery = async (query, variables, remoteUser, schema = schema
     debug('graphql')('context', remoteUser);
   }
 
-  return prepare().then(() =>
+  return prepare().then(async () =>
     graphql({
-      schema,
+      schema: await Promise.resolve(schema),
       source: query,
       rootValue: null,
       contextValue: makeRequest(remoteUser, query, jwtPayload, headers, userToken),

@@ -2877,6 +2877,26 @@ type Host implements Account & AccountWithContributions {
   Returns whether the host has any Stripe in review orders
   """
   hasInReviewOrders: Boolean!
+
+  """
+  Returns agreements created with this Host
+  """
+  agreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+
+    """
+    Accounts participating in the agreement
+    """
+    accounts: [AccountReferenceInput]
+  ): AgreementCollection!
 }
 
 """
@@ -13002,61 +13022,6 @@ type Mutation {
   ): Project
 
   """
-  Add an agreement for the given host account. Scope: "host".
-  """
-  addAgreement(
-    """
-    Agreement title.
-    """
-    title: NonEmptyString!
-
-    """
-    Optional date in which this agreement expires.
-    """
-    expiresAt: DateTime
-
-    """
-    Host where the agreement will be created.
-    """
-    host: AccountReferenceInput!
-
-    """
-    Account that is a party in this agreement
-    """
-    account: AccountReferenceInput!
-  ): Agreement!
-
-  """
-  Edit an agreement for the given host account. Scope: "host".
-  """
-  editAgreement(
-    """
-    Agreement to update.
-    """
-    agreement: AgreementReferenceInput!
-
-    """
-    Host where the agreement will be created.
-    """
-    title: NonEmptyString
-
-    """
-    Optional date in which this agreement expires.
-    """
-    expiresAt: DateTime
-  ): Agreement!
-
-  """
-  Delete an agreement for the given host account. Scope: "host".
-  """
-  deleteAgreement(
-    """
-    Agreement to delete.
-    """
-    agreement: AgreementReferenceInput!
-  ): Agreement!
-
-  """
   Edit the settings for the given account. Scope: "account" or "host".
   """
   editAccountSetting(
@@ -14274,6 +14239,66 @@ type Mutation {
     order: OrderReferenceInput
     expense: ExpenseReferenceInput
   ): TagResponse!
+
+  """
+  Add an agreement for the given host account. Scope: "host".
+  """
+  addAgreement(
+    """
+    Agreement title.
+    """
+    title: NonEmptyString!
+
+    """
+    Optional date in which this agreement expires.
+    """
+    expiresAt: DateTime
+
+    """
+    Host where the agreement will be created.
+    """
+    host: AccountReferenceInput!
+
+    """
+    Account that is a party in this agreement
+    """
+    account: AccountReferenceInput!
+
+    """
+    Agreement attachment
+    """
+    attachment: Upload
+  ): Agreement!
+
+  """
+  Edit an agreement for the given host account. Scope: "host".
+  """
+  editAgreement(
+    """
+    Agreement to update.
+    """
+    agreement: AgreementReferenceInput!
+
+    """
+    Host where the agreement will be created.
+    """
+    title: NonEmptyString
+
+    """
+    Optional date in which this agreement expires.
+    """
+    expiresAt: DateTime
+  ): Agreement!
+
+  """
+  Delete an agreement for the given host account. Scope: "host".
+  """
+  deleteAgreement(
+    """
+    Agreement to delete.
+    """
+    agreement: AgreementReferenceInput!
+  ): Agreement!
 }
 
 """
@@ -14440,23 +14465,6 @@ input ProjectCreateInput {
 }
 
 """
-A string that cannot be passed as an empty value
-"""
-scalar NonEmptyString
-
-input AgreementReferenceInput {
-  """
-  The public id identifying the agreement (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
-  """
-  id: String
-
-  """
-  The internal id of the agreement (ie: 580)
-  """
-  legacyId: Int
-}
-
-"""
 Values that can be edited in Account's settings
 """
 scalar AccountSettingsKey
@@ -14519,6 +14527,11 @@ input PoliciesCollectiveMinimumAdminsInput {
 type SendMessageResult {
   success: Boolean
 }
+
+"""
+A string that cannot be passed as an empty value
+"""
+scalar NonEmptyString
 
 """
 Input type for Application
@@ -15936,4 +15949,21 @@ input SocialLinkInput {
 type TagResponse {
   order: Order
   expense: Expense
+}
+
+"""
+The `Upload` scalar type represents a file upload.
+"""
+scalar Upload
+
+input AgreementReferenceInput {
+  """
+  The public id identifying the agreement (ie: dgm9bnk8-0437xqry-ejpvzeol-jdayw5re)
+  """
+  id: String
+
+  """
+  The internal id of the agreement (ie: 580)
+  """
+  legacyId: Int
 }

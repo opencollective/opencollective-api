@@ -6,7 +6,7 @@ import { FileKind } from '../models/UploadedFile';
  * replace this by real DB associations.
  */
 export const FileFieldsDefinition: Record<
-  FileKind,
+  Exclude<FileKind, 'AGREEMENT_ATTACHMENT'>,
   {
     model;
     field: string;
