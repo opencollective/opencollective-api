@@ -330,12 +330,12 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
 
   // Check for any existing Batch Group where status = NEW, create a new one if needed
   const batchGroup = await getOrCreateActiveBatch(host, { connectedAccount, token });
-  let totalAmountToPay = quote.sourceAmount;
+  let totalAmountToPay = quote.paymentOption.sourceAmount;
   if (batchGroup.transferIds.length > 0) {
     const batchedExpenses = await models.Expense.findAll({
       where: { data: { batchGroup: { id: batchGroup.id } } },
     });
-    totalAmountToPay += batchedExpenses.reduce((total, e) => total + e.data.quote.sourceAmount, 0);
+    totalAmountToPay += batchedExpenses.reduce((total, e) => total + e.data.quote.paymentOption.sourceAmount, 0);
   }
   assert(
     balanceInSourceCurrency.amount.value > totalAmountToPay,
