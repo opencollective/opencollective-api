@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import { loaders } from '../../../../server/graphql/loaders';
-import { expenseAgreementsLoader, taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
+import {
+  generateExpenseAgreementsLoader,
+  taxFormRequiredBeforePayment,
+} from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
 import Agreement from '../../../../server/models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
@@ -401,7 +404,7 @@ describe('server/graphql/loaders/expense', () => {
         title: 'Other Host Agreement with collective',
       });
 
-      const agreements = await expenseAgreementsLoader.loadMany([
+      const agreements = await generateExpenseAgreementsLoader().loadMany([
         expenseNoAgreements.id,
         expenseCollectiveAgreement.id,
         expenseFromCollectiveAgreement.id,

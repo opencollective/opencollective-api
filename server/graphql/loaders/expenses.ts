@@ -138,9 +138,10 @@ export const generateExpensesSecurityCheckLoader = req => {
   );
 };
 
-export const expenseAgreementsLoader = new DataLoader<number, Agreement[]>(async (expenseIds: number[]) => {
-  const results: Agreement[] = await sequelize.query(
-    `
+export const generateExpenseAgreementsLoader = () =>
+  new DataLoader<number, Agreement[]>(async (expenseIds: number[]) => {
+    const results: Agreement[] = await sequelize.query(
+      `
     SELECT e.id as "ExpenseId", a.* FROM
     "Expenses" e
     JOIN "Agreements" a 
@@ -148,14 +149,14 @@ export const expenseAgreementsLoader = new DataLoader<number, Agreement[]>(async
     AND a."CollectiveId" IN (e."CollectiveId", e."FromCollectiveId")
     ORDER by a."createdAt" desc;
   `,
-    {
-      type: sequelize.QueryTypes.SELECT,
-      model: Agreement,
-      replacements: {
-        expenseIds,
+      {
+        type: sequelize.QueryTypes.SELECT,
+        model: Agreement,
+        replacements: {
+          expenseIds,
+        },
       },
-    },
-  );
+    );
 
-  return sortResultsArray(expenseIds, results, result => result.dataValues.ExpenseId, []);
-});
+    return sortResultsArray(expenseIds, results, result => result.dataValues.ExpenseId, []);
+  });
