@@ -61,7 +61,7 @@ describe('server/routes/images', () => {
 
     expect(res.status).to.eq(200);
     expect(res.body.url).to.contain('.png');
-    expect(res.body.url).to.match(/\/account-avatar\/[\w-]{36}\/city.webp/);
+    expect(res.body.url).to.match(/\/account-long-description\/[\w-]{36}\/city.webp/);
     const fetchedFile = await fetch(res.body.url).then(res => res.text());
     expect(fetchedFile).to.equal(originalImage);
   });
