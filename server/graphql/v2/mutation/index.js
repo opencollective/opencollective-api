@@ -39,7 +39,6 @@ const mutation = {
   createFund: createFundMutation,
   createOrganization: createOrganizationMutation,
   createProject: createProjectMutation,
-  ...agreementMutations,
   ...accountMutations,
   ...applicationMutations,
   ...commentMutations,
@@ -68,4 +67,12 @@ const mutation = {
   ...tagMutations,
 };
 
-export default mutation;
+// TODO(ESM): Move this to standard ESM imports once available and remove the promise
+export default new Promise(resolve => {
+  agreementMutations.then(agreementMutations => {
+    resolve({
+      ...mutation,
+      ...agreementMutations,
+    });
+  });
+});

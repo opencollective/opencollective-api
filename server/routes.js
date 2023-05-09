@@ -294,6 +294,10 @@ export default async app => {
     },
   };
 
+  // TODO(ESM): Move this to standard ESM imports once available and remove the promise
+  const { default: graphqlUploadExpress } = await import('graphql-upload/graphqlUploadExpress.mjs');
+  app.use('/graphql', graphqlUploadExpress());
+
   /**
    * GraphQL v1
    */
@@ -310,7 +314,7 @@ export default async app => {
    * GraphQL v2
    */
   const graphqlServerV2 = new ApolloServer({
-    schema: graphqlSchemaV2,
+    schema: await graphqlSchemaV2,
     ...graphqlServerOptions,
   });
 
