@@ -39,12 +39,13 @@ type ImageDataShape = CommonDataShape & {
 // Constants
 export const MAX_FILENAME_LENGTH = 1024; // From S3
 export const MAX_FILE_SIZE = 1024 * 1024 * 10; // 10MB
-export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif'] as const;
+export const SUPPORTED_FILE_TYPES_IMAGES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const;
 export const SUPPORTED_FILE_TYPES = [...SUPPORTED_FILE_TYPES_IMAGES, 'application/pdf'] as const;
 export const SUPPORTED_FILE_EXTENSIONS: Record<SUPPORTED_FILE_TYPES_UNION, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/gif': '.gif',
+  'image/webp': '.webp',
   'application/pdf': '.pdf',
 } as const;
 
