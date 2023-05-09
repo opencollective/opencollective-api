@@ -49,7 +49,7 @@ describe('server/routes/images', () => {
   });
 
   it('should upload a .webp image to S3', async () => {
-    const originalImage = fs.readFileSync(path.join(__dirname, '../../mocks/images/camera.png'), {
+    const originalImage = fs.readFileSync(path.join(__dirname, '../../mocks/images/city.webp'), {
       encoding: 'utf8',
     });
 
