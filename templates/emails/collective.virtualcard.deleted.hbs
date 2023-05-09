@@ -4,6 +4,10 @@ Subject: ⚠ {{{collective.name}}}'s {{virtualCard.last4}} card was deleted
 
 <p style="font-size: 17px; padding: 1em;">
 {{> linkCollective collective=collective}}'s {{virtualCard.name}} ({{virtualCard.last4}}) card was deleted by {{> linkCollective collective=deletedBy}}.
+<br/><br/>
+{{#if hostCollective}}
+Host Collective: {{> linkCollective collective=hostCollective}}
+{{/if}}
 
 {{#if message}}
   {{> linkCollective collective=deletedBy}} included the following message:
@@ -12,10 +16,6 @@ Subject: ⚠ {{{collective.name}}}'s {{virtualCard.last4}} card was deleted
 
 {{#if message}}
 <blockquote style="color: #6a737d;font-size: 16px;text-align: left;padding: 0.5em 0.75em;margin: 0 24px;border-left: 3px solid #e4e4e4;white-space: pre-line;font-style: italic;">{{message}}</blockquote>
-{{/if}}
-
-{{#if hostCollective}}
-  <p>Host Collective: {{> linkCollective collective=hostCollective}}</p>
 {{/if}}
 
 {{> footer}}
