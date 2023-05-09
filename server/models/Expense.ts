@@ -66,6 +66,7 @@ class Expense extends Model<InferAttributes<Expense>, InferCreationAttributes<Ex
   public declare legacyPayoutMethod: 'paypal' | 'manual' | 'donation' | 'other';
 
   public declare status: keyof typeof ExpenseStatus;
+  public declare onHold: boolean;
   public declare type: ExpenseType;
   public declare feesPayer: 'COLLECTIVE' | 'PAYEE';
   public declare tags: string[];
@@ -663,6 +664,11 @@ Expense.init(
       onDelete: 'SET NULL',
       onUpdate: 'CASCADE',
       allowNull: true,
+    },
+
+    onHold: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {

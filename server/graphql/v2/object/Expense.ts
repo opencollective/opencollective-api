@@ -1,4 +1,12 @@
-import { GraphQLFloat, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick, round } from 'lodash';
 
@@ -176,6 +184,10 @@ const Expense = new GraphQLObjectType({
       status: {
         type: new GraphQLNonNull(ExpenseStatus),
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
+      },
+      onHold: {
+        type: new GraphQLNonNull(GraphQLBoolean),
+        description: 'Whether this expense is on hold',
       },
       comments: {
         type: CommentCollection,
