@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { userHasTwoFactorAuthEnabled } from '../../../../server/graphql/loaders/user';
+import { generateUserHasTwoFactorAuthEnabled } from '../../../../server/graphql/loaders/user';
 import { TwoFactorMethod } from '../../../../server/lib/two-factor-authentication';
 import UserTwoFactorMethod from '../../../../server/models/UserTwoFactorMethod';
 import { fakeUser } from '../../../test-helpers/fake-data';
@@ -28,11 +28,8 @@ describe('server/graphql/loaders/user', () => {
         deletedAt: new Date(),
       });
 
-      const results = await userHasTwoFactorAuthEnabled.loadMany([
-        userWith2FA.id,
-        userWithout2FA.id,
-        userWithDeleted2FA.id,
-      ]);
+      const loader = generateUserHasTwoFactorAuthEnabled();
+      const results = await loader.loadMany([userWith2FA.id, userWithout2FA.id, userWithDeleted2FA.id]);
       expect(results).to.eql([true, false, false]);
     });
   });
