@@ -1021,6 +1021,11 @@ interface Transaction {
   permissions: TransactionPermissions
   isOrderRejected: Boolean!
   refundTransaction: Transaction
+
+  """
+  The opposite transaction (CREDIT -> DEBIT, DEBIT -> CREDIT)
+  """
+  oppositeTransaction: Transaction
   relatedTransactions(
     """
     Filter by kind
@@ -6500,6 +6505,11 @@ type Credit implements Transaction {
   permissions: TransactionPermissions!
   isOrderRejected: Boolean!
   refundTransaction: Transaction
+
+  """
+  The opposite transaction (CREDIT -> DEBIT, DEBIT -> CREDIT)
+  """
+  oppositeTransaction: Transaction
   relatedTransactions(
     """
     Filter by kind
@@ -6608,6 +6618,11 @@ type Debit implements Transaction {
   permissions: TransactionPermissions!
   isOrderRejected: Boolean!
   refundTransaction: Transaction
+
+  """
+  The opposite transaction (CREDIT -> DEBIT, DEBIT -> CREDIT)
+  """
+  oppositeTransaction: Transaction
   relatedTransactions(
     """
     Filter by kind
@@ -13729,7 +13744,7 @@ type Mutation {
   """
   Creates a Stripe payment intent
   """
-  createPaymentIntent(paymentIntent: PaymentIntentInput!): PaymentIntent!
+  createPaymentIntent(paymentIntent: PaymentIntentInput!, guestInfo: GuestInfoInput): PaymentIntent!
 
   """
   To submit a new order. Scope: "orders".

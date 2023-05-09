@@ -220,7 +220,7 @@ export default async app => {
       onReject: [logRejection],
       ignoreIntrospection: true,
       propagateOnRejection: false,
-      maxCost: 10000, // Currently identified max: around 7500 on expense form
+      maxCost: 12500, // Currently identified max: around 10000 on the PDF service (transaction receipt), around 7500 on expense form
     },
     // Tokens are the number of fields in a query
     maxTokens: {
