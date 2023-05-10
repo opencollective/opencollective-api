@@ -104,7 +104,7 @@
     "moment": "2.29.4",
     "moment-timezone": "0.5.43",
     "multer": "1.4.4",
-    "node-fetch": "2.6.10",
+    "node-fetch": "2.6.11",
     "node-slack": "0.0.7",
     "nodemailer": "6.9.1",
     "p-queue": "6.6.2",
