@@ -30,8 +30,7 @@ module.exports = {
     await queryInterface.sequelize.query(
       buildQuery({
         type: 'CREDIT',
-        newAmountInHostCurrency: '"amountInHostCurrency" - ("taxAmount" * "hostCurrencyFxRate")',
-        newAmount: '"amount" - "taxAmount"',
+        newNetAmountInCollectiveCurrency: '"netAmountInCollectiveCurrency" + "taxAmount"',
       }),
     );
 
@@ -39,7 +38,8 @@ module.exports = {
     await queryInterface.sequelize.query(
       buildQuery({
         type: 'DEBIT',
-        newNetAmountInCollectiveCurrency: '"netAmountInCollectiveCurrency" + "taxAmount"',
+        newAmount: '"amount" - "taxAmount"',
+        newAmountInHostCurrency: '"amountInHostCurrency" - ("taxAmount" * "hostCurrencyFxRate")',
       }),
     );
   },

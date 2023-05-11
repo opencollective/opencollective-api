@@ -16,6 +16,7 @@ const program = new Command()
   .option('--data <dataKey>', 'Filter by data, ex: --data myFieldInData')
   .option('--group <transactionGroup>', 'Filter by transaction group')
   .option('--id <transactionIds>', 'Filter by transaction id')
+  .option('--expense <expenseId>', 'Filter by expense id')
   .option('--ignoreOppositeTransaction', 'Do not validate opposite transaction')
   .parse();
 
@@ -28,6 +29,8 @@ const main = async () => {
     where['TransactionGroup'] = uniq(options.group.split(','));
   } else if (options.id) {
     where['id'] = uniq(options.id.split(','));
+  } else if (options.expense) {
+    where['ExpenseId'] = options.expense.split(',');
   } else {
     throw new Error('Missing filtering option');
   }
