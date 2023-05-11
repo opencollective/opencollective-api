@@ -1,5 +1,15 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`server/graphql/v2/mutation/ExpenseMutations processExpense MARK_AS_UNPAID Taxes with VAT 1`] = `
+"
+| type   | isRefund | To         | amount   | tax     | netAmountInCollectiveCurrency | currency | amountInHostCurrency | hostCurrency | hostCurrencyFxRate |
+| ------ | -------- | ---------- | -------- | ------- | ----------------------------- | -------- | -------------------- | ------------ | ------------------ |
+| DEBIT  | false    | Collective | -€100.00 | -€20.00 | -€100.00                      | EUR      | -$110.00             | USD          | 1.1                |
+| CREDIT | false    | Payee      | €100.00  | -€20.00 | €100.00                       | EUR      | $110.00              | USD          | 1.1                |
+| DEBIT  | true     | Payee      | -€100.00 | €20.00  | -€100.00                      | EUR      | -$110.00             | USD          | 1.1                |
+| CREDIT | true     | Collective | €100.00  | €20.00  | €100.00                       | EUR      | $110.00              | USD          | 1.1                |"
+`;
+
 exports[`server/graphql/v2/mutation/ExpenseMutations processExpense PAY Multi-currency expense Pays the expense manually 1`] = `
 "
 | type   | amount | netAmountInCollectiveCurrency | paymentFee | currency | hostCurrency | hostCurrencyFxRate | To    | From  | Host | isRefund |

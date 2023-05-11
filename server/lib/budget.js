@@ -74,7 +74,7 @@ export async function getBalanceAmount(
     result = results[collective.id];
   }
 
-  // There is no guaranteee on the currency of the result, so we have to convert to whatever we need
+  // There is no guarantee on the currency of the result, so we have to convert to whatever we need
   const fxRate = await getFxRate(result.currency, currency);
   return {
     value: Math.round(result.value * fxRate),

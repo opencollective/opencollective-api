@@ -16,6 +16,7 @@ const program = new Command()
   .option('--data <dataKey>', 'Filter by data, ex: --data myFieldInData')
   .option('--group <transactionGroup>', 'Filter by transaction group')
   .option('--id <transactionIds>', 'Filter by transaction id')
+  .option('--ignoreOppositeTransaction', 'Do not validate opposite transaction')
   .parse();
 
 const main = async () => {
@@ -25,27 +26,31 @@ const main = async () => {
     where['data'] = { [options.data]: { [Op.ne]: null } };
   } else if (options.group) {
     where['TransactionGroup'] = uniq(options.group.split(','));
-  } else if (options.ids) {
-    where['id'] = uniq(program.args[0].split(','));
+  } else if (options.id) {
+    where['id'] = uniq(options.id.split(','));
   } else {
     throw new Error('Missing filtering option');
   }
 
-  const transactions = await models.Transaction.findAll({ where });
+  const transactions = await models.Transaction.findAll({ where, order: [['id', 'ASC']] });
   if (!transactions.length) {
     console.log('No transaction to validate');
     return;
   }
 
+  let nbInvalid = 0;
   for (const transaction of transactions) {
     try {
-      await models.Transaction.validate(transaction);
+      await models.Transaction.validate(transaction, {
+        validateOppositeTransaction: !options.ignoreOppositeTransaction,
+      });
     } catch (e) {
-      console.error(`Transaction #${transaction.id} is invalid: ${e.message}`);
+      console.error(`${transaction.type} Transaction #${transaction.id} is invalid: ${e.message}`);
+      nbInvalid++;
     }
   }
 
-  console.log(`Done! Validated ${transactions.length} transactions`);
+  console.log(`Done! Validated ${transactions.length} transactions. ${nbInvalid} invalid detected.`);
 };
 
 // Only run script if called directly (to allow unit tests)
