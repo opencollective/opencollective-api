@@ -10,6 +10,9 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     UNAPPROVE: {
       description: 'To mark the expense as pending after it has been approved',
     },
+    REQUEST_RE_APPROVAL: {
+      description: 'To request re-approval of the expense, marking it as pending.',
+    },
     REJECT: {
       description: 'To mark the expense as rejected',
     },

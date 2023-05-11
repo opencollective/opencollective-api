@@ -27,6 +27,7 @@ import {
   markExpenseAsUnpaid,
   payExpense,
   rejectExpense,
+  requestExpenseReApproval,
   scheduleExpenseForPayment,
   unapproveExpense,
   unscheduleExpensePayment,
@@ -277,6 +278,9 @@ const expenseMutations = {
           break;
         case 'UNAPPROVE':
           expense = await unapproveExpense(req, expense);
+          break;
+        case 'REQUEST_RE_APPROVAL':
+          expense = await requestExpenseReApproval(req, expense);
           break;
         case 'MARK_AS_INCOMPLETE':
           expense = await markExpenseAsIncomplete(req, expense);
