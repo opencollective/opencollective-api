@@ -340,7 +340,7 @@ export const chargeDisputeCreated = async (event: Stripe.Event) => {
   });
 
   // Block User from creating any new Orders
-  await user.limitFeature(FEATURE.ORDER);
+  await user.limitFeature(FEATURE.ORDER, `Charge disputed for transaction #${chargeTransaction}`);
 
   await Promise.all(
     transactions.map(async transaction => {
@@ -606,7 +606,10 @@ export const reviewClosed = async (event: Stripe.Event) => {
 
       // charge review was determined to be fraudulent
       if (closedReason === 'refunded_as_fraud') {
-        await user.limitFeature(FEATURE.ORDER);
+        await user.limitFeature(
+          FEATURE.ORDER,
+          `Transactions for group #${paymentIntentTransaction.TransactionGroup} refunded as fraud`,
+        );
       } else if (closedReason === 'refunded') {
         await Promise.all(
           transactions.map(async transaction => {

@@ -287,14 +287,17 @@ class User extends Model<InferAttributes<User>, InferCreationAttributes<User>> {
    * Limit the user account, preventing a specific feature
    * @param feature:the feature to limit. See `server/constants/feature.ts`.
    */
-  limitFeature = async function (feature) {
+  limitFeature = async function (feature, reason) {
     const features = get(this.data, 'features', {});
+    const limitReasons = get(this.data, 'limitReasons') || [];
+
     features[feature] = false;
+    limitReasons.push({ date: new Date().toISOString(), feature, reason });
 
     logger.info(`Limiting feature ${feature} for user account ${this.id}`);
 
     this.changed('data', true);
-    this.data = { ...this.data, features };
+    this.data = { ...this.data, features, limitReasons };
     return this.save();
   };
 

@@ -832,7 +832,7 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
 
     it('returns an error if the feature is blocked for user', async () => {
       const userWithoutContact = await fakeUser();
-      await userWithoutContact.limitFeature(FEATURE.CONTACT_COLLECTIVE);
+      await userWithoutContact.limitFeature(FEATURE.CONTACT_COLLECTIVE, 'Sent spam');
 
       const result = await graphqlQueryV2(
         sendMessageMutation,
@@ -847,6 +847,13 @@ describe('server/graphql/v2/mutation/AccountMutations', () => {
       expect(result.errors[0].message).to.equal(
         'You are not authorized to contact Collectives. Please contact support@opencollective.com if you think this is an error.',
       );
+
+      // Stores the reason
+      await userWithoutContact.reload();
+      const limitReasons = userWithoutContact.data.limitReasons as Array<Record<string, unknown>>;
+      expect(limitReasons.length).to.eq(1);
+      expect(limitReasons[0].reason).to.eq('Sent spam');
+      expect(limitReasons[0].feature).to.eq('CONTACT_COLLECTIVE');
     });
 
     it('returns an error if the message is invalid', async () => {
