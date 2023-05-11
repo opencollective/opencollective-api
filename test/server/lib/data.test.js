@@ -17,18 +17,22 @@ describe('server/lib/data', () => {
 
   it('returns correct results', () => {
     const existingEntries = [
-      simulateModel({ id: 1, msg: 'I am 1' }),
-      simulateModel({ id: 2, msg: 'I am 2' }),
-      simulateModel({ id: 3, msg: 'I am 3' }),
+      simulateModel({ id: 1, msg: 'I am 1', date: new Date('2023-05-11T12:35:10.529Z') }),
+      simulateModel({ id: 2, msg: 'I am 2', date: new Date('2023-05-11T12:35:10.529Z') }),
+      simulateModel({ id: 3, msg: 'I am 3', date: new Date('2023-05-11T12:35:10.529Z') }),
     ];
-    const newEntries = [{ id: 1, msg: 'I am 1 edited' }, { id: 2, msg: 'I am 2' }, { msg: 'I am the new one!' }];
+    const newEntries = [
+      { id: 1, msg: 'I am 1 edited', date: new Date('2023-05-11T12:35:10.529Z') },
+      { id: 2, msg: 'I am 2', date: new Date('2023-05-11T12:35:10.529Z') },
+      { msg: 'I am the new one!', date: new Date('2023-05-11T12:35:10.529Z') },
+    ];
     const diffFields = ['msg'];
 
     const [toCreate, toRemove, toUpdate] = diffDBEntries(existingEntries, newEntries, diffFields);
 
-    expect(toCreate).to.eql([{ msg: 'I am the new one!' }]);
+    expect(toCreate).to.eql([{ msg: 'I am the new one!', date: new Date('2023-05-11T12:35:10.529Z') }]);
     expect(toRemove).to.eql([existingEntries[2]]);
-    expect(toUpdate).to.eql([{ id: 1, msg: 'I am 1 edited' }]);
+    expect(toUpdate).to.eql([{ id: 1, msg: 'I am 1 edited', date: new Date('2023-05-11T12:35:10.529Z') }]);
   });
 
   it('throws if we try to update an unexisting entry', () => {
