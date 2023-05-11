@@ -747,7 +747,7 @@ export const markExpenseAsSpam = async (req: express.Request, expense: Expense):
 
   // Limit the user so they can't submit expenses in the future
   const submittedByUser = await updatedExpense.getSubmitterUser();
-  await submittedByUser.limitFeature(FEATURE.USE_EXPENSES);
+  await submittedByUser.limitFeature(FEATURE.USE_EXPENSES, `Expense #${expense.id} marked as SPAM`);
 
   // Cancel recurring expense
   const recurringExpense = await expense.getRecurringExpense();
