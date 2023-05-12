@@ -7,6 +7,7 @@ import expenseType from '../../constants/expense_type';
 import models, { Op, sequelize } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 
 export enum Scope {
   USER = 'USER',
@@ -39,8 +40,12 @@ const setProperty = (obj, key) => value => {
 
 type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; CollectiveId: number };
 
-const addBooleanCheck = (checks, condition: boolean, ifTrue: SecurityCheck, ifFalse?: SecurityCheck) =>
-  condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null;
+const addBooleanCheck = (
+  checks: Array<SecurityCheck>,
+  condition: boolean,
+  ifTrue: SecurityCheck,
+  ifFalse?: SecurityCheck,
+) => (condition ? checks.push(ifTrue) : ifFalse ? checks.push(ifFalse) : null);
 
 const getTimeWindowFromDate = (
   date: moment.MomentInput,
@@ -267,6 +272,7 @@ export const checkExpensesBatch = async (
         });
       }
 
+      // Add checks on payout method
       if (
         expense.PayoutMethod &&
         [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(expense.PayoutMethod?.type)
@@ -293,6 +299,16 @@ export const checkExpensesBatch = async (
             ).join(', ')}. This may be a sock puppet account.`,
           });
         }
+      }
+
+      // Add check for tax form
+      if (expenseMightBeSubjectToTaxForm(expense)) {
+        addBooleanCheck(checks, await req.loaders.Expense.taxFormRequiredBeforePayment.load(expense.id), {
+          scope: Scope.PAYEE,
+          level: Level.MEDIUM,
+          message: `Pending required legal documents`,
+          details: `Expense is pending a US tax form (W9/W8-BEN)`,
+        });
       }
 
       return checks;

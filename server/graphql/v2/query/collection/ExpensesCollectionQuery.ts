@@ -6,10 +6,9 @@ import { OrderItem } from 'sequelize';
 
 import { expenseStatus } from '../../../../constants';
 import { types as CollectiveType } from '../../../../constants/collectives';
-import { TAX_FORM_IGNORED_EXPENSE_TYPES } from '../../../../constants/tax-form';
 import { getBalances } from '../../../../lib/budget';
-import queries from '../../../../lib/queries';
 import { buildSearchConditions } from '../../../../lib/search';
+import { expenseMightBeSubjectToTaxForm } from '../../../../lib/tax-forms';
 import models, { Op, sequelize } from '../../../../models';
 import { PayoutMethodTypes } from '../../../../models/PayoutMethod';
 import { validateExpenseCustomData } from '../../../common/expenses';
@@ -23,7 +22,7 @@ import { AccountReferenceInput, fetchAccountWithReference } from '../../input/Ac
 import { CHRONOLOGICAL_ORDER_INPUT_DEFAULT_VALUE, ChronologicalOrderInput } from '../../input/ChronologicalOrderInput';
 import { CollectionArgs, CollectionReturnType } from '../../interface/Collection';
 
-const updateFilterConditionsForReadyToPay = async (where, include, host): Promise<void> => {
+const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
 
   // Get all collectives matching the search that have APPROVED expenses
@@ -43,7 +42,7 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
   });
 
   // Check tax forms
-  let expensesIdsPendingTaxForms = new Set();
+  const expensesIdsPendingTaxForms = new Set();
   let checkTaxForms = true;
 
   // No need to trigger the full query if the host doesn't have any tax forms requirement
@@ -53,10 +52,16 @@ const updateFilterConditionsForReadyToPay = async (where, include, host): Promis
   }
 
   if (checkTaxForms) {
-    const expensesSubjectToTaxForm = expenses.filter(e => !TAX_FORM_IGNORED_EXPENSE_TYPES.includes(e.type));
+    const expensesSubjectToTaxForm = expenses.filter(expenseMightBeSubjectToTaxForm);
     if (expensesSubjectToTaxForm.length > 0) {
-      const expensesIdsSubjectToTaxForm = expensesSubjectToTaxForm.map(expense => expense.id);
-      expensesIdsPendingTaxForms = await queries.getTaxFormsRequiredForExpenses(expensesIdsSubjectToTaxForm);
+      const expenseIds = expensesSubjectToTaxForm.map(expense => expense.id);
+      const requiredLegalDocs = await loaders.Expense.taxFormRequiredBeforePayment.loadMany(expenseIds);
+      for (let i = 0; i < requiredLegalDocs.length; i++) {
+        if (requiredLegalDocs[i]) {
+          expensesIdsPendingTaxForms.add(expenseIds[i]);
+        }
+      }
+
       where[Op.and].push({ id: { [Op.notIn]: Array.from(expensesIdsPendingTaxForms) } });
     }
   }
@@ -286,7 +291,7 @@ const ExpensesCollectionQuery = {
       if (args.status !== 'READY_TO_PAY') {
         where['status'] = args.status;
       } else {
-        await updateFilterConditionsForReadyToPay(where, include, host);
+        await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
       }
     } else {
       if (req.remoteUser) {

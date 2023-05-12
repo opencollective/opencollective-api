@@ -4,8 +4,13 @@ import HelloWorks from 'helloworks-sdk';
 import { truncate } from 'lodash';
 
 import { activities } from '../constants';
-import { US_TAX_FORM_THRESHOLD, US_TAX_FORM_THRESHOLD_FOR_PAYPAL } from '../constants/tax-form';
-import models, { Collective, Op, sequelize } from '../models';
+import {
+  TAX_FORM_IGNORED_EXPENSE_STATUSES,
+  TAX_FORM_IGNORED_EXPENSE_TYPES,
+  US_TAX_FORM_THRESHOLD,
+  US_TAX_FORM_THRESHOLD_FOR_PAYPAL,
+} from '../constants/tax-form';
+import models, { Collective, Expense, Op, sequelize } from '../models';
 import {
   LEGAL_DOCUMENT_REQUEST_STATUS,
   LEGAL_DOCUMENT_TYPE,
@@ -237,4 +242,11 @@ export async function sendHelloWorksUsTaxForm(
 
 export const amountsRequireTaxForm = (paypalTotal: number, otherTotal: number): boolean => {
   return otherTotal >= US_TAX_FORM_THRESHOLD || paypalTotal >= US_TAX_FORM_THRESHOLD_FOR_PAYPAL;
+};
+
+export const expenseMightBeSubjectToTaxForm = (expense: Expense): boolean => {
+  return (
+    !(TAX_FORM_IGNORED_EXPENSE_TYPES as readonly string[]).includes(expense.type) &&
+    !(TAX_FORM_IGNORED_EXPENSE_STATUSES as readonly string[]).includes(expense.status)
+  );
 };

@@ -4,6 +4,7 @@ import { pick, round } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
 import models, { Op } from '../../../models';
+import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
 import { CommentCollection } from '../collection/CommentCollection';
@@ -348,8 +349,10 @@ const Expense = new GraphQLObjectType({
         async resolve(expense, _, req) {
           if (!(await ExpenseLib.canViewRequiredLegalDocuments(req, expense))) {
             return null;
+          } else if (await req.loaders.Expense.taxFormRequiredBeforePayment.load(expense.id)) {
+            return [LEGAL_DOCUMENT_TYPE.US_TAX_FORM];
           } else {
-            return req.loaders.Expense.requiredLegalDocuments.load(expense.id);
+            return [];
           }
         },
       },
