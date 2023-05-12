@@ -40,6 +40,7 @@ const activitiesCollectionQuery = gqlV2/* GraphQL */ `
         }
         individual {
           id
+          name
         }
         data
       }
@@ -48,7 +49,7 @@ const activitiesCollectionQuery = gqlV2/* GraphQL */ `
 `;
 
 describe('server/graphql/v2/collection/ActivitiesCollection', () => {
-  let host, collective, childCollective, admin;
+  let host, collective, childCollective, admin, incognitoUser;
 
   before(async () => {
     await resetTestDB();
@@ -56,6 +57,8 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     host = await fakeHost({ admin });
     collective = await fakeCollective({ admin, HostCollectiveId: host.id });
     childCollective = await fakeCollective({ admin, ParentCollectiveId: collective.id, HostCollectiveId: host.id });
+    incognitoUser = await fakeUser(null, { name: 'Public profile' });
+    collective.addUserWithRole(incognitoUser, 'ADMIN');
 
     let date = new Date('2020-01-01');
     const getNextDate = () => {
@@ -64,6 +67,15 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     };
 
     await Promise.all([
+      // Incognito activity
+      fakeActivity({
+        type: ActivityTypes.TICKET_CONFIRMED,
+        CollectiveId: collective.id,
+        HostCollectiveId: host.id,
+        FromCollectiveId: (await incognitoUser.collective.getOrCreateIncognitoProfile()).id,
+        UserId: incognitoUser.id,
+        createdAt: getNextDate(),
+      }),
       // Public collective activities
       fakeActivity({
         type: ActivityTypes.COLLECTIVE_CREATED,
@@ -126,7 +138,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
     const result = await graphqlQueryV2(activitiesCollectionQuery, { account: [{ legacyId: collective.id }] }, admin);
     result.errors && console.error(result.errors);
     expect(result.errors).to.not.exist;
-    expect(result.data.activities.totalCount).to.eq(3);
+    expect(result.data.activities.totalCount).to.eq(4);
     expect(result.data.activities.nodes).to.not.be.null;
     expect(result.data.activities.nodes).to.be.sortedBy('createdAt', { descending: true });
   });
@@ -137,7 +149,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(4);
+      expect(result.data.activities.totalCount).to.eq(5);
       expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
     });
 
@@ -146,7 +158,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(3);
+      expect(result.data.activities.totalCount).to.eq(4);
       expect(result.data.activities.nodes[0]).to.not.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
     });
 
@@ -155,7 +167,7 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
-      expect(result.data.activities.totalCount).to.eq(4);
+      expect(result.data.activities.totalCount).to.eq(5);
       expect(result.data.activities.nodes[0]).to.containSubset({ type: 'COLLECTIVE_CORE_MEMBER_EDITED' });
       expect(result.data.activities.nodes[1]).to.containSubset({ type: 'COLLECTIVE_CONVERSATION_CREATED' });
       expect(result.data.activities.nodes[2]).to.containSubset({ type: 'COLLECTIVE_EXPENSE_UPDATED' });
@@ -195,6 +207,27 @@ describe('server/graphql/v2/collection/ActivitiesCollection', () => {
       result.errors && console.error(result.errors);
       expect(result.errors).to.not.exist;
       expect(result.data.activities.totalCount).to.eq(2);
+    });
+  });
+
+  describe('incognito', () => {
+    it('does not return the profile for admins', async () => {
+      const variables = { account: [{ legacyId: collective.id }], type: 'TICKET_CONFIRMED' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, admin);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(1);
+      expect(result.data.activities.nodes[0].individual).to.be.null;
+    });
+
+    it('does return the profile for self', async () => {
+      const variables = { account: [{ legacyId: collective.id }], type: 'TICKET_CONFIRMED' };
+      const result = await graphqlQueryV2(activitiesCollectionQuery, variables, incognitoUser);
+      result.errors && console.error(result.errors);
+      expect(result.errors).to.not.exist;
+      expect(result.data.activities.totalCount).to.eq(1);
+      expect(result.data.activities.nodes[0].individual).to.exist;
+      expect(result.data.activities.nodes[0].individual.name).to.eq('Public profile');
     });
   });
 });
