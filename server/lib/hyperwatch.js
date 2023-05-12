@@ -58,13 +58,19 @@ const load = async app => {
 
   const expressInput = input.express.create();
 
+  const { success, reject } = expressInput;
+
   app.use((req, res, next) => {
     req.startAt = req.startAt || new Date();
 
     req.mask = computeMask(req);
 
-    res.on('finish', async () => {
-      const { success, reject } = expressInput;
+    const finish = async () => {
+      if (req.finishedAt) {
+        return;
+      }
+
+      req.finishedAt = new Date();
       req.endAt = req.endAt || new Date();
       try {
         const executionTime = req.endAt - req.startAt;
@@ -97,6 +103,16 @@ const load = async app => {
       } catch (err) {
         reject(err);
       }
+    };
+
+    // 30s timeout
+    const finishTimeout = setTimeout(() => {
+      finish();
+    }, 30 * 1000);
+
+    res.on('finish', () => {
+      finish();
+      clearTimeout(finishTimeout);
     });
 
     next();
