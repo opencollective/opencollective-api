@@ -165,7 +165,7 @@ const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promis
   return req.remoteUser.isAdminOfCollective(expense.collective);
 };
 
-const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
+export const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
