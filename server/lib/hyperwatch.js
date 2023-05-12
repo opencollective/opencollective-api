@@ -77,7 +77,7 @@ const load = async app => {
         log = log.deleteIn(['request', 'headers', 'authorization']);
         log = log.deleteIn(['request', 'headers', 'cookie']);
 
-        if (req.body && req.body.query && req.body.variables) {
+        if (req.body && req.body.query) {
           log = log.set('graphql', req.body);
           if (res.servedFromGraphqlCache) {
             log = log.setIn(['graphql', 'servedFromCache'], true);
