@@ -228,11 +228,6 @@ export const buildRefundForTransaction = (t, user, data, refundedPaymentProcesso
   // Re-compute the net amount
   refund.netAmountInCollectiveCurrency = models.Transaction.calculateNetAmountInCollectiveCurrency(refund);
 
-  // If taxes exist on the original transaction, we want to make sure they're refunded as well and not deducted from the net amount
-  if (refund.taxAmount && refund.kind === 'EXPENSE') {
-    refund.netAmountInCollectiveCurrency -= refund.taxAmount;
-  }
-
   return refund;
 };
 

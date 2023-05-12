@@ -109,13 +109,12 @@ const computeExpenseAmounts = async (
 
   // Compute the amounts in the proper currency
   const taxAmount = computeExpenseTaxes(expense);
-  const grossExpenseAmount = expense.amount + (taxAmount || 0); // Tax amount is negative, we remove it from the expense amount to get the gross amount
   return {
     fxRates,
     amount: {
-      inHostCurrency: Math.round(grossExpenseAmount * fxRates.expenseToHost),
-      inCollectiveCurrency: Math.round(grossExpenseAmount * fxRates.expenseToCollective),
-      inExpenseCurrency: grossExpenseAmount,
+      inHostCurrency: Math.round(expense.amount * fxRates.expenseToHost),
+      inCollectiveCurrency: Math.round(expense.amount * fxRates.expenseToCollective),
+      inExpenseCurrency: expense.amount,
     },
     tax: {
       inExpenseCurrency: taxAmount,
@@ -185,8 +184,8 @@ export async function createTransactionsFromPaidExpense(
       (processedAmounts.amount.inCollectiveCurrency +
         processedAmounts.paymentProcessorFee.inCollectiveCurrency +
         processedAmounts.hostFee.inCollectiveCurrency +
-        processedAmounts.platformFee.inCollectiveCurrency), // `processedAmounts.amount` is already the gross amount (with tax amount removed)
-    amountInHostCurrency: -processedAmounts.amount.inHostCurrency,
+        processedAmounts.platformFee.inCollectiveCurrency),
+    amountInHostCurrency: -processedAmounts.amount.inHostCurrency - processedAmounts.tax.inHostCurrency,
     hostCurrency: host.currency,
     hostCurrencyFxRate: processedAmounts.fxRates.collectiveToHost,
     paymentProcessorFeeInHostCurrency: toNegative(paymentProcessorFeeInHostCurrency),
@@ -195,7 +194,7 @@ export async function createTransactionsFromPaidExpense(
     ExpenseId: expense.id,
     type: DEBIT,
     kind: EXPENSE,
-    amount: -processedAmounts.amount.inCollectiveCurrency,
+    amount: -processedAmounts.amount.inCollectiveCurrency - processedAmounts.tax.inCollectiveCurrency,
     currency: expense.collective.currency, // We always record the transaction in the collective currency
     description: expense.description,
     CreatedByUserId: expense.UserId, // TODO: Should be the person who triggered the payment
@@ -239,7 +238,7 @@ export async function createTransactionsForManuallyPaidExpense(
   const grossPaidAmountWithTaxes = toNegative(totalAmountPaidInHostCurrency - paymentProcessorFeeInHostCurrency);
   const grossPaidAmount = Math.round(grossPaidAmountWithTaxes / (1 + taxRate));
   const taxAmountInHostCurrency = grossPaidAmountWithTaxes - grossPaidAmount;
-  const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency + taxAmountInHostCurrency);
+  const netAmountInCollectiveCurrency = toNegative(totalAmountPaidInHostCurrency);
   const amounts = {
     amount: grossPaidAmount,
     amountInHostCurrency: grossPaidAmount,
