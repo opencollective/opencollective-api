@@ -58,8 +58,6 @@ const load = async app => {
 
   const expressInput = input.express.create();
 
-  const { success, reject } = expressInput;
-
   app.use((req, res, next) => {
     req.startAt = req.startAt || new Date();
 
@@ -99,9 +97,9 @@ const load = async app => {
           }
         }
 
-        success(log);
+        expressInput.success(log);
       } catch (err) {
-        reject(err);
+        expressInput.reject(err);
       }
     };
 
