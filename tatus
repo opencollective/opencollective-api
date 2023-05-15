@@ -1,0 +1,76 @@
+[1mdiff --git a/server/lib/sentry.ts b/server/lib/sentry.ts[m
+[1mindex f167921a0..2dfe8dce6 100644[m
+[1m--- a/server/lib/sentry.ts[m
+[1m+++ b/server/lib/sentry.ts[m
+[36m@@ -30,6 +30,7 @@[m [mconst getIntegrations = (expressApp = null): Integration[] => {[m
+ };[m
+ [m
+ const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;[m
+[32m+[m[32mconst MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);[m
+ [m
+ const redactSensitiveDataFromRequest = request => {[m
+   if (!request) {[m
+[36m@@ -223,6 +224,19 @@[m [mexport const reportMessageToSentry = (message: string, params: CaptureErrorParam[m
+   });[m
+ };[m
+ [m
+[32m+[m[32mexport const sentryHandleSlowRequests = (executionTime: number) => {[m
+[32m+[m[32m  const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();[m
+[32m+[m[32m  if (sentryTransaction) {[m
+[32m+[m[32m    if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= MIN_EXECUTION_TIME_TO_SAMPLE) {[m
+[32m+[m[32m      sentryTransaction.setTag('graphql.slow', 'true');[m
+[32m+[m[32m      sentryTransaction.setTag('graphql.executionTime', executionTime);[m
+[32m+[m[32m    } else if (Math.random() > TRACES_SAMPLE_RATE) {[m
+[32m+[m[32m      // GraphQL operations have a default sampling rate of 1, we need to explicitly set it to false if we don't want to sample[m
+[32m+[m[32m      sentryTransaction.sampled = false;[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m[32m};[m
+[32m+[m
+ // GraphQL[m
+ [m
+ const IGNORED_GQL_ERRORS = [[m
+[1mdiff --git a/server/routes.js b/server/routes.js[m
+[1mindex e4abbe4cf..35f962c4e 100644[m
+[1m--- a/server/routes.js[m
+[1m+++ b/server/routes.js[m
+[36m@@ -28,7 +28,13 @@[m [mimport cache from './lib/cache';[m
+ import errors from './lib/errors';[m
+ import logger from './lib/logger';[m
+ import oauth, { authorizeAuthenticateHandler } from './lib/oauth';[m
+[31m-import { HandlerType, reportMessageToSentry, Sentry, SentryGraphQLPlugin } from './lib/sentry';[m
+[32m+[m[32mimport {[m
+[32m+[m[32m  HandlerType,[m
+[32m+[m[32m  reportMessageToSentry,[m
+[32m+[m[32m  Sentry,[m
+[32m+[m[32m  SentryGraphQLPlugin,[m
+[32m+[m[32m  sentryHandleSlowRequests,[m
+[32m+[m[32m} from './lib/sentry';[m
+ import { parseToBoolean } from './lib/utils';[m
+ import * as authentication from './middleware/authentication';[m
+ import errorHandler from './middleware/error_handler';[m
+[36m@@ -247,7 +253,6 @@[m [mexport default async app => {[m
+   }[m
+ [m
+   const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);[m
+[31m-  const minExecutionTimeToSample = parseInt(config.sentry.minExecutionTimeToSample);[m
+ [m
+   const graphqlServerOptions = {[m
+     introspection: true,[m
+[36m@@ -280,15 +285,7 @@[m [mexport default async app => {[m
+       req.res.set('Execution-Time', executionTime);[m
+ [m
+       // Track all slow queries on Sentry performance[m
+[31m-      const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();[m
+[31m-      if (sentryTransaction) {[m
+[31m-        if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= minExecutionTimeToSample) {[m
+[31m-          sentryTransaction.setTag('graphql.slow', 'true');[m
+[31m-          sentryTransaction.setTag('graphql.executionTime', executionTime);[m
+[31m-        } else {[m
+[31m-          sentryTransaction.sampled = false; // GraphQL operations have a default sampling rate of 1, we need to explicitly set it to false[m
+[31m-        }[m
+[31m-      }[m
+[32m+[m[32m      sentryHandleSlowRequests(executionTime);[m
+ [m
+       // This will never happen for logged-in users as cacheKey is not set[m
+       if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {[m

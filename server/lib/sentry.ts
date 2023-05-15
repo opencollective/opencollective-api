@@ -30,6 +30,7 @@ const getIntegrations = (expressApp = null): Integration[] => {
 };
 
 const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
+const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
 
 const redactSensitiveDataFromRequest = request => {
   if (!request) {
@@ -221,6 +222,19 @@ export const reportMessageToSentry = (message: string, params: CaptureErrorParam
   withScopeFromCaptureErrorParams(params, () => {
     Sentry.captureMessage(message, params?.severity || 'error');
   });
+};
+
+export const sentryHandleSlowRequests = (executionTime: number) => {
+  const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+  if (sentryTransaction) {
+    if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= MIN_EXECUTION_TIME_TO_SAMPLE) {
+      sentryTransaction.setTag('graphql.slow', 'true');
+      sentryTransaction.setTag('graphql.executionTime', executionTime);
+      sentryTransaction.sampled = true; // Make sure we always report timeouts and slow requests
+    } else if (Math.random() > TRACES_SAMPLE_RATE) {
+      sentryTransaction.sampled = false; // We explicitly set `sampled` to false if we don't want to sample, to handle cases we're it's forced to `1`
+    }
+  }
 };
 
 // GraphQL
