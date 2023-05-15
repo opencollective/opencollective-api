@@ -189,7 +189,8 @@
     "fetchHostTransactionsCsv": false
   },
   "sentry": {
-    "tracesSampleRate": 0
+    "tracesSampleRate": 0,
+    "minExecutionTimeToSample": 800
   },
   "privacy": {
     "apiUrl": "https://sandbox.privacy.com"

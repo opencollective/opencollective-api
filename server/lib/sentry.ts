@@ -29,40 +29,52 @@ const getIntegrations = (expressApp = null): Integration[] => {
   return integrations;
 };
 
+const TRACES_SAMPLE_RATE = parseFloat(config.sentry.tracesSampleRate) || 0;
+const MIN_EXECUTION_TIME_TO_SAMPLE = parseInt(config.sentry.minExecutionTimeToSample);
+
+const redactSensitiveDataFromRequest = request => {
+  if (!request) {
+    return;
+  }
+
+  // Redact from payload
+  try {
+    const reqBody = JSON.parse(request.data);
+    request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
+  } catch (e) {
+    // request data is not a json
+  }
+
+  // Redact from headers
+  if (request?.headers) {
+    request.headers = utils.redactSensitiveFields(request.headers);
+  }
+};
+
 export const initSentry = (expressApp = null) => {
   Sentry.init({
     beforeSend(event) {
-      // Redact from payload
-      try {
-        const reqBody = JSON.parse(event.request.data);
-        event.request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
-      } catch (e) {
-        // request data is not a json
-      }
-
-      // Redact from headers
-      if (event.request?.headers) {
-        event.request.headers = utils.redactSensitiveFields(event.request.headers);
-      }
-
+      redactSensitiveDataFromRequest(event.request);
       return event;
     },
     beforeSendTransaction(event) {
-      try {
-        const reqBody = JSON.parse(event.request.data);
-        event.request.data = JSON.stringify(utils.redactSensitiveFields(reqBody));
-      } catch (e) {
-        // request data is not a json
-      }
-
+      redactSensitiveDataFromRequest(event.request);
       return event;
     },
     dsn: config.sentry.dsn,
     environment: config.env,
     attachStacktrace: true,
     enabled: config.env !== 'test',
-    tracesSampleRate: parseFloat(config.sentry.tracesSampleRate) || 0,
     integrations: getIntegrations(expressApp),
+    tracesSampler: samplingContext => {
+      if (!samplingContext) {
+        return 0;
+      } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
+        return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
+      } else {
+        return TRACES_SAMPLE_RATE;
+      }
+    },
   });
 };
 
@@ -100,7 +112,7 @@ type CaptureErrorParams = {
   requestPath?: string;
 };
 
-const dbUserToSentryUser = (user: User): Sentry.User => {
+export const dbUserToSentryUser = (user: User): Sentry.User => {
   if (!user) {
     return null;
   } else {
@@ -212,6 +224,19 @@ export const reportMessageToSentry = (message: string, params: CaptureErrorParam
   });
 };
 
+export const sentryHandleSlowRequests = (executionTime: number) => {
+  const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+  if (sentryTransaction) {
+    if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= MIN_EXECUTION_TIME_TO_SAMPLE) {
+      sentryTransaction.setTag('graphql.slow', 'true');
+      sentryTransaction.setTag('graphql.executionTime', executionTime);
+      sentryTransaction.sampled = true; // Make sure we always report timeouts and slow requests
+    } else if (Math.random() > TRACES_SAMPLE_RATE) {
+      sentryTransaction.sampled = false; // We explicitly set `sampled` to false if we don't want to sample, to handle cases we're it's forced to `1`
+    }
+  }
+};
+
 // GraphQL
 
 const IGNORED_GQL_ERRORS = [
@@ -250,7 +275,7 @@ const isIgnoredGQLError = (err): boolean => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart({ request }) {
+  requestDidStart({ request, customTimeout = 30e3 }) {
     const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
     let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
     if (transaction) {
@@ -259,6 +284,30 @@ export const SentryGraphQLPlugin = {
     } else {
       transaction = Sentry.startTransaction({ op: 'graphql', name: transactionName });
     }
+
+    // 30s timeout
+    const finishTimeout = setTimeout(() => {
+      transaction.setStatus('deadline_exceeded');
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore Property 'spanRecorder' does not exist on type 'Transaction'
+      const spans: Sentry.Span[] = transaction.spanRecorder?.spans;
+      if (!spans || !Array.isArray(spans)) {
+        // Some defensive code since we're using an undocumented API, in case it changes in the future
+        reportMessageToSentry('GraphQL transaction has no spans', {
+          severity: 'warning',
+          extra: { transactionName },
+        });
+      } else {
+        spans.forEach(span => {
+          if (!span.endTimestamp && span.op === 'resolver') {
+            span.setStatus('deadline_exceeded');
+            span.finish();
+          }
+        });
+      }
+
+      transaction.finish();
+    }, customTimeout);
 
     return {
       executionDidStart() {
@@ -269,6 +318,7 @@ export const SentryGraphQLPlugin = {
               op: 'resolver',
               description: `${info.parentType.name}.${info.fieldName}`,
             });
+
             return (error = null) => {
               // this will execute once the resolver is finished
               if (error) {
@@ -315,6 +365,7 @@ export const SentryGraphQLPlugin = {
         }
       },
       willSendResponse(): void {
+        clearTimeout(finishTimeout);
         if (transaction.op === 'graphql') {
           transaction.finish();
         }
