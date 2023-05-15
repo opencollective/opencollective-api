@@ -1,5 +1,6 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { CommentType as CommentTypeEnum } from '../../../models/Comment';
 import { CommentType } from '../enum/CommentType';
 
 import { ConversationReferenceInput } from './ConversationReferenceInput';
@@ -24,6 +25,7 @@ export const CommentCreateInput = new GraphQLInputObjectType({
     type: {
       type: CommentType,
       description: 'The type of the comment',
+      defaultValue: CommentTypeEnum.COMMENT,
     },
   }),
 });

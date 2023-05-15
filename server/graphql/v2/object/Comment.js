@@ -1,4 +1,4 @@
-import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';
@@ -30,7 +30,7 @@ const Comment = new GraphQLObjectType({
         resolve: collectiveResolver,
       },
       type: {
-        type: CommentType,
+        type: new GraphQLNonNull(CommentType),
         description: 'The type of this comment',
       },
       reactions: {

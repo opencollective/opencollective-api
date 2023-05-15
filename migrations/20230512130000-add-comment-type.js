@@ -11,6 +11,7 @@ module.exports = {
     await queryInterface.addColumn('Comments', 'type', {
       type: Sequelize.ENUM(...Object.values(CommentType)),
       defaultValue: CommentType.COMMENT,
+      allowNull: false,
     });
     await queryInterface.addColumn('CommentHistories', 'type', {
       type: Sequelize.ENUM(...Object.values(CommentType)),

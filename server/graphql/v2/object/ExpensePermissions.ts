@@ -113,6 +113,10 @@ const ExpensePermissions = new GraphQLObjectType({
         return ExpenseLib.canVerifyDraftExpense(req, expense);
       },
     },
+    canUsePrivateNote: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve: (expense, _, req) => ExpenseLib.canUsePrivateNotes(req, expense),
+    },
     // Extended permissions
     edit: {
       type: new GraphQLNonNull(Permission),
@@ -157,6 +161,10 @@ const ExpensePermissions = new GraphQLObjectType({
     comment: {
       type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canComment),
+    },
+    usePrivateNote: {
+      type: new GraphQLNonNull(Permission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canUsePrivateNotes),
     },
     unschedulePayment: {
       type: new GraphQLNonNull(Permission),

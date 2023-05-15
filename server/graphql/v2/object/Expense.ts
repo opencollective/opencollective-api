@@ -193,23 +193,21 @@ const Expense = new GraphQLObjectType({
           }
 
           const type = [CommentType.COMMENT];
-          const userIsHostAdmin = await ExpenseLib.isHostAdmin(req, expense);
-          if (userIsHostAdmin) {
+          if (await ExpenseLib.canUsePrivateNotes(req, expense)) {
             type.push(CommentType.PRIVATE_NOTE);
           }
-
-          const { rows, count } = await models.Comment.findAndCountAll({
-            where: { ExpenseId: expense.id, type },
-            order: [[orderBy.field, orderBy.direction]],
-            offset,
-            limit,
-          });
 
           return {
             offset,
             limit,
-            totalCount: count,
-            nodes: rows,
+            totalCount: async () => req.loaders.Comment.countByExpenseAndType.load({ ExpenseId: expense.id, type }),
+            nodes: async () =>
+              models.Comment.findAll({
+                where: { ExpenseId: expense.id, type },
+                order: [[orderBy.field, orderBy.direction]],
+                offset,
+                limit,
+              }),
           };
         },
       },

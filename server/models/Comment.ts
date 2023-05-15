@@ -168,6 +168,7 @@ Comment.init(
     type: {
       type: DataTypes.ENUM(...Object.values(CommentType)),
       defaultValue: CommentType.COMMENT,
+      allowNull: false,
     },
   },
   {

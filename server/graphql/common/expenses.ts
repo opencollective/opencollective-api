@@ -300,6 +300,10 @@ export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, e
   ]);
 };
 
+export const canUsePrivateNotes = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  return isHostAdmin(req, expense);
+};
+
 export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {
   // We allow a context permission for unauthenticated users who provide the correct draft key
   if (getContextPermission(req, PERMISSION_TYPE.SEE_EXPENSE_DRAFT_PRIVATE_DETAILS, expense.id)) {

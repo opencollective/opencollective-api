@@ -6,18 +6,22 @@ import { ReactionEmoji } from '../../constants/reaction-emoji';
 import models, { Op, sequelize } from '../../models';
 import EmojiReaction from '../../models/EmojiReaction';
 
-import { sortResults } from './helpers';
+type CommentCountByExpenseIdAndType = {
+  ExpenseId: number;
+  type: string | string[];
+};
+
 export default {
-  countByExpenseId: (): DataLoader<number, number> =>
-    new DataLoader(ExpenseIds =>
-      models.Comment.count({
+  countByExpenseAndType: (): DataLoader<CommentCountByExpenseIdAndType, number> =>
+    new DataLoader(async (ExpenseIdAndType: Array<CommentCountByExpenseIdAndType>) => {
+      const counters = await models.Comment.count({
         attributes: ['ExpenseId'],
-        where: { ExpenseId: { [Op.in]: ExpenseIds } },
+        where: { [Op.or]: ExpenseIdAndType },
         group: ['ExpenseId'],
-      }).then(results =>
-        sortResults(ExpenseIds, results, 'ExpenseId', { count: 0 }).map(result => <number>result.count),
-      ),
-    ),
+      });
+      return ExpenseIdAndType.map(({ ExpenseId }) => counters.find(c => c.ExpenseId === ExpenseId)?.count || 0);
+    }),
+
   reactionsByCommentId: (): DataLoader<number, EmojiReaction> => {
     return new DataLoader(async commentIds => {
       type ReactionsListQueryResult = [{ CommentId: number; emoji: ReactionEmoji; count: number }];
@@ -34,6 +38,7 @@ export default {
       return commentIds.map(id => reactionsMap[id] || {});
     });
   },
+
   remoteUserReactionsByCommentId: (req: express.Request): DataLoader<number, typeof models.EmojiReaction> => {
     return new DataLoader(async commentIds => {
       if (!req.remoteUser) {
