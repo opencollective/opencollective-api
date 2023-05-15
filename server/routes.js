@@ -28,7 +28,7 @@ import cache from './lib/cache';
 import errors from './lib/errors';
 import logger from './lib/logger';
 import oauth, { authorizeAuthenticateHandler } from './lib/oauth';
-import { HandlerType, reportMessageToSentry, SentryGraphQLPlugin } from './lib/sentry';
+import { HandlerType, reportMessageToSentry, Sentry, SentryGraphQLPlugin } from './lib/sentry';
 import { parseToBoolean } from './lib/utils';
 import * as authentication from './middleware/authentication';
 import errorHandler from './middleware/error_handler';
@@ -155,6 +155,11 @@ export default async app => {
     if (cacheKey && enabled) {
       const fromCache = await cache.get(cacheKey);
       if (fromCache) {
+        const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+        if (sentryTransaction) {
+          sentryTransaction.sampled = false; // Never log cached requests to Sentry performance
+        }
+
         res.servedFromGraphqlCache = true;
         req.endAt = req.endAt || new Date();
         const executionTime = req.endAt - req.startAt;
@@ -241,6 +246,9 @@ export default async app => {
     graphqlPlugins.push(SentryGraphQLPlugin);
   }
 
+  const minExecutionTimeToCache = parseInt(config.graphql.cache.minExecutionTimeToCache);
+  const minExecutionTimeToSample = parseInt(config.sentry.minExecutionTimeToSample);
+
   const graphqlServerOptions = {
     introspection: true,
     playground: isDevelopment,
@@ -271,8 +279,19 @@ export default async app => {
       const executionTime = req.endAt - req.startAt;
       req.res.set('Execution-Time', executionTime);
 
+      // Track all slow queries on Sentry performance
+      const sentryTransaction = Sentry.getCurrentHub().getScope()?.getTransaction();
+      if (sentryTransaction) {
+        if (sentryTransaction.status === 'deadline_exceeded' || executionTime >= minExecutionTimeToSample) {
+          sentryTransaction.setTag('graphql.slow', 'true');
+          sentryTransaction.setTag('graphql.executionTime', executionTime);
+        } else {
+          sentryTransaction.sampled = false; // GraphQL operations have a default sampling rate of 1, we need to explicitly set it to false
+        }
+      }
+
       // This will never happen for logged-in users as cacheKey is not set
-      if (req.cacheKey && !response?.errors && executionTime > parseInt(config.graphql.cache.minExecutionTimeToCache)) {
+      if (req.cacheKey && !response?.errors && executionTime > minExecutionTimeToCache) {
         cache.set(req.cacheKey, response, Number(config.graphql.cache.ttl));
         // Index key
         cache.get(`graphqlCacheKeys_${req.cacheSlug}`).then(keys => {
