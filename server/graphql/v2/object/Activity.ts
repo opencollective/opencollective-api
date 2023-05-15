@@ -63,12 +63,29 @@ export const Activity = new GraphQLObjectType({
       type: Individual,
       description: 'The person who triggered the action, if any',
       resolve: async (activity, _, req: express.Request): Promise<Record<string, unknown>> => {
-        if (activity.UserId) {
-          const collective = await req.loaders.Collective.byUserId.load(activity.UserId);
-          if (!collective?.isIncognito) {
-            return collective;
-          }
+        if (!activity.UserId) {
+          return null;
         }
+
+        const userCollective = await req.loaders.Collective.byUserId.load(activity.UserId);
+        if (!userCollective) {
+          return null;
+        }
+
+        // We check this just in case, but in practice `Users` are not supposed to be linked to incognito profiles directly
+        let isIncognito = userCollective.isIncognito;
+
+        // Check if **the profile** who triggered the action is incognito
+        if (!isIncognito && activity.FromCollectiveId) {
+          const fromCollective = await req.loaders.Collective.byId.load(activity.FromCollectiveId);
+          isIncognito = Boolean(fromCollective?.isIncognito);
+        }
+
+        if (isIncognito && !req.remoteUser?.isRoot() && !req.remoteUser?.isAdminOfCollective(userCollective)) {
+          return null;
+        }
+
+        return userCollective;
       },
     },
     expense: {
