@@ -56,11 +56,11 @@ const updateFilterConditionsForReadyToPay = async (where, include, host, loaders
     if (expensesSubjectToTaxForm.length > 0) {
       const expenseIds = expensesSubjectToTaxForm.map(expense => expense.id);
       const requiredLegalDocs = await loaders.Expense.taxFormRequiredBeforePayment.loadMany(expenseIds);
-      for (let i = 0; i < requiredLegalDocs.length; i++) {
-        if (requiredLegalDocs[i]) {
+      requiredLegalDocs.forEach((required, i) => {
+        if (required) {
           expensesIdsPendingTaxForms.add(expenseIds[i]);
         }
-      }
+      });
 
       where[Op.and].push({ id: { [Op.notIn]: Array.from(expensesIdsPendingTaxForms) } });
     }
