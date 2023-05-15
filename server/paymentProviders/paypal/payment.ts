@@ -247,6 +247,14 @@ export const refundPaypalCapture = async (
   }
 };
 
+const refundTransactionOnlyInDatabase = async (
+  transaction: typeof models.Transaction,
+  user: User,
+  reason: string,
+): Promise<typeof models.Transaction> => {
+  return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
+};
+
 /** Process order in paypal and create transactions in our db */
 export async function processOrder(order: OrderModelInterface): Promise<typeof models.Transaction | undefined> {
   if (order.paymentMethod.data.orderId) {
@@ -285,4 +293,5 @@ export default {
   features: { recurring: false },
   processOrder,
   refundTransaction: refundPaypalPaymentTransaction,
+  refundTransactionOnlyInDatabase,
 };
