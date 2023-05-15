@@ -37,6 +37,15 @@ export interface PaymentProviderService {
     user: User,
     reason?: string,
   ): Promise<typeof models.Transaction>;
+
+  /**
+   * Refunds a transaction processed with this payment provider service without calling the payment provider
+   */
+  refundTransactionOnlyInDatabase(
+    transaction: typeof models.Transaction,
+    user: User,
+    reason?: string,
+  ): Promise<typeof models.Transaction>;
 }
 
 export interface CardProviderService {

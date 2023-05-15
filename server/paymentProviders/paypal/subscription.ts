@@ -7,6 +7,7 @@ import ORDER_STATUS from '../../constants/order_status';
 import { PAYMENT_METHOD_SERVICE, PAYMENT_METHOD_TYPE } from '../../constants/paymentMethods';
 import TierType from '../../constants/tiers';
 import logger from '../../lib/logger';
+import { createRefundTransaction } from '../../lib/payments';
 import { reportErrorToSentry } from '../../lib/sentry';
 import models, { Collective } from '../../models';
 import { OrderModelInterface } from '../../models/Order';
@@ -358,6 +359,14 @@ const PayPalSubscription: PaymentProviderService = {
     }
 
     return refundPaypalCapture(transaction, captureId, user, reason);
+  },
+
+  async refundTransactionOnlyInDatabase(
+    transaction: typeof models.Transaction,
+    user: User,
+    reason: string,
+  ): Promise<typeof models.Transaction> {
+    return createRefundTransaction(transaction, 0, { ...transaction.data, refundReason: reason }, user);
   },
 };
 
