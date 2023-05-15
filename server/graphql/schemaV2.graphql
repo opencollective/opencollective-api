@@ -1293,9 +1293,9 @@ type Expense {
   customData: JSON
 
   """
-  Agreements between the Host and Collective or Host and Individual
+  Agreements between the expense Host and Hosted Account
   """
-  agreements: [Agreement]!
+  hostAgreements: [Agreement]!
 }
 
 """
@@ -2906,12 +2906,12 @@ type Host implements Account & AccountWithContributions {
   """
   Returns whether the host has any Stripe in review orders
   """
-  hasInReviewOrders: Boolean!
+  hasInReviewOrders: Boolean
 
   """
-  Returns agreements created with this Host
+  Returns agreements with Hosted Accounts
   """
-  agreements(
+  hostedAccountAgreements(
     """
     The number of results to fetch (default 10, max 1000)
     """
@@ -2923,7 +2923,7 @@ type Host implements Account & AccountWithContributions {
     offset: Int! = 0
 
     """
-    Accounts participating in the agreement
+    Filter by accounts participating in the agreement
     """
     accounts: [AccountReferenceInput]
   ): AgreementCollection!
@@ -6410,6 +6410,21 @@ type Collective implements Account & AccountWithHost & AccountWithContributions 
   isApproved: Boolean!
 
   """
+  Returns agreements this account has with its host
+  """
+  hostAgreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AgreementCollection!
+
+  """
   Number of unique financial contributors.
   """
   totalFinancialContributors(
@@ -6491,6 +6506,21 @@ interface AccountWithHost {
   Returns whether it's active: can accept financial contributions and pay expenses.
   """
   isActive: Boolean!
+
+  """
+  Returns agreements this account has with its host
+  """
+  hostAgreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AgreementCollection!
 }
 
 """
@@ -7265,6 +7295,21 @@ type Event implements Account & AccountWithHost & AccountWithContributions & Acc
   Returns whether it's approved by the Fiscal Host
   """
   isApproved: Boolean!
+
+  """
+  Returns agreements this account has with its host
+  """
+  hostAgreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AgreementCollection!
 
   """
   Number of unique financial contributors.
@@ -9314,6 +9359,21 @@ type Vendor implements Account & AccountWithHost & AccountWithContributions {
   Returns whether it's approved by the Fiscal Host
   """
   isApproved: Boolean!
+
+  """
+  Returns agreements this account has with its host
+  """
+  hostAgreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AgreementCollection!
 
   """
   Number of unique financial contributors.
@@ -12184,6 +12244,21 @@ type Fund implements Account & AccountWithHost & AccountWithContributions {
   isApproved: Boolean!
 
   """
+  Returns agreements this account has with its host
+  """
+  hostAgreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AgreementCollection!
+
+  """
   Number of unique financial contributors.
   """
   totalFinancialContributors(
@@ -12795,6 +12870,21 @@ type Project implements Account & AccountWithHost & AccountWithContributions & A
   Returns whether it's approved by the Fiscal Host
   """
   isApproved: Boolean!
+
+  """
+  Returns agreements this account has with its host
+  """
+  hostAgreements(
+    """
+    The number of results to fetch (default 10, max 1000)
+    """
+    limit: Int! = 10
+
+    """
+    The offset to use to fetch
+    """
+    offset: Int! = 0
+  ): AgreementCollection!
 
   """
   Number of unique financial contributors.

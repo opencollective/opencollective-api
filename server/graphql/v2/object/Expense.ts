@@ -463,9 +463,9 @@ const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
           }
         },
       },
-      agreements: {
+      hostAgreements: {
         type: new GraphQLNonNull(new GraphQLList(Agreement)),
-        description: 'Agreements between the Host and Collective or Host and Individual',
+        description: 'Agreements between the expense Host and Hosted Account',
         async resolve(expense, _, req): Promise<AgreementModel[]> {
           if (!req.remoteUser?.isAdmin(expense.HostCollectiveId)) {
             throw new Unauthorized('You need to be logged in as an admin of the host to see its agreements');

@@ -756,14 +756,14 @@ export const Host = new GraphQLObjectType({
           );
         },
       },
-      agreements: {
+      hostedAccountAgreements: {
         type: new GraphQLNonNull(AgreementCollection),
-        description: 'Returns agreements created with this Host',
+        description: 'Returns agreements with Hosted Accounts',
         args: {
           ...CollectionArgs,
           accounts: {
             type: new GraphQLList(AccountReferenceInput),
-            description: 'Accounts participating in the agreement',
+            description: 'Filter by accounts participating in the agreement',
           },
         },
         async resolve(host, args, req) {
