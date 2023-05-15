@@ -10,7 +10,6 @@ import { Activity } from '../../models/Activity';
 import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
-import { LEGAL_DOCUMENT_TYPE } from '../../models/LegalDocument';
 
 import { populateModelAssociations, sortResultsArray } from './helpers';
 
@@ -82,20 +81,10 @@ export const attachedFiles = (): DataLoader<number, ExpenseAttachedFile[]> => {
 /**
  * Expense loader to check if userTaxForm is required before expense payment
  */
-export const userTaxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
+export const taxFormRequiredBeforePayment = (): DataLoader<number, boolean> => {
   return new DataLoader<number, boolean>(async (expenseIds: number[]): Promise<boolean[]> => {
     const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
     return expenseIds.map(id => expenseIdsPendingTaxForm.has(id));
-  });
-};
-
-/**
- * Loader for expense's requiredLegalDocuments.
- */
-export const requiredLegalDocuments = (): DataLoader<number, string[]> => {
-  return new DataLoader(async (expenseIds: number[]) => {
-    const expenseIdsPendingTaxForm = await queries.getTaxFormsRequiredForExpenses(expenseIds);
-    return expenseIds.map(id => (expenseIdsPendingTaxForm.has(id) ? [LEGAL_DOCUMENT_TYPE.US_TAX_FORM] : []));
   });
 };
 
