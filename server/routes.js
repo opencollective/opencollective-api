@@ -243,6 +243,7 @@ export default async app => {
 
   const graphqlServerOptions = {
     introspection: true,
+    persistedQueries: false,
     playground: isDevelopment,
     csrfPrevention: true,
     ...graphqlProtection,
