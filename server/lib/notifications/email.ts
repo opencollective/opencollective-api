@@ -149,6 +149,7 @@ export const notifyByEmail = async (activity: Activity) => {
   debug('notifyByEmail', activity.type);
   switch (activity.type) {
     case ActivityTypes.COLLECTIVE_EXPENSE_CREATED:
+    case ActivityTypes.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED:
     case ActivityTypes.COLLECTIVE_FROZEN:
     case ActivityTypes.COLLECTIVE_UNFROZEN:
     case ActivityTypes.PAYMENT_CREDITCARD_EXPIRING:

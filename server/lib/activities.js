@@ -141,6 +141,9 @@ const doFormatMessage = (activity, format) => {
     case activities.COLLECTIVE_EXPENSE_REJECTED:
       return `Expense rejected: ${currency} ${amount} for ${description} in ${collective}!`;
 
+    case activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED:
+      return `Expense needs re-approval: ${currency} ${amount} for ${description} in ${collective}!`;
+
     case activities.COLLECTIVE_EXPENSE_APPROVED:
       return `Expense approved: ${currency} ${amount} for ${description} in ${collective}!`;
 

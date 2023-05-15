@@ -712,6 +712,18 @@ export const unapproveExpense = async (req: express.Request, expense: Expense): 
   return updatedExpense;
 };
 
+export const requestExpenseReApproval = async (req: express.Request, expense: Expense): Promise<Expense> => {
+  if (expense.status === 'PENDING') {
+    return expense;
+  } else if (!(await canUnapprove(req, expense))) {
+    throw new Forbidden();
+  }
+
+  const updatedExpense = await expense.update({ status: 'PENDING', lastEditedById: req.remoteUser.id });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_RE_APPROVAL_REQUESTED, req.remoteUser);
+  return updatedExpense;
+};
+
 export const markExpenseAsIncomplete = async (req: express.Request, expense: Expense): Promise<Expense> => {
   if (expense.status === 'INCOMPLETE') {
     return expense;
