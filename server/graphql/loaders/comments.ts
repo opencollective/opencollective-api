@@ -13,14 +13,22 @@ type CommentCountByExpenseIdAndType = {
 
 export default {
   countByExpenseAndType: (): DataLoader<CommentCountByExpenseIdAndType, number> =>
-    new DataLoader(async (ExpenseIdAndType: Array<CommentCountByExpenseIdAndType>) => {
-      const counters = await models.Comment.count({
-        attributes: ['ExpenseId'],
-        where: { [Op.or]: ExpenseIdAndType },
-        group: ['ExpenseId'],
-      });
-      return ExpenseIdAndType.map(({ ExpenseId }) => counters.find(c => c.ExpenseId === ExpenseId)?.count || 0);
-    }),
+    new DataLoader(
+      async (ExpenseIdAndType: Array<CommentCountByExpenseIdAndType>) => {
+        const counters = await models.Comment.count({
+          attributes: ['ExpenseId'],
+          where: { [Op.or]: ExpenseIdAndType },
+          group: ['ExpenseId'],
+        });
+        return ExpenseIdAndType.map(({ ExpenseId }) => counters.find(c => c.ExpenseId === ExpenseId)?.count || 0);
+      },
+      {
+        cacheKeyFn: arg => {
+          const type = Array.isArray(arg.type) ? arg.type.sort().join('|') : arg.type;
+          return `${arg.ExpenseId}.${type}`;
+        },
+      },
+    ),
 
   reactionsByCommentId: (): DataLoader<number, EmojiReaction> => {
     return new DataLoader(async commentIds => {
