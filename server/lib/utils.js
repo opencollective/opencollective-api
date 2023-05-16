@@ -11,10 +11,7 @@ import { filter, get, isEqual, padStart, sumBy } from 'lodash';
 
 import { ZERO_DECIMAL_CURRENCIES } from '../constants/currencies';
 
-import errors from './errors';
 import handlebars from './handlebars';
-
-const { BadRequest } = errors;
 
 export function addParamsToUrl(url, obj) {
   const u = new URL(url);
@@ -518,7 +515,7 @@ export const toIsoDateStr = date => {
   return `${year}-${padStart(month.toString(), 2, '0')}-${padStart(day.toString(), 2, '0')}`;
 };
 
-export const getTokenFromRequestHeaders = req => {
+export const getBearerTokenFromRequestHeaders = req => {
   const header = req.headers && req.headers.authorization;
   if (!header) {
     return null;
@@ -527,11 +524,9 @@ export const getTokenFromRequestHeaders = req => {
   const parts = header.split(' ');
   const scheme = parts[0];
   const token = parts[1];
-  if (!/^Bearer$/i.test(scheme) || !token) {
-    throw new BadRequest('Format is Authorization: Bearer [token]');
+  if (/^Bearer$/i.test(scheme)) {
+    return token;
   }
-
-  return token;
 };
 
 export const sumByWhen = (vector, iteratee, predicate) => sumBy(filter(vector, predicate), iteratee);
