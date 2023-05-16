@@ -1,3 +1,5 @@
+import path from 'path';
+
 import { ApolloArmor } from '@escape.tech/graphql-armor';
 import { ApolloServer } from 'apollo-server-express';
 import config from 'config';
@@ -21,7 +23,6 @@ import {
   transferwiseWebhook,
 } from './controllers/webhooks';
 import { getGraphqlCacheProperties } from './graphql/cache';
-// import { Unauthorized } from './graphql/errors';
 import graphqlSchemaV1 from './graphql/v1/schema';
 import graphqlSchemaV2 from './graphql/v2/schema';
 import cache from './lib/cache';
@@ -394,6 +395,36 @@ export default async app => {
   app.get('/__test_sentry__', (req, res) => {
     reportMessageToSentry('Testing sentry', { severity: 'debug', user: req.remoteUser });
     res.sendStatus(200);
+  });
+
+  /**
+   * An endpoint to DUMP memory usage, to investigate memory leaks
+   */
+  app.get('/__dump_memory__', async (req, res) => {
+    if (!isDevelopment) {
+      // In prod, must provide a special get parameter with credentials
+      const configSecret = process.env.MEMORY_DUMP_SECRET;
+      if (!req.query?.secret || !configSecret || req.query.secret !== configSecret) {
+        return res.sendStatus(404);
+      }
+    }
+
+    req.setTimeout(5 * 60 * 1000); // 5 minutes
+    const heapdump = await import('heapdump');
+    heapdump.writeSnapshot((err, filename) => {
+      if (err) {
+        logger.error('Error dumping memory', err);
+        return res.sendStatus(500);
+      } else {
+        logger.info(`Memory dump written to ${filename}`);
+        res.sendFile(filename, { root: path.join(__dirname, '..') }, err => {
+          if (err) {
+            logger.error('Error sending memory dump', err);
+            return res.sendStatus(500);
+          }
+        });
+      }
+    });
   });
 
   /**
