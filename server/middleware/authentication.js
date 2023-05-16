@@ -11,7 +11,7 @@ import * as connectedAccounts from '../controllers/connectedAccounts';
 import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
-import { dbUserToSentryUser, reportMessageToSentry, Sentry } from '../lib/sentry';
+import { reportMessageToSentry } from '../lib/sentry';
 import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
@@ -212,7 +212,6 @@ const _authenticateUserByJwt = async (req, res, next) => {
   await user.populateRoles();
 
   req.remoteUser = user;
-  Sentry.setUser(dbUserToSentryUser(req.remoteUser));
 
   debug('logged in user', req.remoteUser.id, 'roles:', req.remoteUser.rolesByCollectiveId);
   next();
@@ -358,7 +357,7 @@ export async function checkPersonalToken(req, res, next) {
         req.remoteUser = await models.User.findOne({
           where: { CollectiveId: collectiveId },
         });
-        Sentry.setUser(dbUserToSentryUser(req.remoteUser));
+
         if (req.remoteUser) {
           await req.remoteUser.populateRoles();
         }

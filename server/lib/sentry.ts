@@ -67,7 +67,7 @@ export const initSentry = (expressApp = null) => {
     enabled: config.env !== 'test',
     integrations: getIntegrations(expressApp),
     tracesSampler: samplingContext => {
-      if (!samplingContext) {
+      if (!TRACES_SAMPLE_RATE || !samplingContext) {
         return 0;
       } else if (samplingContext.request?.url?.match(/\/graphql(\/.*)?$/)) {
         return 1; // GraphQL endpoints handle sampling manually in `server/routes.js`
@@ -275,7 +275,50 @@ const isIgnoredGQLError = (err): boolean => {
 };
 
 export const SentryGraphQLPlugin = {
-  requestDidStart({ request, customTimeout = 30e3 }) {
+  requestDidStart({ request, customTimeout = 30e3, forceSampling = false }) {
+    const requestDidStartResult = {
+      executionDidStart: undefined,
+      willSendResponse: undefined,
+      didEncounterErrors(ctx): void {
+        // If we couldn't parse the operation, don't do anything here
+        if (!ctx.operation) {
+          return;
+        }
+
+        for (const err of ctx.errors) {
+          // Only report internal server errors, all errors extending ApolloError should be user-facing
+          if (err.extensions?.code || isIgnoredGQLError(err)) {
+            continue;
+          }
+
+          // Try to generate a User object for Sentry if logged in
+          let remoteUserForSentry: Sentry.User | undefined;
+          if (ctx.context.remoteUser) {
+            remoteUserForSentry = { id: ctx.context.remoteUser.id, CollectiveId: ctx.context.remoteUser.CollectiveId };
+          }
+
+          reportErrorToSentry(err, {
+            handler: HandlerType.GQL,
+            severity: 'error',
+            user: remoteUserForSentry,
+            tags: { kind: ctx.operation.operation },
+            extra: { query: ctx.request.query, variables: JSON.stringify(ctx.request.variables) },
+            breadcrumbs: err.path && [
+              {
+                category: 'query-path',
+                message: err.path.join(' > '),
+                level: 'debug' as SeverityLevel,
+              },
+            ],
+          });
+        }
+      },
+    };
+
+    if (!TRACES_SAMPLE_RATE && !forceSampling) {
+      return requestDidStartResult;
+    }
+
     const transactionName = `GraphQL: ${request.operationName || 'Anonymous Operation'}`;
     let transaction = Sentry.getCurrentHub()?.getScope()?.getTransaction();
     if (transaction) {
@@ -310,6 +353,7 @@ export const SentryGraphQLPlugin = {
     }, customTimeout);
 
     return {
+      ...requestDidStartResult,
       executionDidStart() {
         return {
           willResolveField({ info }) {
@@ -329,40 +373,6 @@ export const SentryGraphQLPlugin = {
             };
           },
         };
-      },
-      didEncounterErrors(ctx): void {
-        // If we couldn't parse the operation, don't do anything here
-        if (!ctx.operation) {
-          return;
-        }
-
-        for (const err of ctx.errors) {
-          // Only report internal server errors, all errors extending ApolloError should be user-facing
-          if (err.extensions?.code || isIgnoredGQLError(err)) {
-            continue;
-          }
-
-          // Try to generate a User object for Sentry if logged in
-          let remoteUserForSentry: Sentry.User | undefined;
-          if (ctx.context.remoteUser) {
-            remoteUserForSentry = { id: ctx.context.remoteUser.id, CollectiveId: ctx.context.remoteUser.CollectiveId };
-          }
-
-          reportErrorToSentry(err, {
-            handler: HandlerType.GQL,
-            severity: 'error',
-            user: remoteUserForSentry,
-            tags: { kind: ctx.operation.operation },
-            extra: { query: ctx.request.query, variables: JSON.stringify(ctx.request.variables) },
-            breadcrumbs: err.path && [
-              {
-                category: 'query-path',
-                message: err.path.join(' > '),
-                level: 'debug' as SeverityLevel,
-              },
-            ],
-          });
-        }
       },
       willSendResponse(): void {
         clearTimeout(finishTimeout);
