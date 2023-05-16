@@ -2100,6 +2100,21 @@ enum CommentType {
 }
 
 """
+All supported comment contexts
+"""
+enum CommentType {
+  """
+  Default regular comment
+  """
+  COMMENT
+
+  """
+  Comment is visible only to host admins
+  """
+  PRIVATE_NOTE
+}
+
+"""
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
 scalar JSON
@@ -4949,6 +4964,7 @@ type ExpensePermissions {
   canUsePrivateNote: Boolean!
   canHold: Boolean!
   canRelease: Boolean!
+  canUsePrivateNote: Boolean!
   edit: Permission!
   editTags: Permission!
   delete: Permission!
@@ -15021,6 +15037,11 @@ input ProcessExpensePaymentParams {
   shouldRefundPaymentProcessorFee: Boolean
 
   """
+  New expense status when triggering MARK_AS_UNPAID
+  """
+  markAsUnPaidStatus: MarkAsUnPaidExpenseStatus = APPROVED
+
+  """
   Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually
   """
   forceManual: Boolean
@@ -15029,6 +15050,12 @@ input ProcessExpensePaymentParams {
   Who is responsible for paying any due fees.
   """
   feesPayer: FeesPayer = COLLECTIVE
+}
+
+enum MarkAsUnPaidExpenseStatus {
+  APPROVED
+  INCOMPLETE
+  ERROR
 }
 
 input ExpenseInviteDraftInput {
