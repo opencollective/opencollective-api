@@ -165,7 +165,7 @@ const isCollectiveAdmin = async (req: express.Request, expense: Expense): Promis
   return req.remoteUser.isAdminOfCollective(expense.collective);
 };
 
-const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
+export const isHostAdmin = async (req: express.Request, expense: Expense): Promise<boolean> => {
   if (!req.remoteUser) {
     return false;
   }
@@ -298,6 +298,10 @@ export const canSeeExpenseCustomData: ExpensePermissionEvaluator = async (req, e
     isHostAdmin,
     isAdminOrAccountantOfHostWhoPaidExpense,
   ]);
+};
+
+export const canUsePrivateNotes = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  return isHostAdmin(req, expense);
 };
 
 export const canSeeExpenseDraftPrivateDetails: ExpensePermissionEvaluator = async (req, expense) => {

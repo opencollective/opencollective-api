@@ -1,5 +1,8 @@
 import { GraphQLInputObjectType, GraphQLString } from 'graphql';
 
+import { CommentType as CommentTypeEnum } from '../../../models/Comment';
+import { CommentType } from '../enum/CommentType';
+
 import { ConversationReferenceInput } from './ConversationReferenceInput';
 import { ExpenseReferenceInput } from './ExpenseReferenceInput';
 import { UpdateReferenceInput } from './UpdateReferenceInput';
@@ -19,5 +22,10 @@ export const CommentCreateInput = new GraphQLInputObjectType({
     ConversationId: { type: GraphQLString, deprecationReason: '2022-08-26: Please use "conversation"' },
     conversation: { type: ConversationReferenceInput },
     update: { type: UpdateReferenceInput },
+    type: {
+      type: CommentType,
+      description: 'The type of the comment',
+      defaultValue: CommentTypeEnum.COMMENT,
+    },
   }),
 });

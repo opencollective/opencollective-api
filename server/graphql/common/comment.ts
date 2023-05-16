@@ -3,13 +3,13 @@ import { pick } from 'lodash';
 import ActivityTypes from '../../constants/activities';
 import { mustBeLoggedInTo } from '../../lib/auth';
 import models from '../../models';
-import Comment from '../../models/Comment';
+import Comment, { CommentType } from '../../models/Comment';
 import Conversation from '../../models/Conversation';
 import Expense, { ExpenseStatus } from '../../models/Expense';
 import Update from '../../models/Update';
 import { NotFound, Unauthorized, ValidationFailed } from '../errors';
 
-import { canComment } from './expenses';
+import { canComment, canUsePrivateNotes as canSeeExpensePrivateNotes } from './expenses';
 import { checkRemoteUserCanUseComment } from './scope-check';
 import { canSeeUpdate } from './update';
 
@@ -18,16 +18,16 @@ type CommentableEntity = Update | Expense | Conversation;
 const loadCommentedEntity = async (commentValues): Promise<[CommentableEntity, ActivityTypes]> => {
   const include = { association: 'collective', required: true };
   let activityType = ActivityTypes.COLLECTIVE_COMMENT_CREATED;
-  let entity;
+  let entity: CommentableEntity;
 
   if (commentValues.ExpenseId) {
-    entity = await Expense.findByPk(commentValues.ExpenseId, { include });
+    entity = (await Expense.findByPk(commentValues.ExpenseId, { include })) as Expense;
     activityType = ActivityTypes.EXPENSE_COMMENT_CREATED;
   } else if (commentValues.ConversationId) {
-    entity = await Conversation.findByPk(commentValues.ConversationId, { include });
+    entity = (await Conversation.findByPk(commentValues.ConversationId, { include })) as Conversation;
     activityType = ActivityTypes.CONVERSATION_COMMENT_CREATED;
   } else if (commentValues.UpdateId) {
-    entity = await Update.findByPk(commentValues.UpdateId, { include });
+    entity = (await Update.findByPk(commentValues.UpdateId, { include })) as Update;
     activityType = ActivityTypes.UPDATE_COMMENT_CREATED;
   }
 
@@ -92,7 +92,7 @@ async function createComment(commentData, req): Promise<Comment> {
     throw new ValidationFailed('Comment is empty');
   }
 
-  const { ConversationId, ExpenseId, UpdateId, html } = commentData;
+  const { ConversationId, ExpenseId, UpdateId, html, type } = commentData;
 
   // Ensure at least (and only) one entity to comment is specified
   if ([ConversationId, ExpenseId, UpdateId].filter(Boolean).length !== 1) {
@@ -106,8 +106,12 @@ async function createComment(commentData, req): Promise<Comment> {
   }
 
   if (ExpenseId) {
-    if (!(await canComment(req, commentedEntity as Expense))) {
+    const expense = commentedEntity as Expense;
+    if (!(await canComment(req, expense))) {
       throw new ValidationFailed('You are not allowed to comment on this expense');
+    }
+    if (type === CommentType.PRIVATE_NOTE && !(await canSeeExpensePrivateNotes(req, expense))) {
+      throw new Unauthorized('You need to be a host admin to post comments in this context');
     }
   } else if (UpdateId) {
     if (!(await canSeeUpdate(commentedEntity, req))) {
@@ -124,6 +128,7 @@ async function createComment(commentData, req): Promise<Comment> {
     UpdateId,
     ConversationId,
     html, // HTML is sanitized at the model level, no need to do it here
+    type,
   });
 
   // Create activity
@@ -136,7 +141,7 @@ async function createComment(commentData, req): Promise<Comment> {
     ExpenseId: comment.ExpenseId,
     data: {
       CommentId: comment.id,
-      comment: { id: comment.id, html: comment.html },
+      comment: { id: comment.id, html: comment.html, type: comment.type },
       FromCollectiveId: comment.FromCollectiveId,
       ExpenseId: comment.ExpenseId,
       UpdateId: comment.UpdateId,
@@ -145,7 +150,7 @@ async function createComment(commentData, req): Promise<Comment> {
   });
 
   if (ExpenseId) {
-    const expense = await req.loaders.Expense.byId.load(ExpenseId);
+    const expense = commentedEntity as Expense;
     if (remoteUser.isAdmin(expense.FromCollectiveId) && expense?.status === ExpenseStatus.INCOMPLETE) {
       await expense.update({ status: ExpenseStatus.APPROVED });
       await expense.createActivity(ActivityTypes.COLLECTIVE_EXPENSE_APPROVED);

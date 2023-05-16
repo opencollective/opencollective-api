@@ -3,7 +3,8 @@ import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick, round } from 'lodash';
 
 import expenseStatus from '../../../constants/expense_status';
-import models, { Op } from '../../../models';
+import models from '../../../models';
+import { CommentType } from '../../../models/Comment';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
@@ -191,20 +192,22 @@ const Expense = new GraphQLObjectType({
             return null;
           }
 
+          const type = [CommentType.COMMENT];
+          if (await ExpenseLib.canUsePrivateNotes(req, expense)) {
+            type.push(CommentType.PRIVATE_NOTE);
+          }
+
           return {
             offset,
             limit,
-            totalCount: async () => {
-              return req.loaders.Comment.countByExpenseId.load(expense.id);
-            },
-            nodes: async () => {
-              return models.Comment.findAll({
-                where: { ExpenseId: { [Op.eq]: expense.id } },
+            totalCount: async () => req.loaders.Comment.countByExpenseAndType.load({ ExpenseId: expense.id, type }),
+            nodes: async () =>
+              models.Comment.findAll({
+                where: { ExpenseId: expense.id, type },
                 order: [[orderBy.field, orderBy.direction]],
                 offset,
                 limit,
-              });
-            },
+              }),
           };
         },
       },

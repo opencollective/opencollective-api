@@ -1,7 +1,8 @@
-import { GraphQLList, GraphQLObjectType, GraphQLString } from 'graphql';
+import { GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 
 import { collectiveResolver, fromCollectiveResolver } from '../../common/comment';
+import { CommentType } from '../enum/CommentType';
 import { getIdEncodeResolver } from '../identifiers';
 import { Account } from '../interface/Account';
 
@@ -27,6 +28,10 @@ const Comment = new GraphQLObjectType({
       account: {
         type: Account,
         resolve: collectiveResolver,
+      },
+      type: {
+        type: new GraphQLNonNull(CommentType),
+        description: 'The type of this comment',
       },
       reactions: {
         type: GraphQLJSON,

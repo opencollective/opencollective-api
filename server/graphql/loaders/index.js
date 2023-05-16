@@ -45,7 +45,7 @@ export const loaders = req => {
   context.loaders.CurrencyExchangeRate.fxRate = generateFxRateLoader(req, cache);
 
   // Comment
-  context.loaders.Comment.countByExpenseId = commentsLoader.countByExpenseId(req, cache);
+  context.loaders.Comment.countByExpenseAndType = commentsLoader.countByExpenseAndType(req, cache);
 
   // Comment Reactions
   context.loaders.Comment.reactionsByCommentId = commentsLoader.reactionsByCommentId(req, cache);

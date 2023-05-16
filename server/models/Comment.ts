@@ -16,6 +16,11 @@ const sanitizeOptions = buildSanitizerOptions({
   images: true,
 });
 
+export enum CommentType {
+  COMMENT = 'COMMENT',
+  PRIVATE_NOTE = 'PRIVATE_NOTE',
+}
+
 class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Comment>> {
   public declare readonly id: CreationOptional<number>;
   public declare CollectiveId: number;
@@ -25,6 +30,7 @@ class Comment extends Model<InferAttributes<Comment>, InferCreationAttributes<Co
   public declare UpdateId: number;
   public declare ConversationId: number;
   public declare html: string;
+  public declare type: CommentType;
   public declare createdAt: CreationOptional<Date>;
   public declare updatedAt: CreationOptional<Date>;
   public declare deletedAt: CreationOptional<Date>;
@@ -157,6 +163,12 @@ Comment.init(
 
     deletedAt: {
       type: DataTypes.DATE,
+    },
+
+    type: {
+      type: DataTypes.ENUM(...Object.values(CommentType)),
+      defaultValue: CommentType.COMMENT,
+      allowNull: false,
     },
   },
   {

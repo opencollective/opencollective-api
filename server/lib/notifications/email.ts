@@ -11,6 +11,7 @@ import { TransactionKind } from '../../constants/transaction-kind';
 import { TransactionTypes } from '../../constants/transactions';
 import models, { Collective } from '../../models';
 import { Activity } from '../../models/Activity';
+import { CommentType } from '../../models/Comment';
 import User from '../../models/User';
 import emailLib from '../email';
 import { getTransactionPdf } from '../pdf';
@@ -334,6 +335,7 @@ export const notifyByEmail = async (activity: Activity) => {
     }
 
     case ActivityTypes.EXPENSE_COMMENT_CREATED: {
+      const notifyHostAdminsOnly = activity.data.comment.type === CommentType.PRIVATE_NOTE;
       const { collective } = await populateCommentActivity(activity);
       const HostCollectiveId = await collective.getHostCollectiveId();
       if (HostCollectiveId) {
@@ -345,12 +347,6 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.UserId = activity.data.expense.UserId;
       activity.data.path = `/${activity.data.collective.slug}/expenses/${activity.data.expense.id}`;
 
-      // Notify the admins of the collective
-      await notify.collective(activity, {
-        from: config.email.noReply,
-        exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
-      });
-
       // Notify the admins of the host (if any)
       if (HostCollectiveId) {
         await notify.collective(activity, {
@@ -360,13 +356,22 @@ export const notifyByEmail = async (activity: Activity) => {
         });
       }
 
-      // Notify the author of the expense
-      if (activity.UserId !== activity.data.UserId) {
-        await notify.user(activity, {
-          userId: activity.data.UserId,
+      if (!notifyHostAdminsOnly) {
+        // Notify the admins of the collective
+        await notify.collective(activity, {
           from: config.email.noReply,
+          exclude: [activity.UserId, activity.data.UserId], // Don't notify the person who commented nor the expense author
         });
+
+        // Notify the author of the expense
+        if (activity.UserId !== activity.data.UserId) {
+          await notify.user(activity, {
+            userId: activity.data.UserId,
+            from: config.email.noReply,
+          });
+        }
       }
+
       break;
     }
 
