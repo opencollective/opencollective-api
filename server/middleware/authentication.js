@@ -12,7 +12,7 @@ import { verifyJwt } from '../lib/auth';
 import errors from '../lib/errors';
 import logger from '../lib/logger';
 import { dbUserToSentryUser, reportMessageToSentry, Sentry } from '../lib/sentry';
-import { getTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
+import { getBearerTokenFromRequestHeaders, parseToBoolean } from '../lib/utils';
 import models from '../models';
 import paymentProviders from '../paymentProviders';
 
@@ -44,7 +44,7 @@ const debug = debugLib('auth');
 const parseJwt = req => {
   let token = req.params.access_token || req.query.access_token || req.body.access_token;
   if (!token) {
-    token = getTokenFromRequestHeaders(req);
+    token = getBearerTokenFromRequestHeaders(req);
   }
 
   if (token) {
