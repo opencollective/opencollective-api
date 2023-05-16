@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { capitalize, compact, filter, find, first, flatten, max, startCase, uniq, uniqBy } from 'lodash';
+import { capitalize, compact, filter, find, first, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
@@ -8,6 +8,7 @@ import models, { Op, sequelize } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
+import { formatCurrency } from '../utils';
 
 export enum Scope {
   USER = 'USER',
@@ -39,6 +40,14 @@ const setProperty = (obj, key) => value => {
 };
 
 type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; CollectiveId: number };
+
+type ExpenseAmountStats = {
+  amountInHostCurrency: number;
+  totalApprovedAmountForCollective: number;
+  averageAmountForCollective: number;
+  paidAmountP95ForCollective: number;
+  isConvertedCurrency: boolean;
+};
 
 const addBooleanCheck = (
   checks: Array<SecurityCheck>,
@@ -127,10 +136,63 @@ const checkExpenseStats = (
   });
 };
 
-const getGroupedExpensesStats = <T extends { [key: string]: number }>(whereConditions: T[]) => {
-  const group = uniq(whereConditions.map(where => Object.keys(where)[0]));
+const checkExpenseAmountStats = (
+  checks: Array<SecurityCheck>,
+  expenseStats: ExpenseAmountStats,
+  collectiveBalanceInTargetCurrency: number,
+  targetCurrency: string,
+) => {
+  // Add warning if total approved is above the balance of the collective
+  addBooleanCheck(checks, expenseStats.totalApprovedAmountForCollective > collectiveBalanceInTargetCurrency, {
+    scope: Scope.COLLECTIVE,
+    level: Level.MEDIUM,
+    message: `Total approved amount is higher than the collective balance`,
+    details: `The total amount of approved expenses for this collective is ${formatCurrency(
+      expenseStats.totalApprovedAmountForCollective,
+      targetCurrency,
+    )}, which is higher than the collective balance of ${formatCurrency(
+      collectiveBalanceInTargetCurrency,
+      targetCurrency,
+    )}.`,
+  });
+
+  // Unless it's the 1st expense, add a warning if amount is above p95 for this collective
+  if (expenseStats.paidAmountP95ForCollective) {
+    addBooleanCheck(checks, expenseStats.amountInHostCurrency >= expenseStats.paidAmountP95ForCollective, {
+      scope: Scope.COLLECTIVE,
+      level: Level.MEDIUM,
+      message: `Amount is higher than usual`,
+      details: `The amount of this expense (${formatCurrency(
+        expenseStats.amountInHostCurrency,
+        targetCurrency,
+        2,
+        expenseStats.isConvertedCurrency,
+      )}) is in the top 5% of expenses for this collective. The average amount of paid expenses is ${formatCurrency(
+        expenseStats.averageAmountForCollective,
+        targetCurrency,
+      )}, with the top 5% being above ${formatCurrency(expenseStats.paidAmountP95ForCollective, targetCurrency)}.`,
+    });
+  }
+};
+
+const getGroupedExpensesStats = (expenses: Array<Expense>) => {
+  const expensesStatsConditions = [];
+  expenses.forEach(expense => {
+    expensesStatsConditions.push({ UserId: expense.UserId });
+    if (expense.User.CollectiveId !== expense.FromCollectiveId) {
+      expensesStatsConditions.push({ FromCollectiveId: expense.FromCollectiveId });
+    }
+    if (
+      expense.PayoutMethod &&
+      [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(expense.PayoutMethod.type)
+    ) {
+      expensesStatsConditions.push({ PayoutMethodId: expense.PayoutMethodId });
+    }
+  });
+
+  const group = uniq(expensesStatsConditions.map(where => Object.keys(where)[0]));
   return models.Expense.findAll({
-    where: { [Op.or]: whereConditions, type: { [Op.ne]: expenseType.CHARGE } },
+    where: { [Op.or]: expensesStatsConditions, type: { [Op.ne]: expenseType.CHARGE } },
     attributes: [
       'status',
       'CollectiveId',
@@ -141,29 +203,114 @@ const getGroupedExpensesStats = <T extends { [key: string]: number }>(whereCondi
     group: ['status', 'CollectiveId', ...group],
     order: [['lastCreatedAt', 'desc']],
     raw: true,
-  }) as unknown as Promise<Array<ExpenseStats & T>>;
+  }) as unknown as Promise<Array<ExpenseStats>>;
+};
+
+/**
+ * Get some stats about the collectives of the expenses. Returns an object with the expense id as key and the stats as value.
+ */
+const getExpensesAmountsStats = async (
+  expenses: Array<Expense>,
+  targetCurrency,
+): Promise<Record<string, ExpenseAmountStats>> => {
+  const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
+  const expenseIds = uniq(expenses.map(e => e.id));
+  const result: Array<ExpenseAmountStats> = await sequelize.query(
+    `
+      WITH all_expenses AS (
+        SELECT
+          e.*,
+          e.currency != :targetCurrency AS "isConvertedCurrency",
+          CASE
+            -- Simple case: expense is already in target currency
+            WHEN e.currency = :targetCurrency THEN e.amount
+            -- Convert expense to target currency
+            ELSE e.amount * COALESCE((
+                SELECT rate
+                FROM "CurrencyExchangeRates" r
+                WHERE r."from" = e.currency
+                AND r."to" = :targetCurrency
+                AND r."createdAt" <= e."createdAt"
+                ORDER BY e."createdAt" DESC -- Most recent rate that is older than the expense
+                LIMIT 1
+              ), (
+                -- Fix for old expenses where we didn't have an exchange rate stored yet: just use the oldest rate available
+                SELECT rate
+                FROM "CurrencyExchangeRates" r
+                WHERE r."from" = e.currency
+                AND r."to" = :targetCurrency
+                ORDER BY e."createdAt" ASC -- Oldest rate
+                LIMIT 1
+            ))
+            END AS "amountInHostCurrency"
+        FROM "Expenses" e
+        WHERE e."deletedAt" IS NULL
+        AND (e.id IN (:expenseIds) OR e."CollectiveId" IN (:collectiveIds))
+        ORDER BY e."createdAt" ASC
+      ), all_expenses_stats AS (
+        SELECT
+          "id",
+          "isConvertedCurrency",
+          "amountInHostCurrency",
+          AVG("amountInHostCurrency") FILTER (WHERE status = 'PAID') OVER (PARTITION BY "CollectiveId") AS "averageAmountForCollective",
+          SUM("amountInHostCurrency") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedAmountForCollective",
+          (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "amountInHostCurrency") FROM all_expenses WHERE "CollectiveId" = e."CollectiveId" AND status = 'PAID') AS "paidAmountP95ForCollective"
+        FROM all_expenses e
+      ) SELECT * FROM all_expenses_stats
+      WHERE id IN (:expenseIds)
+    `,
+    {
+      type: sequelize.QueryTypes.SELECT,
+      replacements: { targetCurrency, collectiveIds, expenseIds },
+    },
+  );
+
+  return keyBy(result, 'id');
+};
+
+/**
+ * The currency that needs to be used will depend on the context. Since, for now, we're only
+ * displaying these warnings for fiscal hosts, the assumption is that the currency of the
+ * host is the one that should be used; regardless of the other expenses in the batch.
+ */
+const getTargetCurrency = async expenses => {
+  const host = await expenses[0].collective.getHostCollective();
+  return host?.currency || expenses[0].collective.currency;
+};
+
+const getCollectiveBalances = async (
+  req: Request,
+  expenses: Expense[],
+  targetCurrency: string,
+): Promise<Record<string, { currency: string; value: number }>> => {
+  const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
+  const balanceLoader = req.loaders.Collective.balance.buildLoader({ withBlockedFunds: true }); // Use the same loader as https://github.com/opencollective/opencollective-api/blob/main/server/graphql/v2/object/AccountStats.js#L70 to make sure we don't hit the DB twice
+  const collectiveBalances = await balanceLoader.loadMany(collectiveIds);
+  const balancesInHostCurrency = await Promise.all(
+    collectiveBalances.map(async balance => {
+      if (balance.currency === targetCurrency) {
+        return balance;
+      } else {
+        const convertParams = { amount: balance.value, from: balance.currency, to: targetCurrency };
+        return {
+          value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
+          currency: targetCurrency,
+        };
+      }
+    }),
+  );
+
+  return keyBy(balancesInHostCurrency, 'CollectiveId');
 };
 
 export const checkExpensesBatch = async (
   req: Request,
   expenses: Array<Expense>,
 ): Promise<Array<Array<SecurityCheck>>> => {
-  const expensesStatsConditions = flatten(
-    expenses.map(expense => {
-      const fields: Array<{ [key: string]: number }> = [{ UserId: expense.UserId }];
-      if (expense.User.CollectiveId !== expense.FromCollectiveId) {
-        fields.push({ FromCollectiveId: expense.FromCollectiveId });
-      }
-      if (
-        expense.PayoutMethod &&
-        [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(expense.PayoutMethod?.type)
-      ) {
-        fields.push({ PayoutMethodId: expense.PayoutMethodId });
-      }
-      return fields;
-    }),
-  ) as Array<Record<'CollectiveId' | 'PayoutMethodId' | 'UserId', number>>;
-  const stats = await getGroupedExpensesStats(expensesStatsConditions);
+  const targetCurrency = await getTargetCurrency(expenses);
+  const expensesStats = await getGroupedExpensesStats(expenses);
+  const expensesAmountsStats = await getExpensesAmountsStats(expenses, targetCurrency);
+  const collectiveBalances = await getCollectiveBalances(req, expenses, targetCurrency);
   const usersByIpConditions = expenses.map(expense => {
     const ip = expense.User.getLastKnownIp();
     return {
@@ -185,8 +332,7 @@ export const checkExpensesBatch = async (
     where: { [Op.or]: usersByIpConditions },
     include: [{ association: 'collective' }],
   });
-
-  return await Promise.all(
+  const result = await Promise.all(
     expenses.map(async expense => {
       const checks: SecurityCheck[] = [];
 
@@ -256,7 +402,7 @@ export const checkExpensesBatch = async (
       });
 
       // Statistical analysis of the user who submitted the expense.
-      checkExpenseStats(filter(stats, { UserId: expense.UserId }), {
+      checkExpenseStats(filter(expensesStats, { UserId: expense.UserId }), {
         expense,
         checks,
         scope: Scope.USER,
@@ -264,7 +410,7 @@ export const checkExpensesBatch = async (
       });
       // If the user sho submitted the expense is not the same being paid for the expense, run another statistical analysis of the payee.
       if (expense.User.CollectiveId !== expense.FromCollectiveId) {
-        checkExpenseStats(filter(stats, { FromCollectiveId: expense.FromCollectiveId }), {
+        checkExpenseStats(filter(expensesStats, { FromCollectiveId: expense.FromCollectiveId }), {
           expense,
           checks,
           scope: Scope.PAYEE,
@@ -272,13 +418,17 @@ export const checkExpensesBatch = async (
         });
       }
 
+      // Check amounts
+      const balanceInHostCurrency = collectiveBalances[expense.CollectiveId].value;
+      checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, targetCurrency);
+
       // Add checks on payout method
       if (
         expense.PayoutMethod &&
         [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(expense.PayoutMethod?.type)
       ) {
         // Statistical analysis of the Payout Method
-        checkExpenseStats(filter(stats, { PayoutMethodId: expense.PayoutMethodId }), {
+        checkExpenseStats(filter(expensesStats, { PayoutMethodId: expense.PayoutMethodId }), {
           expense,
           checks,
           scope: Scope.PAYOUT_METHOD,
@@ -286,7 +436,7 @@ export const checkExpensesBatch = async (
 
         // Check if this Payout Method is being used by someone other user or collective
         const similarPayoutMethods = await expense.PayoutMethod.findSimilar({
-          include: [models.Collective],
+          include: [{ model: models.Collective, attributes: ['slug'] }],
           where: { CollectiveId: { [Op.ne]: expense.User.collective.id } },
         });
         if (similarPayoutMethods) {
@@ -314,6 +464,7 @@ export const checkExpensesBatch = async (
       return checks;
     }),
   );
+  return result;
 };
 
 export const checkExpense = async (expense: Expense, { req }: { req?: Request } = {}): Promise<SecurityCheck[]> => {
