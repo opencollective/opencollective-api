@@ -1,6 +1,13 @@
 import config from 'config';
 import express from 'express';
-import { GraphQLBoolean, GraphQLInputObjectType, GraphQLInt, GraphQLNonNull, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLEnumType,
+  GraphQLInputObjectType,
+  GraphQLInt,
+  GraphQLNonNull,
+  GraphQLString,
+} from 'graphql';
 import { pick, size } from 'lodash';
 import { v4 as uuid } from 'uuid';
 
@@ -249,6 +256,18 @@ const expenseMutations = {
               type: GraphQLBoolean,
               description: 'Whether the payment processor fees should be refunded when triggering MARK_AS_UNPAID',
             },
+            markAsUnPaidStatus: {
+              type: new GraphQLEnumType({
+                name: 'MarkAsUnPaidExpenseStatus',
+                values: {
+                  [expenseStatus.APPROVED]: { value: expenseStatus.APPROVED },
+                  [expenseStatus.INCOMPLETE]: { value: expenseStatus.INCOMPLETE },
+                  [expenseStatus.ERROR]: { value: expenseStatus.ERROR },
+                },
+              }),
+              description: 'New expense status when triggering MARK_AS_UNPAID',
+              defaultValue: expenseStatus.APPROVED,
+            },
             forceManual: {
               type: GraphQLBoolean,
               description: 'Bypass automatic integrations (ie. PayPal, Transferwise) to process the expense manually',
@@ -299,6 +318,7 @@ const expenseMutations = {
             req,
             expense.id,
             args.paymentParams?.shouldRefundPaymentProcessorFee || args.paymentParams?.paymentProcessorFee,
+            args.paymentParams?.markAsUnPaidStatus,
           );
           break;
         case 'SCHEDULE_FOR_PAYMENT':

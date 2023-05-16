@@ -2339,9 +2339,11 @@ export async function markExpenseAsUnpaid(
   req: express.Request,
   expenseId: number,
   shouldRefundPaymentProcessorFee: boolean,
+  markAsUnPaidStatus: statuses.APPROVED | statuses.ERROR | statuses.INCOMPLETE = statuses.APPROVED,
 ): Promise<Expense> {
-  const { remoteUser } = req;
+  const newExpenseStatus = markAsUnPaidStatus || statuses.APPROVED;
 
+  const { remoteUser } = req;
   const { expense, transaction } = await lockExpense(expenseId, async () => {
     if (!remoteUser) {
       throw new Unauthorized('You need to be logged in to unpay an expense');
@@ -2384,13 +2386,17 @@ export async function markExpenseAsUnpaid(
       : 0;
     await libPayments.createRefundTransaction(transaction, paymentProcessorFeeInHostCurrency, null, expense.User);
 
-    await expense.update({ status: statuses.APPROVED, lastEditedById: remoteUser.id });
+    await expense.update({ status: newExpenseStatus, lastEditedById: remoteUser.id });
     return { expense, transaction };
   });
 
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_UNPAID, remoteUser, {
     ledgerTransaction: transaction,
   });
+
+  if (newExpenseStatus === statuses.INCOMPLETE) {
+    await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
+  }
   return expense;
 }
 
