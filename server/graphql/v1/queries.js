@@ -293,6 +293,7 @@ const queries = {
    */
   allCollectives: {
     type: CollectiveSearchResultsType,
+    deprecationReason: '2023-05-16: Please use "Accounts" on GraphQL V2',
     args: {
       slugs: {
         type: new GraphQLList(GraphQLString),
