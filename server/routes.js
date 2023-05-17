@@ -248,7 +248,7 @@ export default async app => {
   const graphqlServerOptions = {
     introspection: true,
     playground: isDevelopment,
-    csrfPrevention: true,
+    csrfPrevention: { requestHeaders: ['Authorization'] },
     ...graphqlProtection,
     debug: !['production', 'staging'].includes(config.env), // Keep stracktraces in dev & CI
     plugins: graphqlPlugins,
