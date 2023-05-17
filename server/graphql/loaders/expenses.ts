@@ -56,6 +56,8 @@ export const generateExpenseActivitiesLoader = (): DataLoader<number, Activity[]
             ACTIVITY.COLLECTIVE_EXPENSE_SCHEDULED_FOR_PAYMENT,
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_SPAM,
             ACTIVITY.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE,
+            ACTIVITY.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
+            ACTIVITY.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
           ],
         },
       },

@@ -24,6 +24,7 @@ import { CollectionArgs, CollectionReturnType } from '../../interface/Collection
 
 const updateFilterConditionsForReadyToPay = async (where, include, host, loaders): Promise<void> => {
   where['status'] = expenseStatus.APPROVED;
+  where['onHold'] = false;
 
   // Get all collectives matching the search that have APPROVED expenses
   const expenses = await models.Expense.findAll({
@@ -288,7 +289,9 @@ const ExpensesCollectionQuery = {
     }
 
     if (args.status) {
-      if (args.status !== 'READY_TO_PAY') {
+      if (args.status === 'ON_HOLD') {
+        where['onHold'] = true;
+      } else if (args.status !== 'READY_TO_PAY') {
         where['status'] = args.status;
       } else {
         await updateFilterConditionsForReadyToPay(where, include, host, req.loaders);
