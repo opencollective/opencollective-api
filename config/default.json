@@ -102,7 +102,6 @@
     "rest": {
       "mode": "sandbox"
     },
-    "feeOC": 5,
     "payment": {
       "environment": "sandbox"
     }

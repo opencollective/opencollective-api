@@ -30,6 +30,9 @@
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
   },
   "paypal": {
+    "payment": {
+      "environment": "production"
+    },
     "rest": {
       "mode": "live"
     }
@@ -54,5 +57,28 @@
   },
   "thegivingblock": {
     "apiUrl": "https://public-api.tgbwidget.com/v1"
+  },
+  "aws": {
+    "s3": {
+      "bucket": "opencollective-production"
+    }
+  },
+  "graphql": {
+    "cache": {
+      "enabled": true
+    }
+  },
+  "dbEncryption": {
+    "cipher": "AES"
+  },
+  "captcha": {
+    "enabled": true
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": 100,
+      "perAccountForCollective": 10,
+      "perEmailForCollective": 5
+    }
   }
 }

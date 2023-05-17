@@ -23,8 +23,6 @@
     "readOnly": "DATABASE_READ_ONLY"
   },
   "graphql": {
-    "apolloEngineAPIKey": "APOLLO_ENGINE_API_KEY",
-    "apolloEngineAPIKeyV2": "APOLLO_ENGINE_API_KEY_V2",
     "cache": {
       "enabled": "GRAPHQL_CACHE_ENABLED",
       "ttl": "GRAPHQL_CACHE_TTL",

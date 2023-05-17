@@ -17,6 +17,7 @@
   "host": {
     "api": "https://api-staging.opencollective.com",
     "frontend": "https://frontend-staging.opencollective.com",
+    "images": "https://images-staging.opencollective.com",
     "website": "https://staging.opencollective.com"
   },
   "log": {
@@ -41,5 +42,27 @@
   "restService": {
     "fetchCollectiveTransactionsCsv": true,
     "fetchHostTransactionsCsv": true
+  },
+  "aws": {
+    "s3": {
+      "bucket": "opencollective-staging"
+    }
+  },
+  "graphql": {
+    "cache": {
+      "enabled": true
+    }
+  },
+  "dbEncryption": {
+    "cipher": "AES"
+  },
+  "limits": {
+    "ordersPerHour": {
+      "perAccount": 300,
+      "perAccountForCollective": 300,
+      "perEmail": 300,
+      "perEmailForCollective": 300,
+      "perIp": 300
+    }
   }
 }
