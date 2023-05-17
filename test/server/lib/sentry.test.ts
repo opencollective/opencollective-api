@@ -28,7 +28,10 @@ describe('server/lib/sentry', () => {
 
       const req = makeRequest();
       req.operationName = 'test';
-      const context = SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req }).executionDidStart();
+      const context = SentryLib.SentryGraphQLPlugin.requestDidStart({
+        request: req,
+        forceSampling: true,
+      }).executionDidStart();
       context.willResolveField({ info: { parentType: { name: 'Account' }, fieldName: 'name' } })?.();
       context.willResolveField({ info: { parentType: { name: 'Expense' }, fieldName: 'description' } })?.();
       expect(startChildSpy).to.have.been.calledTwice;
@@ -46,7 +49,7 @@ describe('server/lib/sentry', () => {
       const req = makeRequest();
       req.operationName = 'test';
       const startTransactionSpy = sandbox.spy(Sentry, 'startTransaction');
-      SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req }).executionDidStart();
+      SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req, forceSampling: true }).executionDidStart();
       expect(startTransactionSpy).to.have.been.calledOnce;
     });
 
@@ -55,7 +58,7 @@ describe('server/lib/sentry', () => {
       req.query = 'query { test }';
       req.variables = { test: 'test' };
 
-      const context = SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req });
+      const context = SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req, forceSampling: true });
       const captureExceptionSpy = sandbox.spy(Sentry, 'captureException');
       context.didEncounterErrors({
         operation: {},
@@ -73,7 +76,7 @@ describe('server/lib/sentry', () => {
       req.query = 'query { test }';
       req.variables = { test: 'test' };
 
-      const context = SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req });
+      const context = SentryLib.SentryGraphQLPlugin.requestDidStart({ request: req, forceSampling: true });
       const captureExceptionSpy = sandbox.spy(Sentry, 'captureException');
       context.didEncounterErrors({
         operation: {},
