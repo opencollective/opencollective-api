@@ -338,7 +338,7 @@ async function scheduleExpenseForPayment(expense: Expense): Promise<Expense> {
     totalAmountToPay += batchedExpenses.reduce((total, e) => total + e.data.quote.paymentOption.sourceAmount, 0);
   }
   assert(
-    balanceInSourceCurrency.amount.value > totalAmountToPay,
+    balanceInSourceCurrency.amount.value >= totalAmountToPay,
     `Insufficient balance in ${quote.sourceCurrency} to cover the existing batch plus this expense amount, you need ${totalAmountToPay} ${quote.sourceCurrency} and you currently have ${balanceInSourceCurrency.amount.value} ${balanceInSourceCurrency.amount.currency}. Please add funds to your Wise ${quote.sourceCurrency} account.`,
   );
 
