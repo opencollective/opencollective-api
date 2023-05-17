@@ -141,7 +141,7 @@
     "@babel/eslint-parser": "^7.16.0",
     "@babel/plugin-transform-typescript": "^7.17.12",
     "@babel/register": "^7.16.0",
-    "@opentelemetry/auto-instrumentations-node": "^0.36.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.37.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.38.0",
     "@opentelemetry/sdk-trace-node": "^1.8.0",
     "@types/lodash": "^4.14.171",
