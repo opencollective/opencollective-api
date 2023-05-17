@@ -114,7 +114,7 @@
     "passport-twitter": "1.0.4",
     "paypal-adaptive": "0.4.2",
     "pg": "8.11.0",
-    "pg-connection-string": "2.5.0",
+    "pg-connection-string": "2.6.0",
     "pg-format": "1.0.4",
     "prepend-http": "3.0.1",
     "redis": "3.1.2",
