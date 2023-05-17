@@ -117,6 +117,14 @@ const ExpensePermissions = new GraphQLObjectType({
       type: new GraphQLNonNull(GraphQLBoolean),
       resolve: (expense, _, req) => ExpenseLib.canUsePrivateNotes(req, expense),
     },
+    canHold: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve: (expense, _, req) => ExpenseLib.canPutOnHold(req, expense),
+    },
+    canRelease: {
+      type: new GraphQLNonNull(GraphQLBoolean),
+      resolve: (expense, _, req) => ExpenseLib.canReleaseHold(req, expense),
+    },
     // Extended permissions
     edit: {
       type: new GraphQLNonNull(Permission),
@@ -173,6 +181,14 @@ const ExpensePermissions = new GraphQLObjectType({
     verifyDraftExpense: {
       type: new GraphQLNonNull(Permission),
       resolve: parsePermissionFromEvaluator(ExpenseLib.canVerifyDraftExpense),
+    },
+    hold: {
+      type: new GraphQLNonNull(Permission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canPutOnHold),
+    },
+    release: {
+      type: new GraphQLNonNull(Permission),
+      resolve: parsePermissionFromEvaluator(ExpenseLib.canReleaseHold),
     },
   }),
 });

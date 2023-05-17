@@ -186,8 +186,13 @@ const Expense = new GraphQLObjectType({
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
       },
       onHold: {
-        type: new GraphQLNonNull(GraphQLBoolean),
+        type: GraphQLBoolean,
         description: 'Whether this expense is on hold',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseOnHoldFlag(req, expense)) {
+            return expense.onHold;
+          }
+        },
       },
       comments: {
         type: CommentCollection,

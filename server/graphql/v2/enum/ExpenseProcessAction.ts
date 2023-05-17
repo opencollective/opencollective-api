@@ -34,5 +34,11 @@ export const ExpenseProcessAction = new GraphQLEnumType({
     MARK_AS_INCOMPLETE: {
       description: 'To mark the expense as incomplete and notify the payee it requires more information',
     },
+    HOLD: {
+      description: 'To put the expense on hold',
+    },
+    RELEASE: {
+      description: 'To release the expense from hold',
+    },
   },
 });
