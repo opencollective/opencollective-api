@@ -7,7 +7,6 @@ import queries from '../../lib/queries';
 import { checkExpensesBatch } from '../../lib/security/expense';
 import models, { Op, sequelize } from '../../models';
 import { Activity } from '../../models/Activity';
-import Agreement from '../../models/Agreement';
 import Expense from '../../models/Expense';
 import { ExpenseAttachedFile } from '../../models/ExpenseAttachedFile';
 import { ExpenseItem } from '../../models/ExpenseItem';
@@ -137,26 +136,3 @@ export const generateExpensesSecurityCheckLoader = req => {
     },
   );
 };
-
-export const generateExpenseAgreementsLoader = () =>
-  new DataLoader<number, Agreement[]>(async (expenseIds: number[]) => {
-    const results: Agreement[] = await sequelize.query(
-      `
-    SELECT e.id as "ExpenseId", a.* FROM
-    "Expenses" e
-    JOIN "Agreements" a 
-    ON a."HostCollectiveId" = e."HostCollectiveId" 
-    AND a."CollectiveId" IN (e."CollectiveId", e."FromCollectiveId")
-    ORDER by a."createdAt" desc;
-  `,
-      {
-        type: sequelize.QueryTypes.SELECT,
-        model: Agreement,
-        replacements: {
-          expenseIds,
-        },
-      },
-    );
-
-    return sortResultsArray(expenseIds, results, result => result.dataValues.ExpenseId, []);
-  });

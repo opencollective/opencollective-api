@@ -139,17 +139,26 @@ export const AccountWithHostFields = {
         throw new Unauthorized("You need to be logged in as an admin of the account's host to see its agreements");
       }
 
-      const agreements = await Agreement.findAndCountAll({
-        where: {
-          HostCollectiveId: account.HostCollectiveId,
-          CollectiveId: account.id,
-        },
+      const totalCount = await req.loaders.Agreement.totalAccountHostAgreements.load(account.id);
+      const agreements =
+        args.limit <= 0
+          ? []
+          : await Agreement.findAndCountAll({
+              where: {
+                HostCollectiveId: account.HostCollectiveId,
+                CollectiveId: account.id,
+              },
+              limit: args.limit,
+              offset: args.offset,
+              order: [['createdAt', 'desc']],
+            });
+
+      return {
+        totalCount,
         limit: args.limit,
         offset: args.offset,
-        order: [['createdAt', 'desc']],
-      });
-
-      return { totalCount: agreements.count, limit: args.limit, offset: args.offset, nodes: agreements };
+        nodes: agreements,
+      };
     },
   },
 };

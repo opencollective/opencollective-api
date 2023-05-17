@@ -2,12 +2,8 @@ import { expect } from 'chai';
 import moment from 'moment';
 
 import { loaders } from '../../../../server/graphql/loaders';
-import {
-  generateExpenseAgreementsLoader,
-  taxFormRequiredBeforePayment,
-} from '../../../../server/graphql/loaders/expenses';
+import { taxFormRequiredBeforePayment } from '../../../../server/graphql/loaders/expenses';
 import models from '../../../../server/models';
-import Agreement from '../../../../server/models/Agreement';
 import { LEGAL_DOCUMENT_TYPE } from '../../../../server/models/LegalDocument';
 import { fakeCollective, fakeExpense, fakeHost, fakePayoutMethod, fakeUser } from '../../../test-helpers/fake-data';
 import { resetTestDB } from '../../../utils';
@@ -341,95 +337,6 @@ describe('server/graphql/loaders/expense', () => {
       ]);
 
       expect(result).to.deep.eq([true, true, false]);
-    });
-  });
-
-  describe('expenseAgreementsLoader', () => {
-    it('loads agreements between expense host, collective and submitter', async () => {
-      const host = await fakeHost();
-
-      // no agreements
-      const expenseNoAgreements = await fakeExpense({ HostCollectiveId: host.id });
-
-      // has agreements with collective
-      const expenseCollectiveAgreement = await fakeExpense({ HostCollectiveId: host.id });
-      const expenseCollectiveAgreement1 = await Agreement.create({
-        HostCollectiveId: host.id,
-        CollectiveId: expenseCollectiveAgreement.CollectiveId,
-        title: 'Agreement with collective',
-      });
-      const expenseCollectiveAgreement2 = await Agreement.create({
-        HostCollectiveId: host.id,
-        CollectiveId: expenseCollectiveAgreement.CollectiveId,
-        title: 'Agreement with collective 2',
-      });
-
-      // has agreements with submitter
-      const expenseFromCollectiveAgreement = await fakeExpense({ HostCollectiveId: host.id });
-      const expenseFromCollectiveAgreement1 = await Agreement.create({
-        HostCollectiveId: host.id,
-        CollectiveId: expenseFromCollectiveAgreement.FromCollectiveId,
-        title: 'Agreement with submitter',
-      });
-      const expenseFromCollectiveAgreement2 = await Agreement.create({
-        HostCollectiveId: host.id,
-        CollectiveId: expenseFromCollectiveAgreement.FromCollectiveId,
-        title: 'Agreement with submitter 2',
-      });
-
-      // has agreements with both submitter and collective
-      const expenseAgreement = await fakeExpense({ HostCollectiveId: host.id });
-      const expenseAgreement1 = await Agreement.create({
-        HostCollectiveId: host.id,
-        CollectiveId: expenseAgreement.FromCollectiveId,
-        title: 'Agreement with submitter',
-      });
-      const expenseAgreement2 = await Agreement.create({
-        HostCollectiveId: host.id,
-        CollectiveId: expenseAgreement.CollectiveId,
-        title: 'Agreement with collective',
-      });
-
-      // has no agreements with this host, but collective and submitter have agreements with OTHER host.
-      const expenseOtherHostAgreement = await fakeExpense({ HostCollectiveId: host.id });
-      const otherHost = await fakeHost();
-      await Agreement.create({
-        HostCollectiveId: otherHost.id,
-        CollectiveId: expenseOtherHostAgreement.FromCollectiveId,
-        title: 'Other Host Agreement with submitter',
-      });
-      await Agreement.create({
-        HostCollectiveId: otherHost.id,
-        CollectiveId: expenseOtherHostAgreement.CollectiveId,
-        title: 'Other Host Agreement with collective',
-      });
-
-      const agreements = await generateExpenseAgreementsLoader().loadMany([
-        expenseNoAgreements.id,
-        expenseCollectiveAgreement.id,
-        expenseFromCollectiveAgreement.id,
-        expenseAgreement.id,
-        expenseOtherHostAgreement.id,
-      ]);
-
-      expect(agreements).to.have.length(5);
-      // expenseNoAgreements
-      expect(agreements[0].map(a => a.id)).to.deep.eq([]);
-
-      // expenseCollectiveAgreement
-      expect(agreements[1].map(a => a.id)).to.deep.eq([expenseCollectiveAgreement2.id, expenseCollectiveAgreement1.id]);
-
-      // expenseFromCollectiveAgreement
-      expect(agreements[2].map(a => a.id)).to.deep.eq([
-        expenseFromCollectiveAgreement2.id,
-        expenseFromCollectiveAgreement1.id,
-      ]);
-
-      // expenseAgreement
-      expect(agreements[3].map(a => a.id)).to.deep.eq([expenseAgreement2.id, expenseAgreement1.id]);
-
-      // expenseOtherHostAgreement
-      expect(agreements[4].map(a => a.id)).to.deep.eq([]);
     });
   });
 });
