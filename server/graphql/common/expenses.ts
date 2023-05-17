@@ -773,7 +773,11 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'INCOMPLETE', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'INCOMPLETE',
+    lastEditedById: req.remoteUser.id,
+    onHold: false,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   return updatedExpense;
 };
