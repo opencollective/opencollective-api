@@ -113,7 +113,7 @@
     "passport-github": "1.1.0",
     "passport-twitter": "1.0.4",
     "paypal-adaptive": "0.4.2",
-    "pg": "8.10.0",
+    "pg": "8.11.0",
     "pg-connection-string": "2.5.0",
     "pg-format": "1.0.4",
     "prepend-http": "3.0.1",
