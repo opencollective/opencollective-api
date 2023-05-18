@@ -669,6 +669,7 @@ Expense.init(
     onHold: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+      allowNull: false,
     },
   },
   {

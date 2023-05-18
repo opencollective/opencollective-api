@@ -6,6 +6,7 @@ module.exports = {
     await queryInterface.addColumn('Expenses', 'onHold', {
       type: Sequelize.BOOLEAN,
       defaultValue: false,
+      allowNull: false,
     });
     await queryInterface.addColumn('ExpenseHistories', 'onHold', {
       type: Sequelize.BOOLEAN,
