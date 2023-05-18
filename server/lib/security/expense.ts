@@ -1,5 +1,18 @@
 import type { Request } from 'express';
-import { capitalize, compact, filter, find, first, keyBy, max, startCase, uniq, uniqBy } from 'lodash';
+import {
+  capitalize,
+  compact,
+  filter,
+  find,
+  first,
+  isEqual,
+  isUndefined,
+  keyBy,
+  max,
+  startCase,
+  uniq,
+  uniqBy,
+} from 'lodash';
 import moment from 'moment';
 
 import status from '../../constants/expense_status';
@@ -7,6 +20,7 @@ import expenseType from '../../constants/expense_type';
 import models, { Op, sequelize } from '../../models';
 import Expense from '../../models/Expense';
 import { PayoutMethodTypes } from '../../models/PayoutMethod';
+import { RecipientAccount as BankAccountPayoutMethodData } from '../../types/transferwise';
 import { expenseMightBeSubjectToTaxForm } from '../tax-forms';
 import { formatCurrency } from '../utils';
 
@@ -38,6 +52,7 @@ const setProperty = (obj, key) => value => {
     obj[key] = value;
   }
 };
+const isDefinedButNotEqual = (a, b) => !isUndefined(a) && !isEqual(a, b);
 
 type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; CollectiveId: number };
 
@@ -426,11 +441,9 @@ export const checkExpensesBatch = async (
       const balanceInHostCurrency = collectiveBalances[expense.CollectiveId].value;
       checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, displayCurrency);
 
+      const payoutMethod = expense.PayoutMethod;
       // Add checks on payout method
-      if (
-        expense.PayoutMethod &&
-        [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(expense.PayoutMethod?.type)
-      ) {
+      if (payoutMethod && [PayoutMethodTypes.BANK_ACCOUNT, PayoutMethodTypes.PAYPAL].includes(payoutMethod?.type)) {
         // Statistical analysis of the Payout Method
         checkExpenseStats(filter(expensesStats, { PayoutMethodId: expense.PayoutMethodId }), {
           expense,
@@ -451,6 +464,30 @@ export const checkExpensesBatch = async (
             details: `This same account information is being used by ${uniq(
               compact(similarPayoutMethods.map(pm => pm.Collective?.slug)),
             ).join(', ')}. This may be a sock puppet account.`,
+          });
+        }
+
+        if (payoutMethod.type === PayoutMethodTypes.BANK_ACCOUNT) {
+          const pmAddress = (payoutMethod.data as BankAccountPayoutMethodData)?.details?.address;
+          const payeeAddress = expense.payeeLocation?.structured || expense.fromCollective.data?.address;
+
+          const pmCountry = pmAddress?.country;
+          const payeeCountry = expense.fromCollective.countryISO || expense.payeeLocation?.country;
+          const isDifferentCountry = isDefinedButNotEqual(pmCountry, payeeCountry);
+
+          const pmCity = pmAddress?.city;
+          const payeeCity = payeeAddress?.city;
+          const isDifferentCity = isDefinedButNotEqual(pmCity, payeeCity);
+
+          const pmCode = pmAddress?.postCode;
+          const payeeCode = payeeAddress?.postalCode;
+          const isDifferentCode = isDefinedButNotEqual(pmCode, payeeCode);
+
+          addBooleanCheck(checks, isDifferentCountry || isDifferentCity || isDifferentCode, {
+            scope: Scope.PAYOUT_METHOD,
+            level: Level.MEDIUM,
+            message: `Payout Method address is different from the payee's address`,
+            details: `While the payee is registered at ${payeeCity}, ${payeeCountry} (${payeeCode}), the payout method used in this expense is located at ${pmCity}, ${pmCountry} (${pmCode})`,
           });
         }
       }
