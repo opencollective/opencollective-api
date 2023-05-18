@@ -420,7 +420,7 @@ export const canPayExpense: ExpensePermissionEvaluator = async (
   expense: Expense,
   options = { throw: false },
 ) => {
-  if (!['APPROVED', 'ERROR'].includes(expense.status)) {
+  if (!['APPROVED', 'ERROR'].includes(expense.status) || expense.onHold === true) {
     if (options?.throw) {
       throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
     }
@@ -683,11 +683,49 @@ export const canUnschedulePayment: ExpensePermissionEvaluator = async (
 ) => {
   if (expense.status !== 'SCHEDULED_FOR_PAYMENT') {
     if (options?.throw) {
-      throw new Forbidden('Can not pay expense in current status', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+      throw new Forbidden(
+        'Can not unschedule expense for payment in current status',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
     }
     return false;
   }
   return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+};
+
+export const canPutOnHold: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (expense.status !== 'APPROVED' || expense.onHold === true) {
+    if (options?.throw) {
+      throw new Forbidden(
+        'Only approved expenses that are not on hold can be put on hold',
+        EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS,
+      );
+    }
+    return false;
+  }
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+};
+
+export const canReleaseHold: ExpensePermissionEvaluator = async (
+  req: express.Request,
+  expense: Expense,
+  options = { throw: false },
+) => {
+  if (!expense.onHold) {
+    if (options?.throw) {
+      throw new Forbidden('Only expenses on hold can be released', EXPENSE_PERMISSION_ERROR_CODES.UNSUPPORTED_STATUS);
+    }
+    return false;
+  }
+  return remoteUserMeetsOneCondition(req, expense, [isHostAdmin], options);
+};
+
+export const canSeeExpenseOnHoldFlag = async (req: express.Request, expense: Expense): Promise<boolean> => {
+  return isHostAdmin(req, expense);
 };
 
 // ---- Expense actions ----
@@ -735,7 +773,11 @@ export const markExpenseAsIncomplete = async (req: express.Request, expense: Exp
     throw new Forbidden();
   }
 
-  const updatedExpense = await expense.update({ status: 'INCOMPLETE', lastEditedById: req.remoteUser.id });
+  const updatedExpense = await expense.update({
+    status: 'INCOMPLETE',
+    lastEditedById: req.remoteUser.id,
+    onHold: false,
+  });
   await expense.createActivity(activities.COLLECTIVE_EXPENSE_MARKED_AS_INCOMPLETE, req.remoteUser);
   return updatedExpense;
 };
@@ -2566,3 +2608,27 @@ export const moveExpenses = async (req: express.Request, expenses: Expense[], de
 
   return result;
 };
+
+export async function holdExpense(req: express.Request, expense: Expense): Promise<Expense> {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to pay an expense');
+  } else if (!canPutOnHold(req, expense)) {
+    throw new FeatureNotAllowedForUser();
+  }
+
+  await expense.update({ lastEditedById: req.remoteUser.id, onHold: true });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_PUT_ON_HOLD, req.remoteUser);
+  return expense;
+}
+
+export async function releaseExpense(req: express.Request, expense: Expense): Promise<Expense> {
+  if (!req.remoteUser) {
+    throw new Unauthorized('You need to be logged in to pay an expense');
+  } else if (!canReleaseHold(req, expense)) {
+    throw new FeatureNotAllowedForUser();
+  }
+
+  await expense.update({ lastEditedById: req.remoteUser.id, onHold: false });
+  await expense.createActivity(activities.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD, req.remoteUser);
+  return expense;
+}

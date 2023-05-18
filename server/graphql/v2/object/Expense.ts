@@ -1,7 +1,16 @@
-import { GraphQLFloat, GraphQLInt, GraphQLList, GraphQLNonNull, GraphQLObjectType, GraphQLString } from 'graphql';
+import {
+  GraphQLBoolean,
+  GraphQLFloat,
+  GraphQLInt,
+  GraphQLList,
+  GraphQLNonNull,
+  GraphQLObjectType,
+  GraphQLString,
+} from 'graphql';
 import { GraphQLDateTime, GraphQLJSON } from 'graphql-scalars';
 import { pick, round } from 'lodash';
 
+import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense_status';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
@@ -177,6 +186,15 @@ const Expense = new GraphQLObjectType({
         type: new GraphQLNonNull(ExpenseStatus),
         description: 'The state of the expense (pending, approved, paid, rejected...etc)',
       },
+      onHold: {
+        type: GraphQLBoolean,
+        description: 'Whether this expense is on hold',
+        async resolve(expense, _, req) {
+          if (await ExpenseLib.canSeeExpenseOnHoldFlag(req, expense)) {
+            return expense.onHold;
+          }
+        },
+      },
       comments: {
         type: CommentCollection,
         description: 'Returns the list of comments for this expense, or `null` if user is not allowed to see them',
@@ -335,8 +353,18 @@ const Expense = new GraphQLObjectType({
       activities: {
         type: new GraphQLNonNull(new GraphQLList(new GraphQLNonNull(Activity))),
         description: 'The list of activities (ie. approved, edited, etc) for this expense ordered by date ascending',
-        resolve(expense, _, req) {
-          return req.loaders.Expense.activities.load(expense.id);
+        async resolve(expense, _, req) {
+          const activities = await req.loaders.Expense.activities.load(expense.id);
+          if (!req.remoteUser || !(await ExpenseLib.canSeeExpenseOnHoldFlag(req, expense))) {
+            return activities.filter(
+              activity =>
+                ![
+                  ActivityTypes.COLLECTIVE_EXPENSE_PUT_ON_HOLD,
+                  ActivityTypes.COLLECTIVE_EXPENSE_RELEASED_FROM_HOLD,
+                ].includes(activity.type),
+            );
+          }
+          return activities;
         },
       },
       tags: {

@@ -12,6 +12,7 @@ import RateLimit from '../../../lib/rate-limit';
 import { reportErrorToSentry } from '../../../lib/sentry';
 import twoFactorAuthLib from '../../../lib/two-factor-authentication/lib';
 import models from '../../../models';
+import { CommentType } from '../../../models/Comment';
 import ExpenseModel from '../../../models/Expense';
 import { createComment } from '../../common/comment';
 import {
@@ -22,11 +23,13 @@ import {
   createExpense,
   editExpense,
   editExpenseDraft,
+  holdExpense,
   markExpenseAsIncomplete,
   markExpenseAsSpam,
   markExpenseAsUnpaid,
   payExpense,
   rejectExpense,
+  releaseExpense,
   requestExpenseReApproval,
   scheduleExpenseForPayment,
   unapproveExpense,
@@ -315,6 +318,12 @@ const expenseMutations = {
             totalAmountPaidInHostCurrency: args.paymentParams?.totalAmountPaidInHostCurrency,
           });
           break;
+        case 'HOLD':
+          expense = await holdExpense(req, expense);
+          break;
+        case 'RELEASE':
+          expense = await releaseExpense(req, expense);
+          break;
       }
 
       if (args.message) {
@@ -322,6 +331,7 @@ const expenseMutations = {
           {
             ExpenseId: expense.id,
             html: args.message,
+            type: ['HOLD', 'RELEASE'].includes(args.action) ? CommentType.PRIVATE_NOTE : CommentType.COMMENT,
           },
           req,
         );
