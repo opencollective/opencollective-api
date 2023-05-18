@@ -85,7 +85,14 @@ export type RecipientAccount = {
   accountHolderName: string;
   legalType: 'PRIVATE' | 'BUSINESS';
   details: {
-    address?: string;
+    address?: {
+      country: string;
+      countryCode: string;
+      firstLine: string;
+      postCode: string;
+      city: string;
+      state: string;
+    };
     email?: string;
     accountNumber?: string;
     sortCode?: string;
