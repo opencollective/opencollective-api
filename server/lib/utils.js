@@ -381,7 +381,7 @@ export const getDefaultCurrencyPrecision = currency => {
   }
 };
 
-export function formatCurrency(amount, currency, precision = 2) {
+export function formatCurrency(amount, currency, precision = 2, isApproximate = false) {
   amount = amount / 100; // converting cents
   let locale;
   switch (currency) {
@@ -394,13 +394,18 @@ export function formatCurrency(amount, currency, precision = 2) {
     default:
       locale = 'en-US';
   }
-  return amount.toLocaleString(locale, {
-    style: 'currency',
-    currencyDisplay: 'symbol',
-    currency,
-    minimumFractionDigits: precision,
-    maximumFractionDigits: precision,
-  });
+
+  const prefix = isApproximate ? '~' : '';
+  return (
+    prefix +
+    amount.toLocaleString(locale, {
+      style: 'currency',
+      currencyDisplay: 'symbol',
+      currency,
+      minimumFractionDigits: precision,
+      maximumFractionDigits: precision,
+    })
+  );
 }
 
 /**
