@@ -139,20 +139,20 @@ const checkExpenseStats = (
 const checkExpenseAmountStats = (
   checks: Array<SecurityCheck>,
   expenseStats: ExpenseAmountStats,
-  collectiveBalanceInTargetCurrency: number,
-  targetCurrency: string,
+  collectiveBalanceInDisplayCurrency: number,
+  displayCurrency: string,
 ) => {
   // Add warning if total approved is above the balance of the collective
-  addBooleanCheck(checks, expenseStats.totalApprovedAmountForCollective > collectiveBalanceInTargetCurrency, {
+  addBooleanCheck(checks, expenseStats.totalApprovedAmountForCollective > collectiveBalanceInDisplayCurrency, {
     scope: Scope.COLLECTIVE,
     level: Level.MEDIUM,
     message: `Total approved amount is higher than the collective balance`,
     details: `The total amount of approved expenses for this collective is ${formatCurrency(
       expenseStats.totalApprovedAmountForCollective,
-      targetCurrency,
+      displayCurrency,
     )}, which is higher than the collective balance of ${formatCurrency(
-      collectiveBalanceInTargetCurrency,
-      targetCurrency,
+      collectiveBalanceInDisplayCurrency,
+      displayCurrency,
     )}.`,
   });
 
@@ -164,13 +164,13 @@ const checkExpenseAmountStats = (
       message: `Amount is higher than usual`,
       details: `The amount of this expense (${formatCurrency(
         expenseStats.amountInHostCurrency,
-        targetCurrency,
+        displayCurrency,
         2,
         expenseStats.isConvertedCurrency,
       )}) is in the top 5% of expenses for this collective. The average amount of paid expenses is ${formatCurrency(
         expenseStats.averageAmountForCollective,
-        targetCurrency,
-      )}, with the top 5% being above ${formatCurrency(expenseStats.paidAmountP95ForCollective, targetCurrency)}.`,
+        displayCurrency,
+      )}, with the top 5% being above ${formatCurrency(expenseStats.paidAmountP95ForCollective, displayCurrency)}.`,
     });
   }
 };
@@ -211,7 +211,7 @@ const getGroupedExpensesStats = (expenses: Array<Expense>) => {
  */
 const getExpensesAmountsStats = async (
   expenses: Array<Expense>,
-  targetCurrency,
+  displayCurrency,
 ): Promise<Record<string, ExpenseAmountStats>> => {
   const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
   const expenseIds = uniq(expenses.map(e => e.id));
@@ -220,16 +220,16 @@ const getExpensesAmountsStats = async (
       WITH all_expenses AS (
         SELECT
           e.*,
-          e.currency != :targetCurrency AS "isConvertedCurrency",
+          e.currency != :displayCurrency AS "isConvertedCurrency",
           CASE
-            -- Simple case: expense is already in target currency
-            WHEN e.currency = :targetCurrency THEN e.amount
-            -- Convert expense to target currency
+            -- Simple case: expense is already in display currency
+            WHEN e.currency = :displayCurrency THEN e.amount
+            -- Convert expense to display currency
             ELSE e.amount * COALESCE((
                 SELECT rate
                 FROM "CurrencyExchangeRates" r
                 WHERE r."from" = e.currency
-                AND r."to" = :targetCurrency
+                AND r."to" = :displayCurrency
                 AND r."createdAt" <= e."createdAt"
                 ORDER BY e."createdAt" DESC -- Most recent rate that is older than the expense
                 LIMIT 1
@@ -238,7 +238,7 @@ const getExpensesAmountsStats = async (
                 SELECT rate
                 FROM "CurrencyExchangeRates" r
                 WHERE r."from" = e.currency
-                AND r."to" = :targetCurrency
+                AND r."to" = :displayCurrency
                 ORDER BY e."createdAt" ASC -- Oldest rate
                 LIMIT 1
             ))
@@ -261,7 +261,7 @@ const getExpensesAmountsStats = async (
     `,
     {
       type: sequelize.QueryTypes.SELECT,
-      replacements: { targetCurrency, collectiveIds, expenseIds },
+      replacements: { displayCurrency, collectiveIds, expenseIds },
     },
   );
 
@@ -273,7 +273,7 @@ const getExpensesAmountsStats = async (
  * displaying these warnings for fiscal hosts, the assumption is that the currency of the
  * host is the one that should be used; regardless of the other expenses in the batch.
  */
-const getTargetCurrency = async expenses => {
+const getDisplayCurrency = async expenses => {
   const host = await expenses[0].collective.getHostCollective();
   return host?.currency || expenses[0].collective.currency;
 };
@@ -281,20 +281,20 @@ const getTargetCurrency = async expenses => {
 const getCollectiveBalances = async (
   req: Request,
   expenses: Expense[],
-  targetCurrency: string,
+  displayCurrency: string,
 ): Promise<Record<string, { currency: string; value: number }>> => {
   const collectiveIds = uniq(expenses.map(e => e.CollectiveId));
   const balanceLoader = req.loaders.Collective.balance.buildLoader({ withBlockedFunds: true }); // Use the same loader as https://github.com/opencollective/opencollective-api/blob/main/server/graphql/v2/object/AccountStats.js#L70 to make sure we don't hit the DB twice
   const collectiveBalances = await balanceLoader.loadMany(collectiveIds);
   const balancesInHostCurrency = await Promise.all(
     collectiveBalances.map(async balance => {
-      if (balance.currency === targetCurrency) {
+      if (balance.currency === displayCurrency) {
         return balance;
       } else {
-        const convertParams = { amount: balance.value, from: balance.currency, to: targetCurrency };
+        const convertParams = { amount: balance.value, from: balance.currency, to: displayCurrency };
         return {
           value: await req.loaders.CurrencyExchangeRate.convert.load(convertParams),
-          currency: targetCurrency,
+          currency: displayCurrency,
         };
       }
     }),
@@ -307,10 +307,10 @@ export const checkExpensesBatch = async (
   req: Request,
   expenses: Array<Expense>,
 ): Promise<Array<Array<SecurityCheck>>> => {
-  const targetCurrency = await getTargetCurrency(expenses);
+  const displayCurrency = await getDisplayCurrency(expenses);
   const expensesStats = await getGroupedExpensesStats(expenses);
-  const expensesAmountsStats = await getExpensesAmountsStats(expenses, targetCurrency);
-  const collectiveBalances = await getCollectiveBalances(req, expenses, targetCurrency);
+  const expensesAmountsStats = await getExpensesAmountsStats(expenses, displayCurrency);
+  const collectiveBalances = await getCollectiveBalances(req, expenses, displayCurrency);
   const usersByIpConditions = expenses.map(expense => {
     const ip = expense.User.getLastKnownIp();
     return {
@@ -420,7 +420,7 @@ export const checkExpensesBatch = async (
 
       // Check amounts
       const balanceInHostCurrency = collectiveBalances[expense.CollectiveId].value;
-      checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, targetCurrency);
+      checkExpenseAmountStats(checks, expensesAmountsStats[expense.id], balanceInHostCurrency, displayCurrency);
 
       // Add checks on payout method
       if (
