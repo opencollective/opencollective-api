@@ -189,6 +189,23 @@ describe('server/models/Notification', () => {
       expect(unsubscribers).to.containSubset([{ id: notification.UserId }]);
     });
 
+    it('can return only specific user attributes', async () => {
+      const notification = await fakeNotification({
+        channel: 'email',
+        CollectiveId: null,
+        active: false,
+        type: ActivityTypes.COLLECTIVE_APPLY,
+      });
+      const unsubscribers = await models.Notification.getUnsubscribers({
+        type: notification.type,
+        attributes: ['email'],
+      });
+
+      expect(unsubscribers[0].id).to.eq(notification.UserId); // ID is always returned
+      expect(unsubscribers[0].email).to.not.be.undefined;
+      expect(unsubscribers[0].createdAt).to.be.undefined;
+    });
+
     it('should return user who unsubscribed for activity class that contains the type', async () => {
       const notification = await fakeNotification({
         channel: 'email',

@@ -8,6 +8,7 @@ import { htmlToText } from 'html-to-text';
 import juice from 'juice';
 import { get, includes, isArray, merge, pick } from 'lodash';
 import nodemailer from 'nodemailer';
+import SMTPTransport from 'nodemailer/lib/smtp-transport';
 
 import { activities } from '../constants';
 import models from '../models';
@@ -123,7 +124,7 @@ const sendMessage = (
   subject: string,
   html: string,
   options: SendMessageOptions = {},
-) => {
+): Promise<SMTPTransport.SentMessageInfo | void> => {
   if (!isArray(recipients)) {
     recipients = [recipients];
   }

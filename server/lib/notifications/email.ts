@@ -1,7 +1,7 @@
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { cloneDeep, compact, get } from 'lodash';
+import PQueue from 'p-queue';
 
 import { roles } from '../../constants';
 import ActivityTypes, { TransactionalActivities } from '../../constants/activities';
@@ -14,7 +14,9 @@ import { Activity } from '../../models/Activity';
 import { CommentType } from '../../models/Comment';
 import User from '../../models/User';
 import emailLib from '../email';
+import logger from '../logger';
 import { getTransactionPdf } from '../pdf';
+import { reportMessageToSentry } from '../sentry';
 import twitter from '../twitter';
 import { toIsoDateStr } from '../utils';
 
@@ -43,44 +45,65 @@ export const notify = {
     options?: NotifySubscribersOptions & {
       user?: User;
       userId?: number;
+      /** If true, will not check if the user is unsubscribed. Only use this if you've already checked it before. */
+      skipUnsubscribedCheck?: boolean;
     },
   ) {
     const userId = options?.user?.id || options?.userId || activity.UserId;
     const user = options?.user || (await models.User.findByPk(userId, { include: [{ association: 'collective' }] }));
+    if (!user) {
+      const activityDescription = `${activity.type} #${activity.id}`;
+      logger.error(`No user found for email notification: ${activityDescription} (${JSON.stringify(options)})`);
+      reportMessageToSentry('No user found for email notification', {
+        severity: 'warning',
+        extra: { activity: activityDescription, options },
+      });
+      return;
+    }
 
-    // TODO We're not using the `unsubscribed` option here, we should
-    const unsubscribed = await models.Notification.getUnsubscribers({
-      type: activity.type,
-      UserId: user.id,
-      CollectiveId: options?.collective?.id || activity.CollectiveId,
-    });
+    if (!options?.skipUnsubscribedCheck) {
+      const unsubscribed = await models.Notification.getUnsubscribers({
+        type: activity.type,
+        UserId: user.id,
+        CollectiveId: options?.collective?.id || activity.CollectiveId,
+        channel: Channels.EMAIL,
+        attributes: ['id'],
+      });
+
+      if (unsubscribed.length > 0) {
+        return;
+      }
+    }
 
     const isTransactional = TransactionalActivities.includes(activity.type);
     const emailData = cloneDeep(activity.data || {});
-    if (unsubscribed.length === 0) {
-      debug('notifying.user', user.id, user && user.email, activity.type);
+    debug('notifying.user', user.id, user && user.email, activity.type);
 
-      // Add recipient name to data
-      if (!emailData.recipientName) {
-        user.collective = user.collective || (await user.getCollective());
-        if (user.collective) {
-          emailData.recipientCollective = user.collective.info;
-          emailData.recipientName = user.collective.name || user.collective.legalName;
-        }
+    // Add recipient name to data
+    if (!emailData.recipientName) {
+      user.collective = user.collective || (await user.getCollective());
+      if (user.collective) {
+        emailData.recipientCollective = user.collective.info;
+        emailData.recipientName = user.collective.name || user.collective.legalName;
       }
-
-      return emailLib.send(options?.template || activity.type, options?.to || user.email, emailData, {
-        ...options,
-        isTransactional,
-      });
     }
+
+    return emailLib.send(options?.template || activity.type, options?.to || user.email, emailData, {
+      ...options,
+      isTransactional,
+    });
   },
 
-  async users(users: Array<User>, activity: Partial<Activity>, options?: NotifySubscribersOptions) {
+  async users(
+    users: Array<User | number>,
+    activity: Partial<Activity>,
+    options?: NotifySubscribersOptions,
+  ): Promise<void> {
     const unsubscribed = await models.Notification.getUnsubscribers({
       type: activity.type,
       CollectiveId: options?.collective?.id || activity.CollectiveId,
       channel: Channels.EMAIL,
+      attributes: ['id'],
     });
 
     // Remove any possible null or empty user in the array
@@ -89,21 +112,24 @@ export const notify = {
     if (process.env.ONLY) {
       debug('ONLY set to ', process.env.ONLY, ' => skipping subscribers');
       const isTransactional = TransactionalActivities.includes(activity.type);
-      return emailLib.send(options?.template || activity.type, process.env.ONLY, activity.data, {
+      await emailLib.send(options?.template || activity.type, process.env.ONLY, activity.data, {
         ...options,
         isTransactional,
       });
     } else if (cleanUsersArray.length > 0) {
-      return Promise.all(
-        cleanUsersArray
-          // Filter out unsubscribed users
-          .filter(user => {
-            const isUnsubscribed = unsubscribed.some(unsubscribedUser => unsubscribedUser.id === user.id);
-            const isExcluded = options?.exclude?.includes(user.id) || false;
-            return !isUnsubscribed && !isExcluded;
-          })
-          .map(user => notify.user(activity, { ...options, unsubscribed, user })),
-      );
+      const queue = new PQueue({ concurrency: 50 });
+      for (const userOrUserId of cleanUsersArray) {
+        const isUserId = typeof userOrUserId === 'number';
+        const [userId, user] = isUserId ? [userOrUserId, null] : [userOrUserId.id, userOrUserId];
+        if (
+          !unsubscribed.some(unsubscribedUser => unsubscribedUser.id === userId) && // Unsubscribed
+          !options?.exclude?.includes(userId) // Explicitly excluded
+        ) {
+          queue.add(() => notify.user(activity, { ...options, skipUnsubscribedCheck: true, userId, user }));
+        }
+      }
+
+      await queue.onIdle();
     }
   },
 
@@ -117,7 +143,7 @@ export const notify = {
       collectiveId?: number;
       role?: Array<roles>;
     },
-  ) {
+  ): Promise<void> {
     const collectiveId = options?.collectiveId || activity.CollectiveId;
     const collective = options?.collective || (await models.Collective.findByPk(collectiveId));
     const role = options?.role || [roles.ADMIN];
@@ -133,7 +159,7 @@ export const notify = {
           role,
         });
 
-    return notify.users(users, activity, { ...options, collective });
+    await notify.users(users, activity, { ...options, collective });
   },
 };
 
@@ -280,12 +306,14 @@ export const notifyByEmail = async (activity: Activity) => {
       activity.data.collective = collective.info;
       activity.data.fromEmail = emailLib.generateFromEmailHeader(activity.data.collective.name);
       activity.CollectiveId = collective.id;
+      activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
 
       const emailOpts = { from: activity.data.fromEmail };
       const update = await models.Update.findByPk(activity.data.update.id);
-      const allUsers = await update.getUsersToNotify();
-      activity.data.update.html = replaceVideosByImagePreviews(activity.data.update.html);
-      await notify.users(allUsers, activity, emailOpts);
+
+      // Updates can have many subscribers (e.g. OSC has 6000+). We only load the ID and defer the rest to the email functions.
+      const usersIdsToNotify = await update.getUsersIdsToNotify();
+      await notify.users(usersIdsToNotify, activity, emailOpts);
       break;
     }
 

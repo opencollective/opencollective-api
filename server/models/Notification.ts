@@ -1,5 +1,5 @@
 import debugLib from 'debug';
-import { compact, defaults, isNil, keys, pick, pickBy, reject } from 'lodash';
+import { compact, defaults, isNil, keys, pick, pickBy, reject, uniq } from 'lodash';
 import prependHttp from 'prepend-http';
 import { CreationOptional, InferAttributes, InferCreationAttributes } from 'sequelize';
 import isIP from 'validator/lib/isIP';
@@ -220,10 +220,12 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
 
   /**
    * Get an array of all the UserId that have unsubscribed from the `notificationType` notification for (optional) CollectiveId
+   * @deprecated: use getUnsubscribers instead
    */
   static async getUnsubscribersUserIds(notificationType: string, CollectiveId?: number) {
     debug('getUnsubscribersUserIds', notificationType, CollectiveId);
     const notifications = await Notification.findAll({
+      attributes: ['UserId'],
       where: {
         CollectiveId,
         type: notificationType,
@@ -239,6 +241,7 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
     CollectiveId?: number;
     UserId?: number | number[];
     channel?: channels;
+    attributes?: string[];
   }) {
     debug('getUnsubscribers', _where);
     // Enforce that there are no unsubscribers for transactional activities.
@@ -249,7 +252,8 @@ export class Notification extends Model<InferAttributes<Notification>, InferCrea
 
     const getUsers = notifications => notifications.map(notification => notification.User);
 
-    const include = [{ model: models.User, required: true }];
+    const userAttributes = _where.attributes && uniq([..._where.attributes, 'id']);
+    const include = [{ model: models.User, required: true, attributes: userAttributes }];
     const where = { active: false, ...pick(_where, ['UserId', 'channel']) };
 
     const classes = keys(pickBy(ActivitiesPerClass, array => array.includes(_where.type as ActivityTypes)));
