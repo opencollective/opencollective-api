@@ -584,9 +584,9 @@ export const reviewClosed = async (event: Stripe.Event) => {
     if (closedReason === 'refunded_as_fraud' || closedReason === 'refunded') {
       if (order.status === OrderStatuses.IN_REVIEW) {
         if (order.SubscriptionId) {
-          await order.update({ status: OrderStatuses.CANCELLED });
+          await order.update({ status: OrderStatuses.CANCELLED, data: { ...order.data, closedReason } });
         } else {
-          await order.update({ status: OrderStatuses.REFUNDED });
+          await order.update({ status: OrderStatuses.REFUNDED, data: { ...order.data, closedReason } });
         }
       }
 
