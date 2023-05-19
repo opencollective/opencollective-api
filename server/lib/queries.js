@@ -373,7 +373,7 @@ export const usersToNotifyForUpdateSQLQuery = `
       AND mc."type" = 'USER'
     GROUP BY
       mc.id
-  ) SELECT u.*
+  ) SELECT u.id
   -- Get all user entries, either the direct members, the admins of member_collectives or the admins of parent collectives
   FROM "Users" u
   LEFT JOIN admins_of_members
@@ -382,8 +382,7 @@ export const usersToNotifyForUpdateSQLQuery = `
     ON (member_collectives."type" = 'USER' AND u."CollectiveId" = member_collectives.id)
   WHERE (admins_of_members.id IS NOT NULL OR member_collectives.id IS NOT NULL)
   AND u."deletedAt" IS NULL
-  GROUP BY
-    u.id
+  GROUP BY u.id
 `;
 
 export const countUsersToNotifyForUpdateSQLQuery = `

@@ -1,7 +1,6 @@
-import Promise from 'bluebird';
 import config from 'config';
 import slugify from 'limax';
-import { defaults, pick } from 'lodash';
+import { pick } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
   CreationOptional,
@@ -17,7 +16,6 @@ import * as errors from '../graphql/errors';
 import logger from '../lib/logger';
 import * as SQLQueries from '../lib/queries';
 import { buildSanitizerOptions, generateSummaryForHTML, sanitizeHTML } from '../lib/sanitize-html';
-import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model, Op, QueryTypes } from '../lib/sequelize';
 import { sanitizeTags, validateTags } from '../lib/tags';
 
@@ -176,17 +174,15 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
   /**
    * Get the member users to notify for this update.
    */
-  getUsersToNotify = async function () {
+  getUsersIdsToNotify = async function (): Promise<Array<number>> {
     const audience = this.notificationAudience || 'ALL';
 
     if (audience === 'NO_ONE') {
       return [];
     }
 
-    return sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
+    const results = await sequelize.query(SQLQueries.usersToNotifyForUpdateSQLQuery, {
       type: sequelize.QueryTypes.SELECT,
-      mapToModel: true,
-      model: models.User,
       replacements: {
         collectiveId: this.CollectiveId,
         targetRoles: this.getTargetMembersRoles(),
@@ -194,6 +190,8 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
         includeMembers: audience !== 'COLLECTIVE_ADMINS',
       },
     });
+
+    return results.map(user => user.id);
   };
 
   /**
@@ -341,13 +339,6 @@ class Update extends Model<InferAttributes<Update>, InferCreationAttributes<Upda
       },
     ).then(([affectedCount]) => {
       logger.info(`Number of private updates made public: ${affectedCount}`);
-    });
-  };
-
-  static createMany = (updates, defaultValues) => {
-    return Promise.map(updates, u => Update.create(defaults({}, u, defaultValues)), { concurrency: 1 }).catch(err => {
-      console.error(err);
-      reportErrorToSentry(err);
     });
   };
 }
