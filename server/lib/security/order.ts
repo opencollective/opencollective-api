@@ -18,12 +18,20 @@ const ENFORCE_SUSPENDED_ASSET = parseToBoolean(config.fraud.enforceSuspendedAsse
 type FraudStats = { errorRate: number; numberOfOrders: number; paymentMethodRate: number };
 
 const BASE_STATS_QUERY = `
-    SELECT
-        ROUND(COALESCE(AVG(CASE WHEN o."status" = 'ERROR' THEN 1 ELSE 0 END), 0), 5)::Float as "errorRate",
-        COUNT(*) as "numberOfOrders",
-        COALESCE(COUNT(DISTINCT CONCAT(pm."name", pm."data"->>'expYear'))::Float / NULLIF(COUNT(*),0), 0) as "paymentMethodRate"
-    FROM "Orders" o
-    LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
+  SELECT
+    ROUND(COALESCE(AVG(CASE WHEN o."status" = 'ERROR' THEN 1 ELSE 0 END), 0), 5)::Float as "errorRate",
+    COUNT(*) as "numberOfOrders",
+    COALESCE(
+      COUNT(
+        DISTINCT COALESCE(
+          NULLIF(CONCAT(pm."name", pm."data"->>'expYear'), ''),
+          pm."id"::TEXT
+        )
+      )::FLOAT / NULLIF(COUNT(*), 0),
+      0
+    ) as "paymentMethodRate"
+  FROM "Orders" o
+  LEFT JOIN "PaymentMethods" pm ON pm."id" = o."PaymentMethodId"
 `;
 
 export const getUserStats = async (user: User, interval?: string): Promise<FraudStats> => {
@@ -32,7 +40,6 @@ export const getUserStats = async (user: User, interval?: string): Promise<Fraud
     ${BASE_STATS_QUERY} 
     WHERE o."CreatedByUserId" = :userId
     AND o."deletedAt" IS NULL
-    AND pm."type" = 'creditcard'
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     { replacements: { userId: user.id, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
@@ -46,7 +53,6 @@ export const getEmailStats = async (email: string, interval?: string): Promise<F
     LEFT JOIN "Users" u ON u."id" = o."CreatedByUserId"
     WHERE u."email" = LOWER(:email)
     AND o."deletedAt" IS NULL
-    AND pm."type" = 'creditcard'
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     { replacements: { email, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
@@ -59,7 +65,6 @@ export const getIpStats = async (ip: string, interval?: string): Promise<FraudSt
     ${BASE_STATS_QUERY} 
     WHERE o."data"#>>'{reqIp}' = :ip
     AND o."deletedAt" IS NULL
-    AND pm."type" = 'creditcard'
     ${ifStr(interval, 'AND o."createdAt" >= NOW() - INTERVAL :interval')}
     `,
     { replacements: { ip, interval }, type: sequelize.QueryTypes.SELECT, raw: true, plain: true },
@@ -82,6 +87,7 @@ export const getCreditCardStats = async (
     WHERE 
     o."deletedAt" IS NULL
     AND pm."deletedAt" IS NULL
+    AND pm."type" = 'creditcard'
     ${
       fingerprint
         ? `AND pm."data"#>>'{fingerprint}' = :fingerprint`
