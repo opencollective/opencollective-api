@@ -5,7 +5,6 @@ import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import Application from './Application';
 import User from './User';
-// import models from '.';
 
 class OAuthAuthorizationCode extends Model<
   InferAttributes<OAuthAuthorizationCode>,

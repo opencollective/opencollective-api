@@ -5,7 +5,6 @@ import oAuthScopes from '../constants/oauth-scopes';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
 
 import User from './User';
-// import models from '.';
 
 export enum TokenType {
   OAUTH = 'OAUTH',
