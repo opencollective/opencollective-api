@@ -44,6 +44,7 @@ type ExpenseStats = { count: number; lastCreatedAt: Date; status: status; Collec
 type ExpenseAmountStats = {
   amountInHostCurrency: number;
   totalApprovedAmountForCollective: number;
+  totalApprovedCountForCollective: number;
   averageAmountForCollective: number;
   paidAmountP95ForCollective: number;
   isConvertedCurrency: boolean;
@@ -146,8 +147,10 @@ const checkExpenseAmountStats = (
   addBooleanCheck(checks, expenseStats.totalApprovedAmountForCollective > collectiveBalanceInDisplayCurrency, {
     scope: Scope.COLLECTIVE,
     level: Level.MEDIUM,
-    message: `Total approved amount is higher than the collective balance`,
-    details: `The total amount of approved expenses for this collective is ${formatCurrency(
+    message: `The total amount of approved expenses is higher than the collective balance`,
+    details: `There are ${
+      expenseStats.totalApprovedCountForCollective
+    } approved expenses for this collective for a total of ${formatCurrency(
       expenseStats.totalApprovedAmountForCollective,
       displayCurrency,
     )}, which is higher than the collective balance of ${formatCurrency(
@@ -254,6 +257,7 @@ const getExpensesAmountsStats = async (
           "amountInHostCurrency",
           AVG("amountInHostCurrency") FILTER (WHERE status = 'PAID') OVER (PARTITION BY "CollectiveId") AS "averageAmountForCollective",
           SUM("amountInHostCurrency") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedAmountForCollective",
+          COUNT("id") FILTER (WHERE status = 'APPROVED') OVER (PARTITION BY "CollectiveId") AS "totalApprovedCountForCollective",
           (SELECT PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY "amountInHostCurrency") FROM all_expenses WHERE "CollectiveId" = e."CollectiveId" AND status = 'PAID') AS "paidAmountP95ForCollective"
         FROM all_expenses e
       ) SELECT * FROM all_expenses_stats
