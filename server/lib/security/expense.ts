@@ -472,7 +472,7 @@ export const checkExpensesBatch = async (
           const payeeAddress = expense.payeeLocation?.structured || expense.fromCollective.data?.address;
 
           const pmCountry = pmAddress?.country;
-          const payeeCountry = expense.fromCollective.countryISO || expense.payeeLocation?.country;
+          const payeeCountry = expense.payeeLocation?.country || expense.fromCollective.countryISO;
           const isDifferentCountry = isDefinedButNotEqual(pmCountry, payeeCountry);
 
           const pmCity = pmAddress?.city;
