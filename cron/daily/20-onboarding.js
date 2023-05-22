@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import Promise from 'bluebird';
 import { get } from 'lodash';
 
 import { processOnBoardingTemplate } from '../../server/lib/onboarding';

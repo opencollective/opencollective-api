@@ -4,8 +4,6 @@ import '../server/env';
 /*
  * This script runs through a few checks and lets us know if something is off
  */
-import Promise from 'bluebird';
-
 // import { parse as json2csv } from 'json2csv';
 // import moment from 'moment';
 import emailLib from '../server/lib/email';

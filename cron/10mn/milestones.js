@@ -3,7 +3,6 @@ import '../../server/env';
 
 process.env.PORT = 3066;
 
-import Promise from 'bluebird';
 import config from 'config';
 import debugLib from 'debug';
 import { get, pick, set, uniq } from 'lodash';
@@ -41,7 +40,7 @@ const init = async () => {
     `${transactionsGroups.length} different collectives got new financial contributors since ${TenMinutesAgo}`,
   );
 
-  return Promise.map(transactionsGroups, processNewMembersCount).then(() => {
+  return Promise.all(transactionsGroups.map(processNewMembersCount)).then(() => {
     const timeLapsed = new Date() - startTime;
     console.log(`Total run time: ${timeLapsed}ms`);
     process.exit(0);

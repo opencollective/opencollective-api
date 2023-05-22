@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import '../server/env';
 
-import { map } from 'bluebird';
-
 import { sequelize } from '../server/models';
 
 /**
@@ -19,43 +17,39 @@ async function run() {
     { type: sequelize.QueryTypes.SELECT },
   );
 
-  return map(
-    collectives,
-    async collective => {
-      const [membership] = await sequelize.query(
-        `
+  for (const collective of collectives) {
+    const [membership] = await sequelize.query(
+      `
       SELECT "since" FROM "Members" m
       WHERE m."CollectiveId" = :collectiveId
       AND m."MemberCollectiveId" = :MemberCollectiveId
       AND m."role" = 'HOST'
   `,
-        {
-          replacements: {
-            collectiveId: collective.id,
-            MemberCollectiveId: collective.HostCollectiveId,
-          },
-          type: sequelize.QueryTypes.SELECT,
+      {
+        replacements: {
+          collectiveId: collective.id,
+          MemberCollectiveId: collective.HostCollectiveId,
         },
-      );
+        type: sequelize.QueryTypes.SELECT,
+      },
+    );
 
-      if (membership) {
-        return sequelize.query(
-          `
+    if (membership) {
+      return sequelize.query(
+        `
       UPDATE "Collectives"
         SET "approvedAt" = :approvedAt
       WHERE "id" = :collectiveId
     `,
-          {
-            replacements: {
-              approvedAt: membership.since,
-              collectiveId: collective.id,
-            },
+        {
+          replacements: {
+            approvedAt: membership.since,
+            collectiveId: collective.id,
           },
-        );
-      }
-    },
-    { concurrency: 4 },
-  );
+        },
+      );
+    }
+  }
 }
 
 run()

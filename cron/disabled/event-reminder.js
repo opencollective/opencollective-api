@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import '../../server/env';
 
-import Promise from 'bluebird';
 import { get } from 'lodash';
 
 import emailLib from '../../server/lib/email';
@@ -50,7 +49,7 @@ async function run() {
     include: [{ association: 'location' }],
   });
   console.log(`>>> Processing ${tomorrowEvents.length} events`);
-  await Promise.map(tomorrowEvents, event => processEvent(event, 'event.reminder.1d'));
+  await Promise.all(tomorrowEvents.map(event => processEvent(event, 'event.reminder.1d')));
 
   console.log(
     '>>> Fetching all events that start within time range',
@@ -64,7 +63,7 @@ async function run() {
     },
     include: [{ association: 'location' }],
   });
-  return Promise.map(nextWeekEvents, event => processEvent(event, 'event.reminder.7d')).then(() => {
+  return Promise.all(nextWeekEvents.map(event => processEvent(event, 'event.reminder.7d'))).then(() => {
     console.log(`${totalEvents} events processed. All done.`);
     process.exit(0);
   });
@@ -81,26 +80,28 @@ async function processEvent(event, template) {
 
   console.log(`Processing ${orders.length} orders`);
 
-  return Promise.map(orders, async order => {
-    const user = await models.User.findOne({
-      where: { CollectiveId: get(order, 'fromCollective.id') },
-    });
-    const fromCollective = await models.Collective.findByPk(get(order, 'fromCollective.id'));
-    event.path = await event.getUrlPath();
-    const recipient = user.email;
-    const data = {
-      collective: {
-        ...event.info,
-        path: event.path,
-        location: event.location,
-      },
-      recipient: { name: fromCollective.name },
-      order: order.info,
-    };
-    return emailLib.send(template, recipient, data).catch(e => {
-      console.warn('Unable to send email to ', event.slug, recipient, 'error:', e);
-    });
-  });
+  return Promise.all(
+    orders.map(async order => {
+      const user = await models.User.findOne({
+        where: { CollectiveId: get(order, 'fromCollective.id') },
+      });
+      const fromCollective = await models.Collective.findByPk(get(order, 'fromCollective.id'));
+      event.path = await event.getUrlPath();
+      const recipient = user.email;
+      const data = {
+        collective: {
+          ...event.info,
+          path: event.path,
+          location: event.location,
+        },
+        recipient: { name: fromCollective.name },
+        order: order.info,
+      };
+      return emailLib.send(template, recipient, data).catch(e => {
+        console.warn('Unable to send email to ', event.slug, recipient, 'error:', e);
+      });
+    }),
+  );
 }
 
 run();

@@ -4,7 +4,6 @@ import OAuth2Server, { UnauthorizedRequestError } from '@node-oauth/oauth2-serve
 import InvalidArgumentError from '@node-oauth/oauth2-server/lib/errors/invalid-argument-error';
 import AuthorizeHandler from '@node-oauth/oauth2-server/lib/handlers/authorize-handler';
 import TokenHandler from '@node-oauth/oauth2-server/lib/handlers/token-handler';
-import Promise from 'bluebird';
 import { assign } from 'lodash';
 
 import * as auth from '../../lib/auth';
@@ -118,21 +117,19 @@ function OAuthServer(options) {
  */
 
 OAuthServer.prototype.authenticate = function (options) {
-  // eslint-disable-next-line @typescript-eslint/no-this-alias
-  const that = this; //
-
-  return function (req, res, next) {
+  return (req, res, next) => {
     const request = new Request(req);
     const response = new Response(res);
-    return Promise.bind(that)
-      .then(function () {
+    return Promise.resolve()
+      .then(() => {
         return this.server.authenticate(request, response, options);
       })
-      .tap(token => {
+      .then(token => {
         res.locals.oauth = { token: token };
         next();
+        return token;
       })
-      .catch(function (e) {
+      .catch(e => {
         return handleError.call(this, e, req, res, null, next);
       });
   };
@@ -147,27 +144,25 @@ OAuthServer.prototype.authenticate = function (options) {
  */
 
 OAuthServer.prototype.authorize = function (options) {
-  // eslint-disable-next-line @typescript-eslint/no-this-alias
-  const that = this;
-
-  return function (req, res, next) {
+  return (req, res, next) => {
     const request = new Request(req);
     const response = new Response(res);
 
-    return Promise.bind(that)
-      .then(function () {
+    return Promise.resolve()
+      .then(() => {
         return this.server.authorize(request, response, options);
       })
-      .tap(function (code) {
+      .then(code => {
         res.locals.oauth = { code: code };
         if (this.continueMiddleware) {
           next();
         }
+        return code;
       })
-      .then(function () {
+      .then(() => {
         return handleResponse.call(this, req, res, response);
       })
-      .catch(function (e) {
+      .catch(e => {
         return handleError.call(this, e, req, res, response, next);
       });
   };
@@ -182,27 +177,25 @@ OAuthServer.prototype.authorize = function (options) {
  */
 
 OAuthServer.prototype.token = function (options) {
-  // eslint-disable-next-line @typescript-eslint/no-this-alias
-  const that = this;
-
-  return function (req, res, next) {
+  return (req, res, next) => {
     const request = new Request(req);
     const response = new Response(res);
 
-    return Promise.bind(that)
-      .then(function () {
+    return Promise.resolve()
+      .then(() => {
         return this.server.token(request, response, options);
       })
-      .tap(function (token) {
+      .then(token => {
         res.locals.oauth = { token: token };
         if (this.continueMiddleware) {
           next();
         }
+        return token;
       })
-      .then(function () {
+      .then(() => {
         return handleResponse.call(this, req, res, response);
       })
-      .catch(function (e) {
+      .catch(e => {
         return handleError.call(this, e, req, res, response, next);
       });
   };

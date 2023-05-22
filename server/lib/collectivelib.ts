@@ -1,7 +1,7 @@
 import * as LibTaxes from '@opencollective/taxes';
-import { map } from 'bluebird';
 import config from 'config';
 import { get, pick } from 'lodash';
+import map from 'p-map';
 import isURL from 'validator/lib/isURL';
 
 import activities from '../constants/activities';
@@ -381,7 +381,7 @@ export async function deleteCollective(collective) {
     user = await models.User.findOne({ where: { CollectiveId: collective.id } });
   }
 
-  const members = Member.findAll({
+  const members = await Member.findAll({
     where: {
       [Op.or]: [{ CollectiveId: collective.id }, { MemberCollectiveId: collective.id }],
     },
