@@ -6,7 +6,12 @@ import logger from '../../server/lib/logger';
 import { reportErrorToSentry } from '../../server/lib/sentry';
 import { sequelize } from '../../server/models';
 
-const VIEWS = ['CollectiveTransactionStats', 'TransactionBalances', 'CollectiveBalanceCheckpoint'];
+const VIEWS = [
+  'CollectiveTransactionStats',
+  'TransactionBalances',
+  'CollectiveBalanceCheckpoint',
+  'CollectiveOrderStats',
+];
 
 /**
  * Refresh the materialized views.
