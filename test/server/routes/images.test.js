@@ -49,18 +49,18 @@ describe('server/routes/images', () => {
   });
 
   it('should upload a .webp image to S3', async () => {
-    const originalImage = fs.readFileSync(path.join(__dirname, '../../mocks/images/city.webp'), {
+    const originalImage = fs.readFileSync(path.join(__dirname, '../../mocks/images/plain.webp'), {
       encoding: 'utf8',
     });
 
     const res = await request(expressApp)
       .post(`/images/?api_key=${application.api_key}`)
-      .attach('file', 'test/mocks/images/city.webp')
+      .attach('file', 'test/mocks/images/plain.webp')
       .field('kind', 'ACCOUNT_LONG_DESCRIPTION')
       .set('Authorization', `Bearer ${user.jwt()}`);
 
     expect(res.status).to.eq(200);
-    expect(res.body.url).to.contain('.png');
+    expect(res.body.url).to.contain('.webp');
     expect(res.body.url).to.match(/\/account-long-description\/[\w-]{36}\/city.webp/);
     const fetchedFile = await fetch(res.body.url).then(res => res.text());
     expect(fetchedFile).to.equal(originalImage);
