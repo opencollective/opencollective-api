@@ -143,7 +143,7 @@ export const AccountWithHostFields = {
       const agreements =
         args.limit <= 0
           ? []
-          : await Agreement.findAndCountAll({
+          : await Agreement.findAll({
               where: {
                 HostCollectiveId: account.HostCollectiveId,
                 CollectiveId: account.id,

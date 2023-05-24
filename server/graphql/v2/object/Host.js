@@ -781,7 +781,7 @@ export const Host = new GraphQLObjectType({
             };
           }
 
-          const agreements = await Agreement.findAndCountAll({
+          const agreements = await Agreement.findAll({
             where: {
               HostCollectiveId: host.id,
               ...whereArgs,

@@ -5,6 +5,7 @@ import { GraphQLDateTime } from 'graphql-scalars';
 import AgreementModel from '../../../models/Agreement';
 import { getIdEncodeResolver, IDENTIFIER_TYPES } from '../identifiers';
 import { Account } from '../interface/Account';
+import { FileInfo } from '../interface/FileInfo';
 
 import { Host } from './Host';
 
@@ -37,6 +38,14 @@ export const Agreement = new GraphQLObjectType<AgreementModel, express.Request>(
     },
     expiresAt: {
       type: GraphQLDateTime,
+    },
+    attachment: {
+      type: FileInfo,
+      async resolve(agreement, _, req) {
+        if (agreement.UploadedFileId) {
+          return req.loaders.UploadedFile.byId.load(agreement.UploadedFileId);
+        }
+      },
     },
   }),
 });
