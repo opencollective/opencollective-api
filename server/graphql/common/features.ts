@@ -246,7 +246,7 @@ export const getFeatureStatusResolver =
         const balance = await collective.getBalance();
         return balance > 0 && // Collective has balance
           collective.isActive && // Collective is effectively being hosted
-          host.settings?.virtualcards?.requestcard
+          host?.settings?.virtualcards?.requestcard
           ? FEATURE_STATUS.ACTIVE // TODO: This flag is misused, there's a confusion between ACTIVE and AVAILABLE
           : FEATURE_STATUS.DISABLED;
       }
