@@ -1291,11 +1291,6 @@ type Expense {
   Custom data for this expense
   """
   customData: JSON
-
-  """
-  Agreements between the expense Host and Hosted Account
-  """
-  hostAgreements: [Agreement]!
 }
 
 """
@@ -4839,6 +4834,7 @@ type Agreement {
   account: Account!
   host: Host!
   expiresAt: DateTime
+  attachment: FileInfo
 }
 
 """
@@ -14427,7 +14423,7 @@ type Mutation {
     agreement: AgreementReferenceInput!
 
     """
-    Host where the agreement will be created.
+    Updated agreement title
     """
     title: NonEmptyString
 
