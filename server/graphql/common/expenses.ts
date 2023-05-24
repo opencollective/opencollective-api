@@ -851,7 +851,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     requireTwoFactorAuthEnabled: true, // requires user to have 2FA configured
     alwaysAskForToken: use2FAToken,
     sessionDuration: ROLLING_LIMIT_CACHE_VALIDITY, // duration of a auth session after a token is presented
-    sessionKey: `2fa_expense_payout_${twoFactorSession}`, // key of the 2fa session where the 2fa will be valid for the duration
+    sessionKey: `2fa_expense_payout_${host.id}_${twoFactorSession}`, // key of the 2fa session where the 2fa will be valid for the duration
     FromCollectiveId: host.id,
   });
 
