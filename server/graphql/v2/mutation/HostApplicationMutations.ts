@@ -243,7 +243,11 @@ const HostApplicationMutations = {
       }
 
       if (await hasPolicy(host, POLICIES.REQUIRE_2FA_FOR_ADMINS)) {
-        await twoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+        await twoFactorAuthLib.validateRequest(req, {
+          alwaysAskForToken: true,
+          requireTwoFactorAuthEnabled: true,
+          FromCollectiveId: host.id,
+        });
       }
 
       await account.changeHost(null);

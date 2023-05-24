@@ -103,6 +103,7 @@ enum ActivityTypes {
   OAUTH_APPLICATION_AUTHORIZED = 'oauth.application.authorized',
   TWO_FACTOR_CODE_ADDED = 'user.new.two.factor.code',
   TWO_FACTOR_CODE_DELETED = 'user.remove.two.factor.code',
+  TWO_FACTOR_CODE_REQUESTED = 'user.requested.two.factor.code',
   // User edits
   USER_CHANGE_EMAIL = 'user.changeEmail',
   USER_PAYMENT_METHOD_CREATED = 'user.paymentMethod.created',

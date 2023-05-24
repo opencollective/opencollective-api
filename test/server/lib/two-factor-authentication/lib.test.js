@@ -3,11 +3,14 @@ import { fail } from 'assert';
 import { expect } from 'chai';
 import { createSandbox, stub } from 'sinon';
 
+import { activities } from '../../../../server/constants';
 import cache from '../../../../server/lib/cache';
 import twoFactorAuthLib from '../../../../server/lib/two-factor-authentication';
 import { TwoFactorAuthenticationHeader } from '../../../../server/lib/two-factor-authentication/lib';
 import totpProvider from '../../../../server/lib/two-factor-authentication/totp';
+import models from '../../../../server/models';
 import { fakeUser } from '../../../test-helpers/fake-data';
+import { waitForCondition } from '../../../utils';
 
 describe('lib/two-factor-authentication', () => {
   describe('validateToken', () => {
@@ -142,6 +145,11 @@ describe('lib/two-factor-authentication', () => {
       const req = {
         remoteUser: await fakeUser({ twoFactorAuthToken: '12345' }),
         get: stub().withArgs(TwoFactorAuthenticationHeader).returns('totp 1234'),
+        isGraphQL: true,
+        body: {
+          operationName: 'Test',
+          query: 'query Test { hello }',
+        },
       };
 
       const totpValidateStub = sandbox.stub(totpProvider, 'validateToken');
@@ -156,6 +164,23 @@ describe('lib/two-factor-authentication', () => {
         fail('expected validateRequest to throw exception');
       } catch (e) {
         expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
+
+        // The activity is created asynchronously, so we need to wait for it to be created
+        let activity;
+        await waitForCondition(async () => {
+          activity = await models.Activity.findOne({
+            where: { type: activities.TWO_FACTOR_CODE_REQUESTED, UserId: req.remoteUser.id },
+          });
+          return Boolean(activity);
+        });
+
+        expect(activity).to.exist;
+        expect(activity.CollectiveId).to.equal(req.remoteUser.CollectiveId);
+        expect(activity.FromCollectiveId).to.equal(req.remoteUser.CollectiveId);
+        expect(activity.data).to.deep.include({
+          context: 'GraphQL: Test',
+          alwaysAskForToken: true,
+        });
       }
     });
 
@@ -195,6 +220,23 @@ describe('lib/two-factor-authentication', () => {
         fail('expected validateRequest to throw exception');
       } catch (e) {
         expect(e.extensions).to.eql({ code: '2FA_REQUIRED', supportedMethods: ['totp'] });
+
+        // The activity is created asynchronously, so we need to wait for it to be created
+        let activity;
+        await waitForCondition(async () => {
+          activity = await models.Activity.findOne({
+            where: { type: activities.TWO_FACTOR_CODE_REQUESTED, UserId: req.remoteUser.id },
+          });
+          return Boolean(activity);
+        });
+
+        expect(activity).to.exist;
+        expect(activity.CollectiveId).to.equal(req.remoteUser.CollectiveId);
+        expect(activity.FromCollectiveId).to.equal(req.remoteUser.CollectiveId);
+        expect(activity.data).to.deep.include({
+          context: 'default',
+          alwaysAskForToken: true,
+        });
       }
 
       try {

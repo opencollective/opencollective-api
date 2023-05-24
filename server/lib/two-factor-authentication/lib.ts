@@ -1,10 +1,11 @@
 import { ApolloError } from 'apollo-server-errors';
 import { Request } from 'express';
-import { isNil } from 'lodash';
+import { isNil, pick } from 'lodash';
 
+import { activities } from '../../constants';
 import POLICIES from '../../constants/policies';
 import { Unauthorized } from '../../graphql/errors';
-import { Collective } from '../../models';
+import { Activity, Collective } from '../../models';
 import User from '../../models/User';
 import UserTwoFactorMethod from '../../models/UserTwoFactorMethod';
 import cache from '../cache';
@@ -30,6 +31,8 @@ type ValidateRequestOptions = {
   sessionDuration?: number;
   // identifier for the session, defaults to use the JWT token's session key
   sessionKey?: (() => string) | string;
+  // to document which account requested the 2FA token. Defaults to the user's account
+  FromCollectiveId?: number;
 };
 
 export const TwoFactorAuthenticationHeader = 'x-two-factor-authentication';
@@ -124,6 +127,15 @@ async function storeTwoFactorSession(
   return cache.set(sessionKey, {}, options.sessionDuration);
 }
 
+function inferContextFromRequest(req: Request) {
+  if (req.isGraphQL && req.body) {
+    const operation = req.body.operationName || 'Request';
+    return `GraphQL: ${operation}`;
+  }
+
+  return 'default';
+}
+
 /**
  * Validates 2FA for user making the request (`req`). Throws if 2FA is required but not provided.
  * @returns true if 2FA was validated, false if not required
@@ -156,7 +168,24 @@ async function validateRequest(
   }
 
   const token = getTwoFactorAuthTokenFromRequest(req);
+
+  // If there's no OAuth token, throw an error that will ask the user to provide one and document
+  // the request through an entry in the `Activities` table.
   if (!token) {
+    Activity.create({
+      type: activities.TWO_FACTOR_CODE_REQUESTED,
+      UserId: remoteUser.id,
+      CollectiveId: remoteUser.CollectiveId,
+      FromCollectiveId: options.FromCollectiveId || remoteUser.CollectiveId,
+      UserTokenId: req.userToken?.id,
+      data: {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        context: inferContextFromRequest(req),
+        ...pick(options, ['alwaysAskForToken', 'sessionDuration']),
+      },
+    });
+
     throw new ApolloError('Two-factor authentication required', '2FA_REQUIRED', {
       supportedMethods: await twoFactorMethodsSupportedByUser(req.remoteUser),
     });
@@ -203,7 +232,7 @@ async function enforceForAccount(
 
   // See if we need to enforce 2FA for admins of this account
   if ((await userHasTwoFactorAuthEnabled(req.remoteUser)) || (await shouldEnforceForAccount(req, account))) {
-    return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true });
+    return validateRequest(req, { ...options, requireTwoFactorAuthEnabled: true, FromCollectiveId: account.id });
   }
 }
 
