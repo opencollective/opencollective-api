@@ -86,7 +86,7 @@
     "graphql": "16.6.0",
     "graphql-scalars": "1.22.0",
     "handlebars": "4.7.7",
-    "hashids": "2.2.11",
+    "hashids": "2.3.0",
     "hcaptcha": "0.1.1",
     "helloworks-sdk": "1.3.0",
     "helmet": "7.0.0",
