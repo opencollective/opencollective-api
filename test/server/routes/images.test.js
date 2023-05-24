@@ -61,7 +61,7 @@ describe('server/routes/images', () => {
 
     expect(res.status).to.eq(200);
     expect(res.body.url).to.contain('.webp');
-    expect(res.body.url).to.match(/\/account-long-description\/[\w-]{36}\/city.webp/);
+    expect(res.body.url).to.match(/\/account-long-description\/[\w-]{36}\/plain.webp/);
     const fetchedFile = await fetch(res.body.url).then(res => res.text());
     expect(fetchedFile).to.equal(originalImage);
   });
@@ -131,9 +131,11 @@ describe('server/routes/images', () => {
     expect(res.status).to.eq(400);
     expect(res.body.error).to.deep.eq({
       code: 400,
-      message: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, application/pdf',
+      message: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, image/webp, application/pdf',
       type: 'INVALID_FILE_MIME_TYPE',
-      fields: { file: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, application/pdf' },
+      fields: {
+        file: 'Mimetype of the file should be one of: image/png, image/jpeg, image/gif, image/webp, application/pdf',
+      },
     });
   });
 
