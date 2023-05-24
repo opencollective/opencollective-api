@@ -87,7 +87,7 @@ export default new Promise(resolve => {
           },
           title: {
             type: GraphQLNonEmptyString,
-            description: 'Host where the agreement will be created.',
+            description: 'Updated agreement title',
           },
           expiresAt: {
             type: GraphQLDateTime,
