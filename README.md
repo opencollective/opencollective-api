@@ -3,9 +3,19 @@
 ![CI](https://github.com/opencollective/opencollective-api/workflows/CI/badge.svg)
 ![E2E](https://github.com/opencollective/opencollective-api/workflows/E2E/badge.svg)
 
-## Foreword
+The Open Collective API is an interface that allows developers to interact programmatically with the Open Collective platform, providing a set of endpoints that developers can use to create, update, and retrieve information from Open Collective. It allows integration with external applications, such as custom dashboards, accounting systems, or automation tools, to interact with collective data.
 
-If you see a step below that could be improved (or is outdated), please update the instructions. We rarely go through this process ourselves, so your fresh pair of eyes and your recent experience with it, makes you the best candidate to improve them for other users. Thank you!
+With the Open Collective API, you can perform various actions, including:
+
+1. Collectives: Retrieve information about collectives, create new ones, update existing collectives, and manage membership.
+1. Financial Transactions: Retrieve financial transactions for a collective, create new transactions, and manage expenses.
+1. Updates: Retrieve and create updates for collectives.
+1. Donations: Retrieve information about donations made to a collective.
+1. Webhooks: Set up event-based notifications to receive updates about specific actions or changes on collectives.
+
+The API uses RESTful principles, and you can interact with it by making HTTP requests, typically using JSON as the data format. Detailed documentation about the Open Collective API, including endpoints, authentication, and usage examples, can be found on the [Open Collective](https://opencollective.com/) website.
+
+Please amend the instructions below if you notice that steps could be improved or updated. We rarely go through this process ourselves, so fresh pairs of eyes and new experiences may assist in better informing others. Thank you!
 
 ## Development
 
