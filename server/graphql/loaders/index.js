@@ -17,6 +17,7 @@ import {
 import { getFxRate } from '../../lib/currency';
 import models, { Op, sequelize } from '../../models';
 
+import { generateTotalAccountHostAgreementsLoader } from './agreements';
 import collectiveLoaders from './collective';
 import commentsLoader from './comments';
 import contributorsLoaders from './contributors';
@@ -78,6 +79,9 @@ export const loaders = req => {
   context.loaders.Expense.expenseToHostTransactionFxRateLoader =
     expenseLoaders.generateExpenseToHostTransactionFxRateLoader(req, cache);
   context.loaders.Expense.securityChecks = expenseLoaders.generateExpensesSecurityCheckLoader(req, cache);
+
+  // Agreements
+  context.loaders.Agreement.totalAccountHostAgreements = generateTotalAccountHostAgreementsLoader();
 
   // Payout method
   context.loaders.PayoutMethod.paypalByCollectiveId = generateCollectivePaypalPayoutMethodsLoader(req, cache);

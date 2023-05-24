@@ -4,11 +4,16 @@ import { isNumber } from 'lodash';
 
 import { HOST_FEE_STRUCTURE } from '../../../constants/host-fee-structure';
 import { Collective } from '../../../models';
+import Agreement from '../../../models/Agreement';
 import { hostResolver } from '../../common/collective';
+import { Unauthorized } from '../../errors';
+import { AgreementCollection } from '../collection/AgreementCollection';
 import { HostFeeStructure } from '../enum/HostFeeStructure';
 import { PaymentMethodService } from '../enum/PaymentMethodService';
 import { PaymentMethodType } from '../enum/PaymentMethodType';
 import { Host } from '../object/Host';
+
+import { CollectionArgs } from './Collection';
 
 export const AccountWithHostFields = {
   host: {
@@ -117,6 +122,43 @@ export const AccountWithHostFields = {
     type: new GraphQLNonNull(GraphQLBoolean),
     resolve(account: Collective): boolean {
       return Boolean(account.isActive);
+    },
+  },
+  hostAgreements: {
+    type: new GraphQLNonNull(AgreementCollection),
+    description: 'Returns agreements this account has with its host',
+    args: {
+      ...CollectionArgs,
+    },
+    async resolve(account, args, req) {
+      if (!account.HostCollectiveId) {
+        return { totalCount: 0, limit: args.limit, offset: args.offset, nodes: [] };
+      }
+
+      if (!req.remoteUser?.isAdmin(account.HostCollectiveId)) {
+        throw new Unauthorized("You need to be logged in as an admin of the account's host to see its agreements");
+      }
+
+      const totalCount = await req.loaders.Agreement.totalAccountHostAgreements.load(account.id);
+      const agreements =
+        args.limit <= 0
+          ? []
+          : await Agreement.findAll({
+              where: {
+                HostCollectiveId: account.HostCollectiveId,
+                CollectiveId: account.id,
+              },
+              limit: args.limit,
+              offset: args.offset,
+              order: [['createdAt', 'desc']],
+            });
+
+      return {
+        totalCount,
+        limit: args.limit,
+        offset: args.offset,
+        nodes: agreements,
+      };
     },
   },
 };

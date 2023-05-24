@@ -1,6 +1,7 @@
 import sequelize, { Op } from '../lib/sequelize';
 
 import { Activity } from './Activity';
+import Agreement from './Agreement';
 import Application from './Application';
 import Collective from './Collective';
 import Comment from './Comment';
@@ -46,6 +47,7 @@ import VirtualCard from './VirtualCard';
  */
 const models = {
   Activity,
+  Agreement,
   Application: Application,
   Collective: Collective,
   Comment: Comment,
@@ -406,6 +408,10 @@ models.Collective.hasMany(models.SocialLink, { foreignKey: 'CollectiveId', as: '
 
 UserTwoFactorMethod.belongsTo(User);
 User.hasMany(UserTwoFactorMethod);
+
+Agreement.belongsTo(Collective, { foreignKey: 'HostCollectiveId', as: 'Host' });
+Agreement.belongsTo(Collective, { foreignKey: 'CollectiveId', as: 'Collective' });
+Agreement.belongsTo(User, { foreignKey: 'UserId', as: 'User' });
 
 export default models;
 

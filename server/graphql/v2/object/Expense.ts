@@ -1,3 +1,4 @@
+import express from 'express';
 import {
   GraphQLBoolean,
   GraphQLFloat,
@@ -14,6 +15,7 @@ import ActivityTypes from '../../../constants/activities';
 import expenseStatus from '../../../constants/expense_status';
 import models from '../../../models';
 import { CommentType } from '../../../models/Comment';
+import ExpenseModel from '../../../models/Expense';
 import { LEGAL_DOCUMENT_TYPE } from '../../../models/LegalDocument';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import * as ExpenseLib from '../../common/expenses';
@@ -68,7 +70,7 @@ const loadHostForExpense = async (expense, req) => {
     : req.loaders.Collective.hostByCollectiveId.load(expense.CollectiveId);
 };
 
-const Expense = new GraphQLObjectType({
+const Expense = new GraphQLObjectType<ExpenseModel, express.Request>({
   name: 'Expense',
   description: 'This represents an Expense',
   fields: () => {
@@ -141,7 +143,7 @@ const Expense = new GraphQLObjectType({
           if (!expense.data?.taxes) {
             return [];
           } else {
-            return expense.data.taxes.map(({ type, rate, idNumber }) => ({
+            return (expense.data.taxes as any[]).map(({ type, rate, idNumber }) => ({
               id: type,
               percentage: round(rate * 100, 2),
               type,
@@ -401,7 +403,7 @@ const Expense = new GraphQLObjectType({
 
             const draftData = pick(expense.data, draftFields);
             if (expense.data?.items) {
-              draftData.items = expense.data.items.map(item => pick(item, itemsFields));
+              draftData.items = (expense.data.items as any[]).map(item => pick(item, itemsFields));
             }
 
             return draftData;

@@ -22,16 +22,19 @@ import { FEATURE, hasFeature } from '../../../lib/allowed-features';
 import { buildSearchConditions } from '../../../lib/search';
 import sequelize from '../../../lib/sequelize';
 import models, { Op } from '../../../models';
+import Agreement from '../../../models/Agreement';
 import { PayoutMethodTypes } from '../../../models/PayoutMethod';
 import TransferwiseLib from '../../../paymentProviders/transferwise';
 import { allowContextPermission, PERMISSION_TYPE } from '../../common/context-permissions';
 import { Unauthorized } from '../../errors';
 import { AccountCollection } from '../collection/AccountCollection';
+import { AgreementCollection } from '../collection/AgreementCollection';
 import { HostApplicationCollection } from '../collection/HostApplicationCollection';
 import { VirtualCardCollection } from '../collection/VirtualCardCollection';
 import { PaymentMethodLegacyType, PayoutMethodType } from '../enum';
 import { PaymentMethodLegacyTypeEnum } from '../enum/PaymentMethodLegacyType';
 import { TimeUnit } from '../enum/TimeUnit';
+import { idDecode, IDENTIFIER_TYPES } from '../identifiers';
 import {
   AccountReferenceInput,
   fetchAccountsIdsWithReference,
@@ -751,6 +754,44 @@ export const Host = new GraphQLObjectType({
               ],
             }),
           );
+        },
+      },
+      hostedAccountAgreements: {
+        type: new GraphQLNonNull(AgreementCollection),
+        description: 'Returns agreements with Hosted Accounts',
+        args: {
+          ...CollectionArgs,
+          accounts: {
+            type: new GraphQLList(AccountReferenceInput),
+            description: 'Filter by accounts participating in the agreement',
+          },
+        },
+        async resolve(host, args, req) {
+          if (!req.remoteUser?.isAdmin(host.id)) {
+            throw new Unauthorized('You need to be logged in as an admin of the host to see its agreements');
+          }
+
+          const whereArgs = {};
+
+          if (args.accounts && args.accounts.length > 0) {
+            whereArgs.CollectiveId = {
+              [Op.or]: args.accounts.map(accountReference => {
+                return accountReference.legacyId || idDecode(accountReference.id, IDENTIFIER_TYPES.ACCOUNT);
+              }),
+            };
+          }
+
+          const agreements = await Agreement.findAll({
+            where: {
+              HostCollectiveId: host.id,
+              ...whereArgs,
+            },
+            limit: args.limit,
+            offset: args.offset,
+            order: [['createdAt', 'desc']],
+          });
+
+          return { totalCount: agreements.count, limit: args.limit, offset: args.offset, nodes: agreements };
         },
       },
     };
