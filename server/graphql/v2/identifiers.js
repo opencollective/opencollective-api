@@ -18,6 +18,7 @@ const instances = {};
 export const IDENTIFIER_TYPES = {
   ACCOUNT: 'account',
   ACTIVITY: 'activity',
+  AGREEMENT: 'agreement',
   COMMENT: 'comment',
   COMMENT_REACTION: 'comment-reaction',
   CONVERSATION: 'conversation',

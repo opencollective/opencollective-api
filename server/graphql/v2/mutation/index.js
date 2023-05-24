@@ -1,6 +1,7 @@
 import accountMutations from './AccountMutations';
 import activitySubscriptionsMutations from './ActivitySubscriptionsMutations';
 import { addFundsMutation } from './AddFundsMutations';
+import agreementMutations from './AgreementMutations';
 import applicationMutations from './ApplicationMutations';
 import commentMutations from './CommentMutations';
 import connectedAccountMutations from './ConnectedAccountMutations';
@@ -66,4 +67,12 @@ const mutation = {
   ...tagMutations,
 };
 
-export default mutation;
+// TODO(ESM): Move this to standard ESM imports once available and remove the promise
+export default new Promise(resolve => {
+  agreementMutations.then(agreementMutations => {
+    resolve({
+      ...mutation,
+      ...agreementMutations,
+    });
+  });
+});

@@ -2,6 +2,7 @@ import path from 'path';
 
 import { encode } from 'blurhash';
 import config from 'config';
+import type { FileUpload as GraphQLFileUpload } from 'graphql-upload/Upload.mjs';
 import { kebabCase } from 'lodash';
 import {
   BelongsToGetAssociationMixin,
@@ -17,7 +18,7 @@ import s3, { uploadToS3 } from '../lib/awsS3';
 import logger from '../lib/logger';
 import { reportErrorToSentry } from '../lib/sentry';
 import sequelize, { DataTypes, Model } from '../lib/sequelize';
-import { MulterFile } from '../types/Multer';
+import streamToBuffer from '../lib/stream-to-buffer';
 
 import User from './User';
 
@@ -34,6 +35,13 @@ type ImageDataShape = CommonDataShape & {
   width: number;
   height: number;
   blurHash: string;
+};
+
+type FileUpload = {
+  buffer: Buffer;
+  size: number;
+  mimetype: string;
+  originalname: string;
 };
 
 // Constants
@@ -64,6 +72,7 @@ export const SUPPORTED_FILE_KINDS = [
   'COMMENT',
   'TIER_LONG_DESCRIPTION',
   'ACCOUNT_CUSTOM_EMAIL',
+  'AGREEMENT_ATTACHMENT',
 ] as const;
 
 export type FileKind = (typeof SUPPORTED_FILE_KINDS)[number];
@@ -102,8 +111,29 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     return (SUPPORTED_FILE_TYPES as readonly string[]).includes(mimeType);
   }
 
+  public static async uploadGraphQl(
+    file: GraphQLFileUpload,
+    kind: FileKind,
+    user: User | null,
+    args: { fileName?: string } = {},
+  ): Promise<UploadedFile> {
+    const buffer = await streamToBuffer(file.createReadStream());
+
+    return UploadedFile.upload(
+      {
+        buffer,
+        size: buffer.length,
+        mimetype: file.mimetype,
+        originalname: file.filename,
+      },
+      kind,
+      user,
+      args,
+    );
+  }
+
   public static async upload(
-    file: MulterFile,
+    file: FileUpload,
     kind: FileKind,
     user: User | null,
     args: { fileName?: string } = {},
@@ -187,7 +217,7 @@ class UploadedFile extends Model<InferAttributes<UploadedFile>, InferCreationAtt
     }
   }
 
-  private static getFilename(file: MulterFile, fileNameFromArgs: string | null) {
+  private static getFilename(file: FileUpload, fileNameFromArgs: string | null) {
     const expectedExtension = SUPPORTED_FILE_EXTENSIONS[file.mimetype];
     const rawFileName = fileNameFromArgs || file.originalname || uuid();
     const parsedFileName = path.parse(rawFileName);
