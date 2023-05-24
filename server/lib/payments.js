@@ -719,6 +719,7 @@ const sendOrderConfirmedEmail = async (order, transaction) => {
     const activity = { type: activities.ORDER_THANKYOU, data };
     return notify.collective(activity, {
       collectiveId: data.fromCollective.id,
+      role: [roles.ACCOUNTANT, roles.ADMIN],
       from: emailLib.generateFromEmailHeader(collective.name),
       attachments,
     });
