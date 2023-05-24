@@ -8,6 +8,7 @@ declare global {
   namespace Express {
     interface Request {
       remoteUser?: User | null;
+      isGraphQL?: boolean;
       jwtPayload?: {
         sessionId?: string;
         scope?: string;

@@ -36,8 +36,6 @@ jsonData.application = {
   api_key: config.keys.opencollective.apiKey, // eslint-disable-line camelcase
 };
 
-const debugWaitForCondition = debug('waitForCondition');
-
 export const data = path => {
   const copy = cloneDeep(get(jsonData, path)); // to avoid changing these data
   return isArray(get(jsonData, path)) ? values(copy) : copy;
@@ -108,33 +106,28 @@ export const sleep = async (timeout = 200) =>
 /**
  * Wait for condition to be met
  * E.g. await waitForCondition(() => emailSendMessageSpy.callCount === 1)
- * @param {*} cond
+ * @param {() => boolean | Promise<boolean>} cond
  * @param {*} options: { timeout, delay }
  * @returns {Promise}
  */
-export const waitForCondition = (cond, options = { timeout: 10000, delay: 0, onFailure: null }) =>
-  new Promise(resolve => {
-    let hasConditionBeenMet = false;
-    setTimeout(() => {
-      if (hasConditionBeenMet) {
-        return;
-      }
-      options.onFailure?.();
-      assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
-      throw new Error('Timeout waiting for condition', cond);
-    }, options.timeout || 10000);
-    const isConditionMet = () => {
-      hasConditionBeenMet = Boolean(cond());
-      debugWaitForCondition(options.tag, `Has condition been met?`, hasConditionBeenMet);
-      if (hasConditionBeenMet) {
-        return setTimeout(resolve, options.delay || 0);
-      } else {
-        return setTimeout(isConditionMet, options.step || 100);
-      }
-    };
-    isConditionMet();
-  });
+export const waitForCondition = async (cond, options = {}) => {
+  const timeout = options?.timeout || 10000;
+  let time = 0;
+  while (time < timeout) {
+    const condReturn = cond();
+    const result = typeof condReturn?.then === 'function' ? await condReturn : condReturn;
+    if (result) {
+      return;
+    } else {
+      await sleep(100);
+      time += 100;
+    }
+  }
 
+  options.onFailure?.();
+  assert.fail(`Timeout waiting for condition: ${cond.toString()}`);
+  throw new Error('Timeout waiting for condition', cond);
+};
 /**
  * This function allows to test queries and mutations against a specific schema.
  * @param {string} query - Queries and Mutations to serve against the type schema. Example: `query Expense($id: Int!) { Expense(id: $id) { description } }`

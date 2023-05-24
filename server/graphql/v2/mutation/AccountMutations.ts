@@ -94,7 +94,11 @@ const accountMutations = {
 
         // Enforce 2FA if trying to change 2FA rolling limit settings while it's already enabled
         if (args.key.split('.')[0] === 'payoutsTwoFactorAuth' && account.settings?.payoutsTwoFactorAuth?.enabled) {
-          await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+          await TwoFactorAuthLib.validateRequest(req, {
+            alwaysAskForToken: true,
+            requireTwoFactorAuthEnabled: true,
+            FromCollectiveId: account.id,
+          });
         }
 
         if (
@@ -508,7 +512,11 @@ const accountMutations = {
 
       // Enforce 2FA when trying to disable `REQUIRE_2FA_FOR_ADMINS`
       if (previousPolicies?.REQUIRE_2FA_FOR_ADMINS && !newPolicies.REQUIRE_2FA_FOR_ADMINS) {
-        await TwoFactorAuthLib.validateRequest(req, { alwaysAskForToken: true, requireTwoFactorAuthEnabled: true });
+        await TwoFactorAuthLib.validateRequest(req, {
+          alwaysAskForToken: true,
+          requireTwoFactorAuthEnabled: true,
+          FromCollectiveId: account.id,
+        });
       }
 
       await account.setPolicies(newPolicies);
