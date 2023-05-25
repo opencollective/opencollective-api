@@ -36,7 +36,7 @@ import { EXPENSE_PERMISSION_ERROR_CODES } from '../../constants/permissions';
 import POLICIES from '../../constants/policies';
 import { TransactionKind } from '../../constants/transaction-kind';
 import cache from '../../lib/cache';
-import { getFxRate } from '../../lib/currency';
+import { convertToCurrency, getFxRate } from '../../lib/currency';
 import { simulateDBEntriesDiff } from '../../lib/data';
 import errors from '../../lib/errors';
 import { formatAddress } from '../../lib/format-address';
@@ -836,12 +836,13 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
 
   const currentPaidExpenseAmountCache = await cache.get(expensePaidAmountKey);
   const currentPaidExpenseAmount = currentPaidExpenseAmountCache || 0;
+  const expenseAmountInHostCurrency = await convertToCurrency(expense.amount, expense.currency, host.currency);
 
   // requires a 2FA token to be present if there is no value in the cache (first payout by user)
   // or the this payout would put the user over the rolling limit.
   const use2FAToken =
     isNil(currentPaidExpenseAmountCache) ||
-    currentPaidExpenseAmount + expense.amount > hostPayoutTwoFactorAuthenticationRollingLimit;
+    currentPaidExpenseAmount + expenseAmountInHostCurrency > hostPayoutTwoFactorAuthenticationRollingLimit;
 
   if (!(await twoFactorAuthLib.userHasTwoFactorAuthEnabled(req.remoteUser))) {
     throw new Error('Host has two-factor authentication enabled for large payouts.');
@@ -857,6 +858,7 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
       rollingLimit: {
         expenseAmount: expense.amount,
         expenseCurrency: expense.currency,
+        expenseAmountInHostCurrency,
         currentPaidExpenseAmount,
         hostPayoutTwoFactorAuthenticationRollingLimit,
       },
@@ -867,7 +869,11 @@ async function validateExpensePayout2FALimit(req, host, expense, expensePaidAmou
     // if a 2fa token was used, reset rolling limit
     cache.set(expensePaidAmountKey, 0, ROLLING_LIMIT_CACHE_VALIDITY);
   } else {
-    cache.set(expensePaidAmountKey, currentPaidExpenseAmount + expense.amount, ROLLING_LIMIT_CACHE_VALIDITY);
+    cache.set(
+      expensePaidAmountKey,
+      currentPaidExpenseAmount + expenseAmountInHostCurrency,
+      ROLLING_LIMIT_CACHE_VALIDITY,
+    );
   }
 }
 
