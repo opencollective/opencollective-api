@@ -52,9 +52,6 @@
   "sentry": {
     "tracesSampleRate": 0.01
   },
-  "privacy": {
-    "apiUrl": "https://api.privacy.com"
-  },
   "thegivingblock": {
     "apiUrl": "https://public-api.tgbwidget.com/v1"
   },

@@ -3520,7 +3520,7 @@ enum ConnectedAccountService {
   github
   twitter
   transferwise
-  privacy
+  privacy @deprecated(reason: "Not using this service anymore")
   thegivingblock
   meetup @deprecated(reason: "Not using this service anymore")
 }
