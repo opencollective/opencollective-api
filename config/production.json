@@ -30,6 +30,9 @@
     "redirectUri": "https://api.opencollective.com/connected-accounts/stripe/callback"
   },
   "paypal": {
+    "payment": {
+      "environment": "production"
+    },
     "rest": {
       "mode": "live"
     }
@@ -54,5 +57,13 @@
   },
   "thegivingblock": {
     "apiUrl": "https://public-api.tgbwidget.com/v1"
+  },
+  "graphql": {
+    "cache": {
+      "enabled": true
+    }
+  },
+  "captcha": {
+    "enabled": true
   }
 }
