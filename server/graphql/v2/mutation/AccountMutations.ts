@@ -361,7 +361,7 @@ const accountMutations = {
       }
 
       await models.Activity.create({
-        type: activities.TWO_FACTOR_CODE_ADDED,
+        type: activities.TWO_FACTOR_METHOD_ADDED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
@@ -424,7 +424,7 @@ const accountMutations = {
       }
 
       await models.Activity.create({
-        type: activities.TWO_FACTOR_CODE_DELETED,
+        type: activities.TWO_FACTOR_METHOD_DELETED,
         UserId: user.id,
         FromCollectiveId: user.CollectiveId,
         CollectiveId: user.CollectiveId,
