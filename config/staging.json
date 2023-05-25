@@ -43,18 +43,10 @@
     "fetchCollectiveTransactionsCsv": true,
     "fetchHostTransactionsCsv": true
   },
-  "aws": {
-    "s3": {
-      "bucket": "opencollective-staging"
-    }
-  },
   "graphql": {
     "cache": {
       "enabled": true
     }
-  },
-  "dbEncryption": {
-    "cipher": "AES"
   },
   "limits": {
     "ordersPerHour": {
