@@ -12,21 +12,18 @@ const Query = new GraphQLObjectType({
   },
 });
 
-// TODO(ESM): Move this to standard ESM imports once available and remove the promise
-export default new Promise(resolve => {
-  mutation.then(mutations => {
-    resolve(
-      new GraphQLSchema({
-        types: types,
-        query: Query,
-        mutation: new GraphQLObjectType({
-          name: 'Mutation',
-          description: 'This is the root mutation',
-          fields: () => {
-            return mutations;
-          },
-        }),
-      }),
-    );
-  });
+const Mutation = new GraphQLObjectType({
+  name: 'Mutation',
+  description: 'This is the root mutation',
+  fields: () => {
+    return mutation;
+  },
 });
+
+const Schema = new GraphQLSchema({
+  types: types,
+  query: Query,
+  mutation: Mutation,
+});
+
+export default Schema;
