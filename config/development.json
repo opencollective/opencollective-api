@@ -31,5 +31,8 @@
   },
   "host": {
     "pdf": "http://localhost:3002"
+  },
+  "opentelemetry": {
+    "enabled": true
   }
 }
