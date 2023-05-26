@@ -10,7 +10,7 @@ const makeRedisProvider = async ({ serverUrl }) => {
   const client = createClient(serverUrl, redisOptions);
   await client.connect();
   return {
-    clear: async () => client.flushall(),
+    clear: async () => client.flushAll(),
     delete: async key => client.del(key),
     get: async (key, { unserialize = JSON.parse } = {}) => {
       const value = await client.get(key);
@@ -31,7 +31,7 @@ const makeRedisProvider = async ({ serverUrl }) => {
     set: async (key, value, expirationInSeconds, { serialize = JSON.stringify } = {}) => {
       if (value !== undefined) {
         if (expirationInSeconds) {
-          return client.setex(key, expirationInSeconds, serialize(value));
+          return client.set(key, serialize(value), { EX: expirationInSeconds });
         } else {
           return client.set(key, serialize(value));
         }

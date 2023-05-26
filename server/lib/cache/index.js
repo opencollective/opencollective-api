@@ -22,7 +22,7 @@ const debugCache = debug('cache');
 
 const oneDayInSeconds = 60 * 60 * 24;
 
-export const getProvider = providerType => {
+export const getProvider = async providerType => {
   switch (providerType) {
     case PROVIDER_TYPES.MEMCACHE:
       return makeMemcacheProvider(get(config, 'memcache'));

@@ -46,7 +46,7 @@ export default function expressLimiter(app, redisClient) {
       // do not allow negative remaining
       limit.remaining = Math.max(Number(limit.remaining) - 1, -1);
       try {
-        await redisClient.set(key, JSON.stringify(limit), 'PX', opts.expire);
+        await redisClient.set(key, JSON.stringify(limit), { PX: opts.expire });
       } catch (err) {
         // Nothing
       }
