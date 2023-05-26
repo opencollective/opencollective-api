@@ -13,7 +13,6 @@
   "plugins": [
     ["@babel/plugin-transform-typescript", { "allowDeclareFields": true }],
     "add-module-exports",
-    "lodash",
     "@babel/plugin-proposal-class-properties",
     [
       "@babel/plugin-transform-async-to-generator",
